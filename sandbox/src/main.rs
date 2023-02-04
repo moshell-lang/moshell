@@ -1,6 +1,5 @@
 fn main() {
-    let var = format!("Hello world ! {}", "test");
-
+    let contents
     println!("{}", var);
 }
 

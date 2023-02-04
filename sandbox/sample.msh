@@ -1,0 +1,18 @@
+echo "hello, world !"
+
+val x = hey
+
+val y = how are you
+
+fun test() = {
+}
+
+fun test(a: any, b: int) -> any = $a $b
+
+test "hello i'm a test" 75
+
+while [ "$1" ]
+    echo "hello $1" && shift
+
+if true && grep -E "^[0-9]+$" <<< 789
+    echo "789" is a number !
