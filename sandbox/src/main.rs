@@ -14,7 +14,7 @@ enum Token {
     #[token("fun")]
     Fun,
     #[token("\\S+")]
-    Any(str),
+    Any,
 
     #[error]
     #[regex(r"[ \t\n\f]+", logos::skip)]
@@ -27,9 +27,8 @@ fn main() {
 
     let mut lexer = Token::lexer(&contents);
 
-    let mut token = lexer.next();
-    while token != None {
-        token = lexer.next();
+    while let Some(token) = lexer.next() {
+        println!("{:?} {:?}", token, lexer.slice());
     }
 
 }
