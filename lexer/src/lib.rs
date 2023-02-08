@@ -17,7 +17,7 @@ pub struct Token {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenValue {
-    Integer(usize),
+    Integer(u32),
 }
 
 pub fn lex(input: &str) -> Result<Vec<Token>, LexError> {
@@ -45,7 +45,7 @@ impl<'a> Lexer<'a> {
         while let Some(ch) = self.next() {
             match ch {
                 '0'..='9' => {
-                    tokens.push(self.read_number());
+                    tokens.push(self.read_number()?);
                 }
                 _ => {
                     return Err(LexError {
@@ -58,16 +58,19 @@ impl<'a> Lexer<'a> {
         Ok(tokens)
     }
 
-    fn read_number(&mut self) -> Token {
+    fn read_number(&mut self) -> Result<Token, LexError> {
         let end = self.next_while(|ch| ch.is_ascii_digit());
-        Token {
+        Ok(Token {
             value: TokenValue::Integer(
                 self.input[self.current_token_start..end]
-                    .parse::<usize>()
-                    .expect("Failed to parse integer, invalid numbers should be detected before"),
+                    .parse::<u32>()
+                    .map_err(|_| LexError {
+                        message: "Integer constant is too large".to_string(),
+                        index: self.current_token_start,
+                    })?,
             ),
             pos: self.current_token_start,
-        }
+        })
     }
 
     fn next(&mut self) -> Option<char> {
@@ -120,6 +123,17 @@ mod tests {
             Err(LexError {
                 message: "Unexpected character: b".to_string(),
                 index: 1
+            })
+        );
+    }
+
+    #[test]
+    fn lex_int_overflow() {
+        assert_eq!(
+            lex("123456789012345678901234567890"),
+            Err(LexError {
+                message: "Integer constant is too large".to_string(),
+                index: 0
             })
         );
     }
