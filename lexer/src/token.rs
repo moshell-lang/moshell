@@ -1,15 +1,58 @@
 use logos::Logos;
 
-mod tests;
+pub trait Token<'a> {
+    fn get_type(self) -> TokenType<'a>;
 
-#[derive(Debug, PartialEq)]
-pub struct LexError {
-    pub message: String,
-    pub offset: usize,
+    fn value(self) -> Option<&'a str>;
+    fn line(self) -> usize;
+    fn column(self) -> usize;
+
+
+    fn new(&self, token_type: TokenType<'a>,
+           value: Option<&'a str>,
+           line: usize,
+           column: usize) -> Self;
+}
+
+pub struct TokenStruct<'a> {
+    token_type: TokenType<'a>,
+    value: Option<&'a str>,
+    line: usize,
+    column: usize,
+}
+
+impl<'a> Token<'a> for TokenStruct<'a> {
+    fn get_type(self) -> TokenType<'a> {
+        self.token_type
+    }
+
+    fn value(self) -> Option<&'a str> {
+        self.value
+    }
+
+    fn line(self) -> usize {
+        self.line
+    }
+
+    fn column(self) -> usize {
+        self.column
+    }
+
+    fn new(&self, token_type: TokenType<'a>,
+           value: Option<&'a str>,
+           line: usize,
+           column: usize) -> Self {
+        Self {
+            token_type,
+            value,
+            line,
+            column,
+        }
+    }
 }
 
 #[derive(Logos, Debug, PartialEq)]
-pub enum Token<'a> {
+pub enum TokenType<'a> {
     #[token("var")]
     Var,
     #[token("val")]
@@ -141,11 +184,7 @@ pub enum Token<'a> {
     #[token("}")]
     CurlyRightBracket,
 
-    #[regex(r"([ \t\f]+)|(//.*)|//\*(.|\n)*\*/", logos::skip)]
+    #[regex(r"([ \t\f]+)|(//.*)", logos::skip)]
     #[error]
     Error,
 }
-
-
-
-
