@@ -1,18 +1,48 @@
 echo "hello, world !"
 
-val x = hey
+var all   = false
+var quiet = false
+var head  = 0
 
-val y = how are you
-
-fun test() = {
+val a: int = 9
+val b: int = 0
+val res: Try[int] = div $a $b
+match $res {
+	Ok(result) => echo "The result is $result" // `result` refers to an int here
+  Err(ecode) => exit $ecode
 }
 
-fun test(a: any, b: int) -> any = $a $b
+while [ $1 ] match shift { //in moshell, the shift function returns the shifted argument (old $1)
+	-a | --all   => all = true
+	-q | --quiet => quiet = true
+  -h | --head  => head = parse[int] @(shift) || {echo "error: head must be an integer"; exit 1}
+}
 
-test "hello i'm a test" 75
+val flag = true
+while $flag
+    echo "i love moshell"
 
-while [ "$1" ]
-    echo "hello $1" && shift
+for arg in $@
+	echo $arg
 
-if true && grep -E "^[0-9]+$" <<< 789
-    echo "789" is a number !
+val array = {a b c d}
+
+for item in $array
+	echo $item
+
+for arg in $@
+	echo $arg
+
+val array = {a b c d}
+
+for item in $array
+	echo $item
+
+for arg
+	echo $arg
+
+for arg in i like bananas and "apple juice" //ERROR
+	echo $arg
+
+for arg in ${i like bananas and "apple juice"}
+	echo $arg

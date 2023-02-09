@@ -141,7 +141,7 @@ pub enum Token<'a> {
     #[token("}")]
     CurlyRightBracket,
 
-    #[regex(r"[ \t\f]+", logos::skip)]
+    #[regex(r"([ \t\f]+)|(//.*)|//\*(.|\n)*\*/", logos::skip)]
     #[error]
     Error,
 }
