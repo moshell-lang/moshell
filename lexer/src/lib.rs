@@ -1,52 +1,12 @@
-mod tests;
-
-use regex::{Match, Regex};
 use logos::{Lexer, Logos};
-use crate::IdentifierType::*;
-use lazy_static::lazy_static;
+
+
+mod tests;
 
 #[derive(Debug, PartialEq)]
 pub struct LexError {
     pub message: String,
     pub offset: usize,
-}
-
-lazy_static! {
-    pub static ref VAR_REF_REGEX: Regex = Regex::new(r"\\$([a-zA-Z0-9]+)").unwrap();
-    pub static ref COMP_REF_REGEX: Regex = Regex::new(r"([a-zA-Z0-9]+)").unwrap();
-    pub static ref LIST_ANY_REF_REGEX: Regex = Regex::new("\"(.*)\"").unwrap();
-    pub static ref ANY_REF_REGEX: Regex = Regex::new("(\\S+)").unwrap();
-}
-
-#[derive(Debug, PartialEq)]
-pub enum IdentifierType {
-    VarRef,
-    ComponentRef,
-    AnyRef,
-}
-
-fn determine_type<'a>(lex: &'a mut Lexer<'a, Token<'a>>) -> Option<IdentifierValue<'a>> {
-    let slice = lex.slice();
-    None.or_else(|| (VAR_REF_REGEX.captures(slice).zip(Some(VarRef))))
-        .or_else(|| (COMP_REF_REGEX.captures(slice).zip(Some(ComponentRef))))
-        .or_else(|| (LIST_ANY_REF_REGEX.captures(slice).zip(Some(AnyRef))))
-        .or_else(|| (ANY_REF_REGEX.captures(slice).zip(Some(AnyRef))))
-        .and_then(|(caps, id)| (caps.get(1).zip(Some(id))))
-        .map(|(m, id)| IdentifierValue::new(m.as_str(), id))
-}
-
-#[derive(Debug, PartialEq)]
-pub struct IdentifierValue<'a> {
-    pub value: &'a str,
-    pub identifier_type: IdentifierType,
-}
-
-impl<'a> IdentifierValue<'a> {
-    fn new(value: &'a str, id_type: IdentifierType) -> Self {
-        Self {
-            value, identifier_type: id_type,
-        }
-    }
 }
 
 
@@ -57,24 +17,40 @@ pub enum Token<'a> {
     #[token("val")]
     Val,
 
-    #[regex(".*", determine_type)]
-    Identifier(IdentifierValue<'a>),
+    #[regex("\".*\"|'.*'|[^0-9\\s][a-zA-Z0-9_]*")]
+    Identifier(&'a str),
 
-    #[regex("[+-]?[0-9]+", | lex | lex.slice().parse(), priority = 2)]
-    IntLiteral(i64),
-    #[regex("[+-]?[0-9]+\\.[0-9]+", | lex | lex.slice().parse())]
-    FloatLiteral(f64),
+    #[regex("[+-]?[0-9]+", priority = 2)]
+    IntLiteral(&'a str),
+    #[regex("[+-]?[0-9]+\\.[0-9]+")]
+    FloatLiteral(&'a str),
 
     #[token("\n")]
     NewLine,
 
     #[token("fun")]
     Fun,
-    #[token("->")]
-    Arrow,
-
     #[token("use")]
     Use,
+    #[token("if")]
+    If,
+    #[token("then")]
+    Then,
+    #[token("else")]
+    Else,
+    #[token("for")]
+    For,
+    #[token("in")]
+    In,
+    #[token("while")]
+    While,
+    #[token("match")]
+    Match,
+
+    #[token("->")]
+    Arrow,
+    #[token("=>")]
+    FatArrow,
 
     #[token("int")]
     Int,
@@ -93,6 +69,46 @@ pub enum Token<'a> {
     Equal,
     #[token("'")]
     Quote,
+    #[token("$")]
+    Dollar,
+    #[token("&")]
+    Ampersand,
+    #[token("@")]
+    At,
+
+
+    #[token("|")]
+    Pipe,
+    #[regex("[0-2&]>>", |lex| lex.slice().chars().next())]
+    AppendRedirect(char),
+    #[regex("[0-2&]>", |lex| lex.slice().chars().next())]
+    Redirect(char),
+    #[regex(">&2")]
+    ErrorRedirect,
+
+    #[token("<<<")]
+    Here,
+
+    #[token("&&")]
+    And,
+    #[token("||")]
+    Or,
+    #[token("!")]
+    Not,
+
+    #[token("==")]
+    EqualEqual,
+    #[token("!=")]
+    NotEqual,
+    #[token("<")]
+    Less,
+    #[token("<=")]
+    LessEqual,
+    #[token(">")]
+    Greater,
+    #[token(">=")]
+    GreaterEqual,
+
 
     #[token("+=")]
     PlusEqual,
@@ -116,16 +132,6 @@ pub enum Token<'a> {
     #[token("%")]
     Modulo,
 
-    #[token("==")]
-    EqualEqual,
-    #[token("<")]
-    Less,
-    #[token("<=")]
-    LessEqual,
-    #[token(">")]
-    Greater,
-    #[token(">=")]
-    GreaterEqual,
 
     #[token("[")]
     SquareLeftBracket,
