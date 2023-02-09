@@ -1,5 +1,4 @@
-use logos::{Lexer, Logos};
-
+use logos::Logos;
 
 mod tests;
 
@@ -9,7 +8,6 @@ pub struct LexError {
     pub offset: usize,
 }
 
-
 #[derive(Logos, Debug, PartialEq)]
 pub enum Token<'a> {
     #[token("var")]
@@ -17,7 +15,7 @@ pub enum Token<'a> {
     #[token("val")]
     Val,
 
-    #[regex("\".*\"|'.*'|[^0-9\\s][a-zA-Z0-9_]*")]
+    #[regex("\"([^\"\n]|\\.)*\"|'([^\"\n]|\\.)*'|[a-zA-Z_][a-zA-Z0-9_]*")]
     Identifier(&'a str),
 
     #[regex("[+-]?[0-9]+", priority = 2)]
@@ -76,12 +74,11 @@ pub enum Token<'a> {
     #[token("@")]
     At,
 
-
     #[token("|")]
     Pipe,
-    #[regex("[0-2&]>>", |lex| lex.slice().chars().next())]
+    #[regex("[0-2&]>>", | lex | lex.slice().chars().next())]
     AppendRedirect(char),
-    #[regex("[0-2&]>", |lex| lex.slice().chars().next())]
+    #[regex("[0-2&]>", | lex | lex.slice().chars().next())]
     Redirect(char),
     #[regex(">&2")]
     ErrorRedirect,
@@ -109,7 +106,6 @@ pub enum Token<'a> {
     #[token(">=")]
     GreaterEqual,
 
-
     #[token("+=")]
     PlusEqual,
     #[token("-=")]
@@ -131,7 +127,6 @@ pub enum Token<'a> {
     Divide,
     #[token("%")]
     Modulo,
-
 
     #[token("[")]
     SquareLeftBracket,
