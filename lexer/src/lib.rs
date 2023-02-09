@@ -6,7 +6,7 @@ use std::str::CharIndices;
 #[derive(Debug, PartialEq)]
 pub struct LexError {
     pub message: String,
-    pub index: usize,
+    pub offset: usize,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -21,8 +21,7 @@ pub enum TokenValue {
 }
 
 pub fn lex(input: &str) -> Result<Vec<Token>, LexError> {
-    let mut lexer = Lexer::new(input);
-    lexer.lex()
+    Lexer::new(input).lex()
 }
 
 struct Lexer<'a> {
@@ -50,7 +49,7 @@ impl<'a> Lexer<'a> {
                 _ => {
                     return Err(LexError {
                         message: format!("Unexpected character: {ch}"),
-                        index: self.current_token_start,
+                        offset: self.current_token_start,
                     });
                 }
             }
@@ -66,7 +65,7 @@ impl<'a> Lexer<'a> {
                     .parse::<u32>()
                     .map_err(|_| LexError {
                         message: "Integer constant is too large".to_string(),
-                        index: self.current_token_start,
+                        offset: self.current_token_start,
                     })?,
             ),
             pos: self.current_token_start,
@@ -122,7 +121,7 @@ mod tests {
             lex("4b"),
             Err(LexError {
                 message: "Unexpected character: b".to_string(),
-                index: 1
+                offset: 1
             })
         );
     }
@@ -133,7 +132,7 @@ mod tests {
             lex("123456789012345678901234567890"),
             Err(LexError {
                 message: "Integer constant is too large".to_string(),
-                index: 0
+                offset: 0
             })
         );
     }
