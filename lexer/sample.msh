@@ -9,7 +9,7 @@ fun test() = {
 
 fun test(a: any, b: int) -> any = $a $b
 
-test "hello i'm a test" = 75
+test "hello i'm a test" 75
 
 while [ "$1" ]
     echo "hello $1" && shift

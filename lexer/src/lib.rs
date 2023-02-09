@@ -1,7 +1,9 @@
-#![allow(dead_code)]
+mod tests;
 
-use std::iter::Peekable;
-use std::str::CharIndices;
+use regex::{Match, Regex};
+use logos::{Lexer, Logos};
+use crate::IdentifierType::*;
+use lazy_static::lazy_static;
 
 #[derive(Debug, PartialEq)]
 pub struct LexError {
@@ -9,131 +11,140 @@ pub struct LexError {
     pub offset: usize,
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub struct Token {
-    pub value: TokenValue,
-    pub pos: usize,
+lazy_static! {
+    pub static ref VAR_REF_REGEX: Regex = Regex::new(r"\\$([a-zA-Z0-9]+)").unwrap();
+    pub static ref COMP_REF_REGEX: Regex = Regex::new(r"([a-zA-Z0-9]+)").unwrap();
+    pub static ref LIST_ANY_REF_REGEX: Regex = Regex::new("\"(.*)\"").unwrap();
+    pub static ref ANY_REF_REGEX: Regex = Regex::new("(\\S+)").unwrap();
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum TokenValue {
-    Integer(u32),
+#[derive(Debug, PartialEq)]
+pub enum IdentifierType {
+    VarRef,
+    ComponentRef,
+    AnyRef,
 }
 
-pub fn lex(input: &str) -> Result<Vec<Token>, LexError> {
-    Lexer::new(input).lex()
+fn determine_type<'a>(lex: &'a mut Lexer<'a, Token<'a>>) -> Option<IdentifierValue<'a>> {
+    let slice = lex.slice();
+    None.or_else(|| (VAR_REF_REGEX.captures(slice).zip(Some(VarRef))))
+        .or_else(|| (COMP_REF_REGEX.captures(slice).zip(Some(ComponentRef))))
+        .or_else(|| (LIST_ANY_REF_REGEX.captures(slice).zip(Some(AnyRef))))
+        .or_else(|| (ANY_REF_REGEX.captures(slice).zip(Some(AnyRef))))
+        .and_then(|(caps, id)| (caps.get(1).zip(Some(id))))
+        .map(|(m, id)| IdentifierValue::new(m.as_str(), id))
 }
 
-struct Lexer<'a> {
-    input: &'a str,
-    it: Peekable<CharIndices<'a>>,
-    current_token_start: usize,
+#[derive(Debug, PartialEq)]
+pub struct IdentifierValue<'a> {
+    pub value: &'a str,
+    pub identifier_type: IdentifierType,
 }
 
-impl<'a> Lexer<'a> {
-    fn new(input: &'a str) -> Self {
+impl<'a> IdentifierValue<'a> {
+    fn new(value: &'a str, id_type: IdentifierType) -> Self {
         Self {
-            input,
-            it: input.char_indices().peekable(),
-            current_token_start: 0,
+            value, identifier_type: id_type,
         }
-    }
-
-    fn lex(&mut self) -> Result<Vec<Token>, LexError> {
-        let mut tokens: Vec<Token> = Vec::new();
-        while let Some(ch) = self.next() {
-            match ch {
-                '0'..='9' => {
-                    tokens.push(self.read_number()?);
-                }
-                _ => {
-                    return Err(LexError {
-                        message: format!("Unexpected character: {ch}"),
-                        offset: self.current_token_start,
-                    });
-                }
-            }
-        }
-        Ok(tokens)
-    }
-
-    fn read_number(&mut self) -> Result<Token, LexError> {
-        let end = self.next_while(|ch| ch.is_ascii_digit());
-        Ok(Token {
-            value: TokenValue::Integer(
-                self.input[self.current_token_start..end]
-                    .parse::<u32>()
-                    .map_err(|_| LexError {
-                        message: "Integer constant is too large".to_string(),
-                        offset: self.current_token_start,
-                    })?,
-            ),
-            pos: self.current_token_start,
-        })
-    }
-
-    fn next(&mut self) -> Option<char> {
-        self.it.next().map(|(pos, ch)| {
-            self.current_token_start = pos;
-            ch
-        })
-    }
-
-    fn next_while(&mut self, predicate: impl Fn(char) -> bool) -> usize {
-        let mut pos = self.current_token_start;
-        while let Some((p, ch)) = self.it.peek() {
-            if predicate(*ch) {
-                pos = *p;
-                self.it.next();
-            } else {
-                break;
-            }
-        }
-        pos + 1
-    }
-
-    fn peek(&mut self) -> Option<char> {
-        self.it.peek().map(|(_, ch)| *ch)
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn lex_int() {
-        assert_eq!(
-            lex("1"),
-            Ok(vec![Token {
-                value: TokenValue::Integer(1),
-                pos: 0
-            }])
-        );
-        assert_eq!(
-            lex("123"),
-            Ok(vec![Token {
-                value: TokenValue::Integer(123),
-                pos: 0
-            }])
-        );
-        assert_eq!(
-            lex("4b"),
-            Err(LexError {
-                message: "Unexpected character: b".to_string(),
-                offset: 1
-            })
-        );
-    }
+#[derive(Logos, Debug, PartialEq)]
+pub enum Token<'a> {
+    #[token("var")]
+    Var,
+    #[token("val")]
+    Val,
 
-    #[test]
-    fn lex_int_overflow() {
-        assert_eq!(
-            lex("123456789012345678901234567890"),
-            Err(LexError {
-                message: "Integer constant is too large".to_string(),
-                offset: 0
-            })
-        );
-    }
+    #[regex(".*", determine_type)]
+    Identifier(IdentifierValue<'a>),
+
+    #[regex("[+-]?[0-9]+", | lex | lex.slice().parse(), priority = 2)]
+    IntLiteral(i64),
+    #[regex("[+-]?[0-9]+\\.[0-9]+", | lex | lex.slice().parse())]
+    FloatLiteral(f64),
+
+    #[token("\n")]
+    NewLine,
+
+    #[token("fun")]
+    Fun,
+    #[token("->")]
+    Arrow,
+
+    #[token("use")]
+    Use,
+
+    #[token("int")]
+    Int,
+    #[token("float")]
+    Float,
+    #[token("exitcode")]
+    Exitcode,
+    #[token("bool")]
+    Bool,
+    #[token("any")]
+    Any,
+
+    #[token(":")]
+    Colon,
+    #[token("=")]
+    Equal,
+    #[token("'")]
+    Quote,
+
+    #[token("+=")]
+    PlusEqual,
+    #[token("-=")]
+    MinusEqual,
+    #[token("*=")]
+    TimesEqual,
+    #[token("/=")]
+    DivideEqual,
+    #[token("%=")]
+    ModuloEqual,
+
+    #[token("+")]
+    Plus,
+    #[token("-")]
+    Minus,
+    #[token("*")]
+    Times,
+    #[token("/")]
+    Divide,
+    #[token("%")]
+    Modulo,
+
+    #[token("==")]
+    EqualEqual,
+    #[token("<")]
+    Less,
+    #[token("<=")]
+    LessEqual,
+    #[token(">")]
+    Greater,
+    #[token(">=")]
+    GreaterEqual,
+
+    #[token("[")]
+    SquareLeftBracket,
+    #[token("]")]
+    SquareRightBracket,
+    #[token("(")]
+    RoundedLeftBracket,
+    #[token(")")]
+    RoundedRightBracket,
+    #[token("{")]
+    CurlyLeftBracket,
+    #[token("}")]
+    CurlyRightBracket,
+
+    #[regex(r"[ \t\f]+", logos::skip)]
+    #[error]
+    Error,
 }
+
+
+
+
