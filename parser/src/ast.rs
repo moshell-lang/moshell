@@ -1,37 +1,37 @@
-use lexer::Token;
+use lexer::token::Token;
 
 /// A expression that can be evaluated.
 #[derive(Debug, Clone)]
-pub enum Expr {
-    Assign(Assign),
-    Binary(Binary),
-    Call(Call),
-    FunDeclaration(FunDeclaration),
-    Literal(Literal),
-    Grouping(Grouping),
-    Substitution(Substitution),
-    VarReference(VarReference),
-    VarDeclaration(VarDeclaration),
+pub enum Expr<'a> {
+    Assign(Assign<'a>),
+    Binary(Binary<'a>),
+    Call(Call<'a>),
+    FunDeclaration(FunDeclaration<'a>),
+    Literal(Literal<'a>),
+    Grouping(Grouping<'a>),
+    Substitution(Substitution<'a>),
+    VarReference(VarReference<'a>),
+    VarDeclaration(VarDeclaration<'a>),
 }
 
 /// A variable assignation.
 #[derive(Debug, Clone)]
-pub struct Assign {
+pub struct Assign<'a> {
     /// The identifier of the variable.
-    pub name: Token,
+    pub name: Token<'a>,
     /// The value of the variable to be evaluated.
-    pub value: Box<Expr>,
+    pub value: Box<Expr<'a>>,
 }
 
 /// A binary operation between two expressions.
 #[derive(Debug, Clone)]
-pub struct Binary {
+pub struct Binary<'a> {
     /// The left-hand side of the operation.
-    pub left: Box<Expr>,
+    pub left: Box<Expr<'a>>,
     /// The operator of the operation.
     pub op: BinaryOperator,
     /// The right-hand side of the operation.
-    pub right: Box<Expr>,
+    pub right: Box<Expr<'a>>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -62,38 +62,38 @@ pub enum BinaryOperator {
 
 /// A call to a function or a command.
 #[derive(Debug, Clone)]
-pub struct Call {
+pub struct Call<'a> {
     /// The name of the function or command.
-    pub name: Token,
+    pub name: Token<'a>,
     /// The arguments of the function or command.
-    pub arguments: Vec<Expr>,
+    pub arguments: Vec<Expr<'a>>,
 }
 
 /// A function declaration.
 #[derive(Debug, Clone)]
-pub struct FunDeclaration {
-    pub name: Token,
-    pub parameters: Vec<TypedVariable>,
-    pub body: Vec<Expr>,
+pub struct FunDeclaration<'a> {
+    pub name: Token<'a>,
+    pub parameters: Vec<TypedVariable<'a>>,
+    pub body: Vec<Expr<'a>>,
 }
 
 /// A boxed expression that helps with precedence.
 #[derive(Debug, Clone)]
-pub struct Grouping {
-    pub expr: Box<Expr>,
+pub struct Grouping<'a> {
+    pub expr: Box<Expr<'a>>,
 }
 
 /// A literal value that can be used directly.
 #[derive(Debug, Clone)]
-pub struct Literal {
-    pub value: Token,
+pub struct Literal<'a> {
+    pub value: Token<'a>,
 }
 
 /// A special type of grouping expression that should be substituted
 /// based on its expression and kind.
 #[derive(Debug, Clone)]
-pub struct Substitution {
-    pub expr: Box<Expr>,
+pub struct Substitution<'a> {
+    pub expr: Box<Expr<'a>>,
     pub kind: SubstitutionKind,
 }
 
@@ -110,25 +110,33 @@ pub enum SubstitutionKind {
 
 /// A typed variable.
 #[derive(Debug, Clone)]
-pub struct TypedVariable {
+pub struct TypedVariable<'a> {
     /// The name of the variable.
-    pub name: String,
+    pub name: Token<'a>,
     /// The type of the variable.
-    pub ty: Option<Token>,
+    pub ty: Option<Token<'a>>,
 }
 
 /// A variable declaration.
 #[derive(Debug, Clone)]
-pub struct VarDeclaration {
+pub struct VarDeclaration<'a> {
+    /// The kind of the variable.
+    pub kind: VarKind,
     /// The variable.
-    pub var: TypedVariable,
+    pub var: TypedVariable<'a>,
     /// The value of the variable to be evaluated.
-    pub initializer: Option<Box<Expr>>,
+    pub initializer: Option<Box<Expr<'a>>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum VarKind {
+    Var,
+    Val,
 }
 
 /// A variable reference, prefixed with `$`.
 #[derive(Debug, Clone)]
-pub struct VarReference {
+pub struct VarReference<'a> {
     /// The name of the variable.
-    pub name: Token,
+    pub name: Token<'a>,
 }

@@ -148,4 +148,6 @@ pub enum TokenType {
     #[regex(r"([ \t\f]+)|(//.*)", logos::skip)]
     #[error]
     Error,
+
+    EndOfFile,
 }
