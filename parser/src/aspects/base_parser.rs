@@ -27,7 +27,7 @@ impl<'a> BaseParser<'a> for Parser<'a> {
     fn match_token(&mut self, expected: TokenType) -> Option<Token<'a>> {
         let token = self.peek_token();
         if token.token_type == expected {
-            self.advance();
+            self.current += 1;
             return Some(token.clone());
         }
         None
@@ -44,7 +44,7 @@ impl<'a> BaseParser<'a> for Parser<'a> {
     fn next_token(&mut self) -> Result<Token<'a>, ParseError> {
         let token = self.peek_token();
         if token.token_type != EndOfFile {
-            self.advance();
+            self.current += 1;
             Ok(token.clone())
         } else {
             self.expected("Unexpected end of file.")

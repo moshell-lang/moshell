@@ -1,7 +1,6 @@
 
 
 use lexer::token::{Token, TokenType};
-use crate::aspects;
 
 use crate::aspects::base_parser::BaseParser;
 use crate::aspects::var_declaration_parser::VarDeclarationParser;
@@ -18,9 +17,9 @@ pub struct ParseError {
 /// A parser for the Moshell scripting language.
 pub struct Parser<'a> {
     /// The tokens to be parsed.
-    tokens: Vec<Token<'a>>,
+    pub(crate) tokens: Vec<Token<'a>>,
     /// The current position in the tokens.
-    current: usize,
+    pub(crate) current: usize,
 }
 
 

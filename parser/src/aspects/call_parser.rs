@@ -1,4 +1,3 @@
-use std::string::ParseError;
 
 use lexer::token::TokenType;
 
