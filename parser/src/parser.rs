@@ -41,9 +41,7 @@ impl<'a> Parser<'a> {
         Self { tokens, current: 0 }
     }
 
-    pub fn literal(&mut self, token: Token<'a>) -> Result<Expr<'a>, ParseError> {
-        Ok(Expr::Literal(Literal { value: token }))
-    }
+
 
     /// Parses the tokens into an abstract syntax tree.
     pub fn parse(&mut self) -> Result<Vec<Expr<'a>>, ParseError> {
