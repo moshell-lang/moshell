@@ -5,7 +5,7 @@ use crate::parser::{ParseError, Parser};
 
 ///Defines all basic operations a parser can do.
 pub trait BaseParser<'a> {
-    fn exists_token(&mut self, expected: TokenType) -> bool;
+    fn meet_token(&mut self, expected: TokenType) -> bool;
     fn match_token(&mut self, expected: TokenType) -> Option<Token<'a>>;
     fn expect_token(&mut self, expected: TokenType, message: &str) -> Result<Token<'a>, ParseError>;
     fn peek_token(&self) -> Token<'a>;
@@ -15,7 +15,7 @@ pub trait BaseParser<'a> {
 }
 
 impl<'a> BaseParser<'a> for Parser<'a> {
-    fn exists_token(&mut self, expected: TokenType) -> bool {
+    fn meet_token(&mut self, expected: TokenType) -> bool {
         let token = self.peek_token();
         if token.token_type == expected {
             self.current += 1;

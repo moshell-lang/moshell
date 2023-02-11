@@ -15,7 +15,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
         let name = self.expect_token(TokenType::Identifier, "Expected command name.")?;
 
         let mut args = Vec::new();
-        while !self.is_at_end() && !self.exists_token(TokenType::NewLine) {
+        while !self.is_at_end() && !self.meet_token(TokenType::NewLine) {
             args.push(self.expression()?);
         }
 
