@@ -71,7 +71,7 @@ impl<'a> Parser<'a> {
                 name: name.clone(),
                 ty,
             },
-            initializer: initializer.map(Box::new)
+            initializer: initializer.map(Box::new),
         }))
     }
 
@@ -106,7 +106,11 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn expect_token(&mut self, expected: TokenType, message: &str) -> Result<Token<'a>, ParseError> {
+    fn expect_token(
+        &mut self,
+        expected: TokenType,
+        message: &str,
+    ) -> Result<Token<'a>, ParseError> {
         if let Some(actual) = self.tokens.get(self.current) {
             if actual.token_type == expected {
                 self.current += 1;
@@ -120,7 +124,10 @@ impl<'a> Parser<'a> {
     }
 
     fn peek_token(&self) -> Token {
-        self.tokens.get(self.current).cloned().unwrap_or(Token::new(TokenType::EndOfFile, ""))
+        self.tokens
+            .get(self.current)
+            .cloned()
+            .unwrap_or(Token::new(TokenType::EndOfFile, ""))
     }
 
     fn next_token(&mut self) -> Result<Token<'a>, ParseError> {
@@ -164,18 +171,16 @@ mod tests {
         ];
         let parsed = parse(tokens).expect("Failed to parse");
 
-        let _expected = vec![
-            Expr::VarDeclaration(VarDeclaration {
-                kind: VarKind::Var,
-                var: TypedVariable {
-                    name: Token::new(TokenType::Identifier, "a"),
-                    ty: Some(Token::new(TokenType::Identifier, "int")),
-                },
-                initializer: Some(Box::new(Expr::Literal(Literal {
-                    value: Token::new(TokenType::IntLiteral, "1"),
-                }))),
-            }),
-        ];
-        println!("{:?}", parsed);
+        let expected = vec![Expr::VarDeclaration(VarDeclaration {
+            kind: VarKind::Var,
+            var: TypedVariable {
+                name: Token::new(TokenType::Identifier, "a"),
+                ty: Some(Token::new(TokenType::Identifier, "int")),
+            },
+            initializer: Some(Box::new(Expr::Literal(Literal {
+                value: Token::new(TokenType::IntLiteral, "1"),
+            }))),
+        })];
+        assert_eq!(parsed, expected);
     }
 }

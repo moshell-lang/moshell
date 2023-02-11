@@ -1,7 +1,7 @@
 use lexer::token::Token;
 
 /// A expression that can be evaluated.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr<'a> {
     Assign(Assign<'a>),
     Binary(Binary<'a>),
@@ -15,7 +15,7 @@ pub enum Expr<'a> {
 }
 
 /// A variable assignation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Assign<'a> {
     /// The identifier of the variable.
     pub name: Token<'a>,
@@ -24,7 +24,7 @@ pub struct Assign<'a> {
 }
 
 /// A binary operation between two expressions.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Binary<'a> {
     /// The left-hand side of the operation.
     pub left: Box<Expr<'a>>,
@@ -34,7 +34,7 @@ pub struct Binary<'a> {
     pub right: Box<Expr<'a>>,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum BinaryOperator {
     /// The `==` operator.
     EqualEqual,
@@ -61,7 +61,7 @@ pub enum BinaryOperator {
 }
 
 /// A call to a function or a command.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Call<'a> {
     /// The name of the function or command.
     pub name: Token<'a>,
@@ -70,7 +70,7 @@ pub struct Call<'a> {
 }
 
 /// A function declaration.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FunDeclaration<'a> {
     pub name: Token<'a>,
     pub parameters: Vec<TypedVariable<'a>>,
@@ -78,27 +78,27 @@ pub struct FunDeclaration<'a> {
 }
 
 /// A boxed expression that helps with precedence.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Grouping<'a> {
     pub expr: Box<Expr<'a>>,
 }
 
 /// A literal value that can be used directly.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Literal<'a> {
     pub value: Token<'a>,
 }
 
 /// A special type of grouping expression that should be substituted
 /// based on its expression and kind.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Substitution<'a> {
     pub expr: Box<Expr<'a>>,
     pub kind: SubstitutionKind,
 }
 
 /// The kind of substitution that should be performed.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SubstitutionKind {
     /// An arithmetic evaluation with `$((...))`.
     Arithmetic,
@@ -109,7 +109,7 @@ pub enum SubstitutionKind {
 }
 
 /// A typed variable.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TypedVariable<'a> {
     /// The name of the variable.
     pub name: Token<'a>,
@@ -118,7 +118,7 @@ pub struct TypedVariable<'a> {
 }
 
 /// A variable declaration.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VarDeclaration<'a> {
     /// The kind of the variable.
     pub kind: VarKind,
@@ -128,14 +128,14 @@ pub struct VarDeclaration<'a> {
     pub initializer: Option<Box<Expr<'a>>>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum VarKind {
     Var,
     Val,
 }
 
 /// A variable reference, prefixed with `$`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VarReference<'a> {
     /// The name of the variable.
     pub name: Token<'a>,

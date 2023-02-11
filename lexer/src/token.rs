@@ -1,6 +1,6 @@
 use logos::Logos;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token<'a> {
     pub token_type: TokenType,
     pub value: &'a str,
