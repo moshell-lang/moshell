@@ -1,27 +1,31 @@
 use logos::Logos;
 
+#[derive(Debug, Clone)]
 pub struct Token<'a> {
-    pub token_type: TokenType<'a>,
-    pub value: Option<String>,
-    pub line: usize,
-    pub column: usize,
+    pub token_type: TokenType,
+    pub value: &'a str,
 }
 
+impl<'a> Token<'a> {
+    pub fn new(token_type: TokenType, value: &'a str) -> Self {
+        Self { token_type, value }
+    }
+}
 
-#[derive(Logos, Debug, PartialEq)]
-pub enum TokenType<'a> {
+#[derive(Logos, Debug, PartialEq, Clone)]
+pub enum TokenType {
     #[token("var")]
     Var,
     #[token("val")]
     Val,
 
     #[regex("\"([^\"\n]|\\.)*\"|'([^\"\n]|\\.)*'|[a-zA-Z_][a-zA-Z0-9_]*")]
-    Identifier(&'a str),
+    Identifier,
 
     #[regex("[+-]?[0-9]+", priority = 2)]
-    IntLiteral(&'a str),
+    IntLiteral,
     #[regex("[+-]?[0-9]+\\.[0-9]+")]
-    FloatLiteral(&'a str),
+    FloatLiteral,
 
     #[token("\n")]
     NewLine,
@@ -76,10 +80,10 @@ pub enum TokenType<'a> {
 
     #[token("|")]
     Pipe,
-    #[regex("[0-2&]>>", | lex | lex.slice().chars().next())]
-    AppendRedirect(char),
-    #[regex("[0-2&]>", | lex | lex.slice().chars().next())]
-    Redirect(char),
+    #[regex("[0-2&]>>")]
+    AppendRedirect,
+    #[regex("[0-2&]>")]
+    Redirect,
     #[regex(">&2")]
     ErrorRedirect,
 
