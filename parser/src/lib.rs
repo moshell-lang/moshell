@@ -1,44 +1,26 @@
 #![allow(dead_code)]
 
+use lexer::token::Token;
+
+use crate::ast::*;
+use crate::parser::{ParseError, Parser};
+
 ///! The parser crate contains the parser for the Moshell scripting language.
 mod ast;
 mod parser;
+mod aspects;
 
+type ParseResult<T> = Result<T, ParseError>;
 
-use crate::ast::*;
-use lexer::token::{Token, TokenType};
-use lexer::token::TokenType::EndOfFile;
-use crate::parser::ParseError;
-
-
-impl<'a> Parser<'a> {
-    /// Creates a new parser.
-    pub fn new(tokens: Vec<Token<'a>>) -> Self {
-        Self { tokens, current: 0 }
-    }
-
-
-
-
-
-
-
-    fn literal(&mut self, token: Token<'a>) -> Result<Expr<'a>, ParseError> {
-        Ok(Expr::Literal(Literal { value: token }))
-    }
-
-
-
-
-}
-
-fn parse(tokens: Vec<Token>) -> Result<Vec<Expr>, ParseError> {
+fn parse(tokens: Vec<Token>) -> ParseResult<Vec<Expr>> {
     Parser::new(tokens).parse()
 }
 
 #[cfg(test)]
 mod tests {
     use lexer::lexer::lex;
+    use lexer::token::TokenType;
+
     use super::*;
 
     #[test]

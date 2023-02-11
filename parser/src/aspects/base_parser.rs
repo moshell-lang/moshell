@@ -1,5 +1,7 @@
-use lexer::token::TokenType;
-use crate::parser;
+use lexer::token::{Token, TokenType};
+use lexer::token::TokenType::EndOfFile;
+
+use crate::parser::{ParseError, Parser};
 
 ///Defines all basic operations a parser can do.
 pub trait BaseParser<'a> {
@@ -12,7 +14,7 @@ pub trait BaseParser<'a> {
     fn expected(&self, message: &str) -> Result<Token<'a>, ParseError>;
 }
 
-impl<'a> Parser for dyn BaseParser<'a> {
+impl<'a> BaseParser<'a> for Parser<'a> {
     fn exists_token(&mut self, expected: TokenType) -> bool {
         let token = self.peek_token();
         if token.token_type == expected {
@@ -25,24 +27,24 @@ impl<'a> Parser for dyn BaseParser<'a> {
     fn match_token(&mut self, expected: TokenType) -> Option<Token<'a>> {
         let token = self.peek_token();
         if token.token_type == expected {
-            self.current += 1;
+            self.advance();
             return Some(token.clone());
         }
         None
     }
 
     fn expect_token(&mut self, expected: TokenType, message: &str) -> Result<Token<'a>, ParseError> {
-        self.match_token(expected).ok_or_else(|| self.mk_parse_error(message))
+        self.match_token(expected).ok_or_else(|| mk_parse_error(message))
     }
 
     fn peek_token(&self) -> Token<'a> {
-        self.tokens.get(self.current).cloned().unwrap()
+        self.tokens.get(self.current).cloned().unwrap_or(Token::new(EndOfFile, ""))
     }
 
     fn next_token(&mut self) -> Result<Token<'a>, ParseError> {
         let token = self.peek_token();
         if token.token_type != EndOfFile {
-            self.current += 1;
+            self.advance();
             Ok(token.clone())
         } else {
             self.expected("Unexpected end of file.")
@@ -56,8 +58,6 @@ impl<'a> Parser for dyn BaseParser<'a> {
     fn expected(&self, message: &str) -> Result<Token<'a>, ParseError> {
         Err(mk_parse_error(message))
     }
-
-
 }
 
 fn mk_parse_error(message: &str) -> ParseError {
