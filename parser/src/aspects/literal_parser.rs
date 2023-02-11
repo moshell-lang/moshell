@@ -4,7 +4,7 @@ use crate::ast::{Expr, Literal};
 use crate::parser::Parser;
 use crate::ParseResult;
 
-trait LiteralParser<'a> {
+pub(crate) trait LiteralParser<'a> {
     fn literal(&mut self, token: Token<'a>) -> ParseResult<Expr<'a>>;
 }
 

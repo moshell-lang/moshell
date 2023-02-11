@@ -5,7 +5,8 @@ use lexer::token::{Token, TokenType};
 use crate::aspects::base_parser::BaseParser;
 use crate::aspects::var_declaration_parser::VarDeclarationParser;
 use crate::aspects::call_parser::CallParser;
-use crate::ast::{Expr, Literal, VarKind};
+use crate::aspects::literal_parser::LiteralParser;
+use crate::ast::{Expr, VarKind};
 
 /// An error that occurs during parsing.
 #[derive(Debug)]
@@ -40,7 +41,6 @@ impl<'a> Parser<'a> {
     pub fn new(tokens: Vec<Token<'a>>) -> Self {
         Self { tokens, current: 0 }
     }
-
 
 
     /// Parses the tokens into an abstract syntax tree.
