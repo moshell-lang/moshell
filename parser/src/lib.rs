@@ -121,7 +121,7 @@ impl<'a> Parser<'a> {
 
     fn next_token(&mut self) -> Result<Token<'a>, ParseError> {
         let token = self.peek_token();
-        if token.token_type == EndOfFile {
+        if token.token_type != EndOfFile {
             self.current += 1;
             Ok(token.clone())
         } else {
