@@ -17,6 +17,7 @@ pub fn lex(inp: &str) -> Vec<Token> {
     while let Some(token_type) = lexer.next() {
         tokens.push(Token::new(token_type, lexer.slice()))
     }
+    tokens.push(Token::new(TokenType::EndOfFile, lexer.slice()));
     tokens
 }
 

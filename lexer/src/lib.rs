@@ -1,3 +1,3 @@
-pub mod linter;
+pub mod lexer;
 pub mod token;
 mod test;

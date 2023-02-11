@@ -1,16 +1,8 @@
 echo "hello, world !"
 //comment
 
-/**
-
-this is a
-comment
-on multiple lines
-
-*/
-
 var all   = false
-var quiet = false
+var quiet: bool = false
 var head  = 0
 
 val a: int = 9

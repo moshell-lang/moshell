@@ -54,17 +54,6 @@ pub enum TokenType {
     #[token("=>")]
     FatArrow,
 
-    #[token("int")]
-    Int,
-    #[token("float")]
-    Float,
-    #[token("exitcode")]
-    Exitcode,
-    #[token("bool")]
-    Bool,
-    #[token("any")]
-    Any,
-
     #[token(":")]
     Colon,
     #[token("=")]
