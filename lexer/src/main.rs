@@ -1,5 +1,6 @@
 mod linter;
 mod token;
+mod test;
 
 use std::fs;
 use logos::Logos;
