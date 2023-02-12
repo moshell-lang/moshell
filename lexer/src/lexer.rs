@@ -20,4 +20,3 @@ pub fn lex(inp: &str) -> Vec<Token> {
     tokens.push(Token::new(TokenType::EndOfFile, lexer.slice()));
     tokens
 }
-

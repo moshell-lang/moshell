@@ -3,15 +3,14 @@
 use lexer::token::Token;
 
 use crate::ast::*;
-use crate::parser::{Parser, ParseResult};
+use crate::parser::{ParseResult, Parser};
 
 ///! The parser crate contains the parser for the Moshell scripting language.
+mod aspects;
 mod ast;
 mod parser;
-mod aspects;
 
-
-fn parse(tokens: Vec<Token>) -> ParseResult<Vec<Expr>> {
+pub fn parse(tokens: Vec<Token>) -> ParseResult<Vec<Expr>> {
     Parser::new(tokens).parse()
 }
 
@@ -27,19 +26,16 @@ mod tests {
         let tokens = lex("var a: int = 1");
         let parsed = parse(tokens).expect("Failed to parse");
 
-        let _expected = vec![
-            Expr::VarDeclaration(VarDeclaration {
-                kind: VarKind::Var,
-                var: TypedVariable {
-                    name: Token::new(TokenType::Identifier, "a"),
-                    ty: Some(Token::new(TokenType::Identifier, "int")),
-                },
-                initializer: Some(Box::new(Expr::Literal(Literal {
-                    value: Token::new(TokenType::IntLiteral, "1"),
-                }))),
-            }),
-        ];
-        //assert_eq!(_expected, parsed);
-        println!("{:?}", parsed);
+        let expected = vec![Expr::VarDeclaration(VarDeclaration {
+            kind: VarKind::Var,
+            var: TypedVariable {
+                name: Token::new(TokenType::Identifier, "a"),
+                ty: Some(Token::new(TokenType::Identifier, "int")),
+            },
+            initializer: Some(Box::new(Expr::Literal(Literal {
+                value: Token::new(TokenType::IntLiteral, "1"),
+            }))),
+        })];
+        assert_eq!(expected, parsed);
     }
 }

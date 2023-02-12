@@ -1,7 +1,7 @@
-use lexer::token::TokenType;
-use crate::ast::{Expr, TypedVariable, VarDeclaration, VarKind};
 use crate::aspects::base_parser::BaseParser;
-use crate::parser::{Parser, ParseResult};
+use crate::ast::{Expr, TypedVariable, VarDeclaration, VarKind};
+use crate::parser::{ParseResult, Parser};
+use lexer::token::TokenType;
 
 pub trait VarDeclarationParser<'a> {
     /// Parses a variable declaration.
@@ -20,7 +20,7 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
 
         let initializer = match self.match_token(TokenType::Equal) {
             None => None,
-            Some(_) => Some(self.expression()?)
+            Some(_) => Some(self.expression()?),
         };
 
         Ok(Expr::VarDeclaration(VarDeclaration {
