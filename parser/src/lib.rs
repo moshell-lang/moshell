@@ -16,14 +16,20 @@ pub fn parse(tokens: Vec<Token>) -> ParseResult<Vec<Expr>> {
 
 #[cfg(test)]
 mod tests {
-    use lexer::lexer::lex;
     use lexer::token::TokenType;
 
     use super::*;
 
     #[test]
     fn test_parser() {
-        let tokens = lex("var a: int = 1");
+        let tokens = vec![
+            Token::new(TokenType::Var, "var"),
+            Token::new(TokenType::Identifier, "a"),
+            Token::new(TokenType::Colon, ":"),
+            Token::new(TokenType::Identifier, "int"),
+            Token::new(TokenType::Equal, "="),
+            Token::new(TokenType::IntLiteral, "1"),
+        ];
         let parsed = parse(tokens).expect("Failed to parse");
 
         let expected = vec![Expr::VarDeclaration(VarDeclaration {
