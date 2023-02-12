@@ -3,8 +3,8 @@ use lexer::token::TokenType;
 
 use crate::ast::{Call, Expr};
 use crate::aspects::base_parser::BaseParser;
-use crate::parser::Parser;
-use crate::ParseResult;
+use crate::parser::{Parser, ParseResult};
+
 
 pub trait CallParser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>>;

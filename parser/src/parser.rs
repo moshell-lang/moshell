@@ -1,12 +1,14 @@
 
 
 use lexer::token::{Token, TokenType};
-
 use crate::aspects::base_parser::BaseParser;
+
 use crate::aspects::var_declaration_parser::VarDeclarationParser;
 use crate::aspects::call_parser::CallParser;
 use crate::aspects::literal_parser::LiteralParser;
 use crate::ast::{Expr, VarKind};
+
+pub type ParseResult<T> = Result<T, ParseError>;
 
 /// An error that occurs during parsing.
 #[derive(Debug)]
@@ -25,6 +27,11 @@ pub struct Parser<'a> {
 
 
 impl<'a> Parser<'a> {
+    /// Creates a new parser.
+    pub fn new(tokens: Vec<Token<'a>>) -> Self {
+        Self { tokens, current: 0 }
+    }
+
     /// Parses an expression.
     pub fn expression(&mut self) -> Result<Expr<'a>, ParseError> {
         let token = self.next_token()?;
@@ -35,11 +42,6 @@ impl<'a> Parser<'a> {
             //TODO add other expression parsers
             _ => self.call(),
         }
-    }
-
-    /// Creates a new parser.
-    pub fn new(tokens: Vec<Token<'a>>) -> Self {
-        Self { tokens, current: 0 }
     }
 
 

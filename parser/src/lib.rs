@@ -10,7 +10,6 @@ mod ast;
 mod parser;
 mod aspects;
 
-type ParseResult<T> = Result<T, ParseError>;
 
 fn parse(tokens: Vec<Token>) -> ParseResult<Vec<Expr>> {
     Parser::new(tokens).parse()
