@@ -1,8 +1,7 @@
 use lexer::token::Token;
 
 use crate::ast::{Expr, Literal};
-use crate::parser::Parser;
-use crate::ParseResult;
+use crate::parser::{Parser, ParseResult};
 
 pub(crate) trait LiteralParser<'a> {
     fn literal(&mut self, token: Token<'a>) -> ParseResult<Expr<'a>>;

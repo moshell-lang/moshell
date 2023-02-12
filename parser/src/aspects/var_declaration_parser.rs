@@ -1,8 +1,7 @@
 use lexer::token::TokenType;
 use crate::ast::{Expr, TypedVariable, VarDeclaration, VarKind};
 use crate::aspects::base_parser::BaseParser;
-use crate::parser::Parser;
-use crate::ParseResult;
+use crate::parser::{Parser, ParseResult};
 
 pub trait VarDeclarationParser<'a> {
     /// Parses a variable declaration.
