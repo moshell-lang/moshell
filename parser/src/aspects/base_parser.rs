@@ -12,6 +12,7 @@ pub trait BaseParser<'a> {
     fn next_token(&mut self) -> ParseResult<Token<'a>>;
     fn is_at_end(&self) -> bool;
     fn expected(&self, message: &str) -> ParseResult<Token<'a>>;
+    fn mk_parse_error(&self, message: impl Into<String>) -> ParseError;
 }
 
 impl<'a> BaseParser<'a> for Parser<'a> {
@@ -35,7 +36,7 @@ impl<'a> BaseParser<'a> for Parser<'a> {
 
     fn expect_token(&mut self, expected: TokenType, message: &str) -> ParseResult<Token<'a>> {
         self.match_token(expected)
-            .ok_or_else(|| mk_parse_error(message))
+            .ok_or_else(|| self.mk_parse_error(message))
     }
 
     fn peek_token(&self) -> Token<'a> {
@@ -60,13 +61,13 @@ impl<'a> BaseParser<'a> for Parser<'a> {
     }
 
     fn expected(&self, message: &str) -> ParseResult<Token<'a>> {
-        Err(mk_parse_error(message))
+        Err(self.mk_parse_error(message))
     }
-}
 
-fn mk_parse_error(message: &str) -> ParseError {
-    ParseError {
-        message: message.to_string(),
-        //actual: self.peek_token().clone(),
+    fn mk_parse_error(&self, message: impl Into<String>) -> ParseError {
+        ParseError {
+            message: message.into(),
+            //actual: self.peek_token().clone(),
+        }
     }
 }

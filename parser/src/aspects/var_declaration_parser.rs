@@ -11,6 +11,10 @@ pub trait VarDeclarationParser<'a> {
 impl<'a> VarDeclarationParser<'a> for Parser<'a> {
     /// Parses a variable declaration.
     fn var_declaration(&mut self, kind: VarKind) -> ParseResult<Expr<'a>> {
+        match kind {
+            VarKind::Var => self.expect_token(TokenType::Var, "Expected 'var' keyword.")?,
+            VarKind::Val => self.expect_token(TokenType::Val, "Expected 'val' keyword.")?,
+        };
         let name = self.expect_token(TokenType::Identifier, "Expected variable name.")?;
 
         let ty = match self.match_token(TokenType::Colon) {

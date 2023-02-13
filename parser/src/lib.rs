@@ -21,7 +21,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parser() {
+    fn variable_type_and_initializer() {
         let tokens = vec![
             Token::new(TokenType::Var, "var"),
             Token::new(TokenType::Identifier, "a"),
@@ -39,8 +39,29 @@ mod tests {
                 ty: Some(Token::new(TokenType::Identifier, "int")),
             },
             initializer: Some(Box::new(Expr::Literal(Literal {
-                value: Token::new(TokenType::IntLiteral, "1"),
+                token: Token::new(TokenType::IntLiteral, "1"),
+                parsed: LiteralValue::Int(1),
             }))),
+        })];
+        assert_eq!(expected, parsed);
+    }
+
+    #[test]
+    fn command_echo() {
+        let tokens = vec![
+            Token::new(TokenType::Identifier, "echo"),
+            Token::new(TokenType::Quote, "'"),
+            Token::new(TokenType::Identifier, "hello"),
+            Token::new(TokenType::Quote, "'"),
+        ];
+        let parsed = parse(tokens).expect("Failed to parse");
+
+        let expected = vec![Expr::Call(Call {
+            name: Token::new(TokenType::Identifier, "echo"),
+            arguments: vec![Expr::Literal(Literal {
+                token: Token::new(TokenType::Quote, "'"),
+                parsed: LiteralValue::String("hello".to_string()),
+            })],
         })];
         assert_eq!(expected, parsed);
     }

@@ -9,7 +9,7 @@ use crate::ast::{Expr, VarKind};
 pub type ParseResult<T> = Result<T, ParseError>;
 
 /// An error that occurs during parsing.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ParseError {
     pub message: String,
     //pub actual: Token<'a>,
@@ -31,11 +31,11 @@ impl<'a> Parser<'a> {
 
     /// Parses an expression.
     pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
-        let token = self.next_token()?;
-        match token.token_type {
+        match self.peek_token().token_type {
             TokenType::Var => self.var_declaration(VarKind::Var),
             TokenType::Val => self.var_declaration(VarKind::Val),
-            TokenType::IntLiteral => self.literal(token),
+            TokenType::IntLiteral | TokenType::FloatLiteral => self.literal(),
+            TokenType::Quote => self.string_literal(),
             //TODO add other expression parsers
             _ => self.call(),
         }
