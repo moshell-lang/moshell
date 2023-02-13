@@ -12,21 +12,21 @@ Here's some bash vs moshell comparisons
 bash 
 ```bash
 while [ "$1" ]; do
-    case "$1" in
-          -a|--all) 
-              ALL=true
-              ;;
-           -n)
-              if [ grep -E "^[0-9]+$" <<< "$1" ]; then 
-                     echo "argument after -n is not an int"
-                     exit 1
-              fi
-              AMMOUNT="$2"
-              ;;
-            *)
-             echo "unknown argument $1" && exit 1
-      esac
-      shift
+   case "$1" in
+      -a|--all) 
+          ALL=true
+          ;;
+      -n)
+          if [ grep -E "^[0-9]+$" <<< "$1" ]; then 
+              echo "argument after -n is not an int"
+              exit 1
+          fi
+          AMMOUNT="$2"
+          ;;
+       *)
+          echo "unknown argument $1" && exit 1
+   esac
+   shift
 done
 ```
 
