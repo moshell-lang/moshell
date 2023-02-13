@@ -30,10 +30,14 @@ while [ "$1" ]; do
 done
 ```
 
-moshell : 
+Moshell 
 
-moshell is a statically typed language with functions that can return values rather than an exitcode. this allows the `shift` operation to be redefined to return the shifted argument then shift arguments to the left.
+Moshell is a statically typed language with functions that can return values rather than an exitcode. this allows the `shift` operation to be redefined to return the shifted argument then shift arguments to the left.
 
+As everything is text in a shell, values of a certain type can be _parsed_ as another type using the `parse[T]` function.
+
+Moshell brings a new kind of substitution, which is value substitution.  
+like the `$(expr)` syntax which substitutes the stdout of the underlying expression, the `@(expr)` will substitute the return value of the expression.  
 Another point is that substitution is automatically protected, thus a `$x` and `$(...)` expression is equivalent to bash `"$1"` and `"$(...)"` syntax.
 
 ```scala
