@@ -1,12 +1,12 @@
 # Moshell
-moshell is a modern shell scripting language with a static typesystem.
+Moshell is a modern shell scripting language with a static typesystem.
 
 This repository hosts the source code of the interpreter and standard library.
 
-the moshell project is currently under development and thus have simple / partial features.
+The moshell project is currently under development and thus have simple / partial features.
 
 ## examples
-here's some bash vs moshell comparisons
+Here's some bash vs moshell comparisons
 
 ### Iterating over arguments 
 bash 
