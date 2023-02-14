@@ -4,7 +4,8 @@ use lexer::token::{Token, TokenType};
 use crate::aspects::call_parser::CallParser;
 use crate::aspects::literal_parser::LiteralParser;
 use crate::aspects::var_declaration_parser::VarDeclarationParser;
-use crate::ast::{Expr, VarKind};
+use crate::ast::Expr;
+use crate::ast::variable::VarKind;
 
 pub type ParseResult<T> = Result<T, ParseError>;
 

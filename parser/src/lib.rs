@@ -1,14 +1,14 @@
 #![allow(dead_code)]
 
 use lexer::token::Token;
+use crate::ast::Expr;
 
-use crate::ast::*;
 use crate::parser::{ParseResult, Parser};
 
 ///! The parser crate contains the parser for the Moshell scripting language.
 mod aspects;
-mod ast;
 mod parser;
+pub mod ast;
 
 pub fn parse(tokens: Vec<Token>) -> ParseResult<Vec<Expr>> {
     Parser::new(tokens).parse()
@@ -17,6 +17,9 @@ pub fn parse(tokens: Vec<Token>) -> ParseResult<Vec<Expr>> {
 #[cfg(test)]
 mod tests {
     use lexer::token::TokenType;
+    use crate::ast::callable::Call;
+    use crate::ast::literal::{Literal, LiteralValue};
+    use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 
     use super::*;
 

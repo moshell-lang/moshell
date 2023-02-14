@@ -1,7 +1,8 @@
 use lexer::token::TokenType;
 
 use crate::aspects::base_parser::BaseParser;
-use crate::ast::{Call, Expr};
+use crate::ast::callable::Call;
+use crate::ast::Expr;
 use crate::parser::{ParseResult, Parser};
 
 pub trait CallParser<'a> {
@@ -23,3 +24,4 @@ impl<'a> CallParser<'a> for Parser<'a> {
         }))
     }
 }
+
