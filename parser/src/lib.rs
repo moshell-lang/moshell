@@ -1,14 +1,14 @@
 #![allow(dead_code)]
 
-use lexer::token::Token;
 use crate::ast::Expr;
+use lexer::token::Token;
 
 use crate::parser::{ParseResult, Parser};
 
 ///! The parser crate contains the parser for the Moshell scripting language.
 mod aspects;
-mod parser;
 pub mod ast;
+mod parser;
 
 pub fn parse(tokens: Vec<Token>) -> ParseResult<Vec<Expr>> {
     Parser::new(tokens).parse()
@@ -16,10 +16,10 @@ pub fn parse(tokens: Vec<Token>) -> ParseResult<Vec<Expr>> {
 
 #[cfg(test)]
 mod tests {
-    use lexer::token::TokenType;
     use crate::ast::callable::Call;
     use crate::ast::literal::{Literal, LiteralValue};
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
+    use lexer::token::TokenType;
 
     use super::*;
 
@@ -27,6 +27,7 @@ mod tests {
     fn variable_type_and_initializer() {
         let tokens = vec![
             Token::new(TokenType::Var, "var"),
+            Token::new(TokenType::Space, " "),
             Token::new(TokenType::Identifier, "a"),
             Token::new(TokenType::Colon, ":"),
             Token::new(TokenType::Identifier, "int"),
@@ -60,11 +61,16 @@ mod tests {
         let parsed = parse(tokens).expect("Failed to parse");
 
         let expected = vec![Expr::Call(Call {
-            name: Token::new(TokenType::Identifier, "echo"),
-            arguments: vec![Expr::Literal(Literal {
-                token: Token::new(TokenType::Quote, "'"),
-                parsed: LiteralValue::String("hello".to_string()),
-            })],
+            arguments: vec![
+                Expr::Literal(Literal {
+                    token: Token::new(TokenType::Identifier, "echo"),
+                    parsed: LiteralValue::String("echo".to_string()),
+                }),
+                Expr::Literal(Literal {
+                    token: Token::new(TokenType::Quote, "'"),
+                    parsed: LiteralValue::String("hello".to_string()),
+                }),
+            ],
         })];
         assert_eq!(expected, parsed);
     }

@@ -28,10 +28,11 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
             if self.is_at_end() {
                 return Err(self.mk_parse_error("Unterminated string literal."));
             }
-            if self.meet_token(TokenType::Quote) {
+            let token = self.next_token_space_aware()?;
+            if token.token_type == TokenType::Quote {
                 break;
             }
-            value.push_str(self.next_token()?.value);
+            value.push_str(token.value);
         }
         Ok(Expr::Literal(Literal {
             token,

@@ -12,7 +12,7 @@ impl<'a> Token<'a> {
     }
 }
 
-#[derive(Logos, Debug, PartialEq, Clone)]
+#[derive(Logos, Debug, PartialEq, Clone, Copy)]
 pub enum TokenType {
     #[token("var")]
     Var,
