@@ -19,12 +19,12 @@ pub enum TokenType {
     #[token("val")]
     Val,
 
-    #[regex("\"([^\"\n]|\\.)*\"|'([^\"\n]|\\.)*'|[a-zA-Z_][a-zA-Z0-9_]*")]
+    #[regex("[\\./\\p{XID_Start}](?:[^\\s]|\\\\.)*", priority = 3)]
     Identifier,
 
-    #[regex("[+-]?[0-9]+", priority = 2)]
+    #[regex("-?[0-9]+", priority = 2)]
     IntLiteral,
-    #[regex("[+-]?[0-9]+\\.[0-9]+")]
+    #[regex("-?[0-9]+\\.[0-9]+")]
     FloatLiteral,
 
     #[token("\n")]
@@ -69,9 +69,9 @@ pub enum TokenType {
 
     #[token("|")]
     Pipe,
-    #[regex("[0-2&]>>")]
+    #[regex("[0-9&]>>")]
     AppendRedirect,
-    #[regex("[0-2&]>")]
+    #[regex("[0-9&]>")]
     Redirect,
     #[regex(">&2")]
     ErrorRedirect,

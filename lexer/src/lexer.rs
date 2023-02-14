@@ -17,6 +17,22 @@ pub fn lex(inp: &str) -> Vec<Token> {
     while let Some(token_type) = lexer.next() {
         tokens.push(Token::new(token_type, lexer.slice()))
     }
-    tokens.push(Token::new(TokenType::EndOfFile, lexer.slice()));
     tokens
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn relative_path() {
+        let tokens = lex("cd ./some/path");
+        assert_eq!(
+            tokens,
+            vec![
+                Token::new(TokenType::Identifier, "cd"),
+                Token::new(TokenType::Identifier, "./some/path"),
+            ]
+        );
+    }
 }
