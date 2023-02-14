@@ -3,9 +3,9 @@ use std::num::IntErrorKind;
 use lexer::token::TokenType;
 
 use crate::aspects::base_parser::BaseParser;
-use crate::ast::*;
 use crate::ast::literal::{Literal, LiteralValue};
-use crate::parser::{Parser, ParseResult};
+use crate::ast::*;
+use crate::parser::{ParseResult, Parser};
 
 pub(crate) trait LiteralParser<'a> {
     fn literal(&mut self) -> ParseResult<Expr<'a>>;
@@ -82,6 +82,26 @@ mod tests {
             Err(ParseError {
                 message: "Integer constant is too large.".to_string(),
             })
+        );
+    }
+
+    #[test]
+    fn string_literal() {
+        let tokens = vec![
+            Token::new(TokenType::Quote, "'"),
+            Token::new(TokenType::Identifier, "hello"),
+            Token::new(TokenType::Space, " "),
+            Token::new(TokenType::Identifier, "world"),
+            Token::new(TokenType::Not, "!"),
+            Token::new(TokenType::Quote, "'"),
+        ];
+        let parsed = parse(tokens).expect("Failed to parse.");
+        assert_eq!(
+            parsed,
+            vec![Expr::Literal(Literal {
+                token: Token::new(TokenType::Quote, "'"),
+                parsed: LiteralValue::String("hello world!".to_string()),
+            })]
         );
     }
 
