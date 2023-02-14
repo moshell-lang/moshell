@@ -1,5 +1,5 @@
-use std::fs;
 use logos::Logos;
+use std::fs;
 
 #[derive(Logos, Debug, PartialEq)]
 enum Token {
@@ -18,18 +18,15 @@ enum Token {
 
     #[error]
     #[regex(r"[ \t\n\f]+", logos::skip)]
-    Error
+    Error,
 }
 
 fn main() {
-    let contents = fs::read_to_string("sample.msh")
-        .expect("Cannot open file sample.msh");
+    let contents = fs::read_to_string("sample.msh").expect("Cannot open file sample.msh");
 
     let mut lexer = Token::lexer(&contents);
 
     while let Some(token) = lexer.next() {
         println!("{:?} {:?}", token, lexer.slice());
     }
-
 }
-
