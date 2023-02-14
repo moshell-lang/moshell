@@ -19,7 +19,7 @@ pub enum TokenType {
     #[token("val")]
     Val,
 
-    #[regex("[\\./\\p{XID_Start}](?:[^\\s]|\\\\.)*", priority = 3)]
+    #[regex("[\\./\\p{XID_Start}](?:[^\\s]|\\\\.)*")]
     Identifier,
 
     #[regex("-?[0-9]+", priority = 2)]
@@ -60,6 +60,8 @@ pub enum TokenType {
     Equal,
     #[token("'")]
     Quote,
+    #[token("\"")]
+    DoubleQuote,
     #[token("$")]
     Dollar,
     #[token("&")]
@@ -134,7 +136,10 @@ pub enum TokenType {
     #[token("}")]
     CurlyRightBracket,
 
-    #[regex(r"([ \t\f]+)|(//.*)", logos::skip)]
+    #[regex(r"[ \t\f]+")]
+    Space,
+
+    #[regex("//.*", logos::skip)]
     #[error]
     Error,
 
