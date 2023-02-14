@@ -1,5 +1,5 @@
 use lexer::token::Token;
-use crate::ast::expr::Expr;
+use crate::ast::Expr;
 use crate::ast::variable::TypedVariable;
 
 /// A call to a function or a command.

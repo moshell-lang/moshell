@@ -4,11 +4,11 @@ use crate::ast::operation::BinaryOperation;
 use crate::ast::substitution::Substitution;
 use crate::ast::variable::{Assign, VarDeclaration, VarReference};
 
-mod variable;
-mod operation;
-mod literal;
-mod substitution;
-mod callable;
+pub mod variable;
+pub mod operation;
+pub mod literal;
+pub mod substitution;
+pub mod callable;
 
 /// A expression that can be evaluated.
 #[derive(Debug, Clone, PartialEq)]
@@ -18,7 +18,7 @@ pub enum Expr<'a> {
     Call(Call<'a>),
     FunDeclaration(FunDeclaration<'a>),
     Literal(Literal<'a>),
-    Grouping(Grouping<'a>),
+    //Grouping(Grouping<'a>),
     Substitution(Substitution<'a>),
     VarReference(VarReference<'a>),
     VarDeclaration(VarDeclaration<'a>),

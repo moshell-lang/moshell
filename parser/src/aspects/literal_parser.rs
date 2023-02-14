@@ -1,9 +1,11 @@
-use lexer::token::TokenType;
 use std::num::IntErrorKind;
 
+use lexer::token::TokenType;
+
 use crate::aspects::base_parser::BaseParser;
-use crate::ast::{Expr, Literal, LiteralValue};
-use crate::parser::{ParseResult, Parser};
+use crate::ast::*;
+use crate::ast::literal::{Literal, LiteralValue};
+use crate::parser::{Parser, ParseResult};
 
 pub(crate) trait LiteralParser<'a> {
     fn literal(&mut self) -> ParseResult<Expr<'a>>;
@@ -61,10 +63,12 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use lexer::token::Token;
+
     use crate::parse;
     use crate::parser::ParseError;
-    use lexer::token::Token;
+
+    use super::*;
 
     #[test]
     fn int_overflow() {

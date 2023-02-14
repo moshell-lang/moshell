@@ -1,8 +1,9 @@
-use crate::aspects::base_parser::BaseParser;
-use crate::ast::{Expr, TypedVariable, VarDeclaration, VarKind};
-use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 
+use crate::aspects::base_parser::BaseParser;
+use crate::ast::Expr;
+use crate::parser::{Parser, ParseResult};
+use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 pub trait VarDeclarationParser<'a> {
     /// Parses a variable declaration.
     fn var_declaration(&mut self, kind: VarKind) -> ParseResult<Expr<'a>>;

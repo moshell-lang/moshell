@@ -1,5 +1,5 @@
 use lexer::token::Token;
-use crate::ast::expr::Expr;
+use crate::ast::Expr;
 
 /// A typed variable.
 #[derive(Debug, Clone, PartialEq)]

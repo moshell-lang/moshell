@@ -1,3 +1,4 @@
+use crate::ast::Expr;
 
 /// A binary operation between two expressions.
 #[derive(Debug, Clone, PartialEq)]

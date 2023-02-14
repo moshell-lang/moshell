@@ -1,3 +1,5 @@
+use crate::ast::Expr;
+
 /// A special type of grouping expression that should be substituted
 /// based on its expression and kind.
 #[derive(Debug, Clone, PartialEq)]
