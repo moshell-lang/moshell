@@ -82,7 +82,7 @@ impl<'a> BaseParser<'a> for Parser<'a> {
     }
 
     fn next_token_space_aware(&mut self) -> ParseResult<Token<'a>> {
-        while let Some(token) = self.tokens.get(self.current) {
+        if let Some(token) = self.tokens.get(self.current) {
             self.current += 1;
             return Ok(token.clone());
         }
