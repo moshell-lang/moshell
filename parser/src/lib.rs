@@ -9,6 +9,7 @@ use crate::parser::{ParseResult, Parser};
 mod aspects;
 mod parser;
 pub mod ast;
+mod cursor;
 
 pub fn parse(tokens: Vec<Token>) -> ParseResult<Vec<Expr>> {
     Parser::new(tokens).parse()
