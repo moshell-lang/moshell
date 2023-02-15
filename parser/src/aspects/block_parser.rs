@@ -79,6 +79,13 @@ mod tests {
     }
 
     #[test]
+    fn test_neighbour_blocks() {
+        let tokens = lex("{ {} {} }");
+        let mut parser = Parser::new(tokens);
+        parser.block().expect_err("block parse did not failed");
+    }
+
+    #[test]
     fn test_block_not_started() {
         let tokens = lex(" val test = 2 }");
         let mut parser = Parser::new(tokens);
