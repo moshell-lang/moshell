@@ -21,16 +21,17 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     }
 
     fn string_literal(&mut self) -> ParseResult<Expr<'a>> {
-        let token = self.cursor().next_token()?;
+        let cursor = self.cursor();
+        let token = cursor.next_token()?;
         let mut value = String::new();
         loop {
-            if self.cursor().is_at_end() {
-                return Err(self.cursor().mk_parse_error("Unterminated string literal."));
+            if cursor.is_at_end() {
+                return Err(cursor.mk_parse_error("Unterminated string literal."));
             }
-            if self.cursor().meet_token(TokenType::Quote) {
+            if cursor.meet_token(TokenType::Quote) {
                 break;
             }
-            value.push_str(self.cursor().next_token()?.value);
+            value.push_str(cursor.next_token()?.value);
         }
         Ok(Expr::Literal(Literal {
             token,
