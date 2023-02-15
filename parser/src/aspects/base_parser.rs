@@ -16,11 +16,15 @@ pub trait BaseParser<'a> {
     /// return Ok(Token<'a>) where the value is the next token, ParseError if the next token is not
     /// of the expected type
     fn expect_token(&mut self, expected: TokenType, message: &str) -> ParseResult<Token<'a>>;
-    ///returns the next token without advancing
+    fn expect_separated_token(
+        &mut self,
+        expected: TokenType,
+        message: &str,
+    ) -> ParseResult<Token<'a>>;
     fn peek_token(&self) -> Token<'a>;
     ///advance and returns next token.
     fn next_token(&mut self) -> ParseResult<Token<'a>>;
-    ///return true if this parser is at the end of the Token stream (hit EOF)
+    fn next_token_space_aware(&mut self) -> ParseResult<Token<'a>>;
     fn is_at_end(&self) -> bool;
     fn expected(&self, message: &str) -> ParseResult<Token<'a>>;
     fn mk_parse_error(&self, message: impl Into<String>) -> ParseError;
@@ -28,19 +32,17 @@ pub trait BaseParser<'a> {
 
 impl<'a> BaseParser<'a> for Parser<'a> {
     fn meet_token(&mut self, expected: TokenType) -> bool {
-        let token = self.peek_token();
-        if token.token_type == expected {
-            self.current += 1;
-            return true;
-        }
-        false
+        self.match_token(expected).is_some()
     }
 
     fn match_token(&mut self, expected: TokenType) -> Option<Token<'a>> {
-        let token = self.peek_token();
-        if token.token_type == expected {
-            self.current += 1;
-            return Some(token.clone());
+        let mut idx = self.current;
+        while let Some(token) = self.tokens.get(idx) {
+            idx += 1;
+            if token.token_type != TokenType::Space && token.token_type == expected {
+                self.current = idx;
+                return Some(token.clone());
+            }
         }
         None
     }
@@ -50,21 +52,50 @@ impl<'a> BaseParser<'a> for Parser<'a> {
             .ok_or_else(|| self.mk_parse_error(message))
     }
 
-    fn peek_token(&self) -> Token<'a> {
-        self.tokens
+    fn expect_separated_token(
+        &mut self,
+        expected: TokenType,
+        message: &str,
+    ) -> ParseResult<Token<'a>> {
+        if self
+            .tokens
             .get(self.current)
-            .cloned()
-            .unwrap_or(Token::new(EndOfFile, ""))
+            .map(|token| token.token_type)
+            .unwrap_or(EndOfFile)
+            != TokenType::Space
+        {
+            self.expected("Excepted a space")?;
+        }
+        self.expect_token(expected, message)
+    }
+
+    fn peek_token(&self) -> Token<'a> {
+        let mut idx = self.current;
+        while let Some(token) = self.tokens.get(idx) {
+            idx += 1;
+            if token.token_type != TokenType::Space {
+                return token.clone();
+            }
+        }
+        return Token::new(EndOfFile, "");
     }
 
     fn next_token(&mut self) -> ParseResult<Token<'a>> {
-        let token = self.peek_token();
-        if token.token_type != EndOfFile {
+        while let Some(token) = self.tokens.get(self.current) {
             self.current += 1;
-            Ok(token.clone())
-        } else {
-            self.expected("Unexpected end of file.")
+            if token.token_type != TokenType::Space {
+                return Ok(token.clone());
+            }
         }
+        self.expected("Unexpected end of file.")
+    }
+
+    fn next_token_space_aware(&mut self) -> ParseResult<Token<'a>> {
+        if let Some(token) = self.tokens.get(self.current) {
+            self.current += 1;
+            return Ok(token.clone());
+        }
+        self.expected("Unexpected end of file.")
     }
 
     fn is_at_end(&self) -> bool {

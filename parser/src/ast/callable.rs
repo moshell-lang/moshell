@@ -1,13 +1,11 @@
-use lexer::token::Token;
-use crate::ast::Expr;
 use crate::ast::variable::TypedVariable;
+use crate::ast::Expr;
+use lexer::token::Token;
 
 /// A call to a function or a command.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Call<'a> {
-    /// The name of the function or command.
-    pub name: Token<'a>,
-    /// The arguments of the function or command.
+    /// The arguments of the command.
     pub arguments: Vec<Expr<'a>>,
 }
 
