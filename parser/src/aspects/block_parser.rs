@@ -13,11 +13,12 @@ impl<'a> BlockParser<'a> for Parser<'a> {
         self.expect_token(TokenType::CurlyLeftBracket, "expected start of block expression")?;
         let mut expressions: Vec<Expr<'a>> = Vec::new();
         loop {
-            let expression = self.statement()?;
-            expressions.push(expression);
             if self.meet_token(TokenType::CurlyRightBracket) {
                 break;
             }
+
+            let expression = self.statement()?;
+            expressions.push(expression);
         };
         Ok(Expr::Block(Block {
             exprs: expressions
@@ -37,6 +38,17 @@ mod tests {
     use crate::ast::statement::Block;
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use crate::parser::Parser;
+
+    #[test]
+    fn test_empty_block() {
+        let tokens = lex("{}");
+        let mut parser = Parser::new(tokens);
+        let ast = parser.block().expect("failed to parse block");
+        assert!(parser.is_at_end());
+        assert_eq!(ast, Expr::Block(Block {
+            exprs: vec![]
+        }))
+    }
 
     #[test]
     fn test_block() {
