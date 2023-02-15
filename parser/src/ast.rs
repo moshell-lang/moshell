@@ -1,6 +1,7 @@
 use crate::ast::callable::{Call, FunDeclaration};
 use crate::ast::literal::Literal;
 use crate::ast::operation::BinaryOperation;
+use crate::ast::statement::Block;
 use crate::ast::substitution::Substitution;
 use crate::ast::variable::{Assign, VarDeclaration, VarReference};
 
@@ -23,6 +24,6 @@ pub enum Expr<'a> {
     Substitution(Substitution<'a>),
     VarReference(VarReference<'a>),
     VarDeclaration(VarDeclaration<'a>),
-    Block(Vec<Expr<'a>>)
+    Block(Block<'a>)
 }
 

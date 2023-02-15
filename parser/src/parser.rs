@@ -1,5 +1,6 @@
 use crate::aspects::base_parser::BaseParser;
 use lexer::token::{Token, TokenType};
+use crate::aspects::block_parser::BlockParser;
 
 use crate::aspects::call_parser::CallParser;
 use crate::aspects::literal_parser::LiteralParser;
@@ -37,6 +38,7 @@ impl<'a> Parser<'a> {
             TokenType::Val => self.var_declaration(VarKind::Val),
             TokenType::IntLiteral | TokenType::FloatLiteral => self.literal(),
             TokenType::Quote => self.string_literal(),
+            TokenType::CurlyLeftBracket => self.block(),
             //TODO add other expression parsers
             _ => self.call(),
         }
