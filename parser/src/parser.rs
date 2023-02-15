@@ -4,8 +4,8 @@ use lexer::token::{Token, TokenType};
 use crate::aspects::call_parser::CallParser;
 use crate::aspects::literal_parser::LiteralParser;
 use crate::aspects::var_declaration_parser::VarDeclarationParser;
-use crate::ast::Expr;
 use crate::ast::variable::VarKind;
+use crate::ast::Expr;
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -33,12 +33,20 @@ impl<'a> Parser<'a> {
     /// Parses an expression.
     pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
         match self.peek_token().token_type {
-            TokenType::Var => self.var_declaration(VarKind::Var),
-            TokenType::Val => self.var_declaration(VarKind::Val),
             TokenType::IntLiteral | TokenType::FloatLiteral => self.literal(),
             TokenType::Quote => self.string_literal(),
-            //TODO add other expression parsers
             _ => self.call(),
+        }
+    }
+
+    /// Parse a statement.
+    ///
+    /// Statements are usually on their own line.
+    pub(crate) fn statement(&mut self) -> ParseResult<Expr<'a>> {
+        match self.peek_token().token_type {
+            TokenType::Var => self.var_declaration(VarKind::Var),
+            TokenType::Val => self.var_declaration(VarKind::Val),
+            _ => self.expression(),
         }
     }
 
@@ -47,7 +55,7 @@ impl<'a> Parser<'a> {
         let mut statements = Vec::new();
 
         while !self.is_at_end() {
-            statements.push(self.expression()?);
+            statements.push(self.statement()?);
         }
 
         Ok(statements)
