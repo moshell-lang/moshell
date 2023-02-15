@@ -36,7 +36,6 @@ impl<'a> Parser<'a> {
         match self.peek_token().token_type {
             TokenType::IntLiteral | TokenType::FloatLiteral => self.literal(),
             TokenType::Quote => self.string_literal(),
-            TokenType::CurlyLeftBracket => self.block(),
             //TODO add other expression parsers
             _ => self.call(),
         }
@@ -44,11 +43,11 @@ impl<'a> Parser<'a> {
 
     /// Parse a statement.
     ///
-    /// Statements are usually on their own line.
     pub(crate) fn statement(&mut self) -> ParseResult<Expr<'a>> {
         match self.peek_token().token_type {
             TokenType::Var => self.var_declaration(VarKind::Var),
             TokenType::Val => self.var_declaration(VarKind::Val),
+            TokenType::CurlyLeftBracket => self.block(),
             _ => self.expression(),
         }
     }

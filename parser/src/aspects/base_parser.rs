@@ -39,9 +39,12 @@ impl<'a> BaseParser<'a> for Parser<'a> {
         let mut idx = self.current;
         while let Some(token) = self.tokens.get(idx) {
             idx += 1;
-            if token.token_type != TokenType::Space && token.token_type == expected {
-                self.current = idx;
-                return Some(token.clone());
+            if token.token_type != TokenType::Space {
+                if token.token_type == expected {
+                    self.current = idx;
+                    return Some(token.clone());
+                }
+                return None;
             }
         }
         None

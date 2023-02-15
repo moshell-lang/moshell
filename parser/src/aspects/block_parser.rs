@@ -3,7 +3,6 @@ use crate::aspects::base_parser::BaseParser;
 use crate::ast::Expr;
 use crate::parser::{Parser, ParseResult};
 use crate::ast::statement::Block;
-use crate::ast::variable::VarDeclaration;
 
 pub trait BlockParser<'a> {
     fn block(&mut self) -> ParseResult<Expr<'a>>;
@@ -14,7 +13,7 @@ impl<'a> BlockParser<'a> for Parser<'a> {
         self.expect_token(TokenType::CurlyLeftBracket, "expected start of block expression")?;
         let mut expressions: Vec<Expr<'a>> = Vec::new();
         loop {
-            let expression = self.expression()?;
+            let expression = self.statement()?;
             expressions.push(expression);
             if self.meet_token(TokenType::CurlyRightBracket) {
                 break;
@@ -34,7 +33,7 @@ mod tests {
     use crate::aspects::block_parser::BlockParser;
     use crate::ast::Expr;
     use crate::ast::literal::Literal;
-    use crate::ast::literal::LiteralValue::{Float, String};
+    use crate::ast::literal::LiteralValue::{Float, Int};
     use crate::ast::statement::Block;
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use crate::parser::Parser;
@@ -44,7 +43,7 @@ mod tests {
         let tokens = lex("\
         {\
             var test: int = 7.0\
-            val x = any\
+            val x = 8\
         }\
         ");
         let mut parser = Parser::new(tokens);
@@ -70,8 +69,8 @@ mod tests {
                         ty: None,
                     },
                     initializer: Some(Box::new(Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "any"),
-                        parsed: String("any".to_string()),
+                        token: Token::new(TokenType::IntLiteral, "8"),
+                        parsed: Int(8),
                     }))),
                 }),
             ]
