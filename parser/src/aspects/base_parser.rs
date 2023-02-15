@@ -7,7 +7,13 @@ use crate::parser::{ParseError, ParseResult, Parser};
 pub trait BaseParser<'a> {
     fn meet_token(&mut self, expected: TokenType) -> bool;
     fn match_token(&mut self, expected: TokenType) -> Option<Token<'a>>;
+    fn match_token_space_aware(&mut self, expected: TokenType) -> Option<Token<'a>>;
     fn expect_token(&mut self, expected: TokenType, message: &str) -> ParseResult<Token<'a>>;
+    fn expect_token_space_aware(
+        &mut self,
+        expected: TokenType,
+        message: &str,
+    ) -> ParseResult<Token<'a>>;
     fn expect_separated_token(
         &mut self,
         expected: TokenType,
@@ -38,8 +44,28 @@ impl<'a> BaseParser<'a> for Parser<'a> {
         None
     }
 
+    fn match_token_space_aware(&mut self, expected: TokenType) -> Option<Token<'a>> {
+        self.tokens.get(self.current).and_then(|token| {
+            if token.token_type == expected {
+                self.current += 1;
+                Some(token.clone())
+            } else {
+                None
+            }
+        })
+    }
+
     fn expect_token(&mut self, expected: TokenType, message: &str) -> ParseResult<Token<'a>> {
         self.match_token(expected)
+            .ok_or_else(|| self.mk_parse_error(message))
+    }
+
+    fn expect_token_space_aware(
+        &mut self,
+        expected: TokenType,
+        message: &str,
+    ) -> ParseResult<Token<'a>> {
+        self.match_token_space_aware(expected)
             .ok_or_else(|| self.mk_parse_error(message))
     }
 

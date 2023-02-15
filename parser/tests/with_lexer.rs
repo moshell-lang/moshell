@@ -2,7 +2,7 @@ use lexer::lexer::lex;
 use lexer::token::{Token, TokenType};
 use parser::ast::callable::Call;
 use parser::ast::literal::{Literal, LiteralValue};
-use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind};
+use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 use parser::ast::Expr;
 use parser::parse;
 
@@ -52,6 +52,19 @@ fn with_lexer_var_call() {
                     })
                 ],
             }))),
+        })]
+    );
+}
+
+#[test]
+fn with_lexer_var_reference() {
+    let tokens = lex("$cmd");
+    let parsed = parse(tokens).expect("Failed to parse");
+
+    assert_eq!(
+        parsed,
+        vec![Expr::VarReference(VarReference {
+            name: Token::new(TokenType::Identifier, "cmd"),
         })]
     );
 }
