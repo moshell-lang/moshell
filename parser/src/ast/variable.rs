@@ -1,5 +1,5 @@
-use lexer::token::Token;
 use crate::ast::Expr;
+use lexer::token::Token;
 
 /// A typed variable.
 #[derive(Debug, Clone, PartialEq)]
@@ -34,7 +34,6 @@ pub struct VarReference<'a> {
     pub name: Token<'a>,
 }
 
-
 /// A variable assignation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Assign<'a> {
@@ -43,4 +42,3 @@ pub struct Assign<'a> {
     /// The value of the variable to be evaluated.
     pub value: Box<Expr<'a>>,
 }
-

@@ -4,11 +4,11 @@ use crate::ast::operation::BinaryOperation;
 use crate::ast::substitution::Substitution;
 use crate::ast::variable::{Assign, VarDeclaration, VarReference};
 
-pub mod variable;
-pub mod operation;
-pub mod literal;
-pub mod substitution;
 pub mod callable;
+pub mod literal;
+pub mod operation;
+pub mod substitution;
+pub mod variable;
 
 /// A expression that can be evaluated.
 #[derive(Debug, Clone, PartialEq)]
@@ -20,6 +20,7 @@ pub enum Expr<'a> {
     Literal(Literal<'a>),
     //Grouping(Grouping<'a>),
     Substitution(Substitution<'a>),
+    TemplateString(Vec<Expr<'a>>),
     VarReference(VarReference<'a>),
     VarDeclaration(VarDeclaration<'a>),
 }
@@ -31,4 +32,3 @@ pub struct Grouping<'a> {
     pub expr: Box<Expr<'a>>,
 }
 */
-
