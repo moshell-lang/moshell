@@ -5,12 +5,12 @@ use crate::ast::statement::Block;
 use crate::ast::substitution::Substitution;
 use crate::ast::variable::{Assign, VarDeclaration, VarReference};
 
-pub mod variable;
-pub mod operation;
-pub mod literal;
-pub mod substitution;
 pub mod callable;
 pub mod statement;
+pub mod literal;
+pub mod operation;
+pub mod substitution;
+pub mod variable;
 
 /// A expression that can be evaluated.
 #[derive(Debug, Clone, PartialEq)]
@@ -22,6 +22,7 @@ pub enum Expr<'a> {
     Literal(Literal<'a>),
     //Grouping(Grouping<'a>),
     Substitution(Substitution<'a>),
+    TemplateString(Vec<Expr<'a>>),
     VarReference(VarReference<'a>),
     VarDeclaration(VarDeclaration<'a>),
     Block(Block<'a>)
