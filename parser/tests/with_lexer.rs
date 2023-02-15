@@ -84,7 +84,7 @@ fn with_lexer_var_reference_two() {
 
 #[test]
 fn with_lexer_var_reference_three() {
-    let tokens = lex("echo \"hello $world everyone $verb$ready !\"");
+    let tokens = lex("echo \"hello $world everyone $verb${ready}!\"");
     let parsed = parse(tokens).expect("Failed to parse");
 
     assert_eq!(
@@ -114,8 +114,8 @@ fn with_lexer_var_reference_three() {
                         name: Token::new(TokenType::Identifier, "ready"),
                     }),
                     Expr::Literal(Literal {
-                        token: Token::new(TokenType::Space, " "),
-                        parsed: LiteralValue::String(" !".to_string()),
+                        token: Token::new(TokenType::Not, "!"),
+                        parsed: LiteralValue::String("!".to_string()),
                     }),
                 ]),
             ],
