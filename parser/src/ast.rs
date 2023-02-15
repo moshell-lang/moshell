@@ -9,6 +9,7 @@ pub mod operation;
 pub mod literal;
 pub mod substitution;
 pub mod callable;
+pub mod statement;
 
 /// A expression that can be evaluated.
 #[derive(Debug, Clone, PartialEq)]
@@ -22,13 +23,6 @@ pub enum Expr<'a> {
     Substitution(Substitution<'a>),
     VarReference(VarReference<'a>),
     VarDeclaration(VarDeclaration<'a>),
+    Block(Vec<Expr<'a>>)
 }
-
-/*
-/// A boxed expression that helps with precedence.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Grouping<'a> {
-    pub expr: Box<Expr<'a>>,
-}
-*/
 
