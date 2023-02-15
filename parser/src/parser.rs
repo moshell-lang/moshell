@@ -4,7 +4,6 @@ use lexer::token::{Token, TokenType};
 use crate::aspects::call_parser::CallParser;
 use crate::aspects::literal_parser::LiteralParser;
 use crate::aspects::var_declaration_parser::VarDeclarationParser;
-use crate::aspects::var_reference_parser::VarReferenceParser;
 use crate::ast::variable::VarKind;
 use crate::ast::Expr;
 
@@ -36,7 +35,7 @@ impl<'a> Parser<'a> {
         match self.peek_token().token_type {
             TokenType::IntLiteral | TokenType::FloatLiteral => self.literal(),
             TokenType::Quote => self.string_literal(),
-            TokenType::Dollar => self.var_reference(),
+            TokenType::DoubleQuote => self.templated_string_literal(),
             _ => self.argument(),
         }
     }
@@ -46,9 +45,11 @@ impl<'a> Parser<'a> {
     /// Statements are usually on their own line.
     pub(crate) fn statement(&mut self) -> ParseResult<Expr<'a>> {
         match self.peek_token().token_type {
+            TokenType::Identifier => self.call(),
+            TokenType::Quote => self.call(),
+            TokenType::DoubleQuote => self.call(),
             TokenType::Var => self.var_declaration(VarKind::Var),
             TokenType::Val => self.var_declaration(VarKind::Val),
-            TokenType::Identifier => self.call(),
             _ => self.expression(),
         }
     }

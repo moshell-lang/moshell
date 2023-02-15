@@ -28,37 +28,8 @@ fn with_lexer_variable() {
 }
 
 #[test]
-fn with_lexer_var_call() {
-    let tokens = lex("val r = echo 5");
-    let parsed = parse(tokens).expect("Failed to parse");
-
-    assert_eq!(
-        parsed,
-        vec![Expr::VarDeclaration(VarDeclaration {
-            kind: VarKind::Val,
-            var: TypedVariable {
-                name: Token::new(TokenType::Identifier, "r"),
-                ty: None,
-            },
-            initializer: Some(Box::new(Expr::Call(Call {
-                arguments: vec![
-                    Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "echo"),
-                        parsed: LiteralValue::String("echo".to_string()),
-                    }),
-                    Expr::Literal(Literal {
-                        token: Token::new(TokenType::IntLiteral, "5"),
-                        parsed: LiteralValue::Int(5),
-                    })
-                ],
-            }))),
-        })]
-    );
-}
-
-#[test]
-fn with_lexer_var_reference() {
-    let tokens = lex("fake $cmd do $arg2");
+fn with_lexer_var_reference_one() {
+    let tokens = lex("echo '$var5' $var5");
     let parsed = parse(tokens).expect("Failed to parse");
 
     assert_eq!(
@@ -66,12 +37,39 @@ fn with_lexer_var_reference() {
         vec![Expr::Call(Call {
             arguments: vec![
                 Expr::Literal(Literal {
-                    token: Token::new(TokenType::Identifier, "fake"),
-                    parsed: LiteralValue::String("fake".to_string()),
+                    token: Token::new(TokenType::Identifier, "echo"),
+                    parsed: LiteralValue::String("echo".to_string()),
+                }),
+                Expr::Literal(Literal {
+                    token: Token::new(TokenType::Quote, "'"),
+                    parsed: LiteralValue::String("$var5".to_string()),
                 }),
                 Expr::VarReference(VarReference {
-                    name: Token::new(TokenType::Identifier, "cmd"),
+                    name: Token::new(TokenType::Identifier, "var5"),
                 }),
+            ],
+        })]
+    );
+}
+
+#[test]
+fn with_lexer_var_reference_two() {
+    let tokens = lex("\"fake$cmd\" do $arg2");
+    let parsed = parse(tokens).expect("Failed to parse");
+
+    assert_eq!(
+        parsed,
+        vec![Expr::Call(Call {
+            arguments: vec![
+                Expr::TemplateString(vec![
+                    Expr::Literal(Literal {
+                        token: Token::new(TokenType::Identifier, "fake"),
+                        parsed: LiteralValue::String("fake".to_string()),
+                    }),
+                    Expr::VarReference(VarReference {
+                        name: Token::new(TokenType::Identifier, "cmd"),
+                    }),
+                ]),
                 Expr::Literal(Literal {
                     token: Token::new(TokenType::Identifier, "do"),
                     parsed: LiteralValue::String("do".to_string()),
@@ -79,6 +77,47 @@ fn with_lexer_var_reference() {
                 Expr::VarReference(VarReference {
                     name: Token::new(TokenType::Identifier, "arg2"),
                 }),
+            ],
+        })]
+    );
+}
+
+#[test]
+fn with_lexer_var_reference_three() {
+    let tokens = lex("echo \"hello $world everyone $verb$ready !\"");
+    let parsed = parse(tokens).expect("Failed to parse");
+
+    assert_eq!(
+        parsed,
+        vec![Expr::Call(Call {
+            arguments: vec![
+                Expr::Literal(Literal {
+                    token: Token::new(TokenType::Identifier, "echo"),
+                    parsed: LiteralValue::String("echo".to_string()),
+                }),
+                Expr::TemplateString(vec![
+                    Expr::Literal(Literal {
+                        token: Token::new(TokenType::Identifier, "hello"),
+                        parsed: LiteralValue::String("hello ".to_string()),
+                    }),
+                    Expr::VarReference(VarReference {
+                        name: Token::new(TokenType::Identifier, "world"),
+                    }),
+                    Expr::Literal(Literal {
+                        token: Token::new(TokenType::Space, " "),
+                        parsed: LiteralValue::String(" everyone ".to_string()),
+                    }),
+                    Expr::VarReference(VarReference {
+                        name: Token::new(TokenType::Identifier, "verb"),
+                    }),
+                    Expr::VarReference(VarReference {
+                        name: Token::new(TokenType::Identifier, "ready"),
+                    }),
+                    Expr::Literal(Literal {
+                        token: Token::new(TokenType::Space, " "),
+                        parsed: LiteralValue::String(" !".to_string()),
+                    }),
+                ]),
             ],
         })]
     );

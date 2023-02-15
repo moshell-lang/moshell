@@ -3,6 +3,7 @@ use std::num::IntErrorKind;
 use lexer::token::TokenType;
 
 use crate::aspects::base_parser::BaseParser;
+use crate::aspects::var_reference_parser::VarReferenceParser;
 use crate::ast::literal::{Literal, LiteralValue};
 use crate::ast::*;
 use crate::parser::{ParseResult, Parser};
@@ -10,6 +11,7 @@ use crate::parser::{ParseResult, Parser};
 pub(crate) trait LiteralParser<'a> {
     fn literal(&mut self) -> ParseResult<Expr<'a>>;
     fn string_literal(&mut self) -> ParseResult<Expr<'a>>;
+    fn templated_string_literal(&mut self) -> ParseResult<Expr<'a>>;
     fn argument(&mut self) -> ParseResult<Expr<'a>>;
     fn parse_literal(&mut self) -> ParseResult<LiteralValue>;
 }
@@ -41,23 +43,93 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
         }))
     }
 
+    fn templated_string_literal(&mut self) -> ParseResult<Expr<'a>> {
+        self.next_token()?;
+        let mut current_start = self.peek_token_space_aware();
+        let mut literal_value = String::new();
+        let mut parts = Vec::new();
+        loop {
+            if self.is_at_end() {
+                return Err(self.mk_parse_error("Unterminated string literal."));
+            }
+            match self.peek_token_space_aware().token_type {
+                TokenType::DoubleQuote => {
+                    self.next_token()?;
+                    break;
+                }
+                TokenType::Dollar => {
+                    if !literal_value.is_empty() {
+                        parts.push(Expr::Literal(Literal {
+                            token: current_start,
+                            parsed: LiteralValue::String(literal_value.clone()),
+                        }));
+                        literal_value.clear();
+                    }
+                    let var_ref = self.var_reference()?;
+                    parts.push(var_ref);
+                    current_start = self.peek_token_space_aware();
+                }
+                _ => literal_value.push_str(self.next_token_space_aware()?.value),
+            };
+        }
+        if !literal_value.is_empty() {
+            parts.push(Expr::Literal(Literal {
+                token: current_start,
+                parsed: LiteralValue::String(literal_value),
+            }));
+        }
+        Ok(Expr::TemplateString(parts))
+    }
+
+    /// Parses a single argument.
+    ///
+    /// An argument is usually a single identifier, but can also be
+    /// composed of multiple tokens if not separated with a space.
     fn argument(&mut self) -> ParseResult<Expr<'a>> {
-        let token = self.next_token()?;
-        let mut value = token.value.to_string();
+        let mut current_start = self.peek_token();
+        let mut parts = Vec::new();
+        let mut builder = String::new();
+        match current_start.token_type {
+            TokenType::Dollar => parts.push(self.var_reference()?),
+            _ => builder.push_str(self.next_token()?.value),
+        }
         loop {
             if self.is_at_end() {
                 break;
             }
-            let token = self.next_token_space_aware()?;
-            if token.token_type == TokenType::Space {
-                break;
+            match self.peek_token_space_aware().token_type {
+                TokenType::Space => {
+                    self.next_token_space_aware()?;
+                    break;
+                }
+                TokenType::Dollar => {
+                    if !builder.is_empty() {
+                        parts.push(Expr::Literal(Literal {
+                            token: current_start.clone(),
+                            parsed: LiteralValue::String(builder.clone()),
+                        }));
+                        builder.clear();
+                    }
+                    parts.push(self.var_reference()?);
+                }
+                _ => {
+                    if !builder.is_empty() {
+                        current_start = self.peek_token_space_aware();
+                    }
+                    builder.push_str(self.next_token_space_aware()?.value)
+                }
             }
-            value.push_str(token.value);
         }
-        Ok(Expr::Literal(Literal {
-            token,
-            parsed: LiteralValue::String(value),
-        }))
+        if !builder.is_empty() {
+            parts.push(Expr::Literal(Literal {
+                token: current_start,
+                parsed: LiteralValue::String(builder),
+            }));
+        }
+        if parts.len() == 1 {
+            return Ok(parts.pop().unwrap());
+        }
+        Ok(Expr::TemplateString(parts))
     }
 
     fn parse_literal(&mut self) -> ParseResult<LiteralValue> {
@@ -116,13 +188,13 @@ mod tests {
             Token::new(TokenType::Not, "!"),
             Token::new(TokenType::Quote, "'"),
         ];
-        let parsed = parse(tokens).expect("Failed to parse.");
+        let parsed = Parser::new(tokens).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
-            vec![Expr::Literal(Literal {
+            Expr::Literal(Literal {
                 token: Token::new(TokenType::Quote, "'"),
                 parsed: LiteralValue::String("hello world!".to_string()),
-            })]
+            })
         );
     }
 

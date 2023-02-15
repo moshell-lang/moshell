@@ -20,6 +20,7 @@ pub trait BaseParser<'a> {
         message: &str,
     ) -> ParseResult<Token<'a>>;
     fn peek_token(&self) -> Token<'a>;
+    fn peek_token_space_aware(&self) -> Token<'a>;
     fn next_token(&mut self) -> ParseResult<Token<'a>>;
     fn next_token_space_aware(&mut self) -> ParseResult<Token<'a>>;
     fn is_at_end(&self) -> bool;
@@ -36,10 +37,15 @@ impl<'a> BaseParser<'a> for Parser<'a> {
         let mut idx = self.current;
         while let Some(token) = self.tokens.get(idx) {
             idx += 1;
-            if token.token_type != TokenType::Space && token.token_type == expected {
-                self.current = idx;
-                return Some(token.clone());
+            if token.token_type == TokenType::Space {
+                continue;
             }
+            return if token.token_type == expected {
+                self.current = idx;
+                Some(token.clone())
+            } else {
+                None
+            };
         }
         None
     }
@@ -74,13 +80,7 @@ impl<'a> BaseParser<'a> for Parser<'a> {
         expected: TokenType,
         message: &str,
     ) -> ParseResult<Token<'a>> {
-        if self
-            .tokens
-            .get(self.current)
-            .map(|token| token.token_type)
-            .unwrap_or(EndOfFile)
-            != TokenType::Space
-        {
+        if self.peek_token_space_aware().token_type != TokenType::Space {
             self.expected("Excepted a space")?;
         }
         self.expect_token(expected, message)
@@ -95,6 +95,13 @@ impl<'a> BaseParser<'a> for Parser<'a> {
             }
         }
         return Token::new(EndOfFile, "");
+    }
+
+    fn peek_token_space_aware(&self) -> Token<'a> {
+        self.tokens
+            .get(self.current)
+            .cloned()
+            .unwrap_or_else(|| Token::new(EndOfFile, ""))
     }
 
     fn next_token(&mut self) -> ParseResult<Token<'a>> {

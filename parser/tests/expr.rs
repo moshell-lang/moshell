@@ -29,13 +29,14 @@ fn variable_type_and_initializer() {
             parsed: LiteralValue::Int(1),
         }))),
     })];
-    assert_eq!(expected, parsed);
+    assert_eq!(parsed, expected);
 }
 
 #[test]
 fn command_echo() {
     let tokens = vec![
         Token::new(TokenType::Identifier, "echo"),
+        Token::new(TokenType::Space, " "),
         Token::new(TokenType::Quote, "'"),
         Token::new(TokenType::Identifier, "hello"),
         Token::new(TokenType::Quote, "'"),
@@ -54,5 +55,5 @@ fn command_echo() {
             }),
         ],
     })];
-    assert_eq!(expected, parsed);
+    assert_eq!(parsed, expected);
 }
