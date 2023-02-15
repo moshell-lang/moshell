@@ -58,13 +58,28 @@ fn with_lexer_var_call() {
 
 #[test]
 fn with_lexer_var_reference() {
-    let tokens = lex("$cmd");
+    let tokens = lex("fake $cmd do $arg2");
     let parsed = parse(tokens).expect("Failed to parse");
 
     assert_eq!(
         parsed,
-        vec![Expr::VarReference(VarReference {
-            name: Token::new(TokenType::Identifier, "cmd"),
+        vec![Expr::Call(Call {
+            arguments: vec![
+                Expr::Literal(Literal {
+                    token: Token::new(TokenType::Identifier, "fake"),
+                    parsed: LiteralValue::String("fake".to_string()),
+                }),
+                Expr::VarReference(VarReference {
+                    name: Token::new(TokenType::Identifier, "cmd"),
+                }),
+                Expr::Literal(Literal {
+                    token: Token::new(TokenType::Identifier, "do"),
+                    parsed: LiteralValue::String("do".to_string()),
+                }),
+                Expr::VarReference(VarReference {
+                    name: Token::new(TokenType::Identifier, "arg2"),
+                }),
+            ],
         })]
     );
 }

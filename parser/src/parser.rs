@@ -37,7 +37,7 @@ impl<'a> Parser<'a> {
             TokenType::IntLiteral | TokenType::FloatLiteral => self.literal(),
             TokenType::Quote => self.string_literal(),
             TokenType::Dollar => self.var_reference(),
-            _ => self.call(),
+            _ => self.argument(),
         }
     }
 

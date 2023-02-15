@@ -26,7 +26,7 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
 
         let initializer = match self.match_token(TokenType::Equal) {
             None => None,
-            Some(_) => Some(self.expression()?),
+            Some(_) => Some(self.statement()?),
         };
 
         Ok(Expr::VarDeclaration(VarDeclaration {

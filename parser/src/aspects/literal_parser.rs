@@ -10,6 +10,7 @@ use crate::parser::{ParseResult, Parser};
 pub(crate) trait LiteralParser<'a> {
     fn literal(&mut self) -> ParseResult<Expr<'a>>;
     fn string_literal(&mut self) -> ParseResult<Expr<'a>>;
+    fn argument(&mut self) -> ParseResult<Expr<'a>>;
     fn parse_literal(&mut self) -> ParseResult<LiteralValue>;
 }
 
@@ -30,6 +31,25 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
             }
             let token = self.next_token_space_aware()?;
             if token.token_type == TokenType::Quote {
+                break;
+            }
+            value.push_str(token.value);
+        }
+        Ok(Expr::Literal(Literal {
+            token,
+            parsed: LiteralValue::String(value),
+        }))
+    }
+
+    fn argument(&mut self) -> ParseResult<Expr<'a>> {
+        let token = self.next_token()?;
+        let mut value = token.value.to_string();
+        loop {
+            if self.is_at_end() {
+                break;
+            }
+            let token = self.next_token_space_aware()?;
+            if token.token_type == TokenType::Space {
                 break;
             }
             value.push_str(token.value);
