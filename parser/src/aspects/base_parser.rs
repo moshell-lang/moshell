@@ -44,7 +44,7 @@ impl<'a> BaseParser<'a> for Parser<'a> {
                     self.current = idx;
                     return Some(token.clone());
                 }
-                return None;
+                return None
             }
         }
         None

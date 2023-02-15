@@ -56,6 +56,8 @@ pub enum TokenType {
 
     #[token(":")]
     Colon,
+    #[token(";")]
+    SemiColon,
     #[token("=")]
     Equal,
     #[token("'")]
