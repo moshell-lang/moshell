@@ -71,15 +71,6 @@ pub enum TokenType {
 
     #[token("|")]
     Pipe,
-    #[regex("[0-9&]>>")]
-    AppendRedirect,
-    #[regex("[0-9&]>")]
-    Redirect,
-    #[regex(">&2")]
-    ErrorRedirect,
-
-    #[token("<<<")]
-    Here,
 
     #[token("&&")]
     And,
@@ -144,4 +135,24 @@ pub enum TokenType {
     Error,
 
     EndOfFile,
+}
+
+impl TokenType {
+    pub fn is_ponctuation(self) -> bool {
+        matches!(
+            self,
+            TokenType::Ampersand
+                | TokenType::Less
+                | TokenType::Greater
+                | TokenType::Pipe
+                | TokenType::SquareLeftBracket
+                | TokenType::SquareRightBracket
+                | TokenType::RoundedLeftBracket
+                | TokenType::RoundedRightBracket
+                | TokenType::CurlyLeftBracket
+                | TokenType::CurlyRightBracket
+                | TokenType::Space
+                | TokenType::Error
+        )
+    }
 }

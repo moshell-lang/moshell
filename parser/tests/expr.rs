@@ -54,6 +54,7 @@ fn command_echo() {
                 parsed: LiteralValue::String("hello".to_string()),
             }),
         ],
+        redirections: vec![],
     })];
     assert_eq!(parsed, expected);
 }

@@ -93,11 +93,9 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
             TokenType::Dollar => parts.push(self.var_reference()?),
             _ => builder.push_str(self.next_token()?.value),
         }
-        loop {
-            if self.is_at_end() {
-                break;
-            }
-            match self.peek_token_space_aware().token_type {
+        while !self.is_at_end() {
+            let token_type = self.peek_token_space_aware().token_type;
+            match token_type {
                 TokenType::Space => {
                     self.next_token_space_aware()?;
                     break;
@@ -112,6 +110,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                     }
                     parts.push(self.var_reference()?);
                 }
+                _ if token_type.is_ponctuation() => break,
                 _ => {
                     if !builder.is_empty() {
                         current_start = self.peek_token_space_aware();

@@ -48,6 +48,7 @@ fn with_lexer_var_reference_one() {
                     name: Token::new(TokenType::Identifier, "var5"),
                 }),
             ],
+            redirections: vec![],
         })]
     );
 }
@@ -78,6 +79,7 @@ fn with_lexer_var_reference_two() {
                     name: Token::new(TokenType::Identifier, "arg2"),
                 }),
             ],
+            redirections: vec![],
         })]
     );
 }
@@ -119,6 +121,7 @@ fn with_lexer_var_reference_three() {
                     }),
                 ]),
             ],
+            redirections: vec![],
         })]
     );
 }
