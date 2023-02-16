@@ -17,7 +17,7 @@ while [ "$1" ]; do
           ALL=true
           ;;
       -n)
-          if [ ! grep -E "^[0-9]+$" <<< "$1" ]; then 
+          if ! grep -E "^[0-9]+$" <<< "$1"; then 
               echo "argument after -n is not an int"
               exit 1
           fi

@@ -10,18 +10,11 @@ pub trait CallParser<'a> {
 
 impl<'a> CallParser<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
-        let cursor = self.cursor();
-        let name = cursor.expect_token(TokenType::Identifier, "Expected command name.")?;
-
-        let mut args = Vec::new();
-        while !self.cursor().is_at_end() && !self.cursor().meet_token(TokenType::NewLine) {
+        let mut args = vec![self.expression()?];
+        while !self.is_at_end() && !self.cursor().meet_token(TokenType::NewLine) {
             args.push(self.expression()?);
         }
 
-        Ok(Expr::Call(Call {
-            name: name.clone(),
-            arguments: args,
-        }))
+        Ok(Expr::Call(Call { arguments: args }))
     }
 }
-

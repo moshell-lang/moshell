@@ -12,19 +12,19 @@ impl<'a> Token<'a> {
     }
 }
 
-#[derive(Logos, Debug, PartialEq, Clone)]
+#[derive(Logos, Debug, PartialEq, Clone, Copy)]
 pub enum TokenType {
     #[token("var")]
     Var,
     #[token("val")]
     Val,
 
-    #[regex("\"([^\"\n]|\\.)*\"|'([^\"\n]|\\.)*'|[a-zA-Z_][a-zA-Z0-9_]*")]
+    #[regex("[\\./\\p{XID_Start}](?:[^\\s'\"$@}]|\\\\.)*")]
     Identifier,
 
-    #[regex("[+-]?[0-9]+", priority = 2)]
+    #[regex("-?[0-9]+", priority = 2)]
     IntLiteral,
-    #[regex("[+-]?[0-9]+\\.[0-9]+")]
+    #[regex("-?[0-9]+\\.[0-9]+")]
     FloatLiteral,
 
     #[token("\n")]
@@ -60,6 +60,8 @@ pub enum TokenType {
     Equal,
     #[token("'")]
     Quote,
+    #[token("\"")]
+    DoubleQuote,
     #[token("$")]
     Dollar,
     #[token("&")]
@@ -69,9 +71,9 @@ pub enum TokenType {
 
     #[token("|")]
     Pipe,
-    #[regex("[0-2&]>>")]
+    #[regex("[0-9&]>>")]
     AppendRedirect,
-    #[regex("[0-2&]>")]
+    #[regex("[0-9&]>")]
     Redirect,
     #[regex(">&2")]
     ErrorRedirect,
@@ -134,7 +136,10 @@ pub enum TokenType {
     #[token("}")]
     CurlyRightBracket,
 
-    #[regex(r"([ \t\f]+)|(//.*)", logos::skip)]
+    #[regex(r"[ \t\f]+")]
+    Space,
+
+    #[regex("//.*", logos::skip)]
     #[error]
     Error,
 
