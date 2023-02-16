@@ -30,16 +30,24 @@ impl<'a> CallParser<'a> for Parser<'a> {
     }
 
     fn redirection(&mut self) -> ParseResult<Redir<'a>> {
-        let fd = match self.match_token(TokenType::Ampersand) {
-            None => RedirFd::Default,
-            Some(_) => RedirFd::Fd(
-                self.expect_token(TokenType::IntLiteral, "Expected file descriptor.")?
-                    .value
-                    .parse()
-                    .map_err(|_| self.mk_parse_error("Invalid file descriptor."))?,
-            ),
+        let mut token = self.next_token()?;
+        let fd = match token.token_type {
+            TokenType::Ampersand => {
+                token = self.next_token_space_aware()?;
+                RedirFd::Wildcard
+            }
+            TokenType::IntLiteral => {
+                token = self.next_token_space_aware()?;
+                RedirFd::Fd(
+                    token
+                        .value
+                        .parse()
+                        .map_err(|_| self.mk_parse_error("Invalid file descriptor."))?,
+                )
+            }
+            _ => RedirFd::Default,
         };
-        let mut operator = match self.next_token_space_aware()?.token_type {
+        let mut operator = match token.token_type {
             TokenType::Less => RedirOp::Read,
             TokenType::Greater => match self.match_token_space_aware(TokenType::Greater) {
                 None => RedirOp::Write,

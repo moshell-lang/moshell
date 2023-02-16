@@ -1,6 +1,6 @@
 use lexer::lexer::lex;
 use lexer::token::{Token, TokenType};
-use parser::ast::callable::Call;
+use parser::ast::callable::{Call, Redir, RedirFd, RedirOp};
 use parser::ast::literal::{Literal, LiteralValue};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 use parser::ast::Expr;
@@ -122,6 +122,29 @@ fn with_lexer_var_reference_three() {
                 ]),
             ],
             redirections: vec![],
+        })]
+    );
+}
+
+#[test]
+fn with_lexer_redirection() {
+    let tokens = lex("test &> /dev/null");
+    let parsed = parse(tokens).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Call(Call {
+            arguments: vec![Expr::Literal(Literal {
+                token: Token::new(TokenType::Identifier, "test"),
+                parsed: LiteralValue::String("test".to_string()),
+            })],
+            redirections: vec![Redir {
+                fd: RedirFd::Wildcard,
+                operator: RedirOp::Write,
+                operand: Expr::Literal(Literal {
+                    token: Token::new(TokenType::Identifier, "/dev/null"),
+                    parsed: LiteralValue::String("/dev/null".to_string()),
+                }),
+            }],
         })]
     );
 }
