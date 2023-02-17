@@ -1,12 +1,13 @@
 use lexer::token::TokenType;
 
 use crate::aspects::base_parser::BaseParser;
-use crate::ast::callable::{Call, Redir, RedirFd, RedirOp};
+use crate::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp};
 use crate::ast::Expr;
 use crate::parser::{ParseResult, Parser};
 
 pub trait CallParser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>>;
+    fn pipeline(&mut self, first_call: Call<'a>) -> ParseResult<Expr<'a>>;
     fn redirection(&mut self) -> ParseResult<Redir<'a>>;
 }
 
@@ -19,6 +20,12 @@ impl<'a> CallParser<'a> for Parser<'a> {
                 TokenType::Ampersand | TokenType::Less | TokenType::Greater => {
                     redirections.push(self.redirection()?);
                 }
+                TokenType::Pipe => {
+                    return self.pipeline(Call {
+                        arguments,
+                        redirections,
+                    });
+                }
                 _ => arguments.push(self.expression()?),
             };
         }
@@ -26,6 +33,21 @@ impl<'a> CallParser<'a> for Parser<'a> {
         Ok(Expr::Call(Call {
             arguments,
             redirections,
+        }))
+    }
+
+    fn pipeline(&mut self, first_call: Call<'a>) -> ParseResult<Expr<'a>> {
+        let mut commands = vec![first_call];
+        while self.meet_token(TokenType::Pipe) {
+            match self.call()? {
+                Expr::Call(call) => commands.push(call),
+                Expr::Pipeline(pipeline) => commands.extend(pipeline.commands),
+                _ => Err(self.mk_parse_error("Expected a command."))?,
+            }
+        }
+        Ok(Expr::Pipeline(Pipeline {
+            commands,
+            negation: false,
         }))
     }
 

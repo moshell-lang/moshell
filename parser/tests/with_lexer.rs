@@ -1,6 +1,6 @@
 use lexer::lexer::lex;
 use lexer::token::{Token, TokenType};
-use parser::ast::callable::{Call, Redir, RedirFd, RedirOp};
+use parser::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp};
 use parser::ast::literal::{Literal, LiteralValue};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 use parser::ast::Expr;
@@ -146,5 +146,52 @@ fn with_lexer_redirection() {
                 }),
             }],
         })]
+    );
+}
+
+#[test]
+fn with_lexer_pipe_and_redirection() {
+    let tokens = lex("ls -l | grep 'hello' > out.txt");
+    let parsed = parse(tokens).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Pipeline(Pipeline {
+            commands: vec![
+                Call {
+                    arguments: vec![
+                        Expr::Literal(Literal {
+                            token: Token::new(TokenType::Identifier, "ls"),
+                            parsed: LiteralValue::String("ls".to_string()),
+                        }),
+                        Expr::Literal(Literal {
+                            token: Token::new(TokenType::Identifier, "l"),
+                            parsed: LiteralValue::String("-l".to_string()),
+                        }),
+                    ],
+                    redirections: vec![],
+                },
+                Call {
+                    arguments: vec![
+                        Expr::Literal(Literal {
+                            token: Token::new(TokenType::Identifier, "grep"),
+                            parsed: LiteralValue::String("grep".to_string()),
+                        }),
+                        Expr::Literal(Literal {
+                            token: Token::new(TokenType::Quote, "'"),
+                            parsed: LiteralValue::String("hello".to_string()),
+                        }),
+                    ],
+                    redirections: vec![Redir {
+                        fd: RedirFd::Default,
+                        operator: RedirOp::Write,
+                        operand: Expr::Literal(Literal {
+                            token: Token::new(TokenType::Identifier, "out.txt"),
+                            parsed: LiteralValue::String("out.txt".to_string()),
+                        }),
+                    }],
+                },
+            ],
+            negation: false,
+        }),]
     );
 }
