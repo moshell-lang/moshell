@@ -28,21 +28,29 @@ pub(crate) trait MoveOperations<'a, This: Move> {
 
 impl<'a, A: Move> MoveOperations<'a, A> for A {
     fn and_then<B: Move>(self, other: B) -> AndThenMove<Self, B> {
-        AndThenMove { origin: self, other }
+        AndThenMove {
+            origin: self,
+            other,
+        }
     }
     fn then<B: Move>(self, other: B) -> ThenMove<Self, B> {
-        ThenMove { first: self, second: other }
+        ThenMove {
+            first: self,
+            second: other,
+        }
     }
 }
 
 ///A Move that only move over one token and only if it satisfies its predicate.
 pub(crate) struct PredicateMove<P>
-    where P: Fn(Token) -> bool {
+where
+    P: Fn(Token) -> bool,
+{
     ///The used predicate
     predicate: P,
 }
 
-impl<'m, P> Move for PredicateMove<P>
+impl<P> Move for PredicateMove<P>
 where
     P: Fn(Token) -> bool,
 {
@@ -50,7 +58,7 @@ where
     where
         F: FnMut(usize) -> Token<'a>,
     {
-        (self.predicate)(at(pos)).then(|| pos + 1)
+        (self.predicate)(at(pos)).then_some(pos + 1)
     }
 }
 
@@ -58,7 +66,9 @@ where
 /// Will move once only if the given predicate is satisfied.
 /// * `predicate` - the predicate to satisfy
 pub(crate) fn predicate<P>(predicate: P) -> PredicateMove<P>
-    where P: Fn(Token) -> bool {
+where
+    P: Fn(Token) -> bool,
+{
     PredicateMove { predicate }
 }
 
@@ -124,8 +134,12 @@ pub(crate) struct AndThenMove<A: Move, B: Move> {
 
 impl<A: Move, B: Move> Move for AndThenMove<A, B> {
     fn apply<'b, F>(&self, at: F, pos: usize) -> Option<usize>
-        where F: Fn(usize) -> Token<'b> {
-        self.origin.apply(&at, pos).and_then(|pos| self.other.apply(&at, pos))
+    where
+        F: Fn(usize) -> Token<'b>,
+    {
+        self.origin
+            .apply(&at, pos)
+            .and_then(|pos| self.other.apply(&at, pos))
     }
 }
 
@@ -137,7 +151,9 @@ pub(crate) struct ThenMove<A: Move, B: Move> {
 
 impl<A: Move, B: Move> Move for ThenMove<A, B> {
     fn apply<'b, F>(&self, at: F, mut pos: usize) -> Option<usize>
-        where F: Fn(usize) -> Token<'b> {
+    where
+        F: Fn(usize) -> Token<'b>,
+    {
         if let Some(new_pos) = self.first.apply(&at, pos) {
             pos = new_pos
         }

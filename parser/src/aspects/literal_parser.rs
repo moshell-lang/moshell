@@ -49,7 +49,9 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     }
 
     fn templated_string_literal(&mut self) -> ParseResult<Expr<'a>> {
-        let mut current_start = self.cursor.next()?;
+        self.cursor
+            .force(of_type(TokenType::DoubleQuote), "Expected quote.")?;
+        let mut current_start = self.cursor.peek();
         let mut literal_value = String::new();
         let mut parts = Vec::new();
         loop {
@@ -64,7 +66,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                 TokenType::Dollar => {
                     if !literal_value.is_empty() {
                         parts.push(Expr::Literal(Literal {
-                            token: current_start.clone(),
+                            token: current_start,
                             parsed: LiteralValue::String(literal_value.clone()),
                         }));
                         literal_value.clear();
@@ -80,7 +82,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
             parts.push(Expr::Literal(Literal {
                 //TODO-FIXME weird start of literal,
                 // try to find a way to bind all the literal expression and not only its first token
-                token: current_start.clone(),
+                token: current_start,
                 parsed: LiteralValue::String(literal_value),
             }));
         }
@@ -194,7 +196,9 @@ mod tests {
             parsed,
             Expr::Literal(Literal {
                 token: Token::new(TokenType::Quote, "'"),
-                parsed: LiteralValue::String("hello $world! $(this is a test) @(of course)".to_string()),
+                parsed: LiteralValue::String(
+                    "hello $world! $(this is a test) @(of course)".to_string()
+                ),
             })
         );
     }

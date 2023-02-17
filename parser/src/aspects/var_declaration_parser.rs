@@ -2,7 +2,7 @@ use lexer::token::TokenType;
 
 use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use crate::ast::Expr;
-use crate::moves::{ignore_space, MoveOperations, of_type, space};
+use crate::moves::{ignore_space, of_type, of_types, space, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 pub trait VarDeclarationParser<'a> {
@@ -23,26 +23,32 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
             "Expected variable name.",
         )?;
 
-        let ty = match self.cursor.advance(ignore_space().then(of_type(TokenType::Colon))) {
+        let ty = match self
+            .cursor
+            .advance(ignore_space().then(of_type(TokenType::Colon)))
+        {
             None => None,
-            Some(_) => Some(
-                self.cursor
-                    .force(of_type(TokenType::Identifier), "Expected variable type")?,
-            ),
-        }
-        .map(|t| t.clone());
+            Some(_) => Some(self.cursor.force(
+                ignore_space().then(of_type(TokenType::Identifier)),
+                "Expected variable type",
+            )?),
+        };
         self.cursor.advance(space());
         let initializer = match self.cursor.advance(of_type(TokenType::Equal)) {
-            None => None,
+            None => {
+                self.cursor.advance(space());
+                self.cursor.force(
+                    of_types(&[TokenType::NewLine, TokenType::EndOfFile]),
+                    "Expected newline after variable declaration",
+                )?;
+                None
+            }
             Some(_) => Some(self.expression()?),
         };
 
         Ok(Expr::VarDeclaration(VarDeclaration {
             kind,
-            var: TypedVariable {
-                name: name.clone(),
-                ty: ty.map(|t| t.clone()),
-            },
+            var: TypedVariable { name, ty },
             initializer: initializer.map(Box::new),
         }))
     }
@@ -51,9 +57,8 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::Expr;
     use crate::ast::literal::{Literal, LiteralValue};
-    use crate::ast::variable::VarReference;
+    use crate::ast::Expr;
     use crate::parser::Parser;
     use lexer::lexer::lex;
     use lexer::token::Token;
@@ -61,53 +66,68 @@ mod tests {
     #[test]
     fn val_declaration() {
         let tokens = lex("val variable");
-        let ast = Parser::new(tokens).var_declaration().expect("failed to parse");
-        assert_eq!(ast, Expr::VarDeclaration(VarDeclaration {
-            kind: VarKind::Val,
-            var: TypedVariable { name: Token::new(TokenType::Identifier, "variable"), ty: None },
-            initializer: None,
-        }))
+        let ast = Parser::new(tokens)
+            .var_declaration()
+            .expect("failed to parse");
+        assert_eq!(
+            ast,
+            Expr::VarDeclaration(VarDeclaration {
+                kind: VarKind::Val,
+                var: TypedVariable {
+                    name: Token::new(TokenType::Identifier, "variable"),
+                    ty: None
+                },
+                initializer: None,
+            })
+        )
     }
 
     #[test]
     fn val_declaration_with_type() {
         let tokens = lex("val variable: Array");
-        let ast = Parser::new(tokens).var_declaration().expect("failed to parse");
-        assert_eq!(ast, Expr::VarDeclaration(VarDeclaration {
-            kind: VarKind::Val,
-            var: TypedVariable {
-                name: Token::new(TokenType::Identifier, "variable"),
-                ty: Some(Token::new(TokenType::Identifier, "Array")),
-            },
-            initializer: None,
-        }))
+        let ast = Parser::new(tokens)
+            .var_declaration()
+            .expect("failed to parse");
+        assert_eq!(
+            ast,
+            Expr::VarDeclaration(VarDeclaration {
+                kind: VarKind::Val,
+                var: TypedVariable {
+                    name: Token::new(TokenType::Identifier, "variable"),
+                    ty: Some(Token::new(TokenType::Identifier, "Array")),
+                },
+                initializer: None,
+            })
+        )
     }
 
     #[test]
     fn val_declaration_with_type_no_colon() {
         let tokens = lex("val variable Array");
-        Parser::new(tokens).var_declaration().expect_err("did not fail");
+        Parser::new(tokens)
+            .var_declaration()
+            .expect_err("did not fail");
     }
 
     #[test]
     fn val_declaration_inferred() {
         let tokens = lex("val variable = 'hello $test'");
-        let ast = Parser::new(tokens).var_declaration().expect("failed to parse");
-        assert_eq!(ast, Expr::VarDeclaration(VarDeclaration {
-            kind: VarKind::Val,
-            var: TypedVariable {
-                name: Token::new(TokenType::Identifier, "variable"),
-                ty: None,
-            },
-            initializer: Some(Box::from(Expr::TemplateString(vec![
-                Expr::Literal(Literal {
-                    token: Token::new(TokenType::Identifier, "hello"),
-                    parsed: LiteralValue::String("hello ".to_string())
-                }),
-                Expr::VarReference(VarReference {
-                    name: Token::new(TokenType::Identifier, "test")
-                }),
-            ]))),
-        }))
+        let ast = Parser::new(tokens)
+            .var_declaration()
+            .expect("failed to parse");
+        assert_eq!(
+            ast,
+            Expr::VarDeclaration(VarDeclaration {
+                kind: VarKind::Val,
+                var: TypedVariable {
+                    name: Token::new(TokenType::Identifier, "variable"),
+                    ty: None,
+                },
+                initializer: Some(Box::from(Expr::Literal(Literal {
+                    token: Token::new(TokenType::Quote, "'"),
+                    parsed: LiteralValue::String("hello $test".to_string()),
+                }))),
+            })
+        )
     }
 }
