@@ -1,6 +1,5 @@
 use lexer::token::TokenType;
 
-use crate::aspects::base_parser::BaseParser;
 use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use crate::ast::Expr;
 use crate::moves::{MoveOperations, of_type, space};
@@ -21,12 +20,12 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
         };
         let name = cursor.force(space().and_then(of_type(TokenType::Identifier)), "Expected variable name.")?;
 
-        let ty = match cursor.match_token(TokenType::Colon) {
+        let ty = match cursor.advance(of_type(TokenType::Colon)) {
             None => None,
-            Some(_) => Some(cursor.expect_token(TokenType::Identifier, "Expected variable type")?),
+            Some(_) => Some(cursor.force(of_type(TokenType::Identifier), "Expected variable type")?),
         }.map(|t| t.clone());
 
-        let initializer = match cursor.match_token(TokenType::Equal) {
+        let initializer = match cursor.advance(of_type(TokenType::Equal)) {
             None => None,
             Some(_) => Some(self.expression()?),
         };
