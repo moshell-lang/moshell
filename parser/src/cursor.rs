@@ -1,5 +1,6 @@
 use lexer::token::{Token, TokenType};
 use lexer::token::TokenType::EndOfFile;
+use crate::moves::Move;
 
 use crate::parser::{ParseError, ParseResult};
 
@@ -12,18 +13,6 @@ pub(crate) struct ParserCursor<'a> {
 }
 
 
-pub trait Move {
-    fn apply<'a, F>(&self, poll: F) -> ParseResult<()>
-        where F: Fn() -> &'a Token<'a>;
-}
-
-mod Moves {
-    use crate::cursor::Move;
-
-    pub fn next() -> impl Move {
-
-    }
-}
 impl<'a> ParserCursor<'a> {
     ///Creates a new cursor at position 0 in the given token vector
     pub fn new(tokens: Vec<Token<'a>>) -> Self {

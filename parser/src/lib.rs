@@ -10,6 +10,7 @@ mod aspects;
 pub mod ast;
 mod cursor;
 mod parser;
+mod moves;
 
 pub fn parse(tokens: Vec<Token>) -> ParseResult<Vec<Expr>> {
     Parser::new(tokens).parse()
