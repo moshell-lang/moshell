@@ -15,7 +15,7 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
     fn var_declaration(&mut self, kind: VarKind) -> ParseResult<Expr<'a>> {
         let cursor = self.cursor();
         match kind {
-            VarKind::Var => cursor.expect_token(TokenType::Var, "Expected 'var' keyword.")?,
+            VarKind::Var => cursor.advance(TokenType::Var, "Expected 'var' keyword.")?,
             VarKind::Val => cursor.expect_token(TokenType::Val, "Expected 'val' keyword.")?,
         };
         let name = self.expect_separated_token(TokenType::Identifier, "Expected variable name.")?;

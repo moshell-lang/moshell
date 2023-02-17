@@ -1,12 +1,12 @@
 use lexer::token::{Token, TokenType};
 use lexer::token::TokenType::Space;
 
-use crate::cursor::ParserCursor;
-use crate::parser::ParseResult;
-
 ///defines a way to move along a ParserCursor.
 pub trait Move {
-    /// Returns `Some<usize>` if the move succeeds, where the wrapped usize is the new position of the cursor
+    /// Returns
+    /// * `Some<usize>` - if the move succeeded, where the wrapped `usize` is the position where this move ended.
+    /// * `None` - if the move did not succeed (prerequisites not satisfied)
+    /// # Arguments
     /// `None` if the move did not take effect.
     ///* `poll` - polls the next token
     ///* `pos` - the position in ParserCursor at beginning of the move
@@ -73,9 +73,14 @@ pub fn next_no_space() -> impl Move {
 
 ///Move to next token if its type is in the given set
 /// * `set` - the set of TokenType to satisfy
-pub fn of_type(set: &[TokenType]) -> PredicateMove<impl Fn(&Token) -> bool + '_> {
-    predicate(|token: &Token| set.contains(&token.token_type))
+pub fn of_types(set: &[TokenType]) -> PredicateMove<impl Fn(&Token) -> bool + '_> {
+    predicate(move |token: &Token| set.contains(&token.token_type))
 }
+
+pub fn of_type(tpe: TokenType) -> PredicateMove<impl Fn(&Token) -> bool> {
+    predicate(move |token| tpe == token.token_type)
+}
+
 
 /// A RepeatedMove is a special kind of move that will repeat as long as the underlying move succeeds.
 struct RepeatedMove<M: Move> {
