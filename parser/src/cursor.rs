@@ -20,7 +20,7 @@ impl<'a> ParserCursor<'a> {
     }
 
     ///advance if next token satisfy the given predicate
-    pub fn advance(&mut self, mov: impl Move) -> Option<&Token<'a>> {
+    pub fn advance(&mut self, mov: impl Move) -> Option<Token<'a>> {
         let mut pos = self.pos;
 
         let result = mov.apply(|| {
@@ -36,7 +36,7 @@ impl<'a> ParserCursor<'a> {
         None
     }
 
-    pub fn lookahead(&self, mov: impl Move) -> Option<&Token<'a>> {
+    pub fn lookahead(&self, mov: impl Move) -> Option<Token<'a>> {
         let mut pos = self.pos;
 
         let result = mov.apply(|| {
@@ -50,27 +50,30 @@ impl<'a> ParserCursor<'a> {
         }
         None
     }
-    
-    pub fn force(&mut self, mov: impl Move, err: &str) -> ParseResult<&Token<'a>> {
+
+    pub fn force(&mut self, mov: impl Move, err: &str) -> ParseResult<Token<'a>> {
         self.advance(mov).ok_or(ParseError {
             message: err.to_string(),
         })
     }
 
-    pub fn peek(&self) -> &Token<'a> {
+    pub fn peek(&self) -> Token<'a> {
         self.at(self.pos)
     }
 
     ///advance and returns the next token or ParseError if this cursor hits the
     /// end of the stream.
-    pub fn next(&mut self) -> ParseResult<&Token<'a>> {
-        self.tokens.get(self.pos).ok_or(ParseError {
-            message: "Unexpected end of file".to_string(),
-        })
+    pub fn next(&mut self) -> ParseResult<Token<'a>> {
+        self.tokens
+            .get(self.pos)
+            .map(|t| t.clone())
+            .ok_or(ParseError {
+                message: "Unexpected end of file".to_string(),
+            })
     }
 
-    fn at(&self, pos: usize) -> &Token<'a> {
-        &self.tokens
+    fn at(&self, pos: usize) -> Token<'a> {
+        self.tokens
             .get(pos)
             .cloned()
             .unwrap_or(Token::new(EndOfFile, ""))
@@ -78,7 +81,7 @@ impl<'a> ParserCursor<'a> {
 
     ///peeks next that is not a .
     /// can return EndOfFile token if the cursor is at the end of the token stream.
-    fn peek_next(&self) -> &Token<'a> {
+    fn peek_next(&self) -> Token<'a> {
         self.at(self.pos)
     }
 

@@ -17,14 +17,14 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
         let kind = match cursor.next()?.token_type {
             TokenType::Var => VarKind::Var,
             TokenType::Val => VarKind::Val,
-            _ => self.expected("expected var or val keywords")?,
+            _ => return self.expected("expected var or val keywords"),
         };
         let name = cursor.force(space().and_then(of_type(TokenType::Identifier)), "Expected variable name.")?;
 
         let ty = match cursor.advance(of_type(TokenType::Colon)) {
             None => None,
             Some(_) => Some(cursor.force(of_type(TokenType::Identifier), "Expected variable type")?),
-        }.map(|t| t.clone());
+        };
 
         let initializer = match cursor.advance(of_type(TokenType::Equal)) {
             None => None,
@@ -35,7 +35,7 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
             kind,
             var: TypedVariable {
                 name: name.clone(),
-                ty,
+                ty: ty.map(|t| t.clone()),
             },
             initializer: initializer.map(Box::new),
         }))

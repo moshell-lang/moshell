@@ -48,7 +48,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     }
 
     fn templated_string_literal(&mut self) -> ParseResult<Expr<'a>> {
-        let mut cursor = self.cursor();
+        let cursor = self.cursor();
         let mut current_start = cursor.peek();
         let mut literal_value = String::new();
         let mut parts = Vec::new();
@@ -90,7 +90,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     /// An argument is usually a single identifier, but can also be
     /// composed of multiple tokens if not separated with a space.
     fn argument(&mut self) -> ParseResult<Expr<'a>> {
-        let mut cursor = self.cursor();
+        let cursor = self.cursor();
         let mut current_start = cursor.peek();
         let mut parts = Vec::new();
         let mut builder = String::new();
