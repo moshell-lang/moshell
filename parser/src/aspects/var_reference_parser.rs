@@ -1,4 +1,4 @@
-use lexer::token::{Token, TokenType};
+use lexer::token::TokenType;
 
 use crate::ast::Expr;
 use crate::ast::variable::VarReference;

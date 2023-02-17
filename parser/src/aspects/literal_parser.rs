@@ -5,7 +5,7 @@ use lexer::token::TokenType;
 use crate::aspects::var_reference_parser::VarReferenceParser;
 use crate::ast::literal::{Literal, LiteralValue};
 use crate::ast::*;
-use crate::moves::next;
+use crate::moves::{next, of_type};
 use crate::parser::{ParseResult, Parser};
 
 pub(crate) trait LiteralParser<'a> {
@@ -26,18 +26,20 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
 
     fn string_literal(&mut self) -> ParseResult<Expr<'a>> {
         let cursor = self.cursor();
-        let token = cursor.advance()?;
+        let token = cursor.force(of_type(TokenType::Quote), "Expected quote.")?;
         let mut value = String::new();
         loop {
-            if cursor.is_at_end() {
-                return self.expected("Unterminated string literal.");
-            }
-
-            let token = self.next_token_space_aware()?;
-            if token.token_type == TokenType::Quote {
-                break;
-            }
-            value.push_str(token.value);
+            match cursor.advance(next()) {
+                None => {
+                    return self.expected("Unterminated string literal.");
+                }
+                Some(token) => {
+                    if token.token_type == TokenType::Quote {
+                        break;
+                    }
+                    value.push_str(token.value);
+                }
+            };
         }
         Ok(Expr::Literal(Literal {
             token: token.clone(),
@@ -46,37 +48,37 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     }
 
     fn templated_string_literal(&mut self) -> ParseResult<Expr<'a>> {
-        self.next_token()?;
-        let mut current_start = self.peek_token_space_aware();
+        let mut cursor = self.cursor();
+        let mut current_start = cursor.peek();
         let mut literal_value = String::new();
         let mut parts = Vec::new();
         loop {
-            if self.is_at_end() {
-                return Err(self.mk_parse_error("Unterminated string literal."));
+            if cursor.is_at_end() {
+                return self.expected("Unterminated string literal.");
             }
-            match self.peek_token_space_aware().token_type {
+            match cursor.peek().token_type {
                 TokenType::DoubleQuote => {
-                    self.next_token()?;
+                    cursor.advance(next());
                     break;
                 }
                 TokenType::Dollar => {
                     if !literal_value.is_empty() {
                         parts.push(Expr::Literal(Literal {
-                            token: current_start,
+                            token: current_start.clone(),
                             parsed: LiteralValue::String(literal_value.clone()),
                         }));
                         literal_value.clear();
                     }
                     let var_ref = self.var_reference()?;
                     parts.push(var_ref);
-                    current_start = self.peek_token_space_aware();
+                    current_start = cursor.peek();
                 }
-                _ => literal_value.push_str(self.next_token_space_aware()?.value),
+                _ => literal_value.push_str(cursor.next()?.value),
             };
         }
         if !literal_value.is_empty() {
             parts.push(Expr::Literal(Literal {
-                token: current_start,
+                token: current_start.clone(),
                 parsed: LiteralValue::String(literal_value),
             }));
         }
@@ -88,20 +90,21 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     /// An argument is usually a single identifier, but can also be
     /// composed of multiple tokens if not separated with a space.
     fn argument(&mut self) -> ParseResult<Expr<'a>> {
-        let mut current_start = self.peek_token();
+        let mut cursor = self.cursor();
+        let mut current_start = cursor.peek();
         let mut parts = Vec::new();
         let mut builder = String::new();
         match current_start.token_type {
             TokenType::Dollar => parts.push(self.var_reference()?),
-            _ => builder.push_str(self.next_token()?.value),
+            _ => builder.push_str(cursor.next()?.value),
         }
         loop {
-            if self.is_at_end() {
+            if cursor.is_at_end() {
                 break;
             }
-            match self.peek_token_space_aware().token_type {
+            match cursor.peek().token_type {
                 TokenType::Space => {
-                    self.next_token_space_aware()?;
+                    cursor.advance(next());
                     break;
                 }
                 TokenType::Dollar => {
@@ -116,15 +119,15 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                 }
                 _ => {
                     if !builder.is_empty() {
-                        current_start = self.peek_token_space_aware();
+                        current_start = cursor.peek();
                     }
-                    builder.push_str(self.next_token_space_aware()?.value)
+                    builder.push_str(cursor.next()?.value)
                 }
             }
         }
         if !builder.is_empty() {
             parts.push(Expr::Literal(Literal {
-                token: current_start,
+                token: current_start.clone(),
                 parsed: LiteralValue::String(builder),
             }));
         }
@@ -137,23 +140,23 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     fn parse_literal(&mut self) -> ParseResult<LiteralValue> {
         let cursor = self.cursor();
 
-        let token = cursor.next_token()?;
+        let token = cursor.next()?;
         match token.token_type {
             TokenType::IntLiteral => Ok(LiteralValue::Int(token.value.parse::<i64>().map_err(
                 |e| match e.kind() {
                     IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => {
-                        self.cursor().expected("Integer constant is too large.")
+                        self.expected::<()>("Integer constant is too large.").unwrap_err()
                     }
-                    _ => self.cursor().expected(&e.to_string()),
+                    _ => self.expected::<()>(&e.to_string()).unwrap_err(),
                 },
             )?)),
             TokenType::FloatLiteral => Ok(LiteralValue::Float(
                 token
                     .value
                     .parse::<f64>()
-                    .map_err(|e| cursor.expected(&e.to_string()))?,
+                    .map_err(|e| self.expected::<()>(&e.to_string()).unwrap_err())?,
             )),
-            _ => cursor.expected("Expected a literal."),
+            _ => self.expected("Expected a literal."),
         }
     }
 }

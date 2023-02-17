@@ -64,9 +64,9 @@ impl<'a> ParserCursor<'a> {
     ///advance and returns the next token or ParseError if this cursor hits the
     /// end of the stream.
     pub fn next(&mut self) -> ParseResult<&Token<'a>> {
-        let token = self.at(self.pos);
-        self.pos += 1;
-        Ok(token)
+        self.tokens.get(self.pos).ok_or(ParseError {
+            message: "Unexpected end of file".to_string(),
+        })
     }
 
     fn at(&self, pos: usize) -> &Token<'a> {

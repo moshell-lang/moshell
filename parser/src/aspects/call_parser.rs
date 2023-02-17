@@ -2,7 +2,7 @@ use lexer::token::TokenType;
 
 use crate::ast::callable::Call;
 use crate::ast::Expr;
-use crate::moves::{of_type, predicate};
+use crate::moves::of_type;
 use crate::parser::{ParseResult, Parser};
 
 pub trait CallParser<'a> {

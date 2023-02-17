@@ -52,8 +52,8 @@ impl<'a> Parser<'a> {
             TokenType::Identifier => self.call(),
             TokenType::Quote => self.call(),
             TokenType::DoubleQuote => self.call(),
-            TokenType::Var => self.var_declaration(VarKind::Var),
-            TokenType::Val => self.var_declaration(VarKind::Val),
+            TokenType::Var => self.var_declaration(),
+            TokenType::Val => self.var_declaration(),
             _ => self.expression(),
         }
     }

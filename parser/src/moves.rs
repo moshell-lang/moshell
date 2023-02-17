@@ -39,12 +39,7 @@ impl<'m, P> Move for PredicateMove<P>
     fn apply<'a, F>(&self, poll: F, pos: usize) -> Option<usize>
         where F: Fn() -> &'a Token<'a> {
         let token = poll();
-
-        if (self.predicate)(token) {
-            Some(pos + 1)
-        } else {
-            None
-        }
+        (self.predicate)(token).then(|| pos + 1)
     }
 }
 
