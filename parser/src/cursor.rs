@@ -1,4 +1,4 @@
-use lexer::token::{Token, TokenType};
+use lexer::token::Token;
 use lexer::token::TokenType::EndOfFile;
 use crate::moves::Move;
 
