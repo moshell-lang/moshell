@@ -1,8 +1,9 @@
-use crate::ast::variable::VarReference;
-use crate::ast::Expr;
-use crate::parser::{ParseResult, Parser};
 use lexer::token::{Token, TokenType};
+
+use crate::ast::Expr;
+use crate::ast::variable::VarReference;
 use crate::moves::{MoveOperations, of_type, space};
+use crate::parser::{Parser, ParseResult};
 
 pub trait VarReferenceParser<'a> {
     /// Parses a variable reference.
@@ -26,5 +27,34 @@ impl<'a> VarReferenceParser<'a> for Parser<'a> {
             )?;
         }
         Ok(Expr::VarReference(VarReference { name: name.clone() }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use lexer::lexer::lex;
+    use lexer::token::{Token, TokenType};
+
+    use crate::aspects::var_reference_parser::VarReferenceParser;
+    use crate::ast::Expr;
+    use crate::ast::variable::VarReference;
+    use crate::parser::Parser;
+
+    #[test]
+    fn test_simple_ref() {
+        let tokens = lex("$VARIABLE");
+        let ast = Parser::new(tokens).var_reference().expect("failed to parse");
+        assert_eq!(ast, Expr::VarReference(VarReference {
+            name: Token::new(TokenType::Identifier, "VARIABLE")
+        }))
+    }
+
+    #[test]
+    fn test_wrapped_ref() {
+        let tokens = lex("${VAR}IABLE");
+        let ast = Parser::new(tokens).var_reference().expect("failed to parse");
+        assert_eq!(ast, Expr::VarReference(VarReference {
+            name: Token::new(TokenType::Identifier, "VAR")
+        }))
     }
 }

@@ -2,22 +2,20 @@ use lexer::token::TokenType;
 
 use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use crate::ast::Expr;
-use crate::moves::{MoveOperations, of_type, space};
+use crate::moves::{MoveOperations, of_type, of_types, space};
 use crate::parser::{ParseResult, Parser};
 
 pub trait VarDeclarationParser<'a> {
     /// Parses a variable declaration.
-    fn var_declaration(&mut self, kind: VarKind) -> ParseResult<Expr<'a>>;
+    fn var_declaration(&mut self) -> ParseResult<Expr<'a>>;
 }
 
 impl<'a> VarDeclarationParser<'a> for Parser<'a> {
     /// Parses a variable declaration.
-    fn var_declaration(&mut self, kind: VarKind) -> ParseResult<Expr<'a>> {
+    fn var_declaration(&mut self) -> ParseResult<Expr<'a>> {
         let cursor = self.cursor();
-        match kind {
-            VarKind::Var => cursor.force(of_type(TokenType::Var), "Expected 'var' keyword")?,
-            VarKind::Val => cursor.force(of_type(TokenType::Val), "Expected 'val' keyword.")?,
-        };
+        //ensure that the expresssion starts with var or val
+        cursor.force(of_types(&[TokenType::Var, TokenType::Val]), "expected var or val keywords");
         let name = cursor.force(space().and_then(of_type(TokenType::Identifier)), "Expected variable name.")?;
 
         let ty = match cursor.advance(of_type(TokenType::Colon)) {
@@ -37,6 +35,23 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
                 ty,
             },
             initializer: initializer.map(Box::new),
+        }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use lexer::lexer::lex;
+    use crate::aspects::var_declaration_parser::VarDeclarationParser;
+    use crate::ast::Expr;
+    use crate::parser::Parser;
+
+    #[test]
+    fn val__declaration() {
+        let tokens = lex("$VARIABLE");
+        let ast = Parser::new(tokens).var_declaration().expect("failed to parse");
+        assert_eq!(ast, Expr::VarReference(VarReference {
+            name: Token::new(TokenType::Identifier, "VARIABLE")
         }))
     }
 }
