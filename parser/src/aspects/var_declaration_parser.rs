@@ -2,7 +2,7 @@ use lexer::token::TokenType;
 
 use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use crate::ast::Expr;
-use crate::moves::{MoveOperations, of_type, space};
+use crate::moves::{ignore_space, MoveOperations, of_type, space};
 use crate::parser::{ParseResult, Parser};
 
 pub trait VarDeclarationParser<'a> {
@@ -18,7 +18,7 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
             TokenType::Val => VarKind::Val,
             _ => return self.expected("expected var or val keywords"),
         };
-        let name = self.cursor.force(space().and_then(of_type(TokenType::Identifier)), "Expected variable name.")?;
+        let name = self.cursor.force(ignore_space().then(of_type(TokenType::Identifier)), "Expected variable name.")?;
 
         let ty = match self.cursor.advance(of_type(TokenType::Colon)) {
             None => None,
@@ -55,7 +55,7 @@ mod tests {
         let ast = Parser::new(tokens).var_declaration().expect("failed to parse");
         assert_eq!(ast, Expr::VarDeclaration(VarDeclaration {
             kind: VarKind::Val,
-            var: TypedVariable { name: Token::new(TokenType::Identifier, "var"), ty: None },
+            var: TypedVariable { name: Token::new(TokenType::Identifier, "val"), ty: None },
             initializer: None,
         }))
     }
