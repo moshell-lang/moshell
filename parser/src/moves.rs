@@ -1,5 +1,5 @@
+use lexer::token::TokenType::{EndOfFile, Space};
 use lexer::token::{Token, TokenType};
-use lexer::token::TokenType::Space;
 
 ///defines a way to move along a ParserCursor.
 pub trait Move {
@@ -11,7 +11,8 @@ pub trait Move {
     ///* `at` - get token at given position
     ///* `pos` - the position in ParserCursor at beginning of the move
     fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-        where F: Fn(usize) -> Token<'a>;
+    where
+        F: Fn(usize) -> Token<'a>;
 }
 
 ///Defines operations over a Move struct.
@@ -42,10 +43,14 @@ pub(crate) struct PredicateMove<P>
 }
 
 impl<'m, P> Move for PredicateMove<P>
-    where P: Fn(Token) -> bool {
+where
+    P: Fn(Token) -> bool,
+{
     fn apply<'a, F>(&self, mut at: F, pos: usize) -> Option<usize>
-        where F: FnMut(usize) -> Token<'a> {
-        (self.predicate)(at(pos)).then(|| pos)
+    where
+        F: FnMut(usize) -> Token<'a>,
+    {
+        (self.predicate)(at(pos)).then(|| pos + 1)
     }
 }
 
@@ -59,17 +64,17 @@ pub(crate) fn predicate<P>(predicate: P) -> PredicateMove<P>
 
 ///Move to next token
 pub(crate) fn next() -> PredicateMove<fn(Token) -> bool> {
-    predicate(|_| true)
+    predicate(|t| t.token_type != EndOfFile)
 }
 
 ///Move to next token if it's not a space
 pub(crate) fn no_space() -> PredicateMove<fn(Token) -> bool> {
-    predicate(|t| t.token_type != Space)
+    predicate(|t| matches!(t.token_type, EndOfFile | Space))
 }
 
 ///Move to next token if it's a space
 pub(crate) fn space() -> PredicateMove<fn(Token) -> bool> {
-    predicate(|t| t.token_type == Space)
+    predicate(|t| matches!(t.token_type, EndOfFile | Space))
 }
 
 ///repeats until it finds a token that's not a space
@@ -87,7 +92,6 @@ pub(crate) fn of_type(tpe: TokenType) -> PredicateMove<impl Fn(Token) -> bool> {
     predicate(move |token| tpe == token.token_type)
 }
 
-
 /// A RepeatedMove is a special kind of move that will repeat as long as the underlying move succeeds.
 pub(crate) struct RepeatedMove<M: Move> {
     underlying: M,
@@ -95,7 +99,9 @@ pub(crate) struct RepeatedMove<M: Move> {
 
 impl<M: Move> Move for RepeatedMove<M> {
     fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-        where F: Fn(usize) -> Token<'a> {
+    where
+        F: Fn(usize) -> Token<'a>,
+    {
         let mut current_pos = pos;
         while let Some(pos) = self.underlying.apply(&at, current_pos) {
             current_pos = pos;
@@ -106,10 +112,9 @@ impl<M: Move> Move for RepeatedMove<M> {
 
 ///Repeat the given move until it fails, exiting on the first token that made the underlying move fail.
 /// NOTE: a repeat always succeed
-pub(crate) fn repeat<'a, M: Move>(mov: M) -> RepeatedMove<M> {
+pub(crate) fn repeat<M: Move>(mov: M) -> RepeatedMove<M> {
     RepeatedMove { underlying: mov }
 }
-
 
 ///Execute origin and then, if it succeeds, execute the other
 pub(crate) struct AndThenMove<A: Move, B: Move> {

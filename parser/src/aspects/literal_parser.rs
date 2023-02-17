@@ -25,10 +25,12 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     }
 
     fn string_literal(&mut self) -> ParseResult<Expr<'a>> {
-        let token = self.cursor.force(of_type(TokenType::Quote), "Expected quote.")?;
+        let token = self
+            .cursor
+            .force(of_type(TokenType::Quote), "Expected quote.")?;
         let mut value = String::new();
         loop {
-            match self.cursor.advance(next()) {
+            match self.cursor.next_opt() {
                 None => {
                     return self.expected("Unterminated string literal.");
                 }
@@ -47,7 +49,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     }
 
     fn templated_string_literal(&mut self) -> ParseResult<Expr<'a>> {
-        let mut current_start = self.cursor.peek();
+        let mut current_start = self.cursor.next()?;
         let mut literal_value = String::new();
         let mut parts = Vec::new();
         loop {
@@ -138,19 +140,20 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
         let token = self.cursor.next()?;
         match token.token_type {
             TokenType::IntLiteral => Ok(LiteralValue::Int(token.value.parse::<i64>().map_err(
-                |e| match e.kind() {
-                    IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => {
-                        self.expected::<()>("Integer constant is too large.").unwrap_err()
+                |e| {
+                    match e.kind() {
+                        IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => self
+                            .expected::<()>("Integer constant is too large.")
+                            .unwrap_err(),
+                        _ => self.expected::<()>(&e.to_string()).unwrap_err(),
                     }
-                    _ => self.expected::<()>(&e.to_string()).unwrap_err(),
                 },
             )?)),
-            TokenType::FloatLiteral => Ok(LiteralValue::Float(
-                token
-                    .value
-                    .parse::<f64>()
-                    .map_err(|e| self.expected::<()>(&e.to_string()).unwrap_err())?,
-            )),
+            TokenType::FloatLiteral => {
+                Ok(LiteralValue::Float(token.value.parse::<f64>().map_err(
+                    |e| self.expected::<()>(&e.to_string()).unwrap_err(),
+                )?))
+            }
             _ => self.expected("Expected a literal."),
         }
     }

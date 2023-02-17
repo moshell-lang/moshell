@@ -12,7 +12,8 @@ pub trait CallParser<'a> {
 impl<'a> CallParser<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
         let mut args = vec![self.expression()?];
-        while !self.cursor.is_at_end() && self.cursor.advance(of_type(TokenType::NewLine)).is_none() {
+        while !self.cursor.is_at_end() && self.cursor.advance(of_type(TokenType::NewLine)).is_none()
+        {
             args.push(self.expression()?);
         }
 
