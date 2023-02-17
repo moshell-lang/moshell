@@ -27,7 +27,7 @@ pub trait BaseParser<'a> {
     fn expected(&self, message: &str) -> ParseResult<Token<'a>>;
     fn mk_parse_error(&self, message: impl Into<String>) -> ParseError;
 }
-
+/*
 impl<'a> BaseParser<'a> for Parser<'a> {
     fn meet_token(&mut self, expected: TokenType) -> bool {
         self.match_token(expected).is_some()
@@ -105,3 +105,4 @@ impl<'a> BaseParser<'a> for Parser<'a> {
         }
     }
 }
+ */

@@ -6,6 +6,7 @@ use crate::aspects::var_declaration_parser::VarDeclarationParser;
 use crate::ast::variable::VarKind;
 use crate::cursor::ParserCursor;
 use crate::ast::Expr;
+use crate::moves::next;
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -35,7 +36,7 @@ impl<'a> Parser<'a> {
 
     /// Parses an expression.
     pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
-        match self.cursor().peek_token().token_type {
+        match self.cursor().lookahead(next()).unwrap().token_type {
             TokenType::IntLiteral | TokenType::FloatLiteral => self.literal(),
             TokenType::Quote => self.string_literal(),
             TokenType::DoubleQuote => self.templated_string_literal(),
@@ -47,7 +48,7 @@ impl<'a> Parser<'a> {
     ///
     /// Statements are usually on their own line.
     pub(crate) fn statement(&mut self) -> ParseResult<Expr<'a>> {
-        match self.cursor().peek_token().token_type {
+        match self.cursor().lookahead(next()).unwrap().token_type {
             TokenType::Identifier => self.call(),
             TokenType::Quote => self.call(),
             TokenType::DoubleQuote => self.call(),

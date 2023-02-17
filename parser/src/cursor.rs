@@ -20,21 +20,47 @@ impl<'a> ParserCursor<'a> {
     }
 
     ///advance if next token satisfy the given predicate
-    pub fn advance<F>(&mut self, mov: impl Move) -> ParseResult<&Token<'a>>
-        where F: Fn(&Token) -> bool {
-        mov.apply(|| self.next())?;
-        Ok(self.peek_next())
+    pub fn advance(&mut self, mov: impl Move) -> Option<&Token<'a>> {
+        let mut pos = self.pos;
+
+        let result = mov.apply(|| {
+            let token = self.at(pos);
+            pos += 1;
+            token
+        }, self.pos);
+
+        if let Some(new_pos) = result {
+            self.pos = new_pos;
+            return Some(self.at(new_pos));
+        }
+        None
     }
 
-    pub fn peek<F>(&self, mov: impl Move) -> ParseResult<&Token<'a>>
-        where F: Fn(&Token) -> bool {
+    pub fn lookahead(&self, mov: impl Move) -> Option<&Token<'a>> {
         let mut pos = self.pos;
-        mov.apply(|| {
-            let result = self.at(pos);
+
+        let result = mov.apply(|| {
+            let token = self.at(pos);
             pos += 1;
-            result
-        });
-        Ok(self.at(pos))
+            token
+        }, self.pos);
+
+        if let Some(new_pos) = result {
+            return Some(self.at(new_pos));
+        }
+        None
+    }
+
+    pub fn peek(&self) -> &Token<'a> {
+        self.at(self.pos)
+    }
+
+    ///advance and returns the next token or ParseError if this cursor hits the
+    /// end of the stream.
+    pub fn next(&mut self) -> ParseResult<&Token<'a>> {
+        let token = self.at(self.pos);
+        self.pos += 1;
+        Ok(token)
     }
 
     fn at(&self, pos: usize) -> &Token<'a> {
@@ -42,14 +68,6 @@ impl<'a> ParserCursor<'a> {
             .get(pos)
             .cloned()
             .unwrap_or(Token::new(EndOfFile, ""))
-    }
-
-    ///advance and returns the next token or ParseError if this cursor hits the
-    /// end of the stream.
-    fn next(&mut self) -> &Token<'a> {
-        let token = self.at(self.pos);
-        self.pos += 1;
-        token
     }
 
     ///peeks next that is not a .
@@ -62,6 +80,4 @@ impl<'a> ParserCursor<'a> {
     pub fn is_at_end(&self) -> bool {
         self.peek_next().token_type == EndOfFile
     }
-
-
 }

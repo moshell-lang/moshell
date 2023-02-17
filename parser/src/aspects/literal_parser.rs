@@ -2,10 +2,10 @@ use std::num::IntErrorKind;
 
 use lexer::token::TokenType;
 
-use crate::aspects::base_parser::BaseParser;
 use crate::aspects::var_reference_parser::VarReferenceParser;
 use crate::ast::literal::{Literal, LiteralValue};
 use crate::ast::*;
+use crate::moves::next;
 use crate::parser::{ParseResult, Parser};
 
 pub(crate) trait LiteralParser<'a> {
@@ -19,18 +19,18 @@ pub(crate) trait LiteralParser<'a> {
 impl<'a> LiteralParser<'a> for Parser<'a> {
     fn literal(&mut self) -> ParseResult<Expr<'a>> {
         Ok(Expr::Literal(Literal {
-            token: self.cursor().peek_token().clone(),
+            token: self.cursor().peek().clone(),
             parsed: self.parse_literal()?,
         }))
     }
 
     fn string_literal(&mut self) -> ParseResult<Expr<'a>> {
         let cursor = self.cursor();
-        let token = cursor.next_token()?;
+        let token = cursor.advance()?;
         let mut value = String::new();
         loop {
             if cursor.is_at_end() {
-                return cursor.expected("Unterminated string literal.");
+                return self.expected("Unterminated string literal.");
             }
 
             let token = self.next_token_space_aware()?;
