@@ -5,13 +5,13 @@ use crate::moves::Move;
 use crate::parser::{ParseError, ParseResult};
 
 /// Parser cursor is used by parsers to navigate in the token stream
+#[derive(Debug, Clone)]
 pub(crate) struct ParserCursor<'a> {
     /// The manipulated tokens
     tokens: Vec<Token<'a>>,
     /// current position in the tokens vector.
     pos: usize,
 }
-
 
 impl<'a> ParserCursor<'a> {
     ///Creates a new cursor at position 0 in the given token vector
@@ -21,13 +21,7 @@ impl<'a> ParserCursor<'a> {
 
     ///advance if next token satisfy the given predicate
     pub fn advance(&mut self, mov: impl Move) -> Option<Token<'a>> {
-        let mut pos = self.pos;
-
-        let result = mov.apply(|| {
-            let token = self.at(pos);
-            pos += 1;
-            token
-        }, self.pos);
+        let result = mov.apply(|| self.at(self.pos), self.pos);
 
         if let Some(new_pos) = result {
             self.pos = new_pos;
@@ -37,13 +31,7 @@ impl<'a> ParserCursor<'a> {
     }
 
     pub fn lookahead(&self, mov: impl Move) -> Option<Token<'a>> {
-        let mut pos = self.pos;
-
-        let result = mov.apply(|| {
-            let token = self.at(pos);
-            pos += 1;
-            token
-        }, self.pos);
+        let result = mov.apply(|| self.at(self.pos), self.pos);
 
         if let Some(new_pos) = result {
             return Some(self.at(new_pos));
@@ -52,7 +40,7 @@ impl<'a> ParserCursor<'a> {
     }
 
     pub fn force(&mut self, mov: impl Move, err: &str) -> ParseResult<Token<'a>> {
-        self.advance(mov).ok_or(ParseError {
+        self.advance(mov).ok_or_else(|| ParseError {
             message: err.to_string(),
         })
     }

@@ -18,7 +18,7 @@ pub struct ParseError {
 
 /// A parser for the Moshell scripting language.
 pub(crate) struct Parser<'a> {
-    pub cursor: ParserCursor<'a>,
+    pub(crate) cursor: ParserCursor<'a>,
 }
 
 impl<'a> Parser<'a> {
@@ -29,15 +29,15 @@ impl<'a> Parser<'a> {
         }
     }
 
-/// Parses an expression.
-pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
-    match self.cursor.lookahead(next()).unwrap().token_type {
-        TokenType::IntLiteral | TokenType::FloatLiteral => self.literal(),
-        TokenType::Quote => self.string_literal(),
-        TokenType::DoubleQuote => self.templated_string_literal(),
-        _ => self.argument(),
+    /// Parses an expression.
+    pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
+        match self.cursor.lookahead(next()).unwrap().token_type {
+            TokenType::IntLiteral | TokenType::FloatLiteral => self.literal(),
+            TokenType::Quote => self.string_literal(),
+            TokenType::DoubleQuote => self.templated_string_literal(),
+            _ => self.argument(),
+        }
     }
-}
 
     /// Parse a statement.
     ///

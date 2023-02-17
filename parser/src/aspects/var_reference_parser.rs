@@ -19,9 +19,9 @@ impl<'a> VarReferenceParser<'a> for Parser<'a> {
             .advance(space().and_then(of_type(TokenType::CurlyLeftBracket)))
             .is_some();
         let name =
-            cursor.force(space().and_then(of_type(TokenType::Identifier)), "Expected variable name.")?;
+            self.cursor.force(space().and_then(of_type(TokenType::Identifier)), "Expected variable name.")?;
         if has_bracket {
-            cursor.force(
+            self.cursor.force(
                 of_type(TokenType::CurlyRightBracket),
                 "Expected closing curly bracket.",
             )?;

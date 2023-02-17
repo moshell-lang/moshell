@@ -25,11 +25,10 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     }
 
     fn string_literal(&mut self) -> ParseResult<Expr<'a>> {
-        let cursor = &mut self.cursor;
-        let token = cursor.force(of_type(TokenType::Quote), "Expected quote.")?;
+        let token = self.cursor.force(of_type(TokenType::Quote), "Expected quote.")?;
         let mut value = String::new();
         loop {
-            match cursor.advance(next()) {
+            match self.cursor.advance(next()) {
                 None => {
                     return self.expected("Unterminated string literal.");
                 }
@@ -48,17 +47,16 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     }
 
     fn templated_string_literal(&mut self) -> ParseResult<Expr<'a>> {
-        let cursor = &mut self.cursor;
-        let mut current_start = cursor.peek();
+        let mut current_start = self.cursor.peek();
         let mut literal_value = String::new();
         let mut parts = Vec::new();
         loop {
-            if cursor.is_at_end() {
+            if self.cursor.is_at_end() {
                 return self.expected("Unterminated string literal.");
             }
-            match cursor.peek().token_type {
+            match self.cursor.peek().token_type {
                 TokenType::DoubleQuote => {
-                    cursor.advance(next());
+                    self.cursor.advance(next());
                     break;
                 }
                 TokenType::Dollar => {
@@ -71,9 +69,9 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                     }
                     let var_ref = self.var_reference()?;
                     parts.push(var_ref);
-                    current_start = cursor.peek();
+                    current_start = self.cursor.peek();
                 }
-                _ => literal_value.push_str(cursor.next()?.value),
+                _ => literal_value.push_str(self.cursor.next()?.value),
             };
         }
         if !literal_value.is_empty() {
@@ -90,21 +88,20 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     /// An argument is usually a single identifier, but can also be
     /// composed of multiple tokens if not separated with a space.
     fn argument(&mut self) -> ParseResult<Expr<'a>> {
-        let cursor = &mut self.cursor;
-        let mut current_start = cursor.peek();
+        let mut current_start = self.cursor.peek();
         let mut parts = Vec::new();
         let mut builder = String::new();
         match current_start.token_type {
             TokenType::Dollar => parts.push(self.var_reference()?),
-            _ => builder.push_str(cursor.next()?.value),
+            _ => builder.push_str(self.cursor.next()?.value),
         }
         loop {
-            if cursor.is_at_end() {
+            if self.cursor.is_at_end() {
                 break;
             }
-            match cursor.peek().token_type {
+            match self.cursor.peek().token_type {
                 TokenType::Space => {
-                    cursor.advance(next());
+                    self.cursor.advance(next());
                     break;
                 }
                 TokenType::Dollar => {
@@ -119,9 +116,9 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                 }
                 _ => {
                     if !builder.is_empty() {
-                        current_start = cursor.peek();
+                        current_start = self.cursor.peek();
                     }
-                    builder.push_str(cursor.next()?.value)
+                    builder.push_str(self.cursor.next()?.value)
                 }
             }
         }
@@ -138,9 +135,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     }
 
     fn parse_literal(&mut self) -> ParseResult<LiteralValue> {
-        let cursor = &mut self.cursor;
-
-        let token = cursor.next()?;
+        let token = self.cursor.next()?;
         match token.token_type {
             TokenType::IntLiteral => Ok(LiteralValue::Int(token.value.parse::<i64>().map_err(
                 |e| match e.kind() {
