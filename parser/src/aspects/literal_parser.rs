@@ -19,13 +19,13 @@ pub(crate) trait LiteralParser<'a> {
 impl<'a> LiteralParser<'a> for Parser<'a> {
     fn literal(&mut self) -> ParseResult<Expr<'a>> {
         Ok(Expr::Literal(Literal {
-            token: self.cursor().peek().clone(),
+            token: self.cursor.peek().clone(),
             parsed: self.parse_literal()?,
         }))
     }
 
     fn string_literal(&mut self) -> ParseResult<Expr<'a>> {
-        let cursor = self.cursor();
+        let cursor = &mut self.cursor;
         let token = cursor.force(of_type(TokenType::Quote), "Expected quote.")?;
         let mut value = String::new();
         loop {
@@ -48,7 +48,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     }
 
     fn templated_string_literal(&mut self) -> ParseResult<Expr<'a>> {
-        let cursor = self.cursor();
+        let cursor = &mut self.cursor;
         let mut current_start = cursor.peek();
         let mut literal_value = String::new();
         let mut parts = Vec::new();
@@ -90,7 +90,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     /// An argument is usually a single identifier, but can also be
     /// composed of multiple tokens if not separated with a space.
     fn argument(&mut self) -> ParseResult<Expr<'a>> {
-        let cursor = self.cursor();
+        let cursor = &mut self.cursor;
         let mut current_start = cursor.peek();
         let mut parts = Vec::new();
         let mut builder = String::new();
@@ -138,7 +138,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     }
 
     fn parse_literal(&mut self) -> ParseResult<LiteralValue> {
-        let cursor = self.cursor();
+        let cursor = &mut self.cursor;
 
         let token = cursor.next()?;
         match token.token_type {

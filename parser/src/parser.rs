@@ -18,14 +18,10 @@ pub struct ParseError {
 
 /// A parser for the Moshell scripting language.
 pub(crate) struct Parser<'a> {
-    cursor: ParserCursor<'a>,
+    pub cursor: ParserCursor<'a>,
 }
 
 impl<'a> Parser<'a> {
-    pub(crate) fn cursor(&mut self) -> &mut ParserCursor<'a> {
-        &mut self.cursor
-    }
-
     /// Creates a new parser.
     pub(crate) fn new(tokens: Vec<Token<'a>>) -> Self {
         Self {
@@ -35,7 +31,7 @@ impl<'a> Parser<'a> {
 
 /// Parses an expression.
 pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
-    match self.cursor().lookahead(next()).unwrap().token_type {
+    match self.cursor.lookahead(next()).unwrap().token_type {
         TokenType::IntLiteral | TokenType::FloatLiteral => self.literal(),
         TokenType::Quote => self.string_literal(),
         TokenType::DoubleQuote => self.templated_string_literal(),
@@ -47,7 +43,7 @@ pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
     ///
     /// Statements are usually on their own line.
     pub(crate) fn statement(&mut self) -> ParseResult<Expr<'a>> {
-        match self.cursor().lookahead(next()).unwrap().token_type {
+        match self.cursor.lookahead(next()).unwrap().token_type {
             TokenType::Identifier => self.call(),
             TokenType::Quote => self.call(),
             TokenType::DoubleQuote => self.call(),
@@ -61,7 +57,7 @@ pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
     pub(crate) fn parse(&mut self) -> ParseResult<Vec<Expr<'a>>> {
         let mut statements = Vec::new();
 
-        while !self.cursor().is_at_end() {
+        while !self.cursor.is_at_end() {
             statements.push(self.statement()?);
         }
 

@@ -13,7 +13,7 @@ pub trait VarReferenceParser<'a> {
 impl<'a> VarReferenceParser<'a> for Parser<'a> {
     /// Parses a variable reference.
     fn var_reference(&mut self) -> ParseResult<Expr<'a>> {
-        let cursor = self.cursor();
+        let cursor = &mut self.cursor;
         cursor.force(of_type(TokenType::Dollar), "Expected dollar sign.")?;
         let has_bracket = cursor
             .advance(space().and_then(of_type(TokenType::CurlyLeftBracket)))

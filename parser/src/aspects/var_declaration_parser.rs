@@ -13,7 +13,7 @@ pub trait VarDeclarationParser<'a> {
 impl<'a> VarDeclarationParser<'a> for Parser<'a> {
     /// Parses a variable declaration.
     fn var_declaration(&mut self) -> ParseResult<Expr<'a>> {
-        let cursor = self.cursor();
+        let cursor = &mut self.cursor;
         let kind = match cursor.next()?.token_type {
             TokenType::Var => VarKind::Var,
             TokenType::Val => VarKind::Val,
