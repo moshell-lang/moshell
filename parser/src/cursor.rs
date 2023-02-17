@@ -50,6 +50,12 @@ impl<'a> ParserCursor<'a> {
         }
         None
     }
+    
+    pub fn force(&mut self, mov: impl Move, err: &str) -> ParseResult<&Token<'a>> {
+        self.advance(mov).ok_or(ParseError {
+            message: err.to_string(),
+        })
+    }
 
     pub fn peek(&self) -> &Token<'a> {
         self.at(self.pos)

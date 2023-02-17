@@ -3,6 +3,7 @@ use lexer::token::TokenType;
 use crate::aspects::base_parser::BaseParser;
 use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use crate::ast::Expr;
+use crate::moves::{MoveOperations, of_type, space};
 use crate::parser::{ParseResult, Parser};
 
 pub trait VarDeclarationParser<'a> {
@@ -15,10 +16,10 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
     fn var_declaration(&mut self, kind: VarKind) -> ParseResult<Expr<'a>> {
         let cursor = self.cursor();
         match kind {
-            VarKind::Var => cursor.advance(TokenType::Var, "Expected 'var' keyword.")?,
-            VarKind::Val => cursor.expect_token(TokenType::Val, "Expected 'val' keyword.")?,
+            VarKind::Var => cursor.force(of_type(TokenType::Var), "Expected 'var' keyword")?,
+            VarKind::Val => cursor.force(of_type(TokenType::Val), "Expected 'val' keyword.")?,
         };
-        let name = self.expect_separated_token(TokenType::Identifier, "Expected variable name.")?;
+        let name = cursor.force(space().and_then(of_type(TokenType::Identifier)), "Expected variable name.")?;
 
         let ty = match cursor.match_token(TokenType::Colon) {
             None => None,

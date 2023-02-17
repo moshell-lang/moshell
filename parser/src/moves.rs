@@ -18,12 +18,12 @@ pub trait Move {
 pub trait MoveOperations<'a, This: Move> {
     ///Used to chain `This` move with `other` move.
     /// returns a move that will first execute this move then other one only if this first succeeded.
-    fn and_then<B: Move>(&self, other: &B) -> AndThenMove<'a, This, B>;
+    fn and_then<B: Move>(&self, other: B) -> AndThenMove<'a, This, B>;
 }
 
 impl<'a, A: Move> MoveOperations<'a, A> for A {
-    fn and_then<B: Move>(&self, other: &B) -> AndThenMove<'a, Self, B> {
-        AndThenMove { origin: self, other: other }
+    fn and_then<B: Move>(&self, other: B) -> AndThenMove<'a, Self, B> {
+        AndThenMove { origin: self, other: &other }
     }
 }
 
@@ -64,6 +64,11 @@ pub fn next() -> PredicateMove<fn(&Token) -> bool> {
 ///Move to next token if it's not a space
 pub fn no_space() -> PredicateMove<fn(&Token) -> bool> {
     predicate(|t| t.token_type != Space)
+}
+
+///Move to next token if it's a space
+pub fn space() -> PredicateMove<fn(&Token) -> bool> {
+    predicate(|t| t.token_type == Space)
 }
 
 ///repeats until it finds a token that's not a space
