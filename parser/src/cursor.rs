@@ -1,6 +1,6 @@
+use crate::moves::Move;
 use lexer::token::Token;
 use lexer::token::TokenType::EndOfFile;
-use crate::moves::Move;
 
 use crate::parser::{ParseError, ParseResult};
 
@@ -52,14 +52,16 @@ impl<'a> ParserCursor<'a> {
     ///advance and returns the next token or ParseError if this cursor hits the
     /// end of the stream.
     pub fn next(&mut self) -> ParseResult<Token<'a>> {
-        let nxt = self.tokens
-            .get(self.pos)
-            .map(|t| t.clone())
-            .ok_or(ParseError {
-                message: "Unexpected end of file".to_string(),
-            });
-        self.pos += 1;
-        nxt
+        self.next_opt().ok_or(ParseError {
+            message: "Unexpected end of file".to_string(),
+        })
+    }
+
+    pub fn next_opt(&mut self) -> Option<Token<'a>> {
+        self.tokens.get(self.pos).map(|t| {
+            self.pos += 1;
+            t.clone()
+        })
     }
 
     fn at(&self, pos: usize) -> Token<'a> {
@@ -74,7 +76,6 @@ impl<'a> ParserCursor<'a> {
     fn peek_next(&self) -> Token<'a> {
         self.at(self.pos)
     }
-
 
     pub fn is_at_end(&self) -> bool {
         self.peek_next().token_type == EndOfFile

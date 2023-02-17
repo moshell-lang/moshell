@@ -18,14 +18,21 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
             TokenType::Val => VarKind::Val,
             _ => return self.expected("expected var or val keywords"),
         };
-        let name = self.cursor.force(ignore_space().then(of_type(TokenType::Identifier)), "Expected variable name.")?;
+        let name = self.cursor.force(
+            space().then(of_type(TokenType::Identifier)),
+            "Expected variable name.",
+        )?;
 
         let ty = match self.cursor.advance(ignore_space().then(of_type(TokenType::Colon))) {
             None => None,
-            Some(_) => Some(self.cursor.force(ignore_space().then(of_type(TokenType::Identifier)), "Expected variable type")?),
-        }.map(|t| t.clone());
-
-        let initializer = match self.cursor.advance(ignore_space().then(of_type(TokenType::Equal))) {
+            Some(_) => Some(
+                self.cursor
+                    .force(of_type(TokenType::Identifier), "Expected variable type")?,
+            ),
+        }
+        .map(|t| t.clone());
+        self.cursor.advance(space());
+        let initializer = match self.cursor.advance(of_type(TokenType::Equal)) {
             None => None,
             Some(_) => Some(self.expression()?),
         };
@@ -43,13 +50,13 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use lexer::lexer::lex;
-    use lexer::token::Token;
+    use super::*;
     use crate::ast::Expr;
     use crate::ast::literal::{Literal, LiteralValue};
     use crate::ast::variable::VarReference;
     use crate::parser::Parser;
-    use super::*;
+    use lexer::lexer::lex;
+    use lexer::token::Token;
 
     #[test]
     fn val_declaration() {
