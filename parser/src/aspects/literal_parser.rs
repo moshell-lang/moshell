@@ -76,6 +76,8 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
         }
         if !literal_value.is_empty() {
             parts.push(Expr::Literal(Literal {
+                //TODO-FIXME weird start of literal,
+                // try to find a way to bind all the literal expression and not only its first token
                 token: current_start.clone(),
                 parsed: LiteralValue::String(literal_value),
             }));
@@ -158,6 +160,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
+    use lexer::lexer::lex;
     use lexer::token::Token;
 
     use crate::parse;
@@ -182,20 +185,13 @@ mod tests {
 
     #[test]
     fn string_literal() {
-        let tokens = vec![
-            Token::new(TokenType::Quote, "'"),
-            Token::new(TokenType::Identifier, "hello"),
-            Token::new(TokenType::Space, " "),
-            Token::new(TokenType::Identifier, "world"),
-            Token::new(TokenType::Not, "!"),
-            Token::new(TokenType::Quote, "'"),
-        ];
+        let tokens = lex("'hello $world! $(this is a test) @(of course)'");
         let parsed = Parser::new(tokens).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
                 token: Token::new(TokenType::Quote, "'"),
-                parsed: LiteralValue::String("hello world!".to_string()),
+                parsed: LiteralValue::String("hello $world! $(this is a test) @(of course)".to_string()),
             })
         );
     }

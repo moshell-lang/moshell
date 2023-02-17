@@ -25,7 +25,7 @@ impl<'a> ParserCursor<'a> {
 
         if let Some(new_pos) = result {
             self.pos = new_pos;
-            return Some(self.at(new_pos));
+            return Some(self.at(new_pos - 1));
         }
         None
     }

@@ -45,7 +45,7 @@ impl<'m, P> Move for PredicateMove<P>
     where P: Fn(Token) -> bool {
     fn apply<'a, F>(&self, mut at: F, pos: usize) -> Option<usize>
         where F: FnMut(usize) -> Token<'a> {
-        (self.predicate)(at(pos)).then(|| pos)
+        (self.predicate)(at(pos)).then(|| pos + 1)
     }
 }
 
