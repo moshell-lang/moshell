@@ -19,7 +19,9 @@ impl<'a> ParserCursor<'a> {
         Self { tokens, pos: 0 }
     }
 
-    ///advance if next token satisfy the given predicate
+    ///advance if next token satisfy the given move
+    /// Returns the token where the move ended if it succeeds, or None instead.
+    /// This method will move the current cursor position on where the move ended.
     pub fn advance(&mut self, mov: impl Move) -> Option<Token<'a>> {
         let result = mov.apply(|pos| self.at(pos), self.pos);
 
@@ -30,6 +32,8 @@ impl<'a> ParserCursor<'a> {
         None
     }
 
+    /// Returns the token where the move ended if the move succeeds, or None instead.
+    /// This method is similar to `advance` except that it does not makes the cursor change its current pos.
     pub fn lookahead(&self, mov: impl Move) -> Option<Token<'a>> {
         let result = mov.apply(|pos| self.at(pos), self.pos);
 
@@ -39,17 +43,20 @@ impl<'a> ParserCursor<'a> {
         None
     }
 
+    /// Force the given move to succeed, or else fail with given error message.
+    /// This method will move the current cursor position on where the move ended.
     pub fn force(&mut self, mov: impl Move, err: &str) -> ParseResult<Token<'a>> {
         self.advance(mov).ok_or_else(|| ParseError {
             message: err.to_string(),
         })
     }
 
+    ///peek token at current position
     pub fn peek(&self) -> Token<'a> {
         self.at(self.pos)
     }
 
-    ///advance and returns the next token or ParseError if this cursor hits the
+    ///returns current token then advance or ParseError if this cursor hits the
     /// end of the stream.
     pub fn next(&mut self) -> ParseResult<Token<'a>> {
         self.next_opt().ok_or(ParseError {
@@ -57,6 +64,8 @@ impl<'a> ParserCursor<'a> {
         })
     }
 
+    ///returns current token then advance or None if this cursor hits the
+    /// end of the stream.
     pub fn next_opt(&mut self) -> Option<Token<'a>> {
         self.tokens.get(self.pos).map(|t| {
             self.pos += 1;
@@ -64,6 +73,7 @@ impl<'a> ParserCursor<'a> {
         })
     }
 
+    ///returns token at specified position.
     fn at(&self, pos: usize) -> Token<'a> {
         self.tokens
             .get(pos)
@@ -71,13 +81,8 @@ impl<'a> ParserCursor<'a> {
             .unwrap_or(Token::new(EndOfFile, ""))
     }
 
-    ///peeks next that is not a .
-    /// can return EndOfFile token if the cursor is at the end of the token stream.
-    fn peek_next(&self) -> Token<'a> {
-        self.at(self.pos)
-    }
-
+    ///return true if this cursor is at the end of the
     pub fn is_at_end(&self) -> bool {
-        self.peek_next().token_type == EndOfFile
+        self.pos >= self.tokens.len()
     }
 }
