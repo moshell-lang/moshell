@@ -43,7 +43,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
             };
         }
         Ok(Expr::Literal(Literal {
-            token: token.clone(),
+            token,
             parsed: LiteralValue::String(value),
         }))
     }
