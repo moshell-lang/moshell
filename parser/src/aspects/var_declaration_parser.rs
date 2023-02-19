@@ -2,7 +2,7 @@ use lexer::token::TokenType;
 
 use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use crate::ast::Expr;
-use crate::moves::{ignore_space, of_type, of_types, space, MoveOperations};
+use crate::moves::{spaces, of_type, of_types, space, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 pub trait VarDeclarationParser<'a> {
@@ -25,11 +25,11 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
 
         let ty = match self
             .cursor
-            .advance(ignore_space().then(of_type(TokenType::Colon)))
+            .advance(spaces().then(of_type(TokenType::Colon)))
         {
             None => None,
             Some(_) => Some(self.cursor.force(
-                ignore_space().then(of_type(TokenType::Identifier)),
+                spaces().then(of_type(TokenType::Identifier)),
                 "Expected variable type",
             )?),
         };

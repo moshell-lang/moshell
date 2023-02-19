@@ -51,7 +51,7 @@ impl<'a> ParserCursor<'a> {
         })
     }
 
-    ///peek token at current position
+    ///returns the token at current position
     pub fn peek(&self) -> Token<'a> {
         self.at(self.pos)
     }
