@@ -19,7 +19,7 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
             _ => return self.expected("expected var or val keywords"),
         };
         let name = self.cursor.force(
-            space().then(of_type(TokenType::Identifier)),
+            space().and_then(of_type(TokenType::Identifier)),
             "Expected variable name.",
         )?;
 
@@ -33,10 +33,8 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
                 "Expected variable type",
             )?),
         };
-        self.cursor.advance(space());
-        let initializer = match self.cursor.advance(of_type(TokenType::Equal)) {
+        let initializer = match self.cursor.advance(space().then(of_type(TokenType::Equal))) {
             None => {
-                self.cursor.advance(space());
                 self.cursor.force(
                     of_types(&[TokenType::NewLine, TokenType::EndOfFile]),
                     "Expected newline after variable declaration",

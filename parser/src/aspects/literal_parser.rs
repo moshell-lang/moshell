@@ -80,8 +80,6 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
         }
         if !literal_value.is_empty() {
             parts.push(Expr::Literal(Literal {
-                //TODO-FIXME weird start of literal,
-                // try to find a way to bind all the literal expression and not only its first token
                 token: current_start,
                 parsed: LiteralValue::String(literal_value),
             }));
