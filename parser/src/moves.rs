@@ -26,7 +26,7 @@ pub(crate) trait MoveOperations<'a, This: Move> {
     fn then<B: Move>(self, other: B) -> ThenMove<This, B>;
 }
 
-impl<'a, A: Move> MoveOperations<'a, A> for A {
+impl<A: Move> MoveOperations<A> for A {
     fn and_then<B: Move>(self, other: B) -> AndThenMove<Self, B> {
         AndThenMove {
             origin: self,
