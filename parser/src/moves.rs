@@ -53,6 +53,7 @@ pub(crate) struct PredicateMove<P>
 impl<P> PredicateMove<P>
     where
         P: Fn(Token) -> bool {
+    /// Invert the current predicate.
     pub fn negate(self) -> PredicateMove<impl Fn(Token) -> bool> {
         PredicateMove {
             predicate: move |t| !(self.predicate)(t)
