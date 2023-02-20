@@ -20,14 +20,17 @@ impl<'a> ParserCursor<'a> {
     }
 
     ///advance if next token satisfy the given move
-    /// Returns the token where the move ended if it succeeds, or None instead.
+    /// Returns the token last token covered (=validated) by the move operation.
+    ///         The returned value is Some(Token) if the move succeeded, None instead.
     /// This method will move the current cursor position on where the move ended.
     pub fn advance(&mut self, mov: impl Move) -> Option<Token<'a>> {
         let result = mov.apply(|pos| self.at(pos), self.pos);
 
-        if let Some(new_pos) = result {
-            self.pos = new_pos;
-            return Some(self.at(new_pos - 1));
+        if let Some(next_pos) = result {
+            self.pos = next_pos;
+            //we subtract 1 to next_pos because the move returns the next position
+            //of the token, thus, we want to return the last token that this move covered.
+            return Some(self.at(next_pos - 1));
         }
         None
     }
