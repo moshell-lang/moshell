@@ -147,15 +147,16 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                         IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => self
                             .expected::<()>("Integer constant is too large.")
                             .unwrap_err(),
-                        _ => self.expected::<()>(&e.to_string()).unwrap_err(),
+                        _ => self.mk_parse_error(e.to_string()),
                     }
                 },
             )?)),
-            TokenType::FloatLiteral => {
-                Ok(LiteralValue::Float(token.value.parse::<f64>().map_err(
-                    |e| self.expected::<()>(&e.to_string()).unwrap_err(),
-                )?))
-            }
+            TokenType::FloatLiteral => Ok(LiteralValue::Float(
+                token
+                    .value
+                    .parse::<f64>()
+                    .map_err(|e| self.mk_parse_error(e.to_string()))?,
+            )),
             _ => self.expected("Expected a literal."),
         }
     }

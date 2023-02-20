@@ -2,7 +2,7 @@ use lexer::token::TokenType;
 
 use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use crate::ast::Expr;
-use crate::moves::{spaces, of_type, of_types, space, MoveOperations};
+use crate::moves::{of_type, of_types, space, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 pub trait VarDeclarationParser<'a> {

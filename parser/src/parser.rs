@@ -66,11 +66,11 @@ impl<'a> Parser<'a> {
         Ok(statements)
     }
 
-    pub fn expected<T>(&self, message: &str) -> ParseResult<T> {
+    pub(crate) fn expected<T>(&self, message: &str) -> ParseResult<T> {
         Err(self.mk_parse_error(message))
     }
 
-    fn mk_parse_error(&self, message: impl Into<String>) -> ParseError {
+    pub(crate) fn mk_parse_error(&self, message: impl Into<String>) -> ParseError {
         ParseError {
             message: message.into(),
             //actual: self.peek_token().clone(),
