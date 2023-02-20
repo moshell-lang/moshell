@@ -99,7 +99,7 @@ mod tests {
                 val x = 8\n\n\n
                 8
             }\n\
-            { val x = 89; var test = 77; word }\
+            { val x = 89; var test = 77; word; }\
         }\
         ");
         let mut parser = Parser::new(tokens);

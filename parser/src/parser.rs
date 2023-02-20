@@ -46,7 +46,8 @@ impl<'a> Parser<'a> {
     /// a statement is usually on a single line
     pub(crate) fn statement(&mut self) -> ParseResult<Expr<'a>> {
         self.cursor.advance(spaces());
-        match self.cursor.peek().token_type {
+        let pivot = self.cursor.peek().token_type;
+        match pivot {
             TokenType::Identifier => self.call(),
             TokenType::Quote => self.call(),
             TokenType::DoubleQuote => self.call(),

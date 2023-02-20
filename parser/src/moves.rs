@@ -47,7 +47,7 @@ impl<A: Move + Clone + Clone> MoveOperations<A> for A {
 #[derive(Clone)]
 pub(crate) struct PredicateMove<P>
     where
-        P: Fn(Token) -> bool,
+        P: Fn(Token) -> bool + Clone,
 {
     ///The used predicate
     predicate: P,
@@ -55,9 +55,9 @@ pub(crate) struct PredicateMove<P>
 
 impl<P> PredicateMove<P>
     where
-        P: Fn(Token) -> bool {
+        P: Fn(Token) -> bool + Clone {
     /// Invert the current predicate.
-    pub fn negate(self) -> PredicateMove<impl Fn(Token) -> bool> {
+    pub fn negate(self) -> PredicateMove<impl Fn(Token) -> bool + Clone> {
         PredicateMove {
             predicate: move |t| !(self.predicate)(t)
         }
@@ -66,7 +66,7 @@ impl<P> PredicateMove<P>
 
 impl<P> Move for PredicateMove<P>
     where
-        P: Fn(Token) -> bool,
+        P: Fn(Token) -> bool + Clone,
 {
     fn apply<'a, F>(&self, mut at: F, pos: usize) -> Option<usize>
         where
@@ -81,7 +81,7 @@ impl<P> Move for PredicateMove<P>
 /// * `predicate` - the predicate to satisfy
 pub(crate) fn predicate<P>(predicate: P) -> PredicateMove<P>
     where
-        P: Fn(Token) -> bool,
+        P: Fn(Token) -> bool + Clone,
 {
     PredicateMove { predicate }
 }
@@ -102,7 +102,7 @@ pub(crate) fn next() -> PredicateMove<fn(Token) -> bool> {
 }
 
 ///Move to next token if it's not a space
-pub(crate) fn no_space() -> PredicateMove<impl for<'a> Fn(Token<'a>) -> bool> {
+pub(crate) fn no_space() -> PredicateMove<impl for<'a> Fn(Token<'a>) -> bool + Clone> {
     of_type(Space).negate()
 }
 

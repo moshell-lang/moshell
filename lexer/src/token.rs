@@ -19,7 +19,7 @@ pub enum TokenType {
     #[token("val")]
     Val,
 
-    #[regex("[\\./\\p{XID_Start}](?:[^:\\s'\"$@}]|\\\\.)*")]
+    #[regex("[\\./\\p{XID_Start}](?:[^;:\\s'\"$@}]|\\\\.)*")]
     Identifier,
 
     #[regex("-?[0-9]+", priority = 2)]
@@ -121,7 +121,9 @@ pub enum TokenType {
     #[token("*")]
     Times,
     #[token("/")]
-    Divide,
+    Slash,
+    #[token("\\")]
+    BackSlash,
     #[token("%")]
     Modulo,
 

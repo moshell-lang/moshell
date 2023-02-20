@@ -92,10 +92,10 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     /// An argument is usually a single identifier, but can also be
     /// composed of multiple tokens if not separated with a space.
     fn argument(&mut self) -> ParseResult<Expr<'a>> {
-        let mut current_start = self.cursor.peek();
+        let mut current = self.cursor.peek();
         let mut parts = Vec::new();
         let mut builder = String::new();
-        match current_start.token_type {
+        match current.token_type {
             TokenType::Dollar => parts.push(self.var_reference()?),
             _ => builder.push_str(self.cursor.next()?.value),
         }
@@ -103,7 +103,8 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
             if self.cursor.is_at_end() {
                 break;
             }
-            match self.cursor.peek().token_type {
+            let pivot = self.cursor.peek().token_type;
+            match pivot {
                 TokenType::Space => {
                     self.cursor.advance(next());
                     break;
@@ -111,7 +112,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                 TokenType::Dollar => {
                     if !builder.is_empty() {
                         parts.push(Expr::Literal(Literal {
-                            token: current_start.clone(),
+                            token: current.clone(),
                             parsed: LiteralValue::String(builder.clone()),
                         }));
                         builder.clear();
@@ -120,7 +121,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                 }
                 _ => {
                     if !builder.is_empty() {
-                        current_start = self.cursor.peek();
+                        current = self.cursor.peek();
                     }
                     builder.push_str(self.cursor.next()?.value)
                 }
@@ -128,7 +129,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
         }
         if !builder.is_empty() {
             parts.push(Expr::Literal(Literal {
-                token: current_start,
+                token: current,
                 parsed: LiteralValue::String(builder),
             }));
         }
@@ -204,7 +205,7 @@ mod tests {
 
     #[test]
     fn missing_quote() {
-        let tokens = vec![Token::new(TokenType::Quote, "'")];
+        let tokens = vec![Token::new(TokenType::Quote, "' command")];
         let parsed = parse(tokens);
         assert_eq!(
             parsed,
@@ -213,4 +214,7 @@ mod tests {
             })
         );
     }
+
+
+
 }
