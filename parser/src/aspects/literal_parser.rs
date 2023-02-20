@@ -128,7 +128,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
         }
         if !builder.is_empty() {
             parts.push(Expr::Literal(Literal {
-                token: current_start.clone(),
+                token: current_start,
                 parsed: LiteralValue::String(builder),
             }));
         }
