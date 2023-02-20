@@ -62,7 +62,7 @@ impl<'a> ParserCursor<'a> {
     ///returns current token then advance or ParseError if this cursor hits the
     /// end of the stream.
     pub fn next(&mut self) -> ParseResult<Token<'a>> {
-        self.next_opt().ok_or(ParseError {
+        self.next_opt().ok_or_else(|| ParseError {
             message: "Unexpected end of file".to_string(),
         })
     }

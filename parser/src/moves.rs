@@ -16,7 +16,7 @@ pub trait Move {
 }
 
 ///Defines operations over a Move struct.
-pub(crate) trait MoveOperations<'a, This: Move> {
+pub(crate) trait MoveOperations<This: Move> {
     ///Used to chain `This` move with `other` move.
     /// returns a move that will first execute this move then other one only if this first succeeded.
     fn and_then<B: Move>(self, other: B) -> AndThenMove<This, B>;
@@ -26,7 +26,7 @@ pub(crate) trait MoveOperations<'a, This: Move> {
     fn then<B: Move>(self, other: B) -> ThenMove<This, B>;
 }
 
-impl<'a, A: Move> MoveOperations<'a, A> for A {
+impl<A: Move> MoveOperations<A> for A {
     fn and_then<B: Move>(self, other: B) -> AndThenMove<Self, B> {
         AndThenMove {
             origin: self,
@@ -53,6 +53,7 @@ pub(crate) struct PredicateMove<P>
 impl<P> PredicateMove<P>
     where
         P: Fn(Token) -> bool {
+    /// Invert the current predicate.
     pub fn negate(self) -> PredicateMove<impl Fn(Token) -> bool> {
         PredicateMove {
             predicate: move |t| !(self.predicate)(t)
