@@ -1,8 +1,9 @@
-use lexer::token::TokenType;
-use crate::aspects::base_parser::BaseParser;
+use lexer::token::{Token, TokenType};
+
 use crate::ast::Expr;
-use crate::parser::{Parser, ParseResult};
 use crate::ast::statement::Block;
+use crate::moves::{MoveOperations, of_type, of_types, PredicateMove, repeat, RepeatedMove, spaces};
+use crate::parser::{Parser, ParseResult};
 
 pub trait BlockParser<'a> {
     fn block(&mut self) -> ParseResult<Expr<'a>>;
@@ -10,29 +11,27 @@ pub trait BlockParser<'a> {
 
 impl<'a> BlockParser<'a> for Parser<'a> {
     fn block(&mut self) -> ParseResult<Expr<'a>> {
-        self.expect_token(TokenType::CurlyLeftBracket, "expected start of block expression")?;
+        self.cursor.force(of_type(TokenType::CurlyLeftBracket),
+                          "expected start of block expression")?;
         let block = |exprs| Ok(Expr::Block(Block {
             exprs
         }));
         let mut expressions: Vec<Expr<'a>> = Vec::new();
-        //if the block is empty
-        if self.meet_token(TokenType::CurlyRightBracket) {
-            return block(expressions);
-        }
+
+        //TODO pass me as a constant
+        //End Of Expression ((\n + ;)*)
+        let eox = repeat(of_types(&[TokenType::SemiColon, TokenType::NewLine]));
+
         loop {
-            if self.meet_token(TokenType::CurlyRightBracket) {
+
+            if self.cursor.advance(spaces().then(of_type(TokenType::CurlyRightBracket))).is_some() {
                 break;
             }
 
             let expression = self.statement()?;
             expressions.push(expression);
-            if self.meet_token(TokenType::CurlyRightBracket) {
-                break;
-            }
 
-
-            self.expect_token(TokenType::SemiColon, "")
-                .or_else(|_| self.expect_token(TokenType::NewLine, "expected new line or semicolon"))?;
+            self.cursor.force(eox.clone(), "expected new line or semicolon")?;
         };
         block(expressions)
     }
@@ -42,7 +41,7 @@ impl<'a> BlockParser<'a> for Parser<'a> {
 mod tests {
     use lexer::lexer::lex;
     use lexer::token::{Token, TokenType};
-    use crate::aspects::base_parser::BaseParser;
+
     use crate::aspects::block_parser::BlockParser;
     use crate::ast::Expr;
     use crate::ast::literal::Literal;
@@ -56,7 +55,7 @@ mod tests {
         let tokens = lex("{{{}; {}}}");
         let mut parser = Parser::new(tokens);
         let ast = parser.block().expect("failed to parse block");
-        assert!(parser.is_at_end());
+        assert!(parser.cursor.is_at_end());
         assert_eq!(ast, Expr::Block(Block {
             exprs: vec![Expr::Block(Block {
                 exprs: vec![
@@ -97,15 +96,15 @@ mod tests {
         let tokens = lex("\
         {\
             val test = {\
-                val x = 8
+                val x = 8\n\n\n
                 8
             }\n\
-            { val x = 89 }\
+            { val x = 89; var test = 77; word }\
         }\
         ");
         let mut parser = Parser::new(tokens);
         let ast = parser.block().expect("failed to parse block with nested blocks");
-        assert!(parser.is_at_end());
+        assert!(parser.cursor.is_at_end());
         assert_eq!(ast, Expr::Block(Block {
             exprs: vec![
                 Expr::VarDeclaration(VarDeclaration {
@@ -163,7 +162,7 @@ mod tests {
         ");
         let mut parser = Parser::new(tokens);
         let ast = parser.block().expect("failed to parse block");
-        assert!(parser.is_at_end());
+        assert!(parser.cursor.is_at_end());
         assert_eq!(ast, Expr::Block(Block {
             exprs: vec![
                 Expr::VarDeclaration(VarDeclaration {

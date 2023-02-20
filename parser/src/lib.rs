@@ -8,6 +8,8 @@ use crate::parser::{ParseResult, Parser};
 ///! The parser crate contains the parser for the Moshell scripting language.
 mod aspects;
 pub mod ast;
+mod cursor;
+mod moves;
 mod parser;
 
 pub fn parse(tokens: Vec<Token>) -> ParseResult<Vec<Expr>> {
