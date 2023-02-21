@@ -1,8 +1,8 @@
 use lexer::token::TokenType;
 
-use crate::aspects::base_parser::BaseParser;
 use crate::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp};
 use crate::ast::Expr;
+use crate::moves::{of_type, space, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 pub trait CallParser<'a> {
@@ -15,8 +15,9 @@ impl<'a> CallParser<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
         let mut arguments = vec![self.expression()?];
         let mut redirections = vec![];
-        while !self.is_at_end() {
-            match self.peek_token().token_type {
+        while !self.cursor.is_at_end() {
+            self.cursor.advance(space());
+            match self.cursor.peek().token_type {
                 TokenType::Ampersand | TokenType::Less | TokenType::Greater => {
                     redirections.push(self.redirection()?);
                 }
@@ -38,7 +39,11 @@ impl<'a> CallParser<'a> for Parser<'a> {
 
     fn pipeline(&mut self, first_call: Call<'a>) -> ParseResult<Expr<'a>> {
         let mut commands = vec![first_call];
-        while self.meet_token(TokenType::Pipe) {
+        while self
+            .cursor
+            .advance(space().then(of_type(TokenType::Pipe)))
+            .is_some()
+        {
             match self.call()? {
                 Expr::Call(call) => commands.push(call),
                 Expr::Pipeline(pipeline) => commands.extend(pipeline.commands),
@@ -52,14 +57,15 @@ impl<'a> CallParser<'a> for Parser<'a> {
     }
 
     fn redirection(&mut self) -> ParseResult<Redir<'a>> {
-        let mut token = self.next_token()?;
+        self.cursor.advance(space());
+        let mut token = self.cursor.next()?;
         let fd = match token.token_type {
             TokenType::Ampersand => {
-                token = self.next_token_space_aware()?;
+                token = self.cursor.next()?;
                 RedirFd::Wildcard
             }
             TokenType::IntLiteral => {
-                token = self.next_token_space_aware()?;
+                token = self.cursor.next()?;
                 RedirFd::Fd(
                     token
                         .value
@@ -71,13 +77,13 @@ impl<'a> CallParser<'a> for Parser<'a> {
         };
         let mut operator = match token.token_type {
             TokenType::Less => RedirOp::Read,
-            TokenType::Greater => match self.match_token_space_aware(TokenType::Greater) {
+            TokenType::Greater => match self.cursor.advance(of_type(TokenType::Greater)) {
                 None => RedirOp::Write,
                 Some(_) => RedirOp::Append,
             },
             _ => Err(self.mk_parse_error("Expected redirection operator."))?,
         };
-        if self.meet_token(TokenType::Ampersand) {
+        if self.cursor.advance(of_type(TokenType::Ampersand)).is_some() {
             operator = match operator {
                 RedirOp::Read => RedirOp::FdIn,
                 RedirOp::Write => RedirOp::FdOut,

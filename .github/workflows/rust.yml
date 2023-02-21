@@ -1,20 +1,30 @@
-name: Rust
+name: Rust CI
 
 on:
   push:
   pull_request:
-
+  workflow_dispatch:
+  
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
+    - uses: fkirc/skip-duplicate-actions@v5
     - uses: actions/checkout@v3
+    
+    - name: Cargo Cache
+      uses: actions/cache@v3
+      with:
+        key: ${{ hashFiles('Cargo.toml') }}
+        path: |
+          ./target
+          ~/.cargo
+          
     - name: Build
       run: cargo build 
+      
     - name: Run tests
       run: cargo test --verbose
