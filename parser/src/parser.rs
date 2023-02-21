@@ -6,7 +6,7 @@ use crate::aspects::literal_parser::LiteralParser;
 use crate::aspects::var_declaration_parser::VarDeclarationParser;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::moves::{space, spaces};
+use crate::moves::{eox, spaces};
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -32,8 +32,10 @@ impl<'a> Parser<'a> {
 
     /// Parses an expression.
     pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
-        self.cursor.advance(space());
-        match self.cursor.peek().token_type {
+        self.repos()?;
+
+        let pivot = self.cursor.peek().token_type;
+        match pivot {
             TokenType::IntLiteral | TokenType::FloatLiteral => self.literal(),
             TokenType::Quote => self.string_literal(),
             TokenType::CurlyLeftBracket => self.block(),
@@ -45,7 +47,8 @@ impl<'a> Parser<'a> {
     /// Parse a statement.
     /// a statement is usually on a single line
     pub(crate) fn statement(&mut self) -> ParseResult<Expr<'a>> {
-        self.cursor.advance(spaces());
+        self.repos()?;
+
         let pivot = self.cursor.peek().token_type;
         match pivot {
             TokenType::Identifier => self.call(),
@@ -55,6 +58,16 @@ impl<'a> Parser<'a> {
             TokenType::Val => self.var_declaration(),
             _ => self.expression(),
         }
+    }
+
+    ///Skips spaces and verify that this parser is not parsing the end of an expression
+    /// (unescaped newline or semicolon)
+    fn repos(&mut self) -> ParseResult<()> {
+        self.cursor.advance(spaces()); //skip spaces
+        if self.cursor.lookahead(eox()).is_some() {
+            return self.expected("Unexpected end of expression")
+        }
+        Ok(())
     }
 
     /// Parses the tokens into an abstract syntax tree.

@@ -1,8 +1,6 @@
-use lexer::token::TokenType;
-
 use crate::ast::callable::Call;
 use crate::ast::Expr;
-use crate::moves::{MoveOperations, of_type, of_types, spaces};
+use crate::moves::{eox, of_types, spaces};
 use crate::parser::{Parser, ParseResult};
 
 pub trait CallParser<'a> {
@@ -13,12 +11,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
         let mut args = vec![self.expression()?];
         //End Of Expression \!(; + \n)
-        let eox =
-           // of_type(TokenType::BackSlash).negate()
-           //     .and_then(
-                    spaces().then(of_types(&[TokenType::SemiColon, TokenType::NewLine]));
-            //    );
-        while !self.cursor.is_at_end() && self.cursor.advance(eox.clone()).is_none()
+        while !self.cursor.is_at_end() && self.cursor.advance(eox()).is_none()
         {
             args.push(self.expression()?);
         }

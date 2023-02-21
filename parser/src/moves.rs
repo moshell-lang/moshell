@@ -1,4 +1,4 @@
-use lexer::token::TokenType::{EndOfFile, Space};
+use lexer::token::TokenType::*;
 use lexer::token::{Token, TokenType};
 
 ///defines a way to move along a ParserCursor.
@@ -25,20 +25,30 @@ pub(crate) trait MoveOperations<This: Move + Clone> {
     ///Used to bind `This` move with `other` move.
     /// returns a move that will first execute this move then the other one.
     fn then<B: Move + Clone>(&self, other: B) -> ThenMove<This, B>;
+
+    ///Used to execute `This` or else other if `This` fails
+    /// returned move is a move that executes either this or other if this move fails.
+    fn or<B: Move + Clone>(&self, other: B) -> OrMove<This, B>;
 }
 
 
 impl<A: Move + Clone + Clone> MoveOperations<A> for A {
     fn and_then<B: Move + Clone>(&self, other: B) -> AndThenMove<Self, B> {
         AndThenMove {
-            origin: self.clone(),
-            other,
+            left: self.clone(),
+            right: other,
         }
     }
     fn then<B: Move + Clone>(&self, other: B) -> ThenMove<Self, B> {
         ThenMove {
-            first: self.clone(),
-            second: other,
+            left: self.clone(),
+            right: other,
+        }
+    }
+    fn or<B: Move + Clone>(&self, other: B) -> OrMove<Self, B> {
+        OrMove {
+            left: self.clone(),
+            right: other,
         }
     }
 }
@@ -72,7 +82,8 @@ impl<P> Move for PredicateMove<P>
         where
             F: FnMut(usize) -> Token<'a>,
     {
-        (self.predicate)(at(pos)).then_some(pos + 1)
+        let t = at(pos);
+        (self.predicate)(t).then_some(pos + 1)
     }
 }
 
@@ -96,9 +107,14 @@ pub(crate) fn of_type(tpe: TokenType) -> PredicateMove<impl Fn(Token) -> bool + 
     predicate(move |token| tpe == token.token_type)
 }
 
-///Move to next token
+///Move to next token until we reach EOF
 pub(crate) fn next() -> PredicateMove<fn(Token) -> bool> {
     predicate(|t| t.token_type != EndOfFile)
+}
+
+///Accept any token
+pub(crate) fn any() -> PredicateMove<fn(Token) -> bool> {
+    predicate(|_| true)
 }
 
 ///Move to next token if it's not a space
@@ -113,7 +129,7 @@ pub(crate) fn space() -> PredicateMove<impl for<'a> Fn(Token<'a>) -> bool + Clon
 
 ///repeats until it finds a token that's not a space
 pub(crate) fn spaces() -> impl Move + Clone {
-    repeat(space())
+    repeat_n(1, space())
 }
 
 
@@ -171,8 +187,8 @@ pub(crate) fn repeat_nm<M: Move + Clone>(n: usize, m: usize, mov: M) -> Repeated
 ///Execute origin and then, if it succeeds, execute the other
 #[derive(Clone)]
 pub(crate) struct AndThenMove<A: Move + Clone, B: Move + Clone> {
-    origin: A,
-    other: B,
+    left: A,
+    right: B,
 }
 
 impl<A: Move + Clone, B: Move + Clone> Move for AndThenMove<A, B> {
@@ -180,17 +196,17 @@ impl<A: Move + Clone, B: Move + Clone> Move for AndThenMove<A, B> {
         where
             F: Fn(usize) -> Token<'b>,
     {
-        self.origin
+        self.left
             .apply(&at, pos)
-            .and_then(|pos| self.other.apply(&at, pos))
+            .and_then(|pos| self.right.apply(&at, pos))
     }
 }
 
 ///Execute origin and then, if it succeeds, execute the other
 #[derive(Clone)]
 pub(crate) struct ThenMove<A: Move + Clone, B: Move + Clone> {
-    first: A,
-    second: B,
+    left: A,
+    right: B,
 }
 
 impl<A: Move + Clone, B: Move + Clone> Move for ThenMove<A, B> {
@@ -198,9 +214,40 @@ impl<A: Move + Clone, B: Move + Clone> Move for ThenMove<A, B> {
         where
             F: Fn(usize) -> Token<'b>,
     {
-        if let Some(new_pos) = self.first.apply(&at, pos) {
+        if let Some(new_pos) = self.left.apply(&at, pos) {
             pos = new_pos
         }
-        self.second.apply(&at, pos)
+        self.right.apply(&at, pos)
     }
+}
+
+///Execute left or right.
+#[derive(Clone)]
+pub(crate) struct OrMove<A: Move + Clone, B: Move + Clone> {
+    left: A,
+    right: B,
+}
+
+impl<A: Move + Clone, B: Move + Clone> Move for OrMove<A, B> {
+    fn apply<'b, F>(&self, at: F, pos: usize) -> Option<usize>
+        where
+            F: Fn(usize) -> Token<'b>,
+    {
+        self.left.apply(&at, pos).or_else(|| self.right.apply(at, pos))
+    }
+}
+
+//////////////////// STANDARD MOVES ////////////////////
+
+//a move to consume semicolons or new lines as long as they are not escaped.
+pub(crate) fn eox() -> OrMove<
+    AndThenMove<
+        PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Clone>,
+        PredicateMove<for<'a> fn(Token<'a>) -> bool>
+    >,
+    PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Clone + 'static>
+> {
+    (of_type(BackSlash).and_then(any()))
+
+        .or(of_types(&[NewLine, SemiColon]))
 }

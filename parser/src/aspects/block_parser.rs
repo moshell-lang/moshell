@@ -1,8 +1,8 @@
-use lexer::token::{Token, TokenType};
+use lexer::token::TokenType;
 
 use crate::ast::Expr;
 use crate::ast::statement::Block;
-use crate::moves::{MoveOperations, of_type, of_types, repeat, repeat_n, RepeatedMove, spaces};
+use crate::moves::{eox, MoveOperations, of_type, repeat, repeat_n, spaces};
 use crate::parser::{Parser, ParseResult};
 
 
@@ -19,11 +19,11 @@ impl<'a> BlockParser<'a> for Parser<'a> {
         }));
         let mut expressions: Vec<Expr<'a>> = Vec::new();
 
-        //TODO pass me as a constant
-        //End Of Expression ((\n + ;)*)
-        let eox = repeat_n(1, of_types(&[TokenType::SemiColon, TokenType::NewLine]));
+        //consume all heading spaces and end of expressions (\n or ;)
+        self.cursor.advance(repeat(spaces().then(eox())));
 
-        if self.cursor.advance(spaces().then(of_type(TokenType::CurlyRightBracket))).is_some() {
+        //if we directly hit end of block, return an empty block.
+        if self.cursor.advance(of_type(TokenType::CurlyRightBracket)).is_some() {
             return block(expressions);
         }
 
@@ -31,12 +31,22 @@ impl<'a> BlockParser<'a> for Parser<'a> {
             let expression = self.statement()?;
             expressions.push(expression);
 
-            let eox_res = self.cursor.force(eox.clone(), "expected new line or semicolon");
-            let closed = self.cursor.advance(spaces().then(of_type(TokenType::CurlyRightBracket))).is_some();
+            //expects at least one newline or ;
+            let eox_res = self.cursor.force(
+                repeat_n(1, spaces().then(eox())),
+                "expected new line or semicolon",
+            );
 
+            //checks if this block expression is closed after the parsed expression
+            let closed = self.cursor.advance(
+                spaces().then(of_type(TokenType::CurlyRightBracket))
+            ).is_some();
+
+            //if the block is closed, then we stop looking for other expressions.
             if closed {
-               break;
+                break;
             }
+            //but if not closed, expect the cursor to hit EOX.
             eox_res?;
         };
         block(expressions)
@@ -57,9 +67,31 @@ mod tests {
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use crate::parser::Parser;
 
+    //noinspection DuplicatedCode
     #[test]
     fn test_empty_blocks() {
         let tokens = lex("{{{}; {}}}");
+        let mut parser = Parser::new(tokens);
+        let ast = parser.block().expect("failed to parse block");
+        assert!(parser.cursor.is_at_end());
+        assert_eq!(ast, Expr::Block(Block {
+            exprs: vec![Expr::Block(Block {
+                exprs: vec![
+                    Expr::Block(Block {
+                        exprs: vec![]
+                    }),
+                    Expr::Block(Block {
+                        exprs: vec![]
+                    }),
+                ]
+            })]
+        }));
+    }
+
+    //noinspection DuplicatedCode
+    #[test]
+    fn test_empty_blocks_empty_content() {
+        let tokens = lex("{{{;;}; {\n\n}}}");
         let mut parser = Parser::new(tokens);
         let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
