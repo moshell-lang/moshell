@@ -5,18 +5,21 @@ use crate::ast::statement::Block;
 use crate::moves::{eox, MoveOperations, of_type, repeat, repeat_n, spaces};
 use crate::parser::{Parser, ParseResult};
 
-
+///A parser aspect for parsing block expressions
 pub trait BlockParser<'a> {
+    ///Attempts to parse next block expression.
     fn block(&mut self) -> ParseResult<Expr<'a>>;
 }
 
 impl<'a> BlockParser<'a> for Parser<'a> {
+
     fn block(&mut self) -> ParseResult<Expr<'a>> {
         self.cursor.force(of_type(TokenType::CurlyLeftBracket),
                           "expected start of block expression")?;
         let block = |exprs| Ok(Expr::Block(Block {
             exprs
         }));
+
         let mut expressions: Vec<Expr<'a>> = Vec::new();
 
         //consume all heading spaces and end of expressions (\n or ;)

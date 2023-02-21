@@ -3,7 +3,9 @@ use crate::ast::Expr;
 use crate::moves::{eox, MoveOperations, spaces};
 use crate::parser::{Parser, ParseResult};
 
+///A parse aspect for command and function calls
 pub trait CallParser<'a> {
+    ///Attempts to parse next call expression
     fn call(&mut self) -> ParseResult<Expr<'a>>;
 }
 

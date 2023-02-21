@@ -244,7 +244,7 @@ impl<A: Move + Clone, B: Move + Clone> Move for OrMove<A, B> {
 
 //////////////////// STANDARD MOVES ////////////////////
 
-//a move to consume semicolons or new lines as long as they are not escaped.
+///a move to consume semicolons or new lines as long as they are not escaped.
 pub(crate) fn eox() -> OrMove<
     AndThenMove<
         PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Clone>,
