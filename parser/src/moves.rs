@@ -121,6 +121,8 @@ pub(crate) fn spaces() -> impl Move + Clone {
 #[derive(Clone)]
 pub(crate) struct RepeatedMove<M: Move + Clone> {
     underlying: M,
+    min: isize,
+    max: isize,
 }
 
 impl<M: Move + Clone> Move for RepeatedMove<M> {
@@ -128,18 +130,42 @@ impl<M: Move + Clone> Move for RepeatedMove<M> {
         where
             F: Fn(usize) -> Token<'a>,
     {
+        let mut repeats = 0;
         let mut current_pos = pos;
         while let Some(pos) = self.underlying.apply(&at, current_pos) {
             current_pos = pos;
+            repeats += 1;
+            if self.max != -1 && repeats > self.max {
+                return None; // we exceeded the maximum amount of repetitions.
+            }
+        }
+        // We do not repeated enough time to satisfy this movement
+        if self.min != -1 && repeats < self.min {
+            return None;
         }
         Some(current_pos)
     }
 }
 
-///Repeat the given move until it fails, exiting on the first token that made the underlying move fail.
+///Repeats the given move until it fails, exiting on the first token that made the underlying move fail.
 /// NOTE: a repeat always succeed
 pub(crate) fn repeat<M: Move + Clone>(mov: M) -> RepeatedMove<M> {
-    RepeatedMove { underlying: mov }
+    RepeatedMove { underlying: mov, min: -1, max: -1 }
+}
+
+///Repeat at least n times the given move until it fails, exiting on the first token that made the underlying move fail.
+/// /// if the number of repetition is strictly inferior than n, the move fails
+/// NOTE: a repeat always succeed
+pub(crate) fn repeat_n<M: Move + Clone>(n: usize, mov: M) -> RepeatedMove<M> {
+    RepeatedMove { underlying: mov, min: n as isize, max: -1 }
+}
+
+///Repeats between n and m times the given move until it fails, exiting on the first token that made the underlying move fail.
+/// if the number of repetition is strictly inferior than n, the move fails
+/// if the number of repetition is strictly superior than m, the move also fails
+/// NOTE: a repeat always succeed
+pub(crate) fn repeat_nm<M: Move + Clone>(n: usize, m: usize, mov: M) -> RepeatedMove<M> {
+    RepeatedMove { underlying: mov, min: n as isize, max: m as isize }
 }
 
 ///Execute origin and then, if it succeeds, execute the other

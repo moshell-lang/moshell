@@ -2,8 +2,9 @@ use lexer::token::{Token, TokenType};
 
 use crate::ast::Expr;
 use crate::ast::statement::Block;
-use crate::moves::{MoveOperations, of_type, of_types, PredicateMove, repeat, RepeatedMove, spaces};
+use crate::moves::{MoveOperations, of_type, of_types, repeat, repeat_n, RepeatedMove, spaces};
 use crate::parser::{Parser, ParseResult};
+
 
 pub trait BlockParser<'a> {
     fn block(&mut self) -> ParseResult<Expr<'a>>;
@@ -20,18 +21,23 @@ impl<'a> BlockParser<'a> for Parser<'a> {
 
         //TODO pass me as a constant
         //End Of Expression ((\n + ;)*)
-        let eox = repeat(of_types(&[TokenType::SemiColon, TokenType::NewLine]));
+        let eox = repeat_n(1, of_types(&[TokenType::SemiColon, TokenType::NewLine]));
+
+        if self.cursor.advance(spaces().then(of_type(TokenType::CurlyRightBracket))).is_some() {
+            return block(expressions);
+        }
 
         loop {
-
-            if self.cursor.advance(spaces().then(of_type(TokenType::CurlyRightBracket))).is_some() {
-                break;
-            }
-
             let expression = self.statement()?;
             expressions.push(expression);
 
-            self.cursor.force(eox.clone(), "expected new line or semicolon")?;
+            let eox_res = self.cursor.force(eox.clone(), "expected new line or semicolon");
+            let closed = self.cursor.advance(spaces().then(of_type(TokenType::CurlyRightBracket))).is_some();
+
+            if closed {
+               break;
+            }
+            eox_res?;
         };
         block(expressions)
     }
@@ -43,8 +49,9 @@ mod tests {
     use lexer::token::{Token, TokenType};
 
     use crate::aspects::block_parser::BlockParser;
+    use crate::ast::callable::Call;
     use crate::ast::Expr;
-    use crate::ast::literal::Literal;
+    use crate::ast::literal::{Literal, LiteralValue};
     use crate::ast::literal::LiteralValue::{Float, Int};
     use crate::ast::statement::Block;
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
@@ -99,7 +106,7 @@ mod tests {
                 val x = 8\n\n\n
                 8
             }\n\
-            { val x = 89; var test = 77; word; }\
+            { val x = 89; var test = 77; command call; }\
         }\
         ");
         let mut parser = Parser::new(tokens);
@@ -145,6 +152,29 @@ mod tests {
                                 token: Token::new(TokenType::IntLiteral, "89"),
                                 parsed: Int(89),
                             }))),
+                        }),
+                        Expr::VarDeclaration(VarDeclaration {
+                            kind: VarKind::Var,
+                            var: TypedVariable {
+                                name: Token::new(TokenType::Identifier, "test"),
+                                ty: None,
+                            },
+                            initializer: Some(Box::from(Expr::Literal(Literal {
+                                token: Token::new(TokenType::IntLiteral, "77"),
+                                parsed: Int(77),
+                            }))),
+                        }),
+                        Expr::Call(Call {
+                            arguments: vec![
+                                Expr::Literal(Literal {
+                                    token: Token::new(TokenType::Identifier, "command"),
+                                    parsed: LiteralValue::String("command".to_string()),
+                                }),
+                                Expr::Literal(Literal {
+                                    token: Token::new(TokenType::Identifier, "call"),
+                                    parsed: LiteralValue::String("call".to_string()),
+                                }),
+                            ]
                         }),
                     ]
                 }),

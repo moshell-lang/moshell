@@ -105,8 +105,8 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
             }
             let pivot = self.cursor.peek().token_type;
             match pivot {
-                TokenType::Space => {
-                    self.cursor.advance(next());
+                TokenType::Space | TokenType::SemiColon | TokenType::NewLine => {
+                    //self.cursor.advance(next());
                     break;
                 }
                 TokenType::Dollar => {
