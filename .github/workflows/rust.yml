@@ -18,8 +18,6 @@ jobs:
       uses: actions/cache@v3
       with:
         key: ${{ hashFiles('Cargo.toml') }}
-        restore-keys: |
-          ${{ runner.os }}-cargo
         path: |
           ./target
           ~/.cargo
