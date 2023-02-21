@@ -73,6 +73,7 @@ mod tests {
 
     #[test]
     fn escaped_call() {
+
         let tokens = lex("grep -E regex \\; echo test");
         let parsed = parse(tokens).expect("parsing error");
         assert_eq!(
@@ -109,4 +110,7 @@ mod tests {
             ]
         )
     }
+
+
+
 }

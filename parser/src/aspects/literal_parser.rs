@@ -108,7 +108,8 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                 //if the escaped character is escapable, then we only append the following token's value
                 //else, the backslash is also appended
                 self.cursor.next()?; //advance so we are not pointing to token after '\'
-                if self.cursor.lookahead(escapable()).is_none() { //if next is not escapable
+                if self.cursor.lookahead(escapable()).is_none() {
+                    //if next is not escapable
                     //will append the backslash '\' char
                     push_current!();
                 }
@@ -191,7 +192,8 @@ mod tests {
 
     use super::*;
     use pretty_assertions::assert_eq;
-    
+    use crate::ast::callable::Call;
+
     #[test]
     fn int_overflow() {
         let tokens = vec![Token::new(
@@ -233,4 +235,5 @@ mod tests {
             })
         );
     }
+
 }
