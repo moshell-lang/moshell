@@ -21,6 +21,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use lexer::lexer::lex;
     use lexer::token::{Token, TokenType};
@@ -29,6 +30,7 @@ mod tests {
     use crate::ast::Expr;
     use crate::ast::literal::{Literal, LiteralValue};
     use crate::parse;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn multiple_calls() {

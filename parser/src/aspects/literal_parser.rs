@@ -190,7 +190,8 @@ mod tests {
     use crate::parser::ParseError;
 
     use super::*;
-
+    use pretty_assertions::assert_eq;
+    
     #[test]
     fn int_overflow() {
         let tokens = vec![Token::new(

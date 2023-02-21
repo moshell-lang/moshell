@@ -1,5 +1,6 @@
 use lexer::lexer::lex;
 use lexer::token::{Token, TokenType};
+use pretty_assertions::assert_eq;
 
 #[test]
 fn escaped_filename() {

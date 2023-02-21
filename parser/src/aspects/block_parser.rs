@@ -66,6 +66,7 @@ mod tests {
     use crate::ast::statement::Block;
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use crate::parser::Parser;
+    use pretty_assertions::assert_eq;
 
     //noinspection DuplicatedCode
     #[test]

@@ -274,6 +274,7 @@ mod tests {
     use lexer::token::{Token, TokenType};
     use crate::cursor::ParserCursor;
     use crate::moves::eox;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn eox_move() {

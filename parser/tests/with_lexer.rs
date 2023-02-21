@@ -5,6 +5,7 @@ use parser::ast::literal::{Literal, LiteralValue};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 use parser::ast::Expr;
 use parser::parse;
+use pretty_assertions::assert_eq;
 
 #[test]
 fn with_lexer_variable() {
