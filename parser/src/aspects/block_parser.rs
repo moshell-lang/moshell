@@ -92,7 +92,7 @@ mod tests {
     //noinspection DuplicatedCode
     #[test]
     fn test_empty_blocks_empty_content() {
-        let tokens = lex("{{{;;}; {\n\n}}}");
+        let tokens = lex("{;;{;;;{;;}; {\n\n};}}");
         let mut parser = Parser::new(tokens);
         let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
