@@ -13,6 +13,7 @@ jobs:
     steps:
     - uses: fkirc/skip-duplicate-actions@v5
     - uses: actions/checkout@v3
+    
     - name: Cargo Cache
       uses: actions/cache@v3
       with:
@@ -20,8 +21,11 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo
         path: |
+          ./target
           ~/.cargo
+          
     - name: Build
       run: cargo build 
+      
     - name: Run tests
       run: cargo test --verbose
