@@ -12,12 +12,19 @@ env:
 
 jobs:
   
+  
+  
   build:
-    
     runs-on: ubuntu-latest
     steps:
     - uses: fkirc/skip-duplicate-actions@v5
     - uses: actions/checkout@v3
+    - name: Cargo Cache
+      uses: actions/cache@v3
+      with:
+        key: ${{ hashFiles('Cargo.toml') }}
+        path: |
+          ~/.cargo
     - name: Build
       run: cargo build 
     - name: Run tests
