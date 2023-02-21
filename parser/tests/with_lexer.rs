@@ -35,11 +35,11 @@ fn with_lexer_var_reference_one() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
+            command: Box::new(Expr::Literal(Literal {
+                token: Token::new(TokenType::Identifier, "echo"),
+                parsed: LiteralValue::String("echo".to_string()),
+            })),
             arguments: vec![
-                Expr::Literal(Literal {
-                    token: Token::new(TokenType::Identifier, "echo"),
-                    parsed: LiteralValue::String("echo".to_string()),
-                }),
                 Expr::Literal(Literal {
                     token: Token::new(TokenType::Quote, "'"),
                     parsed: LiteralValue::String("$var5".to_string()),
@@ -60,16 +60,16 @@ fn with_lexer_var_reference_two() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
+            command: Box::new(Expr::TemplateString(vec![
+                Expr::Literal(Literal {
+                    token: Token::new(TokenType::Identifier, "fake"),
+                    parsed: LiteralValue::String("fake".to_string()),
+                }),
+                Expr::VarReference(VarReference {
+                    name: Token::new(TokenType::Identifier, "cmd"),
+                }),
+            ])),
             arguments: vec![
-                Expr::TemplateString(vec![
-                    Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "fake"),
-                        parsed: LiteralValue::String("fake".to_string()),
-                    }),
-                    Expr::VarReference(VarReference {
-                        name: Token::new(TokenType::Identifier, "cmd"),
-                    }),
-                ]),
                 Expr::Literal(Literal {
                     token: Token::new(TokenType::Identifier, "do"),
                     parsed: LiteralValue::String("do".to_string()),
@@ -90,11 +90,11 @@ fn with_lexer_var_reference_three() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
+            command: Box::new(Expr::Literal(Literal {
+                token: Token::new(TokenType::Identifier, "echo"),
+                parsed: LiteralValue::String("echo".to_string()),
+            })),
             arguments: vec![
-                Expr::Literal(Literal {
-                    token: Token::new(TokenType::Identifier, "echo"),
-                    parsed: LiteralValue::String("echo".to_string()),
-                }),
                 Expr::TemplateString(vec![
                     Expr::Literal(Literal {
                         token: Token::new(TokenType::Identifier, "hello"),

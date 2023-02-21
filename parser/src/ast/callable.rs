@@ -5,6 +5,7 @@ use lexer::token::Token;
 /// A call to a function or a command.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Call<'a> {
+    pub command: Box<Expr<'a>>,
     /// The arguments of the command.
     pub arguments: Vec<Expr<'a>>,
 }

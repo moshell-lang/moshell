@@ -117,6 +117,11 @@ pub(crate) fn any() -> PredicateMove<fn(Token) -> bool> {
     predicate(|_| true)
 }
 
+///A move that always fails
+pub(crate) fn fail() -> PredicateMove<fn(Token) -> bool> {
+    predicate(|_| false)
+}
+
 ///Move to next token if it's not a space
 pub(crate) fn no_space() -> PredicateMove<impl for<'a> Fn(Token<'a>) -> bool + Clone> {
     of_type(Space).negate()
@@ -242,12 +247,48 @@ impl<A: Move + Clone, B: Move + Clone> Move for OrMove<A, B> {
 //a move to consume semicolons or new lines as long as they are not escaped.
 pub(crate) fn eox() -> OrMove<
     AndThenMove<
-        PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Clone>,
-        PredicateMove<for<'a> fn(Token<'a>) -> bool>
+        PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Clone>,
+        PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Clone + 'static>
     >,
-    PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Clone + 'static>
-> {
-    (of_type(BackSlash).and_then(any()))
+    PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Clone + 'static>
+>
+{
 
+    //if it's escaped then it's not an EOX
+    (of_type(BackSlash).and_then(escapable().negate()))
+
+        //else it must be either new line or ';'
         .or(of_types(&[NewLine, SemiColon]))
+}
+
+///a move that consumes a character if it can be escaped.
+pub(crate) fn escapable() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Clone + 'static> {
+    of_types(&[NewLine, Pipe, And, Or, SemiColon, Ampersand])
+}
+
+
+
+#[cfg(test)]
+mod tests {
+    use lexer::lexer::lex;
+    use lexer::token::{Token, TokenType};
+    use crate::cursor::ParserCursor;
+    use crate::moves::eox;
+
+    #[test]
+    fn eox_move() {
+        let tokens = lex(";");
+        let cursor = ParserCursor::new(tokens);
+        let result = cursor.lookahead(eox());
+        assert_eq!(result, Some(Token::new(TokenType::SemiColon, ";")));
+    }
+
+    #[test]
+    fn eox_move_escaped() {
+        let tokens = lex("\\;");
+        let cursor = ParserCursor::new(tokens);
+        let result = cursor.lookahead(eox());
+        assert_eq!(result, None);
+    }
+
 }

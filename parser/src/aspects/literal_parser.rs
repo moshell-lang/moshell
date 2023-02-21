@@ -5,7 +5,7 @@ use lexer::token::TokenType;
 use crate::aspects::var_reference_parser::VarReferenceParser;
 use crate::ast::literal::{Literal, LiteralValue};
 use crate::ast::*;
-use crate::moves::{next, of_type};
+use crate::moves::{escapable, MoveOperations, next, of_type, space};
 use crate::parser::{ParseResult, Parser};
 
 pub(crate) trait LiteralParser<'a> {
@@ -95,9 +95,27 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
         let mut current = self.cursor.peek();
         let mut parts = Vec::new();
         let mut builder = String::new();
+
+
+        //pushes current token then advance
+        macro_rules! push_current {
+            () => { builder.push_str(self.cursor.next()?.value) };
+        }
+
         match current.token_type {
             TokenType::Dollar => parts.push(self.var_reference()?),
-            _ => builder.push_str(self.cursor.next()?.value),
+            TokenType::BackSlash => {
+                //if the escaped character is escapable, then we only append the following token's value
+                //else, the backslash is also appended
+                self.cursor.next()?; //advance so we are not pointing to token after '\'
+                if self.cursor.lookahead(escapable()).is_none() { //if next is not escapable
+                    //will append the backslash '\' char
+                    push_current!();
+                }
+                //will append the escaped value
+                push_current!();
+            }
+            _ => push_current!(),
         }
         loop {
             if self.cursor.is_at_end() {
@@ -123,7 +141,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                     if !builder.is_empty() {
                         current = self.cursor.peek();
                     }
-                    builder.push_str(self.cursor.next()?.value)
+                    push_current!()
                 }
             }
         }
@@ -214,7 +232,4 @@ mod tests {
             })
         );
     }
-
-
-
 }

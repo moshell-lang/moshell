@@ -1,6 +1,6 @@
 use crate::ast::callable::Call;
 use crate::ast::Expr;
-use crate::moves::{eox, of_types, spaces};
+use crate::moves::{eox, MoveOperations, spaces};
 use crate::parser::{Parser, ParseResult};
 
 pub trait CallParser<'a> {
@@ -9,14 +9,15 @@ pub trait CallParser<'a> {
 
 impl<'a> CallParser<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
-        let mut args = vec![self.expression()?];
+        let command = self.expression()?;
+        let mut args = vec![];
         //End Of Expression \!(; + \n)
-        while !self.cursor.is_at_end() && self.cursor.advance(eox()).is_none()
+        while !self.cursor.is_at_end() && self.cursor.advance(spaces().then(eox())).is_none()
         {
             args.push(self.expression()?);
         }
 
-        Ok(Expr::Call(Call { arguments: args }))
+        Ok(Expr::Call(Call { command: Box::new(command), arguments: args }))
     }
 }
 
@@ -37,11 +38,11 @@ mod tests {
             parsed,
             vec![
                 Expr::Call(Call {
+                    command: Box::new(Expr::Literal(Literal {
+                        token: Token::new(TokenType::Identifier, "grep"),
+                        parsed: LiteralValue::String("grep".to_string()),
+                    })),
                     arguments: vec![
-                        Expr::Literal(Literal {
-                            token: Token::new(TokenType::Identifier, "grep"),
-                            parsed: LiteralValue::String("grep".to_string()),
-                        }),
                         Expr::Literal(Literal {
                             token: Token::new(TokenType::Identifier, "E"),
                             parsed: LiteralValue::String("-E".to_string()),
@@ -50,10 +51,49 @@ mod tests {
                             token: Token::new(TokenType::Identifier, "regex"),
                             parsed: LiteralValue::String("regex".to_string()),
                         }),
-                    ]
+                    ],
                 }),
                 Expr::Call(Call {
+                    command: Box::new(Expr::Literal(Literal {
+                        token: Token::new(TokenType::Identifier, "echo"),
+                        parsed: LiteralValue::String("echo".to_string()),
+                    })),
                     arguments: vec![
+                        Expr::Literal(Literal {
+                            token: Token::new(TokenType::Identifier, "test"),
+                            parsed: LiteralValue::String("test".to_string()),
+                        }),
+                    ],
+                }),
+            ]
+        )
+    }
+
+    #[test]
+    fn escaped_call() {
+        let tokens = lex("grep -E regex \\; echo test");
+        let parsed = parse(tokens).expect("parsing error");
+        assert_eq!(
+            parsed,
+            vec![
+                Expr::Call(Call {
+                    command: Box::new(Expr::Literal(Literal {
+                        token: Token::new(TokenType::Identifier, "grep"),
+                        parsed: LiteralValue::String("grep".to_string()),
+                    })),
+                    arguments: vec![
+                        Expr::Literal(Literal {
+                            token: Token::new(TokenType::Identifier, "E"),
+                            parsed: LiteralValue::String("-E".to_string()),
+                        }),
+                        Expr::Literal(Literal {
+                            token: Token::new(TokenType::Identifier, "regex"),
+                            parsed: LiteralValue::String("regex".to_string()),
+                        }),
+                        Expr::Literal(Literal {
+                            token: Token::new(TokenType::BackSlash, "\\"),
+                            parsed: LiteralValue::String(";".to_string()),
+                        }),
                         Expr::Literal(Literal {
                             token: Token::new(TokenType::Identifier, "echo"),
                             parsed: LiteralValue::String("echo".to_string()),
@@ -62,7 +102,7 @@ mod tests {
                             token: Token::new(TokenType::Identifier, "test"),
                             parsed: LiteralValue::String("test".to_string()),
                         }),
-                    ]
+                    ],
                 }),
             ]
         )

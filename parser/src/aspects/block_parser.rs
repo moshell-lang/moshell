@@ -197,16 +197,16 @@ mod tests {
                             }))),
                         }),
                         Expr::Call(Call {
+                            command: Box::new(Expr::Literal(Literal {
+                                token: Token::new(TokenType::Identifier, "command"),
+                                parsed: LiteralValue::String("command".to_string()),
+                            })),
                             arguments: vec![
-                                Expr::Literal(Literal {
-                                    token: Token::new(TokenType::Identifier, "command"),
-                                    parsed: LiteralValue::String("command".to_string()),
-                                }),
                                 Expr::Literal(Literal {
                                     token: Token::new(TokenType::Identifier, "call"),
                                     parsed: LiteralValue::String("call".to_string()),
                                 }),
-                            ]
+                            ],
                         }),
                     ]
                 }),
