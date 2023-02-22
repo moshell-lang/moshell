@@ -45,12 +45,12 @@ fn command_echo() {
     let parsed = parse(tokens).expect("Failed to parse");
 
     let expected = vec![Expr::Call(Call {
-        command: Box::new(Expr::Literal(Literal {
-            token: Token::new(TokenType::Identifier, "echo"),
-            parsed: LiteralValue::String("echo".to_string()),
-        })),
 
         arguments: vec![
+            Expr::Literal(Literal {
+                token: Token::new(TokenType::Identifier, "echo"),
+                parsed: LiteralValue::String("echo".to_string()),
+            }),
             Expr::Literal(Literal {
                 token: Token::new(TokenType::Quote, "'"),
                 parsed: LiteralValue::String("hello".to_string()),

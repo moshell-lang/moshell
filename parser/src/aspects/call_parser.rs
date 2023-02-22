@@ -11,15 +11,14 @@ pub trait CallParser<'a> {
 
 impl<'a> CallParser<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
-        let command = self.expression()?;
-        let mut args = vec![];
+        let mut args = vec![self.expression()?];
         //End Of Expression \!(; + \n)
         while !self.cursor.is_at_end() && self.cursor.advance(spaces().then(eox())).is_none()
         {
             args.push(self.expression()?);
         }
 
-        Ok(Expr::Call(Call { command: Box::new(command), arguments: args }))
+        Ok(Expr::Call(Call { arguments: args }))
     }
 }
 
@@ -42,11 +41,11 @@ mod tests {
             parsed,
             vec![
                 Expr::Call(Call {
-                    command: Box::new(Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "grep"),
-                        parsed: LiteralValue::String("grep".to_string()),
-                    })),
                     arguments: vec![
+                        Expr::Literal(Literal {
+                            token: Token::new(TokenType::Identifier, "grep"),
+                            parsed: LiteralValue::String("grep".to_string()),
+                        }),
                         Expr::Literal(Literal {
                             token: Token::new(TokenType::Identifier, "E"),
                             parsed: LiteralValue::String("-E".to_string()),
@@ -58,11 +57,11 @@ mod tests {
                     ],
                 }),
                 Expr::Call(Call {
-                    command: Box::new(Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "echo"),
-                        parsed: LiteralValue::String("echo".to_string()),
-                    })),
                     arguments: vec![
+                        Expr::Literal(Literal {
+                            token: Token::new(TokenType::Identifier, "echo"),
+                            parsed: LiteralValue::String("echo".to_string()),
+                        }),
                         Expr::Literal(Literal {
                             token: Token::new(TokenType::Identifier, "test"),
                             parsed: LiteralValue::String("test".to_string()),
@@ -82,11 +81,11 @@ mod tests {
             parsed,
             vec![
                 Expr::Call(Call {
-                    command: Box::new(Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "grep"),
-                        parsed: LiteralValue::String("grep".to_string()),
-                    })),
                     arguments: vec![
+                        Expr::Literal(Literal {
+                            token: Token::new(TokenType::Identifier, "grep"),
+                            parsed: LiteralValue::String("grep".to_string()),
+                        }),
                         Expr::Literal(Literal {
                             token: Token::new(TokenType::Identifier, "E"),
                             parsed: LiteralValue::String("-E".to_string()),
