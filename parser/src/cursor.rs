@@ -29,7 +29,7 @@ impl<'a> ParserCursor<'a> {
         if let Some(next_pos) = result {
             //we subtract 1 to next_pos because the move returns the next position
             //of the token, thus, we want to return the last token that this move covered.
-            let token_return = (if next_pos == 0 { 0 } else { next_pos - 1 }).max(self.pos);
+            let token_return = next_pos.saturating_sub(1).max(self.pos);
             self.pos = next_pos;
 
             return Some(self.at(token_return));
@@ -45,7 +45,7 @@ impl<'a> ParserCursor<'a> {
         if let Some(next_pos) = result {
             //we subtract 1 to next_pos because the move returns the next position
             //of the token, thus, we want to return the last token that this move covered.
-            let token_return = (if next_pos == 0 { 0 } else { next_pos - 1 }).max(self.pos);
+            let token_return = next_pos.saturating_sub(1).max(self.pos);
             return Some(self.at(token_return));
         }
         None

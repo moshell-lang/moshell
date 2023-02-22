@@ -248,9 +248,9 @@ impl<A: Move + Clone, B: Move + Clone> Move for OrMove<A, B> {
 pub(crate) fn eox() -> OrMove<
     AndThenMove<
         PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Clone>,
-        PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Clone + 'static>
+        PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Clone>
     >,
-    PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Clone + 'static>
+    PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Clone>
 >
 {
 
@@ -262,7 +262,7 @@ pub(crate) fn eox() -> OrMove<
 }
 
 ///a move that consumes a character if it can be escaped.
-pub(crate) fn escapable() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Clone + 'static> {
+pub(crate) fn escapable() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Clone> {
     of_types(&[NewLine, Pipe, And, Or, SemiColon, Ampersand])
 }
 
