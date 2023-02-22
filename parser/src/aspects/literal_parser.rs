@@ -126,16 +126,16 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
             }
             let pivot = self.cursor.peek().token_type;
             match pivot {
-                TokenType::Space | TokenType::SemiColon | TokenType::NewLine => {
-                    //self.cursor.advance(next());
-                    break;
-                }
+                TokenType::Space => break,
+
                 TokenType::BackSlash => {
                     //never retain first backslash
-                    self.cursor.next()?; //advance so we are not pointing to token after '\'
+                    self.cursor.next()?;
+                    //advance so we are not pointing to token after '\'
                     //will append the escaped value (token after the backslash)
                     push_current!();
                 }
+
                 TokenType::Dollar => {
                     if !builder.is_empty() {
                         parts.push(Expr::Literal(Literal {
@@ -146,7 +146,11 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                     }
                     parts.push(self.var_reference()?);
                 }
-                _ => {
+
+                x => {
+                    if x.is_identifier_bound() {
+                        break; //identifier bounds cannot be concatenated with identifiers
+                    }
                     if !builder.is_empty() {
                         current = self.cursor.peek();
                     }

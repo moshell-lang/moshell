@@ -1,4 +1,5 @@
 use logos::Logos;
+use crate::token::TokenType::ErrorRedirect;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token<'a> {
@@ -126,7 +127,7 @@ pub enum TokenType {
     Times,
     #[token("/")]
     Slash,
-    #[token("\\", priority = 2)]
+    #[token("\\")]
     BackSlash,
     #[token("%")]
     Modulo,
@@ -152,4 +153,17 @@ pub enum TokenType {
     Error,
 
     EndOfFile,
+}
+
+impl TokenType {
+    pub fn is_identifier_bound(self) -> bool {
+        match self {
+            TokenType::NewLine | TokenType::SemiColon |
+            TokenType::Less | TokenType::Pipe |
+            TokenType::Greater | TokenType::And | TokenType::Or |
+            TokenType::Redirect | TokenType::AppendRedirect | ErrorRedirect |
+            TokenType::Here => true,
+            _ => false
+        }
+    }
 }
