@@ -5,7 +5,7 @@ use lexer::token::TokenType;
 use crate::aspects::var_reference_parser::VarReferenceParser;
 use crate::ast::literal::{Literal, LiteralValue};
 use crate::ast::*;
-use crate::moves::{escapable, MoveOperations, next, of_type, space};
+use crate::moves::{next, of_type};
 use crate::parser::{ParseResult, Parser};
 
 pub(crate) trait LiteralParser<'a> {
@@ -104,10 +104,11 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
         let mut parts = Vec::new();
         let mut builder = String::new();
 
-
         //pushes current token then advance
         macro_rules! push_current {
-            () => { builder.push_str(self.cursor.next()?.value) };
+            () => {
+                builder.push_str(self.cursor.next()?.value)
+            };
         }
 
         match current.token_type {
@@ -115,7 +116,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
             TokenType::BackSlash => {
                 //never retain first backslash
                 self.cursor.next()?; //advance so we are not pointing to token after '\'
-                //will append the escaped value (token after the backslash)
+                                     //will append the escaped value (token after the backslash)
                 push_current!();
             }
             _ => push_current!(),
@@ -204,7 +205,6 @@ mod tests {
 
     use super::*;
     use pretty_assertions::assert_eq;
-    use crate::ast::callable::Call;
 
     #[test]
     fn int_overflow() {
@@ -249,8 +249,6 @@ mod tests {
         );
     }
 
-
-
     #[test]
     fn missing_quote() {
         let tokens = vec![Token::new(TokenType::Quote, "' command")];
@@ -262,5 +260,4 @@ mod tests {
             })
         );
     }
-
 }

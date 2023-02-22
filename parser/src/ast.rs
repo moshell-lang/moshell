@@ -6,9 +6,9 @@ use crate::ast::substitution::Substitution;
 use crate::ast::variable::{Assign, VarDeclaration, VarReference};
 
 pub mod callable;
-pub mod statement;
 pub mod literal;
 pub mod operation;
+pub mod statement;
 pub mod substitution;
 pub mod variable;
 
@@ -25,6 +25,5 @@ pub enum Expr<'a> {
     TemplateString(Vec<Expr<'a>>),
     VarReference(VarReference<'a>),
     VarDeclaration(VarDeclaration<'a>),
-    Block(Block<'a>)
+    Block(Block<'a>),
 }
-

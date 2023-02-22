@@ -1,5 +1,5 @@
-use logos::Logos;
 use crate::token::TokenType::ErrorRedirect;
+use logos::Logos;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token<'a> {
@@ -158,12 +158,18 @@ pub enum TokenType {
 impl TokenType {
     pub fn is_identifier_bound(self) -> bool {
         match self {
-            TokenType::NewLine | TokenType::SemiColon |
-            TokenType::Less | TokenType::Pipe |
-            TokenType::Greater | TokenType::And | TokenType::Or |
-            TokenType::Redirect | TokenType::AppendRedirect | ErrorRedirect |
-            TokenType::Here => true,
-            _ => false
+            TokenType::NewLine
+            | TokenType::SemiColon
+            | TokenType::Less
+            | TokenType::Pipe
+            | TokenType::Greater
+            | TokenType::And
+            | TokenType::Or
+            | TokenType::Redirect
+            | TokenType::AppendRedirect
+            | ErrorRedirect
+            | TokenType::Here => true,
+            _ => false,
         }
     }
 }

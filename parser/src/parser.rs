@@ -1,5 +1,5 @@
-use lexer::token::{Token, TokenType};
 use crate::aspects::block_parser::BlockParser;
+use lexer::token::{Token, TokenType};
 
 use crate::aspects::call_parser::CallParser;
 use crate::aspects::literal_parser::LiteralParser;
@@ -65,7 +65,7 @@ impl<'a> Parser<'a> {
     fn repos(&mut self) -> ParseResult<()> {
         self.cursor.advance(spaces()); //skip spaces
         if self.cursor.lookahead(eox()).is_some() {
-            return self.expected("Unexpected end of expression")
+            return self.expected("Unexpected end of expression");
         }
         Ok(())
     }

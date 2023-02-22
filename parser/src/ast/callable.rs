@@ -9,7 +9,6 @@ pub struct Call<'a> {
     pub arguments: Vec<Expr<'a>>,
 }
 
-
 /// A function declaration.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunDeclaration<'a> {

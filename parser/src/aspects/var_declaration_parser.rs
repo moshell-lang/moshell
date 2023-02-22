@@ -61,7 +61,7 @@ mod tests {
     use lexer::lexer::lex;
     use lexer::token::Token;
     use pretty_assertions::assert_eq;
-    
+
     #[test]
     fn val_declaration() {
         let tokens = lex("val variable");

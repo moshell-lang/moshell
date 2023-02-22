@@ -45,7 +45,6 @@ fn command_echo() {
     let parsed = parse(tokens).expect("Failed to parse");
 
     let expected = vec![Expr::Call(Call {
-
         arguments: vec![
             Expr::Literal(Literal {
                 token: Token::new(TokenType::Identifier, "echo"),

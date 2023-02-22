@@ -1,9 +1,9 @@
 use lexer::token::TokenType;
 
-use crate::ast::Expr;
 use crate::ast::statement::Block;
-use crate::moves::{eox, MoveOperations, of_type, repeat, repeat_n, spaces};
-use crate::parser::{Parser, ParseResult};
+use crate::ast::Expr;
+use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations};
+use crate::parser::{ParseResult, Parser};
 
 ///A parser aspect for parsing block expressions
 pub trait BlockParser<'a> {
@@ -12,13 +12,12 @@ pub trait BlockParser<'a> {
 }
 
 impl<'a> BlockParser<'a> for Parser<'a> {
-
     fn block(&mut self) -> ParseResult<Expr<'a>> {
-        self.cursor.force(of_type(TokenType::CurlyLeftBracket),
-                          "expected start of block expression")?;
-        let block = |exprs| Ok(Expr::Block(Block {
-            exprs
-        }));
+        self.cursor.force(
+            of_type(TokenType::CurlyLeftBracket),
+            "expected start of block expression",
+        )?;
+        let block = |exprs| Ok(Expr::Block(Block { exprs }));
 
         let mut expressions: Vec<Expr<'a>> = Vec::new();
 
@@ -26,7 +25,11 @@ impl<'a> BlockParser<'a> for Parser<'a> {
         self.cursor.advance(repeat(spaces().then(eox())));
 
         //if we directly hit end of block, return an empty block.
-        if self.cursor.advance(of_type(TokenType::CurlyRightBracket)).is_some() {
+        if self
+            .cursor
+            .advance(of_type(TokenType::CurlyRightBracket))
+            .is_some()
+        {
             return block(expressions);
         }
 
@@ -41,9 +44,10 @@ impl<'a> BlockParser<'a> for Parser<'a> {
             );
 
             //checks if this block expression is closed after the parsed expression
-            let closed = self.cursor.advance(
-                spaces().then(of_type(TokenType::CurlyRightBracket))
-            ).is_some();
+            let closed = self
+                .cursor
+                .advance(spaces().then(of_type(TokenType::CurlyRightBracket)))
+                .is_some();
 
             //if the block is closed, then we stop looking for other expressions.
             if closed {
@@ -51,7 +55,7 @@ impl<'a> BlockParser<'a> for Parser<'a> {
             }
             //but if not closed, expect the cursor to hit EOX.
             eox_res?;
-        };
+        }
         block(expressions)
     }
 }
@@ -63,11 +67,11 @@ mod tests {
 
     use crate::aspects::block_parser::BlockParser;
     use crate::ast::callable::Call;
-    use crate::ast::Expr;
-    use crate::ast::literal::{Literal, LiteralValue};
     use crate::ast::literal::LiteralValue::{Float, Int};
+    use crate::ast::literal::{Literal, LiteralValue};
     use crate::ast::statement::Block;
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
+    use crate::ast::Expr;
     use crate::parser::Parser;
     use pretty_assertions::assert_eq;
 
@@ -78,18 +82,17 @@ mod tests {
         let mut parser = Parser::new(tokens);
         let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
-        assert_eq!(ast, Expr::Block(Block {
-            exprs: vec![Expr::Block(Block {
-                exprs: vec![
-                    Expr::Block(Block {
-                        exprs: vec![]
-                    }),
-                    Expr::Block(Block {
-                        exprs: vec![]
-                    }),
-                ]
-            })]
-        }));
+        assert_eq!(
+            ast,
+            Expr::Block(Block {
+                exprs: vec![Expr::Block(Block {
+                    exprs: vec![
+                        Expr::Block(Block { exprs: vec![] }),
+                        Expr::Block(Block { exprs: vec![] }),
+                    ]
+                })]
+            })
+        );
     }
 
     //noinspection DuplicatedCode
@@ -99,18 +102,17 @@ mod tests {
         let mut parser = Parser::new(tokens);
         let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
-        assert_eq!(ast, Expr::Block(Block {
-            exprs: vec![Expr::Block(Block {
-                exprs: vec![
-                    Expr::Block(Block {
-                        exprs: vec![]
-                    }),
-                    Expr::Block(Block {
-                        exprs: vec![]
-                    }),
-                ]
-            })]
-        }));
+        assert_eq!(
+            ast,
+            Expr::Block(Block {
+                exprs: vec![Expr::Block(Block {
+                    exprs: vec![
+                        Expr::Block(Block { exprs: vec![] }),
+                        Expr::Block(Block { exprs: vec![] }),
+                    ]
+                })]
+            })
+        );
     }
 
     #[test]
@@ -146,17 +148,41 @@ mod tests {
         }\
         ");
         let mut parser = Parser::new(tokens);
-        let ast = parser.block().expect("failed to parse block with nested blocks");
+        let ast = parser
+            .block()
+            .expect("failed to parse block with nested blocks");
         assert!(parser.cursor.is_at_end());
-        assert_eq!(ast, Expr::Block(Block {
-            exprs: vec![
-                Expr::VarDeclaration(VarDeclaration {
-                    kind: VarKind::Val,
-                    var: TypedVariable {
-                        name: Token::new(TokenType::Identifier, "test"),
-                        ty: None,
-                    },
-                    initializer: Some(Box::from(Expr::Block(Block {
+        assert_eq!(
+            ast,
+            Expr::Block(Block {
+                exprs: vec![
+                    Expr::VarDeclaration(VarDeclaration {
+                        kind: VarKind::Val,
+                        var: TypedVariable {
+                            name: Token::new(TokenType::Identifier, "test"),
+                            ty: None,
+                        },
+                        initializer: Some(Box::from(Expr::Block(Block {
+                            exprs: vec![
+                                Expr::VarDeclaration(VarDeclaration {
+                                    kind: VarKind::Val,
+                                    var: TypedVariable {
+                                        name: Token::new(TokenType::Identifier, "x"),
+                                        ty: None,
+                                    },
+                                    initializer: Some(Box::from(Expr::Literal(Literal {
+                                        token: Token::new(TokenType::IntLiteral, "8"),
+                                        parsed: Int(8),
+                                    }))),
+                                }),
+                                Expr::Literal(Literal {
+                                    token: Token::new(TokenType::IntLiteral, "8"),
+                                    parsed: Int(8),
+                                }),
+                            ]
+                        }))),
+                    }),
+                    Expr::Block(Block {
                         exprs: vec![
                             Expr::VarDeclaration(VarDeclaration {
                                 kind: VarKind::Val,
@@ -165,57 +191,38 @@ mod tests {
                                     ty: None,
                                 },
                                 initializer: Some(Box::from(Expr::Literal(Literal {
-                                    token: Token::new(TokenType::IntLiteral, "8"),
-                                    parsed: Int(8),
+                                    token: Token::new(TokenType::IntLiteral, "89"),
+                                    parsed: Int(89),
                                 }))),
                             }),
-                            Expr::Literal(Literal {
-                                token: Token::new(TokenType::IntLiteral, "8"),
-                                parsed: Int(8),
+                            Expr::VarDeclaration(VarDeclaration {
+                                kind: VarKind::Var,
+                                var: TypedVariable {
+                                    name: Token::new(TokenType::Identifier, "test"),
+                                    ty: None,
+                                },
+                                initializer: Some(Box::from(Expr::Literal(Literal {
+                                    token: Token::new(TokenType::IntLiteral, "77"),
+                                    parsed: Int(77),
+                                }))),
+                            }),
+                            Expr::Call(Call {
+                                arguments: vec![
+                                    Expr::Literal(Literal {
+                                        token: Token::new(TokenType::Identifier, "command"),
+                                        parsed: LiteralValue::String("command".to_string()),
+                                    }),
+                                    Expr::Literal(Literal {
+                                        token: Token::new(TokenType::Identifier, "call"),
+                                        parsed: LiteralValue::String("call".to_string()),
+                                    }),
+                                ],
                             }),
                         ]
-                    }))),
-                }),
-                Expr::Block(Block {
-                    exprs: vec![
-                        Expr::VarDeclaration(VarDeclaration {
-                            kind: VarKind::Val,
-                            var: TypedVariable {
-                                name: Token::new(TokenType::Identifier, "x"),
-                                ty: None,
-                            },
-                            initializer: Some(Box::from(Expr::Literal(Literal {
-                                token: Token::new(TokenType::IntLiteral, "89"),
-                                parsed: Int(89),
-                            }))),
-                        }),
-                        Expr::VarDeclaration(VarDeclaration {
-                            kind: VarKind::Var,
-                            var: TypedVariable {
-                                name: Token::new(TokenType::Identifier, "test"),
-                                ty: None,
-                            },
-                            initializer: Some(Box::from(Expr::Literal(Literal {
-                                token: Token::new(TokenType::IntLiteral, "77"),
-                                parsed: Int(77),
-                            }))),
-                        }),
-                        Expr::Call(Call {
-                            arguments: vec![
-                                Expr::Literal(Literal {
-                                    token: Token::new(TokenType::Identifier, "command"),
-                                    parsed: LiteralValue::String("command".to_string()),
-                                }),
-                                Expr::Literal(Literal {
-                                    token: Token::new(TokenType::Identifier, "call"),
-                                    parsed: LiteralValue::String("call".to_string()),
-                                }),
-                            ],
-                        }),
-                    ]
-                }),
-            ]
-        }))
+                    }),
+                ]
+            })
+        )
     }
 
     #[test]
@@ -229,31 +236,34 @@ mod tests {
         let mut parser = Parser::new(tokens);
         let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
-        assert_eq!(ast, Expr::Block(Block {
-            exprs: vec![
-                Expr::VarDeclaration(VarDeclaration {
-                    kind: VarKind::Var,
-                    var: TypedVariable {
-                        name: Token::new(TokenType::Identifier, "test"),
-                        ty: Some(Token::new(TokenType::Identifier, "int")),
-                    },
-                    initializer: Some(Box::new(Expr::Literal(Literal {
-                        token: Token::new(TokenType::FloatLiteral, "7.0"),
-                        parsed: Float(7.0),
-                    }))),
-                }),
-                Expr::VarDeclaration(VarDeclaration {
-                    kind: VarKind::Val,
-                    var: TypedVariable {
-                        name: Token::new(TokenType::Identifier, "x"),
-                        ty: None,
-                    },
-                    initializer: Some(Box::new(Expr::Literal(Literal {
-                        token: Token::new(TokenType::IntLiteral, "8"),
-                        parsed: Int(8),
-                    }))),
-                }),
-            ]
-        }))
+        assert_eq!(
+            ast,
+            Expr::Block(Block {
+                exprs: vec![
+                    Expr::VarDeclaration(VarDeclaration {
+                        kind: VarKind::Var,
+                        var: TypedVariable {
+                            name: Token::new(TokenType::Identifier, "test"),
+                            ty: Some(Token::new(TokenType::Identifier, "int")),
+                        },
+                        initializer: Some(Box::new(Expr::Literal(Literal {
+                            token: Token::new(TokenType::FloatLiteral, "7.0"),
+                            parsed: Float(7.0),
+                        }))),
+                    }),
+                    Expr::VarDeclaration(VarDeclaration {
+                        kind: VarKind::Val,
+                        var: TypedVariable {
+                            name: Token::new(TokenType::Identifier, "x"),
+                            ty: None,
+                        },
+                        initializer: Some(Box::new(Expr::Literal(Literal {
+                            token: Token::new(TokenType::IntLiteral, "8"),
+                            parsed: Int(8),
+                        }))),
+                    }),
+                ]
+            })
+        )
     }
 }
