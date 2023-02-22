@@ -28,12 +28,15 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
         let token = self
             .cursor
             .force(of_type(TokenType::Quote), "Expected quote.")?;
+
         let mut value = String::new();
+
         loop {
             match self.cursor.next_opt() {
                 None => {
                     return self.expected("Unterminated string literal.");
                 }
+
                 Some(token) => {
                     if token.token_type == TokenType::Quote {
                         break;
@@ -58,11 +61,13 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
             if self.cursor.is_at_end() {
                 return self.expected("Unterminated string literal.");
             }
+
             match self.cursor.peek().token_type {
                 TokenType::DoubleQuote => {
                     self.cursor.advance(next());
                     break;
                 }
+
                 TokenType::Dollar => {
                     if !literal_value.is_empty() {
                         parts.push(Expr::Literal(Literal {
@@ -71,10 +76,12 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                         }));
                         literal_value.clear();
                     }
+
                     let var_ref = self.var_reference()?;
                     parts.push(var_ref);
                     current_start = self.cursor.peek();
                 }
+
                 _ => literal_value.push_str(self.cursor.next()?.value),
             };
         }
@@ -84,6 +91,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                 parsed: LiteralValue::String(literal_value),
             }));
         }
+
         Ok(Expr::TemplateString(parts))
     }
 
@@ -105,15 +113,9 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
         match current.token_type {
             TokenType::Dollar => parts.push(self.var_reference()?),
             TokenType::BackSlash => {
-                //if the escaped character is escapable, then we only append the following token's value
-                //else, the backslash is also appended
+                //never retain first backslash
                 self.cursor.next()?; //advance so we are not pointing to token after '\'
-                if self.cursor.lookahead(escapable()).is_none() {
-                    //if next is not escapable
-                    //will append the backslash '\' char
-                    push_current!();
-                }
-                //will append the escaped value
+                //will append the escaped value (token after the backslash)
                 push_current!();
             }
             _ => push_current!(),
@@ -127,6 +129,12 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                 TokenType::Space | TokenType::SemiColon | TokenType::NewLine => {
                     //self.cursor.advance(next());
                     break;
+                }
+                TokenType::BackSlash => {
+                    //never retain first backslash
+                    self.cursor.next()?; //advance so we are not pointing to token after '\'
+                    //will append the escaped value (token after the backslash)
+                    push_current!();
                 }
                 TokenType::Dollar => {
                     if !builder.is_empty() {
@@ -223,6 +231,21 @@ mod tests {
             })
         );
     }
+
+    #[test]
+    fn escaped_literal() {
+        let tokens = lex("a\\a");
+        let parsed = Parser::new(tokens).expression().expect("Failed to parse.");
+        assert_eq!(
+            parsed,
+            Expr::Literal(Literal {
+                token: Token::new(TokenType::Identifier, "a"),
+                parsed: LiteralValue::String("aa".to_string()),
+            })
+        );
+    }
+
+
 
     #[test]
     fn missing_quote() {

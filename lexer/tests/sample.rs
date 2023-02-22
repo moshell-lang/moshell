@@ -29,7 +29,11 @@ fn relative_path() {
         vec![
             Token::new(TokenType::Identifier, "cd"),
             Token::new(TokenType::Space, " "),
-            Token::new(TokenType::Identifier, "./some/path"),
+            Token::new(TokenType::Dot, "."),
+            Token::new(TokenType::Slash, "/"),
+            Token::new(TokenType::Identifier, "some"),
+            Token::new(TokenType::Slash, "/"),
+            Token::new(TokenType::Identifier, "path"),
         ]
     );
 }
