@@ -150,6 +150,39 @@ fn with_lexer_redirection() {
 }
 
 #[test]
+fn with_lexer_redirections() {
+    let tokens = lex("command < /tmp/input 2> /tmp/output");
+    let parsed = parse(tokens).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Call(Call {
+            arguments: vec![Expr::Literal(Literal {
+                token: Token::new(TokenType::Identifier, "command"),
+                parsed: LiteralValue::String("command".to_string()),
+            })],
+            redirections: vec![
+                Redir {
+                    fd: RedirFd::Default,
+                    operator: RedirOp::Read,
+                    operand: Expr::Literal(Literal {
+                        token: Token::new(TokenType::Identifier, "/tmp/input"),
+                        parsed: LiteralValue::String("/tmp/input".to_string()),
+                    }),
+                },
+                Redir {
+                    fd: RedirFd::Fd(2),
+                    operator: RedirOp::Write,
+                    operand: Expr::Literal(Literal {
+                        token: Token::new(TokenType::Identifier, "/tmp/output"),
+                        parsed: LiteralValue::String("/tmp/output".to_string()),
+                    }),
+                },
+            ],
+        })]
+    );
+}
+
+#[test]
 fn with_lexer_pipe_and_redirection() {
     let tokens = lex("ls -l | grep 'hello' > out.txt");
     let parsed = parse(tokens).expect("Failed to parse");

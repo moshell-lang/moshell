@@ -2,7 +2,7 @@ use lexer::token::TokenType;
 
 use crate::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp};
 use crate::ast::Expr;
-use crate::moves::{of_type, space, MoveOperations};
+use crate::moves::{next, of_type, of_types, space, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 pub trait CallParser<'a> {
@@ -26,6 +26,13 @@ impl<'a> CallParser<'a> for Parser<'a> {
                         arguments,
                         redirections,
                     });
+                }
+                _ if self
+                    .cursor
+                    .lookahead(next().then(of_types(&[TokenType::Less, TokenType::Greater])))
+                    .is_some() =>
+                {
+                    redirections.push(self.redirection()?)
                 }
                 _ => arguments.push(self.expression()?),
             };
@@ -65,13 +72,14 @@ impl<'a> CallParser<'a> for Parser<'a> {
                 RedirFd::Wildcard
             }
             TokenType::IntLiteral => {
-                token = self.cursor.next()?;
-                RedirFd::Fd(
+                let redir = RedirFd::Fd(
                     token
                         .value
                         .parse()
                         .map_err(|_| self.mk_parse_error("Invalid file descriptor."))?,
-                )
+                );
+                token = self.cursor.next()?;
+                redir
             }
             _ => RedirFd::Default,
         };
