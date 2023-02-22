@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![deny(warnings)]
 
 use crate::ast::Expr;
 use lexer::token::Token;

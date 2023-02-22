@@ -29,6 +29,7 @@ mod tests {
     use crate::ast::callable::Call;
     use crate::ast::literal::{Literal, LiteralValue};
     use crate::ast::Expr;
+
     use crate::parse;
     use pretty_assertions::assert_eq;
 
