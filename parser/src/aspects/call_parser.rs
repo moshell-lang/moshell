@@ -76,7 +76,17 @@ impl<'a> CallParser<'a> for Parser<'a> {
             _ => RedirFd::Default,
         };
         let mut operator = match token.token_type {
-            TokenType::Less => RedirOp::Read,
+            TokenType::Less => {
+                if self
+                    .cursor
+                    .advance(of_type(TokenType::Less).and_then(of_type(TokenType::Less)))
+                    .is_some()
+                {
+                    RedirOp::String
+                } else {
+                    RedirOp::Read
+                }
+            }
             TokenType::Greater => match self.cursor.advance(of_type(TokenType::Greater)) {
                 None => RedirOp::Write,
                 Some(_) => RedirOp::Append,

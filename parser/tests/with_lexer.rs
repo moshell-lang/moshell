@@ -195,3 +195,77 @@ fn with_lexer_pipe_and_redirection() {
         }),]
     );
 }
+
+#[test]
+fn with_lexer_pipe_and_pipe() {
+    let tokens = lex("ls|wc|tr -s ' '");
+    let parsed = parse(tokens).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Pipeline(Pipeline {
+            commands: vec![
+                Call {
+                    arguments: vec![Expr::Literal(Literal {
+                        token: Token::new(TokenType::Identifier, "ls"),
+                        parsed: LiteralValue::String("ls".to_string()),
+                    })],
+                    redirections: vec![],
+                },
+                Call {
+                    arguments: vec![Expr::Literal(Literal {
+                        token: Token::new(TokenType::Identifier, "wc"),
+                        parsed: LiteralValue::String("wc".to_string()),
+                    })],
+                    redirections: vec![],
+                },
+                Call {
+                    arguments: vec![
+                        Expr::Literal(Literal {
+                            token: Token::new(TokenType::Identifier, "tr"),
+                            parsed: LiteralValue::String("tr".to_string()),
+                        }),
+                        Expr::Literal(Literal {
+                            token: Token::new(TokenType::Identifier, "s"),
+                            parsed: LiteralValue::String("-s".to_string()),
+                        }),
+                        Expr::Literal(Literal {
+                            token: Token::new(TokenType::Quote, "'"),
+                            parsed: LiteralValue::String(" ".to_string()),
+                        }),
+                    ],
+                    redirections: vec![],
+                },
+            ],
+            negation: false,
+        }),]
+    );
+}
+
+#[test]
+fn with_lexer_here_string() {
+    let tokens = lex("grep e <<< 'hello'");
+    let parsed = parse(tokens).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Call(Call {
+            arguments: vec![
+                Expr::Literal(Literal {
+                    token: Token::new(TokenType::Identifier, "grep"),
+                    parsed: LiteralValue::String("grep".to_string()),
+                }),
+                Expr::Literal(Literal {
+                    token: Token::new(TokenType::Identifier, "e"),
+                    parsed: LiteralValue::String("e".to_string()),
+                }),
+            ],
+            redirections: vec![Redir {
+                fd: RedirFd::Default,
+                operator: RedirOp::String,
+                operand: Expr::Literal(Literal {
+                    token: Token::new(TokenType::Quote, "'"),
+                    parsed: LiteralValue::String("hello".to_string()),
+                }),
+            }],
+        })]
+    );
+}
