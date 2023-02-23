@@ -1,6 +1,6 @@
 use lexer::token::TokenType;
 
-use crate::ast::Expr;
+
 use crate::ast::Expr;
 use crate::ast::group::{Block, Parenthesis};
 use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations};
@@ -16,10 +16,14 @@ impl<'a> GroupParser<'a> for Parser<'a> {
     fn group(&mut self) -> ParseResult<Expr<'a>> {
         let pivot = self.cursor.peek().token_type;
         match pivot {
+            // start of a parenthesis expression ('(')
             TokenType::RoundedLeftBracket =>
-                Ok(Expr::Parenthesis(Parenthesis{expressions: self.sub_exprs(TokenType::CurlyRightBracket)}));
+                Ok(Expr::Parenthesis(Parenthesis { expressions: self.sub_exprs(TokenType::RoundedRightBracket)? })),
+
+            // start of a block expression ('{')
             TokenType::CurlyLeftBracket =>
-                Ok(Expr::Block(Block{expressions: self.sub_exprs(TokenType::CurlyRightBracket)?})),
+                Ok(Expr::Block(Block { expressions: self.sub_exprs(TokenType::CurlyRightBracket)? })),
+
             _ => self.expected("unknown start of group expression")
         }
     }
@@ -28,17 +32,15 @@ impl<'a> GroupParser<'a> for Parser<'a> {
 impl<'a> Parser<'a> {
     ///parses sub expressions of a grouping expression
     fn sub_exprs(&mut self, eog: TokenType) -> ParseResult<Vec<Expr<'a>>> {
-        self.cursor.force(
-            of_type(TokenType::CurlyLeftBracket),
-            "expected start of group expression",
-        )?;
+
+        self.cursor.next()?; //consume group start token
 
         let mut expressions: Vec<Expr<'a>> = Vec::new();
 
         //consume all heading spaces and end of expressions (\n or ;)
         self.cursor.advance(repeat(spaces().then(eox())));
 
-        //if we directly hit end of block, return an empty block.
+        //if we directly hit end of group, return an empty block.
         if self.cursor
             .advance(of_type(eog))
             .is_some() {
@@ -49,7 +51,7 @@ impl<'a> Parser<'a> {
             let expression = self.statement()?;
             expressions.push(expression);
 
-            //expects at least one newline or ;
+            //expects at least one newline or ';'
             let eox_res = self.cursor.force(
                 repeat_n(1, spaces().then(eox())),
                 "expected new line or semicolon",
@@ -81,7 +83,7 @@ mod tests {
     use crate::ast::callable::Call;
     use crate::ast::literal::LiteralValue::{Float, Int};
     use crate::ast::literal::{Literal, LiteralValue};
-    use crate::ast::group::Block;
+    use crate::ast::group::{Block, Parenthesis};
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use crate::ast::Expr;
     use crate::parser::Parser;
@@ -156,7 +158,7 @@ mod tests {
                 val x = 8\n\n\n
                 8
             }\n\
-            { val x = 89; var test = 77; command call; }\
+            ( val x = 89; command call; 7 )\
         }\
         ");
         let mut parser = Parser::new(tokens);
@@ -194,7 +196,7 @@ mod tests {
                             ]
                         }))),
                     }),
-                    Expr::Block(Block {
+                    Expr::Parenthesis(Parenthesis {
                         expressions: vec![
                             Expr::VarDeclaration(VarDeclaration {
                                 kind: VarKind::Val,
@@ -205,17 +207,6 @@ mod tests {
                                 initializer: Some(Box::from(Expr::Literal(Literal {
                                     token: Token::new(TokenType::IntLiteral, "89"),
                                     parsed: Int(89),
-                                }))),
-                            }),
-                            Expr::VarDeclaration(VarDeclaration {
-                                kind: VarKind::Var,
-                                var: TypedVariable {
-                                    name: Token::new(TokenType::Identifier, "test"),
-                                    ty: None,
-                                },
-                                initializer: Some(Box::from(Expr::Literal(Literal {
-                                    token: Token::new(TokenType::IntLiteral, "77"),
-                                    parsed: Int(77),
                                 }))),
                             }),
                             Expr::Call(Call {
@@ -230,6 +221,10 @@ mod tests {
                                     }),
                                 ],
                             }),
+                            Expr::Literal(Literal {
+                                token: Token::new(TokenType::IntLiteral, "7"),
+                                parsed: Int(7),
+                            })
                         ]
                     }),
                 ]

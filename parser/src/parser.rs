@@ -7,7 +7,7 @@ use crate::aspects::literal_parser::LiteralParser;
 use crate::aspects::var_declaration_parser::VarDeclarationParser;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::moves::{eox, spaces};
+use crate::moves::{eox, MoveOperations, spaces};
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -39,7 +39,7 @@ impl<'a> Parser<'a> {
         match pivot {
             TokenType::IntLiteral | TokenType::FloatLiteral => self.literal(),
             TokenType::Quote => self.string_literal(),
-            TokenType::CurlyLeftBracket => self.group(),
+            TokenType::CurlyLeftBracket | TokenType::RoundedLeftBracket => self.group(),
             TokenType::DoubleQuote => self.templated_string_literal(),
             _ => self.value_expression(),
         }
@@ -77,6 +77,8 @@ impl<'a> Parser<'a> {
 
         while !self.cursor.is_at_end() {
             statements.push(self.statement()?);
+            //ignore possible end of expressions
+            self.cursor.advance(spaces().then(eox()));
         }
 
         Ok(statements)

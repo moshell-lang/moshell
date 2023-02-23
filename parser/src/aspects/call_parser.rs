@@ -13,7 +13,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
         let mut args = vec![self.expression()?];
         //End Of Expression \!(; + \n)
-        while !self.cursor.is_at_end() && self.cursor.advance(spaces().then(eox())).is_none() {
+        while !self.cursor.is_at_end() && self.cursor.lookahead(spaces().then(eox())).is_none() {
             args.push(self.expression()?);
         }
 

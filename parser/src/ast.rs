@@ -22,6 +22,8 @@ pub enum Expr<'a> {
     Literal(Literal<'a>),
     Substitution(Substitution<'a>),
     TemplateString(Vec<Expr<'a>>),
+
+    //var / val handling expressions
     VarReference(VarReference<'a>),
     VarDeclaration(VarDeclaration<'a>),
 
