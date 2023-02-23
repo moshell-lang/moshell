@@ -1,14 +1,14 @@
 use crate::ast::callable::{Call, FunDeclaration};
+use crate::ast::group::{Block, Parenthesis};
 use crate::ast::literal::Literal;
 use crate::ast::operation::BinaryOperation;
-use crate::ast::group::{Block, Parenthesis};
 use crate::ast::substitution::Substitution;
 use crate::ast::variable::{Assign, VarDeclaration, VarReference};
 
 pub mod callable;
+pub mod group;
 pub mod literal;
 pub mod operation;
-pub mod group;
 pub mod substitution;
 pub mod variable;
 

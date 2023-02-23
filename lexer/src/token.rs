@@ -1,4 +1,4 @@
-use crate::token::TokenType::ErrorRedirect;
+use crate::token::TokenType::*;
 use logos::Logos;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -124,13 +124,13 @@ pub enum TokenType {
     #[token("-")]
     Minus,
     #[token("*")]
-    Times,
+    Star,
     #[token("/")]
     Slash,
     #[token("\\")]
     BackSlash,
     #[token("%")]
-    Modulo,
+    Percent,
 
     #[token("[")]
     SquareLeftBracket,
@@ -156,19 +156,25 @@ pub enum TokenType {
 }
 
 impl TokenType {
+    pub fn is_bin_operator(self) -> bool {
+        match self {
+            And | Or |
+
+            Plus | Minus | Star |
+
+            EqualEqual | NotEqual |
+            Less | LessEqual |
+            Greater | GreaterEqual 
+            => true,
+            _ => false
+        }
+    }
+
     pub fn is_identifier_bound(self) -> bool {
         match self {
-            TokenType::NewLine
-            | TokenType::SemiColon
-            | TokenType::Less
-            | TokenType::Pipe
-            | TokenType::Greater
-            | TokenType::And
-            | TokenType::Or
-            | TokenType::Redirect
-            | TokenType::AppendRedirect
-            | ErrorRedirect
-            | TokenType::Here => true,
+            NewLine | SemiColon | Less | Pipe | Greater
+            | And | Or | Redirect | AppendRedirect
+            | ErrorRedirect | Here => true,
             _ => false,
         }
     }

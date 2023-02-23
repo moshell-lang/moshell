@@ -29,16 +29,16 @@ pub enum BinaryOperator {
     /// The `>` operator.
     Greater,
     /// The `>=` operator.
-
     GreaterEqual,
+    
     /// The `+` operator.
     Plus,
     /// The `-` operator.
     Minus,
     /// The `*` operator.
-    Star,
+    Times,
     /// The `/` operator.
-    Slash,
+    Divide,
     /// The `%` operator.
-    Percent,
+    Modulo,
 }

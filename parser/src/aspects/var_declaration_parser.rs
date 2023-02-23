@@ -1,4 +1,5 @@
 use lexer::token::TokenType;
+use crate::aspects::binary_operations_parser::BinaryOps;
 
 use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use crate::ast::Expr;
@@ -41,8 +42,8 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
                 )?;
                 None
             }
-            
-            Some(_) => Some(self.expression()?),
+
+            Some(_) => Some(self.value_expression()?),
         };
 
         Ok(Expr::VarDeclaration(VarDeclaration {

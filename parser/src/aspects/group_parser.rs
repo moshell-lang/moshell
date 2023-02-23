@@ -1,8 +1,7 @@
 use lexer::token::TokenType;
 
-
-use crate::ast::Expr;
 use crate::ast::group::{Block, Parenthesis};
+use crate::ast::Expr;
 use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
@@ -17,14 +16,16 @@ impl<'a> GroupParser<'a> for Parser<'a> {
         let pivot = self.cursor.peek().token_type;
         match pivot {
             // start of a parenthesis expression ('(')
-            TokenType::RoundedLeftBracket =>
-                Ok(Expr::Parenthesis(Parenthesis { expressions: self.sub_exprs(TokenType::RoundedRightBracket)? })),
+            TokenType::RoundedLeftBracket => Ok(Expr::Parenthesis(Parenthesis {
+                expressions: self.sub_exprs(TokenType::RoundedRightBracket)?,
+            })),
 
             // start of a block expression ('{')
-            TokenType::CurlyLeftBracket =>
-                Ok(Expr::Block(Block { expressions: self.sub_exprs(TokenType::CurlyRightBracket)? })),
+            TokenType::CurlyLeftBracket => Ok(Expr::Block(Block {
+                expressions: self.sub_exprs(TokenType::CurlyRightBracket)?,
+            })),
 
-            _ => self.expected("unknown start of group expression")
+            _ => self.expected("unknown start of group expression"),
         }
     }
 }
@@ -32,7 +33,6 @@ impl<'a> GroupParser<'a> for Parser<'a> {
 impl<'a> Parser<'a> {
     ///parses sub expressions of a grouping expression
     fn sub_exprs(&mut self, eog: TokenType) -> ParseResult<Vec<Expr<'a>>> {
-
         self.cursor.next()?; //consume group start token
 
         let mut expressions: Vec<Expr<'a>> = Vec::new();
@@ -41,9 +41,7 @@ impl<'a> Parser<'a> {
         self.cursor.advance(repeat(spaces().then(eox())));
 
         //if we directly hit end of group, return an empty block.
-        if self.cursor
-            .advance(of_type(eog))
-            .is_some() {
+        if self.cursor.advance(of_type(eog)).is_some() {
             return Ok(expressions);
         }
 
@@ -58,10 +56,7 @@ impl<'a> Parser<'a> {
             );
 
             //checks if this group expression is closed after the parsed expression
-            let closed = self
-                .cursor
-                .advance(spaces().then(of_type(eog)))
-                .is_some();
+            let closed = self.cursor.advance(spaces().then(of_type(eog))).is_some();
 
             //if the group is closed, then we stop looking for other expressions.
             if closed {
@@ -81,9 +76,9 @@ mod tests {
 
     use crate::aspects::group_parser::GroupParser;
     use crate::ast::callable::Call;
+    use crate::ast::group::{Block, Parenthesis};
     use crate::ast::literal::LiteralValue::{Float, Int};
     use crate::ast::literal::{Literal, LiteralValue};
-    use crate::ast::group::{Block, Parenthesis};
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use crate::ast::Expr;
     use crate::parser::Parser;
@@ -101,8 +96,12 @@ mod tests {
             Expr::Block(Block {
                 expressions: vec![Expr::Block(Block {
                     expressions: vec![
-                        Expr::Block(Block { expressions: vec![] }),
-                        Expr::Block(Block { expressions: vec![] }),
+                        Expr::Block(Block {
+                            expressions: vec![]
+                        }),
+                        Expr::Block(Block {
+                            expressions: vec![]
+                        }),
                     ]
                 })]
             })
@@ -121,8 +120,12 @@ mod tests {
             Expr::Block(Block {
                 expressions: vec![Expr::Block(Block {
                     expressions: vec![
-                        Expr::Block(Block { expressions: vec![] }),
-                        Expr::Block(Block { expressions: vec![] }),
+                        Expr::Block(Block {
+                            expressions: vec![]
+                        }),
+                        Expr::Block(Block {
+                            expressions: vec![]
+                        }),
                     ]
                 })]
             })

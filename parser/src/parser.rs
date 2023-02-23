@@ -1,13 +1,12 @@
 use crate::aspects::group_parser::GroupParser;
 use lexer::token::{Token, TokenType};
-use crate::aspects::binary_operations_parser::BinaryOps;
 
 use crate::aspects::call_parser::CallParser;
 use crate::aspects::literal_parser::LiteralParser;
 use crate::aspects::var_declaration_parser::VarDeclarationParser;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::moves::{eox, MoveOperations, spaces};
+use crate::moves::{eox, spaces, MoveOperations};
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -41,7 +40,7 @@ impl<'a> Parser<'a> {
             TokenType::Quote => self.string_literal(),
             TokenType::CurlyLeftBracket | TokenType::RoundedLeftBracket => self.group(),
             TokenType::DoubleQuote => self.templated_string_literal(),
-            _ => self.value_expression(),
+            _ => self.argument(),
         }
     }
 

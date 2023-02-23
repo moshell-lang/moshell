@@ -1,4 +1,3 @@
-
 use crate::ast::Expr;
 
 /// A block expression `{ ... }`
@@ -10,5 +9,5 @@ pub struct Block<'a> {
 /// A parenthesis expression `( ... )`
 #[derive(Debug, Clone, PartialEq)]
 pub struct Parenthesis<'a> {
-    pub expressions: Vec<Expr<'a>>
+    pub expressions: Vec<Expr<'a>>,
 }

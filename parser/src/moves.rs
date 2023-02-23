@@ -272,8 +272,14 @@ pub(crate) fn eox() -> OrMove<
 
 ///a move that consumes a character if it can be escaped.
 pub(crate) fn escapable() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool)> {
-    of_types(&[NewLine, Pipe, And, Or, SemiColon, Ampersand])
+    of_types(&[NewLine, Pipe, And, Or, SemiColon])
 }
+
+///a move that consumes a binary operation character
+pub(crate) fn bin_op() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool)> {
+    predicate(|t| t.token_type.is_bin_operator())
+}
+
 
 #[cfg(test)]
 mod tests {
