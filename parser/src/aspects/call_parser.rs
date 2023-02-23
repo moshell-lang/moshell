@@ -4,11 +4,13 @@ use crate::moves::{eox, next, of_type, of_types, space, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 
-///A parse aspect for command and function calls
+/// A parse aspect for command and function calls
 pub trait CallParser<'a> {
-    ///Attempts to parse next call expression
+    /// Attempts to parse the next call expression
     fn call(&mut self) -> ParseResult<Expr<'a>>;
+    /// Attempts to parse the next pipeline expression
     fn pipeline(&mut self, first_call: Call<'a>) -> ParseResult<Expr<'a>>;
+    /// Attempts to parse the next redirection
     fn redirection(&mut self) -> ParseResult<Redir<'a>>;
 }
 
@@ -16,7 +18,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
         let mut arguments = vec![self.expression()?];
         let mut redirections = vec![];
-        //End Of Expression \!(; + \n)
+        // End Of Expression \!(; + \n)
         while !self.cursor.is_at_end() && self.cursor.advance(spaces().then(eox())).is_none() {
             self.cursor.advance(space());
             match self.cursor.peek().token_type {
@@ -29,6 +31,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
                         redirections,
                     });
                 }
+                // Detect redirections without a specific file descriptor
                 _ if self
                     .cursor
                     .lookahead(next().then(of_types(&[TokenType::Less, TokenType::Greater])))
@@ -48,6 +51,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
 
     fn pipeline(&mut self, first_call: Call<'a>) -> ParseResult<Expr<'a>> {
         let mut commands = vec![first_call];
+        // Continue as long as we have a pipe
         while self
             .cursor
             .advance(space().then(of_type(TokenType::Pipe)))
@@ -68,6 +72,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
     fn redirection(&mut self) -> ParseResult<Redir<'a>> {
         self.cursor.advance(space());
         let mut token = self.cursor.next()?;
+        // Parse if present the redirected file descriptor
         let fd = match token.token_type {
             TokenType::Ampersand => {
                 token = self.cursor.next()?;
@@ -85,6 +90,8 @@ impl<'a> CallParser<'a> for Parser<'a> {
             }
             _ => RedirFd::Default,
         };
+
+        // Parse the redirection operator
         let mut operator = match token.token_type {
             TokenType::Less => {
                 if self
@@ -103,6 +110,8 @@ impl<'a> CallParser<'a> for Parser<'a> {
             },
             _ => Err(self.mk_parse_error("Expected redirection operator."))?,
         };
+
+        // Parse file descriptor duplication and update the operator
         if self.cursor.advance(of_type(TokenType::Ampersand)).is_some() {
             operator = match operator {
                 RedirOp::Read => RedirOp::FdIn,
@@ -110,6 +119,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
                 _ => Err(self.mk_parse_error("Invalid redirection operator."))?,
             };
         }
+
         let operand = self.expression()?;
         Ok(Redir {
             fd,
