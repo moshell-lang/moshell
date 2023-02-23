@@ -1,12 +1,14 @@
 use crate::ast::callable::{Call, FunDeclaration};
 use crate::ast::literal::Literal;
 use crate::ast::operation::BinaryOperation;
+use crate::ast::statement::Block;
 use crate::ast::substitution::Substitution;
 use crate::ast::variable::{Assign, VarDeclaration, VarReference};
 
 pub mod callable;
 pub mod literal;
 pub mod operation;
+pub mod statement;
 pub mod substitution;
 pub mod variable;
 
@@ -23,12 +25,5 @@ pub enum Expr<'a> {
     TemplateString(Vec<Expr<'a>>),
     VarReference(VarReference<'a>),
     VarDeclaration(VarDeclaration<'a>),
+    Block(Block<'a>),
 }
-
-/*
-/// A boxed expression that helps with precedence.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Grouping<'a> {
-    pub expr: Box<Expr<'a>>,
-}
-*/

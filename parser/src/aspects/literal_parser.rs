@@ -28,12 +28,15 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
         let token = self
             .cursor
             .force(of_type(TokenType::Quote), "Expected quote.")?;
+
         let mut value = String::new();
+
         loop {
             match self.cursor.next_opt() {
                 None => {
                     return self.expected("Unterminated string literal.");
                 }
+
                 Some(token) => {
                     if token.token_type == TokenType::Quote {
                         break;
@@ -58,11 +61,13 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
             if self.cursor.is_at_end() {
                 return self.expected("Unterminated string literal.");
             }
+
             match self.cursor.peek().token_type {
                 TokenType::DoubleQuote => {
                     self.cursor.advance(next());
                     break;
                 }
+
                 TokenType::Dollar => {
                     if !literal_value.is_empty() {
                         parts.push(Expr::Literal(Literal {
@@ -71,10 +76,12 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                         }));
                         literal_value.clear();
                     }
+
                     let var_ref = self.var_reference()?;
                     parts.push(var_ref);
                     current_start = self.cursor.peek();
                 }
+
                 _ => literal_value.push_str(self.cursor.next()?.value),
             };
         }
@@ -84,6 +91,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                 parsed: LiteralValue::String(literal_value),
             }));
         }
+
         Ok(Expr::TemplateString(parts))
     }
 
@@ -92,43 +100,68 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     /// An argument is usually a single identifier, but can also be
     /// composed of multiple tokens if not separated with a space.
     fn argument(&mut self) -> ParseResult<Expr<'a>> {
-        let mut current_start = self.cursor.peek();
+        let mut current = self.cursor.peek();
         let mut parts = Vec::new();
         let mut builder = String::new();
-        match current_start.token_type {
+
+        //pushes current token then advance
+        macro_rules! push_current {
+            () => {
+                builder.push_str(self.cursor.next()?.value)
+            };
+        }
+
+        match current.token_type {
             TokenType::Dollar => parts.push(self.var_reference()?),
-            _ => builder.push_str(self.cursor.next()?.value),
+            TokenType::BackSlash => {
+                //never retain first backslash
+                self.cursor.next()?; //advance so we are not pointing to token after '\'
+                                     //will append the escaped value (token after the backslash)
+                push_current!();
+            }
+            _ => push_current!(),
         }
         loop {
             if self.cursor.is_at_end() {
                 break;
             }
-            match self.cursor.peek().token_type {
-                TokenType::Space => {
-                    self.cursor.advance(next());
-                    break;
+            let pivot = self.cursor.peek().token_type;
+            match pivot {
+                TokenType::Space => break,
+
+                TokenType::BackSlash => {
+                    //never retain first backslash
+                    self.cursor.next()?;
+                    //advance so we are not pointing to token after '\'
+                    //will append the escaped value (token after the backslash)
+                    push_current!();
                 }
+
                 TokenType::Dollar => {
                     if !builder.is_empty() {
                         parts.push(Expr::Literal(Literal {
-                            token: current_start.clone(),
+                            token: current.clone(),
                             parsed: LiteralValue::String(builder.clone()),
                         }));
                         builder.clear();
                     }
                     parts.push(self.var_reference()?);
                 }
-                _ => {
-                    if !builder.is_empty() {
-                        current_start = self.cursor.peek();
+
+                x => {
+                    if x.is_identifier_bound() {
+                        break; //identifier bounds cannot be concatenated with identifiers
                     }
-                    builder.push_str(self.cursor.next()?.value)
+                    if !builder.is_empty() {
+                        current = self.cursor.peek();
+                    }
+                    push_current!()
                 }
             }
         }
         if !builder.is_empty() {
             parts.push(Expr::Literal(Literal {
-                token: current_start,
+                token: current,
                 parsed: LiteralValue::String(builder),
             }));
         }
@@ -171,6 +204,7 @@ mod tests {
     use crate::parser::ParseError;
 
     use super::*;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn int_overflow() {
@@ -203,8 +237,21 @@ mod tests {
     }
 
     #[test]
+    fn escaped_literal() {
+        let tokens = lex("a\\a");
+        let parsed = Parser::new(tokens).expression().expect("Failed to parse.");
+        assert_eq!(
+            parsed,
+            Expr::Literal(Literal {
+                token: Token::new(TokenType::Identifier, "a"),
+                parsed: LiteralValue::String("aa".to_string()),
+            })
+        );
+    }
+
+    #[test]
     fn missing_quote() {
-        let tokens = vec![Token::new(TokenType::Quote, "'")];
+        let tokens = vec![Token::new(TokenType::Quote, "' command")];
         let parsed = parse(tokens);
         assert_eq!(
             parsed,

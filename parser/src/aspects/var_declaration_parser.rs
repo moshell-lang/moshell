@@ -61,6 +61,7 @@ mod tests {
     use crate::parser::Parser;
     use lexer::lexer::lex;
     use lexer::token::Token;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn val_declaration() {
