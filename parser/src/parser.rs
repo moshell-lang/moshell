@@ -1,4 +1,5 @@
 use lexer::token::{Token, TokenType};
+use crate::aspects::binary_operations_parser::BinaryOps;
 
 use crate::aspects::call_parser::CallParser;
 use crate::aspects::literal_parser::LiteralParser;
@@ -36,7 +37,7 @@ impl<'a> Parser<'a> {
             TokenType::IntLiteral | TokenType::FloatLiteral => self.literal(),
             TokenType::Quote => self.string_literal(),
             TokenType::DoubleQuote => self.templated_string_literal(),
-            _ => self.argument(),
+            _ => self.value_expression(),
         }
     }
 

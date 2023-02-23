@@ -18,7 +18,7 @@ pub enum Expr<'a> {
     Call(Call<'a>),
     FunDeclaration(FunDeclaration<'a>),
     Literal(Literal<'a>),
-    //Grouping(Grouping<'a>),
+    Group(Group<'a>),
     Substitution(Substitution<'a>),
     TemplateString(Vec<Expr<'a>>),
     VarReference(VarReference<'a>),

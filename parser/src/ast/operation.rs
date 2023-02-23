@@ -13,6 +13,11 @@ pub struct BinaryOperation<'a> {
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum BinaryOperator {
+    /// The '&&' operator.
+    And,
+    /// The '||' operator.
+    Or,
+
     /// The `==` operator.
     EqualEqual,
     /// The `!=` operator.
@@ -24,6 +29,7 @@ pub enum BinaryOperator {
     /// The `>` operator.
     Greater,
     /// The `>=` operator.
+
     GreaterEqual,
     /// The `+` operator.
     Plus,

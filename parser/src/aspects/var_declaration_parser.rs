@@ -41,6 +41,7 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
                 )?;
                 None
             }
+            
             Some(_) => Some(self.expression()?),
         };
 
