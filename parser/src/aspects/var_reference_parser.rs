@@ -40,6 +40,7 @@ mod tests {
     use crate::ast::variable::VarReference;
     use crate::ast::Expr;
     use crate::parser::Parser;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_simple_ref() {

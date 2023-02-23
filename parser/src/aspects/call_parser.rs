@@ -1,11 +1,12 @@
-use lexer::token::TokenType;
-
 use crate::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp};
 use crate::ast::Expr;
-use crate::moves::{next, of_type, of_types, space, MoveOperations};
+use crate::moves::{eox, next, of_type, of_types, space, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
+use lexer::token::TokenType;
 
+///A parse aspect for command and function calls
 pub trait CallParser<'a> {
+    ///Attempts to parse next call expression
     fn call(&mut self) -> ParseResult<Expr<'a>>;
     fn pipeline(&mut self, first_call: Call<'a>) -> ParseResult<Expr<'a>>;
     fn redirection(&mut self) -> ParseResult<Redir<'a>>;
@@ -15,7 +16,8 @@ impl<'a> CallParser<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
         let mut arguments = vec![self.expression()?];
         let mut redirections = vec![];
-        while !self.cursor.is_at_end() {
+        //End Of Expression \!(; + \n)
+        while !self.cursor.is_at_end() && self.cursor.advance(spaces().then(eox())).is_none() {
             self.cursor.advance(space());
             match self.cursor.peek().token_type {
                 TokenType::Ampersand | TokenType::Less | TokenType::Greater => {
@@ -121,9 +123,11 @@ impl<'a> CallParser<'a> for Parser<'a> {
 mod tests {
     use crate::aspects::call_parser::CallParser;
     use crate::ast::callable::{Call, Redir, RedirFd, RedirOp};
-    use crate::ast::literal::Literal;
+    use crate::ast::literal::{Literal, LiteralValue};
     use crate::ast::Expr;
+    use crate::parse;
     use crate::parser::Parser;
+    use lexer::lexer::lex;
     use lexer::token::{Token, TokenType};
 
     #[test]
@@ -179,5 +183,84 @@ mod tests {
                 }],
             })
         );
+    }
+
+    #[test]
+    fn multiple_calls() {
+        let tokens = lex("grep -E regex; echo test");
+        let parsed = parse(tokens).expect("parsing error");
+        assert_eq!(
+            parsed,
+            vec![
+                Expr::Call(Call {
+                    arguments: vec![
+                        Expr::Literal(Literal {
+                            token: Token::new(TokenType::Identifier, "grep"),
+                            parsed: LiteralValue::String("grep".to_string()),
+                        }),
+                        Expr::Literal(Literal {
+                            token: Token::new(TokenType::Identifier, "E"),
+                            parsed: LiteralValue::String("-E".to_string()),
+                        }),
+                        Expr::Literal(Literal {
+                            token: Token::new(TokenType::Identifier, "regex"),
+                            parsed: LiteralValue::String("regex".to_string()),
+                        }),
+                    ],
+                    redirections: vec![],
+                }),
+                Expr::Call(Call {
+                    arguments: vec![
+                        Expr::Literal(Literal {
+                            token: Token::new(TokenType::Identifier, "echo"),
+                            parsed: LiteralValue::String("echo".to_string()),
+                        }),
+                        Expr::Literal(Literal {
+                            token: Token::new(TokenType::Identifier, "test"),
+                            parsed: LiteralValue::String("test".to_string()),
+                        }),
+                    ],
+                    redirections: vec![],
+                }),
+            ]
+        )
+    }
+
+    #[test]
+    fn escaped_call() {
+        let tokens = lex("grep -E regex \\; echo test");
+        let parsed = parse(tokens).expect("parsing error");
+        assert_eq!(
+            parsed,
+            vec![Expr::Call(Call {
+                arguments: vec![
+                    Expr::Literal(Literal {
+                        token: Token::new(TokenType::Identifier, "grep"),
+                        parsed: LiteralValue::String("grep".to_string()),
+                    }),
+                    Expr::Literal(Literal {
+                        token: Token::new(TokenType::Identifier, "E"),
+                        parsed: LiteralValue::String("-E".to_string()),
+                    }),
+                    Expr::Literal(Literal {
+                        token: Token::new(TokenType::Identifier, "regex"),
+                        parsed: LiteralValue::String("regex".to_string()),
+                    }),
+                    Expr::Literal(Literal {
+                        token: Token::new(TokenType::BackSlash, "\\"),
+                        parsed: LiteralValue::String(";".to_string()),
+                    }),
+                    Expr::Literal(Literal {
+                        token: Token::new(TokenType::Identifier, "echo"),
+                        parsed: LiteralValue::String("echo".to_string()),
+                    }),
+                    Expr::Literal(Literal {
+                        token: Token::new(TokenType::Identifier, "test"),
+                        parsed: LiteralValue::String("test".to_string()),
+                    }),
+                ],
+                redirections: vec![],
+            }),]
+        )
     }
 }

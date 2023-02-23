@@ -18,7 +18,7 @@ jobs:
     - name: Cargo Cache
       uses: actions/cache@v3
       with:
-        key: ${{ hashFiles('Cargo.toml') }}
+        key: ${{ hashFiles('**/Cargo.toml') }}
         path: |
           ./target
           ~/.cargo

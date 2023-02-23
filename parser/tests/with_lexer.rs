@@ -5,6 +5,7 @@ use parser::ast::literal::{Literal, LiteralValue};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 use parser::ast::Expr;
 use parser::parse;
+use pretty_assertions::assert_eq;
 
 #[test]
 fn with_lexer_variable() {
@@ -141,7 +142,7 @@ fn with_lexer_redirection() {
                 fd: RedirFd::Wildcard,
                 operator: RedirOp::Write,
                 operand: Expr::Literal(Literal {
-                    token: Token::new(TokenType::Identifier, "/dev/null"),
+                    token: Token::new(TokenType::Identifier, "null"),
                     parsed: LiteralValue::String("/dev/null".to_string()),
                 }),
             }],
@@ -165,7 +166,7 @@ fn with_lexer_redirections() {
                     fd: RedirFd::Default,
                     operator: RedirOp::Read,
                     operand: Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "/tmp/input"),
+                        token: Token::new(TokenType::Identifier, "input"),
                         parsed: LiteralValue::String("/tmp/input".to_string()),
                     }),
                 },
@@ -173,7 +174,7 @@ fn with_lexer_redirections() {
                     fd: RedirFd::Fd(2),
                     operator: RedirOp::Write,
                     operand: Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "/tmp/output"),
+                        token: Token::new(TokenType::Identifier, "output"),
                         parsed: LiteralValue::String("/tmp/output".to_string()),
                     }),
                 },
@@ -218,7 +219,7 @@ fn with_lexer_pipe_and_redirection() {
                         fd: RedirFd::Default,
                         operator: RedirOp::Write,
                         operand: Expr::Literal(Literal {
-                            token: Token::new(TokenType::Identifier, "out.txt"),
+                            token: Token::new(TokenType::Identifier, "txt"),
                             parsed: LiteralValue::String("out.txt".to_string()),
                         }),
                     }],
