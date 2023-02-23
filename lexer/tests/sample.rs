@@ -1,5 +1,6 @@
 use lexer::lexer::lex;
 use lexer::token::{Token, TokenType};
+use pretty_assertions::assert_eq;
 
 #[test]
 fn variable_and_initializer() {
@@ -28,7 +29,11 @@ fn relative_path() {
         vec![
             Token::new(TokenType::Identifier, "cd"),
             Token::new(TokenType::Space, " "),
-            Token::new(TokenType::Identifier, "./some/path"),
+            Token::new(TokenType::Dot, "."),
+            Token::new(TokenType::Slash, "/"),
+            Token::new(TokenType::Identifier, "some"),
+            Token::new(TokenType::Slash, "/"),
+            Token::new(TokenType::Identifier, "path"),
         ]
     );
 }
