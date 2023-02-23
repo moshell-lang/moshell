@@ -241,7 +241,7 @@ mod tests {
             parsed,
             Expr::Literal(Literal {
                 token: Token::new(TokenType::Identifier, "a"),
-                parsed: LiteralValue::String("aa".to_string()),
+                parsed: "aa".into(),
             })
         );
     }

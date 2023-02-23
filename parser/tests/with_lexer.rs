@@ -1,7 +1,7 @@
 use lexer::lexer::lex;
 use lexer::token::{Token, TokenType};
 use parser::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp};
-use parser::ast::literal::{Literal, LiteralValue};
+use parser::ast::literal::Literal;
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 use parser::ast::Expr;
 use parser::parse;
@@ -22,7 +22,7 @@ fn with_lexer_variable() {
             },
             initializer: Some(Box::new(Expr::Literal(Literal {
                 token: Token::new(TokenType::Quote, "'"),
-                parsed: LiteralValue::String("hello world!".to_string()),
+                parsed: "hello world!".into(),
             }))),
         })]
     );
@@ -39,11 +39,11 @@ fn with_lexer_var_reference_one() {
             arguments: vec![
                 Expr::Literal(Literal {
                     token: Token::new(TokenType::Identifier, "echo"),
-                    parsed: LiteralValue::String("echo".to_string()),
+                    parsed: "echo".into(),
                 }),
                 Expr::Literal(Literal {
                     token: Token::new(TokenType::Quote, "'"),
-                    parsed: LiteralValue::String("$var5".to_string()),
+                    parsed: "$var5".into(),
                 }),
                 Expr::VarReference(VarReference {
                     name: Token::new(TokenType::Identifier, "var5"),
@@ -66,7 +66,7 @@ fn with_lexer_var_reference_two() {
                 Expr::TemplateString(vec![
                     Expr::Literal(Literal {
                         token: Token::new(TokenType::Identifier, "fake"),
-                        parsed: LiteralValue::String("fake".to_string()),
+                        parsed: "fake".into(),
                     }),
                     Expr::VarReference(VarReference {
                         name: Token::new(TokenType::Identifier, "cmd"),
@@ -74,7 +74,7 @@ fn with_lexer_var_reference_two() {
                 ]),
                 Expr::Literal(Literal {
                     token: Token::new(TokenType::Identifier, "do"),
-                    parsed: LiteralValue::String("do".to_string()),
+                    parsed: "do".into(),
                 }),
                 Expr::VarReference(VarReference {
                     name: Token::new(TokenType::Identifier, "arg2"),
@@ -96,19 +96,19 @@ fn with_lexer_var_reference_three() {
             arguments: vec![
                 Expr::Literal(Literal {
                     token: Token::new(TokenType::Identifier, "echo"),
-                    parsed: LiteralValue::String("echo".to_string()),
+                    parsed: "echo".into(),
                 }),
                 Expr::TemplateString(vec![
                     Expr::Literal(Literal {
                         token: Token::new(TokenType::Identifier, "hello"),
-                        parsed: LiteralValue::String("hello ".to_string()),
+                        parsed: "hello ".into(),
                     }),
                     Expr::VarReference(VarReference {
                         name: Token::new(TokenType::Identifier, "world"),
                     }),
                     Expr::Literal(Literal {
                         token: Token::new(TokenType::Space, " "),
-                        parsed: LiteralValue::String(" everyone ".to_string()),
+                        parsed: " everyone ".into(),
                     }),
                     Expr::VarReference(VarReference {
                         name: Token::new(TokenType::Identifier, "verb"),
@@ -118,7 +118,7 @@ fn with_lexer_var_reference_three() {
                     }),
                     Expr::Literal(Literal {
                         token: Token::new(TokenType::Not, "!"),
-                        parsed: LiteralValue::String("!".to_string()),
+                        parsed: "!".into(),
                     }),
                 ]),
             ],
@@ -136,14 +136,14 @@ fn with_lexer_redirection() {
         vec![Expr::Call(Call {
             arguments: vec![Expr::Literal(Literal {
                 token: Token::new(TokenType::Identifier, "test"),
-                parsed: LiteralValue::String("test".to_string()),
+                parsed: "test".into(),
             })],
             redirections: vec![Redir {
                 fd: RedirFd::Wildcard,
                 operator: RedirOp::Write,
                 operand: Expr::Literal(Literal {
                     token: Token::new(TokenType::Identifier, "null"),
-                    parsed: LiteralValue::String("/dev/null".to_string()),
+                    parsed: "/dev/null".into(),
                 }),
             }],
         })]
@@ -159,7 +159,7 @@ fn with_lexer_redirections() {
         vec![Expr::Call(Call {
             arguments: vec![Expr::Literal(Literal {
                 token: Token::new(TokenType::Identifier, "command"),
-                parsed: LiteralValue::String("command".to_string()),
+                parsed: "command".into(),
             })],
             redirections: vec![
                 Redir {
@@ -167,7 +167,7 @@ fn with_lexer_redirections() {
                     operator: RedirOp::Read,
                     operand: Expr::Literal(Literal {
                         token: Token::new(TokenType::Identifier, "input"),
-                        parsed: LiteralValue::String("/tmp/input".to_string()),
+                        parsed: "/tmp/input".into(),
                     }),
                 },
                 Redir {
@@ -175,7 +175,7 @@ fn with_lexer_redirections() {
                     operator: RedirOp::Write,
                     operand: Expr::Literal(Literal {
                         token: Token::new(TokenType::Identifier, "output"),
-                        parsed: LiteralValue::String("/tmp/output".to_string()),
+                        parsed: "/tmp/output".into(),
                     }),
                 },
             ],
@@ -195,11 +195,11 @@ fn with_lexer_pipe_and_redirection() {
                     arguments: vec![
                         Expr::Literal(Literal {
                             token: Token::new(TokenType::Identifier, "ls"),
-                            parsed: LiteralValue::String("ls".to_string()),
+                            parsed: "ls".into(),
                         }),
                         Expr::Literal(Literal {
                             token: Token::new(TokenType::Identifier, "l"),
-                            parsed: LiteralValue::String("-l".to_string()),
+                            parsed: "-l".into()
                         }),
                     ],
                     redirections: vec![],
@@ -208,11 +208,11 @@ fn with_lexer_pipe_and_redirection() {
                     arguments: vec![
                         Expr::Literal(Literal {
                             token: Token::new(TokenType::Identifier, "grep"),
-                            parsed: LiteralValue::String("grep".to_string()),
+                            parsed: "grep".into()
                         }),
                         Expr::Literal(Literal {
                             token: Token::new(TokenType::Quote, "'"),
-                            parsed: LiteralValue::String("hello".to_string()),
+                            parsed: "hello".into()
                         }),
                     ],
                     redirections: vec![Redir {
@@ -220,7 +220,7 @@ fn with_lexer_pipe_and_redirection() {
                         operator: RedirOp::Write,
                         operand: Expr::Literal(Literal {
                             token: Token::new(TokenType::Identifier, "txt"),
-                            parsed: LiteralValue::String("out.txt".to_string()),
+                            parsed: "out.txt".into(),
                         }),
                     }],
                 },
@@ -241,14 +241,14 @@ fn with_lexer_pipe_and_pipe() {
                 Call {
                     arguments: vec![Expr::Literal(Literal {
                         token: Token::new(TokenType::Identifier, "ls"),
-                        parsed: LiteralValue::String("ls".to_string()),
+                        parsed: "ls".into(),
                     })],
                     redirections: vec![],
                 },
                 Call {
                     arguments: vec![Expr::Literal(Literal {
                         token: Token::new(TokenType::Identifier, "wc"),
-                        parsed: LiteralValue::String("wc".to_string()),
+                        parsed: "wc".into(),
                     })],
                     redirections: vec![],
                 },
@@ -256,15 +256,15 @@ fn with_lexer_pipe_and_pipe() {
                     arguments: vec![
                         Expr::Literal(Literal {
                             token: Token::new(TokenType::Identifier, "tr"),
-                            parsed: LiteralValue::String("tr".to_string()),
+                            parsed: "tr".into(),
                         }),
                         Expr::Literal(Literal {
                             token: Token::new(TokenType::Identifier, "s"),
-                            parsed: LiteralValue::String("-s".to_string()),
+                            parsed: "-s".into(),
                         }),
                         Expr::Literal(Literal {
                             token: Token::new(TokenType::Quote, "'"),
-                            parsed: LiteralValue::String(" ".to_string()),
+                            parsed: " ".into(),
                         }),
                     ],
                     redirections: vec![],
@@ -285,11 +285,11 @@ fn with_lexer_here_string() {
             arguments: vec![
                 Expr::Literal(Literal {
                     token: Token::new(TokenType::Identifier, "grep"),
-                    parsed: LiteralValue::String("grep".to_string()),
+                    parsed: "grep".into(),
                 }),
                 Expr::Literal(Literal {
                     token: Token::new(TokenType::Identifier, "e"),
-                    parsed: LiteralValue::String("e".to_string()),
+                    parsed: "e".into(),
                 }),
             ],
             redirections: vec![Redir {
@@ -297,7 +297,7 @@ fn with_lexer_here_string() {
                 operator: RedirOp::String,
                 operand: Expr::Literal(Literal {
                     token: Token::new(TokenType::Quote, "'"),
-                    parsed: LiteralValue::String("hello".to_string()),
+                    parsed: "hello".into(),
                 }),
             }],
         })]

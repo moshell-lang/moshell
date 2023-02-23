@@ -123,7 +123,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
 mod tests {
     use crate::aspects::call_parser::CallParser;
     use crate::ast::callable::{Call, Redir, RedirFd, RedirOp};
-    use crate::ast::literal::{Literal, LiteralValue};
+    use crate::ast::literal::Literal;
     use crate::ast::Expr;
     use crate::parse;
     use crate::parser::Parser;
@@ -196,15 +196,15 @@ mod tests {
                     arguments: vec![
                         Expr::Literal(Literal {
                             token: Token::new(TokenType::Identifier, "grep"),
-                            parsed: LiteralValue::String("grep".to_string()),
+                            parsed: "grep".into(),
                         }),
                         Expr::Literal(Literal {
                             token: Token::new(TokenType::Identifier, "E"),
-                            parsed: LiteralValue::String("-E".to_string()),
+                            parsed: "-E".into(),
                         }),
                         Expr::Literal(Literal {
                             token: Token::new(TokenType::Identifier, "regex"),
-                            parsed: LiteralValue::String("regex".to_string()),
+                            parsed: "regex".into(),
                         }),
                     ],
                     redirections: vec![],
@@ -213,11 +213,11 @@ mod tests {
                     arguments: vec![
                         Expr::Literal(Literal {
                             token: Token::new(TokenType::Identifier, "echo"),
-                            parsed: LiteralValue::String("echo".to_string()),
+                            parsed: "echo".into(),
                         }),
                         Expr::Literal(Literal {
                             token: Token::new(TokenType::Identifier, "test"),
-                            parsed: LiteralValue::String("test".to_string()),
+                            parsed: "test".into(),
                         }),
                     ],
                     redirections: vec![],
@@ -236,27 +236,27 @@ mod tests {
                 arguments: vec![
                     Expr::Literal(Literal {
                         token: Token::new(TokenType::Identifier, "grep"),
-                        parsed: LiteralValue::String("grep".to_string()),
+                        parsed: "grep".into(),
                     }),
                     Expr::Literal(Literal {
                         token: Token::new(TokenType::Identifier, "E"),
-                        parsed: LiteralValue::String("-E".to_string()),
+                        parsed: "-E".into(),
                     }),
                     Expr::Literal(Literal {
                         token: Token::new(TokenType::Identifier, "regex"),
-                        parsed: LiteralValue::String("regex".to_string()),
+                        parsed: "regex".into(),
                     }),
                     Expr::Literal(Literal {
                         token: Token::new(TokenType::BackSlash, "\\"),
-                        parsed: LiteralValue::String(";".to_string()),
+                        parsed: ";".into(),
                     }),
                     Expr::Literal(Literal {
                         token: Token::new(TokenType::Identifier, "echo"),
-                        parsed: LiteralValue::String("echo".to_string()),
+                        parsed: "echo".into(),
                     }),
                     Expr::Literal(Literal {
                         token: Token::new(TokenType::Identifier, "test"),
-                        parsed: LiteralValue::String("test".to_string()),
+                        parsed: "test".into(),
                     }),
                 ],
                 redirections: vec![],
