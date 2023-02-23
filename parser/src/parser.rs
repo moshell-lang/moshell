@@ -1,4 +1,4 @@
-use crate::aspects::block_parser::BlockParser;
+use crate::aspects::group_parser::GroupParser;
 use lexer::token::{Token, TokenType};
 
 use crate::aspects::call_parser::CallParser;
@@ -38,7 +38,7 @@ impl<'a> Parser<'a> {
         match pivot {
             TokenType::IntLiteral | TokenType::FloatLiteral => self.literal(),
             TokenType::Quote => self.string_literal(),
-            TokenType::CurlyLeftBracket => self.block(),
+            TokenType::CurlyLeftBracket => self.group(),
             TokenType::DoubleQuote => self.templated_string_literal(),
             _ => self.argument(),
         }

@@ -1,23 +1,37 @@
 use lexer::token::TokenType;
 
-use crate::ast::statement::Block;
 use crate::ast::Expr;
+use crate::ast::Expr;
+use crate::ast::group::{Block, Parenthesis};
 use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 ///A parser aspect for parsing block expressions
-pub trait BlockParser<'a> {
-    ///Attempts to parse next block expression.
-    fn block(&mut self) -> ParseResult<Expr<'a>>;
+pub trait GroupParser<'a> {
+    ///Attempts to parse next group expression (a block or parenthesis expression).
+    fn group(&mut self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> BlockParser<'a> for Parser<'a> {
-    fn block(&mut self) -> ParseResult<Expr<'a>> {
+impl<'a> GroupParser<'a> for Parser<'a> {
+    fn group(&mut self) -> ParseResult<Expr<'a>> {
+        let pivot = self.cursor.peek().token_type;
+        match pivot {
+            TokenType::RoundedLeftBracket =>
+                Ok(Expr::Parenthesis(Parenthesis{expressions: self.sub_exprs(TokenType::CurlyRightBracket)}));
+            TokenType::CurlyLeftBracket =>
+                Ok(Expr::Block(Block{expressions: self.sub_exprs(TokenType::CurlyRightBracket)?})),
+            _ => self.expected("unknown start of group expression")
+        }
+    }
+}
+
+impl<'a> Parser<'a> {
+    ///parses sub expressions of a grouping expression
+    fn sub_exprs(&mut self, eog: TokenType) -> ParseResult<Vec<Expr<'a>>> {
         self.cursor.force(
             of_type(TokenType::CurlyLeftBracket),
-            "expected start of block expression",
+            "expected start of group expression",
         )?;
-        let block = |exprs| Ok(Expr::Block(Block { exprs }));
 
         let mut expressions: Vec<Expr<'a>> = Vec::new();
 
@@ -25,12 +39,10 @@ impl<'a> BlockParser<'a> for Parser<'a> {
         self.cursor.advance(repeat(spaces().then(eox())));
 
         //if we directly hit end of block, return an empty block.
-        if self
-            .cursor
-            .advance(of_type(TokenType::CurlyRightBracket))
-            .is_some()
-        {
-            return block(expressions);
+        if self.cursor
+            .advance(of_type(eog))
+            .is_some() {
+            return Ok(expressions);
         }
 
         loop {
@@ -43,20 +55,20 @@ impl<'a> BlockParser<'a> for Parser<'a> {
                 "expected new line or semicolon",
             );
 
-            //checks if this block expression is closed after the parsed expression
+            //checks if this group expression is closed after the parsed expression
             let closed = self
                 .cursor
-                .advance(spaces().then(of_type(TokenType::CurlyRightBracket)))
+                .advance(spaces().then(of_type(eog)))
                 .is_some();
 
-            //if the block is closed, then we stop looking for other expressions.
+            //if the group is closed, then we stop looking for other expressions.
             if closed {
                 break;
             }
             //but if not closed, expect the cursor to hit EOX.
             eox_res?;
         }
-        block(expressions)
+        Ok(expressions)
     }
 }
 
@@ -65,11 +77,11 @@ mod tests {
     use lexer::lexer::lex;
     use lexer::token::{Token, TokenType};
 
-    use crate::aspects::block_parser::BlockParser;
+    use crate::aspects::group_parser::GroupParser;
     use crate::ast::callable::Call;
     use crate::ast::literal::LiteralValue::{Float, Int};
     use crate::ast::literal::{Literal, LiteralValue};
-    use crate::ast::statement::Block;
+    use crate::ast::group::Block;
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use crate::ast::Expr;
     use crate::parser::Parser;
@@ -80,15 +92,15 @@ mod tests {
     fn test_empty_blocks() {
         let tokens = lex("{{{}; {}}}");
         let mut parser = Parser::new(tokens);
-        let ast = parser.block().expect("failed to parse block");
+        let ast = parser.group().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
             ast,
             Expr::Block(Block {
-                exprs: vec![Expr::Block(Block {
-                    exprs: vec![
-                        Expr::Block(Block { exprs: vec![] }),
-                        Expr::Block(Block { exprs: vec![] }),
+                expressions: vec![Expr::Block(Block {
+                    expressions: vec![
+                        Expr::Block(Block { expressions: vec![] }),
+                        Expr::Block(Block { expressions: vec![] }),
                     ]
                 })]
             })
@@ -100,15 +112,15 @@ mod tests {
     fn test_empty_blocks_empty_content() {
         let tokens = lex("{;;{;;;{;;}; {\n\n};}}");
         let mut parser = Parser::new(tokens);
-        let ast = parser.block().expect("failed to parse block");
+        let ast = parser.group().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
             ast,
             Expr::Block(Block {
-                exprs: vec![Expr::Block(Block {
-                    exprs: vec![
-                        Expr::Block(Block { exprs: vec![] }),
-                        Expr::Block(Block { exprs: vec![] }),
+                expressions: vec![Expr::Block(Block {
+                    expressions: vec![
+                        Expr::Block(Block { expressions: vec![] }),
+                        Expr::Block(Block { expressions: vec![] }),
                     ]
                 })]
             })
@@ -119,21 +131,21 @@ mod tests {
     fn test_block_not_ended() {
         let tokens = lex("{ val test = 2 ");
         let mut parser = Parser::new(tokens);
-        parser.block().expect_err("block parse did not failed");
+        parser.group().expect_err("block parse did not failed");
     }
 
     #[test]
     fn test_neighbour_blocks() {
         let tokens = lex("{ {} {} }");
         let mut parser = Parser::new(tokens);
-        parser.block().expect_err("block parse did not failed");
+        parser.group().expect_err("block parse did not failed");
     }
 
     #[test]
     fn test_block_not_started() {
         let tokens = lex(" val test = 2 }");
         let mut parser = Parser::new(tokens);
-        parser.block().expect_err("block parse did not failed");
+        parser.group().expect_err("block parse did not failed");
     }
 
     #[test]
@@ -149,13 +161,13 @@ mod tests {
         ");
         let mut parser = Parser::new(tokens);
         let ast = parser
-            .block()
+            .group()
             .expect("failed to parse block with nested blocks");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
             ast,
             Expr::Block(Block {
-                exprs: vec![
+                expressions: vec![
                     Expr::VarDeclaration(VarDeclaration {
                         kind: VarKind::Val,
                         var: TypedVariable {
@@ -163,7 +175,7 @@ mod tests {
                             ty: None,
                         },
                         initializer: Some(Box::from(Expr::Block(Block {
-                            exprs: vec![
+                            expressions: vec![
                                 Expr::VarDeclaration(VarDeclaration {
                                     kind: VarKind::Val,
                                     var: TypedVariable {
@@ -183,7 +195,7 @@ mod tests {
                         }))),
                     }),
                     Expr::Block(Block {
-                        exprs: vec![
+                        expressions: vec![
                             Expr::VarDeclaration(VarDeclaration {
                                 kind: VarKind::Val,
                                 var: TypedVariable {
@@ -234,12 +246,12 @@ mod tests {
         }\
         ");
         let mut parser = Parser::new(tokens);
-        let ast = parser.block().expect("failed to parse block");
+        let ast = parser.group().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
             ast,
             Expr::Block(Block {
-                exprs: vec![
+                expressions: vec![
                     Expr::VarDeclaration(VarDeclaration {
                         kind: VarKind::Var,
                         var: TypedVariable {
