@@ -46,7 +46,7 @@ impl<'a> Parser<'a> {
         }
 
         loop {
-            let expression = self.statement()?;
+            let expression = self.parse_next(eox().or(of_type(eog)))?;
             expressions.push(expression);
 
             //expects at least one newline or ';'

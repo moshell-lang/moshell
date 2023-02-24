@@ -267,7 +267,7 @@ pub(crate) fn eox() -> OrMove<
     //if it's escaped then it's not an EOX
     (of_type(BackSlash).and_then(escapable().negate()))
         //else it must be either new line or ';'
-        .or(of_types(&[NewLine, SemiColon, EndOfFile]))
+        .or(of_types(&[NewLine, SemiColon]))
 }
 
 ///a move that consumes a character if it can be escaped.

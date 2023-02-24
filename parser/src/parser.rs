@@ -1,12 +1,15 @@
-use crate::aspects::group_parser::GroupParser;
-use lexer::token::{Token, TokenType};
 
+use lexer::token::{Token, TokenType};
+use lexer::token::TokenType::EndOfFile;
+
+use crate::aspects::binary_operations_parser::BinaryOps;
 use crate::aspects::call_parser::CallParser;
+use crate::aspects::group_parser::GroupParser;
 use crate::aspects::literal_parser::LiteralParser;
 use crate::aspects::var_declaration_parser::VarDeclarationParser;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::moves::{eox, spaces, MoveOperations};
+use crate::moves::{bin_op, eox, Move, MoveOperations, of_type, spaces};
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -56,6 +59,7 @@ impl<'a> Parser<'a> {
             TokenType::DoubleQuote => self.call(),
             TokenType::Var => self.var_declaration(),
             TokenType::Val => self.var_declaration(),
+
             _ => self.expression(),
         }
     }
@@ -70,17 +74,47 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
+    //simple error report system, should be enhanced in later PRs
+    pub(crate) fn report_error(&self, err: &ParseError) {
+        eprintln!("ERROR !");
+        eprintln!("message: {}", err.message)
+    }
+
     /// Parses input tokens into an abstract syntax tree representation.
     pub(crate) fn parse(&mut self) -> ParseResult<Vec<Expr<'a>>> {
         let mut statements = Vec::new();
 
         while !self.cursor.is_at_end() {
-            statements.push(self.statement()?);
-            //ignore possible end of expressions
-            self.cursor.force(spaces().then(eox()), "expected end of expression")?;
+            let statement = self.parse_next(eox().or(of_type(EndOfFile)));
+            if let Err(error) = &statement {
+                self.report_error(error);
+            }
+            //consume end of expression
+            self.cursor.force(eox().or(of_type(EndOfFile)), "expected end of expression or file")?;
+            statements.push(statement?);
         }
 
         Ok(statements)
+    }
+
+    pub(crate) fn parse_next(&mut self, eox: impl Move) -> ParseResult<Expr<'a>> {
+        let statement = self.statement()?;
+
+        self.cursor.advance(spaces()); //consume spaces
+
+        //expect end of expression (then the statement is directly pushed) OR if not present,
+        // expect a binary operator to start a binary operation representation.
+        let eox = self.cursor.lookahead(eox).is_some();
+
+        if eox {
+            return Ok(statement);
+        }
+
+        if self.cursor.lookahead(bin_op()).is_none() {
+            return self.expected("wrong binary operator for left expression");
+        }
+        //consider the statement as left of the binary operator then parse the right branch.
+        self.binary_operator_right(statement)
     }
 
     pub(crate) fn expected<T>(&self, message: &str) -> ParseResult<T> {

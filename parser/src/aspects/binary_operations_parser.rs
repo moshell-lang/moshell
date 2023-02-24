@@ -1,4 +1,4 @@
-use lexer::token::{Token, TokenType};
+use lexer::token::TokenType;
 
 use crate::ast::Expr;
 use crate::ast::operation::{BinaryOperation, BinaryOperator};
@@ -6,11 +6,12 @@ use crate::moves::{bin_op, MoveOperations, spaces};
 use crate::parser::{Parser, ParseResult};
 
 pub(crate) trait BinaryOps<'p> {
-    fn value_expression(&mut self) -> ParseResult<Expr<'p>>;
+    fn binary_operator(&mut self) -> ParseResult<Expr<'p>>;
+    fn binary_operator_right(&mut self, left: Expr<'p>) -> ParseResult<Expr<'p>>;
 }
 
-fn to_bin_operator(token: Token) -> BinaryOperator {
-    match token.token_type {
+fn to_bin_operator(token_type: TokenType) -> BinaryOperator {
+    match token_type {
         TokenType::And => BinaryOperator::And,
         TokenType::Or => BinaryOperator::Or,
 
@@ -31,18 +32,21 @@ fn to_bin_operator(token: Token) -> BinaryOperator {
 }
 
 impl<'p> BinaryOps<'p> for Parser<'p> {
-    fn value_expression(&mut self) -> ParseResult<Expr<'p>> {
-        let left = self.expression()?;
+    fn binary_operator(&mut self) -> ParseResult<Expr<'p>> {
+        let left = self.statement()?;
+        self.binary_operator_right(left)
+    }
+
+    fn binary_operator_right(&mut self, left: Expr<'p>) -> ParseResult<Expr<'p>> {
         let operator = self.cursor.advance(spaces().then(bin_op()));
 
         if let Some(operator) = operator {
-            let right = self.expression()?;
-
-            return Ok(Expr::Binary(BinaryOperation {
+            let binary = Expr::Binary(BinaryOperation {
                 left: Box::new(left),
-                op: to_bin_operator(operator),
-                right: Box::new(right),
-            }))
+                op: to_bin_operator(operator.token_type),
+                right: Box::new(self.statement()?),
+            });
+            return self.binary_operator_right(binary);
         }
 
         return Ok(left);
@@ -51,38 +55,73 @@ impl<'p> BinaryOps<'p> for Parser<'p> {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use lexer::lexer::lex;
     use lexer::token::{Token, TokenType};
 
     use crate::ast::Expr;
+    use crate::ast::group::Parenthesis;
     use crate::ast::literal::{Literal, LiteralValue};
     use crate::ast::operation::{BinaryOperation, BinaryOperator};
     use crate::parse;
-    use pretty_assertions::assert_eq;
 
-    //#[test]
-    fn test_arithmetic_operation() {
-        let tokens = lex("7 - 1 * 8");
+    #[test]
+    fn is_left_associative() {
+        let tokens = lex("1 + 2 + 3");
+        let ast = parse(tokens).expect("parsing error");
+        assert_eq!(
+            ast,
+            vec![
+                Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::Binary(BinaryOperation {
+                        left: Box::new(Expr::Literal(Literal {
+                            token: Token::new(TokenType::IntLiteral, "1"),
+                            parsed: LiteralValue::Int(1),
+                        })),
+                        op: BinaryOperator::Plus,
+                        right: Box::new(Expr::Literal(Literal {
+                            token: Token::new(TokenType::IntLiteral, "2"),
+                            parsed: LiteralValue::Int(2),
+                        })),
+                    })),
+                    op: BinaryOperator::Plus,
+                    right: Box::new(Expr::Literal(Literal {
+                        token: Token::new(TokenType::IntLiteral, "3"),
+                        parsed: LiteralValue::Int(3),
+                    })),
+                }),
+            ]
+        )
+    }
+
+    #[test]
+    fn explicit_priority() {
+        let tokens = lex("1 + (2 + 3)");
         let ast = parse(tokens).expect("parsing error");
         assert_eq!(
             ast,
             vec![
                 Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "7"),
-                        parsed: LiteralValue::Int(7),
+                        token: Token::new(TokenType::IntLiteral, "1"),
+                        parsed: LiteralValue::Int(1),
                     })),
-                    op: BinaryOperator::Minus,
-                    right: Box::new(Expr::Binary(BinaryOperation {
-                        left: Box::new(Expr::Literal(Literal {
-                            token: Token::new(TokenType::Identifier, "1"),
-                            parsed: LiteralValue::Int(1),
-                        })),
-                        op: BinaryOperator::Times,
-                        right: Box::new(Expr::Literal(Literal {
-                            token: Token::new(TokenType::Identifier, "8"),
-                            parsed: LiteralValue::Int(8),
-                        })),
+                    op: BinaryOperator::Plus,
+                    right: Box::new(Expr::Parenthesis(Parenthesis {
+                        expressions: vec![
+                            Expr::Binary(BinaryOperation {
+                                left: Box::new(Expr::Literal(Literal {
+                                    token: Token::new(TokenType::IntLiteral, "2"),
+                                    parsed: LiteralValue::Int(2),
+                                })),
+                                op: BinaryOperator::Plus,
+                                right: Box::new(Expr::Literal(Literal {
+                                    token: Token::new(TokenType::IntLiteral, "3"),
+                                    parsed: LiteralValue::Int(3),
+                                })),
+                            }),
+                        ]
                     })),
                 })
             ]
