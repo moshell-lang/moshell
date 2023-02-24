@@ -9,6 +9,8 @@ pub trait CallParser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>>;
 }
 
+/// The end of a call expression
+
 impl<'a> CallParser<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
         let mut args = vec![self.expression()?];

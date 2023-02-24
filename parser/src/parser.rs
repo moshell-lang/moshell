@@ -70,14 +70,14 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    /// Parses the tokens into an abstract syntax tree.
+    /// Parses input tokens into an abstract syntax tree representation.
     pub(crate) fn parse(&mut self) -> ParseResult<Vec<Expr<'a>>> {
         let mut statements = Vec::new();
 
         while !self.cursor.is_at_end() {
             statements.push(self.statement()?);
             //ignore possible end of expressions
-            self.cursor.advance(spaces().then(eox()));
+            self.cursor.force(spaces().then(eox()), "expected end of expression")?;
         }
 
         Ok(statements)
