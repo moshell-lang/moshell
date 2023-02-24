@@ -217,7 +217,6 @@ mod tests {
                                         parsed: "call".into(),
                                     }),
                                 ],
-                                redirections: vec![],
                             }),
                         ]
                     }),

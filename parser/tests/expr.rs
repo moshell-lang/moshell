@@ -55,7 +55,6 @@ fn command_echo() {
                 parsed: "hello".into(),
             }),
         ],
-        redirections: vec![],
     })];
     assert_eq!(parsed, expected);
 }

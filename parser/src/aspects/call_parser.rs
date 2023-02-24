@@ -1,4 +1,4 @@
-use crate::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp};
+use crate::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use crate::ast::Expr;
 use crate::moves::{eox, next, of_type, of_types, space, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
@@ -26,10 +26,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
                     redirections.push(self.redirection()?);
                 }
                 TokenType::Pipe => {
-                    return self.pipeline(Call {
-                        arguments,
-                        redirections,
-                    });
+                    return self.pipeline(Call { arguments });
                 }
                 // Detect redirections without a specific file descriptor
                 _ if self
@@ -43,14 +40,18 @@ impl<'a> CallParser<'a> for Parser<'a> {
             };
         }
 
-        Ok(Expr::Call(Call {
-            arguments,
-            redirections,
-        }))
+        if redirections.is_empty() {
+            Ok(Expr::Call(Call { arguments }))
+        } else {
+            Ok(Expr::Redirected(Redirected {
+                expr: Box::new(Expr::Call(Call { arguments })),
+                redirections,
+            }))
+        }
     }
 
     fn pipeline(&mut self, first_call: Call<'a>) -> ParseResult<Expr<'a>> {
-        let mut commands = vec![first_call];
+        let mut commands = vec![Expr::Call(first_call)];
         // Continue as long as we have a pipe
         while self
             .cursor
@@ -58,9 +59,8 @@ impl<'a> CallParser<'a> for Parser<'a> {
             .is_some()
         {
             match self.call()? {
-                Expr::Call(call) => commands.push(call),
                 Expr::Pipeline(pipeline) => commands.extend(pipeline.commands),
-                _ => Err(self.mk_parse_error("Expected a command."))?,
+                call => commands.push(call),
             }
         }
         Ok(Expr::Pipeline(Pipeline { commands }))
@@ -129,7 +129,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::aspects::call_parser::CallParser;
-    use crate::ast::callable::{Call, Redir, RedirFd, RedirOp};
+    use crate::ast::callable::{Call, Redir, RedirFd, RedirOp, Redirected};
     use crate::ast::literal::Literal;
     use crate::ast::Expr;
     use crate::parse;
@@ -147,11 +147,13 @@ mod tests {
         let parsed = Parser::new(tokens).call().expect("Failed to parse");
         assert_eq!(
             parsed,
-            Expr::Call(Call {
-                arguments: vec![Expr::Literal(Literal {
-                    token: Token::new(TokenType::Identifier, "ls"),
-                    parsed: "ls".into(),
-                })],
+            Expr::Redirected(Redirected {
+                expr: Box::new(Expr::Call(Call {
+                    arguments: vec![Expr::Literal(Literal {
+                        token: Token::new(TokenType::Identifier, "ls"),
+                        parsed: "ls".into(),
+                    })]
+                })),
                 redirections: vec![Redir {
                     fd: RedirFd::Default,
                     operator: RedirOp::Write,
@@ -175,11 +177,13 @@ mod tests {
         let parsed = Parser::new(tokens).call().expect("Failed to parse");
         assert_eq!(
             parsed,
-            Expr::Call(Call {
-                arguments: vec![Expr::Literal(Literal {
-                    token: Token::new(TokenType::Identifier, "ls"),
-                    parsed: "ls".into(),
-                })],
+            Expr::Redirected(Redirected {
+                expr: Box::new(Expr::Call(Call {
+                    arguments: vec![Expr::Literal(Literal {
+                        token: Token::new(TokenType::Identifier, "ls"),
+                        parsed: "ls".into(),
+                    })]
+                })),
                 redirections: vec![Redir {
                     fd: RedirFd::Default,
                     operator: RedirOp::FdOut,
@@ -214,7 +218,6 @@ mod tests {
                             parsed: "regex".into(),
                         }),
                     ],
-                    redirections: vec![],
                 }),
                 Expr::Call(Call {
                     arguments: vec![
@@ -227,7 +230,6 @@ mod tests {
                             parsed: "test".into(),
                         }),
                     ],
-                    redirections: vec![],
                 }),
             ]
         )
@@ -266,7 +268,6 @@ mod tests {
                         parsed: "test".into(),
                     }),
                 ],
-                redirections: vec![],
             }),]
         )
     }

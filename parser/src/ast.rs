@@ -1,4 +1,4 @@
-use crate::ast::callable::{Call, FunDeclaration, Pipeline};
+use crate::ast::callable::{Call, FunDeclaration, Pipeline, Redirected};
 use crate::ast::literal::Literal;
 use crate::ast::operation::BinaryOperation;
 use crate::ast::statement::Block;
@@ -20,8 +20,8 @@ pub enum Expr<'a> {
     Call(Call<'a>),
     FunDeclaration(FunDeclaration<'a>),
     Literal(Literal<'a>),
-    //Grouping(Grouping<'a>),
     Pipeline(Pipeline<'a>),
+    Redirected(Redirected<'a>),
     Substitution(Substitution<'a>),
     TemplateString(Vec<Expr<'a>>),
     VarReference(VarReference<'a>),

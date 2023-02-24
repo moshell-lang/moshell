@@ -9,7 +9,11 @@ pub struct Call<'a> {
     ///
     /// A valid command must have at least one argument that is the command name.
     pub arguments: Vec<Expr<'a>>,
-    /// The redirections of the command.
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Redirected<'a> {
+    pub expr: Box<Expr<'a>>,
     pub redirections: Vec<Redir<'a>>,
 }
 
@@ -51,7 +55,7 @@ pub struct Pipeline<'a> {
     /// Elements of the pipeline.
     ///
     /// A valid pipeline must have at least one command.
-    pub commands: Vec<Call<'a>>,
+    pub commands: Vec<Expr<'a>>,
 }
 
 /// Redirection operators.
