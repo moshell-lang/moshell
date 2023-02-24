@@ -225,7 +225,6 @@ fn with_lexer_pipe_and_redirection() {
                     }],
                 },
             ],
-            negation: false,
         }),]
     );
 }
@@ -270,7 +269,6 @@ fn with_lexer_pipe_and_pipe() {
                     redirections: vec![],
                 },
             ],
-            negation: false,
         }),]
     );
 }

@@ -52,8 +52,6 @@ pub struct Pipeline<'a> {
     ///
     /// A valid pipeline must have at least one command.
     pub commands: Vec<Call<'a>>,
-    /// True if the pipeline begins with a `!`.
-    pub negation: bool,
 }
 
 /// Redirection operators.

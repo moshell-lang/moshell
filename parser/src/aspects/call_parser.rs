@@ -63,10 +63,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
                 _ => Err(self.mk_parse_error("Expected a command."))?,
             }
         }
-        Ok(Expr::Pipeline(Pipeline {
-            commands,
-            negation: false,
-        }))
+        Ok(Expr::Pipeline(Pipeline { commands }))
     }
 
     fn redirection(&mut self) -> ParseResult<Redir<'a>> {
