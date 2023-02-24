@@ -9,24 +9,22 @@ pub trait CallParser<'a> {
     /// Attempts to parse the next call expression
     fn call(&mut self) -> ParseResult<Expr<'a>>;
     /// Attempts to parse the next pipeline expression
-    fn pipeline(&mut self, first_call: Call<'a>) -> ParseResult<Expr<'a>>;
+    fn pipeline(&mut self, first_call: Expr<'a>) -> ParseResult<Expr<'a>>;
     /// Attempts to parse the next redirection
     fn redirection(&mut self) -> ParseResult<Redir<'a>>;
+    /// Associates any potential redirections to a redirectable expression
+    fn redirectable(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
 }
 
 impl<'a> CallParser<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
         let mut arguments = vec![self.expression()?];
-        let mut redirections = vec![];
         // End Of Expression \!(; + \n)
         while !self.cursor.is_at_end() && self.cursor.advance(spaces().then(eox())).is_none() {
             self.cursor.advance(space());
             match self.cursor.peek().token_type {
-                TokenType::Ampersand | TokenType::Less | TokenType::Greater => {
-                    redirections.push(self.redirection()?);
-                }
-                TokenType::Pipe => {
-                    return self.pipeline(Call { arguments });
+                TokenType::Ampersand | TokenType::Less | TokenType::Greater | TokenType::Pipe => {
+                    return self.redirectable(Expr::Call(Call { arguments }));
                 }
                 // Detect redirections without a specific file descriptor
                 _ if self
@@ -34,24 +32,16 @@ impl<'a> CallParser<'a> for Parser<'a> {
                     .lookahead(next().then(of_types(&[TokenType::Less, TokenType::Greater])))
                     .is_some() =>
                 {
-                    redirections.push(self.redirection()?)
+                    return self.redirectable(Expr::Call(Call { arguments }));
                 }
                 _ => arguments.push(self.expression()?),
             };
         }
-
-        if redirections.is_empty() {
-            Ok(Expr::Call(Call { arguments }))
-        } else {
-            Ok(Expr::Redirected(Redirected {
-                expr: Box::new(Expr::Call(Call { arguments })),
-                redirections,
-            }))
-        }
+        Ok(Expr::Call(Call { arguments }))
     }
 
-    fn pipeline(&mut self, first_call: Call<'a>) -> ParseResult<Expr<'a>> {
-        let mut commands = vec![Expr::Call(first_call)];
+    fn pipeline(&mut self, first_call: Expr<'a>) -> ParseResult<Expr<'a>> {
+        let mut commands = vec![first_call];
         // Continue as long as we have a pipe
         while self
             .cursor
@@ -123,6 +113,39 @@ impl<'a> CallParser<'a> for Parser<'a> {
             operator,
             operand,
         })
+    }
+
+    fn redirectable(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
+        let mut redirections = vec![];
+        self.cursor.advance(spaces());
+        while self.cursor.lookahead(eox()).is_none() {
+            match self.cursor.peek().token_type {
+                TokenType::Ampersand | TokenType::Less | TokenType::Greater => {
+                    redirections.push(self.redirection()?);
+                }
+                TokenType::Pipe => {
+                    return self.pipeline(expr);
+                }
+                // Detect redirections without a specific file descriptor
+                _ if self
+                    .cursor
+                    .lookahead(next().then(of_types(&[TokenType::Less, TokenType::Greater])))
+                    .is_some() =>
+                {
+                    redirections.push(self.redirection()?)
+                }
+                _ => break,
+            };
+            self.cursor.advance(spaces());
+        }
+        if redirections.is_empty() {
+            Ok(expr)
+        } else {
+            Ok(Expr::Redirected(Redirected {
+                expr: Box::new(expr),
+                redirections,
+            }))
+        }
     }
 }
 
