@@ -48,14 +48,15 @@ impl<'a> Parser<'a> {
 
     /// Parse a statement.
     /// a statement is usually on a single line
-    pub(crate) fn statement(&mut self) -> ParseResult<Expr<'a>> {
+    /// inputs a "end of statement" that determines where the statement should stop if possible.
+    pub(crate) fn statement(&mut self, eos: impl Move + Copy) -> ParseResult<Expr<'a>> {
         self.repos()?;
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
-            TokenType::Identifier => self.call(),
-            TokenType::Quote => self.call(),
-            TokenType::DoubleQuote => self.call(),
+            TokenType::Identifier => self.call(eos),
+            TokenType::Quote => self.call(eos),
+            TokenType::DoubleQuote => self.call(eos),
             TokenType::Var => self.var_declaration(),
             TokenType::Val => self.var_declaration(),
 
@@ -97,7 +98,7 @@ impl<'a> Parser<'a> {
     }
 
     pub(crate) fn parse_next(&mut self, eox: impl Move + Copy) -> ParseResult<Expr<'a>> {
-        let statement = self.statement()?;
+        let statement = self.statement(eox)?;
 
         self.cursor.advance(spaces()); //consume spaces
 

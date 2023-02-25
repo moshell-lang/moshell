@@ -1,40 +1,46 @@
 use crate::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use crate::ast::Expr;
-use crate::moves::{eox, next, of_type, of_types, space, spaces, MoveOperations};
+use crate::moves::{eox, next, of_type, of_types, space, spaces, MoveOperations, Move};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
+use lexer::token::TokenType::{And, Or};
 
 /// A parse aspect for command and function calls
 pub trait CallParser<'a> {
     /// Attempts to parse the next call expression
-    fn call(&mut self) -> ParseResult<Expr<'a>>;
+    /// inputs an "end of call" statements to determine where the call can stop.
+    fn call(&mut self, eoc: impl Move + Copy) -> ParseResult<Expr<'a>>;
     /// Attempts to parse the next pipeline expression
-    fn pipeline(&mut self, first_call: Expr<'a>) -> ParseResult<Expr<'a>>;
+    /// inputs an "end of call" statements to determine where the call can stop.
+    fn pipeline(&mut self, first_call: Expr<'a>, eoc: impl Move + Copy) -> ParseResult<Expr<'a>>;
     /// Attempts to parse the next redirection
     fn redirection(&mut self) -> ParseResult<Redir<'a>>;
     /// Associates any potential redirections to a redirectable expression
-    fn redirectable(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
-    /// Tests if the current and subsequent tokens can be part of a redirection expression
-    fn is_redirection_sign(&self) -> bool;
+    fn redirectable(&mut self, expr: Expr<'a>, eoc: impl Move + Copy) -> ParseResult<Expr<'a>>;
 }
 
 /// The end of a call expression
 
 impl<'a> CallParser<'a> for Parser<'a> {
-    fn call(&mut self) -> ParseResult<Expr<'a>> {
+    fn call(&mut self, eoc: impl Move + Copy) -> ParseResult<Expr<'a>> {
         let mut arguments = vec![self.expression()?];
-        // End Of Expression \!(; + \n)
-        while !self.cursor.is_at_end() && self.cursor.lookahead(spaces().then(eox())).is_none() {
-            self.cursor.advance(space());
-            if self.is_redirection_sign() {
-                return self.redirectable(Expr::Call(Call { arguments }));
+        // tests if this cursor hits caller-defined eoc or [And, Or] tokens
+        macro_rules! eoc_hit { () => {
+            self.cursor.lookahead(spaces().then(eoc.or(of_types(&[And, Or])))).is_some() };
+        }
+
+        while !self.cursor.is_at_end() && !eoc_hit!() {
+            self.cursor.advance(space()); //consume spaces
+
+            if self.is_at_redirection_sign() {
+                return self.redirectable(Expr::Call(Call { arguments }), eoc);
             }
             arguments.push(self.expression()?);
         }
         Ok(Expr::Call(Call { arguments }))
     }
 
-    fn pipeline(&mut self, first_call: Expr<'a>) -> ParseResult<Expr<'a>> {
+    fn pipeline(&mut self, first_call: Expr<'a>, eoc: impl Move + Copy) -> ParseResult<Expr<'a>> {
         let mut commands = vec![first_call];
         // Continue as long as we have a pipe
         while self
@@ -42,7 +48,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
             .advance(space().then(of_type(TokenType::Pipe)))
             .is_some()
         {
-            match self.call()? {
+            match self.call(eoc)? {
                 Expr::Pipeline(pipeline) => commands.extend(pipeline.commands),
                 call => commands.push(call),
             }
@@ -109,7 +115,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
         })
     }
 
-    fn redirectable(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
+    fn redirectable(&mut self, expr: Expr<'a>, eoc: impl Move + Copy) -> ParseResult<Expr<'a>> {
         let mut redirections = vec![];
         self.cursor.advance(spaces());
         while self.cursor.lookahead(eox()).is_none() {
@@ -118,7 +124,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
                     redirections.push(self.redirection()?);
                 }
                 TokenType::Pipe => {
-                    return self.pipeline(expr);
+                    return self.pipeline(expr, eoc);
                 }
                 // Detect redirections without a specific file descriptor
                 _ if self
@@ -141,8 +147,10 @@ impl<'a> CallParser<'a> for Parser<'a> {
             }))
         }
     }
+}
 
-    fn is_redirection_sign(&self) -> bool {
+impl<'a> Parser<'a> {
+    fn is_at_redirection_sign(&self) -> bool {
         match self.cursor.peek().token_type {
             TokenType::Ampersand | TokenType::Less | TokenType::Greater | TokenType::Pipe => true,
             _ => self
@@ -163,11 +171,12 @@ mod tests {
     use crate::parser::Parser;
     use lexer::lexer::lex;
     use lexer::token::{Token, TokenType};
+    use crate::moves::eox;
 
     #[test]
     fn redirection() {
         let tokens = lex("ls> /tmp/out");
-        let parsed = Parser::new(tokens).call().expect("Failed to parse");
+        let parsed = Parser::new(tokens).call(eox()).expect("Failed to parse");
         assert_eq!(
             parsed,
             Expr::Redirected(Redirected {
@@ -192,7 +201,7 @@ mod tests {
     #[test]
     fn dupe_fd() {
         let tokens = lex("ls>&2");
-        let parsed = Parser::new(tokens).call().expect("Failed to parse");
+        let parsed = Parser::new(tokens).call(eox()).expect("Failed to parse");
         assert_eq!(
             parsed,
             Expr::Redirected(Redirected {

@@ -34,7 +34,7 @@ fn to_bin_operator(token_type: TokenType) -> BinaryOperator {
 
 impl<'p> BinaryOps<'p> for Parser<'p> {
     fn binary_operator(&mut self, eox: impl Move + Copy) -> ParseResult<Expr<'p>> {
-        let left = self.statement()?;
+        let left = self.statement(eox)?;
         self.binary_operator_right(left, eox)
     }
 
@@ -61,12 +61,11 @@ impl<'p> Parser<'p> {
         self.cursor
             .lookahead(spaces().then(bin_op()))
             .map(|t| (current_priority.saturating_sub(to_bin_operator(t.token_type).priority())))
-            .map(|comp| comp <= 0)
+            .map(|comp| comp < 0)
             .unwrap_or(false)
     }
 
-    fn binary_operation_internal(&mut self, left: Expr<'p>, eox: impl Move + Copy) -> ParseResult<Expr<'p>>
-    {
+    fn binary_operation_internal(&mut self, left: Expr<'p>, eox: impl Move + Copy) -> ParseResult<Expr<'p>> {
         //current expressions' infix operator
         let operator = self.cursor
             .advance(spaces().then(bin_op()))
@@ -74,35 +73,34 @@ impl<'p> Parser<'p> {
 
         if let Some(operator) = operator {
             let operator_priority = operator.priority();
-            let right = self.statement()?;
+            let right = self.statement(eox)?;
 
             let priority_comparison = self.cursor
                 .lookahead(spaces().then(bin_op()))
                 .map(|t| to_bin_operator(t.token_type).priority() - operator_priority)
                 .unwrap_or_default();
 
-            if priority_comparison < 0 {
-                return Ok(Expr::Binary(BinaryOperation {
+            let result = if priority_comparison < 0 {
+                Ok(Expr::Binary(BinaryOperation {
                     left: Box::new(left),
                     op: operator,
                     right: Box::new(right),
                 }))
-            }
-
-            //current and next operator have same priority
-            if priority_comparison == 0 {
-                return self.binary_op_right_internal(Expr::Binary(BinaryOperation {
+            } else if priority_comparison == 0 {
+                self.binary_op_right_internal(Expr::Binary(BinaryOperation {
                     left: Box::new(left),
                     op: operator,
                     right: Box::new(right),
-                }), eox, operator_priority);
-            }
+                }), eox, operator_priority)
+            } else {
+                Ok(Expr::Binary(BinaryOperation {
+                    left: Box::new(left),
+                    op: operator,
+                    right: Box::new(self.binary_op_right_internal(right, eox, operator_priority)?),
+                }))
+            };
 
-            return Ok(Expr::Binary(BinaryOperation {
-                left: Box::new(left),
-                op: operator,
-                right: Box::new(self.binary_op_right_internal(right, eox, operator_priority)?),
-            }));
+            return result;
         }
 
         return Ok(left);
@@ -116,6 +114,7 @@ mod tests {
 
     use lexer::lexer::lex;
     use lexer::token::{Token, TokenType};
+    use crate::ast::callable::Call;
 
     use crate::ast::Expr;
     use crate::ast::group::Parenthesis;
@@ -125,27 +124,41 @@ mod tests {
 
     #[test]
     fn is_left_associative() {
-        let tokens = lex("1 + 2 + 3");
+        let tokens = lex("1 && 2 || 3 || 4 && 5");
         let ast = parse(tokens).expect("parsing error");
         assert_eq!(
             ast,
             vec![
                 Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Binary(BinaryOperation {
-                        left: Box::new(Expr::Literal(Literal {
-                            token: Token::new(TokenType::IntLiteral, "1"),
-                            parsed: LiteralValue::Int(1),
+                        left: Box::new(Expr::Binary(BinaryOperation {
+                            left: Box::new(Expr::Binary(BinaryOperation {
+                                left: Box::new(Expr::Literal(Literal {
+                                    token: Token::new(TokenType::IntLiteral, "1"),
+                                    parsed: LiteralValue::Int(1),
+                                })),
+                                op: BinaryOperator::And,
+                                right: Box::new(Expr::Literal(Literal {
+                                    token: Token::new(TokenType::IntLiteral, "2"),
+                                    parsed: LiteralValue::Int(2),
+                                })),
+                            })),
+                            op: BinaryOperator::Or,
+                            right: Box::new(Expr::Literal(Literal {
+                                token: Token::new(TokenType::IntLiteral, "3"),
+                                parsed: LiteralValue::Int(3),
+                            })),
                         })),
-                        op: BinaryOperator::Plus,
+                        op: BinaryOperator::Or,
                         right: Box::new(Expr::Literal(Literal {
-                            token: Token::new(TokenType::IntLiteral, "2"),
-                            parsed: LiteralValue::Int(2),
+                            token: Token::new(TokenType::IntLiteral, "4"),
+                            parsed: LiteralValue::Int(4),
                         })),
                     })),
-                    op: BinaryOperator::Plus,
+                    op: BinaryOperator::And,
                     right: Box::new(Expr::Literal(Literal {
-                        token: Token::new(TokenType::IntLiteral, "3"),
-                        parsed: LiteralValue::Int(3),
+                        token: Token::new(TokenType::IntLiteral, "5"),
+                        parsed: LiteralValue::Int(5),
                     })),
                 }),
             ]
@@ -287,69 +300,99 @@ mod tests {
                             parsed: LiteralValue::Int(1),
                         }))
                     }))
-                })
-                ,
-
+                }),
             ]
         )
     }
 
-    /* //FIXME wait for PR#15 to be merged
-        #[test]
-        fn test_exitcode_operators() {
-            let tokens = lex("(echo hello && echo world) || echo damn");
-            let ast = parse(tokens).expect("parsing error");
-            assert_eq!(
-                ast,
-                vec![
-                    Expr::Binary(BinaryOperation {
-                        left: Box::new(Expr::Parenthesis(Parenthesis {
-                            expressions: vec![
-                                Expr::Binary(BinaryOperation {
-                                    left: Box::new(Expr::Call(Call {
-                                        arguments: vec![
-                                            Expr::Literal(Literal {
-                                                token: Token::new(TokenType::Identifier, "echo"),
-                                                parsed: LiteralValue::String("echo".to_string()),
-                                            }),
-                                            Expr::Literal(Literal {
-                                                token: Token::new(TokenType::Identifier, "hello"),
-                                                parsed: LiteralValue::String("hello".to_string()),
-                                            }),
-                                        ],
-                                    })),
-                                    op: BinaryOperator::And,
-                                    right: Box::new(Expr::Call(Call {
-                                        arguments: vec![
-                                            Expr::Literal(Literal {
-                                                token: Token::new(TokenType::Identifier, "echo"),
-                                                parsed: LiteralValue::String("echo".to_string()),
-                                            }),
-                                            Expr::Literal(Literal {
-                                                token: Token::new(TokenType::Identifier, "world"),
-                                                parsed: LiteralValue::String("world".to_string()),
-                                            }),
-                                        ],
-                                    })),
-                                })
-                            ]
-                        })),
-                        op: BinaryOperator::Or,
-                        right: Box::new(Expr::Call(Call {
-                            arguments: vec![
-                                Expr::Literal(Literal {
-                                    token: Token::new(TokenType::Identifier, "echo"),
-                                    parsed: LiteralValue::String("echo".to_string()),
-                                }),
-                                Expr::Literal(Literal {
-                                    token: Token::new(TokenType::Identifier, "damn"),
-                                    parsed: LiteralValue::String("damn".to_string()),
-                                }),
-                            ],
-                        })),
-                    })
-                ]
-            )
-        }
-     */
+    #[test]
+    fn bin_expression_in_group() {
+        let tokens = lex("(1 + 2 * 3)");
+        let ast = parse(tokens).expect("parsing error");
+        assert_eq!(
+            ast,
+            vec![
+                Expr::Parenthesis(Parenthesis {
+                    expressions: vec![
+                        Expr::Binary(BinaryOperation {
+                            left: Box::new(Expr::Literal(Literal {
+                                token: Token::new(TokenType::IntLiteral, "1"),
+                                parsed: LiteralValue::Int(1),
+                            })),
+                            op: BinaryOperator::Plus,
+                            right: Box::new(Expr::Binary(BinaryOperation {
+                                left: Box::new(Expr::Literal(Literal {
+                                    token: Token::new(TokenType::IntLiteral, "2"),
+                                    parsed: LiteralValue::Int(2),
+                                })),
+                                op: BinaryOperator::Times,
+                                right: Box::new(Expr::Literal(Literal {
+                                    token: Token::new(TokenType::IntLiteral, "3"),
+                                    parsed: LiteralValue::Int(3),
+                                })),
+                            })),
+                        })
+                    ]
+                })
+            ]
+        )
+    }
+
+
+    #[test]
+    fn test_exitcode_operators() {
+        let tokens = lex("(echo hello && echo world) || echo damn");
+        let ast = parse(tokens).expect("parsing error");
+        assert_eq!(
+            ast,
+            vec![
+                Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::Parenthesis(Parenthesis {
+                        expressions: vec![
+                            Expr::Binary(BinaryOperation {
+                                left: Box::new(Expr::Call(Call {
+                                    arguments: vec![
+                                        Expr::Literal(Literal {
+                                            token: Token::new(TokenType::Identifier, "echo"),
+                                            parsed: LiteralValue::String("echo".to_string()),
+                                        }),
+                                        Expr::Literal(Literal {
+                                            token: Token::new(TokenType::Identifier, "hello"),
+                                            parsed: LiteralValue::String("hello".to_string()),
+                                        }),
+                                    ],
+                                })),
+                                op: BinaryOperator::And,
+                                right: Box::new(Expr::Call(Call {
+                                    arguments: vec![
+                                        Expr::Literal(Literal {
+                                            token: Token::new(TokenType::Identifier, "echo"),
+                                            parsed: LiteralValue::String("echo".to_string()),
+                                        }),
+                                        Expr::Literal(Literal {
+                                            token: Token::new(TokenType::Identifier, "world"),
+                                            parsed: LiteralValue::String("world".to_string()),
+                                        }),
+                                    ],
+                                })),
+                            })
+                        ]
+                    })),
+                    op: BinaryOperator::Or,
+                    right: Box::new(Expr::Call(Call {
+                        arguments: vec![
+                            Expr::Literal(Literal {
+                                token: Token::new(TokenType::Identifier, "echo"),
+                                parsed: LiteralValue::String("echo".to_string()),
+                            }),
+                            Expr::Literal(Literal {
+                                token: Token::new(TokenType::Identifier, "damn"),
+                                parsed: LiteralValue::String("damn".to_string()),
+                            }),
+                        ],
+                    })),
+                })
+            ]
+        )
+    }
 }
