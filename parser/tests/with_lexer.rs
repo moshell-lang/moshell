@@ -335,3 +335,40 @@ fn with_lexer_substitution() {
         })]
     );
 }
+
+#[test]
+fn with_lexer_substitution_in_substitution() {
+    let tokens = lex("echo $( ls $(pwd) )");
+    let parsed = parse(tokens).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Call(Call {
+            arguments: vec![
+                Expr::Literal(Literal {
+                    token: Token::new(TokenType::Identifier, "echo"),
+                    parsed: "echo".into(),
+                }),
+                Expr::Substitution(Substitution {
+                    expr: Box::new(Expr::Call(Call {
+                        arguments: vec![
+                            Expr::Literal(Literal {
+                                token: Token::new(TokenType::Identifier, "ls"),
+                                parsed: "ls".into(),
+                            }),
+                            Expr::Substitution(Substitution {
+                                expr: Box::new(Expr::Call(Call {
+                                    arguments: vec![Expr::Literal(Literal {
+                                        token: Token::new(TokenType::Identifier, "pwd"),
+                                        parsed: "pwd".into(),
+                                    })],
+                                })),
+                                kind: SubstitutionKind::Capture,
+                            }),
+                        ],
+                    })),
+                    kind: SubstitutionKind::Capture,
+                }),
+            ],
+        })]
+    );
+}

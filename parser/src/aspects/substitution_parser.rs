@@ -1,7 +1,7 @@
 use crate::aspects::var_reference_parser::VarReferenceParser;
 use crate::ast::substitution::{Substitution, SubstitutionKind};
 use crate::ast::Expr;
-use crate::moves::of_type;
+use crate::moves::{of_type, space, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 
@@ -21,7 +21,7 @@ impl<'a> SubstitutionParser<'a> for Parser<'a> {
         {
             let expr = Box::new(self.statement()?);
             self.cursor.force(
-                of_type(TokenType::RoundedRightBracket),
+                space().then(of_type(TokenType::RoundedRightBracket)),
                 "Expected closing bracket.",
             )?;
             Ok(Expr::Substitution(Substitution {
@@ -31,5 +31,25 @@ impl<'a> SubstitutionParser<'a> for Parser<'a> {
         } else {
             self.var_reference()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::aspects::substitution_parser::SubstitutionParser;
+    use crate::parser::{ParseError, Parser};
+    use lexer::lexer::lex;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn unterminated_substitution() {
+        let tokens = lex("$(echo");
+        let ast = Parser::new(tokens).substitution();
+        assert_eq!(
+            ast,
+            Err(ParseError {
+                message: "Expected closing bracket.".to_string()
+            })
+        );
     }
 }
