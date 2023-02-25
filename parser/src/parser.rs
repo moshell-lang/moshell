@@ -1,6 +1,6 @@
 use lexer::token::{Token, TokenType};
 use lexer::token::TokenType::EndOfFile;
-use crate::aspects::binary_operation_parser::{ARITHMETICS, BinaryOperationsParser, BOOLEANS, COMPARISONS};
+use crate::aspects::binary_operation_parser::{BinaryOperationsParser, BOOLEANS};
 
 use crate::aspects::call_parser::CallParser;
 use crate::aspects::group_parser::GroupParser;
@@ -8,8 +8,9 @@ use crate::aspects::literal_parser::LiteralParser;
 use crate::aspects::redirection_parser::RedirectionParser;
 use crate::aspects::var_declaration_parser::VarDeclarationParser;
 use crate::ast::Expr;
+use crate::ast::operation::BinaryOperator;
 use crate::cursor::ParserCursor;
-use crate::moves::{bin_op, custom_eox, eox, Move, next, of_type, spaces};
+use crate::moves::{custom_eox, eox, Move, next, of_type, predicate, spaces};
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -34,14 +35,14 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses an expression.
-    pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
+    pub(crate) fn expression(&mut self, allowed_ops: &[BinaryOperator]) -> ParseResult<Expr<'a>> {
         self.repos()?;
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
             TokenType::IntLiteral | TokenType::FloatLiteral => self.literal(),
             TokenType::Quote => self.string_literal(),
-            TokenType::CurlyLeftBracket | TokenType::RoundedLeftBracket => self.group(),
+            TokenType::CurlyLeftBracket | TokenType::RoundedLeftBracket => self.group(allowed_ops),
             TokenType::DoubleQuote => self.templated_string_literal(),
             _ => self.argument(),
         }
@@ -49,19 +50,18 @@ impl<'a> Parser<'a> {
 
     /// Parse a statement.
     /// a statement is usually on a single line
-    /// inputs a "end of statement" that determines where the statement should stop if possible.
-    pub(crate) fn statement(&mut self, eos: impl Move + Copy) -> ParseResult<Expr<'a>> {
+    pub(crate) fn statement(&mut self, allowed_ops: &[BinaryOperator]) -> ParseResult<Expr<'a>> {
         self.repos()?;
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
-            TokenType::Identifier => self.call(eos),
-            TokenType::Quote => self.call(eos),
-            TokenType::DoubleQuote => self.call(eos),
+            TokenType::Identifier => self.call(),
+            TokenType::Quote => self.call(),
+            TokenType::DoubleQuote => self.call(),
             TokenType::Var => self.var_declaration(),
             TokenType::Val => self.var_declaration(),
 
-            _ => self.expression(),
+            _ => self.expression(allowed_ops),
         }
     }
 
@@ -93,7 +93,7 @@ impl<'a> Parser<'a> {
         let mut statements = Vec::new();
 
         while !self.cursor.is_at_end() {
-            let statement = self.parse_next(eox());
+            let statement = self.parse_next(eox(), BOOLEANS);
 
             if let Err(error) = &statement {
                 self.report_error(error);
@@ -109,8 +109,10 @@ impl<'a> Parser<'a> {
         Ok(statements)
     }
 
-    pub(crate) fn parse_next(&mut self, eox: impl Move + Copy) -> ParseResult<Expr<'a>> {
-        let statement = self.statement(eox)?;
+    pub(crate) fn parse_next(&mut self,
+                             eox: impl Move + Copy,
+                             allowed_ops: &[BinaryOperator]) -> ParseResult<Expr<'a>> {
+        let statement = self.statement(allowed_ops)?;
 
         self.cursor.advance(spaces()); //consume spaces
 
@@ -124,22 +126,25 @@ impl<'a> Parser<'a> {
 
         //there's a token at cursors' current pos
         //let's try if we can continue to parse the expression as a left-handed expression.
-        self.parse_next_right(eox, statement)
+        self.parse_next_right(statement, allowed_ops)
     }
 
-    fn parse_next_right(&mut self, eox: impl Move + Copy, left: Expr<'a>) -> ParseResult<Expr<'a>> {
+    fn parse_next_right(&mut self, left: Expr<'a>, allowed_ops: &[BinaryOperator]) -> ParseResult<Expr<'a>> {
         //can be a boolean operation expression
-        if self.cursor.lookahead(bin_op()).is_some() {
-            return self.binary_operation_right(left, eox, [BOOLEANS, ARITHMETICS, COMPARISONS].concat().leak());
+        if self.cursor
+            .lookahead(predicate(|t| BinaryOperator::convert_bin_operator(t.token_type)
+                .and_then(|t| Ok(allowed_ops.contains(&t)))
+                .unwrap_or(false))).is_some() {
+            return self.binary_operation_right(left, allowed_ops);
         }
 
         //can be a std or pipe redirection
         if self.is_at_redirection_sign() {
-            return self.redirectable(left, eox);
+            return self.redirectable(left);
         }
 
-        //fallback
-        self.expected("invalid binary operator")
+
+        self.expected("invalid infix operator")
     }
 
     pub(crate) fn expected<T>(&self, message: &str) -> ParseResult<T> {

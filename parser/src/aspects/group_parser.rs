@@ -1,6 +1,7 @@
 use lexer::token::TokenType;
 use crate::ast::Expr;
 use crate::ast::group::{Block, Parenthesis};
+use crate::ast::operation::BinaryOperator;
 
 use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations, custom_eox};
 use crate::parser::{ParseResult, Parser};
@@ -8,21 +9,21 @@ use crate::parser::{ParseResult, Parser};
 ///A parser aspect for parsing block expressions
 pub trait GroupParser<'a> {
     ///Attempts to parse next group expression (a block or parenthesis expression).
-    fn group(&mut self) -> ParseResult<Expr<'a>>;
+    fn group(&mut self, allowed_ops: &[BinaryOperator]) -> ParseResult<Expr<'a>>;
 }
 
 impl<'a> GroupParser<'a> for Parser<'a> {
-    fn group(&mut self) -> ParseResult<Expr<'a>> {
+    fn group(&mut self, allowed_ops: &[BinaryOperator]) -> ParseResult<Expr<'a>> {
         let pivot = self.cursor.peek().token_type;
         match pivot {
             // start of a parenthesis expression ('(')
             TokenType::RoundedLeftBracket => Ok(Expr::Parenthesis(Parenthesis {
-                expressions: self.sub_exprs(TokenType::RoundedRightBracket)?,
+                expressions: self.sub_exprs(TokenType::RoundedRightBracket, allowed_ops)?,
             })),
 
             // start of a block expression ('{')
             TokenType::CurlyLeftBracket => Ok(Expr::Block(Block {
-                expressions: self.sub_exprs(TokenType::CurlyRightBracket)?,
+                expressions: self.sub_exprs(TokenType::CurlyRightBracket, allowed_ops)?,
             })),
 
             _ => self.expected("unknown start of group expression"),
@@ -32,7 +33,7 @@ impl<'a> GroupParser<'a> for Parser<'a> {
 
 impl<'a> Parser<'a> {
     ///parses sub expressions of a grouping expression
-    fn sub_exprs(&mut self, eog: TokenType) -> ParseResult<Vec<Expr<'a>>> {
+    fn sub_exprs(&mut self, eog: TokenType, allowed_ops: &[BinaryOperator]) -> ParseResult<Vec<Expr<'a>>> {
         self.cursor.next()?; //consume group start token
 
         let mut expressions: Vec<Expr<'a>> = Vec::new();
@@ -46,7 +47,7 @@ impl<'a> Parser<'a> {
         }
 
         loop {
-            let expression = self.parse_next(custom_eox(of_type(eog)))?;
+            let expression = self.parse_next(custom_eox(of_type(eog)), allowed_ops)?;
             expressions.push(expression);
 
             //expects at least one newline or ';'
@@ -90,7 +91,7 @@ mod tests {
     fn test_empty_blocks() {
         let tokens = lex("{{{}; {}}}");
         let mut parser = Parser::new(tokens);
-        let ast = parser.group().expect("failed to parse block");
+        let ast = parser.group(&[]).expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
             ast,
@@ -114,7 +115,7 @@ mod tests {
     fn test_empty_blocks_empty_content() {
         let tokens = lex("{;;{;;;{;;}; {\n\n};}}");
         let mut parser = Parser::new(tokens);
-        let ast = parser.group().expect("failed to parse block");
+        let ast = parser.group(&[]).expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
             ast,
@@ -137,21 +138,21 @@ mod tests {
     fn test_block_not_ended() {
         let tokens = lex("{ val test = 2 ");
         let mut parser = Parser::new(tokens);
-        parser.group().expect_err("block parse did not failed");
+        parser.group(&[]).expect_err("block parse did not failed");
     }
 
     #[test]
     fn test_neighbour_blocks() {
         let tokens = lex("{ {} {} }");
         let mut parser = Parser::new(tokens);
-        parser.group().expect_err("block parse did not failed");
+        parser.group(&[]).expect_err("block parse did not failed");
     }
 
     #[test]
     fn test_block_not_started() {
         let tokens = lex(" val test = 2 }");
         let mut parser = Parser::new(tokens);
-        parser.group().expect_err("block parse did not failed");
+        parser.group(&[]).expect_err("block parse did not failed");
     }
 
     #[test]
@@ -167,7 +168,7 @@ mod tests {
         ");
         let mut parser = Parser::new(tokens);
         let ast = parser
-            .group()
+            .group(&[])
             .expect("failed to parse block with nested blocks");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
@@ -245,7 +246,7 @@ mod tests {
         }\
         ");
         let mut parser = Parser::new(tokens);
-        let ast = parser.group().expect("failed to parse block");
+        let ast = parser.group(&[]).expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
             ast,

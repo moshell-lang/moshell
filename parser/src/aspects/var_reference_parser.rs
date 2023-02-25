@@ -11,6 +11,7 @@ pub trait VarReferenceParser<'a> {
 }
 
 impl<'a> VarReferenceParser<'a> for Parser<'a> {
+
     /// Parses a variable reference.
     fn var_reference(&mut self) -> ParseResult<Expr<'a>> {
         let cursor = &mut self.cursor;

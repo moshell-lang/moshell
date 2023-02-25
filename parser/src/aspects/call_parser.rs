@@ -1,35 +1,34 @@
 use lexer::token::TokenType::{And, Or};
+use crate::aspects::binary_operation_parser::BOOLEANS;
 use crate::aspects::redirection_parser::RedirectionParser;
 use crate::ast::callable::Call;
 use crate::ast::Expr;
-use crate::moves::{Move, custom_eox, of_types, space, spaces, MoveOperations};
+use crate::moves::{custom_eox, of_types, space, spaces, MoveOperations};
 use crate::parser::{Parser, ParseResult};
 
 /// A parse aspect for command and function calls
 pub trait CallParser<'a> {
     /// Attempts to parse the next call expression
-    /// inputs an "end of call" statements to determine where the call can stop.
-    fn call(&mut self, eoc: impl Move + Copy) -> ParseResult<Expr<'a>>;
+    fn call(&mut self) -> ParseResult<Expr<'a>>;
 
 }
 
 /// The end of a call expression
-
 impl<'a> CallParser<'a> for Parser<'a> {
-    fn call(&mut self, eoc: impl Move + Copy) -> ParseResult<Expr<'a>> {
-        let mut arguments = vec![self.expression()?];
+    fn call(&mut self) -> ParseResult<Expr<'a>> {
+        let mut arguments = vec![self.expression(BOOLEANS)?];
         // tests if this cursor hits caller-defined eoc or [And, Or] tokens
         macro_rules! eoc_hit { () => {
-            self.cursor.lookahead(spaces().then(custom_eox(eoc.or(of_types(&[And, Or]))))).is_some() };
+            self.cursor.lookahead(spaces().then(custom_eox(of_types(&[And, Or])))).is_some() };
         }
 
         while !self.cursor.is_at_end() && !eoc_hit!() {
             self.cursor.advance(space()); //consume spaces
 
             if self.is_at_redirection_sign() {
-                return self.redirectable(Expr::Call(Call { arguments }), eoc);
+                return self.redirectable(Expr::Call(Call { arguments }));
             }
-            arguments.push(self.expression()?);
+            arguments.push(self.expression(BOOLEANS)?);
         }
         Ok(Expr::Call(Call { arguments }))
     }

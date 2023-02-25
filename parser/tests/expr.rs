@@ -5,6 +5,7 @@ use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use parser::ast::Expr;
 use parser::parse;
 use pretty_assertions::assert_eq;
+use lexer::lexer::lex;
 
 #[test]
 fn variable_type_and_initializer() {
@@ -57,4 +58,9 @@ fn command_echo() {
         ],
     })];
     assert_eq!(parsed, expected);
+}
+
+#[test]
+fn redirection_ambiguity() {
+    let tokens = lex("val a = 7 + 9 + $b > 7");
 }

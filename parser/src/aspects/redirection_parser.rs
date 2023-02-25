@@ -1,26 +1,27 @@
 use lexer::token::TokenType;
 use lexer::token::TokenType::{BackSlash, DoubleQuote, Quote};
+use crate::aspects::binary_operation_parser::BOOLEANS;
 use crate::aspects::call_parser::CallParser;
 use crate::ast::callable::{Pipeline, Redir, Redirected, RedirFd, RedirOp};
 use crate::ast::Expr;
-use crate::moves::{Move, MoveOperations, next, of_type, of_types, space, spaces};
+use crate::moves::{eox,  MoveOperations, next, of_type, of_types, space, spaces};
 use crate::parser::{Parser, ParseResult};
 
 pub(crate) trait RedirectionParser<'a> {
     /// Attempts to parse the next pipeline expression
     /// inputs an "end of call" statements to determine where the call can stop.
-    fn pipeline(&mut self, first_call: Expr<'a>, eoc: impl Move + Copy) -> ParseResult<Expr<'a>>;
+    fn pipeline(&mut self, first_call: Expr<'a>) -> ParseResult<Expr<'a>>;
     /// Attempts to parse the next redirection
     fn redirection(&mut self) -> ParseResult<Redir<'a>>;
     /// Associates any potential redirections to a redirectable expression
-    fn redirectable(&mut self, expr: Expr<'a>, eoc: impl Move + Copy) -> ParseResult<Expr<'a>>;
+    fn redirectable(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
 
     ///return true if parser is currently on a redirection sign.
     fn is_at_redirection_sign(&self) -> bool;
 }
 
 impl<'a> RedirectionParser<'a> for Parser<'a> {
-    fn pipeline(&mut self, first_call: Expr<'a>, eoc: impl Move + Copy) -> ParseResult<Expr<'a>> {
+    fn pipeline(&mut self, first_call: Expr<'a>) -> ParseResult<Expr<'a>> {
         let mut commands = vec![first_call];
         // Continue as long as we have a pipe
         while self
@@ -28,7 +29,7 @@ impl<'a> RedirectionParser<'a> for Parser<'a> {
             .advance(space().then(of_type(TokenType::Pipe)))
             .is_some()
         {
-            match self.call(eoc)? {
+            match self.call()? {
                 Expr::Pipeline(pipeline) => commands.extend(pipeline.commands),
                 call => commands.push(call),
             }
@@ -87,7 +88,7 @@ impl<'a> RedirectionParser<'a> for Parser<'a> {
             };
         }
 
-        let operand = self.expression()?;
+        let operand = self.expression(BOOLEANS)?;
         Ok(Redir {
             fd,
             operator,
@@ -95,18 +96,18 @@ impl<'a> RedirectionParser<'a> for Parser<'a> {
         })
     }
 
-    fn redirectable(&mut self, expr: Expr<'a>, eoc: impl Move + Copy) -> ParseResult<Expr<'a>> {
+    fn redirectable(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
         let mut redirections = vec![];
         self.cursor.advance(spaces());
 
-        while self.cursor.lookahead(eoc).is_none() {
+        while self.cursor.lookahead(eox()).is_none() {
             match self.cursor.peek().token_type {
                 TokenType::Ampersand | TokenType::Less | TokenType::Greater => {
                     redirections.push(self.redirection()?);
                 }
 
                 TokenType::Pipe => {
-                    return self.pipeline(expr, eoc);
+                    return self.pipeline(expr);
                 }
                 // Detect redirections without a specific file descriptor
                 _ if self
@@ -160,13 +161,12 @@ mod test {
     use crate::ast::Expr;
     use crate::ast::group::Block;
     use crate::ast::literal::{Literal, LiteralValue};
-    use crate::moves::eox;
     use crate::parse;
     use crate::parser::Parser;
 
     #[test]
     fn expr_redirection() {
-        let tokens = lex("{ls; cd} > /tmp/out");
+        let tokens = lex("{ls; cd;} > /tmp/out");
         let parsed = parse(tokens).expect("Failed to parse");
         assert_eq!(
             parsed,
@@ -210,7 +210,7 @@ mod test {
     #[test]
     fn call_redirection() {
         let tokens = lex("ls> /tmp/out");
-        let parsed = Parser::new(tokens).call(eox()).expect("Failed to parse");
+        let parsed = Parser::new(tokens).call().expect("Failed to parse");
         assert_eq!(
             parsed,
             Expr::Redirected(Redirected {
@@ -235,7 +235,7 @@ mod test {
     #[test]
     fn dupe_fd() {
         let tokens = lex("ls>&2");
-        let parsed = Parser::new(tokens).call(eox()).expect("Failed to parse");
+        let parsed = Parser::new(tokens).call().expect("Failed to parse");
         assert_eq!(
             parsed,
             Expr::Redirected(Redirected {

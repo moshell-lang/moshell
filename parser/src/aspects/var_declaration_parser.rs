@@ -1,8 +1,9 @@
 use lexer::token::TokenType;
+use crate::aspects::binary_operation_parser::ARITHMETICS;
 
 use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use crate::ast::Expr;
-use crate::moves::{of_type, of_types, space, spaces, MoveOperations};
+use crate::moves::{of_type, of_types, space, spaces, MoveOperations, eox};
 use crate::parser::{ParseResult, Parser};
 
 pub trait VarDeclarationParser<'a> {
@@ -45,7 +46,7 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
                 None
             }
 
-            Some(_) => Some(self.expression()?),
+            Some(_) => Some(self.parse_next(eox(), ARITHMETICS)?),
         };
 
         Ok(Expr::VarDeclaration(VarDeclaration {
@@ -59,12 +60,14 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::literal::Literal;
+    use crate::ast::literal::{Literal, LiteralValue};
     use crate::ast::Expr;
     use crate::parser::Parser;
     use lexer::lexer::lex;
     use lexer::token::Token;
     use pretty_assertions::assert_eq;
+    use crate::ast::operation::BinaryOperation;
+    use crate::ast::operation::BinaryOperator::Plus;
 
     #[test]
     fn val_declaration() {
@@ -129,6 +132,35 @@ mod tests {
                 initializer: Some(Box::from(Expr::Literal(Literal {
                     token: Token::new(TokenType::Quote, "'"),
                     parsed: "hello $test".into(),
+                }))),
+            })
+        )
+    }
+
+    #[test]
+    fn val_declaration_arithmetic_expr() {
+        let tokens = lex("val variable = 7 + 2");
+        let ast = Parser::new(tokens)
+            .var_declaration()
+            .expect("failed to parse");
+        assert_eq!(
+            ast,
+            Expr::VarDeclaration(VarDeclaration {
+                kind: VarKind::Val,
+                var: TypedVariable {
+                    name: Token::new(TokenType::Identifier, "variable"),
+                    ty: None,
+                },
+                initializer: Some(Box::from(Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::Literal(Literal {
+                        token: Token::new(TokenType::IntLiteral, "7"),
+                        parsed: LiteralValue::Int(7)
+                    })),
+                    op: Plus,
+                    right: Box::new(Expr::Literal(Literal {
+                        token: Token::new(TokenType::IntLiteral, "2"),
+                        parsed: LiteralValue::Int(2)
+                    }))
                 }))),
             })
         )
