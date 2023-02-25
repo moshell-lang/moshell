@@ -102,8 +102,7 @@ impl<'a> Parser<'a> {
 
         self.cursor.advance(spaces()); //consume spaces
 
-        //expect end of expression (then the statement is directly pushed) OR if not present,
-        // expect a binary operator to start a binary operation representation.
+        //test for end of expression
         let is_eox = self.cursor.lookahead(eox).is_some();
 
         //we hit end of expression so the parsing ends here
@@ -112,7 +111,7 @@ impl<'a> Parser<'a> {
         }
 
         //there's a token at cursors' current pos
-        //let's try if we can continue to parse the expression
+        //let's try if we can continue to parse the expression as a left-handed expression.
         self.parse_next_right(eox, statement)
     }
 
