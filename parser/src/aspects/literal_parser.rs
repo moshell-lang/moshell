@@ -111,7 +111,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
         }
 
         match current.token_type {
-            TokenType::Dollar => parts.push(self.substitution()?),
+            TokenType::At | TokenType::Dollar => parts.push(self.substitution()?),
             TokenType::BackSlash => {
                 //never retain first backslash
                 self.cursor.next()?; //advance so we are not pointing to token after '\'
@@ -133,7 +133,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                     push_current!();
                 }
 
-                TokenType::Dollar => {
+                TokenType::At | TokenType::Dollar => {
                     if !builder.is_empty() {
                         parts.push(Expr::Literal(Literal {
                             token: current.clone(),

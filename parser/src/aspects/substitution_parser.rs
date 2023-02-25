@@ -1,7 +1,7 @@
 use crate::aspects::var_reference_parser::VarReferenceParser;
 use crate::ast::substitution::{Substitution, SubstitutionKind};
 use crate::ast::Expr;
-use crate::moves::{of_type, space, MoveOperations};
+use crate::moves::{of_type, of_types, space, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 
@@ -12,25 +12,34 @@ pub(crate) trait SubstitutionParser<'a> {
 
 impl<'a> SubstitutionParser<'a> for Parser<'a> {
     fn substitution(&mut self) -> ParseResult<Expr<'a>> {
-        self.cursor
-            .force(of_type(TokenType::Dollar), "Expected dollar sign.")?;
+        let start_token = self.cursor.force(
+            of_types(&[TokenType::At, TokenType::Dollar]),
+            "Expected dollar sign.",
+        )?;
+
         if self
             .cursor
             .advance(of_type(TokenType::RoundedLeftBracket))
-            .is_some()
+            .is_none()
+            && start_token.token_type == TokenType::Dollar
         {
-            let expr = Box::new(self.statement()?);
-            self.cursor.force(
-                space().then(of_type(TokenType::RoundedRightBracket)),
-                "Expected closing bracket.",
-            )?;
-            Ok(Expr::Substitution(Substitution {
-                expr,
-                kind: SubstitutionKind::Capture,
-            }))
-        } else {
-            self.var_reference()
+            return self.var_reference();
         }
+
+        let expr = Box::new(self.statement()?);
+        self.cursor.force(
+            space().then(of_type(TokenType::RoundedRightBracket)),
+            "Expected closing bracket.",
+        )?;
+
+        Ok(Expr::Substitution(Substitution {
+            expr,
+            kind: if start_token.token_type == TokenType::At {
+                SubstitutionKind::Return
+            } else {
+                SubstitutionKind::Capture
+            },
+        }))
     }
 }
 

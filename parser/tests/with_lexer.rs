@@ -372,3 +372,34 @@ fn with_lexer_substitution_in_substitution() {
         })]
     );
 }
+
+#[test]
+fn with_lexer_here_invoke() {
+    let tokens = lex("val valid = @(nginx -t)");
+    let parsed = parse(tokens).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::VarDeclaration(VarDeclaration {
+            kind: VarKind::Val,
+            var: TypedVariable {
+                name: Token::new(TokenType::Identifier, "valid"),
+                ty: None,
+            },
+            initializer: Some(Box::new(Expr::Substitution(Substitution {
+                expr: Box::new(Expr::Call(Call {
+                    arguments: vec![
+                        Expr::Literal(Literal {
+                            token: Token::new(TokenType::Identifier, "nginx"),
+                            parsed: "nginx".into(),
+                        }),
+                        Expr::Literal(Literal {
+                            token: Token::new(TokenType::Identifier, "t"),
+                            parsed: "-t".into(),
+                        }),
+                    ],
+                })),
+                kind: SubstitutionKind::Return,
+            }))),
+        })]
+    );
+}
