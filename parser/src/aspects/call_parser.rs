@@ -1,9 +1,9 @@
 use crate::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use crate::ast::Expr;
-use crate::moves::{eox, next, of_type, of_types, space, spaces, custom_eox, MoveOperations, Move};
+use crate::moves::{next, of_type, of_types, space, spaces, custom_eox, MoveOperations, Move};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
-use lexer::token::TokenType::{And, Or};
+use lexer::token::TokenType::{And, BackSlash, DoubleQuote, Or, Quote};
 
 /// A parse aspect for command and function calls
 pub trait CallParser<'a> {
@@ -119,7 +119,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
         let mut redirections = vec![];
         self.cursor.advance(spaces());
 
-        while self.cursor.lookahead(eox()).is_none() {
+        while self.cursor.lookahead(eoc).is_none() {
             match self.cursor.peek().token_type {
                 TokenType::Ampersand | TokenType::Less | TokenType::Greater => {
                     redirections.push(self.redirection()?);
@@ -154,14 +154,15 @@ impl<'a> CallParser<'a> for Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn is_at_redirection_sign(&self) -> bool {
-        //handle escaped redirection signs
-        /*if self.cursor.lookahead(of_type(BackSlash)).is_some() {
+        //handle escaped redirection signs (can be \\ for one-character signs or quoted signs)
+        if self.cursor.lookahead(of_types(&[BackSlash, Quote, DoubleQuote])).is_some() {
             return false;
-        }*/
+        }
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
             TokenType::Ampersand | TokenType::Less | TokenType::Greater | TokenType::Pipe => true,
+            //search for '>' or '<' in case of std-determined redirection sign (ex: 2>>)
             _ => self
                 .cursor
                 .lookahead(next().then(of_types(&[TokenType::Less, TokenType::Greater])))
@@ -181,6 +182,7 @@ mod tests {
     use lexer::lexer::lex;
     use lexer::token::{Token, TokenType};
     use crate::moves::eox;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn redirection() {
@@ -273,15 +275,19 @@ mod tests {
 
     #[test]
     fn escaped_call() {
-        let tokens = lex("echo hello \\; \\| \\2> \\>&2 \\<");
+        let tokens = lex("echo hello \\; \\| '2>' '>&2' \\<");
         let parsed = parse(tokens).expect("parsing error");
         assert_eq!(
             parsed,
             vec![Expr::Call(Call {
                 arguments: vec![
                     Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "hello"),
+                        token: Token::new(TokenType::Identifier, "echo"),
                         parsed: "echo".into(),
+                    }),
+                    Expr::Literal(Literal {
+                        token: Token::new(TokenType::Identifier, "hello"),
+                        parsed: "hello".into(),
                     }),
                     Expr::Literal(Literal {
                         token: Token::new(TokenType::BackSlash, "\\"),
@@ -292,11 +298,11 @@ mod tests {
                         parsed: "|".into(),
                     }),
                     Expr::Literal(Literal {
-                        token: Token::new(TokenType::BackSlash, "\\"),
+                        token: Token::new(TokenType::Quote, "'"),
                         parsed: "2>".into(),
                     }),
                     Expr::Literal(Literal {
-                        token: Token::new(TokenType::BackSlash, "\\"),
+                        token: Token::new(TokenType::Quote, "'"),
                         parsed: ">&2".into(),
                     }),
                     Expr::Literal(Literal {
