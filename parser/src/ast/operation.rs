@@ -2,7 +2,8 @@ use enum_assoc::Assoc;
 
 use crate::ast::Expr;
 
-/// A binary operation between two expressions.
+
+/// An arithmetic operation between two expressions.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BinaryOperation<'a> {
     /// The left-hand side of the operation.
@@ -11,16 +12,6 @@ pub struct BinaryOperation<'a> {
     pub op: BinaryOperator,
     /// The right-hand side of the operation.
     pub right: Box<Expr<'a>>,
-}
-
-impl<'a> BinaryOperation<'a> {
-    pub fn new(left: Expr<'a>, op: BinaryOperator, right: Expr<'a>) -> Self {
-        Self {
-            left: Box::new(left),
-            op,
-            right: Box::new(right),
-        }
-    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Assoc)]
@@ -51,7 +42,7 @@ pub enum BinaryOperator {
     /// The `>=` operator.
     #[assoc(priority = -1)]
     GreaterEqual,
-    
+
     /// The `+` operator.
     #[assoc(priority = 0)]
     Plus,

@@ -1,14 +1,15 @@
 use lexer::token::{Token, TokenType};
 use lexer::token::TokenType::EndOfFile;
+use crate::aspects::binary_operation_parser::{ARITHMETICS, BinaryOperationsParser, BOOLEANS, COMPARISONS};
 
-use crate::aspects::binary_operations_parser::BinaryOperationsParser;
 use crate::aspects::call_parser::CallParser;
 use crate::aspects::group_parser::GroupParser;
 use crate::aspects::literal_parser::LiteralParser;
+use crate::aspects::redirection_parser::RedirectionParser;
 use crate::aspects::var_declaration_parser::VarDeclarationParser;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::moves::{bin_op, custom_eox, eox, Move, of_type, spaces};
+use crate::moves::{bin_op, custom_eox, eox, Move, next, of_type, spaces};
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -80,17 +81,28 @@ impl<'a> Parser<'a> {
         eprintln!("message: {}", err.message)
     }
 
+    //traverse current expression and go to next expression
+    fn repos_to_next_expr(&mut self) {
+        while self.cursor.lookahead(eox()).is_none() {
+            self.cursor.advance(next());
+        }
+    }
+
     /// Parses input tokens into an abstract syntax tree representation.
     pub(crate) fn parse(&mut self) -> ParseResult<Vec<Expr<'a>>> {
         let mut statements = Vec::new();
 
         while !self.cursor.is_at_end() {
-            let statement = self.parse_next(custom_eox(of_type(EndOfFile)));
+            let statement = self.parse_next(eox());
+
             if let Err(error) = &statement {
                 self.report_error(error);
+                self.repos_to_next_expr();
             }
+
             //consume end of expression
             self.cursor.force(custom_eox(of_type(EndOfFile)), "expected end of expression or file")?;
+
             statements.push(statement?);
         }
 
@@ -116,9 +128,9 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_next_right(&mut self, eox: impl Move + Copy, left: Expr<'a>) -> ParseResult<Expr<'a>> {
-        //can be a binary operation expression
+        //can be a boolean operation expression
         if self.cursor.lookahead(bin_op()).is_some() {
-            return self.binary_operator_right(left, eox);
+            return self.binary_operation_right(left, eox, [BOOLEANS, ARITHMETICS, COMPARISONS].concat().leak());
         }
 
         //can be a std or pipe redirection
@@ -127,7 +139,7 @@ impl<'a> Parser<'a> {
         }
 
         //fallback
-        self.expected("invalid token")
+        self.expected("invalid binary operator")
     }
 
     pub(crate) fn expected<T>(&self, message: &str) -> ParseResult<T> {

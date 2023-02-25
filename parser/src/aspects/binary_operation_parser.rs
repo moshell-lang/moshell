@@ -2,69 +2,98 @@ use lexer::token::TokenType;
 
 use crate::ast::Expr;
 use crate::ast::operation::{BinaryOperation, BinaryOperator};
+use BinaryOperator::*;
 use crate::moves::{bin_op, Move, MoveOperations, spaces};
 use crate::parser::{Parser, ParseResult};
 
+pub const ARITHMETICS: &[BinaryOperator] = &[Plus, Minus, Times, Divide, Modulo];
+pub const COMPARISONS: &[BinaryOperator] = &[EqualEqual, NotEqual, Less, LessEqual, Greater, GreaterEqual];
+pub const BOOLEANS: &[BinaryOperator] = &[And, Or];
+
 /// a parser aspect to parse any kind of binary operations
-pub(crate) trait BinaryOperationsParser<'p> {
+pub trait BinaryOperationsParser<'p> {
     ///Parses a binary operation tree
     /// `eox`: a selector to define where the binary operation expression hits it end.
-    fn binary_operator(&mut self, eox: impl Move + Copy) -> ParseResult<Expr<'p>>;
+    fn binary_operation(&mut self,
+                        eox: impl Move + Copy,
+                        definition: &[BinaryOperator],
+    ) -> ParseResult<Expr<'p>>;
 
     ///Parses the operator and left arm of a left-defined operation.
     /// `left`: the left arm of the binary operator.
     /// `eox`: a selector to define where the binary operation expression hits it end.
-    fn binary_operator_right(&mut self, left: Expr<'p>, eox: impl Move + Copy) -> ParseResult<Expr<'p>>;
+    fn binary_operation_right(&mut self,
+                              left: Expr<'p>,
+                              eox: impl Move + Copy,
+                              definition: &[BinaryOperator],
+    ) -> ParseResult<Expr<'p>>;
 }
 
 ///Convert a TokenType to a BinaryOperator;
 /// This function panics if the given token type is not translatable to a BinaryOperator.
 fn to_bin_operator(token_type: TokenType) -> BinaryOperator {
     match token_type {
-        TokenType::And => BinaryOperator::And,
-        TokenType::Or => BinaryOperator::Or,
+        TokenType::And => And,
+        TokenType::Or => Or,
 
-        TokenType::EqualEqual => BinaryOperator::EqualEqual,
-        TokenType::NotEqual => BinaryOperator::NotEqual,
-        TokenType::Less => BinaryOperator::Less,
-        TokenType::LessEqual => BinaryOperator::LessEqual,
-        TokenType::Greater => BinaryOperator::Greater,
-        TokenType::GreaterEqual => BinaryOperator::GreaterEqual,
+        TokenType::EqualEqual => EqualEqual,
+        TokenType::NotEqual => NotEqual,
+        TokenType::Less => Less,
+        TokenType::LessEqual => LessEqual,
+        TokenType::Greater => Greater,
+        TokenType::GreaterEqual => GreaterEqual,
 
-        TokenType::Plus => BinaryOperator::Plus,
-        TokenType::Minus => BinaryOperator::Minus,
-        TokenType::Star => BinaryOperator::Times,
-        TokenType::Slash => BinaryOperator::Divide,
-        TokenType::Percent => BinaryOperator::Modulo,
+        TokenType::Plus => Plus,
+        TokenType::Minus => Minus,
+        TokenType::Star => Times,
+        TokenType::Slash => Divide,
+        TokenType::Percent => Modulo,
         _ => panic!("unexpected non-binary operator token.")
     }
 }
 
+
 impl<'p> BinaryOperationsParser<'p> for Parser<'p> {
-    fn binary_operator(&mut self, eox: impl Move + Copy) -> ParseResult<Expr<'p>> {
+    fn binary_operation(&mut self,
+                        eox: impl Move + Copy,
+                        definition: &[BinaryOperator],
+    ) -> ParseResult<Expr<'p>> {
         let left = self.statement(eox)?;
-        self.binary_operator_right(left, eox)
+        self.binary_operation_right(left, eox, definition)
     }
 
-    fn binary_operator_right(&mut self, left: Expr<'p>, eox: impl Move + Copy) -> ParseResult<Expr<'p>> {
+    fn binary_operation_right(&mut self,
+                              left: Expr<'p>,
+                              eox: impl Move + Copy,
+                              definition: &[BinaryOperator],
+    ) -> ParseResult<Expr<'p>> {
         //parsing a top-level tree operation with fewest priority
-        self.binary_op_right_internal(i8::MIN, eox, left)
+        self.binary_op_right_internal(i8::MIN, eox, definition, left)
     }
 }
 
 impl<'p> Parser<'p> {
+    fn ensure_in_def(&self, op: BinaryOperator, def: &[BinaryOperator]) -> ParseResult<BinaryOperator> {
+        if def.contains(&op) {
+            return Ok(op)
+        }
+        self.expected("unexpected binary operator")
+    }
+
     //Parses a binary operation tree as long as it does not hits an operation with smaller priority.
     fn binary_op_right_internal(&mut self,
                                 priority: i8,
                                 eox: impl Move + Copy,
-                                left: Expr<'p>) -> ParseResult<Expr<'p>> {
-        let mut operation = self.binary_operation_internal(left, eox)?;
+                                def: &[BinaryOperator],
+                                left: Expr<'p>,
+    ) -> ParseResult<Expr<'p>> {
+        let mut operation = self.binary_operation_internal(left, eox, def)?;
         macro_rules! hit_eox {
             () => { self.cursor.lookahead(spaces().then(eox)).is_some() };
         }
 
         while !hit_eox!() && self.has_priority(priority) {
-            operation = self.binary_operation_internal(operation, eox)?;
+            operation = self.binary_operation_internal(operation, eox, def)?;
         }
 
         Ok(operation)
@@ -79,55 +108,62 @@ impl<'p> Parser<'p> {
             .unwrap_or(false)
     }
 
-    fn binary_operation_internal(&mut self, left: Expr<'p>, eox: impl Move + Copy) -> ParseResult<Expr<'p>> {
+    fn binary_operation_internal(&mut self,
+                                 left: Expr<'p>,
+                                 eox: impl Move + Copy,
+                                 def: &[BinaryOperator],
+    ) -> ParseResult<Expr<'p>> {
         //current expressions' infix operator
         let operator = self.cursor
             .advance(spaces().then(bin_op()))
             .map(|t| to_bin_operator(t.token_type));
 
-        if let Some(operator) = operator {
-            let operator_priority = operator.priority();
-            //directly-next statement
-            let right = self.statement(eox)?;
-
-            //comparison between current operator's priority and next operator (if any)
-            //is 0 if priorities are same or if there is no next operator.
-            //is < 0 if current operator's priority is higher
-            //is > 0 if current operator's priority is smaller
-            let priority_comparison = self.cursor
-                .lookahead(spaces().then(bin_op()))
-                .map(|t| operator_priority - to_bin_operator(t.token_type).priority())
-                .unwrap_or(0);
-
-
-            let result = if priority_comparison > 0 {
-                //current binary operator has more priority so we directly return it
-                Ok(Expr::Binary(BinaryOperation {
-                    left: Box::new(left),
-                    op: operator,
-                    right: Box::new(right),
-                }))
-            } else if priority_comparison == 0 {
-                //same priority so we can continue to parse to the right,
-                // passing current binary operation as the left operation.
-                self.binary_op_right_internal(operator_priority, eox, Expr::Binary(BinaryOperation {
-                    left: Box::new(left),
-                    op: operator,
-                    right: Box::new(right),
-                }))
-            } else {
-                //priority is fewer, so we let the priority to the right by continuing to parse
-                Ok(Expr::Binary(BinaryOperation {
-                    left: Box::new(left),
-                    op: operator,
-                    right: Box::new(self.binary_op_right_internal(operator_priority, eox, right)?),
-                }))
-            };
-
-            return result;
+        if operator.is_none() {
+            return Ok(left)
         }
 
-        return Ok(left);
+        let operator = operator.unwrap();
+        self.ensure_in_def(operator, def)?;
+
+        let operator_priority = operator.priority();
+        //directly-next statement
+        let right = self.statement(eox)?;
+
+        //comparison between current operator's priority and next operator (if any)
+        //is 0 if priorities are same or if there is no next operator.
+        //is < 0 if current operator's priority is higher
+        //is > 0 if current operator's priority is smaller
+        let priority_comparison = self.cursor
+            .lookahead(spaces().then(bin_op()))
+            .map(|t| operator_priority - to_bin_operator(t.token_type).priority())
+            .unwrap_or(0);
+
+
+        let result = if priority_comparison > 0 {
+            //current binary operator has more priority so we directly return it
+            Expr::Binary(BinaryOperation {
+                left: Box::new(left),
+                op: operator,
+                right: Box::new(right),
+            })
+        } else if priority_comparison == 0 {
+            //same priority so we can continue to parse to the right,
+            // passing current binary operation as the left operation.
+            self.binary_op_right_internal(operator_priority, eox, def, Expr::Binary(BinaryOperation {
+                left: Box::new(left),
+                op: operator,
+                right: Box::new(right),
+            }))?
+        } else {
+            //priority is fewer, so we let the priority to the right by continuing to parse
+            Expr::Binary(BinaryOperation {
+                left: Box::new(left),
+                op: operator,
+                right: Box::new(self.binary_op_right_internal(operator_priority, eox, def, right)?),
+            })
+        };
+
+        return Ok(result);
     }
 }
 
@@ -143,7 +179,8 @@ mod tests {
     use crate::ast::Expr;
     use crate::ast::group::Parenthesis;
     use crate::ast::literal::{Literal, LiteralValue};
-    use crate::ast::operation::{BinaryOperation, BinaryOperator};
+    use crate::ast::operation::{BinaryOperation};
+    use crate::ast::operation::BinaryOperator::*;
     use crate::parse;
 
     #[test]
@@ -161,25 +198,25 @@ mod tests {
                                     token: Token::new(TokenType::IntLiteral, "1"),
                                     parsed: LiteralValue::Int(1),
                                 })),
-                                op: BinaryOperator::And,
+                                op: And,
                                 right: Box::new(Expr::Literal(Literal {
                                     token: Token::new(TokenType::IntLiteral, "2"),
                                     parsed: LiteralValue::Int(2),
                                 })),
                             })),
-                            op: BinaryOperator::Or,
+                            op: Or,
                             right: Box::new(Expr::Literal(Literal {
                                 token: Token::new(TokenType::IntLiteral, "3"),
                                 parsed: LiteralValue::Int(3),
                             })),
                         })),
-                        op: BinaryOperator::Or,
+                        op: Or,
                         right: Box::new(Expr::Literal(Literal {
                             token: Token::new(TokenType::IntLiteral, "4"),
                             parsed: LiteralValue::Int(4),
                         })),
                     })),
-                    op: BinaryOperator::And,
+                    op: And,
                     right: Box::new(Expr::Literal(Literal {
                         token: Token::new(TokenType::IntLiteral, "5"),
                         parsed: LiteralValue::Int(5),
@@ -201,7 +238,7 @@ mod tests {
                         token: Token::new(TokenType::IntLiteral, "1"),
                         parsed: LiteralValue::Int(1),
                     })),
-                    op: BinaryOperator::Plus,
+                    op: Plus,
                     right: Box::new(Expr::Parenthesis(Parenthesis {
                         expressions: vec![
                             Expr::Binary(BinaryOperation {
@@ -209,7 +246,7 @@ mod tests {
                                     token: Token::new(TokenType::IntLiteral, "2"),
                                     parsed: LiteralValue::Int(2),
                                 })),
-                                op: BinaryOperator::Plus,
+                                op: Plus,
                                 right: Box::new(Expr::Literal(Literal {
                                     token: Token::new(TokenType::IntLiteral, "3"),
                                     parsed: LiteralValue::Int(3),
@@ -234,13 +271,13 @@ mod tests {
                         token: Token::new(TokenType::IntLiteral, "1"),
                         parsed: LiteralValue::Int(1),
                     })),
-                    op: BinaryOperator::Plus,
+                    op: Plus,
                     right: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Literal(Literal {
                             token: Token::new(TokenType::IntLiteral, "2"),
                             parsed: LiteralValue::Int(2),
                         })),
-                        op: BinaryOperator::Times,
+                        op: Times,
                         right: Box::new(Expr::Literal(Literal {
                             token: Token::new(TokenType::IntLiteral, "3"),
                             parsed: LiteralValue::Int(3),
@@ -266,64 +303,64 @@ mod tests {
                                     token: Token::new(TokenType::IntLiteral, "1"),
                                     parsed: LiteralValue::Int(1),
                                 })),
-                                op: BinaryOperator::Plus,
+                                op: Plus,
                                 right: Box::new(Expr::Binary(BinaryOperation {
                                     left: Box::new(Expr::Literal(Literal {
                                         token: Token::new(TokenType::IntLiteral, "2"),
                                         parsed: LiteralValue::Int(2),
                                     })),
-                                    op: BinaryOperator::Times,
+                                    op: Times,
                                     right: Box::new(Expr::Literal(Literal {
                                         token: Token::new(TokenType::IntLiteral, "3"),
                                         parsed: LiteralValue::Int(3),
                                     })),
                                 })),
                             })),
-                            op: BinaryOperator::Less,
+                            op: Less,
                             right: Box::new(Expr::Binary(BinaryOperation {
                                 left: Box::new(Expr::Literal(Literal {
                                     token: Token::new(TokenType::IntLiteral, "874"),
                                     parsed: LiteralValue::Int(874),
                                 })),
-                                op: BinaryOperator::Times,
+                                op: Times,
                                 right: Box::new(Expr::Literal(Literal {
                                     token: Token::new(TokenType::IntLiteral, "78"),
                                     parsed: LiteralValue::Int(78),
                                 })),
                             })),
                         })),
-                        op: BinaryOperator::Or,
+                        op: Or,
                         right: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Binary(BinaryOperation {
                                 left: Box::new(Expr::Literal(Literal {
                                     token: Token::new(TokenType::IntLiteral, "7"),
                                     parsed: LiteralValue::Int(7),
                                 })),
-                                op: BinaryOperator::Minus,
+                                op: Minus,
                                 right: Box::new(Expr::Literal(Literal {
                                     token: Token::new(TokenType::IntLiteral, "4"),
                                     parsed: LiteralValue::Int(4),
                                 })),
                             })),
-                            op: BinaryOperator::EqualEqual,
+                            op: EqualEqual,
                             right: Box::new(Expr::Literal(Literal {
                                 token: Token::new(TokenType::IntLiteral, "3"),
                                 parsed: LiteralValue::Int(3),
                             })),
                         })),
                     })),
-                    op: BinaryOperator::And,
+                    op: And,
                     right: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Literal(Literal {
                             token: Token::new(TokenType::IntLiteral, "7"),
                             parsed: LiteralValue::Int(7),
                         })),
-                        op: BinaryOperator::EqualEqual,
+                        op: EqualEqual,
                         right: Box::new(Expr::Literal(Literal {
                             token: Token::new(TokenType::IntLiteral, "1"),
                             parsed: LiteralValue::Int(1),
-                        }))
-                    }))
+                        })),
+                    })),
                 }),
             ]
         )
@@ -343,13 +380,13 @@ mod tests {
                                 token: Token::new(TokenType::IntLiteral, "1"),
                                 parsed: LiteralValue::Int(1),
                             })),
-                            op: BinaryOperator::Plus,
+                            op: Plus,
                             right: Box::new(Expr::Binary(BinaryOperation {
                                 left: Box::new(Expr::Literal(Literal {
                                     token: Token::new(TokenType::IntLiteral, "2"),
                                     parsed: LiteralValue::Int(2),
                                 })),
-                                op: BinaryOperator::Times,
+                                op: Times,
                                 right: Box::new(Expr::Literal(Literal {
                                     token: Token::new(TokenType::IntLiteral, "3"),
                                     parsed: LiteralValue::Int(3),
@@ -361,7 +398,6 @@ mod tests {
             ]
         )
     }
-
 
 
     #[test]
@@ -387,7 +423,7 @@ mod tests {
                                         }),
                                     ],
                                 })),
-                                op: BinaryOperator::And,
+                                op: And,
                                 right: Box::new(Expr::Call(Call {
                                     arguments: vec![
                                         Expr::Literal(Literal {
@@ -403,7 +439,7 @@ mod tests {
                             })
                         ]
                     })),
-                    op: BinaryOperator::Or,
+                    op: Or,
                     right: Box::new(Expr::Call(Call {
                         arguments: vec![
                             Expr::Literal(Literal {
@@ -432,32 +468,32 @@ mod tests {
                     left: Box::new(Expr::Parenthesis(Parenthesis {
                         expressions: vec![
                             Expr::Call(Call {
-                            arguments: vec![
-                                Expr::Literal(Literal {
-                                    token: Token::new(TokenType::Identifier, "echo"),
-                                    parsed: LiteralValue::String("echo".to_string()),
-                                }),
-                                Expr::Literal(Literal {
-                                    token: Token::new(TokenType::Identifier, "hello"),
-                                    parsed: LiteralValue::String("hello".to_string()),
-                                }),
-                                Expr::Literal(Literal {
-                                    token: Token::new(TokenType::BackSlash, "\\"),
-                                    parsed: LiteralValue::String("&&".to_string()),
-                                }),
-                                Expr::Literal(Literal {
-                                    token: Token::new(TokenType::Identifier, "world"),
-                                    parsed: LiteralValue::String("world".to_string()),
-                                }),
-                                Expr::Literal(Literal {
-                                    token: Token::new(TokenType::BackSlash, "\\"),
-                                    parsed: LiteralValue::String(")".to_string()),
-                                }),
-                            ],
-                        })
+                                arguments: vec![
+                                    Expr::Literal(Literal {
+                                        token: Token::new(TokenType::Identifier, "echo"),
+                                        parsed: LiteralValue::String("echo".to_string()),
+                                    }),
+                                    Expr::Literal(Literal {
+                                        token: Token::new(TokenType::Identifier, "hello"),
+                                        parsed: LiteralValue::String("hello".to_string()),
+                                    }),
+                                    Expr::Literal(Literal {
+                                        token: Token::new(TokenType::BackSlash, "\\"),
+                                        parsed: LiteralValue::String("&&".to_string()),
+                                    }),
+                                    Expr::Literal(Literal {
+                                        token: Token::new(TokenType::Identifier, "world"),
+                                        parsed: LiteralValue::String("world".to_string()),
+                                    }),
+                                    Expr::Literal(Literal {
+                                        token: Token::new(TokenType::BackSlash, "\\"),
+                                        parsed: LiteralValue::String(")".to_string()),
+                                    }),
+                                ],
+                            })
                         ]
                     })),
-                    op: BinaryOperator::Or,
+                    op: Or,
                     right: Box::new(Expr::Call(Call {
                         arguments: vec![
                             Expr::Literal(Literal {
