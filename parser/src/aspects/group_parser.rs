@@ -1,7 +1,7 @@
 use lexer::token::TokenType;
-
-use crate::ast::group::{Block, Parenthesis};
 use crate::ast::Expr;
+use crate::ast::group::{Block, Parenthesis};
+
 use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
@@ -78,7 +78,8 @@ mod tests {
     use crate::ast::callable::Call;
     use crate::ast::group::{Block, Parenthesis};
     use crate::ast::literal::LiteralValue::{Float, Int};
-    use crate::ast::literal::{Literal, LiteralValue};
+    use crate::ast::literal::{Literal};
+
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use crate::ast::Expr;
     use crate::parser::Parser;
@@ -216,11 +217,11 @@ mod tests {
                                 arguments: vec![
                                     Expr::Literal(Literal {
                                         token: Token::new(TokenType::Identifier, "command"),
-                                        parsed: LiteralValue::String("command".to_string()),
+                                        parsed: "command".into(),
                                     }),
                                     Expr::Literal(Literal {
                                         token: Token::new(TokenType::Identifier, "call"),
-                                        parsed: LiteralValue::String("call".to_string()),
+                                        parsed: "call".into(),
                                     }),
                                 ],
                             }),

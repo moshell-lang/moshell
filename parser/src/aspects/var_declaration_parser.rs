@@ -33,8 +33,10 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
                 "Expected variable type",
             )?),
         };
-
-        let initializer = match self.cursor.advance(space().then(of_type(TokenType::Equal))) {
+        let initializer = match self
+            .cursor
+            .advance(spaces().then(of_type(TokenType::Equal)))
+        {
             None => {
                 self.cursor.force(
                     of_types(&[TokenType::NewLine, TokenType::EndOfFile]),
@@ -57,7 +59,7 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::literal::{Literal, LiteralValue};
+    use crate::ast::literal::Literal;
     use crate::ast::Expr;
     use crate::parser::Parser;
     use lexer::lexer::lex;
@@ -126,7 +128,7 @@ mod tests {
                 },
                 initializer: Some(Box::from(Expr::Literal(Literal {
                     token: Token::new(TokenType::Quote, "'"),
-                    parsed: LiteralValue::String("hello $test".to_string()),
+                    parsed: "hello $test".into(),
                 }))),
             })
         )

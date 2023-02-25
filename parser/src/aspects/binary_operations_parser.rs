@@ -117,7 +117,6 @@ mod tests {
     use lexer::lexer::lex;
     use lexer::token::{Token, TokenType};
 
-    use crate::aspects::binary_operations_parser::right_pivot;
     use crate::ast::Expr;
     use crate::ast::group::Parenthesis;
     use crate::ast::literal::{Literal, LiteralValue};

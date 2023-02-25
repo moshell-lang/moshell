@@ -48,11 +48,11 @@ fn command_echo() {
         arguments: vec![
             Expr::Literal(Literal {
                 token: Token::new(TokenType::Identifier, "echo"),
-                parsed: LiteralValue::String("echo".to_string()),
+                parsed: "echo".into(),
             }),
             Expr::Literal(Literal {
                 token: Token::new(TokenType::Quote, "'"),
-                parsed: LiteralValue::String("hello".to_string()),
+                parsed: "hello".into(),
             }),
         ],
     })];
