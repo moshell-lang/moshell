@@ -1,4 +1,3 @@
-use crate::token::TokenType::ErrorRedirect;
 use logos::Logos;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -20,7 +19,7 @@ pub enum TokenType {
     #[token("val")]
     Val,
 
-    #[regex("[^;:\\s'\"$\\\\)(*+-/=;:}{,@}]+")]
+    #[regex("[^;:<>|&\\s'\"$\\\\)(*+-/=;:}{,@}]+")]
     Identifier,
 
     #[regex("-?[0-9]+", priority = 2)]
@@ -78,15 +77,6 @@ pub enum TokenType {
 
     #[token("|")]
     Pipe,
-    #[regex("[0-9&]>>")]
-    AppendRedirect,
-    #[regex("[0-9&]>")]
-    Redirect,
-    #[regex(">&2")]
-    ErrorRedirect,
-
-    #[token("<<<")]
-    Here,
 
     #[token("&&")]
     And,
@@ -156,20 +146,23 @@ pub enum TokenType {
 }
 
 impl TokenType {
-    pub fn is_identifier_bound(self) -> bool {
-        match self {
-            TokenType::NewLine
-            | TokenType::SemiColon
-            | TokenType::Less
-            | TokenType::Pipe
-            | TokenType::Greater
-            | TokenType::And
-            | TokenType::Or
-            | TokenType::Redirect
-            | TokenType::AppendRedirect
-            | ErrorRedirect
-            | TokenType::Here => true,
-            _ => false,
-        }
+    pub fn is_ponctuation(self) -> bool {
+        matches!(
+            self,
+            TokenType::Ampersand
+                | TokenType::Less
+                | TokenType::Greater
+                | TokenType::Pipe
+                | TokenType::SquareLeftBracket
+                | TokenType::SquareRightBracket
+                | TokenType::RoundedLeftBracket
+                | TokenType::RoundedRightBracket
+                | TokenType::CurlyLeftBracket
+                | TokenType::CurlyRightBracket
+                | TokenType::Space
+                | TokenType::SemiColon
+                | TokenType::NewLine
+                | TokenType::Error
+        )
     }
 }

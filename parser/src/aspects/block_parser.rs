@@ -67,8 +67,8 @@ mod tests {
 
     use crate::aspects::block_parser::BlockParser;
     use crate::ast::callable::Call;
+    use crate::ast::literal::Literal;
     use crate::ast::literal::LiteralValue::{Float, Int};
-    use crate::ast::literal::{Literal, LiteralValue};
     use crate::ast::statement::Block;
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use crate::ast::Expr;
@@ -210,11 +210,11 @@ mod tests {
                                 arguments: vec![
                                     Expr::Literal(Literal {
                                         token: Token::new(TokenType::Identifier, "command"),
-                                        parsed: LiteralValue::String("command".to_string()),
+                                        parsed: "command".into(),
                                     }),
                                     Expr::Literal(Literal {
                                         token: Token::new(TokenType::Identifier, "call"),
-                                        parsed: LiteralValue::String("call".to_string()),
+                                        parsed: "call".into(),
                                     }),
                                 ],
                             }),

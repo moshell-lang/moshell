@@ -121,10 +121,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
             }
             _ => push_current!(),
         }
-        loop {
-            if self.cursor.is_at_end() {
-                break;
-            }
+        while !self.cursor.is_at_end() {
             let pivot = self.cursor.peek().token_type;
             match pivot {
                 TokenType::Space => break,
@@ -147,10 +144,10 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                     }
                     parts.push(self.var_reference()?);
                 }
-
-                x => {
-                    if x.is_identifier_bound() {
-                        break; //identifier bounds cannot be concatenated with identifiers
+                _ if pivot.is_ponctuation() => break,
+                _ => {
+                    if !builder.is_empty() {
+                        current = self.cursor.peek();
                     }
                     if !builder.is_empty() {
                         current = self.cursor.peek();
@@ -244,7 +241,7 @@ mod tests {
             parsed,
             Expr::Literal(Literal {
                 token: Token::new(TokenType::Identifier, "a"),
-                parsed: LiteralValue::String("aa".to_string()),
+                parsed: "aa".into(),
             })
         );
     }

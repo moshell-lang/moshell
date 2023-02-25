@@ -14,3 +14,15 @@ pub enum LiteralValue {
     Int(i64),
     Float(f64),
 }
+
+impl From<&str> for LiteralValue {
+    fn from(s: &str) -> Self {
+        Self::String(s.to_string())
+    }
+}
+
+impl From<i64> for LiteralValue {
+    fn from(s: i64) -> Self {
+        Self::Int(s)
+    }
+}
