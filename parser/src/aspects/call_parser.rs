@@ -14,6 +14,8 @@ pub trait CallParser<'a> {
     fn redirection(&mut self) -> ParseResult<Redir<'a>>;
     /// Associates any potential redirections to a redirectable expression
     fn redirectable(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
+    /// Tests if the current and subsequent tokens can be part of a redirection expression
+    fn is_redirection_sign(&self) -> bool;
 }
 
 impl<'a> CallParser<'a> for Parser<'a> {
@@ -22,20 +24,10 @@ impl<'a> CallParser<'a> for Parser<'a> {
         // End Of Expression \!(; + \n)
         while !self.cursor.is_at_end() && self.cursor.advance(spaces().then(eox())).is_none() {
             self.cursor.advance(space());
-            match self.cursor.peek().token_type {
-                TokenType::Ampersand | TokenType::Less | TokenType::Greater | TokenType::Pipe => {
-                    return self.redirectable(Expr::Call(Call { arguments }));
-                }
-                // Detect redirections without a specific file descriptor
-                _ if self
-                    .cursor
-                    .lookahead(next().then(of_types(&[TokenType::Less, TokenType::Greater])))
-                    .is_some() =>
-                {
-                    return self.redirectable(Expr::Call(Call { arguments }));
-                }
-                _ => arguments.push(self.expression()?),
-            };
+            if self.is_redirection_sign() {
+                return self.redirectable(Expr::Call(Call { arguments }));
+            }
+            arguments.push(self.expression()?);
         }
         Ok(Expr::Call(Call { arguments }))
     }
@@ -145,6 +137,16 @@ impl<'a> CallParser<'a> for Parser<'a> {
                 expr: Box::new(expr),
                 redirections,
             }))
+        }
+    }
+
+    fn is_redirection_sign(&self) -> bool {
+        match self.cursor.peek().token_type {
+            TokenType::Ampersand | TokenType::Less | TokenType::Greater | TokenType::Pipe => true,
+            _ => self
+                .cursor
+                .lookahead(next().then(of_types(&[TokenType::Less, TokenType::Greater])))
+                .is_some(),
         }
     }
 }
