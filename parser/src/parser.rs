@@ -106,15 +106,29 @@ impl<'a> Parser<'a> {
         // expect a binary operator to start a binary operation representation.
         let is_eox = self.cursor.lookahead(eox).is_some();
 
+        //we hit end of expression so the parsing ends here
         if is_eox {
             return Ok(statement);
         }
 
-        if self.cursor.lookahead(bin_op()).is_none() {
-            return self.expected("wrong binary operator for left expression");
+        //there's a token at cursors' current pos
+        //let's try if we can continue to parse the expression
+        self.parse_next_right(eox, statement)
+    }
+
+    fn parse_next_right(&mut self, eox: impl Move + Copy, left: Expr<'a>) -> ParseResult<Expr<'a>> {
+        //can be a binary operation expression
+        if self.cursor.lookahead(bin_op()).is_some() {
+            return self.binary_operator_right(left, eox);
         }
-        //consider the statement as left of the binary operator then parse the right branch.
-        self.binary_operator_right(statement, eox)
+
+        //can be a std or pipe redirection
+        if self.is_at_redirection_sign() {
+            return self.redirectable(left, eox);
+        }
+
+        //fallback
+        self.expected("invalid token")
     }
 
     pub(crate) fn expected<T>(&self, message: &str) -> ParseResult<T> {

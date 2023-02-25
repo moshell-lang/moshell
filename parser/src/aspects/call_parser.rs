@@ -17,6 +17,9 @@ pub trait CallParser<'a> {
     fn redirection(&mut self) -> ParseResult<Redir<'a>>;
     /// Associates any potential redirections to a redirectable expression
     fn redirectable(&mut self, expr: Expr<'a>, eoc: impl Move + Copy) -> ParseResult<Expr<'a>>;
+
+    ///return true if parser is currently on a redirection sign.
+    fn is_at_redirection_sign(&self) -> bool;
 }
 
 /// The end of a call expression
@@ -150,9 +153,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
             }))
         }
     }
-}
 
-impl<'a> Parser<'a> {
     fn is_at_redirection_sign(&self) -> bool {
         //handle escaped redirection signs (can be \\ for one-character signs or quoted signs)
         if self.cursor.lookahead(of_types(&[BackSlash, Quote, DoubleQuote])).is_some() {
@@ -169,6 +170,7 @@ impl<'a> Parser<'a> {
                 .is_some(),
         }
     }
+
 }
 
 #[cfg(test)]
