@@ -32,28 +32,6 @@ fn to_bin_operator(token_type: TokenType) -> BinaryOperator {
     }
 }
 
-/// a function that pivots to the right an operation of three operands.
-///
-/// where:
-/// - `left.left` is first operand,
-/// - `left` and `right.left` are both the same object which is middle (second) operand,
-/// - `right.right` is last (third) operand.
-///
-/// For example, right_pivot( ((a + b) + c) ) => right_pivot( (a + (b + c)) )
-fn right_pivot<'a>(left: BinaryOperation<'a>, right: BinaryOperation<'a>) -> BinaryOperation<'a> {
-    //assert_eq!(Box::new(Expr::Binary(left.clone())), right.left);
-
-    BinaryOperation {
-        left: left.left,
-        op: left.op,
-        right: Box::new(Expr::Binary(BinaryOperation {
-            left: left.right,
-            op: right.op,
-            right: right.right,
-        })),
-    }
-}
-
 impl<'p> BinaryOps<'p> for Parser<'p> {
     fn binary_operator(&mut self, eox: impl Move + Copy) -> ParseResult<Expr<'p>> {
         let left = self.statement()?;
@@ -61,17 +39,32 @@ impl<'p> BinaryOps<'p> for Parser<'p> {
     }
 
     fn binary_operator_right(&mut self, left: Expr<'p>, eox: impl Move + Copy) -> ParseResult<Expr<'p>> {
-        //let fuck: _ = |cursor: &ParserCursor| cursor.lookahead(spaces().then(eox)).is_none();
-
-        let mut operation = self.binary_operation_internal(left, eox)?;
-        while self.cursor.lookahead(spaces().then(eox)).is_none() {
-            operation = self.binary_operation_internal(operation, eox)?;
-        }
-        Ok(operation)
+        self.binary_op_right_internal(left, eox, i8::MIN)
     }
 }
 
 impl<'p> Parser<'p> {
+    fn binary_op_right_internal(&mut self, left: Expr<'p>, eox: impl Move + Copy, priority: i8) -> ParseResult<Expr<'p>> {
+        let mut operation = self.binary_operation_internal(left, eox)?;
+        macro_rules! hit_eox {
+            () => { self.cursor.lookahead(spaces().then(eox)).is_some() };
+        }
+
+        while !hit_eox!() && self.has_priority(priority) {
+            operation = self.binary_operation_internal(operation, eox)?;
+        }
+
+        Ok(operation)
+    }
+
+    fn has_priority(&self, current_priority: i8) -> bool {
+        self.cursor
+            .lookahead(spaces().then(bin_op()))
+            .map(|t| (current_priority.saturating_sub(to_bin_operator(t.token_type).priority())))
+            .map(|comp| comp <= 0)
+            .unwrap_or(false)
+    }
+
     fn binary_operation_internal(&mut self, left: Expr<'p>, eox: impl Move + Copy) -> ParseResult<Expr<'p>>
     {
         //current expressions' infix operator
@@ -98,17 +91,17 @@ impl<'p> Parser<'p> {
 
             //current and next operator have same priority
             if priority_comparison == 0 {
-                return self.binary_operator_right(Expr::Binary(BinaryOperation {
+                return self.binary_op_right_internal(Expr::Binary(BinaryOperation {
                     left: Box::new(left),
                     op: operator,
                     right: Box::new(right),
-                }), eox);
+                }), eox, operator_priority);
             }
 
             return Ok(Expr::Binary(BinaryOperation {
                 left: Box::new(left),
                 op: operator,
-                right: Box::new(self.binary_operator_right(right, eox)?),
+                right: Box::new(self.binary_op_right_internal(right, eox, operator_priority)?),
             }));
         }
 
@@ -130,51 +123,6 @@ mod tests {
     use crate::ast::literal::{Literal, LiteralValue};
     use crate::ast::operation::{BinaryOperation, BinaryOperator};
     use crate::parse;
-
-    #[test]
-    fn right_pivot_test() {
-        let left = BinaryOperation {
-            left: Box::new(Expr::Literal(Literal {
-                token: Token::new(TokenType::IntLiteral, "1"),
-                parsed: LiteralValue::Int(1),
-            })),
-            op: BinaryOperator::Plus,
-            right: Box::new(Expr::Literal(Literal {
-                token: Token::new(TokenType::IntLiteral, "2"),
-                parsed: LiteralValue::Int(2),
-            })),
-        };
-
-        let right = BinaryOperation {
-            left: Box::new(Expr::Binary(left.clone())),
-            op: BinaryOperator::Plus,
-            right: Box::new(Expr::Literal(Literal {
-                token: Token::new(TokenType::IntLiteral, "3"),
-                parsed: LiteralValue::Int(3),
-            })),
-        };
-        //so pivoting from (a + b) + c to a + (b + c)
-        let pivoted = right_pivot(left, right);
-        //assert pivoted is now eq to a + (b + c)
-        assert_eq!(pivoted, BinaryOperation {
-            left: Box::new(Expr::Literal(Literal {
-                token: Token::new(TokenType::IntLiteral, "1"),
-                parsed: LiteralValue::Int(1),
-            })),
-            op: BinaryOperator::Plus,
-            right: Box::new(Expr::Binary(BinaryOperation {
-                left: Box::new(Expr::Literal(Literal {
-                    token: Token::new(TokenType::IntLiteral, "2"),
-                    parsed: LiteralValue::Int(2),
-                })),
-                op: BinaryOperator::Plus,
-                right: Box::new(Expr::Literal(Literal {
-                    token: Token::new(TokenType::IntLiteral, "3"),
-                    parsed: LiteralValue::Int(3),
-                })),
-            })),
-        })
-    }
 
     #[test]
     fn is_left_associative() {
@@ -269,65 +217,80 @@ mod tests {
 
     #[test]
     fn complete_prioritization_test() {
-        let tokens = lex("1 + 2 * 3 < 874 * 78 || 7 - 4 == 3");
+        let tokens = lex("1 + 2 * 3 < 874 * 78 || 7 - 4 == 3 && 7 == 1");
         let ast = parse(tokens).expect("parsing error");
-        println!("{:#?}", ast);
         assert_eq!(
             ast,
             vec![
                 Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Binary(BinaryOperation {
-                            left: Box::new(Expr::Literal(Literal {
-                                token: Token::new(TokenType::IntLiteral, "1"),
-                                parsed: LiteralValue::Int(1),
+                            left: Box::new(Expr::Binary(BinaryOperation {
+                                left: Box::new(Expr::Literal(Literal {
+                                    token: Token::new(TokenType::IntLiteral, "1"),
+                                    parsed: LiteralValue::Int(1),
+                                })),
+                                op: BinaryOperator::Plus,
+                                right: Box::new(Expr::Binary(BinaryOperation {
+                                    left: Box::new(Expr::Literal(Literal {
+                                        token: Token::new(TokenType::IntLiteral, "2"),
+                                        parsed: LiteralValue::Int(2),
+                                    })),
+                                    op: BinaryOperator::Times,
+                                    right: Box::new(Expr::Literal(Literal {
+                                        token: Token::new(TokenType::IntLiteral, "3"),
+                                        parsed: LiteralValue::Int(3),
+                                    })),
+                                })),
                             })),
-                            op: BinaryOperator::Plus,
+                            op: BinaryOperator::Less,
                             right: Box::new(Expr::Binary(BinaryOperation {
                                 left: Box::new(Expr::Literal(Literal {
-                                    token: Token::new(TokenType::IntLiteral, "2"),
-                                    parsed: LiteralValue::Int(2),
+                                    token: Token::new(TokenType::IntLiteral, "874"),
+                                    parsed: LiteralValue::Int(874),
                                 })),
                                 op: BinaryOperator::Times,
                                 right: Box::new(Expr::Literal(Literal {
-                                    token: Token::new(TokenType::IntLiteral, "3"),
-                                    parsed: LiteralValue::Int(3),
+                                    token: Token::new(TokenType::IntLiteral, "78"),
+                                    parsed: LiteralValue::Int(78),
                                 })),
                             })),
                         })),
-                        op: BinaryOperator::Less,
+                        op: BinaryOperator::Or,
                         right: Box::new(Expr::Binary(BinaryOperation {
-                            left: Box::new(Expr::Literal(Literal {
-                                token: Token::new(TokenType::IntLiteral, "874"),
-                                parsed: LiteralValue::Int(874),
+                            left: Box::new(Expr::Binary(BinaryOperation {
+                                left: Box::new(Expr::Literal(Literal {
+                                    token: Token::new(TokenType::IntLiteral, "7"),
+                                    parsed: LiteralValue::Int(7),
+                                })),
+                                op: BinaryOperator::Minus,
+                                right: Box::new(Expr::Literal(Literal {
+                                    token: Token::new(TokenType::IntLiteral, "4"),
+                                    parsed: LiteralValue::Int(4),
+                                })),
                             })),
-                            op: BinaryOperator::Times,
+                            op: BinaryOperator::EqualEqual,
                             right: Box::new(Expr::Literal(Literal {
-                                token: Token::new(TokenType::IntLiteral, "78"),
-                                parsed: LiteralValue::Int(78),
+                                token: Token::new(TokenType::IntLiteral, "3"),
+                                parsed: LiteralValue::Int(3),
                             })),
                         })),
                     })),
-                    op: BinaryOperator::Or,
+                    op: BinaryOperator::And,
                     right: Box::new(Expr::Binary(BinaryOperation {
-                        left: Box::new(Expr::Binary(BinaryOperation {
-                            left: Box::new(Expr::Literal(Literal {
-                                token: Token::new(TokenType::IntLiteral, "7"),
-                                parsed: LiteralValue::Int(7),
-                            })),
-                            op: BinaryOperator::Minus,
-                            right: Box::new(Expr::Literal(Literal {
-                                token: Token::new(TokenType::IntLiteral, "4"),
-                                parsed: LiteralValue::Int(4),
-                            })),
+                        left: Box::new(Expr::Literal(Literal {
+                            token: Token::new(TokenType::IntLiteral, "7"),
+                            parsed: LiteralValue::Int(7),
                         })),
                         op: BinaryOperator::EqualEqual,
                         right: Box::new(Expr::Literal(Literal {
-                            token: Token::new(TokenType::IntLiteral, "3"),
-                            parsed: LiteralValue::Int(3),
-                        })),
-                    })),
+                            token: Token::new(TokenType::IntLiteral, "1"),
+                            parsed: LiteralValue::Int(1),
+                        }))
+                    }))
                 })
+                ,
+
             ]
         )
     }
