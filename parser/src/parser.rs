@@ -8,7 +8,7 @@ use crate::aspects::literal_parser::LiteralParser;
 use crate::aspects::var_declaration_parser::VarDeclarationParser;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::moves::{bin_op, eox, Move, MoveOperations, of_type, spaces};
+use crate::moves::{bin_op, custom_eox, eox, Move, of_type, spaces};
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -85,12 +85,12 @@ impl<'a> Parser<'a> {
         let mut statements = Vec::new();
 
         while !self.cursor.is_at_end() {
-            let statement = self.parse_next(eox().or(of_type(EndOfFile)));
+            let statement = self.parse_next(custom_eox(of_type(EndOfFile)));
             if let Err(error) = &statement {
                 self.report_error(error);
             }
             //consume end of expression
-            self.cursor.force(eox().or(of_type(EndOfFile)), "expected end of expression or file")?;
+            self.cursor.force(custom_eox(of_type(EndOfFile)), "expected end of expression or file")?;
             statements.push(statement?);
         }
 

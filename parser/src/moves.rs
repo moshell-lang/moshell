@@ -123,6 +123,11 @@ pub(crate) fn fail() -> PredicateMove<fn(Token) -> bool> {
     predicate(|_| false)
 }
 
+///A move that consumes noting
+pub(crate) fn none() -> PredicateMove<fn(Token) -> bool> {
+    predicate(|_| false)
+}
+
 ///Move to next token if it's not a space
 pub(crate) fn no_space() -> PredicateMove<impl for<'a> Fn(Token<'a>) -> bool + Copy> {
     of_type(Space).negate()
@@ -138,7 +143,8 @@ pub(crate) fn spaces() -> RepeatedMove<PredicateMove<impl (for<'a> Fn(Token<'a>)
     repeat_n(1, space())
 }
 
-/// A RepeatedMove is a special kind of move that will repeat as long as the underlying move succeeds.
+/// A RepeatedMove is a special kind of move that will repeat as long as the underlying move succeeds
+/// and until it hits the end of token stream.
 #[derive(Copy, Clone)]
 pub(crate) struct RepeatedMove<M: Move + Copy> {
     underlying: M,
@@ -159,6 +165,11 @@ impl<M: Move + Copy> Move for RepeatedMove<M> {
             if self.max != -1 && repeats > self.max {
                 return None; // we exceeded the maximum amount of repetitions.
             }
+
+            if at(current_pos).token_type == EndOfFile {
+                //we hit eof
+                break;
+            }
         }
         // We do not repeated enough time to satisfy this movement
         if self.min != -1 && repeats < self.min {
@@ -168,7 +179,8 @@ impl<M: Move + Copy> Move for RepeatedMove<M> {
     }
 }
 
-///Repeats the given move until it fails, exiting on the first token that made the underlying move fail.
+///Repeats the given move until it fails,
+/// exiting on the first token that made the underlying move fail or if it hits EOF.
 /// NOTE: a repeat always succeed
 pub(crate) fn repeat<M: Move + Copy>(mov: M) -> RepeatedMove<M> {
     RepeatedMove {
@@ -178,8 +190,9 @@ pub(crate) fn repeat<M: Move + Copy>(mov: M) -> RepeatedMove<M> {
     }
 }
 
-///Repeat at least n times the given move until it fails, exiting on the first token that made the underlying move fail.
-/// /// if the number of repetition is strictly inferior than n, the move fails
+///Repeat at least n times the given move until it fails,
+/// exiting on the first token that made the underlying move fail or if it hits EOF.
+/// if the number of repetition is strictly inferior than n, the move fails
 /// NOTE: a repeat always succeed
 pub(crate) fn repeat_n<M: Move + Copy>(n: usize, mov: M) -> RepeatedMove<M> {
     RepeatedMove {
@@ -189,7 +202,8 @@ pub(crate) fn repeat_n<M: Move + Copy>(n: usize, mov: M) -> RepeatedMove<M> {
     }
 }
 
-///Repeats between n and m times the given move until it fails, exiting on the first token that made the underlying move fail.
+///Repeats between n and m times the given move until it fails,
+/// exiting on the first token that made the underlying move fail or if it hits EOF.
 /// if the number of repetition is strictly inferior than n, the move fails
 /// if the number of repetition is strictly superior than m, the move also fails
 /// NOTE: a repeat always succeed
@@ -258,27 +272,42 @@ impl<A: Move + Copy, B: Move + Copy> Move for OrMove<A, B> {
 
 //////////////////// STANDARD MOVES ////////////////////
 
-///a move to consume semicolons or new lines as long as they are not escaped.
+///a move to consume default eox tokens as long as they are not escaped.
+/// default eox tokens are semicolon (;) and newline (\n)
 pub(crate) fn eox() -> OrMove<
-    AndThenMove<
-        PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
-        PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
+    OrMove<
+        AndThenMove<
+            PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
+            PredicateMove<for<'a> fn(Token<'a>) -> bool>
+        >,
+        PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>
     >,
-    PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
+    PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>
 > {
-    //if it's escaped then it's not an EOX
-    (of_type(BackSlash).and_then(escapable().negate()))
-        //else it must be either new line or ';'
-        .or(of_types(&[NewLine, SemiColon]))
+    custom_eox(none())
 }
 
-///a move that consumes a character if it can be escaped.
-pub(crate) fn escapable() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
-    of_types(&[NewLine, Pipe, And, Or, SemiColon])
+///a move to consume default or custom tokens as long as they are not escaped.
+/// default eox tokens are semicolon (;) newline (\n) or end of file
+pub(crate) fn custom_eox<M: Move + Copy>(eox: M) -> OrMove<
+    OrMove<
+        AndThenMove<
+            PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
+            PredicateMove<for<'a> fn(Token<'a>) -> bool>
+        >,
+        PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>
+    >,
+    M
+> {
+    //if it's escaped then it's not an EOX
+    (of_type(BackSlash).and_then(none()))
+        //else it must be either new line, ';', eof or caller-defined
+        .or(of_types(&[NewLine, SemiColon, EndOfFile]))
+        .or(eox)
 }
 
 ///a move that consumes a binary operation character
-pub(crate) fn bin_op() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
+pub(crate) fn bin_op() -> PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy> {
     predicate(|t| t.token_type.is_bin_operator())
 }
 
@@ -299,11 +328,4 @@ mod tests {
         assert_eq!(result, Some(Token::new(TokenType::SemiColon, ";")));
     }
 
-    #[test]
-    fn eox_move_escaped() {
-        let tokens = lex("\\;");
-        let cursor = ParserCursor::new(tokens);
-        let result = cursor.lookahead(eox());
-        assert_eq!(result, None);
-    }
 }

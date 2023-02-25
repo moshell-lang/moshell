@@ -339,6 +339,7 @@ mod tests {
     }
 
 
+
     #[test]
     fn test_exitcode_operators() {
         let tokens = lex("(echo hello && echo world) || echo damn");
@@ -376,6 +377,60 @@ mod tests {
                                     ],
                                 })),
                             })
+                        ]
+                    })),
+                    op: BinaryOperator::Or,
+                    right: Box::new(Expr::Call(Call {
+                        arguments: vec![
+                            Expr::Literal(Literal {
+                                token: Token::new(TokenType::Identifier, "echo"),
+                                parsed: LiteralValue::String("echo".to_string()),
+                            }),
+                            Expr::Literal(Literal {
+                                token: Token::new(TokenType::Identifier, "damn"),
+                                parsed: LiteralValue::String("damn".to_string()),
+                            }),
+                        ],
+                    })),
+                })
+            ]
+        )
+    }
+
+    #[test]
+    fn test_escaped_operators() {
+        let tokens = lex("(echo hello \\&& world \\)) || echo damn");
+        let ast = parse(tokens).expect("parsing error");
+        assert_eq!(
+            ast,
+            vec![
+                Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::Parenthesis(Parenthesis {
+                        expressions: vec![
+                            Expr::Call(Call {
+                            arguments: vec![
+                                Expr::Literal(Literal {
+                                    token: Token::new(TokenType::Identifier, "echo"),
+                                    parsed: LiteralValue::String("echo".to_string()),
+                                }),
+                                Expr::Literal(Literal {
+                                    token: Token::new(TokenType::Identifier, "hello"),
+                                    parsed: LiteralValue::String("hello".to_string()),
+                                }),
+                                Expr::Literal(Literal {
+                                    token: Token::new(TokenType::BackSlash, "\\"),
+                                    parsed: LiteralValue::String("&&".to_string()),
+                                }),
+                                Expr::Literal(Literal {
+                                    token: Token::new(TokenType::Identifier, "world"),
+                                    parsed: LiteralValue::String("world".to_string()),
+                                }),
+                                Expr::Literal(Literal {
+                                    token: Token::new(TokenType::BackSlash, "\\"),
+                                    parsed: LiteralValue::String(")".to_string()),
+                                }),
+                            ],
+                        })
                         ]
                     })),
                     op: BinaryOperator::Or,

@@ -1,6 +1,6 @@
 use crate::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use crate::ast::Expr;
-use crate::moves::{eox, next, of_type, of_types, space, spaces, MoveOperations, Move};
+use crate::moves::{eox, next, of_type, of_types, space, spaces, custom_eox, MoveOperations, Move};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{And, Or};
@@ -26,7 +26,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
         let mut arguments = vec![self.expression()?];
         // tests if this cursor hits caller-defined eoc or [And, Or] tokens
         macro_rules! eoc_hit { () => {
-            self.cursor.lookahead(spaces().then(eoc.or(of_types(&[And, Or])))).is_some() };
+            self.cursor.lookahead(spaces().then(custom_eox(eoc.or(of_types(&[And, Or]))))).is_some() };
         }
 
         while !self.cursor.is_at_end() && !eoc_hit!() {

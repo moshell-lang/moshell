@@ -2,7 +2,7 @@ use lexer::token::TokenType;
 use crate::ast::Expr;
 use crate::ast::group::{Block, Parenthesis};
 
-use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations};
+use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations, custom_eox};
 use crate::parser::{ParseResult, Parser};
 
 ///A parser aspect for parsing block expressions
@@ -46,7 +46,7 @@ impl<'a> Parser<'a> {
         }
 
         loop {
-            let expression = self.parse_next(eox().or(of_type(eog)))?;
+            let expression = self.parse_next(custom_eox(of_type(eog)))?;
             expressions.push(expression);
 
             //expects at least one newline or ';'
