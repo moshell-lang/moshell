@@ -51,8 +51,10 @@ impl<A: Move> MoveOperations<A> for A {
     }
 }
 
+
+
 ///A Move that only move over one token and only if it satisfies its predicate.
-#[derive()]
+#[derive(Copy, Clone)]
 pub(crate) struct PredicateMove<P>
 where
     P: Fn(Token) -> bool,
@@ -137,7 +139,7 @@ pub(crate) fn spaces() -> impl Move {
 }
 
 /// A RepeatedMove is a special kind of move that will repeat as long as the underlying move succeeds.
-#[derive()]
+#[derive(Copy, Clone)]
 pub(crate) struct RepeatedMove<M: Move> {
     underlying: M,
     min: isize,
@@ -200,7 +202,7 @@ pub(crate) fn repeat_nm<M: Move>(n: usize, m: usize, mov: M) -> RepeatedMove<M> 
 }
 
 ///Execute origin and then, if it succeeds, execute the other
-#[derive()]
+#[derive(Copy, Clone)]
 pub(crate) struct AndThenMove<A: Move, B: Move> {
     left: A,
     right: B,
@@ -208,8 +210,8 @@ pub(crate) struct AndThenMove<A: Move, B: Move> {
 
 impl<A: Move, B: Move> Move for AndThenMove<A, B> {
     fn apply<'b, F>(&self, at: F, pos: usize) -> Option<usize>
-    where
-        F: Fn(usize) -> Token<'b>,
+        where
+            F: Fn(usize) -> Token<'b>,
     {
         self.left
             .apply(&at, pos)
@@ -218,7 +220,7 @@ impl<A: Move, B: Move> Move for AndThenMove<A, B> {
 }
 
 ///Execute origin and then, if it succeeds, execute the other
-#[derive()]
+#[derive(Copy, Clone)]
 pub(crate) struct ThenMove<A: Move, B: Move> {
     left: A,
     right: B,
@@ -237,7 +239,7 @@ impl<A: Move, B: Move> Move for ThenMove<A, B> {
 }
 
 ///Execute left or right.
-#[derive()]
+#[derive(Copy, Clone)]
 pub(crate) struct OrMove<A: Move, B: Move> {
     left: A,
     right: B,
@@ -245,8 +247,8 @@ pub(crate) struct OrMove<A: Move, B: Move> {
 
 impl<A: Move, B: Move> Move for OrMove<A, B> {
     fn apply<'b, F>(&self, at: F, pos: usize) -> Option<usize>
-    where
-        F: Fn(usize) -> Token<'b>,
+        where
+            F: Fn(usize) -> Token<'b>,
     {
         self.left
             .apply(&at, pos)

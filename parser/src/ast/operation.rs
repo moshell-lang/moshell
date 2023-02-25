@@ -1,5 +1,6 @@
-use crate::ast::Expr;
 use enum_assoc::Assoc;
+
+use crate::ast::Expr;
 
 /// A binary operation between two expressions.
 #[derive(Debug, Clone, PartialEq)]
@@ -12,7 +13,18 @@ pub struct BinaryOperation<'a> {
     pub right: Box<Expr<'a>>,
 }
 
+impl<'a> BinaryOperation<'a> {
+    pub fn new(left: Expr<'a>, op: BinaryOperator, right: Expr<'a>) -> Self {
+        Self {
+            left: Box::new(left),
+            op,
+            right: Box::new(right),
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Assoc)]
+#[func(pub const fn priority(& self) -> i8)]
 pub enum BinaryOperator {
     /// The '&&' operator.
     #[assoc(priority = -2)]

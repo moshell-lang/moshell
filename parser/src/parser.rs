@@ -1,4 +1,3 @@
-
 use lexer::token::{Token, TokenType};
 use lexer::token::TokenType::EndOfFile;
 
@@ -97,16 +96,16 @@ impl<'a> Parser<'a> {
         Ok(statements)
     }
 
-    pub(crate) fn parse_next(&mut self, eox: impl Move) -> ParseResult<Expr<'a>> {
+    pub(crate) fn parse_next(&mut self, eox: impl Move + Copy) -> ParseResult<Expr<'a>> {
         let statement = self.statement()?;
 
         self.cursor.advance(spaces()); //consume spaces
 
         //expect end of expression (then the statement is directly pushed) OR if not present,
         // expect a binary operator to start a binary operation representation.
-        let eox = self.cursor.lookahead(eox).is_some();
+        let is_eox = self.cursor.lookahead(eox).is_some();
 
-        if eox {
+        if is_eox {
             return Ok(statement);
         }
 
@@ -114,7 +113,7 @@ impl<'a> Parser<'a> {
             return self.expected("wrong binary operator for left expression");
         }
         //consider the statement as left of the binary operator then parse the right branch.
-        self.binary_operator_right(statement)
+        self.binary_operator_right(statement, eox)
     }
 
     pub(crate) fn expected<T>(&self, message: &str) -> ParseResult<T> {

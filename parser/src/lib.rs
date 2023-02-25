@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 #![deny(warnings)]
 
+extern crate core;
+
 use crate::ast::Expr;
 use lexer::token::Token;
 
