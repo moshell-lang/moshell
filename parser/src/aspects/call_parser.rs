@@ -162,11 +162,7 @@ mod tests {
 
     #[test]
     fn redirection() {
-        let tokens = vec![
-            Token::new(TokenType::Identifier, "ls"),
-            Token::new(TokenType::Greater, ">"),
-            Token::new(TokenType::Identifier, "/tmp/out"),
-        ];
+        let tokens = lex("ls> /tmp/out");
         let parsed = Parser::new(tokens).call().expect("Failed to parse");
         assert_eq!(
             parsed,
@@ -181,7 +177,7 @@ mod tests {
                     fd: RedirFd::Default,
                     operator: RedirOp::Write,
                     operand: Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "/tmp/out"),
+                        token: Token::new(TokenType::Identifier, "out"),
                         parsed: "/tmp/out".into(),
                     }),
                 }],
@@ -191,12 +187,7 @@ mod tests {
 
     #[test]
     fn dupe_fd() {
-        let tokens = vec![
-            Token::new(TokenType::Identifier, "ls"),
-            Token::new(TokenType::Greater, ">"),
-            Token::new(TokenType::Ampersand, "&"),
-            Token::new(TokenType::IntLiteral, "2"),
-        ];
+        let tokens = lex("ls>&2");
         let parsed = Parser::new(tokens).call().expect("Failed to parse");
         assert_eq!(
             parsed,
