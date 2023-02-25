@@ -13,9 +13,8 @@ pub trait VarReferenceParser<'a> {
 impl<'a> VarReferenceParser<'a> for Parser<'a> {
     /// Parses a variable reference.
     fn var_reference(&mut self) -> ParseResult<Expr<'a>> {
-        let cursor = &mut self.cursor;
-        cursor.force(of_type(TokenType::Dollar), "Expected dollar sign.")?;
-        let has_bracket = cursor
+        let has_bracket = self
+            .cursor
             .advance(of_type(TokenType::CurlyLeftBracket))
             .is_some();
         let name = self
@@ -36,7 +35,7 @@ mod tests {
     use lexer::lexer::lex;
     use lexer::token::{Token, TokenType};
 
-    use crate::aspects::var_reference_parser::VarReferenceParser;
+    use crate::aspects::substitution_parser::SubstitutionParser;
     use crate::ast::variable::VarReference;
     use crate::ast::Expr;
     use crate::parser::Parser;
@@ -45,9 +44,7 @@ mod tests {
     #[test]
     fn test_simple_ref() {
         let tokens = lex("$VARIABLE");
-        let ast = Parser::new(tokens)
-            .var_reference()
-            .expect("failed to parse");
+        let ast = Parser::new(tokens).substitution().expect("failed to parse");
         assert_eq!(
             ast,
             Expr::VarReference(VarReference {
@@ -59,9 +56,7 @@ mod tests {
     #[test]
     fn test_wrapped_ref() {
         let tokens = lex("${VAR}IABLE");
-        let ast = Parser::new(tokens)
-            .var_reference()
-            .expect("failed to parse");
+        let ast = Parser::new(tokens).substitution().expect("failed to parse");
         assert_eq!(
             ast,
             Expr::VarReference(VarReference {

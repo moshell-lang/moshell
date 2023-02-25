@@ -6,7 +6,7 @@ use crate::aspects::literal_parser::LiteralParser;
 use crate::aspects::var_declaration_parser::VarDeclarationParser;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::moves::{eox, spaces};
+use crate::moves::{eox, space, spaces, MoveOperations};
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -76,6 +76,7 @@ impl<'a> Parser<'a> {
 
         while !self.cursor.is_at_end() {
             statements.push(self.statement()?);
+            self.cursor.advance(space().then(eox()));
         }
 
         Ok(statements)

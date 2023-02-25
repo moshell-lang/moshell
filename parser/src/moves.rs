@@ -267,12 +267,20 @@ pub(crate) fn eox() -> OrMove<
     //if it's escaped then it's not an EOX
     (of_type(BackSlash).and_then(escapable().negate()))
         //else it must be either new line or ';'
-        .or(of_types(&[NewLine, SemiColon]))
+        .or(of_types(&[NewLine, SemiColon, RoundedRightBracket]))
 }
 
 ///a move that consumes a character if it can be escaped.
 pub(crate) fn escapable() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool)> {
-    of_types(&[NewLine, Pipe, And, Or, SemiColon, Ampersand])
+    of_types(&[
+        NewLine,
+        Pipe,
+        And,
+        Or,
+        SemiColon,
+        Ampersand,
+        RoundedRightBracket,
+    ])
 }
 
 #[cfg(test)]

@@ -1,8 +1,8 @@
 use std::num::IntErrorKind;
 
+use crate::aspects::substitution_parser::SubstitutionParser;
 use lexer::token::TokenType;
 
-use crate::aspects::var_reference_parser::VarReferenceParser;
 use crate::ast::literal::{Literal, LiteralValue};
 use crate::ast::*;
 use crate::moves::{next, of_type};
@@ -77,8 +77,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                         literal_value.clear();
                     }
 
-                    let var_ref = self.var_reference()?;
-                    parts.push(var_ref);
+                    parts.push(self.substitution()?);
                     current_start = self.cursor.peek();
                 }
 
@@ -112,7 +111,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
         }
 
         match current.token_type {
-            TokenType::Dollar => parts.push(self.var_reference()?),
+            TokenType::Dollar => parts.push(self.substitution()?),
             TokenType::BackSlash => {
                 //never retain first backslash
                 self.cursor.next()?; //advance so we are not pointing to token after '\'
@@ -142,7 +141,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                         }));
                         builder.clear();
                     }
-                    parts.push(self.var_reference()?);
+                    parts.push(self.substitution()?);
                 }
                 _ if pivot.is_ponctuation() => break,
                 _ => {
