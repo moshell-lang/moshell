@@ -5,12 +5,20 @@ use crate::ast::operation::{BinaryOperation, BinaryOperator};
 use crate::moves::{bin_op, Move, MoveOperations, spaces};
 use crate::parser::{Parser, ParseResult};
 
-pub(crate) trait BinaryOps<'p> {
+/// a parser aspect to parse any kind of binary operations
+pub(crate) trait BinaryOperationsParser<'p> {
+    ///Parses a binary operation tree
+    /// `eox`: a selector to define where the binary operation expression hits it end.
     fn binary_operator(&mut self, eox: impl Move + Copy) -> ParseResult<Expr<'p>>;
 
+    ///Parses the operator and left arm of a left-defined operation.
+    /// `left`: the left arm of the binary operator.
+    /// `eox`: a selector to define where the binary operation expression hits it end.
     fn binary_operator_right(&mut self, left: Expr<'p>, eox: impl Move + Copy) -> ParseResult<Expr<'p>>;
 }
 
+///Convert a TokenType to a BinaryOperator;
+/// This function panics if the given token type is not translatable to a BinaryOperator.
 fn to_bin_operator(token_type: TokenType) -> BinaryOperator {
     match token_type {
         TokenType::And => BinaryOperator::And,
@@ -32,19 +40,24 @@ fn to_bin_operator(token_type: TokenType) -> BinaryOperator {
     }
 }
 
-impl<'p> BinaryOps<'p> for Parser<'p> {
+impl<'p> BinaryOperationsParser<'p> for Parser<'p> {
     fn binary_operator(&mut self, eox: impl Move + Copy) -> ParseResult<Expr<'p>> {
         let left = self.statement(eox)?;
         self.binary_operator_right(left, eox)
     }
 
     fn binary_operator_right(&mut self, left: Expr<'p>, eox: impl Move + Copy) -> ParseResult<Expr<'p>> {
-        self.binary_op_right_internal(left, eox, i8::MIN)
+        //parsing a top-level tree operation with fewest priority
+        self.binary_op_right_internal(i8::MIN, eox, left)
     }
 }
 
 impl<'p> Parser<'p> {
-    fn binary_op_right_internal(&mut self, left: Expr<'p>, eox: impl Move + Copy, priority: i8) -> ParseResult<Expr<'p>> {
+    //Parses a binary operation tree as long as it does not hits an operation with smaller priority.
+    fn binary_op_right_internal(&mut self,
+                                priority: i8,
+                                eox: impl Move + Copy,
+                                left: Expr<'p>) -> ParseResult<Expr<'p>> {
         let mut operation = self.binary_operation_internal(left, eox)?;
         macro_rules! hit_eox {
             () => { self.cursor.lookahead(spaces().then(eox)).is_some() };
@@ -57,11 +70,12 @@ impl<'p> Parser<'p> {
         Ok(operation)
     }
 
+    //does current operator priority has priority over next binary operator ?
     fn has_priority(&self, current_priority: i8) -> bool {
         self.cursor
             .lookahead(spaces().then(bin_op()))
-            .map(|t| (current_priority.saturating_sub(to_bin_operator(t.token_type).priority())))
-            .map(|comp| comp < 0)
+            .map(|t| to_bin_operator(t.token_type).priority().saturating_sub(current_priority))
+            .map(|comp| comp > 0)
             .unwrap_or(false)
     }
 
@@ -73,30 +87,40 @@ impl<'p> Parser<'p> {
 
         if let Some(operator) = operator {
             let operator_priority = operator.priority();
+            //directly-next statement
             let right = self.statement(eox)?;
 
+            //comparison between current operator's priority and next operator (if any)
+            //is 0 if priorities are same or if there is no next operator.
+            //is < 0 if current operator's priority is higher
+            //is > 0 if current operator's priority is smaller
             let priority_comparison = self.cursor
                 .lookahead(spaces().then(bin_op()))
-                .map(|t| to_bin_operator(t.token_type).priority() - operator_priority)
-                .unwrap_or_default();
+                .map(|t| operator_priority - to_bin_operator(t.token_type).priority())
+                .unwrap_or(0);
 
-            let result = if priority_comparison < 0 {
+
+            let result = if priority_comparison > 0 {
+                //current binary operator has more priority so we directly return it
                 Ok(Expr::Binary(BinaryOperation {
                     left: Box::new(left),
                     op: operator,
                     right: Box::new(right),
                 }))
             } else if priority_comparison == 0 {
-                self.binary_op_right_internal(Expr::Binary(BinaryOperation {
+                //same priority so we can continue to parse to the right,
+                // passing current binary operation as the left operation.
+                self.binary_op_right_internal(operator_priority, eox, Expr::Binary(BinaryOperation {
                     left: Box::new(left),
                     op: operator,
                     right: Box::new(right),
-                }), eox, operator_priority)
+                }))
             } else {
+                //priority is fewer, so we let the priority to the right by continuing to parse
                 Ok(Expr::Binary(BinaryOperation {
                     left: Box::new(left),
                     op: operator,
-                    right: Box::new(self.binary_op_right_internal(right, eox, operator_priority)?),
+                    right: Box::new(self.binary_op_right_internal(operator_priority, eox, right)?),
                 }))
             };
 

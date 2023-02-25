@@ -1,7 +1,7 @@
 use lexer::token::{Token, TokenType};
 use lexer::token::TokenType::EndOfFile;
 
-use crate::aspects::binary_operations_parser::BinaryOps;
+use crate::aspects::binary_operations_parser::BinaryOperationsParser;
 use crate::aspects::call_parser::CallParser;
 use crate::aspects::group_parser::GroupParser;
 use crate::aspects::literal_parser::LiteralParser;
