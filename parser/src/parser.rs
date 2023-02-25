@@ -40,6 +40,7 @@ impl<'a> Parser<'a> {
             TokenType::Quote => self.string_literal(),
             TokenType::CurlyLeftBracket => self.block(),
             TokenType::DoubleQuote => self.templated_string_literal(),
+            _ if pivot.is_closing_ponctuation() => self.expected("Unexpected closing bracket."),
             _ => self.argument(),
         }
     }

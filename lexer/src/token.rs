@@ -165,4 +165,12 @@ impl TokenType {
                 | TokenType::Error
         )
     }
+
+    pub fn is_closing_ponctuation(self) -> bool {
+        matches!(
+            self,
+            |TokenType::SquareRightBracket| TokenType::RoundedRightBracket
+                | TokenType::CurlyRightBracket
+        )
+    }
 }

@@ -46,6 +46,7 @@ impl<'a> SubstitutionParser<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::aspects::substitution_parser::SubstitutionParser;
+    use crate::parse;
     use crate::parser::{ParseError, Parser};
     use lexer::lexer::lex;
     use pretty_assertions::assert_eq;
@@ -58,6 +59,18 @@ mod tests {
             ast,
             Err(ParseError {
                 message: "Expected closing bracket.".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn unexpected_closing_parenthesis() {
+        let tokens = lex("some stuff)");
+        let ast = parse(tokens);
+        assert_eq!(
+            ast,
+            Err(ParseError {
+                message: "Unexpected closing bracket.".to_string()
             })
         );
     }
