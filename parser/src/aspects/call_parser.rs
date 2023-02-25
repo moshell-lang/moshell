@@ -118,11 +118,13 @@ impl<'a> CallParser<'a> for Parser<'a> {
     fn redirectable(&mut self, expr: Expr<'a>, eoc: impl Move + Copy) -> ParseResult<Expr<'a>> {
         let mut redirections = vec![];
         self.cursor.advance(spaces());
+
         while self.cursor.lookahead(eox()).is_none() {
             match self.cursor.peek().token_type {
                 TokenType::Ampersand | TokenType::Less | TokenType::Greater => {
                     redirections.push(self.redirection()?);
                 }
+
                 TokenType::Pipe => {
                     return self.pipeline(expr, eoc);
                 }
@@ -138,6 +140,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
             };
             self.cursor.advance(spaces());
         }
+
         if redirections.is_empty() {
             Ok(expr)
         } else {
@@ -151,7 +154,13 @@ impl<'a> CallParser<'a> for Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn is_at_redirection_sign(&self) -> bool {
-        match self.cursor.peek().token_type {
+        //handle escaped redirection signs
+        /*if self.cursor.lookahead(of_type(BackSlash)).is_some() {
+            return false;
+        }*/
+
+        let pivot = self.cursor.peek().token_type;
+        match pivot {
             TokenType::Ampersand | TokenType::Less | TokenType::Greater | TokenType::Pipe => true,
             _ => self
                 .cursor
@@ -264,35 +273,35 @@ mod tests {
 
     #[test]
     fn escaped_call() {
-        let tokens = lex("grep -E regex \\; echo test");
+        let tokens = lex("echo hello \\; \\| \\2> \\>&2 \\<");
         let parsed = parse(tokens).expect("parsing error");
         assert_eq!(
             parsed,
             vec![Expr::Call(Call {
                 arguments: vec![
                     Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "grep"),
-                        parsed: "grep".into(),
-                    }),
-                    Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "E"),
-                        parsed: "-E".into(),
-                    }),
-                    Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "regex"),
-                        parsed: "regex".into(),
+                        token: Token::new(TokenType::Identifier, "hello"),
+                        parsed: "echo".into(),
                     }),
                     Expr::Literal(Literal {
                         token: Token::new(TokenType::BackSlash, "\\"),
                         parsed: ";".into(),
                     }),
                     Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "echo"),
-                        parsed: "echo".into(),
+                        token: Token::new(TokenType::BackSlash, "\\"),
+                        parsed: "|".into(),
                     }),
                     Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "test"),
-                        parsed: "test".into(),
+                        token: Token::new(TokenType::BackSlash, "\\"),
+                        parsed: "2>".into(),
+                    }),
+                    Expr::Literal(Literal {
+                        token: Token::new(TokenType::BackSlash, "\\"),
+                        parsed: ">&2".into(),
+                    }),
+                    Expr::Literal(Literal {
+                        token: Token::new(TokenType::BackSlash, "\\"),
+                        parsed: "<".into(),
                     }),
                 ],
             }),]
