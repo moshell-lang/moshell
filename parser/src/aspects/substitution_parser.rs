@@ -47,14 +47,12 @@ impl<'a> SubstitutionParser<'a> for Parser<'a> {
 mod tests {
     use crate::aspects::substitution_parser::SubstitutionParser;
     use crate::ast::callable::Call;
-    use crate::ast::literal::Literal;
     use crate::ast::statement::Block;
     use crate::ast::substitution::{Substitution, SubstitutionKind};
     use crate::ast::Expr;
     use crate::parse;
     use crate::parser::{ParseError, Parser};
     use lexer::lexer::lex;
-    use lexer::token::{Token, TokenType};
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -91,16 +89,10 @@ mod tests {
                 expr: Box::new(Expr::Block(Block {
                     exprs: vec![Expr::Call(Call {
                         arguments: vec![
-                            Expr::Literal(Literal {
-                                token: Token::new(TokenType::Identifier, "ls"),
-                                parsed: "ls".into(),
-                            }),
+                            Expr::Literal("ls".into()),
                             Expr::Substitution(Substitution {
                                 expr: Box::new(Expr::Call(Call {
-                                    arguments: vec![Expr::Literal(Literal {
-                                        token: Token::new(TokenType::Identifier, "pwd"),
-                                        parsed: "pwd".into(),
-                                    })],
+                                    arguments: vec![Expr::Literal("pwd".into())],
                                 })),
                                 kind: SubstitutionKind::Capture,
                             })

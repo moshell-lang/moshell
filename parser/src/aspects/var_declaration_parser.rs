@@ -126,7 +126,7 @@ mod tests {
                     ty: None,
                 },
                 initializer: Some(Box::from(Expr::Literal(Literal {
-                    token: Token::new(TokenType::Quote, "'"),
+                    lexme: "'hello $test'",
                     parsed: "hello $test".into(),
                 }))),
             })

@@ -7,6 +7,7 @@ use crate::ast::literal::{Literal, LiteralValue};
 use crate::ast::*;
 use crate::moves::{next, of_type};
 use crate::parser::{ParseResult, Parser};
+use crate::source::try_join_str;
 
 pub(crate) trait LiteralParser<'a> {
     fn literal(&mut self) -> ParseResult<Expr<'a>>;
@@ -19,15 +20,16 @@ pub(crate) trait LiteralParser<'a> {
 impl<'a> LiteralParser<'a> for Parser<'a> {
     fn literal(&mut self) -> ParseResult<Expr<'a>> {
         Ok(Expr::Literal(Literal {
-            token: self.cursor.peek().clone(),
+            lexme: self.cursor.peek().value,
             parsed: self.parse_literal()?,
         }))
     }
 
     fn string_literal(&mut self) -> ParseResult<Expr<'a>> {
-        let token = self
+        let mut lexme = self
             .cursor
-            .force(of_type(TokenType::Quote), "Expected quote.")?;
+            .force(of_type(TokenType::Quote), "Expected quote.")?
+            .value;
 
         let mut value = String::new();
 
@@ -39,14 +41,20 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
 
                 Some(token) => {
                     if token.token_type == TokenType::Quote {
+                        if let Some(joined) = try_join_str(lexme, token.value) {
+                            lexme = joined;
+                        }
                         break;
                     }
                     value.push_str(token.value);
+                    if let Some(joined) = try_join_str(lexme, token.value) {
+                        lexme = joined;
+                    }
                 }
             };
         }
         Ok(Expr::Literal(Literal {
-            token,
+            lexme,
             parsed: LiteralValue::String(value),
         }))
     }
@@ -54,7 +62,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     fn templated_string_literal(&mut self) -> ParseResult<Expr<'a>> {
         self.cursor
             .force(of_type(TokenType::DoubleQuote), "Expected quote.")?;
-        let mut current_start = self.cursor.peek();
+        let mut lexme = self.cursor.peek().value;
         let mut literal_value = String::new();
         let mut parts = Vec::new();
         loop {
@@ -71,22 +79,30 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                 TokenType::Dollar => {
                     if !literal_value.is_empty() {
                         parts.push(Expr::Literal(Literal {
-                            token: current_start,
+                            lexme,
                             parsed: LiteralValue::String(literal_value.clone()),
                         }));
                         literal_value.clear();
+                        lexme = "";
                     }
 
                     parts.push(self.substitution()?);
-                    current_start = self.cursor.peek();
                 }
 
-                _ => literal_value.push_str(self.cursor.next()?.value),
+                _ => {
+                    let value = self.cursor.next()?.value;
+                    literal_value.push_str(value);
+                    if lexme.is_empty() {
+                        lexme = value;
+                    } else if let Some(joined) = try_join_str(lexme, value) {
+                        lexme = joined;
+                    }
+                }
             };
         }
         if !literal_value.is_empty() {
             parts.push(Expr::Literal(Literal {
-                token: current_start,
+                lexme,
                 parsed: LiteralValue::String(literal_value),
             }));
         }
@@ -99,14 +115,22 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     /// An argument is usually a single identifier, but can also be
     /// composed of multiple tokens if not separated with a space.
     fn argument(&mut self) -> ParseResult<Expr<'a>> {
-        let mut current = self.cursor.peek();
+        let current = self.cursor.peek();
         let mut parts = Vec::new();
         let mut builder = String::new();
+        let mut lexme = current.value;
 
         //pushes current token then advance
         macro_rules! push_current {
             () => {
-                builder.push_str(self.cursor.next()?.value)
+                let value = self.cursor.next()?.value;
+                builder.push_str(value);
+                if lexme.is_empty() {
+                    lexme = value;
+                } else if let Some(joined) = try_join_str(lexme, value) {
+                    lexme = joined;
+                }
+                ()
             };
         }
 
@@ -118,8 +142,10 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                                      //will append the escaped value (token after the backslash)
                 push_current!();
             }
-            _ => push_current!(),
-        }
+            _ => {
+                push_current!();
+            }
+        };
         while !self.cursor.is_at_end() {
             let pivot = self.cursor.peek().token_type;
             match pivot {
@@ -136,28 +162,23 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                 TokenType::At | TokenType::Dollar => {
                     if !builder.is_empty() {
                         parts.push(Expr::Literal(Literal {
-                            token: current.clone(),
+                            lexme,
                             parsed: LiteralValue::String(builder.clone()),
                         }));
                         builder.clear();
+                        lexme = "";
                     }
                     parts.push(self.substitution()?);
                 }
                 _ if pivot.is_ponctuation() => break,
                 _ => {
-                    if !builder.is_empty() {
-                        current = self.cursor.peek();
-                    }
-                    if !builder.is_empty() {
-                        current = self.cursor.peek();
-                    }
-                    push_current!()
+                    push_current!();
                 }
             }
         }
         if !builder.is_empty() {
             parts.push(Expr::Literal(Literal {
-                token: current,
+                lexme,
                 parsed: LiteralValue::String(builder),
             }));
         }
@@ -224,10 +245,8 @@ mod tests {
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
-                token: Token::new(TokenType::Quote, "'"),
-                parsed: LiteralValue::String(
-                    "hello $world! $(this is a test) @(of course)".to_string()
-                ),
+                lexme: "'hello $world! $(this is a test) @(of course)'",
+                parsed: "hello $world! $(this is a test) @(of course)".into(),
             })
         );
     }
@@ -239,7 +258,7 @@ mod tests {
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
-                token: Token::new(TokenType::Identifier, "a"),
+                lexme: "a",
                 parsed: "aa".into(),
             })
         );

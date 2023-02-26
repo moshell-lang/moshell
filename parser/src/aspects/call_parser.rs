@@ -167,7 +167,6 @@ mod tests {
     use crate::parse;
     use crate::parser::Parser;
     use lexer::lexer::lex;
-    use lexer::token::{Token, TokenType};
 
     #[test]
     fn redirection() {
@@ -177,18 +176,12 @@ mod tests {
             parsed,
             Expr::Redirected(Redirected {
                 expr: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "ls"),
-                        parsed: "ls".into(),
-                    })]
+                    arguments: vec![Expr::Literal("ls".into())]
                 })),
                 redirections: vec![Redir {
                     fd: RedirFd::Default,
                     operator: RedirOp::Write,
-                    operand: Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "out"),
-                        parsed: "/tmp/out".into(),
-                    }),
+                    operand: Expr::Literal("/tmp/out".into()),
                 }],
             })
         );
@@ -202,16 +195,13 @@ mod tests {
             parsed,
             Expr::Redirected(Redirected {
                 expr: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "ls"),
-                        parsed: "ls".into(),
-                    })]
+                    arguments: vec![Expr::Literal("ls".into())]
                 })),
                 redirections: vec![Redir {
                     fd: RedirFd::Default,
                     operator: RedirOp::FdOut,
                     operand: Expr::Literal(Literal {
-                        token: Token::new(TokenType::IntLiteral, "2"),
+                        lexme: "2",
                         parsed: 2.into(),
                     }),
                 }],
@@ -228,31 +218,13 @@ mod tests {
             vec![
                 Expr::Call(Call {
                     arguments: vec![
-                        Expr::Literal(Literal {
-                            token: Token::new(TokenType::Identifier, "grep"),
-                            parsed: "grep".into(),
-                        }),
-                        Expr::Literal(Literal {
-                            token: Token::new(TokenType::Identifier, "E"),
-                            parsed: "-E".into(),
-                        }),
-                        Expr::Literal(Literal {
-                            token: Token::new(TokenType::Identifier, "regex"),
-                            parsed: "regex".into(),
-                        }),
+                        Expr::Literal("grep".into()),
+                        Expr::Literal("-E".into()),
+                        Expr::Literal("regex".into()),
                     ],
                 }),
                 Expr::Call(Call {
-                    arguments: vec![
-                        Expr::Literal(Literal {
-                            token: Token::new(TokenType::Identifier, "echo"),
-                            parsed: "echo".into(),
-                        }),
-                        Expr::Literal(Literal {
-                            token: Token::new(TokenType::Identifier, "test"),
-                            parsed: "test".into(),
-                        }),
-                    ],
+                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into()),],
                 }),
             ]
         )
@@ -266,30 +238,15 @@ mod tests {
             parsed,
             vec![Expr::Call(Call {
                 arguments: vec![
+                    Expr::Literal("grep".into()),
+                    Expr::Literal("-E".into()),
+                    Expr::Literal("regex".into()),
                     Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "grep"),
-                        parsed: "grep".into(),
-                    }),
-                    Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "E"),
-                        parsed: "-E".into(),
-                    }),
-                    Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "regex"),
-                        parsed: "regex".into(),
-                    }),
-                    Expr::Literal(Literal {
-                        token: Token::new(TokenType::BackSlash, "\\"),
+                        lexme: "\\;",
                         parsed: ";".into(),
                     }),
-                    Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "echo"),
-                        parsed: "echo".into(),
-                    }),
-                    Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "test"),
-                        parsed: "test".into(),
-                    }),
+                    Expr::Literal("echo".into()),
+                    Expr::Literal("test".into()),
                 ],
             }),]
         )
