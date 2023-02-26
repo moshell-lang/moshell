@@ -46,9 +46,15 @@ impl<'a> SubstitutionParser<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::aspects::substitution_parser::SubstitutionParser;
+    use crate::ast::callable::Call;
+    use crate::ast::literal::Literal;
+    use crate::ast::statement::Block;
+    use crate::ast::substitution::{Substitution, SubstitutionKind};
+    use crate::ast::Expr;
     use crate::parse;
     use crate::parser::{ParseError, Parser};
     use lexer::lexer::lex;
+    use lexer::token::{Token, TokenType};
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -59,6 +65,49 @@ mod tests {
             ast,
             Err(ParseError {
                 message: "Expected closing bracket.".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn unpaired_parenthesis() {
+        let tokens = lex("$(a @(b) $(c d\\))");
+        let ast = parse(tokens);
+        assert_eq!(
+            ast,
+            Err(ParseError {
+                message: "Expected closing bracket.".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn mix_blocks() {
+        let tokens = lex("$({ls $(pwd)})");
+        let ast = Parser::new(tokens).substitution().expect("Failed to parse");
+        assert_eq!(
+            ast,
+            Expr::Substitution(Substitution {
+                expr: Box::new(Expr::Block(Block {
+                    exprs: vec![Expr::Call(Call {
+                        arguments: vec![
+                            Expr::Literal(Literal {
+                                token: Token::new(TokenType::Identifier, "ls"),
+                                parsed: "ls".into(),
+                            }),
+                            Expr::Substitution(Substitution {
+                                expr: Box::new(Expr::Call(Call {
+                                    arguments: vec![Expr::Literal(Literal {
+                                        token: Token::new(TokenType::Identifier, "pwd"),
+                                        parsed: "pwd".into(),
+                                    })],
+                                })),
+                                kind: SubstitutionKind::Capture,
+                            })
+                        ],
+                    })],
+                })),
+                kind: SubstitutionKind::Capture,
             })
         );
     }
