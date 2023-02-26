@@ -171,12 +171,12 @@ mod tests {
                                         ty: None,
                                     },
                                     initializer: Some(Box::from(Expr::Literal(Literal {
-                                        token: Token::new(TokenType::IntLiteral, "8"),
+                                        lexme: "8",
                                         parsed: Int(8),
                                     }))),
                                 }),
                                 Expr::Literal(Literal {
-                                    token: Token::new(TokenType::IntLiteral, "8"),
+                                    lexme: "8",
                                     parsed: Int(8),
                                 }),
                             ]
@@ -191,7 +191,7 @@ mod tests {
                                     ty: None,
                                 },
                                 initializer: Some(Box::from(Expr::Literal(Literal {
-                                    token: Token::new(TokenType::IntLiteral, "89"),
+                                    lexme: "89",
                                     parsed: Int(89),
                                 }))),
                             }),
@@ -202,20 +202,14 @@ mod tests {
                                     ty: None,
                                 },
                                 initializer: Some(Box::from(Expr::Literal(Literal {
-                                    token: Token::new(TokenType::IntLiteral, "77"),
+                                    lexme: "77",
                                     parsed: Int(77),
                                 }))),
                             }),
                             Expr::Call(Call {
                                 arguments: vec![
-                                    Expr::Literal(Literal {
-                                        token: Token::new(TokenType::Identifier, "command"),
-                                        parsed: "command".into(),
-                                    }),
-                                    Expr::Literal(Literal {
-                                        token: Token::new(TokenType::Identifier, "call"),
-                                        parsed: "call".into(),
-                                    }),
+                                    Expr::Literal("command".into()),
+                                    Expr::Literal("call".into()),
                                 ],
                             }),
                         ]
@@ -247,7 +241,7 @@ mod tests {
                             ty: Some(Token::new(TokenType::Identifier, "int")),
                         },
                         initializer: Some(Box::new(Expr::Literal(Literal {
-                            token: Token::new(TokenType::FloatLiteral, "7.0"),
+                            lexme: "7.0",
                             parsed: Float(7.0),
                         }))),
                     }),
@@ -258,7 +252,7 @@ mod tests {
                             ty: None,
                         },
                         initializer: Some(Box::new(Expr::Literal(Literal {
-                            token: Token::new(TokenType::IntLiteral, "8"),
+                            lexme: "8",
                             parsed: Int(8),
                         }))),
                     }),

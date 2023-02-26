@@ -1,9 +1,7 @@
-use lexer::token::Token;
-
 /// A literal value that can be used directly.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Literal<'a> {
-    pub token: Token<'a>,
+    pub lexme: &'a str,
     pub parsed: LiteralValue,
 }
 
@@ -24,5 +22,14 @@ impl From<&str> for LiteralValue {
 impl From<i64> for LiteralValue {
     fn from(s: i64) -> Self {
         Self::Int(s)
+    }
+}
+
+impl<'a> From<&'a str> for Literal<'a> {
+    fn from(s: &'a str) -> Self {
+        Self {
+            lexme: s,
+            parsed: LiteralValue::from(s),
+        }
     }
 }
