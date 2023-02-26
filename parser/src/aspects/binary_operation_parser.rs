@@ -109,7 +109,7 @@ impl<'p> Parser<'p> {
         let priority_comparison = self.cursor
             .lookahead(spaces().then(bin_op()))
             .map(|t| operator_priority - BinaryOperator::convert_bin_operator(t.token_type)
-                .expect("conception error") //cannot fail
+                .expect("not a valid operator")
                 .priority())
             .unwrap_or(0);
 
@@ -381,27 +381,15 @@ mod tests {
                         Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Call(Call {
                                 arguments: vec![
-                                    Expr::Literal(Literal {
-                                        lexme: "echo",
-                                        parsed: "echo".into(),
-                                    }),
-                                    Expr::Literal(Literal {
-                                        lexme: "hello",
-                                        parsed: "hello".into(),
-                                    }),
+                                    Expr::Literal("echo".into()),
+                                    Expr::Literal("hello".into()),
                                 ],
                             })),
                             op: And,
                             right: Box::new(Expr::Call(Call {
                                 arguments: vec![
-                                    Expr::Literal(Literal {
-                                        lexme: "echo",
-                                        parsed: "echo".into(),
-                                    }),
-                                    Expr::Literal(Literal {
-                                        lexme: "world",
-                                        parsed: "world".into(),
-                                    }),
+                                    Expr::Literal("echo".into()),
+                                    Expr::Literal("world".into()),
                                 ],
                             })),
                         })
@@ -410,13 +398,8 @@ mod tests {
                 op: Or,
                 right: Box::new(Expr::Call(Call {
                     arguments: vec![
-                        Expr::Literal(Literal {
-                            lexme: "echo",
-                            parsed: "echo".into(),
-                        }),
-                        Expr::Literal(Literal {
-                            lexme: "damn",
-                            parsed: "damn".into(),
+                        Expr::Literal("echo".into()),
+                        Expr::Literal("damn".into()),
                         }),
                     ],
                 })),
@@ -434,28 +417,19 @@ mod tests {
                 left: Box::new(Expr::Parenthesis(Parenthesis {
                     expressions: vec![
                         Expr::Call(Call {
-                            arguments: vec![
-                                Expr::Literal(Literal {
-                                    lexme: "echo",
-                                    parsed: "echo".into(),
-                                }),
-                                Expr::Literal(Literal {
-                                    lexme: "hello",
-                                    parsed: "hello".into(),
-                                }),
-                                Expr::Literal(Literal {
-                                    lexme: "\\&&",
-                                    parsed: "&&".into(),
-                                }),
-                                Expr::Literal(Literal {
-                                    lexme: "world",
-                                    parsed: "world".into(),
-                                }),
-                                Expr::Literal(Literal {
-                                    lexme: "\\)",
-                                    parsed: ")".into(),
-                                }),
-                            ],
+                        arguments: vec![
+                            Expr::Literal("echo".into()),
+                            Expr::Literal("hello".into()),
+                            Expr::Literal(Literal {
+                                lexme: "\\&&",
+                                parsed: "&&".into(),
+                            }),
+                            Expr::Literal("world".into()),
+                            Expr::Literal(Literal {
+                                lexme: "\\)",
+                                parsed: ")".into(),
+                            }),
+                        ],
                         })
                     ]
                 })),

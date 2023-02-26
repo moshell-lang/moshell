@@ -2,8 +2,8 @@ use lexer::token::TokenType;
 
 use crate::ast::operation::{ARITHMETICS, BinaryOperator, BOOLEANS, COMPARISONS};
 
-#[derive(Clone)]
 /// A structure that contains contexts
+#[derive(Clone)]
 pub struct ParserContext {
     pub allowed_operators: Vec<BinaryOperator>,
     pub parsing_value: bool,

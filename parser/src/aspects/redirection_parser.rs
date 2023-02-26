@@ -16,7 +16,7 @@ pub(crate) trait RedirectionParser<'a> {
     /// Associates any potential redirections to a redirectable expression
     fn redirectable(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
 
-    ///return true if parser is currently on a redirection sign.
+    /// Tests if the current and subsequent tokens can be part of a redirection expression
     fn is_at_redirection_sign(&self) -> bool;
 }
 

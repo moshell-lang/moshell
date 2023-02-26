@@ -6,10 +6,10 @@ use crate::ast::operation::BinaryOperator::*;
 
 pub const ARITHMETICS: &[BinaryOperator] = &[Plus, Minus, Times, Divide, Modulo];
 pub const COMPARISONS: &[BinaryOperator] = &[EqualEqual, NotEqual, Less, LessEqual, Greater, GreaterEqual];
-pub const BOOLEANS: &[BinaryOperator] = &[And, Or];
+pub const LOGICALS: &[BinaryOperator] = &[And, Or];
 
 
-/// An arithmetic operation between two expressions.
+/// A binary operation between two expressions.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BinaryOperation<'a> {
     /// The left-hand side of the operation.
@@ -80,10 +80,11 @@ pub enum BinaryOperator {
     Modulo,
 }
 
-impl BinaryOperator {
-    ///Convert a TokenType to a BinaryOperator;
-    /// This function panics if the given token type is not translatable to a BinaryOperator.
-    pub fn convert_bin_operator(token_type: TokenType) -> Result<BinaryOperator, &'static str> {
+impl TryFrom<TokenType> for BinaryOperator {
+    type Error = &'static str;
+
+    /// Convert a TokenType to a BinaryOperator
+    fn try_from(token_type: TokenType) -> Result<Self, Self::Error> {
         match token_type {
             TokenType::And => Ok(And),
             TokenType::Or => Ok(Or),
@@ -100,7 +101,7 @@ impl BinaryOperator {
             TokenType::Star => Ok(Times),
             TokenType::Slash => Ok(Divide),
             TokenType::Percent => Ok(Modulo),
-            _ => Err("unexpected non-binary operator token.")
+            _ => Err("unexpected non-binary operator token."),
         }
     }
 }
