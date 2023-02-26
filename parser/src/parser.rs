@@ -144,8 +144,12 @@ impl<'a> Parser<'a> {
             return self.redirectable(left);
         }
 
-
-        self.expected("invalid infix operator")
+        //if the current token is a binary operator but was not allowed
+        if BinaryOperator::convert_bin_operator(self.cursor.peek().token_type).is_ok() {
+            return self.expected("infix operator not allowed here")
+        }
+        //else a generic error for other kind of tokens.
+        self.expected("invalid token")
     }
 
     pub(crate) fn expected<T>(&self, message: &str) -> ParseResult<T> {

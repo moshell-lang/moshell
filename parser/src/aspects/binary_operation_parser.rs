@@ -158,7 +158,8 @@ mod tests {
     use crate::ast::operation::BinaryOperation;
     use crate::ast::operation::BinaryOperator::*;
     use crate::context::ParserContext;
-    use crate::parser::Parser;
+    use crate::parse;
+    use crate::parser::{ParseError, Parser};
 
     #[test]
     fn is_left_associative() {
@@ -474,5 +475,13 @@ mod tests {
                 })),
             })
         )
+    }
+
+    #[test]
+    fn allowed_ops_based_on_ctx() {
+        assert!(parse(lex("val a = 7 + 9")).is_ok());
+        assert_eq!(parse(lex("7+9")), Err(ParseError {
+            message: "infix operator not allowed here".to_string()
+        }))
     }
 }

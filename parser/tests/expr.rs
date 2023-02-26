@@ -59,8 +59,3 @@ fn command_echo() {
     })];
     assert_eq!(parsed, expected);
 }
-
-#[test]
-fn redirection_ambiguity() {
-    let tokens = lex("val a = 7 + 9 + $b > 7");
-}

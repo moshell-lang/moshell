@@ -46,11 +46,17 @@ mod tests {
     use lexer::lexer::lex;
     use lexer::token::{Token, TokenType};
     use pretty_assertions::assert_eq;
+    use crate::parser::{ParseError};
 
     #[test]
     fn wrong_group_end() {
         let tokens = lex("ls )");
-        parse(tokens).expect_err("parsing did not failed");
+        assert_eq!(
+            parse(tokens),
+            Err(ParseError {
+                message: "invalid token".to_string()
+            })
+        );
     }
 
     #[test]
