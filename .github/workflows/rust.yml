@@ -4,11 +4,11 @@ on:
   push:
     paths: 
       - '**.rs'
-      - '*/Cargo.toml'
+      - '**/Cargo.toml'
   pull_request:
     paths:
       - '**.rs'
-      - '*/Cargo.toml'
+      - '**/Cargo.toml'
   workflow_dispatch:
   
 env:
