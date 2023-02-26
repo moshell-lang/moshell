@@ -10,7 +10,9 @@ pub trait Move {
     /// `None` if the move did not take effect.
     ///* `at` - get token at given position
     ///* `pos` - the position in ParserCursor at beginning of the move
-    fn apply<'a>(&self, at: &dyn Fn(usize) -> Token<'a> , pos: usize) -> Option<usize>;
+    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
+        where
+            F: Fn(usize) -> Token<'a>;
 }
 
 ///Defines operations over a Move struct.
@@ -77,7 +79,9 @@ impl<P> Move for PredicateMove<P>
     where
         P: Fn(Token) -> bool + Copy,
 {
-    fn apply<'a>(&self, at: &dyn Fn(usize) -> Token<'a>, pos: usize) -> Option<usize>
+    fn apply<'a, F>(&self, mut at: F, pos: usize) -> Option<usize>
+        where
+            F: FnMut(usize) -> Token<'a>,
     {
         let t: Token = at(pos);
         (self.predicate)(t).then_some(pos + 1)
@@ -149,7 +153,9 @@ pub(crate) struct RepeatedMove<M: Move + Copy> {
 }
 
 impl<M: Move + Copy> Move for RepeatedMove<M> {
-    fn apply<'a>(&self, at: &dyn Fn(usize) -> Token<'a>, pos: usize) -> Option<usize>
+    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
+        where
+            F: Fn(usize) -> Token<'a>,
     {
         let mut repeats = 0;
         let mut current_pos = pos;
@@ -217,7 +223,9 @@ pub(crate) struct AndThenMove<A: Move + Copy, B: Move + Copy> {
 }
 
 impl<A: Move + Copy, B: Move + Copy> Move for AndThenMove<A, B> {
-    fn apply<'b>(&self, at: &dyn Fn(usize) -> Token<'b>, pos: usize) -> Option<usize>
+    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
+        where
+            F: Fn(usize) -> Token<'a>,
     {
         self.left
             .apply(&at, pos)
@@ -233,7 +241,9 @@ pub(crate) struct ThenMove<A: Move + Copy, B: Move + Copy> {
 }
 
 impl<A: Move + Copy, B: Move + Copy> Move for ThenMove<A, B> {
-    fn apply<'b>(&self, at: &dyn Fn(usize) -> Token<'b>, mut pos: usize) -> Option<usize>
+    fn apply<'a, F>(&self, at: F, mut pos: usize) -> Option<usize>
+        where
+            F: Fn(usize) -> Token<'a>,
     {
         if let Some(new_pos) = self.left.apply(&at, pos) {
             pos = new_pos
@@ -250,7 +260,9 @@ pub(crate) struct OrMove<A: Move + Copy, B: Move + Copy> {
 }
 
 impl<A: Move + Copy, B: Move + Copy> Move for OrMove<A, B> {
-    fn apply<'b>(&self, at: &dyn Fn(usize) -> Token<'b>, pos: usize) -> Option<usize>
+    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
+        where
+            F: Fn(usize) -> Token<'a>,
     {
         self.left
             .apply(&at, pos)

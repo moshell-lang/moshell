@@ -1,4 +1,4 @@
-use lexer::token::TokenType::{And, Or};
+use lexer::token::TokenType::{And, Or, CurlyRightBracket, RoundedRightBracket};
 use crate::aspects::redirection_parser::RedirectionParser;
 use crate::ast::callable::Call;
 use crate::ast::Expr;
@@ -20,7 +20,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
         let mut arguments = vec![self.expression(ParserContext::default())?];
         // tests if this cursor hits caller-defined eoc or [And, Or] tokens
         macro_rules! eoc_hit { () => {
-            self.cursor.lookahead(spaces().then(custom_eox(of_types(&[And, Or])))).is_some() };
+            self.cursor.lookahead(spaces().then(custom_eox(of_types(&[And, Or, CurlyRightBracket, RoundedRightBracket])))).is_some() };
         }
 
         while !self.cursor.is_at_end() && !eoc_hit!() {

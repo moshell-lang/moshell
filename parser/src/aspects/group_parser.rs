@@ -3,17 +3,17 @@ use crate::ast::Expr;
 use crate::ast::group::{Block, Parenthesis};
 use crate::context::ParserContext;
 
-use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations, custom_eox, Move};
+use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 ///A parser aspect for parsing block expressions
 pub trait GroupParser<'a> {
     ///Attempts to parse next group expression (a block or parenthesis expression).
-    fn group(&mut self, ctx: ParserContext<impl Move + Copy>) -> ParseResult<Expr<'a>>;
+    fn group(&mut self, ctx: ParserContext) -> ParseResult<Expr<'a>>;
 }
 
 impl<'a> GroupParser<'a> for Parser<'a> {
-    fn group(&mut self, ctx: ParserContext<impl Move + Copy>) -> ParseResult<Expr<'a>> {
+    fn group(&mut self, ctx: ParserContext) -> ParseResult<Expr<'a>> {
         let pivot = self.cursor.peek().token_type;
         match pivot {
             // start of a parenthesis expression ('(')
@@ -33,7 +33,7 @@ impl<'a> GroupParser<'a> for Parser<'a> {
 
 impl<'a> Parser<'a> {
     ///parses sub expressions of a grouping expression
-    fn sub_exprs(&mut self, eog: TokenType, ctx: ParserContext<impl Move + Copy>) -> ParseResult<Vec<Expr<'a>>> {
+    fn sub_exprs(&mut self, eog: TokenType, ctx: ParserContext) -> ParseResult<Vec<Expr<'a>>> {
         self.cursor.next()?; //consume group start token
 
         let mut expressions: Vec<Expr<'a>> = Vec::new();
@@ -47,7 +47,7 @@ impl<'a> Parser<'a> {
         }
 
         loop {
-            let expression = self.parse_next(ctx.with_eox(custom_eox(of_type(eog))))?;
+            let expression = self.parse_next(ctx.with_enclosing_end(Some(eog)))?;
             expressions.push(expression);
 
             //expects at least one newline or ';'

@@ -2,7 +2,7 @@
 use crate::ast::Expr;
 use crate::ast::operation::{BinaryOperation, BinaryOperator};
 use crate::context::ParserContext;
-use crate::moves::{bin_op, eox, Move, MoveOperations, spaces};
+use crate::moves::{bin_op, eox, MoveOperations, spaces};
 use crate::parser::{Parser, ParseResult};
 
 
@@ -11,7 +11,7 @@ pub trait BinaryOperationsParser<'p> {
     ///Parses a binary operation tree
     /// `eox`: a selector to define where the binary operation expression hits it end.
     fn binary_operation(&mut self,
-                        ctx: ParserContext<impl Move + Copy>,
+                        ctx: ParserContext,
     ) -> ParseResult<Expr<'p>>;
 
     ///Parses the operator and left arm of a left-defined operation.
@@ -19,7 +19,7 @@ pub trait BinaryOperationsParser<'p> {
     /// `eox`: a selector to define where the binary operation expression hits it end.
     fn binary_operation_right(&mut self,
                               left: Expr<'p>,
-                              ctx: ParserContext<impl Move + Copy>,
+                              ctx: ParserContext,
     ) -> ParseResult<Expr<'p>>;
 }
 
@@ -28,7 +28,7 @@ pub trait BinaryOperationsParser<'p> {
 
 impl<'p> BinaryOperationsParser<'p> for Parser<'p> {
     fn binary_operation(&mut self,
-                        ctx: ParserContext<impl Move + Copy>,
+                        ctx: ParserContext,
     ) -> ParseResult<Expr<'p>> {
         let left = self.statement(ctx.clone())?;
         self.binary_operation_right(left, ctx)
@@ -36,7 +36,7 @@ impl<'p> BinaryOperationsParser<'p> for Parser<'p> {
 
     fn binary_operation_right(&mut self,
                               left: Expr<'p>,
-                              ctx: ParserContext<impl Move + Copy>,
+                              ctx: ParserContext,
     ) -> ParseResult<Expr<'p>> {
         //parsing a top-level tree operation with fewest priority
         self.binary_op_right_internal(i8::MIN, ctx, left)
@@ -44,7 +44,7 @@ impl<'p> BinaryOperationsParser<'p> for Parser<'p> {
 }
 
 impl<'p> Parser<'p> {
-    fn ensure_in_ops(&self, op: BinaryOperator, ctx: ParserContext<impl Move + Copy>) -> ParseResult<BinaryOperator> {
+    fn ensure_in_ops(&self, op: BinaryOperator, ctx: ParserContext) -> ParseResult<BinaryOperator> {
         if ctx.allowed_operators.contains(&op) {
             return Ok(op)
         }
@@ -54,7 +54,7 @@ impl<'p> Parser<'p> {
     //Parses a binary operation tree as long as it does not hits an operation with smaller priority.
     fn binary_op_right_internal(&mut self,
                                 priority: i8,
-                                ctx: ParserContext<impl Move + Copy>,
+                                ctx: ParserContext,
                                 left: Expr<'p>,
     ) -> ParseResult<Expr<'p>> {
         let mut operation = self.binary_operation_internal(left, ctx.clone())?;
@@ -83,7 +83,7 @@ impl<'p> Parser<'p> {
 
     fn binary_operation_internal(&mut self,
                                  left: Expr<'p>,
-                                 ctx: ParserContext<impl Move + Copy>,
+                                 ctx: ParserContext,
     ) -> ParseResult<Expr<'p>> {
         //current expressions' infix operator
         let operator = self.cursor
@@ -371,7 +371,7 @@ mod tests {
 
     #[test]
     fn test_exitcode_operators() {
-        let tokens = lex("(echo hello && echo world;) || echo damn");
+        let tokens = lex("(echo hello && echo world ) || echo damn");
         let ast = Parser::new(tokens).binary_operation(ParserContext::default()).expect("parsing error");
         assert_eq!(
             ast,

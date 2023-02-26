@@ -10,12 +10,12 @@ use crate::parser::{ParseResult, Parser};
 
 pub trait VarDeclarationParser<'a> {
     /// Parses a variable declaration.
-    fn var_declaration(&mut self) -> ParseResult<Expr<'a>>;
+    fn var_declaration(&mut self, ctx: ParserContext) -> ParseResult<Expr<'a>>;
 }
 
 impl<'a> VarDeclarationParser<'a> for Parser<'a> {
     /// Parses a variable declaration.
-    fn var_declaration(&mut self) -> ParseResult<Expr<'a>> {
+    fn var_declaration(&mut self, ctx: ParserContext) -> ParseResult<Expr<'a>> {
         let kind = match self.cursor.next()?.token_type {
             TokenType::Var => VarKind::Var,
             TokenType::Val => VarKind::Val,
@@ -48,7 +48,7 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
                 None
             }
 
-            Some(_) => Some(self.parse_next(  ParserContext::value_hold())?),
+            Some(_) => Some(self.parse_next(ParserContext::value_hold().with_enclosing_end(ctx.enclosing_end))?),
         };
 
         Ok(Expr::VarDeclaration(VarDeclaration {
@@ -75,7 +75,7 @@ mod tests {
     fn val_declaration() {
         let tokens = lex("val variable");
         let ast = Parser::new(tokens)
-            .var_declaration()
+            .var_declaration(ParserContext::default())
             .expect("failed to parse");
         assert_eq!(
             ast,
@@ -94,7 +94,7 @@ mod tests {
     fn val_declaration_with_type() {
         let tokens = lex("val variable: Array");
         let ast = Parser::new(tokens)
-            .var_declaration()
+            .var_declaration(ParserContext::default())
             .expect("failed to parse");
         assert_eq!(
             ast,
@@ -113,7 +113,7 @@ mod tests {
     fn val_declaration_with_type_no_colon() {
         let tokens = lex("val variable Array");
         Parser::new(tokens)
-            .var_declaration()
+            .var_declaration(ParserContext::default())
             .expect_err("did not fail");
     }
 
@@ -121,7 +121,7 @@ mod tests {
     fn val_declaration_inferred() {
         let tokens = lex("val variable = 'hello $test'");
         let ast = Parser::new(tokens)
-            .var_declaration()
+            .var_declaration(ParserContext::default())
             .expect("failed to parse");
         assert_eq!(
             ast,
@@ -143,7 +143,7 @@ mod tests {
     fn val_declaration_arithmetic_expr() {
         let tokens = lex("val variable = 7 + 2");
         let ast = Parser::new(tokens)
-            .var_declaration()
+            .var_declaration(ParserContext::default())
             .expect("failed to parse");
         assert_eq!(
             ast,

@@ -1,74 +1,55 @@
-use lexer::token::Token;
+use lexer::token::TokenType;
+
 use crate::ast::operation::{ARITHMETICS, BinaryOperator, BOOLEANS, COMPARISONS};
-use crate::moves::{AndThenMove, eox, Move, OrMove, PredicateMove};
 
 #[derive(Clone)]
-pub struct ParserContext<M: Move + Copy> {
+pub struct ParserContext {
     pub allowed_operators: Vec<BinaryOperator>,
     pub parsing_value: bool,
-    pub eox: M,
+    pub enclosing_end: Option<TokenType>,
 }
 
-impl Default for ParserContext<OrMove<
-    OrMove<
-        AndThenMove<
-            PredicateMove<for<'a> fn(Token<'a>) -> bool>,
-            PredicateMove<for<'a> fn(Token<'a>) -> bool>
-        >,
-        PredicateMove<for<'a> fn(Token<'a>) -> bool>
-    >,
-    PredicateMove<for<'a> fn(Token<'a>) -> bool>
->> {
+impl Default for ParserContext {
     fn default() -> Self {
-        let x: () = Self {
+        Self {
             allowed_operators: [BOOLEANS].concat(),
             parsing_value: false,
-            eox: eox(),
-        };
-        todo!()
+            enclosing_end: None,
+        }
     }
 }
 
 
-impl<A: Move + Copy> ParserContext<A> {
-    pub fn value_hold() -> ParserContext<OrMove<
-        OrMove<
-            AndThenMove<
-                PredicateMove<for<'a> fn(Token<'a>) -> bool>,
-                PredicateMove<for<'a> fn(Token<'a>) -> bool>
-            >,
-            PredicateMove<for<'a> fn(Token<'a>) -> bool>
-        >,
-        PredicateMove<for<'a> fn(Token<'a>) -> bool>
-    >> {
-        ParserContext {
+impl ParserContext {
+    pub fn value_hold() -> Self {
+        Self {
             allowed_operators: [ARITHMETICS, COMPARISONS, BOOLEANS].concat(),
             parsing_value: true,
-            eox: eox(),
+            enclosing_end: None,
         }
     }
 
-    pub fn with_parsing_value(&self, parsing_value: bool) -> ParserContext<A> {
+    pub fn with_parsing_value(&self, parsing_value: bool) -> Self {
         return Self {
             parsing_value,
             allowed_operators: self.allowed_operators.clone(),
-            eox: self.eox,
+            enclosing_end: self.enclosing_end,
         }
     }
 
-    pub fn with_allowed_ops(&self, allowed_operators: Vec<BinaryOperator>) -> ParserContext<A> {
+    pub fn with_allowed_ops(&self, allowed_operators: Vec<BinaryOperator>) -> ParserContext {
         return Self {
             parsing_value: self.parsing_value,
             allowed_operators,
-            eox: self.eox,
+            enclosing_end: self.enclosing_end,
         }
     }
 
-    pub fn with_eox<B: Move + Copy>(&self, eox: B) -> ParserContext<B> {
+    pub fn with_enclosing_end(&self, enclosing_end: Option<TokenType>) -> ParserContext {
         return Self {
             parsing_value: self.parsing_value,
             allowed_operators: self.allowed_operators.clone(),
-            eox,
+            enclosing_end,
         }
     }
 }
