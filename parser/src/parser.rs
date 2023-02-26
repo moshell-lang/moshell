@@ -92,17 +92,11 @@ impl<'a> Parser<'a> {
         let mut statements = Vec::new();
 
         while !self.cursor.is_at_end() {
-            let statement = self.parse_next(ParserContext::default());
-
-            if let Err(error) = &statement {
-                self.report_error(error);
-                self.repos_to_next_expr();
-            }
-
-            //consume end of expression
-            self.cursor.force(custom_eox(of_type(EndOfFile)), "expected end of expression or file")?;
-
-            statements.push(statement?);
+            statements.push(self.parse_next(ParserContext::default())?);
+            self.cursor.force(
+                custom_eox(of_type(EndOfFile)),
+                "expected end of expression or file",
+            )?;
         }
 
         Ok(statements)
