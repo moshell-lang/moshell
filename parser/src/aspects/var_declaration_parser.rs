@@ -132,7 +132,7 @@ mod tests {
                     ty: None,
                 },
                 initializer: Some(Box::from(Expr::Literal(Literal {
-                    token: Token::new(TokenType::Quote, "'"),
+                    lexme: "'hello $test'",
                     parsed: "hello $test".into(),
                 }))),
             })
@@ -155,12 +155,12 @@ mod tests {
                 },
                 initializer: Some(Box::from(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Literal(Literal {
-                        token: Token::new(TokenType::IntLiteral, "7"),
+                        lexme: "7",
                         parsed: LiteralValue::Int(7)
                     })),
                     op: Plus,
                     right: Box::new(Expr::Literal(Literal {
-                        token: Token::new(TokenType::IntLiteral, "2"),
+                        lexme: "2",
                         parsed: LiteralValue::Int(2)
                     }))
                 }))),

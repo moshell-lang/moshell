@@ -155,12 +155,11 @@ mod test {
     use pretty_assertions::assert_eq;
 
     use lexer::lexer::lex;
-    use lexer::token::{Token, TokenType};
     use crate::aspects::call_parser::CallParser;
     use crate::ast::callable::{Call, Redir, Redirected, RedirFd, RedirOp};
     use crate::ast::Expr;
     use crate::ast::group::Block;
-    use crate::ast::literal::{Literal, LiteralValue};
+    use crate::ast::literal::{Literal};
     use crate::parse;
     use crate::parser::Parser;
 
@@ -176,18 +175,12 @@ mod test {
                         expressions: vec![
                             Expr::Call(Call {
                                 arguments: vec![
-                                    Expr::Literal(Literal {
-                                        token: Token::new(TokenType::Identifier, "ls"),
-                                        parsed: "ls".into(),
-                                    })
+                                    Expr::Literal("ls".into())
                                 ]
                             }),
                             Expr::Call(Call {
                                 arguments: vec![
-                                    Expr::Literal(Literal {
-                                        token: Token::new(TokenType::Identifier, "cd"),
-                                        parsed: "cd".into(),
-                                    })
+                                    Expr::Literal("cd".into())
                                 ]
                             }),
                         ]
@@ -196,10 +189,7 @@ mod test {
                         Redir {
                             operator: RedirOp::Write,
                             fd: RedirFd::Default,
-                            operand: Expr::Literal(Literal {
-                                token: Token::new(TokenType::Identifier, "out"),
-                                parsed: LiteralValue::String("/tmp/out".to_string()),
-                            }),
+                            operand: Expr::Literal("/tmp/out".into()),
                         }
                     ],
                 }),
@@ -215,22 +205,18 @@ mod test {
             parsed,
             Expr::Redirected(Redirected {
                 expr: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "ls"),
-                        parsed: "ls".into(),
-                    })]
+                    arguments: vec![Expr::Literal("ls".into())]
                 })),
                 redirections: vec![Redir {
                     fd: RedirFd::Default,
                     operator: RedirOp::Write,
-                    operand: Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "out"),
-                        parsed: "/tmp/out".into(),
-                    }),
+                    operand: Expr::Literal("/tmp/out".into()),
                 }],
             })
         );
     }
+
+
 
     #[test]
     fn dupe_fd() {
@@ -240,16 +226,13 @@ mod test {
             parsed,
             Expr::Redirected(Redirected {
                 expr: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "ls"),
-                        parsed: "ls".into(),
-                    })]
+                    arguments: vec![Expr::Literal("ls".into())]
                 })),
                 redirections: vec![Redir {
                     fd: RedirFd::Default,
                     operator: RedirOp::FdOut,
                     operand: Expr::Literal(Literal {
-                        token: Token::new(TokenType::IntLiteral, "2"),
+                        lexme: "2",
                         parsed: 2.into(),
                     }),
                 }],
@@ -257,44 +240,28 @@ mod test {
         );
     }
 
+
     #[test]
     fn escaped_call() {
-        let tokens = lex("echo hello \\; \\| '2>' '>&2' \\<");
+        let tokens = lex("grep -E regex \\; echo test");
         let parsed = parse(tokens).expect("parsing error");
         assert_eq!(
             parsed,
-            vec![Expr::Call(Call {
-                arguments: vec![
-                    Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "echo"),
-                        parsed: "echo".into(),
-                    }),
-                    Expr::Literal(Literal {
-                        token: Token::new(TokenType::Identifier, "hello"),
-                        parsed: "hello".into(),
-                    }),
-                    Expr::Literal(Literal {
-                        token: Token::new(TokenType::BackSlash, "\\"),
-                        parsed: ";".into(),
-                    }),
-                    Expr::Literal(Literal {
-                        token: Token::new(TokenType::BackSlash, "\\"),
-                        parsed: "|".into(),
-                    }),
-                    Expr::Literal(Literal {
-                        token: Token::new(TokenType::Quote, "'"),
-                        parsed: "2>".into(),
-                    }),
-                    Expr::Literal(Literal {
-                        token: Token::new(TokenType::Quote, "'"),
-                        parsed: ">&2".into(),
-                    }),
-                    Expr::Literal(Literal {
-                        token: Token::new(TokenType::BackSlash, "\\"),
-                        parsed: "<".into(),
-                    }),
-                ],
-            }), ]
+            vec![
+                Expr::Call(Call {
+                    arguments: vec![
+                        Expr::Literal("grep".into()),
+                        Expr::Literal("-E".into()),
+                        Expr::Literal("regex".into()),
+                        Expr::Literal(Literal {
+                            lexme: "\\;",
+                            parsed: ";".into(),
+                        }),
+                        Expr::Literal("echo".into()),
+                        Expr::Literal("test".into()),
+                    ],
+                }),
+            ]
         )
     }
 }

@@ -39,14 +39,12 @@ impl<'a> CallParser<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::callable::{Call};
-    use crate::ast::literal::Literal;
     use crate::ast::Expr;
     use crate::parse;
     use lexer::lexer::lex;
-    use lexer::token::{Token, TokenType};
     use pretty_assertions::assert_eq;
-    use crate::parser::{ParseError};
+    use crate::ast::callable::Call;
+    use crate::parser::ParseError;
 
     #[test]
     fn wrong_group_end() {
@@ -68,31 +66,13 @@ mod tests {
             vec![
                 Expr::Call(Call {
                     arguments: vec![
-                        Expr::Literal(Literal {
-                            token: Token::new(TokenType::Identifier, "grep"),
-                            parsed: "grep".into(),
-                        }),
-                        Expr::Literal(Literal {
-                            token: Token::new(TokenType::Identifier, "E"),
-                            parsed: "-E".into(),
-                        }),
-                        Expr::Literal(Literal {
-                            token: Token::new(TokenType::Identifier, "regex"),
-                            parsed: "regex".into(),
-                        }),
+                        Expr::Literal("grep".into()),
+                        Expr::Literal("-E".into()),
+                        Expr::Literal("regex".into()),
                     ],
                 }),
                 Expr::Call(Call {
-                    arguments: vec![
-                        Expr::Literal(Literal {
-                            token: Token::new(TokenType::Identifier, "echo"),
-                            parsed: "echo".into(),
-                        }),
-                        Expr::Literal(Literal {
-                            token: Token::new(TokenType::Identifier, "test"),
-                            parsed: "test".into(),
-                        }),
-                    ],
+                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
                 }),
             ]
         )

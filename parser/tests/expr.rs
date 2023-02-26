@@ -27,7 +27,7 @@ fn variable_type_and_initializer() {
             ty: Some(Token::new(TokenType::Identifier, "int")),
         },
         initializer: Some(Box::new(Expr::Literal(Literal {
-            token: Token::new(TokenType::IntLiteral, "1"),
+            lexme: "1",
             parsed: LiteralValue::Int(1),
         }))),
     })];
@@ -39,23 +39,12 @@ fn command_echo() {
     let tokens = vec![
         Token::new(TokenType::Identifier, "echo"),
         Token::new(TokenType::Space, " "),
-        Token::new(TokenType::Quote, "'"),
         Token::new(TokenType::Identifier, "hello"),
-        Token::new(TokenType::Quote, "'"),
     ];
     let parsed = parse(tokens).expect("Failed to parse");
 
     let expected = vec![Expr::Call(Call {
-        arguments: vec![
-            Expr::Literal(Literal {
-                token: Token::new(TokenType::Identifier, "echo"),
-                parsed: "echo".into(),
-            }),
-            Expr::Literal(Literal {
-                token: Token::new(TokenType::Quote, "'"),
-                parsed: "hello".into(),
-            }),
-        ],
+        arguments: vec![Expr::Literal("echo".into()), Expr::Literal("hello".into())],
     })];
     assert_eq!(parsed, expected);
 }

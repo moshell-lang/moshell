@@ -148,13 +148,12 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use lexer::lexer::lex;
-    use lexer::token::{Token, TokenType};
 
     use crate::aspects::binary_operation_parser::BinaryOperationsParser;
     use crate::ast::callable::Call;
     use crate::ast::Expr;
     use crate::ast::group::Parenthesis;
-    use crate::ast::literal::{Literal, LiteralValue};
+    use crate::ast::literal::{Literal};
     use crate::ast::operation::BinaryOperation;
     use crate::ast::operation::BinaryOperator::*;
     use crate::context::ParserContext;
@@ -172,31 +171,31 @@ mod tests {
                     left: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Literal(Literal {
-                                token: Token::new(TokenType::IntLiteral, "1"),
-                                parsed: LiteralValue::Int(1),
+                                lexme: "1",
+                                parsed: 1.into(),
                             })),
                             op: And,
                             right: Box::new(Expr::Literal(Literal {
-                                token: Token::new(TokenType::IntLiteral, "2"),
-                                parsed: LiteralValue::Int(2),
+                                lexme: "2",
+                                parsed: 2.into(),
                             })),
                         })),
                         op: Or,
                         right: Box::new(Expr::Literal(Literal {
-                            token: Token::new(TokenType::IntLiteral, "3"),
-                            parsed: LiteralValue::Int(3),
+                            lexme: "3",
+                            parsed: 3.into(),
                         })),
                     })),
                     op: Or,
                     right: Box::new(Expr::Literal(Literal {
-                        token: Token::new(TokenType::IntLiteral, "4"),
-                        parsed: LiteralValue::Int(4),
+                        lexme: "4",
+                        parsed: 4.into(),
                     })),
                 })),
                 op: And,
                 right: Box::new(Expr::Literal(Literal {
-                    token: Token::new(TokenType::IntLiteral, "5"),
-                    parsed: LiteralValue::Int(5),
+                    lexme: "5",
+                    parsed: 5.into(),
                 })),
             }),
         )
@@ -210,21 +209,21 @@ mod tests {
             ast,
             Expr::Binary(BinaryOperation {
                 left: Box::new(Expr::Literal(Literal {
-                    token: Token::new(TokenType::IntLiteral, "1"),
-                    parsed: LiteralValue::Int(1),
+                    lexme: "1",
+                    parsed: 1.into(),
                 })),
                 op: Plus,
                 right: Box::new(Expr::Parenthesis(Parenthesis {
                     expressions: vec![
                         Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Literal(Literal {
-                                token: Token::new(TokenType::IntLiteral, "2"),
-                                parsed: LiteralValue::Int(2),
+                                lexme: "2",
+                                parsed: 2.into(),
                             })),
                             op: Plus,
                             right: Box::new(Expr::Literal(Literal {
-                                token: Token::new(TokenType::IntLiteral, "3"),
-                                parsed: LiteralValue::Int(3),
+                                lexme: "3",
+                                parsed: 3.into(),
                             })),
                         }),
                     ]
@@ -241,19 +240,19 @@ mod tests {
             ast,
             Expr::Binary(BinaryOperation {
                 left: Box::new(Expr::Literal(Literal {
-                    token: Token::new(TokenType::IntLiteral, "1"),
-                    parsed: LiteralValue::Int(1),
+                    lexme: "1",
+                    parsed: 1.into(),
                 })),
                 op: Plus,
                 right: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Literal(Literal {
-                        token: Token::new(TokenType::IntLiteral, "2"),
-                        parsed: LiteralValue::Int(2),
+                        lexme: "2",
+                        parsed: 2.into(),
                     })),
                     op: Times,
                     right: Box::new(Expr::Literal(Literal {
-                        token: Token::new(TokenType::IntLiteral, "3"),
-                        parsed: LiteralValue::Int(3),
+                        lexme: "3",
+                        parsed: 3.into(),
                     })),
                 })),
             })
@@ -273,32 +272,32 @@ mod tests {
                     left: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Literal(Literal {
-                                token: Token::new(TokenType::IntLiteral, "1"),
-                                parsed: LiteralValue::Int(1),
+                                lexme: "1",
+                                parsed: 1.into(),
                             })),
                             op: Plus,
                             right: Box::new(Expr::Binary(BinaryOperation {
                                 left: Box::new(Expr::Literal(Literal {
-                                    token: Token::new(TokenType::IntLiteral, "2"),
-                                    parsed: LiteralValue::Int(2),
+                                    lexme: "2",
+                                    parsed: 2.into(),
                                 })),
                                 op: Times,
                                 right: Box::new(Expr::Literal(Literal {
-                                    token: Token::new(TokenType::IntLiteral, "3"),
-                                    parsed: LiteralValue::Int(3),
+                                    lexme: "3",
+                                    parsed: 3.into(),
                                 })),
                             })),
                         })),
                         op: Less,
                         right: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Literal(Literal {
-                                token: Token::new(TokenType::IntLiteral, "874"),
-                                parsed: LiteralValue::Int(874),
+                                lexme: "874",
+                                parsed: 874.into(),
                             })),
                             op: Times,
                             right: Box::new(Expr::Literal(Literal {
-                                token: Token::new(TokenType::IntLiteral, "78"),
-                                parsed: LiteralValue::Int(78),
+                                lexme: "78",
+                                parsed: 78.into(),
                             })),
                         })),
                     })),
@@ -306,32 +305,32 @@ mod tests {
                     right: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Literal(Literal {
-                                token: Token::new(TokenType::IntLiteral, "7"),
-                                parsed: LiteralValue::Int(7),
+                                lexme: "7",
+                                parsed: 7.into(),
                             })),
                             op: Minus,
                             right: Box::new(Expr::Literal(Literal {
-                                token: Token::new(TokenType::IntLiteral, "4"),
-                                parsed: LiteralValue::Int(4),
+                                lexme: "4",
+                                parsed: 4.into(),
                             })),
                         })),
                         op: EqualEqual,
                         right: Box::new(Expr::Literal(Literal {
-                            token: Token::new(TokenType::IntLiteral, "3"),
-                            parsed: LiteralValue::Int(3),
+                            lexme: "3",
+                            parsed: 3.into(),
                         })),
                     })),
                 })),
                 op: And,
                 right: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Literal(Literal {
-                        token: Token::new(TokenType::IntLiteral, "7"),
-                        parsed: LiteralValue::Int(7),
+                        lexme: "7",
+                        parsed: 7.into(),
                     })),
                     op: EqualEqual,
                     right: Box::new(Expr::Literal(Literal {
-                        token: Token::new(TokenType::IntLiteral, "1"),
-                        parsed: LiteralValue::Int(1),
+                        lexme: "1",
+                        parsed: 1.into(),
                     })),
                 })),
             })
@@ -348,19 +347,19 @@ mod tests {
                 expressions: vec![
                     Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Literal(Literal {
-                            token: Token::new(TokenType::IntLiteral, "1"),
-                            parsed: LiteralValue::Int(1),
+                            lexme: "1",
+                            parsed: 1.into(),
                         })),
                         op: Plus,
                         right: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Literal(Literal {
-                                token: Token::new(TokenType::IntLiteral, "2"),
-                                parsed: LiteralValue::Int(2),
+                                lexme: "2",
+                                parsed: 2.into(),
                             })),
                             op: Times,
                             right: Box::new(Expr::Literal(Literal {
-                                token: Token::new(TokenType::IntLiteral, "3"),
-                                parsed: LiteralValue::Int(3),
+                                lexme: "3",
+                                parsed: 3.into(),
                             })),
                         })),
                     })
@@ -383,12 +382,12 @@ mod tests {
                             left: Box::new(Expr::Call(Call {
                                 arguments: vec![
                                     Expr::Literal(Literal {
-                                        token: Token::new(TokenType::Identifier, "echo"),
-                                        parsed: LiteralValue::String("echo".to_string()),
+                                        lexme: "echo",
+                                        parsed: "echo".into(),
                                     }),
                                     Expr::Literal(Literal {
-                                        token: Token::new(TokenType::Identifier, "hello"),
-                                        parsed: LiteralValue::String("hello".to_string()),
+                                        lexme: "hello",
+                                        parsed: "hello".into(),
                                     }),
                                 ],
                             })),
@@ -396,12 +395,12 @@ mod tests {
                             right: Box::new(Expr::Call(Call {
                                 arguments: vec![
                                     Expr::Literal(Literal {
-                                        token: Token::new(TokenType::Identifier, "echo"),
-                                        parsed: LiteralValue::String("echo".to_string()),
+                                        lexme: "echo",
+                                        parsed: "echo".into(),
                                     }),
                                     Expr::Literal(Literal {
-                                        token: Token::new(TokenType::Identifier, "world"),
-                                        parsed: LiteralValue::String("world".to_string()),
+                                        lexme: "world",
+                                        parsed: "world".into(),
                                     }),
                                 ],
                             })),
@@ -412,12 +411,12 @@ mod tests {
                 right: Box::new(Expr::Call(Call {
                     arguments: vec![
                         Expr::Literal(Literal {
-                            token: Token::new(TokenType::Identifier, "echo"),
-                            parsed: LiteralValue::String("echo".to_string()),
+                            lexme: "echo",
+                            parsed: "echo".into(),
                         }),
                         Expr::Literal(Literal {
-                            token: Token::new(TokenType::Identifier, "damn"),
-                            parsed: LiteralValue::String("damn".to_string()),
+                            lexme: "damn",
+                            parsed: "damn".into(),
                         }),
                     ],
                 })),
@@ -437,24 +436,24 @@ mod tests {
                         Expr::Call(Call {
                             arguments: vec![
                                 Expr::Literal(Literal {
-                                    token: Token::new(TokenType::Identifier, "echo"),
-                                    parsed: LiteralValue::String("echo".to_string()),
+                                    lexme: "echo",
+                                    parsed: "echo".into(),
                                 }),
                                 Expr::Literal(Literal {
-                                    token: Token::new(TokenType::Identifier, "hello"),
-                                    parsed: LiteralValue::String("hello".to_string()),
+                                    lexme: "hello",
+                                    parsed: "hello".into(),
                                 }),
                                 Expr::Literal(Literal {
-                                    token: Token::new(TokenType::BackSlash, "\\"),
-                                    parsed: LiteralValue::String("&&".to_string()),
+                                    lexme: "\\&&",
+                                    parsed: "&&".into(),
                                 }),
                                 Expr::Literal(Literal {
-                                    token: Token::new(TokenType::Identifier, "world"),
-                                    parsed: LiteralValue::String("world".to_string()),
+                                    lexme: "world",
+                                    parsed: "world".into(),
                                 }),
                                 Expr::Literal(Literal {
-                                    token: Token::new(TokenType::BackSlash, "\\"),
-                                    parsed: LiteralValue::String(")".to_string()),
+                                    lexme: "\\)",
+                                    parsed: ")".into(),
                                 }),
                             ],
                         })
@@ -464,12 +463,12 @@ mod tests {
                 right: Box::new(Expr::Call(Call {
                     arguments: vec![
                         Expr::Literal(Literal {
-                            token: Token::new(TokenType::Identifier, "echo"),
-                            parsed: LiteralValue::String("echo".to_string()),
+                            lexme: "echo",
+                            parsed: "echo".into(),
                         }),
                         Expr::Literal(Literal {
-                            token: Token::new(TokenType::Identifier, "damn"),
-                            parsed: LiteralValue::String("damn".to_string()),
+                            lexme: "damn",
+                            parsed: "damn".into(),
                         }),
                     ],
                 })),
