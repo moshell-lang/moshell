@@ -3,6 +3,7 @@ use lexer::token::TokenType;
 use crate::ast::operation::{ARITHMETICS, BinaryOperator, BOOLEANS, COMPARISONS};
 
 #[derive(Clone)]
+/// A structure that contains contexts
 pub struct ParserContext {
     pub allowed_operators: Vec<BinaryOperator>,
     pub parsing_value: bool,
@@ -21,6 +22,7 @@ impl Default for ParserContext {
 
 
 impl ParserContext {
+    ///default context for val initializers (val x = <here>)
     pub fn value_hold() -> Self {
         Self {
             allowed_operators: [ARITHMETICS, COMPARISONS, BOOLEANS].concat(),
@@ -29,6 +31,7 @@ impl ParserContext {
         }
     }
 
+    ///returns a copy of self with specified parsing value
     pub fn with_parsing_value(&self, parsing_value: bool) -> Self {
         return Self {
             parsing_value,
@@ -37,6 +40,7 @@ impl ParserContext {
         }
     }
 
+    ///returns a copy of self with specified allowed infix operators
     pub fn with_allowed_ops(&self, allowed_operators: Vec<BinaryOperator>) -> ParserContext {
         return Self {
             parsing_value: self.parsing_value,
@@ -45,6 +49,7 @@ impl ParserContext {
         }
     }
 
+    ///returns a copy of self with specified enclosing end
     pub fn with_enclosing_end(&self, enclosing_end: Option<TokenType>) -> ParserContext {
         return Self {
             parsing_value: self.parsing_value,

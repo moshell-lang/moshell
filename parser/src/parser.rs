@@ -56,6 +56,7 @@ impl<'a> Parser<'a> {
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
+            //If we are parsing a value (ex: val initializer, structure initialization) then it can't be a direct call.
             Identifier | Quote | DoubleQuote if !ctx.parsing_value => self.call(),
             Var | Val => self.var_declaration(ctx),
 
