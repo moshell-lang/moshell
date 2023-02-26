@@ -1,9 +1,11 @@
 use lexer::token::TokenType;
-use crate::aspects::binary_operation_parser::ARITHMETICS;
+
 
 use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use crate::ast::Expr;
-use crate::moves::{of_type, of_types, space, spaces, MoveOperations, eox};
+use crate::context::ParserContext;
+
+use crate::moves::{of_type, of_types, space, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 pub trait VarDeclarationParser<'a> {
@@ -31,7 +33,7 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
             None => None,
             Some(_) => Some(self.cursor.force(
                 spaces().then(of_type(TokenType::Identifier)),
-                "Expected variable type",
+                "Expected identifier for variable type",
             )?),
         };
         let initializer = match self
@@ -46,7 +48,7 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
                 None
             }
 
-            Some(_) => Some(self.parse_next(eox(), ARITHMETICS)?),
+            Some(_) => Some(self.parse_next(  ParserContext::value_hold())?),
         };
 
         Ok(Expr::VarDeclaration(VarDeclaration {

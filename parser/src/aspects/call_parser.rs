@@ -1,8 +1,8 @@
 use lexer::token::TokenType::{And, Or};
-use crate::aspects::binary_operation_parser::BOOLEANS;
 use crate::aspects::redirection_parser::RedirectionParser;
 use crate::ast::callable::Call;
 use crate::ast::Expr;
+use crate::context::ParserContext;
 use crate::moves::{custom_eox, of_types, space, spaces, MoveOperations};
 use crate::parser::{Parser, ParseResult};
 
@@ -16,7 +16,8 @@ pub trait CallParser<'a> {
 /// The end of a call expression
 impl<'a> CallParser<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
-        let mut arguments = vec![self.expression(BOOLEANS)?];
+
+        let mut arguments = vec![self.expression(ParserContext::default())?];
         // tests if this cursor hits caller-defined eoc or [And, Or] tokens
         macro_rules! eoc_hit { () => {
             self.cursor.lookahead(spaces().then(custom_eox(of_types(&[And, Or])))).is_some() };
@@ -28,7 +29,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
             if self.is_at_redirection_sign() {
                 return self.redirectable(Expr::Call(Call { arguments }));
             }
-            arguments.push(self.expression(BOOLEANS)?);
+            arguments.push(self.expression(ParserContext::default())?);
         }
         Ok(Expr::Call(Call { arguments }))
     }

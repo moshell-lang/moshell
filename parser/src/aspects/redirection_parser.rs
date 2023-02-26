@@ -1,9 +1,9 @@
 use lexer::token::TokenType;
 use lexer::token::TokenType::{BackSlash, DoubleQuote, Quote};
-use crate::aspects::binary_operation_parser::BOOLEANS;
 use crate::aspects::call_parser::CallParser;
 use crate::ast::callable::{Pipeline, Redir, Redirected, RedirFd, RedirOp};
 use crate::ast::Expr;
+use crate::context::ParserContext;
 use crate::moves::{eox,  MoveOperations, next, of_type, of_types, space, spaces};
 use crate::parser::{Parser, ParseResult};
 
@@ -88,7 +88,7 @@ impl<'a> RedirectionParser<'a> for Parser<'a> {
             };
         }
 
-        let operand = self.expression(BOOLEANS)?;
+        let operand = self.expression(ParserContext::default())?;
         Ok(Redir {
             fd,
             operator,

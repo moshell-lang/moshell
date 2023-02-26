@@ -14,6 +14,7 @@ pub mod ast;
 mod cursor;
 mod moves;
 mod parser;
+mod context;
 
 pub fn parse(tokens: Vec<Token>) -> ParseResult<Vec<Expr>> {
     Parser::new(tokens).parse()

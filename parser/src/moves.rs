@@ -10,9 +10,7 @@ pub trait Move {
     /// `None` if the move did not take effect.
     ///* `at` - get token at given position
     ///* `pos` - the position in ParserCursor at beginning of the move
-    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-    where
-        F: Fn(usize) -> Token<'a>;
+    fn apply<'a>(&self, at: &dyn Fn(usize) -> Token<'a> , pos: usize) -> Option<usize>;
 }
 
 ///Defines operations over a Move struct.
@@ -79,11 +77,9 @@ impl<P> Move for PredicateMove<P>
     where
         P: Fn(Token) -> bool + Copy,
 {
-    fn apply<'a, F>(&self, mut at: F, pos: usize) -> Option<usize>
-    where
-        F: FnMut(usize) -> Token<'a>,
+    fn apply<'a>(&self, at: &dyn Fn(usize) -> Token<'a>, pos: usize) -> Option<usize>
     {
-        let t = at(pos);
+        let t: Token = at(pos);
         (self.predicate)(t).then_some(pos + 1)
     }
 }
@@ -153,9 +149,7 @@ pub(crate) struct RepeatedMove<M: Move + Copy> {
 }
 
 impl<M: Move + Copy> Move for RepeatedMove<M> {
-    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-        where
-            F: Fn(usize) -> Token<'a>,
+    fn apply<'a>(&self, at: &dyn Fn(usize) -> Token<'a>, pos: usize) -> Option<usize>
     {
         let mut repeats = 0;
         let mut current_pos = pos;
@@ -223,9 +217,7 @@ pub(crate) struct AndThenMove<A: Move + Copy, B: Move + Copy> {
 }
 
 impl<A: Move + Copy, B: Move + Copy> Move for AndThenMove<A, B> {
-    fn apply<'b, F>(&self, at: F, pos: usize) -> Option<usize>
-        where
-            F: Fn(usize) -> Token<'b>,
+    fn apply<'b>(&self, at: &dyn Fn(usize) -> Token<'b>, pos: usize) -> Option<usize>
     {
         self.left
             .apply(&at, pos)
@@ -241,9 +233,7 @@ pub(crate) struct ThenMove<A: Move + Copy, B: Move + Copy> {
 }
 
 impl<A: Move + Copy, B: Move + Copy> Move for ThenMove<A, B> {
-    fn apply<'b, F>(&self, at: F, mut pos: usize) -> Option<usize>
-        where
-            F: Fn(usize) -> Token<'b>,
+    fn apply<'b>(&self, at: &dyn Fn(usize) -> Token<'b>, mut pos: usize) -> Option<usize>
     {
         if let Some(new_pos) = self.left.apply(&at, pos) {
             pos = new_pos
@@ -260,9 +250,7 @@ pub(crate) struct OrMove<A: Move + Copy, B: Move + Copy> {
 }
 
 impl<A: Move + Copy, B: Move + Copy> Move for OrMove<A, B> {
-    fn apply<'b, F>(&self, at: F, pos: usize) -> Option<usize>
-        where
-            F: Fn(usize) -> Token<'b>,
+    fn apply<'b>(&self, at: &dyn Fn(usize) -> Token<'b>, pos: usize) -> Option<usize>
     {
         self.left
             .apply(&at, pos)
@@ -271,6 +259,7 @@ impl<A: Move + Copy, B: Move + Copy> Move for OrMove<A, B> {
 }
 
 //////////////////// STANDARD MOVES ////////////////////
+
 
 ///a move to consume default eox tokens as long as they are not escaped.
 /// default eox tokens are semicolon (;) and newline (\n)

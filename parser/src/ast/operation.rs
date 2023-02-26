@@ -4,6 +4,10 @@ use lexer::token::TokenType;
 use crate::ast::Expr;
 use crate::ast::operation::BinaryOperator::*;
 
+pub const ARITHMETICS: &[BinaryOperator] = &[Plus, Minus, Times, Divide, Modulo];
+pub const COMPARISONS: &[BinaryOperator] = &[EqualEqual, NotEqual, Less, LessEqual, Greater, GreaterEqual];
+pub const BOOLEANS: &[BinaryOperator] = &[And, Or];
+
 
 /// An arithmetic operation between two expressions.
 #[derive(Debug, Clone, PartialEq)]
