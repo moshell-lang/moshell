@@ -2,7 +2,13 @@ name: Rust CI
 
 on:
   push:
+    paths: 
+      - '**.rs'
+      - '*/Cargo.toml'
   pull_request:
+    paths:
+      - '**.rs'
+      - '*/Cargo.toml'
   workflow_dispatch:
   
 env:
