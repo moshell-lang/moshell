@@ -5,8 +5,9 @@ use crate::moves::{of_type, of_types, space, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 
+/// A parser for substitution expressions.
 pub(crate) trait SubstitutionParser<'a> {
-    /// Parse a substitution expression, i.e. a variable reference or a command capture.
+    /// Parses a substitution expression, i.e. a variable reference or a command capture.
     fn substitution(&mut self) -> ParseResult<Expr<'a>>;
 }
 
@@ -14,9 +15,10 @@ impl<'a> SubstitutionParser<'a> for Parser<'a> {
     fn substitution(&mut self) -> ParseResult<Expr<'a>> {
         let start_token = self.cursor.force(
             of_types(&[TokenType::At, TokenType::Dollar]),
-            "Expected dollar sign.",
+            "Expected at or dollar sign.",
         )?;
 
+        // Short pass for variable references
         if self
             .cursor
             .advance(of_type(TokenType::RoundedLeftBracket))
@@ -26,12 +28,14 @@ impl<'a> SubstitutionParser<'a> for Parser<'a> {
             return self.var_reference();
         }
 
+        // Read the expression inside the parentheses as a new statement
         let expr = Box::new(self.statement()?);
         self.cursor.force(
             space().then(of_type(TokenType::RoundedRightBracket)),
             "Expected closing bracket.",
         )?;
 
+        // Finally return the expression
         Ok(Expr::Substitution(Substitution {
             expr,
             kind: if start_token.token_type == TokenType::At {

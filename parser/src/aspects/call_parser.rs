@@ -21,7 +21,7 @@ pub trait CallParser<'a> {
 impl<'a> CallParser<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
         let mut arguments = vec![self.expression()?];
-        // End Of Expression \!(; + \n)
+        // Continue reading arguments until we reach the end of the input or a closing ponctuation
         while !self.cursor.is_at_end()
             && self
                 .cursor

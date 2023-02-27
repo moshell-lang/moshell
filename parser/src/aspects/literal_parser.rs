@@ -9,10 +9,24 @@ use crate::moves::{next, of_type};
 use crate::parser::{ParseResult, Parser};
 use crate::source::try_join_str;
 
+/// A trait that contains all the methods for parsing literals.
 pub(crate) trait LiteralParser<'a> {
+    /// Parses a number-like literal expression.
     fn literal(&mut self) -> ParseResult<Expr<'a>>;
+
+    /// Parses a string literal expression.
+    ///
+    /// This method is only used for single quoted strings.
     fn string_literal(&mut self) -> ParseResult<Expr<'a>>;
+
+    /// Parses a string template literal expression.
+    ///
+    /// This method is only used for double quoted strings, which may contain variable references for instance.
     fn templated_string_literal(&mut self) -> ParseResult<Expr<'a>>;
+
+    /// Parse a raw argument.
+    ///
+    /// Arguments are not quoted and are separated by spaces.
     fn argument(&mut self) -> ParseResult<Expr<'a>>;
     fn parse_literal(&mut self) -> ParseResult<LiteralValue>;
 }
