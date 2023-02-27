@@ -1,6 +1,6 @@
 use lexer::token::TokenType;
 
-use crate::ast::operation::{ARITHMETICS, BinaryOperator, BOOLEANS, COMPARISONS};
+use crate::ast::operation::{ARITHMETICS, BinaryOperator, COMPARISONS, LOGICALS};
 
 /// A structure that contains contexts
 #[derive(Clone)]
@@ -13,7 +13,7 @@ pub struct ParserContext {
 impl Default for ParserContext {
     fn default() -> Self {
         Self {
-            allowed_operators: [BOOLEANS].concat(),
+            allowed_operators: [LOGICALS].concat(),
             parsing_value: false,
             enclosing_end: None,
         }
@@ -25,7 +25,7 @@ impl ParserContext {
     ///default context for val initializers (val x = <here>)
     pub fn value_hold() -> Self {
         Self {
-            allowed_operators: [ARITHMETICS, COMPARISONS, BOOLEANS].concat(),
+            allowed_operators: [ARITHMETICS, COMPARISONS, LOGICALS].concat(),
             parsing_value: true,
             enclosing_end: None,
         }

@@ -127,7 +127,7 @@ impl<'a> Parser<'a> {
     fn parse_next_right(&mut self, left: Expr<'a>, ctx: ParserContext) -> ParseResult<Expr<'a>> {
         //can be a boolean operation expression
         if self.cursor
-            .lookahead(predicate(|t| BinaryOperator::convert_bin_operator(t.token_type)
+            .lookahead(predicate(|t| BinaryOperator::try_from(t.token_type)
                 .and_then(|t| Ok(ctx.allowed_operators.contains(&t)))
                 .unwrap_or(false))).is_some() {
             return self.binary_operation_right(left, ctx);
@@ -139,7 +139,7 @@ impl<'a> Parser<'a> {
         }
 
         //if the current token is a binary operator but was not allowed
-        if BinaryOperator::convert_bin_operator(self.cursor.peek().token_type).is_ok() {
+        if BinaryOperator::try_from(self.cursor.peek().token_type).is_ok() {
             return self.expected("infix operator not allowed here")
         }
         //else a generic error for other kind of tokens.

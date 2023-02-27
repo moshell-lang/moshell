@@ -73,7 +73,7 @@ impl<'p> Parser<'p> {
     fn has_priority(&self, current_priority: i8) -> bool {
         self.cursor
             .lookahead(spaces().then(bin_op()))
-            .map(|t| BinaryOperator::convert_bin_operator(t.token_type)
+            .map(|t| BinaryOperator::try_from(t.token_type)
                 .expect("conception error") //cannot fail
                 .priority()
                 .saturating_sub(current_priority))
@@ -88,7 +88,7 @@ impl<'p> Parser<'p> {
         //current expressions' infix operator
         let operator = self.cursor
             .advance(spaces().then(bin_op()))
-            .map(|t| BinaryOperator::convert_bin_operator(t.token_type) //cannot fail
+            .map(|t| BinaryOperator::try_from(t.token_type) //cannot fail
                 .expect("conception error"));
 
         if operator.is_none() {
@@ -108,7 +108,7 @@ impl<'p> Parser<'p> {
         //is > 0 if current operator's priority is smaller
         let priority_comparison = self.cursor
             .lookahead(spaces().then(bin_op()))
-            .map(|t| operator_priority - BinaryOperator::convert_bin_operator(t.token_type)
+            .map(|t| operator_priority - BinaryOperator::try_from(t.token_type)
                 .expect("not a valid operator")
                 .priority())
             .unwrap_or(0);
@@ -400,7 +400,6 @@ mod tests {
                     arguments: vec![
                         Expr::Literal("echo".into()),
                         Expr::Literal("damn".into()),
-                        }),
                     ],
                 })),
             })
