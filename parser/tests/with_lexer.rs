@@ -254,7 +254,7 @@ fn with_lexer_substitution() {
 
 #[test]
 fn with_lexer_substitution_in_substitution() {
-    let tokens = lex("echo $( ls $(pwd) )");
+    let tokens = lex("echo $( ls \"$(pwd)/test\" )");
     let parsed = parse(tokens).expect("Failed to parse");
     assert_eq!(
         parsed,
@@ -265,12 +265,15 @@ fn with_lexer_substitution_in_substitution() {
                     expr: Box::new(Expr::Call(Call {
                         arguments: vec![
                             Expr::Literal("ls".into()),
-                            Expr::Substitution(Substitution {
-                                expr: Box::new(Expr::Call(Call {
-                                    arguments: vec![Expr::Literal("pwd".into())],
-                                })),
-                                kind: SubstitutionKind::Capture,
-                            }),
+                            Expr::TemplateString(vec![
+                                Expr::Substitution(Substitution {
+                                    expr: Box::new(Expr::Call(Call {
+                                        arguments: vec![Expr::Literal("pwd".into())],
+                                    })),
+                                    kind: SubstitutionKind::Capture,
+                                }),
+                                Expr::Literal("/test".into()),
+                            ]),
                         ],
                     })),
                     kind: SubstitutionKind::Capture,

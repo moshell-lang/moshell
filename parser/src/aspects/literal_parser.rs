@@ -97,8 +97,8 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                             parsed: LiteralValue::String(literal_value.clone()),
                         }));
                         literal_value.clear();
-                        lexme = "";
                     }
+                    lexme = "";
 
                     parts.push(self.substitution()?);
                 }
