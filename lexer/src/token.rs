@@ -152,6 +152,8 @@ impl TokenType {
             TokenType::Ampersand
                 | TokenType::Less
                 | TokenType::Greater
+                | TokenType::And
+                | TokenType::Or
                 | TokenType::Pipe
                 | TokenType::SquareLeftBracket
                 | TokenType::SquareRightBracket

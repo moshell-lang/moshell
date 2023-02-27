@@ -272,15 +272,7 @@ pub(crate) fn eox() -> OrMove<
 
 ///a move that consumes a character if it can be escaped.
 pub(crate) fn escapable() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool)> {
-    of_types(&[
-        NewLine,
-        Pipe,
-        And,
-        Or,
-        SemiColon,
-        Ampersand,
-        RoundedRightBracket,
-    ])
+    predicate(|t| t.token_type.is_ponctuation())
 }
 
 #[cfg(test)]
