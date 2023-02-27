@@ -6,7 +6,7 @@ use crate::aspects::literal_parser::LiteralParser;
 use crate::aspects::var_declaration_parser::VarDeclarationParser;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::moves::{eox, spaces};
+use crate::moves::{eox, space, spaces, MoveOperations};
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -40,6 +40,7 @@ impl<'a> Parser<'a> {
             TokenType::Quote => self.string_literal(),
             TokenType::CurlyLeftBracket => self.block(),
             TokenType::DoubleQuote => self.templated_string_literal(),
+            _ if pivot.is_closing_ponctuation() => self.expected("Unexpected closing bracket."),
             _ => self.argument(),
         }
     }
@@ -76,6 +77,7 @@ impl<'a> Parser<'a> {
 
         while !self.cursor.is_at_end() {
             statements.push(self.statement()?);
+            self.cursor.advance(space().then(eox()));
         }
 
         Ok(statements)

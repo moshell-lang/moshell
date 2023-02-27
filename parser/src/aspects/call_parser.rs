@@ -1,6 +1,6 @@
 use crate::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use crate::ast::Expr;
-use crate::moves::{eox, next, of_type, of_types, space, spaces, MoveOperations};
+use crate::moves::{eox, next, of_type, of_types, predicate, space, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 
@@ -21,8 +21,15 @@ pub trait CallParser<'a> {
 impl<'a> CallParser<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
         let mut arguments = vec![self.expression()?];
-        // End Of Expression \!(; + \n)
-        while !self.cursor.is_at_end() && self.cursor.advance(spaces().then(eox())).is_none() {
+        // Continue reading arguments until we reach the end of the input or a closing ponctuation
+        while !self.cursor.is_at_end()
+            && self
+                .cursor
+                .lookahead(
+                    spaces().then(eox().or(predicate(|t| t.token_type.is_closing_ponctuation()))),
+                )
+                .is_none()
+        {
             self.cursor.advance(space());
             if self.is_redirection_sign() {
                 return self.redirectable(Expr::Call(Call { arguments }));

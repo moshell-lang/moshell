@@ -2,6 +2,7 @@ use lexer::lexer::lex;
 use lexer::token::{Token, TokenType};
 use parser::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use parser::ast::literal::Literal;
+use parser::ast::substitution::{Substitution, SubstitutionKind};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 use parser::ast::Expr;
 use parser::parse;
@@ -227,6 +228,79 @@ fn with_lexer_here_string() {
                     parsed: "hello".into(),
                 }),
             }],
+        })]
+    );
+}
+
+#[test]
+fn with_lexer_substitution() {
+    let tokens = lex("echo $(ls -l)");
+    let parsed = parse(tokens).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Call(Call {
+            arguments: vec![
+                Expr::Literal("echo".into()),
+                Expr::Substitution(Substitution {
+                    expr: Box::new(Expr::Call(Call {
+                        arguments: vec![Expr::Literal("ls".into()), Expr::Literal("-l".into()),],
+                    })),
+                    kind: SubstitutionKind::Capture,
+                }),
+            ],
+        })]
+    );
+}
+
+#[test]
+fn with_lexer_substitution_in_substitution() {
+    let tokens = lex("echo $( ls \"$(pwd)/test\" )");
+    let parsed = parse(tokens).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Call(Call {
+            arguments: vec![
+                Expr::Literal("echo".into()),
+                Expr::Substitution(Substitution {
+                    expr: Box::new(Expr::Call(Call {
+                        arguments: vec![
+                            Expr::Literal("ls".into()),
+                            Expr::TemplateString(vec![
+                                Expr::Substitution(Substitution {
+                                    expr: Box::new(Expr::Call(Call {
+                                        arguments: vec![Expr::Literal("pwd".into())],
+                                    })),
+                                    kind: SubstitutionKind::Capture,
+                                }),
+                                Expr::Literal("/test".into()),
+                            ]),
+                        ],
+                    })),
+                    kind: SubstitutionKind::Capture,
+                }),
+            ],
+        })]
+    );
+}
+
+#[test]
+fn with_lexer_here_invoke() {
+    let tokens = lex("val valid = @(nginx -t)");
+    let parsed = parse(tokens).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::VarDeclaration(VarDeclaration {
+            kind: VarKind::Val,
+            var: TypedVariable {
+                name: Token::new(TokenType::Identifier, "valid"),
+                ty: None,
+            },
+            initializer: Some(Box::new(Expr::Substitution(Substitution {
+                expr: Box::new(Expr::Call(Call {
+                    arguments: vec![Expr::Literal("nginx".into()), Expr::Literal("-t".into()),],
+                })),
+                kind: SubstitutionKind::Return,
+            }))),
         })]
     );
 }

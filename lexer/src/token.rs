@@ -152,6 +152,8 @@ impl TokenType {
             TokenType::Ampersand
                 | TokenType::Less
                 | TokenType::Greater
+                | TokenType::And
+                | TokenType::Or
                 | TokenType::Pipe
                 | TokenType::SquareLeftBracket
                 | TokenType::SquareRightBracket
@@ -163,6 +165,14 @@ impl TokenType {
                 | TokenType::SemiColon
                 | TokenType::NewLine
                 | TokenType::Error
+        )
+    }
+
+    pub fn is_closing_ponctuation(self) -> bool {
+        matches!(
+            self,
+            |TokenType::SquareRightBracket| TokenType::RoundedRightBracket
+                | TokenType::CurlyRightBracket
         )
     }
 }
