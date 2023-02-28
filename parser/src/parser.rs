@@ -25,6 +25,8 @@ pub(crate) struct Parser<'a> {
     pub(crate) cursor: ParserCursor<'a>,
 }
 
+
+
 impl<'a> Parser<'a> {
     /// Creates a new parser.
     pub(crate) fn new(tokens: Vec<Token<'a>>) -> Self {
@@ -110,7 +112,7 @@ impl<'a> Parser<'a> {
         }
 
         //else, we hit an invalid binary expression.
-        self.expected("unexpected binary operator")
+        self.expected(&format!("invalid infix operator, found '{}'", self.cursor.peek().value))
     }
 
     fn parse_binary_value_expr(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
@@ -128,7 +130,7 @@ impl<'a> Parser<'a> {
         }
 
         //else, we hit an invalid binary expression.
-        self.expected("unexpected binary operator")
+        self.expected(&format!("invalid infix operator, found '{}'", self.cursor.peek().value))
     }
 
 

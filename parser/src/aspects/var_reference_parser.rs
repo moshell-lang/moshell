@@ -43,6 +43,8 @@ mod tests {
     use crate::parser::Parser;
     use pretty_assertions::assert_eq;
 
+
+
     #[test]
     fn test_simple_ref() {
         let tokens = lex("$VARIABLE");

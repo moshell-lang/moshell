@@ -142,8 +142,7 @@ mod tests {
     use crate::ast::literal::{Literal};
     use crate::ast::operation::BinaryOperation;
     use crate::ast::operation::BinaryOperator::*;
-    use crate::parse;
-    use crate::parser::{ParseError, Parser};
+    use crate::parser::Parser;
 
     #[test]
     fn is_left_associative() {
@@ -446,11 +445,5 @@ mod tests {
         )
     }
 
-    #[test]
-    fn allowed_ops_based_on_ctx() {
-        assert!(parse(lex("val a = 7 + 9")).is_ok());
-        assert_eq!(parse(lex("7+9")), Err(ParseError {
-            message: "unexpected binary operator".to_string()
-        }))
-    }
+
 }

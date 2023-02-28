@@ -63,10 +63,13 @@ mod tests {
     use super::*;
     use crate::ast::literal::{Literal, LiteralValue};
     use crate::ast::Expr;
-    use crate::parser::Parser;
+    use crate::parser::{ParseError, Parser};
     use lexer::lexer::lex;
     use lexer::token::Token;
     use pretty_assertions::assert_eq;
+    use lexer::token::TokenType::Identifier;
+    use crate::ast::callable::Call;
+    use crate::ast::group::Block;
     use crate::ast::operation::BinaryOperation;
     use crate::ast::operation::BinaryOperator::Plus;
 
@@ -134,6 +137,52 @@ mod tests {
                     lexme: "'hello $test'",
                     parsed: "hello $test".into(),
                 }))),
+            })
+        )
+    }
+
+    #[test]
+    fn val_declaration_parenthesis_command() {
+        let tokens = lex("val x = (echo a)");
+        let err = Parser::new(tokens).var_declaration();
+        assert_eq!(
+            err,
+            Err(ParseError {
+                message: "invalid infix operator, found 'a'".to_string()
+            })
+        )
+    }
+
+    #[test]
+    fn val_declaration_block_command() {
+        let tokens = lex("val x = {echo a}");
+        let result = Parser::new(tokens).var_declaration().expect("parse fail");
+        assert_eq!(
+            result,
+            Expr::VarDeclaration(VarDeclaration {
+                kind: VarKind::Val,
+                var: TypedVariable {
+                    name: Token::new(Identifier, "x"),
+                    ty: None,
+                },
+                initializer: Some(Box::new(
+                    Expr::Block(Block {
+                        expressions: vec![
+                            Expr::Call(Call {
+                                arguments: vec![
+                                    Expr::Literal(Literal {
+                                        lexme: "echo",
+                                        parsed: "echo".into(),
+                                    }),
+                                    Expr::Literal(Literal {
+                                        lexme: "a",
+                                        parsed: "a".into(),
+                                    }),
+                                ]
+                            })
+                        ]
+                    })
+                )),
             })
         )
     }
