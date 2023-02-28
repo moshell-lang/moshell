@@ -1,39 +1,59 @@
-use lexer::token::TokenType;
-use crate::ast::Expr;
-use crate::ast::group::{Block, Parenthesis};
+use lexer::token::{Token, TokenType};
 
-use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations};
-use crate::parser::{ParseResult, Parser};
+use crate::ast::Expr;
+use crate::ast::group::{Block, Parenthesis, Subshell};
+use crate::moves::{eox, MoveOperations, of_type, repeat, repeat_n, spaces};
+use crate::parser::{Parser, ParseResult};
 
 ///A parser aspect for parsing block expressions
 pub trait GroupParser<'a> {
-    ///Attempts to parse next group expression (a block or parenthesis expression).
-    fn group(&mut self) -> ParseResult<Expr<'a>>;
+    fn block(&mut self) -> ParseResult<Expr<'a>>;
+
+    fn subshell(&mut self) -> ParseResult<Expr<'a>>;
+
+    fn parenthesis(&mut self) -> ParseResult<Expr<'a>>;
 }
 
 impl<'a> GroupParser<'a> for Parser<'a> {
-    fn group(&mut self) -> ParseResult<Expr<'a>> {
-        let pivot = self.cursor.peek().token_type;
-        match pivot {
-            // start of a parenthesis expression ('(')
-            TokenType::RoundedLeftBracket => Ok(Expr::Parenthesis(Parenthesis {
-                expressions: self.sub_exprs(TokenType::RoundedRightBracket)?,
-            })),
+    fn block(&mut self) -> ParseResult<Expr<'a>> {
+        self.ensure_at_group_start(TokenType::CurlyLeftBracket, '{')?;
+        Ok(Expr::Block(Block {
+            expressions: self.sub_exprs( TokenType::CurlyRightBracket, Parser::statement)?,
+        }))
+    }
 
-            // start of a block expression ('{')
-            TokenType::CurlyLeftBracket => Ok(Expr::Block(Block {
-                expressions: self.sub_exprs(TokenType::CurlyRightBracket)?,
-            })),
+    fn subshell(&mut self) -> ParseResult<Expr<'a>> {
+        self.ensure_at_group_start(TokenType::RoundedLeftBracket, '(')?;
+        Ok(Expr::Subshell(Subshell {
+            expressions: self.sub_exprs(TokenType::RoundedRightBracket, Parser::statement)?,
+        }))
+    }
 
-            _ => self.expected("unknown start of group expression"),
-        }
+
+    fn parenthesis(&mut self) -> ParseResult<Expr<'a>> {
+        self.ensure_at_group_start(TokenType::RoundedLeftBracket, '(')?;
+        Ok(Expr::Parenthesis(Parenthesis {
+            expressions: self.sub_exprs( TokenType::RoundedRightBracket, Parser::value)?,
+        }))
     }
 }
 
 impl<'a> Parser<'a> {
+
+    fn ensure_at_group_start(&mut self, start: TokenType, start_val: char) -> ParseResult<Token<'a>> {
+        self.cursor.force(
+            of_type(start),
+            &format!(
+                "unexpected start of group expression. expected '{}', found '{}'",
+                start_val,
+                self.cursor.peek().value)[..]) //consume group start token
+    }
+
     ///parses sub expressions of a grouping expression
-    fn sub_exprs(&mut self, eog: TokenType) -> ParseResult<Vec<Expr<'a>>> {
-        self.cursor.next()?; //consume group start token
+    fn sub_exprs<F>(&mut self,
+                    eog: TokenType,
+                    mut parser: F) -> ParseResult<Vec<Expr<'a>>>
+        where F: FnMut(&mut Self) -> ParseResult<Expr<'a>> {
 
         let mut statements: Vec<Expr<'a>> = Vec::new();
 
@@ -46,7 +66,7 @@ impl<'a> Parser<'a> {
         }
 
         loop {
-            let statement = self.statement()?;
+            let statement = parser(self)?;
             statements.push(statement);
 
             //expects at least one newline or ';'
@@ -71,27 +91,26 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use lexer::lexer::lex;
     use lexer::token::{Token, TokenType};
 
     use crate::aspects::group_parser::GroupParser;
     use crate::ast::callable::Call;
-    use crate::ast::group::{Block, Parenthesis};
-    use crate::ast::literal::LiteralValue::{Float, Int};
-    use crate::ast::literal::{Literal};
-
-    use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use crate::ast::Expr;
+    use crate::ast::group::{Block, Subshell};
+    use crate::ast::literal::Literal;
+    use crate::ast::literal::LiteralValue::{Float, Int};
+    use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use crate::parser::Parser;
-    use pretty_assertions::assert_eq;
-
 
     //noinspection DuplicatedCode
     #[test]
     fn test_empty_blocks() {
         let tokens = lex("{{{}; {}}}");
         let mut parser = Parser::new(tokens);
-        let ast = parser.group().expect("failed to parse block");
+        let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
             ast,
@@ -115,7 +134,7 @@ mod tests {
     fn test_empty_blocks_empty_content() {
         let tokens = lex("{;;{;;;{;;}; {\n\n};}}");
         let mut parser = Parser::new(tokens);
-        let ast = parser.group().expect("failed to parse block");
+        let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
             ast,
@@ -138,21 +157,21 @@ mod tests {
     fn test_block_not_ended() {
         let tokens = lex("{ val test = 2 ");
         let mut parser = Parser::new(tokens);
-        parser.group().expect_err("block parse did not failed");
+        parser.block().expect_err("block parse did not failed");
     }
 
     #[test]
-    fn test_neighbour_blocks() {
-        let tokens = lex("{ {} {} }");
+    fn test_neighbour_parenthesis() {
+        let tokens = lex("{ () () }");
         let mut parser = Parser::new(tokens);
-        parser.group().expect_err("block parse did not failed");
+        parser.block().expect_err("block parse did not failed");
     }
 
     #[test]
     fn test_block_not_started() {
         let tokens = lex(" val test = 2 }");
         let mut parser = Parser::new(tokens);
-        parser.group().expect_err("block parse did not failed");
+        parser.block().expect_err("block parse did not failed");
     }
 
     #[test]
@@ -168,7 +187,7 @@ mod tests {
         ");
         let mut parser = Parser::new(tokens);
         let ast = parser
-            .group()
+            .block()
             .expect("failed to parse block with nested blocks");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
@@ -201,7 +220,7 @@ mod tests {
                             ]
                         }))),
                     }),
-                    Expr::Parenthesis(Parenthesis {
+                    Expr::Subshell(Subshell {
                         expressions: vec![
                             Expr::VarDeclaration(VarDeclaration {
                                 kind: VarKind::Val,
@@ -240,7 +259,7 @@ mod tests {
         }\
         ");
         let mut parser = Parser::new(tokens);
-        let ast = parser.group().expect("failed to parse block");
+        let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
             ast,

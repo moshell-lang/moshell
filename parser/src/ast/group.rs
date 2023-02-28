@@ -11,3 +11,9 @@ pub struct Block<'a> {
 pub struct Parenthesis<'a> {
     pub expressions: Vec<Expr<'a>>,
 }
+
+/// A subshell expression `( ... )`
+#[derive(Debug, Clone, PartialEq)]
+pub struct Subshell<'a> {
+    pub expressions: Vec<Expr<'a>>,
+}

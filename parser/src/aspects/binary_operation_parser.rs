@@ -9,43 +9,48 @@ use crate::parser::{Parser, ParseResult};
 pub trait BinaryOperationsParser<'p> {
     ///Parses a binary operation tree
     /// `eox`: a selector to define where the binary operation expression hits it end.
-    fn binary_operation(&mut self) -> ParseResult<Expr<'p>>;
+    fn binary_operation<P>(&mut self, parse_next: P) -> ParseResult<Expr<'p>>
+        where P: FnMut(&mut Self) -> ParseResult<Expr<'p>>;
 
     ///Parses the operator and left arm of a left-defined operation.
     /// `left`: the left arm of the binary operator.
     /// `eox`: a selector to define where the binary operation expression hits it end.
-    fn binary_operation_right(&mut self, left: Expr<'p>) -> ParseResult<Expr<'p>>;
+    fn binary_operation_right<P>(&mut self, left: Expr<'p>, parse_next: P) -> ParseResult<Expr<'p>>
+        where P: FnMut(&mut Self) -> ParseResult<Expr<'p>>;
 }
 
 
 
 
 impl<'p> BinaryOperationsParser<'p> for Parser<'p> {
-    fn binary_operation(&mut self) -> ParseResult<Expr<'p>> {
-        let left = self.statement()?;
-        self.binary_operation_right(left)
+    fn binary_operation<P>(&mut self, mut parse: P) -> ParseResult<Expr<'p>>
+        where P: FnMut(&mut Self) -> ParseResult<Expr<'p>> {
+        let left = parse(self)?;
+        self.binary_operation_right(left, parse)
     }
 
-    fn binary_operation_right(&mut self,
-                              left: Expr<'p>) -> ParseResult<Expr<'p>> {
+    fn binary_operation_right<P>(&mut self, left: Expr<'p>, mut parse: P) -> ParseResult<Expr<'p>>
+        where P: FnMut(&mut Self) -> ParseResult<Expr<'p>> {
         //parsing a top-level tree operation with fewest priority
-        self.binary_op_right_internal(i8::MIN, left)
+        self.binary_op_right_internal(i8::MIN, left, &mut parse)
     }
 }
 
 impl<'p> Parser<'p> {
     //Parses a binary operation tree as long as it does not hits an operation with smaller priority.
-    fn binary_op_right_internal(&mut self,
-                                priority: i8,
-                                left: Expr<'p>,
-    ) -> ParseResult<Expr<'p>> {
-        let mut operation = self.binary_operation_internal(left)?;
+    fn binary_op_right_internal<P>(&mut self,
+                                   priority: i8,
+                                   left: Expr<'p>,
+                                   parse: &mut P,
+    ) -> ParseResult<Expr<'p>>
+        where P: FnMut(&mut Self) -> ParseResult<Expr<'p>> {
+        let mut operation = self.binary_operation_internal(left, parse)?;
         macro_rules! hit_eox {
             () => { self.cursor.lookahead(spaces().then(eox())).is_some() };
         }
 
         while !hit_eox!() && self.has_priority(priority) {
-            operation = self.binary_operation_internal(operation)?;
+            operation = self.binary_operation_internal(operation, parse)?;
         }
 
         Ok(operation)
@@ -63,7 +68,9 @@ impl<'p> Parser<'p> {
             .unwrap_or(false)
     }
 
-    fn binary_operation_internal(&mut self, left: Expr<'p>) -> ParseResult<Expr<'p>> {
+    fn binary_operation_internal<P>(&mut self, left: Expr<'p>, parse: &mut P) -> ParseResult<Expr<'p>>
+        where P: FnMut(&mut Self) -> ParseResult<Expr<'p>>
+    {
         //current expressions' infix operator
         let operator = self.cursor
             .advance(spaces().then(bin_op()))
@@ -77,8 +84,9 @@ impl<'p> Parser<'p> {
         let operator = operator.unwrap();
 
         let operator_priority = operator.priority();
-        //directly-next statement
-        let right = self.statement()?;
+
+        //parse next expression
+        let right = parse(self)?;
 
         //comparison between current operator's priority and next operator (if any)
         //is 0 if priorities are same or if there is no next operator.
@@ -106,13 +114,13 @@ impl<'p> Parser<'p> {
                 left: Box::new(left),
                 op: operator,
                 right: Box::new(right),
-            }))?
+            }), parse)?
         } else {
             //priority is fewer, so we let the priority to the right by continuing to parse
             Expr::Binary(BinaryOperation {
                 left: Box::new(left),
                 op: operator,
-                right: Box::new(self.binary_op_right_internal(operator_priority, right)?),
+                right: Box::new(self.binary_op_right_internal(operator_priority, right, parse)?),
             })
         };
 
@@ -130,7 +138,7 @@ mod tests {
     use crate::aspects::binary_operation_parser::BinaryOperationsParser;
     use crate::ast::callable::Call;
     use crate::ast::Expr;
-    use crate::ast::group::Parenthesis;
+    use crate::ast::group::{Parenthesis, Subshell};
     use crate::ast::literal::{Literal};
     use crate::ast::operation::BinaryOperation;
     use crate::ast::operation::BinaryOperator::*;
@@ -140,7 +148,8 @@ mod tests {
     #[test]
     fn is_left_associative() {
         let tokens = lex("1 && 2 || 3 || 4 && 5");
-        let ast = Parser::new(tokens).binary_operation().expect("parsing error");
+        let mut parser = Parser::new(tokens);
+        let ast = parser.binary_operation(Parser::next_statement).expect("parsing error");
         assert_eq!(
             ast,
             Expr::Binary(BinaryOperation {
@@ -181,7 +190,8 @@ mod tests {
     #[test]
     fn explicit_priority() {
         let tokens = lex("1 + (2 + 3)");
-        let ast = Parser::new(tokens).binary_operation().expect("parsing error");
+        let mut parser = Parser::new(tokens);
+        let ast = parser.binary_operation(Parser::next_value).expect("parsing error");
         assert_eq!(
             ast,
             Expr::Binary(BinaryOperation {
@@ -212,7 +222,8 @@ mod tests {
     #[test]
     fn arithmetic_priority() {
         let tokens = lex("1 + 2 * 3");
-        let ast = Parser::new(tokens).binary_operation().expect("parsing error");
+        let mut parser = Parser::new(tokens);
+        let ast = parser.binary_operation(Parser::next_value).expect("parsing error");
         assert_eq!(
             ast,
             Expr::Binary(BinaryOperation {
@@ -239,8 +250,9 @@ mod tests {
     #[test]
     fn complete_prioritization_test() {
         let tokens = lex("1 + 2 * 3 < 874 * 78 || 7 - 4 == 3 && 7 == 1");
-        let ast = Parser::new(tokens)
-            .binary_operation()
+        let mut parser = Parser::new(tokens);
+        let ast = parser
+            .binary_operation(Parser::next_value)
             .expect("parsing error");
         assert_eq!(
             ast,
@@ -317,7 +329,10 @@ mod tests {
     #[test]
     fn bin_expression_in_group() {
         let tokens = lex("(1 + 2 * 3)");
-        let ast = Parser::new(tokens).binary_operation().expect("parsing error");
+        let mut parser = Parser::new(tokens);
+        let ast = parser
+            .binary_operation(Parser::next_value)
+            .expect("parsing error");
         assert_eq!(
             ast,
             Expr::Parenthesis(Parenthesis {
@@ -349,11 +364,13 @@ mod tests {
     #[test]
     fn test_exitcode_operators() {
         let tokens = lex("(echo hello && echo world ) || echo damn");
-        let ast = Parser::new(tokens).binary_operation().expect("parsing error");
+        let mut parser = Parser::new(tokens);
+        let ast = parser
+            .binary_operation(Parser::next_statement).expect("parsing error");
         assert_eq!(
             ast,
             Expr::Binary(BinaryOperation {
-                left: Box::new(Expr::Parenthesis(Parenthesis {
+                left: Box::new(Expr::Subshell(Subshell {
                     expressions: vec![
                         Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Call(Call {
@@ -386,11 +403,14 @@ mod tests {
     #[test]
     fn test_escaped_operators() {
         let tokens = lex("(echo hello \\&& world \\);) || echo damn");
-        let ast = Parser::new(tokens).binary_operation().expect("parsing error");
+        let mut parser = Parser::new(tokens);
+        let ast = parser
+            .binary_operation(Parser::next_statement)
+            .expect("parsing error");
         assert_eq!(
             ast,
             Expr::Binary(BinaryOperation {
-                left: Box::new(Expr::Parenthesis(Parenthesis {
+                left: Box::new(Expr::Subshell(Subshell {
                     expressions: vec![
                         Expr::Call(Call {
                         arguments: vec![
@@ -430,7 +450,7 @@ mod tests {
     fn allowed_ops_based_on_ctx() {
         assert!(parse(lex("val a = 7 + 9")).is_ok());
         assert_eq!(parse(lex("7+9")), Err(ParseError {
-            message: "infix operator not allowed here".to_string()
+            message: "unexpected binary operator".to_string()
         }))
     }
 }

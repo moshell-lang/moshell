@@ -1,4 +1,4 @@
-use crate::ast::group::{Block, Parenthesis};
+use crate::ast::group::{Block, Parenthesis, Subshell};
 use crate::ast::callable::{Call, FunDeclaration, Pipeline, Redirected};
 use crate::ast::literal::Literal;
 use crate::ast::operation::BinaryOperation;
@@ -30,8 +30,10 @@ pub enum Expr<'a> {
     VarDeclaration(VarDeclaration<'a>),
 
     //Grouping expressions
-    /// a parenthesis expression `( ... )`
+    /// a parenthesis expression `( ... )` that evaluates a value
     Parenthesis(Parenthesis<'a>),
+    /// a subshell expression `( ... )` that evaluates sub expressions in a new process
+    Subshell(Subshell<'a>),
     /// a block expression `{ ... }`
     Block(Block<'a>),
 }

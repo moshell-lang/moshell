@@ -87,7 +87,7 @@ impl<'a> RedirectionParser<'a> for Parser<'a> {
             };
         }
 
-        let operand = self.expression()?;
+        let operand = self.next_expression()?;
         Ok(Redir {
             fd,
             operator,

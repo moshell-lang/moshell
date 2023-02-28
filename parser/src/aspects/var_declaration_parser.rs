@@ -47,7 +47,7 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
                 None
             }
 
-            Some(_) => Some(self.expression()?),
+            Some(_) => Some(self.value()?),
         };
 
         Ok(Expr::VarDeclaration(VarDeclaration {

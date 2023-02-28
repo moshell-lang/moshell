@@ -2,7 +2,7 @@ use lexer::token::TokenType::{And, Or, CurlyRightBracket, RoundedRightBracket, S
 use crate::aspects::redirection_parser::RedirectionParser;
 use crate::ast::callable::Call;
 use crate::ast::Expr;
-use crate::moves::{unescaped, of_types, space, spaces, MoveOperations};
+use crate::moves::{unescaped, of_types, space, spaces, eox, MoveOperations};
 use crate::parser::{Parser, ParseResult};
 
 /// A parse aspect for command and function calls
@@ -15,10 +15,10 @@ pub trait CallParser<'a> {
 impl<'a> CallParser<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
 
-        let mut arguments = vec![self.expression()?];
+        let mut arguments = vec![self.next_value()?];
         // tests if this cursor hits caller-defined eoc or [And, Or] tokens
         macro_rules! eoc_hit { () => {
-            self.cursor.lookahead(spaces().then(unescaped(of_types(&[And, Or, CurlyRightBracket, RoundedRightBracket, SquaredRightBracket])))).is_some() };
+            self.cursor.lookahead(spaces().then(eox().or(unescaped(of_types(&[And, Or, CurlyRightBracket, RoundedRightBracket, SquaredRightBracket]))))).is_some() };
         }
 
         while !self.cursor.is_at_end() && !eoc_hit!() {
@@ -27,7 +27,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
             if self.is_at_redirection_sign() {
                 return self.redirectable(Expr::Call(Call { arguments }));
             }
-            arguments.push(self.expression()?);
+            arguments.push(self.next_value()?);
         }
         Ok(Expr::Call(Call { arguments }))
     }
@@ -51,7 +51,7 @@ mod tests {
         assert_eq!(
             parse(tokens),
             Err(ParseError {
-                message: "invalid token".to_string()
+                message: "expected end of expression or file, found ')'".to_string()
             })
         );
     }

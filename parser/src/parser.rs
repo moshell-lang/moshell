@@ -1,7 +1,7 @@
-use lexer::token::{Token, TokenType};
+use lexer::token::Token;
 use lexer::token::TokenType::*;
-use crate::aspects::binary_operation_parser::{BinaryOperationsParser};
 
+use crate::aspects::binary_operation_parser::BinaryOperationsParser;
 use crate::aspects::call_parser::CallParser;
 use crate::aspects::group_parser::GroupParser;
 use crate::aspects::literal_parser::LiteralParser;
@@ -9,7 +9,7 @@ use crate::aspects::redirection_parser::RedirectionParser;
 use crate::aspects::var_declaration_parser::VarDeclarationParser;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::moves::{bin_op, unescaped, eox, next, of_type, spaces, MoveOperations, eod};
+use crate::moves::{bin_op, eod, eox, MoveOperations, next, of_types, spaces};
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -35,15 +35,25 @@ impl<'a> Parser<'a> {
 
     /// Parses an expression.
     pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
-        self.repos()?;
-        let pivot = self.cursor.peek().token_type;
-        let expr = self.expression_internal(pivot)?;
-        self.parse_next(expr)
+        let expr = self.next_expression()?;
+        self.parse_binary_expr(expr)
     }
+
 
     /// Parses a statement.
     /// a statement is usually on a single line
     pub(crate) fn statement(&mut self) -> ParseResult<Expr<'a>> {
+        let result = self.next_statement()?;
+        self.parse_binary_expr(result)
+    }
+
+    /// Parses a value
+    pub(crate) fn value(&mut self) -> ParseResult<Expr<'a>> {
+        let value = self.next_value()?;
+        self.parse_binary_value_expr(value)
+    }
+
+    pub(crate) fn next_statement(&mut self) -> ParseResult<Expr<'a>> {
         self.repos()?;
 
         let pivot = self.cursor.peek().token_type;
@@ -52,19 +62,75 @@ impl<'a> Parser<'a> {
             Identifier | Quote | DoubleQuote => self.call(),
             Var | Val => self.var_declaration(),
 
-            _ => self.expression(),
+            _ => self.next_expression(),
         }
     }
 
-    fn expression_internal(&mut self, pivot: TokenType) -> ParseResult<Expr<'a>> {
+    pub(crate) fn next_expression(&mut self) -> ParseResult<Expr<'a>> {
+        self.repos()?;
+
+        let pivot = self.cursor.peek().token_type;
         match pivot {
+            RoundedLeftBracket => self.subshell(),
+            _ => self.next_value(),
+        }
+    }
+
+    pub(crate) fn next_value(&mut self) -> ParseResult<Expr<'a>> {
+        self.repos()?;
+
+        let pivot = self.cursor.peek().token_type;
+        match pivot {
+            RoundedLeftBracket => self.parenthesis(),
+            CurlyLeftBracket => self.block(),
+
             IntLiteral | FloatLiteral => self.literal(),
             Quote => self.string_literal(),
-            CurlyLeftBracket | RoundedLeftBracket => self.group(),
             DoubleQuote => self.templated_string_literal(),
             _ => self.argument(),
         }
     }
+
+    fn parse_binary_expr(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
+        self.cursor.advance(spaces()); //consume spaces
+
+        //if there is an end of expression, it means that the expr is terminated so we return it here
+        if self.cursor.lookahead(eox().or(eod())).is_some() {
+            return Ok(expr);
+        }
+
+        if self.cursor.lookahead(of_types(&[Or, And])).is_some() {
+            return self.binary_operation_right(expr, Parser::next_statement);
+        }
+
+        //now, we know that there is something right after the expression.
+        //test if this 'something' is a redirection.
+        if self.is_at_redirection_sign() {
+            return self.redirectable(expr)
+        }
+
+        //else, we hit an invalid binary expression.
+        self.expected("unexpected binary operator")
+    }
+
+    fn parse_binary_value_expr(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
+        self.cursor.advance(spaces()); //consume spaces
+        //if there is an end of expression, it means that the expr is terminated so we return it here
+        if self.cursor.lookahead(eox().or(eod())).is_some() {
+            return Ok(expr);
+        }
+
+        //now, we know that there is something right after the expression.
+        //test if this 'something' is a redirection.
+        if self.cursor
+            .lookahead(bin_op()).is_some() {
+            return self.binary_operation_right(expr, Parser::next_value);
+        }
+
+        //else, we hit an invalid binary expression.
+        self.expected("unexpected binary operator")
+    }
+
 
     ///Skips spaces and verify that this parser is not parsing the end of an expression
     /// (unescaped newline or semicolon)
@@ -102,45 +168,13 @@ impl<'a> Parser<'a> {
             }
 
             //consume end of expression
-            self.cursor.force(unescaped(of_type(EndOfFile)), "expected end of expression or file")?;
+            self.cursor.force(eox(),
+                              &format!("expected end of expression or file, found '{}'", self.cursor.peek().value))?;
 
             statements.push(statement?);
         }
 
         Ok(statements)
-    }
-
-    pub(crate) fn parse_next(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
-
-        self.cursor.advance(spaces()); //consume spaces
-
-        //test for end of expression
-        let is_eox = self.cursor.lookahead(eox().or(eod())).is_some();
-
-        //we hit end of expression so the parsing ends here
-        if is_eox {
-            return Ok(expr);
-        }
-
-        //there's a token at cursors' current pos
-        //let's try if we can continue to parse the expression as a left-handed expression.
-        self.parse_next_right(expr)
-    }
-
-    fn parse_next_right(&mut self, left: Expr<'a>) -> ParseResult<Expr<'a>> {
-        //can be a boolean operation expression
-        if self.cursor
-            .lookahead(bin_op()).is_some() {
-            return self.binary_operation_right(left);
-        }
-
-        //can be a std or pipe redirection
-        if self.is_at_redirection_sign() {
-            return self.redirectable(left);
-        }
-
-        //else a generic error for other kind of tokens.
-        self.expected("invalid token")
     }
 
     pub(crate) fn expected<T>(&self, message: &str) -> ParseResult<T> {
