@@ -142,7 +142,7 @@ mod tests {
     use crate::ast::literal::{Literal};
     use crate::ast::operation::BinaryOperation;
     use crate::ast::operation::BinaryOperator::*;
-    use crate::parser::Parser;
+    use crate::parser::{ParseError, Parser};
 
     #[test]
     fn is_left_associative() {
@@ -200,19 +200,17 @@ mod tests {
                 })),
                 op: Plus,
                 right: Box::new(Expr::Parenthesis(Parenthesis {
-                    expressions: vec![
-                        Expr::Binary(BinaryOperation {
-                            left: Box::new(Expr::Literal(Literal {
-                                lexme: "2",
-                                parsed: 2.into(),
-                            })),
-                            op: Plus,
-                            right: Box::new(Expr::Literal(Literal {
-                                lexme: "3",
-                                parsed: 3.into(),
-                            })),
-                        }),
-                    ]
+                    expression: Box::new(Expr::Binary(BinaryOperation {
+                        left: Box::new(Expr::Literal(Literal {
+                            lexme: "2",
+                            parsed: 2.into(),
+                        })),
+                        op: Plus,
+                        right: Box::new(Expr::Literal(Literal {
+                            lexme: "3",
+                            parsed: 3.into(),
+                        })),
+                    })),
                 })),
             })
         )
@@ -326,6 +324,19 @@ mod tests {
     }
 
     #[test]
+    fn unterminated_expr() {
+        let tokens = lex("(1 + 2 * )");
+        let mut parser = Parser::new(tokens);
+        let result = parser.binary_operation(Parser::next_value);
+        assert_eq!(
+            result,
+            Err(ParseError {
+                message: "unexpected closing brackets".to_string()
+            })
+        )
+    }
+
+    #[test]
     fn bin_expression_in_group() {
         let tokens = lex("(1 + 2 * 3)");
         let mut parser = Parser::new(tokens);
@@ -335,26 +346,24 @@ mod tests {
         assert_eq!(
             ast,
             Expr::Parenthesis(Parenthesis {
-                expressions: vec![
-                    Expr::Binary(BinaryOperation {
+                expression: Box::new(Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::Literal(Literal {
+                        lexme: "1",
+                        parsed: 1.into(),
+                    })),
+                    op: Plus,
+                    right: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Literal(Literal {
-                            lexme: "1",
-                            parsed: 1.into(),
+                            lexme: "2",
+                            parsed: 2.into(),
                         })),
-                        op: Plus,
-                        right: Box::new(Expr::Binary(BinaryOperation {
-                            left: Box::new(Expr::Literal(Literal {
-                                lexme: "2",
-                                parsed: 2.into(),
-                            })),
-                            op: Times,
-                            right: Box::new(Expr::Literal(Literal {
-                                lexme: "3",
-                                parsed: 3.into(),
-                            })),
+                        op: Times,
+                        right: Box::new(Expr::Literal(Literal {
+                            lexme: "3",
+                            parsed: 3.into(),
                         })),
-                    })
-                ]
+                    })),
+                }))
             })
         )
     }

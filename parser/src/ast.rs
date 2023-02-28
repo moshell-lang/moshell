@@ -30,10 +30,10 @@ pub enum Expr<'a> {
     VarDeclaration(VarDeclaration<'a>),
 
     //Grouping expressions
-    /// a parenthesis expression `( ... )` that evaluates a value
+    /// a parenthesis expression `( ... )` that contains one value expression
     Parenthesis(Parenthesis<'a>),
-    /// a subshell expression `( ... )` that evaluates sub expressions in a new process
+    /// a subshell expression `( ... )` that contains several expressions
     Subshell(Subshell<'a>),
-    /// a block expression `{ ... }`
+    /// a block expression `{ ... }` that contains several expressions
     Block(Block<'a>),
 }

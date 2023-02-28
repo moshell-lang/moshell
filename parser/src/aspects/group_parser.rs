@@ -1,4 +1,5 @@
 use lexer::token::{Token, TokenType};
+use lexer::token::TokenType::RoundedRightBracket;
 
 use crate::ast::Expr;
 use crate::ast::group::{Block, Parenthesis, Subshell};
@@ -7,10 +8,20 @@ use crate::parser::{Parser, ParseResult};
 
 ///A parser aspect for parsing block expressions
 pub trait GroupParser<'a> {
+    ///Parse a block expression.
+    /// Block expressions will parse contained expressions as statements.
+    /// see `Parser::statement` for further details.
     fn block(&mut self) -> ParseResult<Expr<'a>>;
 
+    ///Parse a subshell expression.
+    /// subshell expressions will parse contained expressions as statements.
+    /// see [`Parser::statement`] for further details.
     fn subshell(&mut self) -> ParseResult<Expr<'a>>;
 
+    ///Parse a parenthesis (or grouped value) expression.
+    /// parenthesis expressions will parse contained expression as a value.
+    /// Thus, a parenthesis group is not meant to
+    /// see `Parser::statement` for further details.
     fn parenthesis(&mut self) -> ParseResult<Expr<'a>>;
 }
 
@@ -32,8 +43,15 @@ impl<'a> GroupParser<'a> for Parser<'a> {
 
     fn parenthesis(&mut self) -> ParseResult<Expr<'a>> {
         self.ensure_at_group_start(TokenType::RoundedLeftBracket, '(')?;
+        let expr = self.value()?;
+        self.cursor.force(
+            repeat(spaces().then(eox())) //consume possible end of expressions
+                .then(spaces().then(of_type(RoundedRightBracket))) //expect closing ')' token
+            , "parenthesis in value expression can only contain one expression",
+        )?;
+
         Ok(Expr::Parenthesis(Parenthesis {
-            expressions: self.sub_exprs( TokenType::RoundedRightBracket, Parser::value)?,
+            expression: Box::new(expr),
         }))
     }
 }
@@ -103,7 +121,9 @@ mod tests {
     use crate::ast::literal::Literal;
     use crate::ast::literal::LiteralValue::{Float, Int};
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
-    use crate::parser::Parser;
+    use crate::parser::{Parser};
+
+
 
     //noinspection DuplicatedCode
     #[test]
@@ -182,7 +202,7 @@ mod tests {
                 val x = 8\n\n\n
                 8
             }\n\
-            ( val x = 89; command call; 7 )\
+            (val x = 89; command call; 7)\
         }\
         ");
         let mut parser = Parser::new(tokens);

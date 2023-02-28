@@ -35,32 +35,32 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// Parses an expression.
+    /// Parses an expression or binary expression.
     pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
         let expr = self.next_expression()?;
         self.parse_binary_expr(expr)
     }
 
 
-    /// Parses a statement.
+    /// Parses a statement or binary expression.
     /// a statement is usually on a single line
     pub(crate) fn statement(&mut self) -> ParseResult<Expr<'a>> {
         let result = self.next_statement()?;
         self.parse_binary_expr(result)
     }
 
-    /// Parses a value
+    /// Parses a value or binary expression
     pub(crate) fn value(&mut self) -> ParseResult<Expr<'a>> {
         let value = self.next_value()?;
         self.parse_binary_value_expr(value)
     }
 
+    ///Parse the next statement
     pub(crate) fn next_statement(&mut self) -> ParseResult<Expr<'a>> {
         self.repos()?;
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
-            //If we are parsing a value (ex: val initializer, structure initialization) then it can't be a direct call.
             Identifier | Quote | DoubleQuote => self.call(),
             Var | Val => self.var_declaration(),
 
@@ -68,16 +68,19 @@ impl<'a> Parser<'a> {
         }
     }
 
+    ///Parse the next expression
     pub(crate) fn next_expression(&mut self) -> ParseResult<Expr<'a>> {
         self.repos()?;
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
+            //if we are parsing an expression, then we want to see a parenthesised expr as a subshell expression
             RoundedLeftBracket => self.subshell(),
             _ => self.next_value(),
         }
     }
 
+    ///Parse the next value
     pub(crate) fn next_value(&mut self) -> ParseResult<Expr<'a>> {
         self.repos()?;
 
@@ -89,10 +92,16 @@ impl<'a> Parser<'a> {
             IntLiteral | FloatLiteral => self.literal(),
             Quote => self.string_literal(),
             DoubleQuote => self.templated_string_literal(),
+
+            RoundedRightBracket | CurlyRightBracket => self.expected("unexpected closing brackets")?,
+
             _ => self.argument(),
         }
     }
 
+    //parses any binary expression, considering given input expression
+    //as the left arm of the expression.
+    //if given expression is directly followed by an eox delimiter, then return it as is
     fn parse_binary_expr(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
         self.cursor.advance(spaces()); //consume spaces
 
@@ -115,6 +124,9 @@ impl<'a> Parser<'a> {
         self.expected(&format!("invalid infix operator, found '{}'", self.cursor.peek().value))
     }
 
+    //parses any binary value expression, considering given input expression
+    //as the left arm of the expression.
+    //if given expression is directly followed by an eox delimiter, then return it as is
     fn parse_binary_value_expr(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
         self.cursor.advance(spaces()); //consume spaces
         //if there is an end of expression, it means that the expr is terminated so we return it here
@@ -186,7 +198,6 @@ impl<'a> Parser<'a> {
     pub(crate) fn mk_parse_error(&self, message: impl Into<String>) -> ParseError {
         ParseError {
             message: message.into(),
-            //actual: self.peek_token().clone(),
         }
     }
 }
