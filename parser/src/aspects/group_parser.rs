@@ -1,5 +1,4 @@
 use lexer::token::{Token, TokenType};
-use lexer::token::TokenType::RoundedRightBracket;
 
 use crate::ast::Expr;
 use crate::ast::group::{Block, Parenthesis, Subshell};
@@ -46,7 +45,7 @@ impl<'a> GroupParser<'a> for Parser<'a> {
         let expr = self.value()?;
         self.cursor.force(
             repeat(spaces().then(eox())) //consume possible end of expressions
-                .then(spaces().then(of_type(RoundedRightBracket))) //expect closing ')' token
+                .then(spaces().then(of_type(TokenType::RoundedRightBracket))) //expect closing ')' token
             , "parenthesis in value expression can only contain one expression",
         )?;
 
@@ -64,7 +63,7 @@ impl<'a> Parser<'a> {
             &format!(
                 "unexpected start of group expression. expected '{}', found '{}'",
                 start_val,
-                self.cursor.peek().value)[..]) //consume group start token
+                self.cursor.peek().value)) //consume group start token
     }
 
     ///parses sub expressions of a grouping expression

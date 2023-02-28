@@ -21,6 +21,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
             self.cursor.lookahead(spaces().then(eox().or(unescaped(of_types(&[And, Or, CurlyRightBracket, RoundedRightBracket, SquaredRightBracket]))))).is_some() };
         }
 
+        //parse next values until we hit EOF, EOX, or &&, ||, },),].
         while !self.cursor.is_at_end() && !eoc_hit!() {
             self.cursor.advance(space()); //consume spaces
 
@@ -31,7 +32,6 @@ impl<'a> CallParser<'a> for Parser<'a> {
         }
         Ok(Expr::Call(Call { arguments }))
     }
-
 
 }
 
