@@ -66,7 +66,8 @@ mod tests {
         assert_eq!(
             ast,
             Err(ParseError {
-                message: "Expected closing bracket.".to_string()
+                message: "Expected closing bracket.".to_string(),
+                position: None,
             })
         );
     }
@@ -78,7 +79,8 @@ mod tests {
         assert_eq!(
             ast,
             Err(ParseError {
-                message: "Expected closing bracket.".to_string()
+                message: "Expected closing bracket.".to_string(),
+                position: None,
             })
         );
     }
@@ -115,7 +117,8 @@ mod tests {
         assert_eq!(
             ast,
             Err(ParseError {
-                message: "Unexpected closing bracket.".to_string()
+                message: "Unexpected closing bracket.".to_string(),
+                position: None,
             })
         );
     }

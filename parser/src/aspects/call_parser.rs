@@ -69,7 +69,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
                     token
                         .value
                         .parse()
-                        .map_err(|_| self.mk_parse_error("Invalid file descriptor."))?,
+                        .map_err(|_| self.mk_parse_error("Invalid file descriptor.", token))?,
                 );
                 token = self.cursor.next()?;
                 redir
@@ -94,7 +94,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
                 None => RedirOp::Write,
                 Some(_) => RedirOp::Append,
             },
-            _ => Err(self.mk_parse_error("Expected redirection operator."))?,
+            _ => Err(self.mk_parse_error("Expected redirection operator.", token))?,
         };
 
         // Parse file descriptor duplication and update the operator
@@ -102,7 +102,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
             operator = match operator {
                 RedirOp::Read => RedirOp::FdIn,
                 RedirOp::Write => RedirOp::FdOut,
-                _ => Err(self.mk_parse_error("Invalid redirection operator."))?,
+                _ => Err(self.mk_parse_error("Invalid redirection operator.", self.cursor.peek()))?,
             };
         }
 

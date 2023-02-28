@@ -206,20 +206,18 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
         let token = self.cursor.next()?;
         match token.token_type {
             TokenType::IntLiteral => Ok(LiteralValue::Int(token.value.parse::<i64>().map_err(
-                |e| {
-                    match e.kind() {
-                        IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => self
-                            .expected::<()>("Integer constant is too large.")
-                            .unwrap_err(),
-                        _ => self.mk_parse_error(e.to_string()),
+                |e| match e.kind() {
+                    IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => {
+                        self.mk_parse_error("Integer constant is too large.".to_string(), token)
                     }
+                    _ => self.mk_parse_error(e.to_string(), token),
                 },
             )?)),
             TokenType::FloatLiteral => Ok(LiteralValue::Float(
                 token
                     .value
                     .parse::<f64>()
-                    .map_err(|e| self.mk_parse_error(e.to_string()))?,
+                    .map_err(|e| self.mk_parse_error(e.to_string(), token))?,
             )),
             _ => self.expected("Expected a literal."),
         }
@@ -248,6 +246,7 @@ mod tests {
             parsed,
             Err(ParseError {
                 message: "Integer constant is too large.".to_string(),
+                position: None,
             })
         );
     }
@@ -286,6 +285,7 @@ mod tests {
             parsed,
             Err(ParseError {
                 message: "Unterminated string literal.".to_string(),
+                position: None,
             })
         );
     }

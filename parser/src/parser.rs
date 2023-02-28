@@ -1,4 +1,5 @@
 use crate::aspects::block_parser::BlockParser;
+use lexer::lexer::lex;
 use lexer::token::{Token, TokenType};
 
 use crate::aspects::call_parser::CallParser;
@@ -7,6 +8,7 @@ use crate::aspects::var_declaration_parser::VarDeclarationParser;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
 use crate::moves::{eox, space, spaces, MoveOperations};
+use crate::source::{SourceCode, SourceSpan};
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -14,19 +16,29 @@ pub type ParseResult<T> = Result<T, ParseError>;
 #[derive(Debug, PartialEq)]
 pub struct ParseError {
     pub message: String,
-    //pub actual: Token<'a>,
+    pub position: Option<SourceSpan>,
 }
 
 /// A parser for the Moshell scripting language.
 pub(crate) struct Parser<'a> {
     pub(crate) cursor: ParserCursor<'a>,
+    pub(crate) source: Option<SourceCode<'a>>,
 }
 
 impl<'a> Parser<'a> {
-    /// Creates a new parser.
+    /// Creates a new parser with an unknown source.
     pub(crate) fn new(tokens: Vec<Token<'a>>) -> Self {
         Self {
             cursor: ParserCursor::new(tokens),
+            source: None,
+        }
+    }
+
+    /// Creates a new parser from a defined source.
+    pub(crate) fn from_source(source: SourceCode<'a>) -> Self {
+        Self {
+            cursor: ParserCursor::new(lex(source.source)),
+            source: Some(source),
         }
     }
 
@@ -84,13 +96,22 @@ impl<'a> Parser<'a> {
     }
 
     pub(crate) fn expected<T>(&self, message: &str) -> ParseResult<T> {
-        Err(self.mk_parse_error(message))
+        Err(self.mk_parse_error(message, self.cursor.peek()))
     }
 
-    pub(crate) fn mk_parse_error(&self, message: impl Into<String>) -> ParseError {
+    pub(crate) fn mk_parse_error(
+        &self,
+        message: impl Into<String>,
+        erroneous_token: Token,
+    ) -> ParseError {
         ParseError {
             message: message.into(),
-            //actual: self.peek_token().clone(),
+            position: self.source.as_ref().map(|source| {
+                let start =
+                    erroneous_token.value.as_ptr() as usize - source.source.as_ptr() as usize;
+                let end = start + erroneous_token.value.len();
+                (start..end).into()
+            }),
         }
     }
 }

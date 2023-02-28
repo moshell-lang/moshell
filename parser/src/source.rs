@@ -1,3 +1,28 @@
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct SourceSpan {
+    /// The start of the span.
+    pub start: usize,
+    /// The total length of the span. This is an offset from `start`.
+    pub length: usize,
+}
+
+impl From<std::ops::Range<usize>> for SourceSpan {
+    fn from(range: std::ops::Range<usize>) -> Self {
+        Self {
+            start: range.start,
+            length: range.end - range.start,
+        }
+    }
+}
+
+/// Defines a named source code from which tokens can be produced.
+pub struct SourceCode<'a> {
+    /// The source code.
+    pub source: &'a str,
+    /// The name of the source code.
+    pub name: String,
+}
+
 /// Joins two slices that are adjacent in memory into one slice.
 ///
 /// Returns None in the case the slices aren't adjacent.

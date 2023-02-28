@@ -56,6 +56,7 @@ impl<'a> ParserCursor<'a> {
     pub fn force(&mut self, mov: impl Move, err: &str) -> ParseResult<Token<'a>> {
         self.advance(mov).ok_or_else(|| ParseError {
             message: err.to_string(),
+            position: None,
         })
     }
 
@@ -69,6 +70,7 @@ impl<'a> ParserCursor<'a> {
     pub fn next(&mut self) -> ParseResult<Token<'a>> {
         self.next_opt().ok_or_else(|| ParseError {
             message: "Unexpected end of file".to_string(),
+            position: None,
         })
     }
 
