@@ -1,7 +1,6 @@
 use lexer::token::TokenType;
 use crate::ast::Expr;
 use crate::ast::group::{Block, Parenthesis};
-use crate::context::ParserContext;
 
 use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
@@ -9,21 +8,21 @@ use crate::parser::{ParseResult, Parser};
 ///A parser aspect for parsing block expressions
 pub trait GroupParser<'a> {
     ///Attempts to parse next group expression (a block or parenthesis expression).
-    fn group(&mut self, ctx: ParserContext) -> ParseResult<Expr<'a>>;
+    fn group(&mut self) -> ParseResult<Expr<'a>>;
 }
 
 impl<'a> GroupParser<'a> for Parser<'a> {
-    fn group(&mut self, ctx: ParserContext) -> ParseResult<Expr<'a>> {
+    fn group(&mut self) -> ParseResult<Expr<'a>> {
         let pivot = self.cursor.peek().token_type;
         match pivot {
             // start of a parenthesis expression ('(')
             TokenType::RoundedLeftBracket => Ok(Expr::Parenthesis(Parenthesis {
-                expressions: self.sub_exprs(TokenType::RoundedRightBracket, ctx)?,
+                expressions: self.sub_exprs(TokenType::RoundedRightBracket)?,
             })),
 
             // start of a block expression ('{')
             TokenType::CurlyLeftBracket => Ok(Expr::Block(Block {
-                expressions: self.sub_exprs(TokenType::CurlyRightBracket, ctx)?,
+                expressions: self.sub_exprs(TokenType::CurlyRightBracket)?,
             })),
 
             _ => self.expected("unknown start of group expression"),
@@ -33,22 +32,22 @@ impl<'a> GroupParser<'a> for Parser<'a> {
 
 impl<'a> Parser<'a> {
     ///parses sub expressions of a grouping expression
-    fn sub_exprs(&mut self, eog: TokenType, ctx: ParserContext) -> ParseResult<Vec<Expr<'a>>> {
+    fn sub_exprs(&mut self, eog: TokenType) -> ParseResult<Vec<Expr<'a>>> {
         self.cursor.next()?; //consume group start token
 
-        let mut expressions: Vec<Expr<'a>> = Vec::new();
+        let mut statements: Vec<Expr<'a>> = Vec::new();
 
         //consume all heading spaces and end of expressions (\n or ;)
         self.cursor.advance(repeat(spaces().then(eox())));
 
         //if we directly hit end of group, return an empty block.
         if self.cursor.advance(of_type(eog)).is_some() {
-            return Ok(expressions);
+            return Ok(statements);
         }
 
         loop {
-            let expression = self.parse_next(ctx.with_enclosing_end(Some(eog)))?;
-            expressions.push(expression);
+            let statement = self.statement()?;
+            statements.push(statement);
 
             //expects at least one newline or ';'
             let eox_res = self.cursor.force(
@@ -66,7 +65,7 @@ impl<'a> Parser<'a> {
             //but if not closed, expect the cursor to hit EOX.
             eox_res?;
         }
-        Ok(expressions)
+        Ok(statements)
     }
 }
 
@@ -85,7 +84,6 @@ mod tests {
     use crate::ast::Expr;
     use crate::parser::Parser;
     use pretty_assertions::assert_eq;
-    use crate::context::ParserContext;
 
 
     //noinspection DuplicatedCode
@@ -93,7 +91,7 @@ mod tests {
     fn test_empty_blocks() {
         let tokens = lex("{{{}; {}}}");
         let mut parser = Parser::new(tokens);
-        let ast = parser.group(ParserContext::default()).expect("failed to parse block");
+        let ast = parser.group().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
             ast,
@@ -117,7 +115,7 @@ mod tests {
     fn test_empty_blocks_empty_content() {
         let tokens = lex("{;;{;;;{;;}; {\n\n};}}");
         let mut parser = Parser::new(tokens);
-        let ast = parser.group(ParserContext::default()).expect("failed to parse block");
+        let ast = parser.group().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
             ast,
@@ -140,21 +138,21 @@ mod tests {
     fn test_block_not_ended() {
         let tokens = lex("{ val test = 2 ");
         let mut parser = Parser::new(tokens);
-        parser.group(ParserContext::default()).expect_err("block parse did not failed");
+        parser.group().expect_err("block parse did not failed");
     }
 
     #[test]
     fn test_neighbour_blocks() {
         let tokens = lex("{ {} {} }");
         let mut parser = Parser::new(tokens);
-        parser.group(ParserContext::default()).expect_err("block parse did not failed");
+        parser.group().expect_err("block parse did not failed");
     }
 
     #[test]
     fn test_block_not_started() {
         let tokens = lex(" val test = 2 }");
         let mut parser = Parser::new(tokens);
-        parser.group(ParserContext::default()).expect_err("block parse did not failed");
+        parser.group().expect_err("block parse did not failed");
     }
 
     #[test]
@@ -170,7 +168,7 @@ mod tests {
         ");
         let mut parser = Parser::new(tokens);
         let ast = parser
-            .group(ParserContext::default())
+            .group()
             .expect("failed to parse block with nested blocks");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
@@ -242,7 +240,7 @@ mod tests {
         }\
         ");
         let mut parser = Parser::new(tokens);
-        let ast = parser.group(ParserContext::default()).expect("failed to parse block");
+        let ast = parser.group().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
             ast,

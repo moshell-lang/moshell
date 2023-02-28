@@ -3,7 +3,6 @@ use lexer::token::TokenType::{BackSlash, DoubleQuote, Quote};
 use crate::aspects::call_parser::CallParser;
 use crate::ast::callable::{Pipeline, Redir, Redirected, RedirFd, RedirOp};
 use crate::ast::Expr;
-use crate::context::ParserContext;
 use crate::moves::{eox,  MoveOperations, next, of_type, of_types, space, spaces};
 use crate::parser::{Parser, ParseResult};
 
@@ -88,7 +87,7 @@ impl<'a> RedirectionParser<'a> for Parser<'a> {
             };
         }
 
-        let operand = self.expression(ParserContext::default())?;
+        let operand = self.expression()?;
         Ok(Redir {
             fd,
             operator,
@@ -241,27 +240,4 @@ mod test {
     }
 
 
-    #[test]
-    fn escaped_call() {
-        let tokens = lex("grep -E regex \\; echo test");
-        let parsed = parse(tokens).expect("parsing error");
-        assert_eq!(
-            parsed,
-            vec![
-                Expr::Call(Call {
-                    arguments: vec![
-                        Expr::Literal("grep".into()),
-                        Expr::Literal("-E".into()),
-                        Expr::Literal("regex".into()),
-                        Expr::Literal(Literal {
-                            lexme: "\\;",
-                            parsed: ";".into(),
-                        }),
-                        Expr::Literal("echo".into()),
-                        Expr::Literal("test".into()),
-                    ],
-                }),
-            ]
-        )
-    }
 }

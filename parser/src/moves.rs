@@ -272,38 +272,38 @@ impl<A: Move + Copy, B: Move + Copy> Move for OrMove<A, B> {
 
 //////////////////// STANDARD MOVES ////////////////////
 
+pub(crate) fn eod() -> OrMove<
+    AndThenMove<
+        PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
+        PredicateMove<for<'a> fn(Token<'a>) -> bool>
+    >,
+    PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>
+> {
+    unescaped(of_types(&[SquaredRightBracket, CurlyRightBracket, RoundedRightBracket]))
+}
 
 ///a move to consume default eox tokens as long as they are not escaped.
 /// default eox tokens are semicolon (;) and newline (\n)
 pub(crate) fn eox() -> OrMove<
-    OrMove<
-        AndThenMove<
-            PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
-            PredicateMove<for<'a> fn(Token<'a>) -> bool>
-        >,
-        PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>
+    AndThenMove<
+        PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
+        PredicateMove<for<'a> fn(Token<'a>) -> bool>
     >,
     PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>
 > {
-    custom_eox(none())
+    unescaped(of_types(&[NewLine, SemiColon, EndOfFile]))
 }
 
-///a move to consume default or custom tokens as long as they are not escaped.
-/// default eox tokens are semicolon (;) newline (\n) or end of file
-pub(crate) fn custom_eox<M: Move + Copy>(eox: M) -> OrMove<
-    OrMove<
+pub(crate) fn unescaped<M: Move + Copy>(eox: M) -> OrMove<
         AndThenMove<
             PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
             PredicateMove<for<'a> fn(Token<'a>) -> bool>
         >,
-        PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>
-    >,
     M
 > {
-    //if it's escaped then it's not an EOX
+    //if it's escaped then it's a fail
     (of_type(BackSlash).and_then(none()))
-        //else it must be either new line, ';', eof or caller-defined
-        .or(of_types(&[NewLine, SemiColon, EndOfFile]))
+        //else it must be caller-delimited
         .or(eox)
 }
 

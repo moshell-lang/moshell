@@ -1,4 +1,4 @@
-use lexer::token::{Token};
+use lexer::token::{Token, TokenType};
 use lexer::token::TokenType::*;
 use crate::aspects::binary_operation_parser::{BinaryOperationsParser};
 
@@ -8,10 +8,8 @@ use crate::aspects::literal_parser::LiteralParser;
 use crate::aspects::redirection_parser::RedirectionParser;
 use crate::aspects::var_declaration_parser::VarDeclarationParser;
 use crate::ast::Expr;
-use crate::ast::operation::BinaryOperator;
-use crate::context::{ParserContext};
 use crate::cursor::ParserCursor;
-use crate::moves::{custom_eox, eox, next, of_type, predicate, spaces};
+use crate::moves::{bin_op, unescaped, eox, next, of_type, spaces, MoveOperations, eod};
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -36,31 +34,35 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses an expression.
-    pub(crate) fn expression(&mut self, ctx: ParserContext) -> ParseResult<Expr<'a>> {
+    pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
         self.repos()?;
-
         let pivot = self.cursor.peek().token_type;
-        match pivot {
-            IntLiteral | FloatLiteral => self.literal(),
-            Quote => self.string_literal(),
-            CurlyLeftBracket | RoundedLeftBracket => self.group(ctx),
-            DoubleQuote => self.templated_string_literal(),
-            _ => self.argument(),
-        }
+        let expr = self.expression_internal(pivot)?;
+        self.parse_next(expr)
     }
 
-    /// Parse a statement.
+    /// Parses a statement.
     /// a statement is usually on a single line
-    pub(crate) fn statement(&mut self, ctx: ParserContext) -> ParseResult<Expr<'a>> {
+    pub(crate) fn statement(&mut self) -> ParseResult<Expr<'a>> {
         self.repos()?;
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
             //If we are parsing a value (ex: val initializer, structure initialization) then it can't be a direct call.
-            Identifier | Quote | DoubleQuote if !ctx.parsing_value => self.call(),
-            Var | Val => self.var_declaration(ctx),
+            Identifier | Quote | DoubleQuote => self.call(),
+            Var | Val => self.var_declaration(),
 
-            _ => self.expression(ctx),
+            _ => self.expression(),
+        }
+    }
+
+    fn expression_internal(&mut self, pivot: TokenType) -> ParseResult<Expr<'a>> {
+        match pivot {
+            IntLiteral | FloatLiteral => self.literal(),
+            Quote => self.string_literal(),
+            CurlyLeftBracket | RoundedLeftBracket => self.group(),
+            DoubleQuote => self.templated_string_literal(),
+            _ => self.argument(),
         }
     }
 
@@ -92,7 +94,7 @@ impl<'a> Parser<'a> {
         let mut statements = Vec::new();
 
         while !self.cursor.is_at_end() {
-            let statement = self.parse_next(ParserContext::default());
+            let statement = self.statement();
 
             if let Err(error) = &statement {
                 self.report_error(error);
@@ -100,7 +102,7 @@ impl<'a> Parser<'a> {
             }
 
             //consume end of expression
-            self.cursor.force(custom_eox(of_type(EndOfFile)), "expected end of expression or file")?;
+            self.cursor.force(unescaped(of_type(EndOfFile)), "expected end of expression or file")?;
 
             statements.push(statement?);
         }
@@ -108,35 +110,28 @@ impl<'a> Parser<'a> {
         Ok(statements)
     }
 
-    pub(crate) fn parse_next(&mut self,
-                             ctx: ParserContext) -> ParseResult<Expr<'a>> {
-        let statement = self.statement(ctx.clone())?;
+    pub(crate) fn parse_next(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
 
         self.cursor.advance(spaces()); //consume spaces
 
         //test for end of expression
-        let is_eox = match ctx.enclosing_end {
-            Some(end_token) => self.cursor.lookahead(custom_eox(of_type(end_token))).is_some(),
-            None => self.cursor.lookahead(eox()).is_some()
-        };
+        let is_eox = self.cursor.lookahead(eox().or(eod())).is_some();
 
         //we hit end of expression so the parsing ends here
         if is_eox {
-            return Ok(statement);
+            return Ok(expr);
         }
 
         //there's a token at cursors' current pos
         //let's try if we can continue to parse the expression as a left-handed expression.
-        self.parse_next_right(statement, ctx)
+        self.parse_next_right(expr)
     }
 
-    fn parse_next_right(&mut self, left: Expr<'a>, ctx: ParserContext) -> ParseResult<Expr<'a>> {
+    fn parse_next_right(&mut self, left: Expr<'a>) -> ParseResult<Expr<'a>> {
         //can be a boolean operation expression
         if self.cursor
-            .lookahead(predicate(|t| BinaryOperator::convert_bin_operator(t.token_type)
-                .and_then(|t| Ok(ctx.allowed_operators.contains(&t)))
-                .unwrap_or(false))).is_some() {
-            return self.binary_operation_right(left, ctx);
+            .lookahead(bin_op()).is_some() {
+            return self.binary_operation_right(left);
         }
 
         //can be a std or pipe redirection
@@ -144,10 +139,6 @@ impl<'a> Parser<'a> {
             return self.redirectable(left);
         }
 
-        //if the current token is a binary operator but was not allowed
-        if BinaryOperator::convert_bin_operator(self.cursor.peek().token_type).is_ok() {
-            return self.expected("infix operator not allowed here")
-        }
         //else a generic error for other kind of tokens.
         self.expected("invalid token")
     }

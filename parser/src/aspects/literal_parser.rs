@@ -223,7 +223,6 @@ mod tests {
 
     use super::*;
     use pretty_assertions::assert_eq;
-    use crate::context::ParserContext;
 
     #[test]
     fn int_overflow() {
@@ -243,7 +242,7 @@ mod tests {
     #[test]
     fn string_literal() {
         let tokens = lex("'hello $world! $(this is a test) @(of course)'");
-        let parsed = Parser::new(tokens).expression(ParserContext::default()).expect("Failed to parse.");
+        let parsed = Parser::new(tokens).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
@@ -256,7 +255,7 @@ mod tests {
     #[test]
     fn escaped_literal() {
         let tokens = lex("a\\a");
-        let parsed = Parser::new(tokens).expression(ParserContext::default()).expect("Failed to parse.");
+        let parsed = Parser::new(tokens).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Literal(Literal {

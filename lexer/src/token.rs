@@ -126,7 +126,7 @@ pub enum TokenType {
     #[token("[")]
     SquareLeftBracket,
     #[token("]")]
-    SquareRightBracket,
+    SquaredRightBracket,
     #[token("(")]
     RoundedLeftBracket,
     #[token(")")]
@@ -177,7 +177,7 @@ impl TokenType {
                 | TokenType::Greater
                 | TokenType::Pipe
                 | TokenType::SquareLeftBracket
-                | TokenType::SquareRightBracket
+                | TokenType::SquaredRightBracket
                 | TokenType::RoundedLeftBracket
                 | TokenType::RoundedRightBracket
                 | TokenType::CurlyLeftBracket
