@@ -37,7 +37,7 @@ impl<'a> Parser<'a> {
     /// Creates a new parser from a defined source.
     pub(crate) fn from_source(source: SourceCode<'a>) -> Self {
         Self {
-            cursor: ParserCursor::new(lex(source.source)),
+            cursor: ParserCursor::new_with_source(lex(source.source), source.source),
             source: Some(source),
         }
     }
@@ -104,14 +104,6 @@ impl<'a> Parser<'a> {
         message: impl Into<String>,
         erroneous_token: Token,
     ) -> ParseError {
-        ParseError {
-            message: message.into(),
-            position: self.source.as_ref().map(|source| {
-                let start =
-                    erroneous_token.value.as_ptr() as usize - source.source.as_ptr() as usize;
-                let end = start + erroneous_token.value.len();
-                (start..end).into()
-            }),
-        }
+        self.cursor.mk_parse_error(message, erroneous_token)
     }
 }

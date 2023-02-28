@@ -21,8 +21,7 @@ impl Display for FormattedError {
 }
 
 fn this_fails() -> Result<()> {
-    let src = fs::read_to_string("lexer/tests/sample.msh")
-        .unwrap();
+    let src = fs::read_to_string("lexer/tests/sample.msh").unwrap();
     let source = SourceCode {
         source: &src,
         name: "sample.msh".to_string(),
