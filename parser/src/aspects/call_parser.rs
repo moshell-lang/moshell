@@ -12,7 +12,6 @@ pub trait CallParser<'a> {
 
 }
 
-/// The end of a call expression
 impl<'a> CallParser<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
 
