@@ -293,6 +293,10 @@ pub(crate) fn eox() -> OrMove<
 > {
     unescaped(of_types(&[NewLine, SemiColon, EndOfFile]))
 }
+///a move that consumes a character if it can be escaped.
+pub(crate) fn escapable() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
+    predicate(|t| t.token_type.is_ponctuation())
+}
 
 pub(crate) fn unescaped<M: Move + Copy>(eox: M) -> OrMove<
         AndThenMove<

@@ -1,18 +1,32 @@
 use std::num::IntErrorKind;
 
+use crate::aspects::substitution_parser::SubstitutionParser;
 use lexer::token::TokenType;
 
-use crate::aspects::var_reference_parser::VarReferenceParser;
 use crate::ast::literal::{Literal, LiteralValue};
 use crate::ast::*;
 use crate::moves::{next, of_type};
 use crate::parser::{ParseResult, Parser};
 use crate::source::try_join_str;
 
+/// A trait that contains all the methods for parsing literals.
 pub(crate) trait LiteralParser<'a> {
+    /// Parses a number-like literal expression.
     fn literal(&mut self) -> ParseResult<Expr<'a>>;
+
+    /// Parses a string literal expression.
+    ///
+    /// This method is only used for single quoted strings.
     fn string_literal(&mut self) -> ParseResult<Expr<'a>>;
+
+    /// Parses a string template literal expression.
+    ///
+    /// This method is only used for double quoted strings, which may contain variable references for instance.
     fn templated_string_literal(&mut self) -> ParseResult<Expr<'a>>;
+
+    /// Parse a raw argument.
+    ///
+    /// Arguments are not quoted and are separated by spaces.
     fn argument(&mut self) -> ParseResult<Expr<'a>>;
     fn parse_literal(&mut self) -> ParseResult<LiteralValue>;
 }
@@ -83,11 +97,10 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                             parsed: LiteralValue::String(literal_value.clone()),
                         }));
                         literal_value.clear();
-                        lexme = "";
                     }
+                    lexme = "";
 
-                    let var_ref = self.var_reference()?;
-                    parts.push(var_ref);
+                    parts.push(self.substitution()?);
                 }
 
                 _ => {
@@ -136,7 +149,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
         }
 
         match current.token_type {
-            TokenType::Dollar => parts.push(self.var_reference()?),
+            TokenType::At | TokenType::Dollar => parts.push(self.substitution()?),
             TokenType::BackSlash => {
                 //never retain first backslash
                 self.cursor.next()?; //advance so we are not pointing to token after '\'
@@ -160,7 +173,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                     push_current!();
                 }
 
-                TokenType::Dollar => {
+                TokenType::At | TokenType::Dollar => {
                     if !builder.is_empty() {
                         parts.push(Expr::Literal(Literal {
                             lexme,
@@ -169,7 +182,7 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
                         builder.clear();
                         lexme = "";
                     }
-                    parts.push(self.var_reference()?);
+                    parts.push(self.substitution()?);
                 }
                 _ if pivot.is_ponctuation() => break,
                 _ => {

@@ -10,37 +10,37 @@ pub trait GroupParser<'a> {
     ///Parse a block expression.
     /// Block expressions will parse contained expressions as statements.
     /// see `Parser::statement` for further details.
-    fn block(&mut self) -> ParseResult<Expr<'a>>;
+    fn block(&mut self) -> ParseResult<Block<'a>>;
 
     ///Parse a subshell expression.
     /// subshell expressions will parse contained expressions as statements.
     /// see [`Parser::statement`] for further details.
-    fn subshell(&mut self) -> ParseResult<Expr<'a>>;
+    fn subshell(&mut self) -> ParseResult<Subshell<'a>>;
 
     ///Parse a parenthesis (or grouped value) expression.
     /// parenthesis expressions will parse contained expression as a value.
     /// Thus, a parenthesis group is not meant to
     /// see `Parser::statement` for further details.
-    fn parenthesis(&mut self) -> ParseResult<Expr<'a>>;
+    fn parenthesis(&mut self) -> ParseResult<Parenthesis<'a>>;
 }
 
 impl<'a> GroupParser<'a> for Parser<'a> {
-    fn block(&mut self) -> ParseResult<Expr<'a>> {
+    fn block(&mut self) -> ParseResult<Block<'a>> {
         self.ensure_at_group_start(TokenType::CurlyLeftBracket, '{')?;
-        Ok(Expr::Block(Block {
+        Ok(Block {
             expressions: self.sub_exprs( TokenType::CurlyRightBracket, Parser::statement)?,
-        }))
+        })
     }
 
-    fn subshell(&mut self) -> ParseResult<Expr<'a>> {
+    fn subshell(&mut self) -> ParseResult<Subshell<'a>> {
         self.ensure_at_group_start(TokenType::RoundedLeftBracket, '(')?;
-        Ok(Expr::Subshell(Subshell {
+        Ok(Subshell {
             expressions: self.sub_exprs(TokenType::RoundedRightBracket, Parser::statement)?,
-        }))
+        })
     }
 
 
-    fn parenthesis(&mut self) -> ParseResult<Expr<'a>> {
+    fn parenthesis(&mut self) -> ParseResult<Parenthesis<'a>> {
         self.ensure_at_group_start(TokenType::RoundedLeftBracket, '(')?;
         let expr = self.value()?;
         self.cursor.force(
@@ -49,9 +49,9 @@ impl<'a> GroupParser<'a> for Parser<'a> {
             , "parenthesis in value expression can only contain one expression",
         )?;
 
-        Ok(Expr::Parenthesis(Parenthesis {
+        Ok(Parenthesis {
             expression: Box::new(expr),
-        }))
+        })
     }
 }
 
@@ -133,7 +133,7 @@ mod tests {
         assert!(parser.cursor.is_at_end());
         assert_eq!(
             ast,
-            Expr::Block(Block {
+            Block {
                 expressions: vec![Expr::Block(Block {
                     expressions: vec![
                         Expr::Block(Block {
@@ -144,7 +144,7 @@ mod tests {
                         }),
                     ]
                 })]
-            })
+            }
         );
     }
 
@@ -157,7 +157,7 @@ mod tests {
         assert!(parser.cursor.is_at_end());
         assert_eq!(
             ast,
-            Expr::Block(Block {
+            Block {
                 expressions: vec![Expr::Block(Block {
                     expressions: vec![
                         Expr::Block(Block {
@@ -168,7 +168,7 @@ mod tests {
                         }),
                     ]
                 })]
-            })
+            }
         );
     }
 
@@ -211,7 +211,7 @@ mod tests {
         assert!(parser.cursor.is_at_end());
         assert_eq!(
             ast,
-            Expr::Block(Block {
+            Block {
                 expressions: vec![
                     Expr::VarDeclaration(VarDeclaration {
                         kind: VarKind::Val,
@@ -265,7 +265,7 @@ mod tests {
                         ]
                     }),
                 ]
-            })
+            }
         )
     }
 
@@ -282,7 +282,7 @@ mod tests {
         assert!(parser.cursor.is_at_end());
         assert_eq!(
             ast,
-            Expr::Block(Block {
+            Block {
                 expressions: vec![
                     Expr::VarDeclaration(VarDeclaration {
                         kind: VarKind::Var,
@@ -307,7 +307,7 @@ mod tests {
                         }))),
                     }),
                 ]
-            })
+            }
         )
     }
 }

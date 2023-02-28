@@ -1,8 +1,8 @@
-use lexer::token::TokenType::{And, Or, CurlyRightBracket, RoundedRightBracket, SquaredRightBracket};
+use lexer::token::TokenType::{And, Or};
 use crate::aspects::redirection_parser::RedirectionParser;
 use crate::ast::callable::Call;
 use crate::ast::Expr;
-use crate::moves::{unescaped, of_types, space, spaces, eox, MoveOperations};
+use crate::moves::{eox, MoveOperations, of_types, predicate, space, spaces};
 use crate::parser::{Parser, ParseResult};
 
 /// A parse aspect for command and function calls
@@ -16,15 +16,20 @@ impl<'a> CallParser<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
 
         let mut arguments = vec![self.next_value()?];
-        // tests if this cursor hits caller-defined eoc or [And, Or] tokens
-        macro_rules! eoc_hit { () => {
-            self.cursor.lookahead(spaces().then(eox().or(unescaped(of_types(&[And, Or, CurlyRightBracket, RoundedRightBracket, SquaredRightBracket]))))).is_some() };
-        }
-
-        //parse next values until we hit EOF, EOX, or &&, ||, },),].
-        while !self.cursor.is_at_end() && !eoc_hit!() {
-            self.cursor.advance(space()); //consume spaces
-
+        // Continue reading arguments until we reach the end of the input or a closing ponctuation
+        while !self.cursor.is_at_end()
+            && self
+                .cursor
+                .lookahead(
+                    spaces().then(
+                        eox()
+                            .or(predicate(|t| t.token_type.is_closing_ponctuation()))
+                            .or(of_types(&[And, Or]))
+                    ),
+                )
+                .is_none()
+        {
+            self.cursor.advance(space());
             if self.is_at_redirection_sign() {
                 return self.redirectable(Expr::Call(Call { arguments }));
             }
@@ -37,14 +42,15 @@ impl<'a> CallParser<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::Expr;
-    use crate::parse;
-    use lexer::lexer::lex;
     use pretty_assertions::assert_eq;
-    use crate::ast::callable::Call;
-    use crate::ast::literal::Literal;
-    use crate::parser::ParseError;
 
+    use lexer::lexer::lex;
+
+    use crate::ast::callable::Call;
+    use crate::ast::Expr;
+    use crate::ast::literal::Literal;
+    use crate::parse;
+    use crate::parser::ParseError;
 
     #[test]
     fn wrong_group_end() {

@@ -19,7 +19,7 @@ Moshell also comes with different data types, such as `int`, `float`, `bool` or 
 Moshell is a project in its early stages.
 
 - [x] Lexer
-- [ ] Parser *(in progress)*
+- [ ] [Parser](https://github.com/orgs/moshell-lang/projects/1) *(in progress)*
 - [ ] IR / Type checking
 - [ ] Interpreter
 - [ ] REPL

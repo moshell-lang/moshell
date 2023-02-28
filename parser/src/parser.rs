@@ -75,7 +75,7 @@ impl<'a> Parser<'a> {
         let pivot = self.cursor.peek().token_type;
         match pivot {
             //if we are parsing an expression, then we want to see a parenthesised expr as a subshell expression
-            RoundedLeftBracket => self.subshell(),
+            RoundedLeftBracket => Ok(Expr::Subshell(self.subshell()?)),
             _ => self.next_value(),
         }
     }
@@ -86,15 +86,14 @@ impl<'a> Parser<'a> {
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
-            RoundedLeftBracket => self.parenthesis(),
-            CurlyLeftBracket => self.block(),
+            RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
+            CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
 
             IntLiteral | FloatLiteral => self.literal(),
             Quote => self.string_literal(),
             DoubleQuote => self.templated_string_literal(),
 
-            RoundedRightBracket | CurlyRightBracket => self.expected("unexpected closing brackets")?,
-
+            _ if pivot.is_closing_ponctuation() => self.expected("Unexpected closing bracket."),
             _ => self.argument(),
         }
     }
