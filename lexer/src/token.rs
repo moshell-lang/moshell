@@ -149,22 +149,15 @@ pub enum TokenType {
 impl TokenType {
     pub fn is_bin_operator(self) -> bool {
         match self {
-            And | Or |
-
-            Plus | Minus | Star |
-
-            EqualEqual | NotEqual |
-            Less | LessEqual |
-            Greater | GreaterEqual 
-            => true,
-            _ => false
+            And | Or | Plus | Minus | Star | EqualEqual | NotEqual | Less | LessEqual | Greater
+            | GreaterEqual => true,
+            _ => false,
         }
     }
 
     pub fn is_identifier_bound(self) -> bool {
         match self {
-            NewLine | SemiColon | Less | Pipe | Greater
-            | And | Or => true,
+            NewLine | SemiColon | Less | Pipe | Greater | And | Or => true,
             _ => false,
         }
     }
@@ -194,9 +187,8 @@ impl TokenType {
     pub fn is_closing_ponctuation(self) -> bool {
         matches!(
             self,
-            | TokenType::SquaredRightBracket
-            | TokenType::RoundedRightBracket
-            | TokenType::CurlyRightBracket
+            |TokenType::SquaredRightBracket| TokenType::RoundedRightBracket
+                | TokenType::CurlyRightBracket
         )
     }
 }

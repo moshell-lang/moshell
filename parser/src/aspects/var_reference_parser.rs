@@ -11,7 +11,6 @@ pub trait VarReferenceParser<'a> {
 }
 
 impl<'a> VarReferenceParser<'a> for Parser<'a> {
-
     /// Parses a variable reference.
     fn var_reference(&mut self) -> ParseResult<Expr<'a>> {
         let has_bracket = self
@@ -41,8 +40,6 @@ mod tests {
     use crate::ast::Expr;
     use crate::parser::Parser;
     use pretty_assertions::assert_eq;
-
-
 
     #[test]
     fn test_simple_ref() {

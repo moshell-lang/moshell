@@ -1,9 +1,9 @@
 use lexer::token::{Token, TokenType};
 
-use crate::ast::Expr;
 use crate::ast::group::{Block, Parenthesis, Subshell};
-use crate::moves::{eox, MoveOperations, of_type, repeat, repeat_n, spaces};
-use crate::parser::{Parser, ParseResult};
+use crate::ast::Expr;
+use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations};
+use crate::parser::{ParseResult, Parser};
 
 ///A parser aspect for parsing block expressions
 pub trait GroupParser<'a> {
@@ -28,7 +28,7 @@ impl<'a> GroupParser<'a> for Parser<'a> {
     fn block(&mut self) -> ParseResult<Block<'a>> {
         self.ensure_at_group_start(TokenType::CurlyLeftBracket, '{')?;
         Ok(Block {
-            expressions: self.sub_exprs( TokenType::CurlyRightBracket, Parser::statement)?,
+            expressions: self.sub_exprs(TokenType::CurlyRightBracket, Parser::statement)?,
         })
     }
 
@@ -39,14 +39,13 @@ impl<'a> GroupParser<'a> for Parser<'a> {
         })
     }
 
-
     fn parenthesis(&mut self) -> ParseResult<Parenthesis<'a>> {
         self.ensure_at_group_start(TokenType::RoundedLeftBracket, '(')?;
         let expr = self.value()?;
         self.cursor.force(
             repeat(spaces().then(eox())) //consume possible end of expressions
-                .then(spaces().then(of_type(TokenType::RoundedRightBracket))) //expect closing ')' token
-            , "parenthesis in value expression can only contain one expression",
+                .then(spaces().then(of_type(TokenType::RoundedRightBracket))), //expect closing ')' token
+            "parenthesis in value expression can only contain one expression",
         )?;
 
         Ok(Parenthesis {
@@ -56,22 +55,26 @@ impl<'a> GroupParser<'a> for Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-
-    fn ensure_at_group_start(&mut self, start: TokenType, start_val: char) -> ParseResult<Token<'a>> {
+    fn ensure_at_group_start(
+        &mut self,
+        start: TokenType,
+        start_val: char,
+    ) -> ParseResult<Token<'a>> {
         self.cursor.force(
             of_type(start),
             &format!(
                 "unexpected start of group expression. expected '{}', found '{}'",
                 start_val,
-                self.cursor.peek().value)) //consume group start token
+                self.cursor.peek().value
+            ),
+        ) //consume group start token
     }
 
     ///parses sub expressions of a grouping expression
-    fn sub_exprs<F>(&mut self,
-                    eog: TokenType,
-                    mut parser: F) -> ParseResult<Vec<Expr<'a>>>
-        where F: FnMut(&mut Self) -> ParseResult<Expr<'a>> {
-
+    fn sub_exprs<F>(&mut self, eog: TokenType, mut parser: F) -> ParseResult<Vec<Expr<'a>>>
+    where
+        F: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
+    {
         let mut statements: Vec<Expr<'a>> = Vec::new();
 
         //consume all heading spaces and end of expressions (\n or ;)
@@ -115,14 +118,12 @@ mod tests {
 
     use crate::aspects::group_parser::GroupParser;
     use crate::ast::callable::Call;
-    use crate::ast::Expr;
     use crate::ast::group::{Block, Subshell};
     use crate::ast::literal::Literal;
     use crate::ast::literal::LiteralValue::{Float, Int};
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
-    use crate::parser::{Parser};
-
-
+    use crate::ast::Expr;
+    use crate::parser::Parser;
 
     //noinspection DuplicatedCode
     #[test]

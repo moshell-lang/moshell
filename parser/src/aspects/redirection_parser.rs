@@ -1,10 +1,10 @@
+use crate::aspects::call_parser::CallParser;
+use crate::ast::callable::{Pipeline, Redir, RedirFd, RedirOp, Redirected};
+use crate::ast::Expr;
+use crate::moves::{eox, next, of_type, of_types, space, spaces, MoveOperations};
+use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{BackSlash, DoubleQuote, Quote};
-use crate::aspects::call_parser::CallParser;
-use crate::ast::callable::{Pipeline, Redir, Redirected, RedirFd, RedirOp};
-use crate::ast::Expr;
-use crate::moves::{eox,  MoveOperations, next, of_type, of_types, space, spaces};
-use crate::parser::{Parser, ParseResult};
 
 pub(crate) trait RedirectionParser<'a> {
     /// Attempts to parse the next pipeline expression
@@ -113,9 +113,9 @@ impl<'a> RedirectionParser<'a> for Parser<'a> {
                     .cursor
                     .lookahead(next().then(of_types(&[TokenType::Less, TokenType::Greater])))
                     .is_some() =>
-                    {
-                        redirections.push(self.redirection()?)
-                    }
+                {
+                    redirections.push(self.redirection()?)
+                }
                 _ => break,
             };
             self.cursor.advance(spaces());
@@ -133,7 +133,11 @@ impl<'a> RedirectionParser<'a> for Parser<'a> {
 
     fn is_at_redirection_sign(&self) -> bool {
         //handle escaped redirection signs (can be \\ for one-character signs or quoted signs)
-        if self.cursor.lookahead(of_types(&[BackSlash, Quote, DoubleQuote])).is_some() {
+        if self
+            .cursor
+            .lookahead(of_types(&[BackSlash, Quote, DoubleQuote]))
+            .is_some()
+        {
             return false;
         }
 
@@ -153,14 +157,14 @@ impl<'a> RedirectionParser<'a> for Parser<'a> {
 mod test {
     use pretty_assertions::assert_eq;
 
-    use lexer::lexer::lex;
     use crate::aspects::call_parser::CallParser;
-    use crate::ast::callable::{Call, Redir, Redirected, RedirFd, RedirOp};
-    use crate::ast::Expr;
+    use crate::ast::callable::{Call, Redir, RedirFd, RedirOp, Redirected};
     use crate::ast::group::Block;
-    use crate::ast::literal::{Literal};
+    use crate::ast::literal::Literal;
+    use crate::ast::Expr;
     use crate::parse;
     use crate::parser::Parser;
+    use lexer::lexer::lex;
 
     #[test]
     fn expr_redirection() {
@@ -168,31 +172,23 @@ mod test {
         let parsed = parse(tokens);
         assert_eq!(
             parsed,
-            vec![
-                Expr::Redirected(Redirected {
-                    expr: Box::new(Expr::Block(Block {
-                        expressions: vec![
-                            Expr::Call(Call {
-                                arguments: vec![
-                                    Expr::Literal("ls".into())
-                                ]
-                            }),
-                            Expr::Call(Call {
-                                arguments: vec![
-                                    Expr::Literal("cd".into())
-                                ]
-                            }),
-                        ]
-                    })),
-                    redirections: vec![
-                        Redir {
-                            operator: RedirOp::Write,
-                            fd: RedirFd::Default,
-                            operand: Expr::Literal("/tmp/out".into()),
-                        }
-                    ],
-                }),
-            ]
+            vec![Expr::Redirected(Redirected {
+                expr: Box::new(Expr::Block(Block {
+                    expressions: vec![
+                        Expr::Call(Call {
+                            arguments: vec![Expr::Literal("ls".into())]
+                        }),
+                        Expr::Call(Call {
+                            arguments: vec![Expr::Literal("cd".into())]
+                        }),
+                    ]
+                })),
+                redirections: vec![Redir {
+                    operator: RedirOp::Write,
+                    fd: RedirFd::Default,
+                    operand: Expr::Literal("/tmp/out".into()),
+                }],
+            }),]
         );
     }
 
@@ -215,8 +211,6 @@ mod test {
         );
     }
 
-
-
     #[test]
     fn dupe_fd() {
         let tokens = lex("ls>&2");
@@ -238,6 +232,4 @@ mod test {
             })
         );
     }
-
-
 }

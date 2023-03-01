@@ -231,7 +231,6 @@ mod tests {
     use lexer::lexer::lex;
     use lexer::token::Token;
 
-
     use crate::parser::ParseError;
 
     use super::*;

@@ -9,7 +9,7 @@ use crate::aspects::redirection_parser::RedirectionParser;
 use crate::aspects::var_declaration_parser::VarDeclarationParser;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::moves::{bin_op, eod, eox, MoveOperations, next, of_types, spaces};
+use crate::moves::{bin_op, eod, eox, next, of_types, spaces, MoveOperations};
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -25,24 +25,18 @@ pub(crate) struct Parser<'a> {
     pub(crate) cursor: ParserCursor<'a>,
 }
 
-
-
 impl<'a> Parser<'a> {
-
-
     /// Parses input tokens into an abstract syntax tree representation.
     pub fn parse(&mut self) -> Vec<Expr<'a>> {
         let mut statements = Vec::new();
 
         while !self.cursor.is_at_end() {
-
             match self.parse_next() {
                 Err(error) => {
                     self.report_error(error);
                     self.repos_to_next_expr();
                 }
-                Ok(statement) =>
-                    statements.push(statement)
+                Ok(statement) => statements.push(statement),
             }
         }
 
@@ -61,7 +55,6 @@ impl<'a> Parser<'a> {
         let expr = self.next_expression()?;
         self.parse_binary_expr(expr)
     }
-
 
     /// Parses a statement or binary expression.
     /// a statement is usually on a single line
@@ -119,20 +112,20 @@ impl<'a> Parser<'a> {
         }
     }
 
-
     pub(crate) fn parse_next(&mut self) -> ParseResult<Expr<'a>> {
         let statement = self.statement();
         if statement.is_ok() {
             //consume end of expression
             self.cursor.force(
                 eox(),
-                &format!("expected end of expression or file, found '{}'",
-                         self.cursor.peek().value),
+                &format!(
+                    "expected end of expression or file, found '{}'",
+                    self.cursor.peek().value
+                ),
             )?;
         };
         statement
     }
-
 
     pub(crate) fn expected<T>(&self, message: &str) -> ParseResult<T> {
         Err(self.mk_parse_error(message))
@@ -162,11 +155,14 @@ impl<'a> Parser<'a> {
         //now, we know that there is something right after the expression.
         //test if this 'something' is a redirection.
         if self.is_at_redirection_sign() {
-            return self.redirectable(expr)
+            return self.redirectable(expr);
         }
 
         //else, we hit an invalid binary expression.
-        self.expected(&format!("invalid infix operator, found '{}'", self.cursor.peek().value))
+        self.expected(&format!(
+            "invalid infix operator, found '{}'",
+            self.cursor.peek().value
+        ))
     }
 
     //parses any binary value expression, considering given input expression
@@ -174,22 +170,23 @@ impl<'a> Parser<'a> {
     //if given expression is directly followed by an eox delimiter, then return it as is
     fn parse_binary_value_expr(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
         self.cursor.advance(spaces()); //consume spaces
-        //if there is an end of expression, it means that the expr is terminated so we return it here
+                                       //if there is an end of expression, it means that the expr is terminated so we return it here
         if self.cursor.lookahead(eox().or(eod())).is_some() {
             return Ok(expr);
         }
 
         //now, we know that there is something right after the expression.
         //test if this 'something' is a redirection.
-        if self.cursor
-            .lookahead(bin_op()).is_some() {
+        if self.cursor.lookahead(bin_op()).is_some() {
             return self.binary_operation_right(expr, Parser::next_value);
         }
 
         //else, we hit an invalid binary expression.
-        self.expected(&format!("invalid infix operator, found '{}'", self.cursor.peek().value))
+        self.expected(&format!(
+            "invalid infix operator, found '{}'",
+            self.cursor.peek().value
+        ))
     }
-
 
     //Skips spaces and verify that this parser is not parsing the end of an expression
     // (unescaped newline or semicolon)
@@ -213,5 +210,4 @@ impl<'a> Parser<'a> {
             self.cursor.advance(next());
         }
     }
-
 }

@@ -1,5 +1,5 @@
-use crate::ast::group::{Block, Parenthesis, Subshell};
 use crate::ast::callable::{Call, FunDeclaration, Pipeline, Redirected};
+use crate::ast::group::{Block, Parenthesis, Subshell};
 use crate::ast::literal::Literal;
 use crate::ast::operation::BinaryOperation;
 use crate::ast::substitution::Substitution;

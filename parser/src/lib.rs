@@ -4,7 +4,7 @@
 use lexer::token::Token;
 
 use crate::ast::Expr;
-use crate::parser::{Parser};
+use crate::parser::Parser;
 
 ///! The parser crate contains the parser for the Moshell scripting language.
 mod aspects;

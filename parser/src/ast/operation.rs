@@ -1,13 +1,8 @@
 use enum_assoc::Assoc;
 use lexer::token::TokenType;
 
-use crate::ast::Expr;
 use crate::ast::operation::BinaryOperator::*;
-
-pub const ARITHMETICS: &[BinaryOperator] = &[Plus, Minus, Times, Divide, Modulo];
-pub const COMPARISONS: &[BinaryOperator] = &[EqualEqual, NotEqual, Less, LessEqual, Greater, GreaterEqual];
-pub const LOGICALS: &[BinaryOperator] = &[And, Or];
-
+use crate::ast::Expr;
 
 /// A binary operation between two expressions.
 #[derive(Debug, Clone, PartialEq)]

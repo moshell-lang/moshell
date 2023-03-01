@@ -1,4 +1,4 @@
-use crate::ast::group::{Subshell};
+use crate::ast::group::Subshell;
 
 /// A special type of grouping expression that should be substituted
 /// based on its expression and kind.

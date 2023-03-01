@@ -11,8 +11,8 @@ pub trait Move {
     ///* `at` - get token at given position
     ///* `pos` - the position in ParserCursor at beginning of the move
     fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-        where
-            F: Fn(usize) -> Token<'a>;
+    where
+        F: Fn(usize) -> Token<'a>;
 }
 
 ///Defines operations over a Move struct.
@@ -51,21 +51,19 @@ impl<A: Move + Copy> MoveOperations<A> for A {
     }
 }
 
-
-
 ///A Move that only move over one token and only if it satisfies its predicate.
 #[derive(Copy, Clone)]
 pub(crate) struct PredicateMove<P>
-    where
-        P: Fn(Token) -> bool + Copy,
+where
+    P: Fn(Token) -> bool + Copy,
 {
     ///The used predicate
     predicate: P,
 }
 
 impl<P> PredicateMove<P>
-    where
-        P: Fn(Token) -> bool + Copy,
+where
+    P: Fn(Token) -> bool + Copy,
 {
     /// Invert the current predicate.
     pub fn negate(self) -> PredicateMove<impl Fn(Token) -> bool + Copy> {
@@ -76,12 +74,12 @@ impl<P> PredicateMove<P>
 }
 
 impl<P> Move for PredicateMove<P>
-    where
-        P: Fn(Token) -> bool + Copy,
+where
+    P: Fn(Token) -> bool + Copy,
 {
     fn apply<'a, F>(&self, mut at: F, pos: usize) -> Option<usize>
-        where
-            F: FnMut(usize) -> Token<'a>,
+    where
+        F: FnMut(usize) -> Token<'a>,
     {
         let t: Token = at(pos);
         (self.predicate)(t).then_some(pos + 1)
@@ -93,7 +91,7 @@ impl<P> Move for PredicateMove<P>
 /// * `predicate` - the predicate to satisfy
 pub(crate) fn predicate<P>(predicate: P) -> PredicateMove<P>
 where
-    P: Fn(Token) -> bool + Copy
+    P: Fn(Token) -> bool + Copy,
 {
     PredicateMove { predicate }
 }
@@ -154,8 +152,8 @@ pub(crate) struct RepeatedMove<M: Move + Copy> {
 
 impl<M: Move + Copy> Move for RepeatedMove<M> {
     fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-        where
-            F: Fn(usize) -> Token<'a>,
+    where
+        F: Fn(usize) -> Token<'a>,
     {
         let mut repeats = 0;
         let mut current_pos = pos;
@@ -224,8 +222,8 @@ pub(crate) struct AndThenMove<A: Move + Copy, B: Move + Copy> {
 
 impl<A: Move + Copy, B: Move + Copy> Move for AndThenMove<A, B> {
     fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-        where
-            F: Fn(usize) -> Token<'a>,
+    where
+        F: Fn(usize) -> Token<'a>,
     {
         self.left
             .apply(&at, pos)
@@ -242,8 +240,8 @@ pub(crate) struct ThenMove<A: Move + Copy, B: Move + Copy> {
 
 impl<A: Move + Copy, B: Move + Copy> Move for ThenMove<A, B> {
     fn apply<'a, F>(&self, at: F, mut pos: usize) -> Option<usize>
-        where
-            F: Fn(usize) -> Token<'a>,
+    where
+        F: Fn(usize) -> Token<'a>,
     {
         if let Some(new_pos) = self.left.apply(&at, pos) {
             pos = new_pos
@@ -261,8 +259,8 @@ pub(crate) struct OrMove<A: Move + Copy, B: Move + Copy> {
 
 impl<A: Move + Copy, B: Move + Copy> Move for OrMove<A, B> {
     fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-        where
-            F: Fn(usize) -> Token<'a>,
+    where
+        F: Fn(usize) -> Token<'a>,
     {
         self.left
             .apply(&at, pos)
@@ -275,10 +273,10 @@ impl<A: Move + Copy, B: Move + Copy> Move for OrMove<A, B> {
 ///End of _group_ Delimiter, any closing punctuation as long as they are unescaped
 pub(crate) fn eod() -> OrMove<
     AndThenMove<
-        PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
-        PredicateMove<for<'a> fn(Token<'a>) -> bool>
+        PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
+        PredicateMove<for<'a> fn(Token<'a>) -> bool>,
     >,
-    PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>
+    PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
 > {
     unescaped(predicate(|t| t.token_type.is_closing_ponctuation()))
 }
@@ -287,10 +285,10 @@ pub(crate) fn eod() -> OrMove<
 /// default eox tokens are semicolon (;) and newline (\n)
 pub(crate) fn eox() -> OrMove<
     AndThenMove<
-        PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
-        PredicateMove<for<'a> fn(Token<'a>) -> bool>
+        PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
+        PredicateMove<for<'a> fn(Token<'a>) -> bool>,
     >,
-    PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>
+    PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
 > {
     unescaped(of_types(&[NewLine, SemiColon, EndOfFile]))
 }
@@ -299,12 +297,14 @@ pub(crate) fn escapable() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) 
     predicate(|t| t.token_type.is_ponctuation())
 }
 
-pub(crate) fn unescaped<M: Move + Copy>(eox: M) -> OrMove<
-        AndThenMove<
-            PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
-            PredicateMove<for<'a> fn(Token<'a>) -> bool>
-        >,
-    M
+pub(crate) fn unescaped<M: Move + Copy>(
+    eox: M,
+) -> OrMove<
+    AndThenMove<
+        PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
+        PredicateMove<for<'a> fn(Token<'a>) -> bool>,
+    >,
+    M,
 > {
     //if it's escaped then it's a fail
     (of_type(BackSlash).and_then(fail()))
@@ -313,10 +313,9 @@ pub(crate) fn unescaped<M: Move + Copy>(eox: M) -> OrMove<
 }
 
 ///a move that consumes a binary operation character
-pub(crate) fn bin_op() -> PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy> {
+pub(crate) fn bin_op() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
     predicate(|t| t.token_type.is_bin_operator())
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -333,5 +332,4 @@ mod tests {
         let result = cursor.lookahead(eox());
         assert_eq!(result, Some(Token::new(TokenType::SemiColon, ";")));
     }
-
 }

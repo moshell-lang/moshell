@@ -1,20 +1,18 @@
-use lexer::token::TokenType::{And, Or};
 use crate::aspects::redirection_parser::RedirectionParser;
 use crate::ast::callable::Call;
 use crate::ast::Expr;
-use crate::moves::{eox, MoveOperations, of_types, predicate, space, spaces};
-use crate::parser::{Parser, ParseResult};
+use crate::moves::{eox, of_types, predicate, space, spaces, MoveOperations};
+use crate::parser::{ParseResult, Parser};
+use lexer::token::TokenType::{And, Or};
 
 /// A parse aspect for command and function calls
 pub trait CallParser<'a> {
     /// Attempts to parse the next call expression
     fn call(&mut self) -> ParseResult<Expr<'a>>;
-
 }
 
 impl<'a> CallParser<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
-
         let mut arguments = vec![self.next_value()?];
         // Continue reading arguments until we reach the end of the input or a closing ponctuation
         while !self.cursor.is_at_end()
@@ -24,7 +22,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
                     spaces().then(
                         eox()
                             .or(predicate(|t| t.token_type.is_closing_ponctuation()))
-                            .or(of_types(&[And, Or]))
+                            .or(of_types(&[And, Or])),
                     ),
                 )
                 .is_none()
@@ -37,7 +35,6 @@ impl<'a> CallParser<'a> for Parser<'a> {
         }
         Ok(Expr::Call(Call { arguments }))
     }
-
 }
 
 #[cfg(test)]
@@ -47,8 +44,8 @@ mod tests {
     use lexer::lexer::lex;
 
     use crate::ast::callable::Call;
-    use crate::ast::Expr;
     use crate::ast::literal::Literal;
+    use crate::ast::Expr;
     use crate::parse;
     use crate::parser::{ParseError, Parser};
 
@@ -84,30 +81,25 @@ mod tests {
         )
     }
 
-
     #[test]
     fn escaped_call() {
         let tokens = lex("grep -E regex \\; echo test");
         let parsed = parse(tokens);
         assert_eq!(
             parsed,
-            vec![
-                Expr::Call(Call {
-                    arguments: vec![
-                        Expr::Literal("grep".into()),
-                        Expr::Literal("-E".into()),
-                        Expr::Literal("regex".into()),
-                        Expr::Literal(Literal {
-                            lexme: "\\;",
-                            parsed: ";".into(),
-                        }),
-                        Expr::Literal("echo".into()),
-                        Expr::Literal("test".into()),
-                    ],
-                }),
-            ]
+            vec![Expr::Call(Call {
+                arguments: vec![
+                    Expr::Literal("grep".into()),
+                    Expr::Literal("-E".into()),
+                    Expr::Literal("regex".into()),
+                    Expr::Literal(Literal {
+                        lexme: "\\;",
+                        parsed: ";".into(),
+                    }),
+                    Expr::Literal("echo".into()),
+                    Expr::Literal("test".into()),
+                ],
+            }),]
         )
     }
-
-
 }
