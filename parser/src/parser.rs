@@ -6,6 +6,7 @@ use crate::aspects::call::CallAspect;
 use crate::aspects::group::GroupAspect;
 use crate::aspects::literal::LiteralAspect;
 use crate::aspects::redirection::RedirectionAspect;
+use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
@@ -95,6 +96,7 @@ impl<'a> Parser<'a> {
         match pivot {
             //if we are parsing an expression, then we want to see a parenthesised expr as a subshell expression
             RoundedLeftBracket => Ok(Expr::Subshell(self.subshell()?)),
+            SquaredLeftBracket => self.parse_test(),
             _ => self.next_value(),
         }
     }
@@ -107,6 +109,7 @@ impl<'a> Parser<'a> {
         match pivot {
             RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
             CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
+            Not => self.not(),
 
             IntLiteral | FloatLiteral => self.literal(),
             Quote => self.string_literal(),

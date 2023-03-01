@@ -20,7 +20,7 @@ pub enum TokenType {
     #[token("val")]
     Val,
 
-    #[regex("[^;:<>|&\\s'\"$\\\\)(*+-/=;:}{,@}]+")]
+    #[regex("[^;:<>|&\\s'\\[\\]\"$\\\\)(*+-/=;:}{,@}]+")]
     Identifier,
 
     #[regex("-?[0-9]+", priority = 2)]
@@ -124,7 +124,7 @@ pub enum TokenType {
     Percent,
 
     #[token("[")]
-    SquareLeftBracket,
+    SquaredLeftBracket,
     #[token("]")]
     SquaredRightBracket,
     #[token("(")]
@@ -171,7 +171,7 @@ impl TokenType {
                 | TokenType::And
                 | TokenType::Or
                 | TokenType::Pipe
-                | TokenType::SquareLeftBracket
+                | TokenType::SquaredLeftBracket
                 | TokenType::SquaredRightBracket
                 | TokenType::RoundedLeftBracket
                 | TokenType::RoundedRightBracket
