@@ -8,20 +8,23 @@ use crate::moves::{MoveOperations, of_type, spaces, times};
 use crate::parser::{Parser, ParseResult};
 
 pub(crate) trait TestAspect<'a> {
-    fn not(&mut self) -> ParseResult<Expr<'a>>;
+    fn not<P>(&mut self, parse_next: P) -> ParseResult<Expr<'a>>
+        where P: FnMut(&mut Self) -> ParseResult<Expr<'a>>;
 
     ///parse [[ ... ]] or [ .. ] expression.
     fn parse_test(&mut self) -> ParseResult<Expr<'a>>;
 }
 
 impl<'a> TestAspect<'a> for Parser<'a> {
-    fn not(&mut self) -> ParseResult<Expr<'a>> {
+    fn not<P>(&mut self, mut parse_next: P) -> ParseResult<Expr<'a>>
+        where P: FnMut(&mut Self) -> ParseResult<Expr<'a>>
+    {
         self.cursor.force(
             of_type(TokenType::Not),
             "expected '!'",
         )?;
 
-        Ok(Expr::Not(Not { right: Box::new(self.next_value()?) }))
+        Ok(Expr::Not(Not { right: Box::new(parse_next(self)?) }))
     }
 
     fn parse_test(&mut self) -> ParseResult<Expr<'a>> {
@@ -62,7 +65,7 @@ mod tests {
     use pretty_assertions::assert_eq;
     use crate::ast::callable::Call;
     use crate::ast::Expr;
-    use crate::ast::group::Parenthesis;
+    use crate::ast::group::{Parenthesis, Subshell};
     use crate::ast::literal::{Literal, LiteralValue};
     use crate::ast::operation::{BinaryOperation, BinaryOperator};
     use crate::ast::test::{Not, Test};
@@ -120,7 +123,7 @@ mod tests {
 
     #[test]
     fn test_native_test() {
-        let result = parse(lex("echo && [ $a == $b ] || [[ $x ]]")).expect("parse error");
+        let result = parse(lex("echo && [ ($a == $b) ] || [[ $x ]]")).expect("parse error");
         assert_eq!(
             result,
             vec![
@@ -131,28 +134,43 @@ mod tests {
                         })),
                         op: BinaryOperator::And,
                         right: Box::new(Expr::Test(Test {
-                            expression: Box::new(Expr::Binary(BinaryOperation {
-                                left: Box::new(Expr::VarReference(VarReference {
-                                    name: "a"
-                                })),
-                                op: BinaryOperator::EqualEqual,
-                                right: Box::new(Expr::VarReference(VarReference {
-                                    name: "b"
-                                })),
+                            expression: Box::new(Expr::Parenthesis(Parenthesis {
+                                expression: Box::new(Expr::Binary(BinaryOperation {
+                                    left: Box::new(Expr::VarReference(VarReference {
+                                        name: "a"
+                                    })),
+                                    op: BinaryOperator::EqualEqual,
+                                    right: Box::new(Expr::VarReference(VarReference {
+                                        name: "b"
+                                    })),
+                                }))
                             }))
-                        })),
+                            ,
+                        }))
                     })),
                     op: BinaryOperator::Or,
-                    right: Box::new(Expr::Call(Call {
+                    right: Box::new(Expr::Call(Call
+                    {
                         arguments: vec![
                             Expr::Literal("test".into()),
                             Expr::VarReference(VarReference {
                                 name: "x"
-                            })
+                            }),
                         ]
                     })),
                 })
             ]
+        )
+    }
+
+    #[test]
+    fn test_test_in_test() {
+        let result = parse(lex("[ test == [] ]"));
+        assert_eq!(
+            result,
+            Err(ParseError {
+                message: "wtf".to_string()
+            })
         )
     }
 
@@ -164,16 +182,18 @@ mod tests {
             vec![
                 Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Not(Not {
-                        right: Box::new(Expr::Parenthesis(Parenthesis {
-                            expression: Box::new(Expr::Binary(BinaryOperation {
-                                left: Box::new(Expr::VarReference(VarReference {
-                                    name: "a"
-                                })),
-                                op: BinaryOperator::And,
-                                right: Box::new(Expr::VarReference(VarReference {
-                                    name: "b"
-                                })),
-                            }))
+                        right: Box::new(Expr::Subshell(Subshell {
+                            expressions: vec![
+                                Expr::Binary(BinaryOperation {
+                                    left: Box::new(Expr::VarReference(VarReference {
+                                        name: "a"
+                                    })),
+                                    op: BinaryOperator::And,
+                                    right: Box::new(Expr::VarReference(VarReference {
+                                        name: "b"
+                                    })),
+                                })
+                            ]
                         }))
                     })),
                     op: BinaryOperator::Or,

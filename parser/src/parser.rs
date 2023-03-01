@@ -97,6 +97,7 @@ impl<'a> Parser<'a> {
             //if we are parsing an expression, then we want to see a parenthesised expr as a subshell expression
             RoundedLeftBracket => Ok(Expr::Subshell(self.subshell()?)),
             SquaredLeftBracket => self.parse_test(),
+            Not => self.not(Parser::next_expression),
             _ => self.next_value(),
         }
     }
@@ -109,7 +110,7 @@ impl<'a> Parser<'a> {
         match pivot {
             RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
             CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
-            Not => self.not(),
+            Not => self.not(Parser::next_value),
 
             IntLiteral | FloatLiteral => self.literal(),
             Quote => self.string_literal(),
