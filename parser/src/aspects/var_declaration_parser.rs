@@ -2,6 +2,7 @@ use lexer::token::TokenType;
 
 use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use crate::ast::Expr;
+
 use crate::moves::{of_type, of_types, space, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
@@ -30,7 +31,7 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
             None => None,
             Some(_) => Some(self.cursor.force(
                 spaces().then(of_type(TokenType::Identifier)),
-                "Expected variable type",
+                "Expected identifier for variable type",
             )?),
         };
         let initializer = match self
@@ -44,7 +45,8 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
                 )?;
                 None
             }
-            Some(_) => Some(self.expression()?),
+
+            Some(_) => Some(self.value()?),
         };
 
         Ok(Expr::VarDeclaration(VarDeclaration {
@@ -58,11 +60,16 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::literal::Literal;
+    use crate::ast::callable::Call;
+    use crate::ast::group::Block;
+    use crate::ast::literal::{Literal, LiteralValue};
+    use crate::ast::operation::BinaryOperation;
+    use crate::ast::operation::BinaryOperator::Plus;
     use crate::ast::Expr;
-    use crate::parser::Parser;
+    use crate::parser::{ParseError, Parser};
     use lexer::lexer::lex;
     use lexer::token::Token;
+    use lexer::token::TokenType::Identifier;
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -128,6 +135,77 @@ mod tests {
                 initializer: Some(Box::from(Expr::Literal(Literal {
                     lexme: "'hello $test'",
                     parsed: "hello $test".into(),
+                }))),
+            })
+        )
+    }
+
+    #[test]
+    fn val_declaration_parenthesis_command() {
+        let tokens = lex("val x = (echo a)");
+        let err = Parser::new(tokens).var_declaration();
+        assert_eq!(
+            err,
+            Err(ParseError {
+                message: "invalid infix operator, found 'a'".to_string()
+            })
+        )
+    }
+
+    #[test]
+    fn val_declaration_block_command() {
+        let tokens = lex("val x = {echo a}");
+        let result = Parser::new(tokens).var_declaration().expect("parse fail");
+        assert_eq!(
+            result,
+            Expr::VarDeclaration(VarDeclaration {
+                kind: VarKind::Val,
+                var: TypedVariable {
+                    name: Token::new(Identifier, "x"),
+                    ty: None,
+                },
+                initializer: Some(Box::new(Expr::Block(Block {
+                    expressions: vec![Expr::Call(Call {
+                        arguments: vec![
+                            Expr::Literal(Literal {
+                                lexme: "echo",
+                                parsed: "echo".into(),
+                            }),
+                            Expr::Literal(Literal {
+                                lexme: "a",
+                                parsed: "a".into(),
+                            }),
+                        ]
+                    })]
+                }))),
+            })
+        )
+    }
+
+    #[test]
+    fn val_declaration_arithmetic_expr() {
+        let tokens = lex("val variable = 7 + 2");
+        let ast = Parser::new(tokens)
+            .var_declaration()
+            .expect("failed to parse");
+        assert_eq!(
+            ast,
+            Expr::VarDeclaration(VarDeclaration {
+                kind: VarKind::Val,
+                var: TypedVariable {
+                    name: Token::new(TokenType::Identifier, "variable"),
+                    ty: None,
+                },
+                initializer: Some(Box::from(Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::Literal(Literal {
+                        lexme: "7",
+                        parsed: LiteralValue::Int(7)
+                    })),
+                    op: Plus,
+                    right: Box::new(Expr::Literal(Literal {
+                        lexme: "2",
+                        parsed: LiteralValue::Int(2)
+                    }))
                 }))),
             })
         )

@@ -1,3 +1,4 @@
+use crate::token::TokenType::*;
 use logos::Logos;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -114,18 +115,18 @@ pub enum TokenType {
     #[token("-")]
     Minus,
     #[token("*")]
-    Times,
+    Star,
     #[token("/")]
     Slash,
     #[token("\\")]
     BackSlash,
     #[token("%")]
-    Modulo,
+    Percent,
 
     #[token("[")]
     SquareLeftBracket,
     #[token("]")]
-    SquareRightBracket,
+    SquaredRightBracket,
     #[token("(")]
     RoundedLeftBracket,
     #[token(")")]
@@ -146,6 +147,21 @@ pub enum TokenType {
 }
 
 impl TokenType {
+    pub fn is_bin_operator(self) -> bool {
+        match self {
+            And | Or | Plus | Minus | Star | EqualEqual | NotEqual | Less | LessEqual | Greater
+            | GreaterEqual => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_identifier_bound(self) -> bool {
+        match self {
+            NewLine | SemiColon | Less | Pipe | Greater | And | Or => true,
+            _ => false,
+        }
+    }
+
     pub fn is_ponctuation(self) -> bool {
         matches!(
             self,
@@ -156,7 +172,7 @@ impl TokenType {
                 | TokenType::Or
                 | TokenType::Pipe
                 | TokenType::SquareLeftBracket
-                | TokenType::SquareRightBracket
+                | TokenType::SquaredRightBracket
                 | TokenType::RoundedLeftBracket
                 | TokenType::RoundedRightBracket
                 | TokenType::CurlyLeftBracket
@@ -171,7 +187,7 @@ impl TokenType {
     pub fn is_closing_ponctuation(self) -> bool {
         matches!(
             self,
-            |TokenType::SquareRightBracket| TokenType::RoundedRightBracket
+            |TokenType::SquaredRightBracket| TokenType::RoundedRightBracket
                 | TokenType::CurlyRightBracket
         )
     }

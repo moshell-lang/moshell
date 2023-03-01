@@ -1,7 +1,8 @@
+use crate::aspects::group_parser::GroupParser;
 use crate::aspects::var_reference_parser::VarReferenceParser;
 use crate::ast::substitution::{Substitution, SubstitutionKind};
 use crate::ast::Expr;
-use crate::moves::{of_type, of_types, space, MoveOperations};
+use crate::moves::{of_type, of_types};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 
@@ -21,7 +22,7 @@ impl<'a> SubstitutionParser<'a> for Parser<'a> {
         // Short pass for variable references
         if self
             .cursor
-            .advance(of_type(TokenType::RoundedLeftBracket))
+            .lookahead(of_type(TokenType::RoundedLeftBracket))
             .is_none()
             && start_token.token_type == TokenType::Dollar
         {
@@ -29,15 +30,11 @@ impl<'a> SubstitutionParser<'a> for Parser<'a> {
         }
 
         // Read the expression inside the parentheses as a new statement
-        let expr = Box::new(self.statement()?);
-        self.cursor.force(
-            space().then(of_type(TokenType::RoundedRightBracket)),
-            "Expected closing bracket.",
-        )?;
+        let expr = self.subshell()?;
 
         // Finally return the expression
         Ok(Expr::Substitution(Substitution {
-            expr,
+            underlying: expr,
             kind: if start_token.token_type == TokenType::At {
                 SubstitutionKind::Return
             } else {
@@ -51,10 +48,10 @@ impl<'a> SubstitutionParser<'a> for Parser<'a> {
 mod tests {
     use crate::aspects::substitution_parser::SubstitutionParser;
     use crate::ast::callable::Call;
-    use crate::ast::statement::Block;
     use crate::ast::substitution::{Substitution, SubstitutionKind};
     use crate::ast::Expr;
-    use crate::parse;
+
+    use crate::ast::group::{Block, Subshell};
     use crate::parser::{ParseError, Parser};
     use lexer::lexer::lex;
     use pretty_assertions::assert_eq;
@@ -66,7 +63,7 @@ mod tests {
         assert_eq!(
             ast,
             Err(ParseError {
-                message: "Expected closing bracket.".to_string()
+                message: "Unexpected end of expression".to_string()
             })
         );
     }
@@ -74,11 +71,11 @@ mod tests {
     #[test]
     fn unpaired_parenthesis() {
         let tokens = lex("$(a @(b) $(c d\\))");
-        let ast = parse(tokens);
+        let ast = Parser::new(tokens).statement();
         assert_eq!(
             ast,
             Err(ParseError {
-                message: "Expected closing bracket.".to_string()
+                message: "Unexpected end of expression".to_string()
             })
         );
     }
@@ -90,32 +87,24 @@ mod tests {
         assert_eq!(
             ast,
             Expr::Substitution(Substitution {
-                expr: Box::new(Expr::Block(Block {
-                    exprs: vec![Expr::Call(Call {
-                        arguments: vec![
-                            Expr::Literal("ls".into()),
-                            Expr::Substitution(Substitution {
-                                expr: Box::new(Expr::Call(Call {
-                                    arguments: vec![Expr::Literal("pwd".into())],
-                                })),
-                                kind: SubstitutionKind::Capture,
-                            })
-                        ],
+                underlying: Subshell {
+                    expressions: vec![Expr::Block(Block {
+                        expressions: vec![Expr::Call(Call {
+                            arguments: vec![
+                                Expr::Literal("ls".into()),
+                                Expr::Substitution(Substitution {
+                                    underlying: Subshell {
+                                        expressions: vec![Expr::Call(Call {
+                                            arguments: vec![Expr::Literal("pwd".into())]
+                                        })],
+                                    },
+                                    kind: SubstitutionKind::Capture,
+                                }),
+                            ],
+                        })]
                     })],
-                })),
+                },
                 kind: SubstitutionKind::Capture,
-            })
-        );
-    }
-
-    #[test]
-    fn unexpected_closing_parenthesis() {
-        let tokens = lex("some stuff)");
-        let ast = parse(tokens);
-        assert_eq!(
-            ast,
-            Err(ParseError {
-                message: "Unexpected closing bracket.".to_string()
             })
         );
     }

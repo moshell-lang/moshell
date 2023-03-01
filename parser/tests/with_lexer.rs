@@ -1,6 +1,7 @@
 use lexer::lexer::lex;
 use lexer::token::{Token, TokenType};
 use parser::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
+use parser::ast::group::Subshell;
 use parser::ast::literal::Literal;
 use parser::ast::substitution::{Substitution, SubstitutionKind};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
@@ -242,9 +243,11 @@ fn with_lexer_substitution() {
             arguments: vec![
                 Expr::Literal("echo".into()),
                 Expr::Substitution(Substitution {
-                    expr: Box::new(Expr::Call(Call {
-                        arguments: vec![Expr::Literal("ls".into()), Expr::Literal("-l".into()),],
-                    })),
+                    underlying: Subshell {
+                        expressions: vec![Expr::Call(Call {
+                            arguments: vec![Expr::Literal("ls".into()), Expr::Literal("-l".into())],
+                        })]
+                    },
                     kind: SubstitutionKind::Capture,
                 }),
             ],
@@ -262,20 +265,24 @@ fn with_lexer_substitution_in_substitution() {
             arguments: vec![
                 Expr::Literal("echo".into()),
                 Expr::Substitution(Substitution {
-                    expr: Box::new(Expr::Call(Call {
-                        arguments: vec![
-                            Expr::Literal("ls".into()),
-                            Expr::TemplateString(vec![
-                                Expr::Substitution(Substitution {
-                                    expr: Box::new(Expr::Call(Call {
-                                        arguments: vec![Expr::Literal("pwd".into())],
-                                    })),
-                                    kind: SubstitutionKind::Capture,
-                                }),
-                                Expr::Literal("/test".into()),
-                            ]),
-                        ],
-                    })),
+                    underlying: Subshell {
+                        expressions: vec![Expr::Call(Call {
+                            arguments: vec![
+                                Expr::Literal("ls".into()),
+                                Expr::TemplateString(vec![
+                                    Expr::Substitution(Substitution {
+                                        underlying: Subshell {
+                                            expressions: vec![Expr::Call(Call {
+                                                arguments: vec![Expr::Literal("pwd".into())]
+                                            })],
+                                        },
+                                        kind: SubstitutionKind::Capture,
+                                    }),
+                                    Expr::Literal("/test".into()),
+                                ]),
+                            ],
+                        })]
+                    },
                     kind: SubstitutionKind::Capture,
                 }),
             ],
@@ -296,9 +303,11 @@ fn with_lexer_here_invoke() {
                 ty: None,
             },
             initializer: Some(Box::new(Expr::Substitution(Substitution {
-                expr: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("nginx".into()), Expr::Literal("-t".into()),],
-                })),
+                underlying: Subshell {
+                    expressions: vec![Expr::Call(Call {
+                        arguments: vec![Expr::Literal("nginx".into()), Expr::Literal("-t".into())]
+                    })],
+                },
                 kind: SubstitutionKind::Return,
             }))),
         })]

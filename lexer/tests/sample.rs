@@ -55,7 +55,7 @@ fn quoted_arithmetic() {
             Token::new(TokenType::IntLiteral, "1"),
             Token::new(TokenType::Plus, "+"),
             Token::new(TokenType::IntLiteral, "2"),
-            Token::new(TokenType::Times, "*"),
+            Token::new(TokenType::Star, "*"),
             Token::new(TokenType::IntLiteral, "3"),
             Token::new(TokenType::RoundedRightBracket, ")"),
             Token::new(TokenType::RoundedRightBracket, ")"),
