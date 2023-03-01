@@ -169,7 +169,7 @@ mod test {
     #[test]
     fn expr_redirection() {
         let tokens = lex("{ls; cd;} > /tmp/out");
-        let parsed = parse(tokens);
+        let parsed = parse(tokens).expect("Failed to parse");
         assert_eq!(
             parsed,
             vec![Expr::Redirected(Redirected {

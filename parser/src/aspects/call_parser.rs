@@ -63,7 +63,7 @@ mod tests {
     #[test]
     fn multiple_calls() {
         let tokens = lex("grep -E regex; echo test");
-        let parsed = parse(tokens);
+        let parsed = parse(tokens).expect("Failed to parse");
         assert_eq!(
             parsed,
             vec![
@@ -84,7 +84,7 @@ mod tests {
     #[test]
     fn escaped_call() {
         let tokens = lex("grep -E regex \\; echo test");
-        let parsed = parse(tokens);
+        let parsed = parse(tokens).expect("Failed to parse");
         assert_eq!(
             parsed,
             vec![Expr::Call(Call {

@@ -27,20 +27,25 @@ pub(crate) struct Parser<'a> {
 
 impl<'a> Parser<'a> {
     /// Parses input tokens into an abstract syntax tree representation.
-    pub fn parse(&mut self) -> Vec<Expr<'a>> {
+    pub fn parse(&mut self) -> ParseResult<Vec<Expr<'a>>> {
         let mut statements = Vec::new();
+        let mut last_error = None;
 
         while !self.cursor.is_at_end() {
             match self.parse_next() {
                 Err(error) => {
-                    self.report_error(error);
                     self.repos_to_next_expr();
+                    last_error = Some(error);
                 }
                 Ok(statement) => statements.push(statement),
             }
         }
 
-        statements
+        if let Some(error) = last_error {
+            Err(error)
+        } else {
+            Ok(statements)
+        }
     }
 
     /// Creates a new parser.
@@ -196,12 +201,6 @@ impl<'a> Parser<'a> {
             return self.expected("Unexpected end of expression");
         }
         Ok(())
-    }
-
-    //simple error report system, should be enhanced in later PRs
-    fn report_error(&self, err: ParseError) {
-        eprintln!("ERROR !");
-        eprintln!("message: {}", err.message)
     }
 
     //traverse current expression and go to next expression
