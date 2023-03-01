@@ -61,14 +61,14 @@ mod tests {
     use crate::ast::literal::Literal;
     use crate::ast::Expr;
     use crate::parser::Parser;
-    use lexer::lexer::lex;
+    use crate::source::Source;
     use lexer::token::Token;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn val_declaration() {
-        let tokens = lex("val variable");
-        let ast = Parser::new(tokens)
+        let source = Source::unknown("val variable");
+        let ast = Parser::new(source)
             .var_declaration()
             .expect("failed to parse");
         assert_eq!(
@@ -86,8 +86,8 @@ mod tests {
 
     #[test]
     fn val_declaration_with_type() {
-        let tokens = lex("val variable: Array");
-        let ast = Parser::new(tokens)
+        let source = Source::unknown("val variable: Array");
+        let ast = Parser::new(source)
             .var_declaration()
             .expect("failed to parse");
         assert_eq!(
@@ -105,16 +105,16 @@ mod tests {
 
     #[test]
     fn val_declaration_with_type_no_colon() {
-        let tokens = lex("val variable Array");
-        Parser::new(tokens)
+        let source = Source::unknown("val variable Array");
+        Parser::new(source)
             .var_declaration()
             .expect_err("did not fail");
     }
 
     #[test]
     fn val_declaration_inferred() {
-        let tokens = lex("val variable = 'hello $test'");
-        let ast = Parser::new(tokens)
+        let source = Source::unknown("val variable = 'hello $test'");
+        let ast = Parser::new(source)
             .var_declaration()
             .expect("failed to parse");
         assert_eq!(

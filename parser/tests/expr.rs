@@ -4,20 +4,13 @@ use parser::ast::literal::{Literal, LiteralValue};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use parser::ast::Expr;
 use parser::parse;
+use parser::source::Source;
 use pretty_assertions::assert_eq;
 
 #[test]
 fn variable_type_and_initializer() {
-    let tokens = vec![
-        Token::new(TokenType::Var, "var"),
-        Token::new(TokenType::Space, " "),
-        Token::new(TokenType::Identifier, "a"),
-        Token::new(TokenType::Colon, ":"),
-        Token::new(TokenType::Identifier, "int"),
-        Token::new(TokenType::Equal, "="),
-        Token::new(TokenType::IntLiteral, "1"),
-    ];
-    let parsed = parse(tokens).expect("Failed to parse");
+    let source = Source::unknown("var a:int=1");
+    let parsed = parse(source).expect("Failed to parse");
 
     let expected = vec![Expr::VarDeclaration(VarDeclaration {
         kind: VarKind::Var,
@@ -35,12 +28,8 @@ fn variable_type_and_initializer() {
 
 #[test]
 fn command_echo() {
-    let tokens = vec![
-        Token::new(TokenType::Identifier, "echo"),
-        Token::new(TokenType::Space, " "),
-        Token::new(TokenType::Identifier, "hello"),
-    ];
-    let parsed = parse(tokens).expect("Failed to parse");
+    let source = Source::unknown("echo hello");
+    let parsed = parse(source).expect("Failed to parse");
 
     let expected = vec![Expr::Call(Call {
         arguments: vec![Expr::Literal("echo".into()), Expr::Literal("hello".into())],

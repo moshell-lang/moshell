@@ -56,39 +56,41 @@ mod tests {
     use crate::ast::Expr;
     use crate::parse;
     use crate::parser::{ParseError, Parser};
-    use lexer::lexer::lex;
+    use crate::source::Source;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn unterminated_substitution() {
-        let tokens = lex("$(echo");
-        let ast = Parser::new(tokens).substitution();
+        let content = "$(echo";
+        let source = Source::unknown(content);
+        let ast = Parser::new(source).substitution();
         assert_eq!(
             ast,
             Err(ParseError {
                 message: "Expected closing bracket.".to_string(),
-                position: None,
+                position: content.len()..content.len(),
             })
         );
     }
 
     #[test]
     fn unpaired_parenthesis() {
-        let tokens = lex("$(a @(b) $(c d\\))");
-        let ast = parse(tokens);
+        let content = "$(a @(b) $(c d\\))";
+        let source = Source::unknown(content);
+        let ast = parse(source);
         assert_eq!(
             ast,
             Err(ParseError {
                 message: "Expected closing bracket.".to_string(),
-                position: None,
+                position: content.len()..content.len(),
             })
         );
     }
 
     #[test]
     fn mix_blocks() {
-        let tokens = lex("$({ls $(pwd)})");
-        let ast = Parser::new(tokens).substitution().expect("Failed to parse");
+        let source = Source::unknown("$({ls $(pwd)})");
+        let ast = Parser::new(source).substitution().expect("Failed to parse");
         assert_eq!(
             ast,
             Expr::Substitution(Substitution {
@@ -112,13 +114,14 @@ mod tests {
 
     #[test]
     fn unexpected_closing_parenthesis() {
-        let tokens = lex("some stuff)");
-        let ast = parse(tokens);
+        let content = "some stuff)";
+        let source = Source::unknown(content);
+        let ast = parse(source);
         assert_eq!(
             ast,
             Err(ParseError {
                 message: "Unexpected closing bracket.".to_string(),
-                position: None,
+                position: content.find(')').map(|p| (p..p + 1)).unwrap(),
             })
         );
     }

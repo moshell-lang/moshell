@@ -1,4 +1,3 @@
-use lexer::lexer::lex;
 use lexer::token::{Token, TokenType};
 use parser::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use parser::ast::literal::Literal;
@@ -6,12 +5,13 @@ use parser::ast::substitution::{Substitution, SubstitutionKind};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 use parser::ast::Expr;
 use parser::parse;
+use parser::source::Source;
 use pretty_assertions::assert_eq;
 
 #[test]
 fn with_lexer_variable() {
-    let tokens = lex("var a = 'hello world!'");
-    let parsed = parse(tokens).expect("Failed to parse");
+    let source = Source::unknown("var a = 'hello world!'");
+    let parsed = parse(source).expect("Failed to parse");
 
     assert_eq!(
         parsed,
@@ -31,8 +31,8 @@ fn with_lexer_variable() {
 
 #[test]
 fn with_lexer_var_reference_one() {
-    let tokens = lex("echo '$var5' $var5");
-    let parsed = parse(tokens).expect("Failed to parse");
+    let source = Source::unknown("echo '$var5' $var5");
+    let parsed = parse(source).expect("Failed to parse");
 
     assert_eq!(
         parsed,
@@ -53,8 +53,8 @@ fn with_lexer_var_reference_one() {
 
 #[test]
 fn with_lexer_var_reference_two() {
-    let tokens = lex("\"fake$cmd\" do $arg2");
-    let parsed = parse(tokens).expect("Failed to parse");
+    let source = Source::unknown("\"fake$cmd\" do $arg2");
+    let parsed = parse(source).expect("Failed to parse");
 
     assert_eq!(
         parsed,
@@ -77,8 +77,8 @@ fn with_lexer_var_reference_two() {
 
 #[test]
 fn with_lexer_var_reference_three() {
-    let tokens = lex("echo \"hello $world everyone $verb${ready}!\"");
-    let parsed = parse(tokens).expect("Failed to parse");
+    let source = Source::unknown("echo \"hello $world everyone $verb${ready}!\"");
+    let parsed = parse(source).expect("Failed to parse");
 
     assert_eq!(
         parsed,
@@ -106,8 +106,8 @@ fn with_lexer_var_reference_three() {
 
 #[test]
 fn with_lexer_redirection() {
-    let tokens = lex("test &> /dev/null");
-    let parsed = parse(tokens).expect("Failed to parse");
+    let source = Source::unknown("test &> /dev/null");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Redirected(Redirected {
@@ -125,8 +125,8 @@ fn with_lexer_redirection() {
 
 #[test]
 fn with_lexer_redirections() {
-    let tokens = lex("command < /tmp/input 2> /tmp/output");
-    let parsed = parse(tokens).expect("Failed to parse");
+    let source = Source::unknown("command < /tmp/input 2> /tmp/output");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Redirected(Redirected {
@@ -151,8 +151,8 @@ fn with_lexer_redirections() {
 
 #[test]
 fn with_lexer_pipe_and_redirection() {
-    let tokens = lex("ls -l | grep 'hello' > out.txt");
-    let parsed = parse(tokens).expect("Failed to parse");
+    let source = Source::unknown("ls -l | grep 'hello' > out.txt");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Pipeline(Pipeline {
@@ -183,8 +183,8 @@ fn with_lexer_pipe_and_redirection() {
 
 #[test]
 fn with_lexer_pipe_and_pipe() {
-    let tokens = lex("ls|wc|tr -s ' '");
-    let parsed = parse(tokens).expect("Failed to parse");
+    let source = Source::unknown("ls|wc|tr -s ' '");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Pipeline(Pipeline {
@@ -212,8 +212,8 @@ fn with_lexer_pipe_and_pipe() {
 
 #[test]
 fn with_lexer_here_string() {
-    let tokens = lex("grep e <<< 'hello'");
-    let parsed = parse(tokens).expect("Failed to parse");
+    let source = Source::unknown("grep e <<< 'hello'");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Redirected(Redirected {
@@ -234,8 +234,8 @@ fn with_lexer_here_string() {
 
 #[test]
 fn with_lexer_substitution() {
-    let tokens = lex("echo $(ls -l)");
-    let parsed = parse(tokens).expect("Failed to parse");
+    let source = Source::unknown("echo $(ls -l)");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
@@ -254,8 +254,8 @@ fn with_lexer_substitution() {
 
 #[test]
 fn with_lexer_substitution_in_substitution() {
-    let tokens = lex("echo $( ls \"$(pwd)/test\" )");
-    let parsed = parse(tokens).expect("Failed to parse");
+    let source = Source::unknown("echo $( ls \"$(pwd)/test\" )");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
@@ -285,8 +285,8 @@ fn with_lexer_substitution_in_substitution() {
 
 #[test]
 fn with_lexer_here_invoke() {
-    let tokens = lex("val valid = @(nginx -t)");
-    let parsed = parse(tokens).expect("Failed to parse");
+    let source = Source::unknown("val valid = @(nginx -t)");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::VarDeclaration(VarDeclaration {

@@ -2,10 +2,9 @@
 #![deny(warnings)]
 
 use crate::ast::Expr;
-use lexer::token::Token;
 
 use crate::parser::{ParseResult, Parser};
-use crate::source::SourceCode;
+use crate::source::Source;
 
 ///! The parser crate contains the parser for the Moshell scripting language.
 mod aspects;
@@ -15,10 +14,6 @@ mod moves;
 mod parser;
 pub mod source;
 
-pub fn parse(tokens: Vec<Token>) -> ParseResult<Vec<Expr>> {
-    Parser::new(tokens).parse()
-}
-
-pub fn parse_source(src: SourceCode) -> ParseResult<Vec<Expr>> {
-    Parser::from_source(src).parse()
+pub fn parse(src: Source) -> ParseResult<Vec<Expr>> {
+    Parser::new(src).parse()
 }

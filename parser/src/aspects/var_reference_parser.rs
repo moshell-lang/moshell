@@ -32,19 +32,19 @@ impl<'a> VarReferenceParser<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use lexer::lexer::lex;
     use lexer::token::{Token, TokenType};
 
     use crate::aspects::substitution_parser::SubstitutionParser;
     use crate::ast::variable::VarReference;
     use crate::ast::Expr;
     use crate::parser::Parser;
+    use crate::source::Source;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn test_simple_ref() {
-        let tokens = lex("$VARIABLE");
-        let ast = Parser::new(tokens).substitution().expect("failed to parse");
+        let source = Source::unknown("$VARIABLE");
+        let ast = Parser::new(source).substitution().expect("failed to parse");
         assert_eq!(
             ast,
             Expr::VarReference(VarReference {
@@ -55,8 +55,8 @@ mod tests {
 
     #[test]
     fn test_wrapped_ref() {
-        let tokens = lex("${VAR}IABLE");
-        let ast = Parser::new(tokens).substitution().expect("failed to parse");
+        let source = Source::unknown("${VAR}IABLE");
+        let ast = Parser::new(source).substitution().expect("failed to parse");
         assert_eq!(
             ast,
             Expr::VarReference(VarReference {

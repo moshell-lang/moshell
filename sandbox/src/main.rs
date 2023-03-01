@@ -1,6 +1,6 @@
 use miette::{Diagnostic, NamedSource, Result, SourceSpan};
-use parser::parse_source;
-use parser::source::SourceCode;
+use parser::parse;
+use parser::source::Source;
 use std::fmt::Display;
 use std::fs;
 use thiserror::Error;
@@ -10,7 +10,7 @@ struct FormattedError {
     #[source_code]
     src: NamedSource,
     #[label("Here")]
-    cursor: Option<SourceSpan>,
+    cursor: SourceSpan,
     message: String,
 }
 
@@ -22,17 +22,14 @@ impl Display for FormattedError {
 
 fn this_fails() -> Result<()> {
     let src = fs::read_to_string("lexer/tests/sample.msh").unwrap();
-    let source = SourceCode {
+    let source = Source {
         source: &src,
         name: "sample.msh".to_string(),
     };
-    parse_source(source).map_err(|err| {
-        let position = err.position.map(|p| (p.start, p.length).into());
-        FormattedError {
-            src: NamedSource::new("sample.msh", src.clone()),
-            cursor: position,
-            message: err.message,
-        }
+    parse(source).map_err(|err| FormattedError {
+        src: NamedSource::new("sample.msh", src.clone()),
+        cursor: err.position.into(),
+        message: err.message,
     })?;
 
     Ok(())

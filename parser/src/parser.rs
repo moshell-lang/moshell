@@ -8,7 +8,7 @@ use crate::aspects::var_declaration_parser::VarDeclarationParser;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
 use crate::moves::{eox, space, spaces, MoveOperations};
-use crate::source::{SourceCode, SourceSpan};
+use crate::source::{Location, Source};
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -16,29 +16,21 @@ pub type ParseResult<T> = Result<T, ParseError>;
 #[derive(Debug, PartialEq)]
 pub struct ParseError {
     pub message: String,
-    pub position: Option<SourceSpan>,
+    pub position: Location,
 }
 
 /// A parser for the Moshell scripting language.
 pub(crate) struct Parser<'a> {
     pub(crate) cursor: ParserCursor<'a>,
-    pub(crate) source: Option<SourceCode<'a>>,
+    pub(crate) source: Source<'a>,
 }
 
 impl<'a> Parser<'a> {
-    /// Creates a new parser with an unknown source.
-    pub(crate) fn new(tokens: Vec<Token<'a>>) -> Self {
-        Self {
-            cursor: ParserCursor::new(tokens),
-            source: None,
-        }
-    }
-
     /// Creates a new parser from a defined source.
-    pub(crate) fn from_source(source: SourceCode<'a>) -> Self {
+    pub(crate) fn new(source: Source<'a>) -> Self {
         Self {
             cursor: ParserCursor::new_with_source(lex(source.source), source.source),
-            source: Some(source),
+            source,
         }
     }
 

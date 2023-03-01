@@ -12,15 +12,6 @@ impl<'a> Token<'a> {
     }
 }
 
-impl Default for Token<'_> {
-    fn default() -> Self {
-        Self {
-            token_type: TokenType::EndOfFile,
-            value: "",
-        }
-    }
-}
-
 #[derive(Logos, Debug, PartialEq, Clone, Copy)]
 pub enum TokenType {
     #[token("var")]

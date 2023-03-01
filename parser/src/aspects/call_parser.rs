@@ -166,12 +166,12 @@ mod tests {
     use crate::ast::Expr;
     use crate::parse;
     use crate::parser::Parser;
-    use lexer::lexer::lex;
+    use crate::source::Source;
 
     #[test]
     fn redirection() {
-        let tokens = lex("ls> /tmp/out");
-        let parsed = Parser::new(tokens).call().expect("Failed to parse");
+        let source = Source::unknown("ls> /tmp/out");
+        let parsed = Parser::new(source).call().expect("Failed to parse");
         assert_eq!(
             parsed,
             Expr::Redirected(Redirected {
@@ -189,8 +189,8 @@ mod tests {
 
     #[test]
     fn dupe_fd() {
-        let tokens = lex("ls>&2");
-        let parsed = Parser::new(tokens).call().expect("Failed to parse");
+        let source = Source::unknown("ls>&2");
+        let parsed = Parser::new(source).call().expect("Failed to parse");
         assert_eq!(
             parsed,
             Expr::Redirected(Redirected {
@@ -211,8 +211,8 @@ mod tests {
 
     #[test]
     fn multiple_calls() {
-        let tokens = lex("grep -E regex; echo test");
-        let parsed = parse(tokens).expect("parsing error");
+        let source = Source::unknown("grep -E regex; echo test");
+        let parsed = parse(source).expect("parsing error");
         assert_eq!(
             parsed,
             vec![
@@ -232,8 +232,8 @@ mod tests {
 
     #[test]
     fn escaped_call() {
-        let tokens = lex("grep -E regex \\; echo test");
-        let parsed = parse(tokens).expect("parsing error");
+        let source = Source::unknown("grep -E regex \\; echo test");
+        let parsed = parse(source).expect("parsing error");
         assert_eq!(
             parsed,
             vec![Expr::Call(Call {

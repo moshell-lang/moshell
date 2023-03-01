@@ -1,5 +1,5 @@
 use crate::moves::Move;
-use lexer::token::Token;
+use lexer::token::{Token, TokenType};
 
 use crate::parser::{ParseError, ParseResult};
 
@@ -12,8 +12,8 @@ pub(crate) struct ParserCursor<'a> {
     pos: usize,
     /// The source code of the tokens.
     ///
-    /// If set, this must contains all the string slices in the tokens present in the `tokens` vector.
-    source: Option<&'a str>,
+    /// This must contains all the string slices in the tokens present in the `tokens` vector.
+    source: &'a str,
 }
 
 impl<'a> ParserCursor<'a> {
@@ -22,7 +22,7 @@ impl<'a> ParserCursor<'a> {
         Self {
             tokens,
             pos: 0,
-            source: None,
+            source: "",
         }
     }
 
@@ -30,7 +30,7 @@ impl<'a> ParserCursor<'a> {
         Self {
             tokens,
             pos: 0,
-            source: Some(source),
+            source,
         }
     }
 
@@ -96,7 +96,10 @@ impl<'a> ParserCursor<'a> {
 
     ///returns token at specified position.
     fn at(&self, pos: usize) -> Token<'a> {
-        self.tokens.get(pos).cloned().unwrap_or(Token::default())
+        self.tokens.get(pos).cloned().unwrap_or_else(|| {
+            // Return a pointer to the end of the source code if there is no more token.
+            Token::new(TokenType::EndOfFile, &self.source[self.source.len()..])
+        })
     }
 
     ///return true if this cursor is at the end of the
@@ -105,13 +108,11 @@ impl<'a> ParserCursor<'a> {
     }
 
     pub fn mk_parse_error(&self, message: impl Into<String>, erroneous_token: Token) -> ParseError {
+        let start = erroneous_token.value.as_ptr() as usize - self.source.as_ptr() as usize;
+        let end = start + erroneous_token.value.len();
         ParseError {
             message: message.into(),
-            position: self.source.as_ref().map(|source| {
-                let start = erroneous_token.value.as_ptr() as usize - source.as_ptr() as usize;
-                let end = start + erroneous_token.value.len();
-                (start..end).into()
-            }),
+            position: (start..end).into(),
         }
     }
 }

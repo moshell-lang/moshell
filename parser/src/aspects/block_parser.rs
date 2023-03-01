@@ -62,7 +62,6 @@ impl<'a> BlockParser<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use lexer::lexer::lex;
     use lexer::token::{Token, TokenType};
 
     use crate::aspects::block_parser::BlockParser;
@@ -73,13 +72,14 @@ mod tests {
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use crate::ast::Expr;
     use crate::parser::Parser;
+    use crate::source::Source;
     use pretty_assertions::assert_eq;
 
     //noinspection DuplicatedCode
     #[test]
     fn test_empty_blocks() {
-        let tokens = lex("{{{}; {}}}");
-        let mut parser = Parser::new(tokens);
+        let source = Source::unknown("{{{}; {}}}");
+        let mut parser = Parser::new(source);
         let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
@@ -98,8 +98,8 @@ mod tests {
     //noinspection DuplicatedCode
     #[test]
     fn test_empty_blocks_empty_content() {
-        let tokens = lex("{;;{;;;{;;}; {\n\n};}}");
-        let mut parser = Parser::new(tokens);
+        let source = Source::unknown("{;;{;;;{;;}; {\n\n};}}");
+        let mut parser = Parser::new(source);
         let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
@@ -117,28 +117,29 @@ mod tests {
 
     #[test]
     fn test_block_not_ended() {
-        let tokens = lex("{ val test = 2 ");
-        let mut parser = Parser::new(tokens);
+        let source = Source::unknown("{ val test = 2 ");
+        let mut parser = Parser::new(source);
         parser.block().expect_err("block parse did not failed");
     }
 
     #[test]
     fn test_neighbour_blocks() {
-        let tokens = lex("{ {} {} }");
-        let mut parser = Parser::new(tokens);
+        let source = Source::unknown("{ {} {} }");
+        let mut parser = Parser::new(source);
         parser.block().expect_err("block parse did not failed");
     }
 
     #[test]
     fn test_block_not_started() {
-        let tokens = lex(" val test = 2 }");
-        let mut parser = Parser::new(tokens);
+        let source = Source::unknown(" val test = 2 }");
+        let mut parser = Parser::new(source);
         parser.block().expect_err("block parse did not failed");
     }
 
     #[test]
     fn test_block_with_nested_blocks() {
-        let tokens = lex("\
+        let source = Source::unknown(
+            "\
         {\
             val test = {\
                 val x = 8\n\n\n
@@ -146,8 +147,9 @@ mod tests {
             }\n\
             { val x = 89; var test = 77; command call; }\
         }\
-        ");
-        let mut parser = Parser::new(tokens);
+        ",
+        );
+        let mut parser = Parser::new(source);
         let ast = parser
             .block()
             .expect("failed to parse block with nested blocks");
@@ -221,13 +223,15 @@ mod tests {
 
     #[test]
     fn test_block() {
-        let tokens = lex("\
+        let source = Source::unknown(
+            "\
         {\
             var test: int = 7.0\n\
             val x = 8\
         }\
-        ");
-        let mut parser = Parser::new(tokens);
+        ",
+        );
+        let mut parser = Parser::new(source);
         let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(

@@ -226,35 +226,30 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use lexer::lexer::lex;
-    use lexer::token::Token;
-
     use crate::parse;
     use crate::parser::ParseError;
 
     use super::*;
+    use crate::source::Source;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn int_overflow() {
-        let tokens = vec![Token::new(
-            TokenType::IntLiteral,
-            "123456789012345678901234567890",
-        )];
-        let parsed = parse(tokens);
+        let source = Source::unknown("123456789012345678901234567890");
+        let parsed = parse(source);
         assert_eq!(
             parsed,
             Err(ParseError {
                 message: "Integer constant is too large.".to_string(),
-                position: None,
+                position: 0..30,
             })
         );
     }
 
     #[test]
     fn string_literal() {
-        let tokens = lex("'hello $world! $(this is a test) @(of course)'");
-        let parsed = Parser::new(tokens).expression().expect("Failed to parse.");
+        let source = Source::unknown("'hello $world! $(this is a test) @(of course)'");
+        let parsed = Parser::new(source).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
@@ -266,8 +261,8 @@ mod tests {
 
     #[test]
     fn escaped_literal() {
-        let tokens = lex("a\\a");
-        let parsed = Parser::new(tokens).expression().expect("Failed to parse.");
+        let source = Source::unknown("a\\a");
+        let parsed = Parser::new(source).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
@@ -279,13 +274,14 @@ mod tests {
 
     #[test]
     fn missing_quote() {
-        let tokens = vec![Token::new(TokenType::Quote, "' command")];
-        let parsed = parse(tokens);
+        let content = "' command";
+        let source = Source::unknown(content);
+        let parsed = parse(source);
         assert_eq!(
             parsed,
             Err(ParseError {
                 message: "Unterminated string literal.".to_string(),
-                position: None,
+                position: content.len()..content.len(),
             })
         );
     }
