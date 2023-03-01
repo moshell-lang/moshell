@@ -114,7 +114,6 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use lexer::lexer::lex;
-    use lexer::token::{Token, TokenType};
 
     use crate::aspects::group::GroupAspect;
     use crate::ast::callable::Call;
@@ -217,7 +216,7 @@ mod tests {
                     Expr::VarDeclaration(VarDeclaration {
                         kind: VarKind::Val,
                         var: TypedVariable {
-                            name: Token::new(TokenType::Identifier, "test"),
+                            name: "test",
                             ty: None,
                         },
                         initializer: Some(Box::from(Expr::Block(Block {
@@ -225,7 +224,7 @@ mod tests {
                                 Expr::VarDeclaration(VarDeclaration {
                                     kind: VarKind::Val,
                                     var: TypedVariable {
-                                        name: Token::new(TokenType::Identifier, "x"),
+                                        name: "x",
                                         ty: None,
                                     },
                                     initializer: Some(Box::from(Expr::Literal(Literal {
@@ -245,7 +244,7 @@ mod tests {
                             Expr::VarDeclaration(VarDeclaration {
                                 kind: VarKind::Val,
                                 var: TypedVariable {
-                                    name: Token::new(TokenType::Identifier, "x"),
+                                    name: "x",
                                     ty: None,
                                 },
                                 initializer: Some(Box::from(Expr::Literal(Literal {
@@ -288,8 +287,8 @@ mod tests {
                     Expr::VarDeclaration(VarDeclaration {
                         kind: VarKind::Var,
                         var: TypedVariable {
-                            name: Token::new(TokenType::Identifier, "test"),
-                            ty: Some(Token::new(TokenType::Identifier, "int")),
+                            name: "test",
+                            ty: Some("int"),
                         },
                         initializer: Some(Box::new(Expr::Literal(Literal {
                             lexme: "7.0",
@@ -299,7 +298,7 @@ mod tests {
                     Expr::VarDeclaration(VarDeclaration {
                         kind: VarKind::Val,
                         var: TypedVariable {
-                            name: Token::new(TokenType::Identifier, "x"),
+                            name: "x",
                             ty: None,
                         },
                         initializer: Some(Box::new(Expr::Literal(Literal {

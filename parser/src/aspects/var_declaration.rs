@@ -22,7 +22,7 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
         let name = self.cursor.force(
             space().and_then(of_type(TokenType::Identifier)),
             "Expected variable name.",
-        )?;
+        )?.value;
 
         let ty = match self
             .cursor
@@ -32,7 +32,7 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
             Some(_) => Some(self.cursor.force(
                 spaces().then(of_type(TokenType::Identifier)),
                 "Expected identifier for variable type",
-            )?),
+            )?.value),
         };
         let initializer = match self
             .cursor
@@ -68,8 +68,6 @@ mod tests {
     use crate::ast::Expr;
     use crate::parser::{ParseError, Parser};
     use lexer::lexer::lex;
-    use lexer::token::Token;
-    use lexer::token::TokenType::Identifier;
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -83,7 +81,7 @@ mod tests {
             Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
                 var: TypedVariable {
-                    name: Token::new(TokenType::Identifier, "variable"),
+                    name: "variable",
                     ty: None
                 },
                 initializer: None,
@@ -102,8 +100,8 @@ mod tests {
             Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
                 var: TypedVariable {
-                    name: Token::new(TokenType::Identifier, "variable"),
-                    ty: Some(Token::new(TokenType::Identifier, "Array")),
+                    name: "variable",
+                    ty: Some("Array"),
                 },
                 initializer: None,
             })
@@ -129,7 +127,7 @@ mod tests {
             Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
                 var: TypedVariable {
-                    name: Token::new(TokenType::Identifier, "variable"),
+                    name: "variable",
                     ty: None,
                 },
                 initializer: Some(Box::from(Expr::Literal(Literal {
@@ -161,7 +159,7 @@ mod tests {
             Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
                 var: TypedVariable {
-                    name: Token::new(Identifier, "x"),
+                    name: "x",
                     ty: None,
                 },
                 initializer: Some(Box::new(Expr::Block(Block {
@@ -193,7 +191,7 @@ mod tests {
             Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
                 var: TypedVariable {
-                    name: Token::new(TokenType::Identifier, "variable"),
+                    name: "variable",
                     ty: None,
                 },
                 initializer: Some(Box::from(Expr::Binary(BinaryOperation {

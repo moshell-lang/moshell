@@ -22,8 +22,8 @@ fn variable_type_and_initializer() {
     let expected = vec![Expr::VarDeclaration(VarDeclaration {
         kind: VarKind::Var,
         var: TypedVariable {
-            name: Token::new(TokenType::Identifier, "a"),
-            ty: Some(Token::new(TokenType::Identifier, "int")),
+            name: "a",
+            ty: Some("int"),
         },
         initializer: Some(Box::new(Expr::Literal(Literal {
             lexme: "1",
