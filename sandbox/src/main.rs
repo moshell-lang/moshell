@@ -6,6 +6,13 @@ use std::fs;
 use thiserror::Error;
 
 #[derive(Error, Debug, Diagnostic)]
+#[error("Parse error")]
+struct Errors {
+    #[related]
+    src: Vec<FormattedError>,
+}
+
+#[derive(Error, Debug, Diagnostic)]
 struct FormattedError {
     #[source_code]
     src: NamedSource,
@@ -26,13 +33,21 @@ fn this_fails() -> Result<()> {
         source: &src,
         name: "sample.msh".to_string(),
     };
-    parse(source).map_err(|err| FormattedError {
-        src: NamedSource::new("sample.msh", src.clone()),
-        cursor: err.position.into(),
-        message: err.message,
-    })?;
-
-    Ok(())
+    let parsed = parse(source);
+    let errors = parsed
+        .errors
+        .into_iter()
+        .map(|err| FormattedError {
+            src: NamedSource::new("sample.msh", src.clone()),
+            cursor: err.position.into(),
+            message: err.message,
+        })
+        .collect::<Vec<FormattedError>>();
+    if !errors.is_empty() {
+        Err(Errors { src: errors }.into())
+    } else {
+        Ok(())
+    }
 }
 
 fn main() -> Result<()> {

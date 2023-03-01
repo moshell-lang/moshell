@@ -7,17 +7,11 @@ use crate::aspects::literal_parser::LiteralParser;
 use crate::aspects::var_declaration_parser::VarDeclarationParser;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
+use crate::err::ParseError;
 use crate::moves::{eox, space, spaces, MoveOperations};
-use crate::source::{Location, Source};
+use crate::source::Source;
 
-pub type ParseResult<T> = Result<T, ParseError>;
-
-/// An error that occurs during parsing.
-#[derive(Debug, PartialEq)]
-pub struct ParseError {
-    pub message: String,
-    pub position: Location,
-}
+pub(crate) type ParseResult<T> = Result<T, ParseError>;
 
 /// A parser for the Moshell scripting language.
 pub(crate) struct Parser<'a> {

@@ -227,16 +227,16 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::parse;
-    use crate::parser::ParseError;
 
     use super::*;
+    use crate::err::ParseError;
     use crate::source::Source;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn int_overflow() {
         let source = Source::unknown("123456789012345678901234567890");
-        let parsed = parse(source);
+        let parsed: ParseResult<_> = parse(source).into();
         assert_eq!(
             parsed,
             Err(ParseError {
@@ -276,7 +276,7 @@ mod tests {
     fn missing_quote() {
         let content = "' command";
         let source = Source::unknown(content);
-        let parsed = parse(source);
+        let parsed: ParseResult<_> = parse(source).into();
         assert_eq!(
             parsed,
             Err(ParseError {

@@ -54,8 +54,9 @@ mod tests {
     use crate::ast::statement::Block;
     use crate::ast::substitution::{Substitution, SubstitutionKind};
     use crate::ast::Expr;
+    use crate::err::ParseError;
     use crate::parse;
-    use crate::parser::{ParseError, Parser};
+    use crate::parser::{ParseResult, Parser};
     use crate::source::Source;
     use pretty_assertions::assert_eq;
 
@@ -77,7 +78,7 @@ mod tests {
     fn unpaired_parenthesis() {
         let content = "$(a @(b) $(c d\\))";
         let source = Source::unknown(content);
-        let ast = parse(source);
+        let ast: ParseResult<_> = parse(source).into();
         assert_eq!(
             ast,
             Err(ParseError {
@@ -116,7 +117,7 @@ mod tests {
     fn unexpected_closing_parenthesis() {
         let content = "some stuff)";
         let source = Source::unknown(content);
-        let ast = parse(source);
+        let ast: ParseResult<_> = parse(source).into();
         assert_eq!(
             ast,
             Err(ParseError {
