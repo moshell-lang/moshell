@@ -165,7 +165,7 @@ mod test {
     #[test]
     fn expr_redirection() {
         let tokens = lex("{ls; cd;} > /tmp/out");
-        let parsed = parse(tokens).expect("Failed to parse");
+        let parsed = parse(tokens);
         assert_eq!(
             parsed,
             vec![

@@ -17,7 +17,7 @@ fn variable_type_and_initializer() {
         Token::new(TokenType::Equal, "="),
         Token::new(TokenType::IntLiteral, "1"),
     ];
-    let parsed = parse(tokens).expect("Failed to parse");
+    let parsed = parse(tokens);
 
     let expected = vec![Expr::VarDeclaration(VarDeclaration {
         kind: VarKind::Var,
@@ -40,7 +40,7 @@ fn command_echo() {
         Token::new(TokenType::Space, " "),
         Token::new(TokenType::Identifier, "hello"),
     ];
-    let parsed = parse(tokens).expect("Failed to parse");
+    let parsed = parse(tokens);
 
     let expected = vec![Expr::Call(Call {
         arguments: vec![Expr::Literal("echo".into()), Expr::Literal("hello".into())],

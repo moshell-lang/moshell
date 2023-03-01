@@ -272,6 +272,7 @@ impl<A: Move + Copy, B: Move + Copy> Move for OrMove<A, B> {
 
 //////////////////// STANDARD MOVES ////////////////////
 
+///End of _group_ Delimiter, any closing punctuation as long as they are unescaped
 pub(crate) fn eod() -> OrMove<
     AndThenMove<
         PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
@@ -279,7 +280,7 @@ pub(crate) fn eod() -> OrMove<
     >,
     PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>
 > {
-    unescaped(of_types(&[SquaredRightBracket, CurlyRightBracket, RoundedRightBracket]))
+    unescaped(predicate(|t| t.token_type.is_closing_ponctuation()))
 }
 
 ///a move to consume default eox tokens as long as they are not escaped.
@@ -306,7 +307,7 @@ pub(crate) fn unescaped<M: Move + Copy>(eox: M) -> OrMove<
     M
 > {
     //if it's escaped then it's a fail
-    (of_type(BackSlash).and_then(none()))
+    (of_type(BackSlash).and_then(fail()))
         //else it must be caller-delimited
         .or(eox)
 }

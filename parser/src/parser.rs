@@ -28,6 +28,27 @@ pub(crate) struct Parser<'a> {
 
 
 impl<'a> Parser<'a> {
+
+
+    /// Parses input tokens into an abstract syntax tree representation.
+    pub fn parse(&mut self) -> Vec<Expr<'a>> {
+        let mut statements = Vec::new();
+
+        while !self.cursor.is_at_end() {
+
+            match self.parse_next() {
+                Err(error) => {
+                    self.report_error(error);
+                    self.repos_to_next_expr();
+                }
+                Ok(statement) =>
+                    statements.push(statement)
+            }
+        }
+
+        statements
+    }
+
     /// Creates a new parser.
     pub(crate) fn new(tokens: Vec<Token<'a>>) -> Self {
         Self {
@@ -98,6 +119,31 @@ impl<'a> Parser<'a> {
         }
     }
 
+
+    pub(crate) fn parse_next(&mut self) -> ParseResult<Expr<'a>> {
+        let statement = self.statement();
+        if statement.is_ok() {
+            //consume end of expression
+            self.cursor.force(
+                eox(),
+                &format!("expected end of expression or file, found '{}'",
+                         self.cursor.peek().value),
+            )?;
+        };
+        statement
+    }
+
+
+    pub(crate) fn expected<T>(&self, message: &str) -> ParseResult<T> {
+        Err(self.mk_parse_error(message))
+    }
+
+    pub(crate) fn mk_parse_error(&self, message: impl Into<String>) -> ParseError {
+        ParseError {
+            message: message.into(),
+        }
+    }
+
     //parses any binary expression, considering given input expression
     //as the left arm of the expression.
     //if given expression is directly followed by an eox delimiter, then return it as is
@@ -145,8 +191,8 @@ impl<'a> Parser<'a> {
     }
 
 
-    ///Skips spaces and verify that this parser is not parsing the end of an expression
-    /// (unescaped newline or semicolon)
+    //Skips spaces and verify that this parser is not parsing the end of an expression
+    // (unescaped newline or semicolon)
     fn repos(&mut self) -> ParseResult<()> {
         self.cursor.advance(spaces()); //skip spaces
         if self.cursor.lookahead(eox()).is_some() {
@@ -156,7 +202,7 @@ impl<'a> Parser<'a> {
     }
 
     //simple error report system, should be enhanced in later PRs
-    pub(crate) fn report_error(&self, err: &ParseError) {
+    fn report_error(&self, err: ParseError) {
         eprintln!("ERROR !");
         eprintln!("message: {}", err.message)
     }
@@ -168,35 +214,4 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// Parses input tokens into an abstract syntax tree representation.
-    pub(crate) fn parse(&mut self) -> ParseResult<Vec<Expr<'a>>> {
-        let mut statements = Vec::new();
-
-        while !self.cursor.is_at_end() {
-            let statement = self.statement();
-
-            if let Err(error) = &statement {
-                self.report_error(error);
-                self.repos_to_next_expr();
-            }
-
-            //consume end of expression
-            self.cursor.force(eox(),
-                              &format!("expected end of expression or file, found '{}'", self.cursor.peek().value))?;
-
-            statements.push(statement?);
-        }
-
-        Ok(statements)
-    }
-
-    pub(crate) fn expected<T>(&self, message: &str) -> ParseResult<T> {
-        Err(self.mk_parse_error(message))
-    }
-
-    pub(crate) fn mk_parse_error(&self, message: impl Into<String>) -> ParseError {
-        ParseError {
-            message: message.into(),
-        }
-    }
 }

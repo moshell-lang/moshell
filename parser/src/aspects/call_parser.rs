@@ -50,13 +50,13 @@ mod tests {
     use crate::ast::Expr;
     use crate::ast::literal::Literal;
     use crate::parse;
-    use crate::parser::ParseError;
+    use crate::parser::{ParseError, Parser};
 
     #[test]
     fn wrong_group_end() {
         let tokens = lex("ls )");
         assert_eq!(
-            parse(tokens),
+            Parser::new(tokens).parse_next(),
             Err(ParseError {
                 message: "expected end of expression or file, found ')'".to_string()
             })
@@ -66,7 +66,7 @@ mod tests {
     #[test]
     fn multiple_calls() {
         let tokens = lex("grep -E regex; echo test");
-        let parsed = parse(tokens).expect("parsing error");
+        let parsed = parse(tokens);
         assert_eq!(
             parsed,
             vec![
@@ -88,7 +88,7 @@ mod tests {
     #[test]
     fn escaped_call() {
         let tokens = lex("grep -E regex \\; echo test");
-        let parsed = parse(tokens).expect("parsing error");
+        let parsed = parse(tokens);
         assert_eq!(
             parsed,
             vec![

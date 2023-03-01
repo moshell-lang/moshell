@@ -231,7 +231,7 @@ mod tests {
     use lexer::lexer::lex;
     use lexer::token::Token;
 
-    use crate::parse;
+
     use crate::parser::ParseError;
 
     use super::*;
@@ -243,7 +243,7 @@ mod tests {
             TokenType::IntLiteral,
             "123456789012345678901234567890",
         )];
-        let parsed = parse(tokens);
+        let parsed = Parser::new(tokens).statement();
         assert_eq!(
             parsed,
             Err(ParseError {
@@ -281,7 +281,7 @@ mod tests {
     #[test]
     fn missing_quote() {
         let tokens = vec![Token::new(TokenType::Quote, "' command")];
-        let parsed = parse(tokens);
+        let parsed = Parser::new(tokens).statement();
         assert_eq!(
             parsed,
             Err(ParseError {

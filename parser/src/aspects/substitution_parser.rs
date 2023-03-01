@@ -51,7 +51,7 @@ mod tests {
     use crate::ast::callable::Call;
     use crate::ast::substitution::{Substitution, SubstitutionKind};
     use crate::ast::Expr;
-    use crate::parse;
+
     use crate::parser::{ParseError, Parser};
     use lexer::lexer::lex;
     use pretty_assertions::assert_eq;
@@ -72,7 +72,7 @@ mod tests {
     #[test]
     fn unpaired_parenthesis() {
         let tokens = lex("$(a @(b) $(c d\\))");
-        let ast = parse(tokens);
+        let ast = Parser::new(tokens).statement();
         assert_eq!(
             ast,
             Err(ParseError {
@@ -119,15 +119,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn unexpected_closing_parenthesis() {
-        let tokens = lex("some stuff)");
-        let ast = parse(tokens);
-        assert_eq!(
-            ast,
-            Err(ParseError {
-                message: "expected end of expression or file, found ')'".to_string()
-            })
-        );
-    }
 }
