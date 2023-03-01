@@ -5,13 +5,13 @@ use crate::parser::{ParseResult, Parser};
 
 /// a parser aspect to parse any kind of binary operations
 pub trait BinaryOperationsParser<'p> {
-    ///Parses a binary operation tree
+    ///Parses a binary operation expression
     /// `eox`: a selector to define where the binary operation expression hits it end.
     fn binary_operation<P>(&mut self, parse_next: P) -> ParseResult<Expr<'p>>
     where
         P: FnMut(&mut Self) -> ParseResult<Expr<'p>>;
 
-    ///Parses the operator and left arm of a left-defined operation.
+    ///Parses the operator and right arm of a left-defined binary operation.
     /// `left`: the left arm of the binary operator.
     /// `eox`: a selector to define where the binary operation expression hits it end.
     fn binary_operation_right<P>(&mut self, left: Expr<'p>, parse_next: P) -> ParseResult<Expr<'p>>
@@ -117,7 +117,7 @@ impl<'p> Parser<'p> {
             .unwrap_or(0);
 
         let result = if priority_comparison > 0 {
-            //current binary operator has more priority so we directly return it
+            //current binary operator has most priority so we directly return it
             Expr::Binary(BinaryOperation {
                 left: Box::new(left),
                 op: operator,
