@@ -1,8 +1,9 @@
-use crate::err::ParseError;
+use crate::err::{ParseError, ParseErrorKind};
 use crate::moves::Move;
 use lexer::token::{Token, TokenType};
 
 use crate::parser::ParseResult;
+use crate::source::Location;
 
 /// Parser cursor is used by parsers to navigate in the token stream
 #[derive(Debug, Clone)]
@@ -70,8 +71,19 @@ impl<'a> ParserCursor<'a> {
     /// Force the given move to succeed, or else fail with given error message.
     /// This method will move the current cursor position on where the move ended.
     pub fn force(&mut self, mov: impl Move, err: &str) -> ParseResult<Token<'a>> {
+        self.advance(mov).ok_or_else(|| {
+            self.mk_parse_error(err, self.at(self.pos + 1), ParseErrorKind::Unexpected)
+        })
+    }
+
+    pub fn force_with(
+        &mut self,
+        mov: impl Move,
+        err: &str,
+        kind: ParseErrorKind,
+    ) -> ParseResult<Token<'a>> {
         self.advance(mov)
-            .ok_or_else(|| self.mk_parse_error(err, self.at(self.pos + 1)))
+            .ok_or_else(|| self.mk_parse_error(err, self.at(self.pos + 1), kind))
     }
 
     ///returns the token at current position
@@ -82,8 +94,13 @@ impl<'a> ParserCursor<'a> {
     ///returns current token then advance or ParseError if this cursor hits the
     /// end of the stream.
     pub fn next(&mut self) -> ParseResult<Token<'a>> {
-        self.next_opt()
-            .ok_or_else(|| self.mk_parse_error("Unexpected end of file", self.peek()))
+        self.next_opt().ok_or_else(|| {
+            self.mk_parse_error(
+                "Unexpected end of file",
+                self.peek(),
+                ParseErrorKind::Unexpected,
+            )
+        })
     }
 
     ///returns current token then advance or None if this cursor hits the
@@ -99,7 +116,7 @@ impl<'a> ParserCursor<'a> {
     fn at(&self, pos: usize) -> Token<'a> {
         self.tokens.get(pos).cloned().unwrap_or_else(|| {
             // Return a pointer to the end of the source code if there is no more token.
-            Token::new(TokenType::EndOfFile, &self.source[self.source.len()..])
+            Token::new(TokenType::EndOfFile, &self.source[self.source.len() - 1..])
         })
     }
 
@@ -108,12 +125,22 @@ impl<'a> ParserCursor<'a> {
         self.pos >= self.tokens.len()
     }
 
-    pub fn mk_parse_error(&self, message: impl Into<String>, erroneous_token: Token) -> ParseError {
-        let start = erroneous_token.value.as_ptr() as usize - self.source.as_ptr() as usize;
-        let end = start + erroneous_token.value.len();
+    pub fn mk_parse_error(
+        &self,
+        message: impl Into<String>,
+        erroneous_token: Token,
+        kind: ParseErrorKind,
+    ) -> ParseError {
         ParseError {
             message: message.into(),
-            position: (start..end).into(),
+            position: self.relative_pos(&erroneous_token),
+            kind,
         }
+    }
+
+    pub fn relative_pos(&self, token: &Token) -> Location {
+        let start = token.value.as_ptr() as usize - self.source.as_ptr() as usize;
+        let end = start + token.value.len();
+        start..end
     }
 }

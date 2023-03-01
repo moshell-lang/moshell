@@ -7,6 +7,28 @@ use crate::source::Location;
 pub struct ParseError {
     pub message: String,
     pub position: Location,
+    pub kind: ParseErrorKind,
+}
+
+/// The kind of error that occurred.
+///
+/// This is used to categorize the error and to provide more information
+/// when available.
+#[derive(Debug, PartialEq, Clone)]
+pub enum ParseErrorKind {
+    /// A specific token was expected, but another token was found.
+    Excepted(&'static str),
+
+    /// A unexpected token was found in the current context.
+    Unexpected,
+
+    /// A group has been opened, but not closed.
+    ///
+    /// This reports the location of the opening token.
+    Unpaired(Location),
+
+    /// A token cannot be parsed.
+    NotParsable,
 }
 
 /// The parsing result.

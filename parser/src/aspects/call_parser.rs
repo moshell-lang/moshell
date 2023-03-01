@@ -1,5 +1,6 @@
 use crate::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use crate::ast::Expr;
+use crate::err::ParseErrorKind;
 use crate::moves::{eox, next, of_type, of_types, predicate, space, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
@@ -65,12 +66,13 @@ impl<'a> CallParser<'a> for Parser<'a> {
                 RedirFd::Wildcard
             }
             TokenType::IntLiteral => {
-                let redir = RedirFd::Fd(
-                    token
-                        .value
-                        .parse()
-                        .map_err(|_| self.mk_parse_error("Invalid file descriptor.", token))?,
-                );
+                let redir = RedirFd::Fd(token.value.parse().map_err(|_| {
+                    self.mk_parse_error(
+                        "Invalid file descriptor.",
+                        token,
+                        ParseErrorKind::NotParsable,
+                    )
+                })?);
                 token = self.cursor.next()?;
                 redir
             }
@@ -94,7 +96,10 @@ impl<'a> CallParser<'a> for Parser<'a> {
                 None => RedirOp::Write,
                 Some(_) => RedirOp::Append,
             },
-            _ => Err(self.mk_parse_error("Expected redirection operator.", token))?,
+            _ => self.expected(
+                "Expected redirection operator.",
+                ParseErrorKind::Excepted("< >"),
+            )?,
         };
 
         // Parse file descriptor duplication and update the operator
@@ -102,7 +107,10 @@ impl<'a> CallParser<'a> for Parser<'a> {
             operator = match operator {
                 RedirOp::Read => RedirOp::FdIn,
                 RedirOp::Write => RedirOp::FdOut,
-                _ => Err(self.mk_parse_error("Invalid redirection operator.", self.cursor.peek()))?,
+                _ => self.expected(
+                    "Invalid redirection operator.",
+                    ParseErrorKind::Excepted("< or >"),
+                )?,
             };
         }
 

@@ -2,6 +2,7 @@ use lexer::token::TokenType;
 
 use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use crate::ast::Expr;
+use crate::err::ParseErrorKind;
 use crate::moves::{of_type, of_types, space, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
@@ -16,7 +17,12 @@ impl<'a> VarDeclarationParser<'a> for Parser<'a> {
         let kind = match self.cursor.next()?.token_type {
             TokenType::Var => VarKind::Var,
             TokenType::Val => VarKind::Val,
-            _ => return self.expected("expected var or val keywords"),
+            _ => {
+                return self.expected(
+                    "expected var or val keywords",
+                    ParseErrorKind::Excepted("var or val"),
+                )
+            }
         };
         let name = self.cursor.force(
             space().and_then(of_type(TokenType::Identifier)),

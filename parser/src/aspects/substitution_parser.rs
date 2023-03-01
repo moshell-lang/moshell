@@ -1,6 +1,7 @@
 use crate::aspects::var_reference_parser::VarReferenceParser;
 use crate::ast::substitution::{Substitution, SubstitutionKind};
 use crate::ast::Expr;
+use crate::err::ParseErrorKind;
 use crate::moves::{of_type, of_types, space, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
@@ -17,22 +18,19 @@ impl<'a> SubstitutionParser<'a> for Parser<'a> {
             of_types(&[TokenType::At, TokenType::Dollar]),
             "Expected at or dollar sign.",
         )?;
+        let next_token = self.cursor.advance(of_type(TokenType::RoundedLeftBracket));
 
         // Short pass for variable references
-        if self
-            .cursor
-            .advance(of_type(TokenType::RoundedLeftBracket))
-            .is_none()
-            && start_token.token_type == TokenType::Dollar
-        {
+        if next_token.is_none() && start_token.token_type == TokenType::Dollar {
             return self.var_reference();
         }
 
         // Read the expression inside the parentheses as a new statement
         let expr = Box::new(self.statement()?);
-        self.cursor.force(
+        self.cursor.force_with(
             space().then(of_type(TokenType::RoundedRightBracket)),
             "Expected closing bracket.",
+            ParseErrorKind::Unpaired(self.cursor.relative_pos(&next_token.unwrap())),
         )?;
 
         // Finally return the expression
@@ -54,7 +52,7 @@ mod tests {
     use crate::ast::statement::Block;
     use crate::ast::substitution::{Substitution, SubstitutionKind};
     use crate::ast::Expr;
-    use crate::err::ParseError;
+    use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
     use crate::source::Source;
@@ -69,7 +67,8 @@ mod tests {
             ast,
             Err(ParseError {
                 message: "Expected closing bracket.".to_string(),
-                position: content.len()..content.len(),
+                position: content.len() - 1..content.len(),
+                kind: ParseErrorKind::Unpaired(1..2)
             })
         );
     }
@@ -83,7 +82,8 @@ mod tests {
             ast,
             Err(ParseError {
                 message: "Expected closing bracket.".to_string(),
-                position: content.len()..content.len(),
+                position: content.len() - 1..content.len(),
+                kind: ParseErrorKind::Unpaired(1..2)
             })
         );
     }
@@ -123,6 +123,7 @@ mod tests {
             Err(ParseError {
                 message: "Unexpected closing bracket.".to_string(),
                 position: content.find(')').map(|p| (p..p + 1)).unwrap(),
+                kind: ParseErrorKind::Unexpected
             })
         );
     }

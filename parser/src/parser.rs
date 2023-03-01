@@ -7,7 +7,7 @@ use crate::aspects::literal_parser::LiteralParser;
 use crate::aspects::var_declaration_parser::VarDeclarationParser;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::err::ParseError;
+use crate::err::{ParseError, ParseErrorKind};
 use crate::moves::{eox, space, spaces, MoveOperations};
 use crate::source::Source;
 
@@ -38,7 +38,9 @@ impl<'a> Parser<'a> {
             TokenType::Quote => self.string_literal(),
             TokenType::CurlyLeftBracket => self.block(),
             TokenType::DoubleQuote => self.templated_string_literal(),
-            _ if pivot.is_closing_ponctuation() => self.expected("Unexpected closing bracket."),
+            _ if pivot.is_closing_ponctuation() => {
+                self.expected("Unexpected closing bracket.", ParseErrorKind::Unexpected)
+            }
             _ => self.argument(),
         }
     }
@@ -64,7 +66,7 @@ impl<'a> Parser<'a> {
     fn repos(&mut self) -> ParseResult<()> {
         self.cursor.advance(spaces()); //skip spaces
         if self.cursor.lookahead(eox()).is_some() {
-            return self.expected("Unexpected end of expression");
+            return self.expected("Unexpected end of expression", ParseErrorKind::Unexpected);
         }
         Ok(())
     }
@@ -81,15 +83,16 @@ impl<'a> Parser<'a> {
         Ok(statements)
     }
 
-    pub(crate) fn expected<T>(&self, message: &str) -> ParseResult<T> {
-        Err(self.mk_parse_error(message, self.cursor.peek()))
+    pub(crate) fn expected<T>(&self, message: &str, kind: ParseErrorKind) -> ParseResult<T> {
+        Err(self.mk_parse_error(message, self.cursor.peek(), kind))
     }
 
     pub(crate) fn mk_parse_error(
         &self,
         message: impl Into<String>,
         erroneous_token: Token,
+        kind: ParseErrorKind,
     ) -> ParseError {
-        self.cursor.mk_parse_error(message, erroneous_token)
+        self.cursor.mk_parse_error(message, erroneous_token, kind)
     }
 }

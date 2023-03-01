@@ -5,6 +5,7 @@ use lexer::token::TokenType;
 
 use crate::ast::literal::{Literal, LiteralValue};
 use crate::ast::*;
+use crate::err::ParseErrorKind;
 use crate::moves::{next, of_type};
 use crate::parser::{ParseResult, Parser};
 use crate::source::try_join_str;
@@ -40,17 +41,20 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     }
 
     fn string_literal(&mut self) -> ParseResult<Expr<'a>> {
-        let mut lexme = self
+        let start = self
             .cursor
-            .force(of_type(TokenType::Quote), "Expected quote.")?
-            .value;
+            .force(of_type(TokenType::Quote), "Expected quote.")?;
+        let mut lexme = start.value;
 
         let mut value = String::new();
 
         loop {
             match self.cursor.next_opt() {
                 None => {
-                    return self.expected("Unterminated string literal.");
+                    return self.expected(
+                        "Unterminated string literal.",
+                        ParseErrorKind::Unpaired(self.cursor.relative_pos(&start)),
+                    );
                 }
 
                 Some(token) => {
@@ -74,14 +78,18 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
     }
 
     fn templated_string_literal(&mut self) -> ParseResult<Expr<'a>> {
-        self.cursor
+        let start = self
+            .cursor
             .force(of_type(TokenType::DoubleQuote), "Expected quote.")?;
         let mut lexme = self.cursor.peek().value;
         let mut literal_value = String::new();
         let mut parts = Vec::new();
         loop {
             if self.cursor.is_at_end() {
-                return self.expected("Unterminated string literal.");
+                return self.expected(
+                    "Unterminated string literal.",
+                    ParseErrorKind::Unpaired(self.cursor.relative_pos(&start)),
+                );
             }
 
             match self.cursor.peek().token_type {
@@ -207,19 +215,20 @@ impl<'a> LiteralParser<'a> for Parser<'a> {
         match token.token_type {
             TokenType::IntLiteral => Ok(LiteralValue::Int(token.value.parse::<i64>().map_err(
                 |e| match e.kind() {
-                    IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => {
-                        self.mk_parse_error("Integer constant is too large.".to_string(), token)
-                    }
-                    _ => self.mk_parse_error(e.to_string(), token),
+                    IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => self.mk_parse_error(
+                        "Integer constant is too large.".to_string(),
+                        token,
+                        ParseErrorKind::NotParsable,
+                    ),
+                    _ => self.mk_parse_error(e.to_string(), token, ParseErrorKind::NotParsable),
                 },
             )?)),
-            TokenType::FloatLiteral => Ok(LiteralValue::Float(
-                token
-                    .value
-                    .parse::<f64>()
-                    .map_err(|e| self.mk_parse_error(e.to_string(), token))?,
-            )),
-            _ => self.expected("Expected a literal."),
+            TokenType::FloatLiteral => {
+                Ok(LiteralValue::Float(token.value.parse::<f64>().map_err(
+                    |e| self.mk_parse_error(e.to_string(), token, ParseErrorKind::NotParsable),
+                )?))
+            }
+            _ => self.expected("Expected a literal.", ParseErrorKind::Unexpected),
         }
     }
 }
@@ -229,7 +238,7 @@ mod tests {
     use crate::parse;
 
     use super::*;
-    use crate::err::ParseError;
+    use crate::err::{ParseError, ParseErrorKind};
     use crate::source::Source;
     use pretty_assertions::assert_eq;
 
@@ -242,6 +251,7 @@ mod tests {
             Err(ParseError {
                 message: "Integer constant is too large.".to_string(),
                 position: 0..30,
+                kind: ParseErrorKind::NotParsable,
             })
         );
     }
@@ -281,7 +291,8 @@ mod tests {
             parsed,
             Err(ParseError {
                 message: "Unterminated string literal.".to_string(),
-                position: content.len()..content.len(),
+                position: content.len() - 1..content.len(),
+                kind: ParseErrorKind::Unpaired(0..1),
             })
         );
     }
