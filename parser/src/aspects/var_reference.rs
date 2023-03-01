@@ -5,12 +5,12 @@ use crate::ast::Expr;
 use crate::moves::of_type;
 use crate::parser::{ParseResult, Parser};
 
-pub trait VarReferenceParser<'a> {
+pub trait VarReferenceAspect<'a> {
     /// Parses a variable reference.
     fn var_reference(&mut self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> VarReferenceParser<'a> for Parser<'a> {
+impl<'a> VarReferenceAspect<'a> for Parser<'a> {
     /// Parses a variable reference.
     fn var_reference(&mut self) -> ParseResult<Expr<'a>> {
         let has_bracket = self
@@ -35,7 +35,7 @@ mod tests {
     use lexer::lexer::lex;
     use lexer::token::{Token, TokenType};
 
-    use crate::aspects::substitution_parser::SubstitutionParser;
+    use crate::aspects::substitution::SubstitutionAspect;
     use crate::ast::variable::VarReference;
     use crate::ast::Expr;
     use crate::parser::Parser;

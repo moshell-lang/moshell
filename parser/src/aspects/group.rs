@@ -6,7 +6,7 @@ use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 ///A parser aspect for parsing block expressions
-pub trait GroupParser<'a> {
+pub trait GroupAspect<'a> {
     ///Parse a block expression.
     /// Block expressions will parse contained expressions as statements.
     /// see `Parser::statement` for further details.
@@ -24,7 +24,7 @@ pub trait GroupParser<'a> {
     fn parenthesis(&mut self) -> ParseResult<Parenthesis<'a>>;
 }
 
-impl<'a> GroupParser<'a> for Parser<'a> {
+impl<'a> GroupAspect<'a> for Parser<'a> {
     fn block(&mut self) -> ParseResult<Block<'a>> {
         self.ensure_at_group_start(TokenType::CurlyLeftBracket, '{')?;
         Ok(Block {
@@ -116,7 +116,7 @@ mod tests {
     use lexer::lexer::lex;
     use lexer::token::{Token, TokenType};
 
-    use crate::aspects::group_parser::GroupParser;
+    use crate::aspects::group::GroupAspect;
     use crate::ast::callable::Call;
     use crate::ast::group::{Block, Subshell};
     use crate::ast::literal::Literal;

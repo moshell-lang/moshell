@@ -6,12 +6,12 @@ use crate::ast::Expr;
 use crate::moves::{of_type, of_types, space, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
-pub trait VarDeclarationParser<'a> {
+pub trait VarDeclarationAspect<'a> {
     /// Parses a variable declaration.
     fn var_declaration(&mut self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> VarDeclarationParser<'a> for Parser<'a> {
+impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
     /// Parses a variable declaration.
     fn var_declaration(&mut self) -> ParseResult<Expr<'a>> {
         let kind = match self.cursor.next()?.token_type {

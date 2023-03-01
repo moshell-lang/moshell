@@ -1,12 +1,12 @@
 use lexer::token::Token;
 use lexer::token::TokenType::*;
 
-use crate::aspects::binary_operation_parser::BinaryOperationsParser;
-use crate::aspects::call_parser::CallParser;
-use crate::aspects::group_parser::GroupParser;
-use crate::aspects::literal_parser::LiteralParser;
-use crate::aspects::redirection_parser::RedirectionParser;
-use crate::aspects::var_declaration_parser::VarDeclarationParser;
+use crate::aspects::binary_operation::BinaryOperationsAspect;
+use crate::aspects::call::CallAspect;
+use crate::aspects::group::GroupAspect;
+use crate::aspects::literal::LiteralAspect;
+use crate::aspects::redirection::RedirectionAspect;
+use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
 use crate::moves::{bin_op, eod, eox, next, of_types, spaces, MoveOperations};

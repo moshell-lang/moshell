@@ -4,7 +4,7 @@ use crate::moves::{bin_op, eox, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 /// a parser aspect to parse any kind of binary operations
-pub trait BinaryOperationsParser<'p> {
+pub trait BinaryOperationsAspect<'p> {
     ///Parses a binary operation expression
     /// `eox`: a selector to define where the binary operation expression hits it end.
     fn binary_operation<P>(&mut self, parse_next: P) -> ParseResult<Expr<'p>>
@@ -19,7 +19,7 @@ pub trait BinaryOperationsParser<'p> {
         P: FnMut(&mut Self) -> ParseResult<Expr<'p>>;
 }
 
-impl<'p> BinaryOperationsParser<'p> for Parser<'p> {
+impl<'p> BinaryOperationsAspect<'p> for Parser<'p> {
     fn binary_operation<P>(&mut self, mut parse: P) -> ParseResult<Expr<'p>>
     where
         P: FnMut(&mut Self) -> ParseResult<Expr<'p>>,
@@ -154,7 +154,7 @@ mod tests {
 
     use lexer::lexer::lex;
 
-    use crate::aspects::binary_operation_parser::BinaryOperationsParser;
+    use crate::aspects::binary_operation::BinaryOperationsAspect;
     use crate::ast::callable::Call;
     use crate::ast::group::{Parenthesis, Subshell};
     use crate::ast::literal::Literal;

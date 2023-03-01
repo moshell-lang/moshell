@@ -1,4 +1,4 @@
-use crate::aspects::call_parser::CallParser;
+use crate::aspects::call::CallAspect;
 use crate::ast::callable::{Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use crate::ast::Expr;
 use crate::moves::{eox, next, of_type, of_types, space, spaces, MoveOperations};
@@ -6,7 +6,7 @@ use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{BackSlash, DoubleQuote, Quote};
 
-pub(crate) trait RedirectionParser<'a> {
+pub(crate) trait RedirectionAspect<'a> {
     /// Attempts to parse the next pipeline expression
     /// inputs an "end of call" statements to determine where the call can stop.
     fn pipeline(&mut self, first_call: Expr<'a>) -> ParseResult<Expr<'a>>;
@@ -19,7 +19,7 @@ pub(crate) trait RedirectionParser<'a> {
     fn is_at_redirection_sign(&self) -> bool;
 }
 
-impl<'a> RedirectionParser<'a> for Parser<'a> {
+impl<'a> RedirectionAspect<'a> for Parser<'a> {
     fn pipeline(&mut self, first_call: Expr<'a>) -> ParseResult<Expr<'a>> {
         let mut commands = vec![first_call];
         // Continue as long as we have a pipe
@@ -157,7 +157,7 @@ impl<'a> RedirectionParser<'a> for Parser<'a> {
 mod test {
     use pretty_assertions::assert_eq;
 
-    use crate::aspects::call_parser::CallParser;
+    use crate::aspects::call::CallAspect;
     use crate::ast::callable::{Call, Redir, RedirFd, RedirOp, Redirected};
     use crate::ast::group::Block;
     use crate::ast::literal::Literal;
