@@ -1,8 +1,8 @@
-pub(super) mod binary_operation_parser;
-pub(super) mod call_parser;
-pub(super) mod group_parser;
-pub(super) mod literal_parser;
-pub(super) mod redirection_parser;
-pub(super) mod substitution_parser;
-pub(super) mod var_declaration_parser;
-pub(super) mod var_reference_parser;
+pub(super) mod binary_operation;
+pub(super) mod call;
+pub(super) mod group;
+pub(super) mod literal;
+pub(super) mod redirection;
+pub(super) mod substitution;
+pub(super) mod var_declaration;
+pub(super) mod var_reference;

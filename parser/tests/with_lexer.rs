@@ -1,5 +1,4 @@
 use lexer::lexer::lex;
-use lexer::token::{Token, TokenType};
 use parser::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use parser::ast::group::Subshell;
 use parser::ast::literal::Literal;
@@ -19,7 +18,7 @@ fn with_lexer_variable() {
         vec![Expr::VarDeclaration(VarDeclaration {
             kind: VarKind::Var,
             var: TypedVariable {
-                name: Token::new(TokenType::Identifier, "a"),
+                name: "a",
                 ty: None,
             },
             initializer: Some(Box::new(Expr::Literal(Literal {
@@ -45,7 +44,7 @@ fn with_lexer_var_reference_one() {
                     parsed: "$var5".into(),
                 }),
                 Expr::VarReference(VarReference {
-                    name: Token::new(TokenType::Identifier, "var5"),
+                    name: "var5",
                 }),
             ],
         })]
@@ -64,12 +63,12 @@ fn with_lexer_var_reference_two() {
                 Expr::TemplateString(vec![
                     Expr::Literal("fake".into()),
                     Expr::VarReference(VarReference {
-                        name: Token::new(TokenType::Identifier, "cmd"),
+                        name:"cmd",
                     }),
                 ]),
                 Expr::Literal("do".into()),
                 Expr::VarReference(VarReference {
-                    name: Token::new(TokenType::Identifier, "arg2"),
+                    name: "arg2",
                 }),
             ],
         })]
@@ -89,14 +88,14 @@ fn with_lexer_var_reference_three() {
                 Expr::TemplateString(vec![
                     Expr::Literal("hello ".into()),
                     Expr::VarReference(VarReference {
-                        name: Token::new(TokenType::Identifier, "world"),
+                        name:"world",
                     }),
                     Expr::Literal(" everyone ".into()),
                     Expr::VarReference(VarReference {
-                        name: Token::new(TokenType::Identifier, "verb"),
+                        name:"verb",
                     }),
                     Expr::VarReference(VarReference {
-                        name: Token::new(TokenType::Identifier, "ready"),
+                        name:  "ready",
                     }),
                     Expr::Literal("!".into()),
                 ]),
@@ -299,7 +298,7 @@ fn with_lexer_here_invoke() {
         vec![Expr::VarDeclaration(VarDeclaration {
             kind: VarKind::Val,
             var: TypedVariable {
-                name: Token::new(TokenType::Identifier, "valid"),
+                name: "valid",
                 ty: None,
             },
             initializer: Some(Box::new(Expr::Substitution(Substitution {

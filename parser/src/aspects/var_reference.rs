@@ -5,12 +5,12 @@ use crate::ast::Expr;
 use crate::moves::of_type;
 use crate::parser::{ParseResult, Parser};
 
-pub trait VarReferenceParser<'a> {
+pub trait VarReferenceAspect<'a> {
     /// Parses a variable reference.
     fn var_reference(&mut self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> VarReferenceParser<'a> for Parser<'a> {
+impl<'a> VarReferenceAspect<'a> for Parser<'a> {
     /// Parses a variable reference.
     fn var_reference(&mut self) -> ParseResult<Expr<'a>> {
         let has_bracket = self
@@ -19,23 +19,22 @@ impl<'a> VarReferenceParser<'a> for Parser<'a> {
             .is_some();
         let name = self
             .cursor
-            .force(of_type(TokenType::Identifier), "Expected variable name.")?;
+            .force(of_type(TokenType::Identifier), "Expected variable name.")?.value;
         if has_bracket {
             self.cursor.force(
                 of_type(TokenType::CurlyRightBracket),
                 "Expected closing curly bracket.",
             )?;
         }
-        Ok(Expr::VarReference(VarReference { name: name.clone() }))
+        Ok(Expr::VarReference(VarReference { name }))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use lexer::lexer::lex;
-    use lexer::token::{Token, TokenType};
 
-    use crate::aspects::substitution_parser::SubstitutionParser;
+    use crate::aspects::substitution::SubstitutionAspect;
     use crate::ast::variable::VarReference;
     use crate::ast::Expr;
     use crate::parser::Parser;
@@ -48,7 +47,7 @@ mod tests {
         assert_eq!(
             ast,
             Expr::VarReference(VarReference {
-                name: Token::new(TokenType::Identifier, "VARIABLE")
+                name: "VARIABLE"
             })
         )
     }
@@ -60,7 +59,7 @@ mod tests {
         assert_eq!(
             ast,
             Expr::VarReference(VarReference {
-                name: Token::new(TokenType::Identifier, "VAR")
+                name: "VAR"
             })
         )
     }
