@@ -169,7 +169,7 @@ impl<M: Move + Copy> Move for RepeatedMove<M> {
                 break;
             }
         }
-        // We do not repeated enough time to satisfy this movement
+        // We did not repeated enough time to satisfy this movement
         if self.min != -1 && repeats < self.min {
             return None;
         }
@@ -191,7 +191,6 @@ pub(crate) fn repeat<M: Move + Copy>(mov: M) -> RepeatedMove<M> {
 ///Repeat at least n times the given move until it fails,
 /// exiting on the first token that made the underlying move fail or if it hits EOF.
 /// if the number of repetition is strictly inferior than n, the move fails
-/// NOTE: a repeat always succeed
 pub(crate) fn repeat_n<M: Move + Copy>(n: usize, mov: M) -> RepeatedMove<M> {
     RepeatedMove {
         underlying: mov,
@@ -204,13 +203,17 @@ pub(crate) fn repeat_n<M: Move + Copy>(n: usize, mov: M) -> RepeatedMove<M> {
 /// exiting on the first token that made the underlying move fail or if it hits EOF.
 /// if the number of repetition is strictly inferior than n, the move fails
 /// if the number of repetition is strictly superior than m, the move also fails
-/// NOTE: a repeat always succeed
 pub(crate) fn repeat_nm<M: Move + Copy>(n: usize, m: usize, mov: M) -> RepeatedMove<M> {
     RepeatedMove {
         underlying: mov,
         min: n as isize,
         max: m as isize,
     }
+}
+
+///Given move must succeed exactly n times.
+pub(crate) fn times<M: Move + Copy>(n: usize, mov: M) -> RepeatedMove<M> {
+    repeat_nm(n, n, mov)
 }
 
 ///Execute origin and then, if it succeeds, execute the other

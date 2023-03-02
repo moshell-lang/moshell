@@ -41,7 +41,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     #[test]
-    fn test_simple_ref() {
+    fn simple_ref() {
         let tokens = lex("$VARIABLE");
         let ast = Parser::new(tokens).substitution().expect("failed to parse");
         assert_eq!(
@@ -53,7 +53,7 @@ mod tests {
     }
 
     #[test]
-    fn test_wrapped_ref() {
+    fn wrapped_ref() {
         let tokens = lex("${VAR}IABLE");
         let ast = Parser::new(tokens).substitution().expect("failed to parse");
         assert_eq!(

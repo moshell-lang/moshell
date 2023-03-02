@@ -126,7 +126,7 @@ mod tests {
 
     //noinspection DuplicatedCode
     #[test]
-    fn test_empty_blocks() {
+    fn empty_blocks() {
         let tokens = lex("{{{}; {}}}");
         let mut parser = Parser::new(tokens);
         let ast = parser.block().expect("failed to parse block");
@@ -150,7 +150,7 @@ mod tests {
 
     //noinspection DuplicatedCode
     #[test]
-    fn test_empty_blocks_empty_content() {
+    fn empty_blocks_empty_content() {
         let tokens = lex("{;;{;;;{;;}; {\n\n};}}");
         let mut parser = Parser::new(tokens);
         let ast = parser.block().expect("failed to parse block");
@@ -173,28 +173,28 @@ mod tests {
     }
 
     #[test]
-    fn test_block_not_ended() {
+    fn block_not_ended() {
         let tokens = lex("{ val test = 2 ");
         let mut parser = Parser::new(tokens);
         parser.block().expect_err("block parse did not failed");
     }
 
     #[test]
-    fn test_neighbour_parenthesis() {
+    fn neighbour_parenthesis() {
         let tokens = lex("{ () () }");
         let mut parser = Parser::new(tokens);
         parser.block().expect_err("block parse did not failed");
     }
 
     #[test]
-    fn test_block_not_started() {
+    fn block_not_started() {
         let tokens = lex(" val test = 2 }");
         let mut parser = Parser::new(tokens);
         parser.block().expect_err("block parse did not failed");
     }
 
     #[test]
-    fn test_block_with_nested_blocks() {
+    fn block_with_nested_blocks() {
         let tokens = lex("\
         {\
             val test = {\
@@ -270,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    fn test_block() {
+    fn block() {
         let tokens = lex("\
         {\
             var test: int = 7.0\n\

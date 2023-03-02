@@ -394,7 +394,7 @@ mod tests {
     }
 
     #[test]
-    fn test_exitcode_operators() {
+    fn exitcode_operators() {
         let tokens = lex("(echo hello && echo world ) || echo damn");
         let mut parser = Parser::new(tokens);
         let ast = parser
@@ -429,7 +429,7 @@ mod tests {
     }
 
     #[test]
-    fn test_escaped_operators() {
+    fn escaped_operators() {
         let tokens = lex("(echo hello \\&& world \\);) || echo damn");
         let mut parser = Parser::new(tokens);
         let ast = parser
