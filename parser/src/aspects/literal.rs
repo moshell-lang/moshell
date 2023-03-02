@@ -34,13 +34,13 @@ pub(crate) trait LiteralAspect<'a> {
 impl<'a> LiteralAspect<'a> for Parser<'a> {
     fn literal(&mut self) -> ParseResult<Expr<'a>> {
         Ok(Expr::Literal(Literal {
-            lexme: self.cursor.peek().value,
+            lexeme: self.cursor.peek().value,
             parsed: self.parse_literal()?,
         }))
     }
 
     fn string_literal(&mut self) -> ParseResult<Expr<'a>> {
-        let mut lexme = self
+        let mut lexeme = self
             .cursor
             .force(of_type(TokenType::Quote), "Expected quote.")?
             .value;
@@ -55,20 +55,20 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
 
                 Some(token) => {
                     if token.token_type == TokenType::Quote {
-                        if let Some(joined) = try_join_str(lexme, token.value) {
-                            lexme = joined;
+                        if let Some(joined) = try_join_str(lexeme, token.value) {
+                            lexeme = joined;
                         }
                         break;
                     }
                     value.push_str(token.value);
-                    if let Some(joined) = try_join_str(lexme, token.value) {
-                        lexme = joined;
+                    if let Some(joined) = try_join_str(lexeme, token.value) {
+                        lexeme = joined;
                     }
                 }
             };
         }
         Ok(Expr::Literal(Literal {
-            lexme,
+            lexeme: lexeme,
             parsed: LiteralValue::String(value),
         }))
     }
@@ -76,7 +76,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
     fn templated_string_literal(&mut self) -> ParseResult<Expr<'a>> {
         self.cursor
             .force(of_type(TokenType::DoubleQuote), "Expected quote.")?;
-        let mut lexme = self.cursor.peek().value;
+        let mut lexeme = self.cursor.peek().value;
         let mut literal_value = String::new();
         let mut parts = Vec::new();
         loop {
@@ -93,12 +93,12 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 TokenType::Dollar => {
                     if !literal_value.is_empty() {
                         parts.push(Expr::Literal(Literal {
-                            lexme,
+                            lexeme: lexeme,
                             parsed: LiteralValue::String(literal_value.clone()),
                         }));
                         literal_value.clear();
                     }
-                    lexme = "";
+                    lexeme = "";
 
                     parts.push(self.substitution()?);
                 }
@@ -106,17 +106,17 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 _ => {
                     let value = self.cursor.next()?.value;
                     literal_value.push_str(value);
-                    if lexme.is_empty() {
-                        lexme = value;
-                    } else if let Some(joined) = try_join_str(lexme, value) {
-                        lexme = joined;
+                    if lexeme.is_empty() {
+                        lexeme = value;
+                    } else if let Some(joined) = try_join_str(lexeme, value) {
+                        lexeme = joined;
                     }
                 }
             };
         }
         if !literal_value.is_empty() {
             parts.push(Expr::Literal(Literal {
-                lexme,
+                lexeme: lexeme,
                 parsed: LiteralValue::String(literal_value),
             }));
         }
@@ -132,7 +132,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         let current = self.cursor.peek();
         let mut parts = Vec::new();
         let mut builder = String::new();
-        let mut lexme = current.value;
+        let mut lexeme = current.value;
 
 
         //pushes current token then advance
@@ -140,10 +140,10 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             () => {
                 let value = self.cursor.next()?.value;
                 builder.push_str(value);
-                if let Some(joined) = try_join_str(lexme, value) {
-                    lexme = joined;
+                if let Some(joined) = try_join_str(lexeme, value) {
+                    lexeme = joined;
                 } else {
-                    lexme = value;
+                    lexeme = value;
                 }
                 ()
             };
@@ -179,7 +179,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 TokenType::At | TokenType::Dollar => {
                     if !builder.is_empty() {
                         parts.push(Expr::Literal(Literal {
-                            lexme,
+                            lexeme: lexeme,
                             parsed: LiteralValue::String(builder.clone()),
                         }));
                         builder.clear();
@@ -195,7 +195,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
 
         if !builder.is_empty() {
             parts.push(Expr::Literal(Literal {
-                lexme,
+                lexeme: lexeme,
                 parsed: LiteralValue::String(builder),
             }));
         }
@@ -261,7 +261,7 @@ mod tests {
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
-                lexme: "'hello $world! $(this is a test) @(of course)'",
+                lexeme: "'hello $world! $(this is a test) @(of course)'",
                 parsed: "hello $world! $(this is a test) @(of course)".into(),
             })
         );
@@ -274,7 +274,7 @@ mod tests {
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
-                lexme: "a",
+                lexeme: "a",
                 parsed: "aa".into(),
             })
         );

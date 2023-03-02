@@ -120,12 +120,12 @@ mod tests {
                     arguments: vec![
                         Expr::Literal("test".into()),
                         Expr::Literal(Literal {
-                            lexme: "48",
+                            lexeme: "48",
                             parsed: LiteralValue::Int(48),
                         }),
                         Expr::Literal("-gt".into()),
                         Expr::Literal(Literal {
-                            lexme: "100",
+                            lexeme: "100",
                             parsed: LiteralValue::Int(100),
                         }),
                     ]
@@ -221,7 +221,7 @@ mod tests {
                             Expr::Literal("grep".into()),
                             Expr::Literal("-E".into()),
                             Expr::Literal(Literal {
-                                lexme: "'^[0-9]+$'",
+                                lexeme: "'^[0-9]+$'",
                                 parsed: LiteralValue::String("^[0-9]+$".to_string())
                             })
                         ]
@@ -263,7 +263,7 @@ mod tests {
                         })),
                         op: BinaryOperator::EqualEqual,
                         right: Box::new(Expr::Literal(Literal {
-                            lexme: "78",
+                            lexeme: "78",
                             parsed: 78.into(),
                         })),
                     })),

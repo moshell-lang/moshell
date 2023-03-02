@@ -22,7 +22,7 @@ fn with_lexer_variable() {
                 ty: None,
             },
             initializer: Some(Box::new(Expr::Literal(Literal {
-                lexme: "'hello world!'",
+                lexeme: "'hello world!'",
                 parsed: "hello world!".into(),
             }))),
         })]
@@ -40,7 +40,7 @@ fn with_lexer_var_reference_one() {
             arguments: vec![
                 Expr::Literal("echo".into()),
                 Expr::Literal(Literal {
-                    lexme: "'$var5'",
+                    lexeme: "'$var5'",
                     parsed: "$var5".into(),
                 }),
                 Expr::VarReference(VarReference {
@@ -165,7 +165,7 @@ fn with_lexer_pipe_and_redirection() {
                         arguments: vec![
                             Expr::Literal("grep".into()),
                             Expr::Literal(Literal {
-                                lexme: "'hello'",
+                                lexeme: "'hello'",
                                 parsed: "hello".into()
                             }),
                         ]
@@ -200,7 +200,7 @@ fn with_lexer_pipe_and_pipe() {
                         Expr::Literal("tr".into()),
                         Expr::Literal("-s".into()),
                         Expr::Literal(Literal {
-                            lexme: "' '",
+                            lexeme: "' '",
                             parsed: " ".into(),
                         }),
                     ],
@@ -224,7 +224,7 @@ fn with_lexer_here_string() {
                 fd: RedirFd::Default,
                 operator: RedirOp::String,
                 operand: Expr::Literal(Literal {
-                    lexme: "'hello'",
+                    lexeme: "'hello'",
                     parsed: "hello".into(),
                 }),
             }],

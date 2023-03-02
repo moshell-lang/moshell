@@ -131,7 +131,7 @@ mod tests {
                     ty: None,
                 },
                 initializer: Some(Box::from(Expr::Literal(Literal {
-                    lexme: "'hello $test'",
+                    lexeme: "'hello $test'",
                     parsed: "hello $test".into(),
                 }))),
             })
@@ -166,11 +166,11 @@ mod tests {
                     expressions: vec![Expr::Call(Call {
                         arguments: vec![
                             Expr::Literal(Literal {
-                                lexme: "echo",
+                                lexeme: "echo",
                                 parsed: "echo".into(),
                             }),
                             Expr::Literal(Literal {
-                                lexme: "a",
+                                lexeme: "a",
                                 parsed: "a".into(),
                             }),
                         ]
@@ -196,12 +196,12 @@ mod tests {
                 },
                 initializer: Some(Box::from(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Literal(Literal {
-                        lexme: "7",
+                        lexeme: "7",
                         parsed: LiteralValue::Int(7)
                     })),
                     op: Plus,
                     right: Box::new(Expr::Literal(Literal {
-                        lexme: "2",
+                        lexeme: "2",
                         parsed: LiteralValue::Int(2)
                     }))
                 }))),

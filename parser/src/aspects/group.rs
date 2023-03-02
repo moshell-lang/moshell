@@ -228,12 +228,12 @@ mod tests {
                                         ty: None,
                                     },
                                     initializer: Some(Box::from(Expr::Literal(Literal {
-                                        lexme: "8",
+                                        lexeme: "8",
                                         parsed: Int(8),
                                     }))),
                                 }),
                                 Expr::Literal(Literal {
-                                    lexme: "8",
+                                    lexeme: "8",
                                     parsed: Int(8),
                                 }),
                             ]
@@ -248,7 +248,7 @@ mod tests {
                                     ty: None,
                                 },
                                 initializer: Some(Box::from(Expr::Literal(Literal {
-                                    lexme: "89",
+                                    lexeme: "89",
                                     parsed: Int(89),
                                 }))),
                             }),
@@ -259,7 +259,7 @@ mod tests {
                                 ],
                             }),
                             Expr::Literal(Literal {
-                                lexme: "7",
+                                lexeme: "7",
                                 parsed: Int(7),
                             })
                         ]
@@ -291,7 +291,7 @@ mod tests {
                             ty: Some("int"),
                         },
                         initializer: Some(Box::new(Expr::Literal(Literal {
-                            lexme: "7.0",
+                            lexeme: "7.0",
                             parsed: Float(7.0),
                         }))),
                     }),
@@ -302,7 +302,7 @@ mod tests {
                             ty: None,
                         },
                         initializer: Some(Box::new(Expr::Literal(Literal {
-                            lexme: "8",
+                            lexeme: "8",
                             parsed: Int(8),
                         }))),
                     }),
