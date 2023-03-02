@@ -8,6 +8,8 @@ use crate::moves::{MoveOperations, of_type, spaces, times};
 use crate::parser::{Parser, ParseResult};
 
 pub(crate) trait TestAspect<'a> {
+
+    ///parse a not (! ..) expression.
     fn not<P>(&mut self, parse_next: P) -> ParseResult<Expr<'a>>
         where P: FnMut(&mut Self) -> ParseResult<Expr<'a>>;
 
