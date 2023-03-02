@@ -44,7 +44,7 @@ fn with_lexer_var_reference_one() {
                     parsed: "$var5".into(),
                 }),
                 Expr::VarReference(VarReference {
-                    name: "var5",
+                    name: "var5".to_string(),
                 }),
             ],
         })]
@@ -63,12 +63,12 @@ fn with_lexer_var_reference_two() {
                 Expr::TemplateString(vec![
                     Expr::Literal("fake".into()),
                     Expr::VarReference(VarReference {
-                        name:"cmd",
+                        name:"cmd".to_string(),
                     }),
                 ]),
                 Expr::Literal("do".into()),
                 Expr::VarReference(VarReference {
-                    name: "arg2",
+                    name: "arg2".to_string(),
                 }),
             ],
         })]
@@ -88,14 +88,14 @@ fn with_lexer_var_reference_three() {
                 Expr::TemplateString(vec![
                     Expr::Literal("hello ".into()),
                     Expr::VarReference(VarReference {
-                        name:"world",
+                        name:"world".to_string(),
                     }),
                     Expr::Literal(" everyone ".into()),
                     Expr::VarReference(VarReference {
-                        name:"verb",
+                        name:"verb".to_string(),
                     }),
                     Expr::VarReference(VarReference {
-                        name:  "ready",
+                        name:  "ready".to_string(),
                     }),
                     Expr::Literal("!".into()),
                 ]),

@@ -1,9 +1,8 @@
-use lexer::token::TokenType;
 use lexer::token::TokenType::*;
 
-use crate::ast::variable::VarReference;
 use crate::ast::Expr;
-use crate::moves::{like, of_type};
+use crate::ast::variable::VarReference;
+use crate::moves::{like, MoveOperations, of_type, repeat};
 use crate::parser::{ParseResult, Parser};
 
 pub trait VarReferenceAspect<'a> {
@@ -18,9 +17,14 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
             .cursor
             .advance(of_type(CurlyLeftBracket))
             .is_some();
-        let name = self
-            .cursor
-            .force(like(TokenType::is_valid_var_ref_name), "Expected valid variable name.")?.value;
+
+        let name = self.cursor
+            .select(
+                of_type(Dollar) //only allow one occurrence of $
+                    .or(repeat(like(|t| t != Dollar && t.is_valid_var_ref_name())))
+            )
+            .into_iter()
+            .fold("".to_string(), |acc, t| acc.to_string() + t.value);
 
         if has_bracket {
             self.cursor.force(
@@ -50,8 +54,34 @@ mod tests {
             ast,
             vec![
                 Expr::VarReference(VarReference {
-                    name: "VARIABLE"
+                    name: "VARIABLE".to_string()
                 })
+            ]
+        )
+    }
+
+    #[test]
+    fn special_refs() {
+        let tokens = lex("$@;$^;$!;$!!;$$");
+        let ast = parse(tokens).expect("failed to parse");
+        assert_eq!(
+            ast,
+            vec![
+                Expr::VarReference(VarReference {
+                    name: "@".to_string()
+                }),
+                Expr::VarReference(VarReference {
+                    name: "^".to_string()
+                }),
+                Expr::VarReference(VarReference {
+                    name: "!".to_string()
+                }),
+                Expr::VarReference(VarReference {
+                    name: "!!".to_string()
+                }),
+                Expr::VarReference(VarReference {
+                    name: "$".to_string()
+                }),
             ]
         )
     }
@@ -65,7 +95,7 @@ mod tests {
             vec![
                 Expr::TemplateString(vec![
                     Expr::VarReference(VarReference {
-                        name: "VAR"
+                        name: "VAR".to_string()
                     }),
                     Expr::Literal("IABLE".into())
                 ])
@@ -94,14 +124,14 @@ mod tests {
             vec![
                 Expr::TemplateString(vec![
                     Expr::VarReference(VarReference {
-                        name: "VAR"
+                        name: "VAR".to_string()
                     }),
                     Expr::Literal("IABLE".into()),
                     Expr::VarReference(VarReference {
-                        name: "LONG"
+                        name: "LONG".to_string()
                     }),
                     Expr::VarReference(VarReference {
-                        name: "VERY_LONG"
+                        name: "VERY_LONG".to_string()
                     }),
                 ])
             ]

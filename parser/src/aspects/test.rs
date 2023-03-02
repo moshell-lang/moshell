@@ -150,11 +150,11 @@ mod tests {
                             expression: Box::new(Expr::Parenthesis(Parenthesis {
                                 expression: Box::new(Expr::Binary(BinaryOperation {
                                     left: Box::new(Expr::VarReference(VarReference {
-                                        name: "a"
+                                        name: "a".to_string()
                                     })),
                                     op: BinaryOperator::EqualEqual,
                                     right: Box::new(Expr::VarReference(VarReference {
-                                        name: "b"
+                                        name: "b".to_string()
                                     })),
                                 }))
                             }))
@@ -167,7 +167,7 @@ mod tests {
                         arguments: vec![
                             Expr::Literal("test".into()),
                             Expr::VarReference(VarReference {
-                                name: "1"
+                                name: "1".to_string()
                             }),
                         ]
                     })),
@@ -244,11 +244,11 @@ mod tests {
                             expressions: vec![
                                 Expr::Binary(BinaryOperation {
                                     left: Box::new(Expr::VarReference(VarReference {
-                                        name: "a"
+                                        name: "a".to_string()
                                     })),
                                     op: BinaryOperator::And,
                                     right: Box::new(Expr::VarReference(VarReference {
-                                        name: "b"
+                                        name: "b".to_string()
                                     })),
                                 })
                             ]
@@ -258,7 +258,7 @@ mod tests {
                     right: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Not(Not {
                             right: Box::new(Expr::VarReference(VarReference {
-                                name: "2"
+                                name: "2".to_string()
                             }))
                         })),
                         op: BinaryOperator::EqualEqual,

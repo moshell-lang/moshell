@@ -31,7 +31,7 @@ pub enum Expr<'a> {
     Not(Not<'a>),
 
     //var / val handling expressions
-    VarReference(VarReference<'a>),
+    VarReference(VarReference),
     VarDeclaration(VarDeclaration<'a>),
 
     //Grouping expressions
