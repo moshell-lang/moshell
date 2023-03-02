@@ -136,7 +136,7 @@ mod tests {
 
     #[test]
     fn test_integration() {
-        let result = parse(lex("echo && [ ($a == $b) ] || [[ $x ]]")).expect("parse error");
+        let result = parse(lex("echo && [ ($a == $b) ] || [[ $1 ]]")).expect("parse error");
         assert_eq!(
             result,
             vec![
@@ -167,7 +167,7 @@ mod tests {
                         arguments: vec![
                             Expr::Literal("test".into()),
                             Expr::VarReference(VarReference {
-                                name: "x"
+                                name: "1"
                             }),
                         ]
                     })),
@@ -234,7 +234,7 @@ mod tests {
 
     #[test]
     fn not() {
-        let result = parse(lex("! ($a && $b) || ! $c == 78")).expect("parse error");
+        let result = parse(lex("! ($a && $b) || ! $2 == 78")).expect("parse error");
         assert_eq!(
             result,
             vec![
@@ -258,7 +258,7 @@ mod tests {
                     right: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Not(Not {
                             right: Box::new(Expr::VarReference(VarReference {
-                                name: "c"
+                                name: "2"
                             }))
                         })),
                         op: BinaryOperator::EqualEqual,
