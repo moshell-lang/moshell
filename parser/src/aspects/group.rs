@@ -2,6 +2,7 @@ use lexer::token::{Token, TokenType};
 
 use crate::ast::group::{Block, Parenthesis, Subshell};
 use crate::ast::Expr;
+use crate::err::ParseErrorKind;
 use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
@@ -26,16 +27,20 @@ pub trait GroupAspect<'a> {
 
 impl<'a> GroupAspect<'a> for Parser<'a> {
     fn block(&mut self) -> ParseResult<Block<'a>> {
-        self.ensure_at_group_start(TokenType::CurlyLeftBracket, '{')?;
+        let start = self.ensure_at_group_start(TokenType::CurlyLeftBracket, '{')?;
         Ok(Block {
-            expressions: self.sub_exprs(TokenType::CurlyRightBracket, Parser::statement)?,
+            expressions: self.sub_exprs(start, TokenType::CurlyRightBracket, Parser::statement)?,
         })
     }
 
     fn subshell(&mut self) -> ParseResult<Subshell<'a>> {
-        self.ensure_at_group_start(TokenType::RoundedLeftBracket, '(')?;
+        let start = self.ensure_at_group_start(TokenType::RoundedLeftBracket, '(')?;
         Ok(Subshell {
-            expressions: self.sub_exprs(TokenType::RoundedRightBracket, Parser::statement)?,
+            expressions: self.sub_exprs(
+                start,
+                TokenType::RoundedRightBracket,
+                Parser::statement,
+            )?,
         })
     }
 
@@ -71,7 +76,12 @@ impl<'a> Parser<'a> {
     }
 
     ///parses sub expressions of a grouping expression
-    fn sub_exprs<F>(&mut self, eog: TokenType, mut parser: F) -> ParseResult<Vec<Expr<'a>>>
+    fn sub_exprs<F>(
+        &mut self,
+        start_token: Token,
+        eog: TokenType,
+        mut parser: F,
+    ) -> ParseResult<Vec<Expr<'a>>>
     where
         F: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
     {
@@ -86,6 +96,12 @@ impl<'a> Parser<'a> {
         }
 
         loop {
+            if self.cursor.is_at_end() {
+                self.expected(
+                    "Expected closing bracket.",
+                    ParseErrorKind::Unpaired(self.cursor.relative_pos(&start_token)),
+                )?;
+            }
             let statement = parser(self)?;
             statements.push(statement);
 

@@ -29,11 +29,6 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
 
         // Read the expression inside the parentheses as a new statement
         let expr = self.subshell()?;
-        // self.cursor.force_with(
-        //     space().then(of_type(TokenType::RoundedRightBracket)),
-        //     "Expected closing bracket.",
-        //     ParseErrorKind::Unpaired(self.cursor.relative_pos(&next_token.unwrap())),
-        // )?;
 
         // Finally return the expression
         Ok(Expr::Substitution(Substitution {
@@ -69,9 +64,9 @@ mod tests {
         assert_eq!(
             ast,
             Err(ParseError {
-                message: "Unexpected end of expression".to_string(),
+                message: "Expected closing bracket.".to_string(),
                 position: content.len() - 1..content.len(),
-                kind: ParseErrorKind::Unexpected
+                kind: ParseErrorKind::Unpaired(1..2)
             })
         );
     }
@@ -84,9 +79,9 @@ mod tests {
         assert_eq!(
             ast,
             Err(ParseError {
-                message: "Unexpected end of expression".to_string(),
+                message: "Expected closing bracket.".to_string(),
                 position: content.len() - 1..content.len(),
-                kind: ParseErrorKind::Unexpected
+                kind: ParseErrorKind::Unpaired(1..2)
             })
         );
     }
