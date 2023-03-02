@@ -2,9 +2,10 @@ use crate::aspects::group_parser::GroupParser;
 use crate::aspects::var_reference_parser::VarReferenceParser;
 use crate::ast::substitution::{Substitution, SubstitutionKind};
 use crate::ast::Expr;
-use crate::moves::{of_type, of_types};
+use crate::moves::{eox, MoveOperations, not, of_type, of_types};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
+use lexer::token::TokenType::{CurlyLeftBracket, Space};
 
 /// A parser for substitution expressions.
 pub(crate) trait SubstitutionParser<'a> {
@@ -20,10 +21,12 @@ impl<'a> SubstitutionParser<'a> for Parser<'a> {
         )?;
 
         // Short pass for variable references
-        if self
-            .cursor
-            .lookahead(of_type(TokenType::RoundedLeftBracket))
-            .is_none()
+        if self.cursor
+            .lookahead(
+                not(of_type(TokenType::RoundedLeftBracket))
+                    .and_then(of_types(&[Space, CurlyLeftBracket]).or(eox()))
+            )
+            .is_some()
             && start_token.token_type == TokenType::Dollar
         {
             return self.var_reference();
