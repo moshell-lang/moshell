@@ -5,12 +5,12 @@ use crate::ast::Expr;
 use crate::moves::{of_type, of_types};
 use crate::parser::{ParseResult, Parser};
 
-pub trait VarReferenceParser<'a> {
+pub trait VarReferenceAspect<'a> {
     /// Parses a variable reference.
     fn var_reference(&mut self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> VarReferenceParser<'a> for Parser<'a> {
+impl<'a> VarReferenceAspect<'a> for Parser<'a> {
     /// Parses a variable reference.
     fn var_reference(&mut self) -> ParseResult<Expr<'a>> {
         let has_bracket = self
@@ -22,26 +22,25 @@ impl<'a> VarReferenceParser<'a> for Parser<'a> {
             .force(of_types(&[
                 Identifier, IntLiteral,
                 Dollar, At, Not,
-            ]), "Expected variable name.")?;
+            ]), "Expected variable name.")?.value;
+
         if has_bracket {
             self.cursor.force(
                 of_type(CurlyRightBracket),
                 "Expected closing curly bracket.",
             )?;
         }
-        Ok(Expr::VarReference(VarReference { name: name.clone() }))
+        Ok(Expr::VarReference(VarReference { name }))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use lexer::lexer::lex;
-    use lexer::token::{Token};
 
     use crate::ast::variable::VarReference;
     use crate::ast::Expr;
     use pretty_assertions::assert_eq;
-    use lexer::token::TokenType::Identifier;
     use crate::parse;
 
     #[test]
@@ -52,7 +51,7 @@ mod tests {
             ast,
             vec![
                 Expr::VarReference(VarReference {
-                    name: Token::new(Identifier, "VARIABLE")
+                    name: "VARIABLE"
                 })
             ]
         )
@@ -66,7 +65,7 @@ mod tests {
             ast,
             vec![
                 Expr::VarReference(VarReference {
-                    name: Token::new(Identifier, "VAR")
+                    name: "VAR"
                 }),
                 Expr::Literal("IABLE".into())
             ]

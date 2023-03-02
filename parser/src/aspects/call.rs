@@ -1,4 +1,4 @@
-use crate::aspects::redirection_parser::RedirectionParser;
+use crate::aspects::redirection::RedirectionAspect;
 use crate::ast::callable::Call;
 use crate::ast::Expr;
 use crate::moves::{eox, of_types, predicate, space, spaces, MoveOperations};
@@ -6,12 +6,12 @@ use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType::{And, Or};
 
 /// A parse aspect for command and function calls
-pub trait CallParser<'a> {
+pub trait CallAspect<'a> {
     /// Attempts to parse the next call expression
     fn call(&mut self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> CallParser<'a> for Parser<'a> {
+impl<'a> CallAspect<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
         let mut arguments = vec![self.next_value()?];
         // Continue reading arguments until we reach the end of the input or a closing ponctuation

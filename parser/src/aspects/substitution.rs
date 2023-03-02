@@ -1,5 +1,5 @@
-use crate::aspects::group_parser::GroupParser;
-use crate::aspects::var_reference_parser::VarReferenceParser;
+use crate::aspects::group::GroupAspect;
+use crate::aspects::var_reference::VarReferenceAspect;
 use crate::ast::substitution::{Substitution, SubstitutionKind};
 use crate::ast::Expr;
 use crate::moves::{eox, MoveOperations, not, of_type, of_types};
@@ -8,12 +8,12 @@ use lexer::token::TokenType;
 use lexer::token::TokenType::{CurlyLeftBracket, Space};
 
 /// A parser for substitution expressions.
-pub(crate) trait SubstitutionParser<'a> {
+pub(crate) trait SubstitutionAspect<'a> {
     /// Parses a substitution expression, i.e. a variable reference or a command capture.
     fn substitution(&mut self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> SubstitutionParser<'a> for Parser<'a> {
+impl<'a> SubstitutionAspect<'a> for Parser<'a> {
     fn substitution(&mut self) -> ParseResult<Expr<'a>> {
         let start_token = self.cursor.force(
             of_types(&[TokenType::At, TokenType::Dollar]),
@@ -49,7 +49,7 @@ impl<'a> SubstitutionParser<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::aspects::substitution_parser::SubstitutionParser;
+    use crate::aspects::substitution::SubstitutionAspect;
     use crate::ast::callable::Call;
     use crate::ast::substitution::{Substitution, SubstitutionKind};
     use crate::ast::Expr;

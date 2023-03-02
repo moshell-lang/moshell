@@ -1,13 +1,12 @@
 use crate::ast::Expr;
-use lexer::token::Token;
 
 /// A typed variable.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypedVariable<'a> {
     /// The name of the variable.
-    pub name: Token<'a>,
+    pub name: &'a str,
     /// The type of the variable.
-    pub ty: Option<Token<'a>>,
+    pub ty: Option<&'a str>,
 }
 
 /// A variable declaration.
@@ -31,14 +30,14 @@ pub enum VarKind {
 #[derive(Debug, Clone, PartialEq)]
 pub struct VarReference<'a> {
     /// The name of the variable.
-    pub name: Token<'a>,
+    pub name: &'a str,
 }
 
 /// A variable assignation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Assign<'a> {
     /// The identifier of the variable.
-    pub name: Token<'a>,
+    pub name: &'a str,
     /// The value of the variable to be evaluated.
     pub value: Box<Expr<'a>>,
 }
