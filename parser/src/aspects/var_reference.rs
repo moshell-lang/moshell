@@ -43,7 +43,7 @@ mod tests {
     use crate::parser::ParseError;
 
     #[test]
-    fn test_simple_ref() {
+    fn simple_ref() {
         let tokens = lex("$VARIABLE");
         let ast = parse(tokens).expect("failed to parse");
         assert_eq!(
@@ -57,7 +57,7 @@ mod tests {
     }
 
     #[test]
-    fn test_wrapped_ref() {
+    fn wrapped_ref() {
         let tokens = lex("${VAR}IABLE");
         let ast = parse(tokens).expect("failed to parse");
         assert_eq!(
