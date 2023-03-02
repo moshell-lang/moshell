@@ -191,4 +191,63 @@ impl TokenType {
                 | TokenType::CurlyRightBracket
         )
     }
+
+    /// Get a exact string representation of the token type
+    ///
+    /// Returns `None` if the token type is not a keyword.
+    pub fn represent(self) -> Option<&'static str> {
+        match self {
+            Var => Some("var"),
+            Val => Some("val"),
+            Fun => Some("fun"),
+            Use => Some("use"),
+            If => Some("if"),
+            Then => Some("then"),
+            Else => Some("else"),
+            For => Some("for"),
+            In => Some("in"),
+            While => Some("while"),
+            Match => Some("match"),
+            Arrow => Some("->"),
+            FatArrow => Some("=>"),
+            Colon => Some(":"),
+            SemiColon => Some(";"),
+            Equal => Some("="),
+            Quote => Some("'"),
+            DoubleQuote => Some("\""),
+            Dollar => Some("$"),
+            Ampersand => Some("&"),
+            At => Some("@"),
+            Comma => Some(","),
+            Dot => Some("."),
+            Pipe => Some("|"),
+            And => Some("&&"),
+            Or => Some("||"),
+            Not => Some("!"),
+            EqualEqual => Some("=="),
+            NotEqual => Some("!="),
+            Less => Some("<"),
+            LessEqual => Some("<="),
+            Greater => Some(">"),
+            GreaterEqual => Some(">="),
+            PlusEqual => Some("+="),
+            MinusEqual => Some("-="),
+            TimesEqual => Some("*="),
+            DivideEqual => Some("/="),
+            ModuloEqual => Some("%="),
+            Plus => Some("+"),
+            Minus => Some("-"),
+            Star => Some("*"),
+            Slash => Some("/"),
+            BackSlash => Some("\\"),
+            Percent => Some("%"),
+            SquareLeftBracket => Some("["),
+            SquaredRightBracket => Some("]"),
+            RoundedLeftBracket => Some("("),
+            RoundedRightBracket => Some(")"),
+            CurlyLeftBracket => Some("{"),
+            CurlyRightBracket => Some("}"),
+            _ => None,
+        }
+    }
 }

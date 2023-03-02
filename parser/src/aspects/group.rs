@@ -27,14 +27,14 @@ pub trait GroupAspect<'a> {
 
 impl<'a> GroupAspect<'a> for Parser<'a> {
     fn block(&mut self) -> ParseResult<Block<'a>> {
-        let start = self.ensure_at_group_start(TokenType::CurlyLeftBracket, '{')?;
+        let start = self.ensure_at_group_start(TokenType::CurlyLeftBracket)?;
         Ok(Block {
             expressions: self.sub_exprs(start, TokenType::CurlyRightBracket, Parser::statement)?,
         })
     }
 
     fn subshell(&mut self) -> ParseResult<Subshell<'a>> {
-        let start = self.ensure_at_group_start(TokenType::RoundedLeftBracket, '(')?;
+        let start = self.ensure_at_group_start(TokenType::RoundedLeftBracket)?;
         Ok(Subshell {
             expressions: self.sub_exprs(
                 start,
@@ -45,7 +45,7 @@ impl<'a> GroupAspect<'a> for Parser<'a> {
     }
 
     fn parenthesis(&mut self) -> ParseResult<Parenthesis<'a>> {
-        self.ensure_at_group_start(TokenType::RoundedLeftBracket, '(')?;
+        self.ensure_at_group_start(TokenType::RoundedLeftBracket)?;
         let expr = self.value()?;
         self.cursor.force(
             repeat(spaces().then(eox())) //consume possible end of expressions
@@ -60,17 +60,14 @@ impl<'a> GroupAspect<'a> for Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn ensure_at_group_start(
-        &mut self,
-        start: TokenType,
-        start_val: char,
-    ) -> ParseResult<Token<'a>> {
-        self.cursor.force(
+    fn ensure_at_group_start(&mut self, start: TokenType) -> ParseResult<Token<'a>> {
+        self.cursor.force_with(
             of_type(start),
-            &format!(
-                "unexpected start of group expression. expected '{}', found '{}'",
-                start_val,
-                self.cursor.peek().value
+            "Unexpected start of group expression",
+            ParseErrorKind::Excepted(
+                start
+                    .represent()
+                    .expect(""),
             ),
         ) //consume group start token
     }

@@ -160,7 +160,7 @@ mod tests {
         assert_eq!(
             err,
             Err(ParseError {
-                message: "invalid infix operator, found 'a'".to_string(),
+                message: "invalid infix operator".to_string(),
                 position: content.rfind('a').map(|p| (p..p + 1)).unwrap(),
                 kind: ParseErrorKind::Unexpected,
             })

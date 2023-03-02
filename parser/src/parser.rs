@@ -121,13 +121,8 @@ impl<'a> Parser<'a> {
         let statement = self.statement();
         if statement.is_ok() {
             //consume end of expression
-            self.cursor.force(
-                eox(),
-                &format!(
-                    "expected end of expression or file, found '{}'",
-                    self.cursor.peek().value
-                ),
-            )?;
+            self.cursor
+                .force(eox(), "expected end of expression or file")?;
         };
         statement
     }
@@ -167,13 +162,7 @@ impl<'a> Parser<'a> {
         }
 
         //else, we hit an invalid binary expression.
-        self.expected(
-            &format!(
-                "invalid infix operator, found '{}'",
-                self.cursor.peek().value
-            ),
-            ParseErrorKind::Unexpected,
-        )
+        self.expected("invalid infix operator", ParseErrorKind::Unexpected)
     }
 
     //parses any binary value expression, considering given input expression
@@ -193,13 +182,7 @@ impl<'a> Parser<'a> {
         }
 
         //else, we hit an invalid binary expression.
-        self.expected(
-            &format!(
-                "invalid infix operator, found '{}'",
-                self.cursor.peek().value
-            ),
-            ParseErrorKind::Unexpected,
-        )
+        self.expected("invalid infix operator", ParseErrorKind::Unexpected)
     }
 
     //Skips spaces and verify that this parser is not parsing the end of an expression

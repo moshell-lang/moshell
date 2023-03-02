@@ -56,7 +56,7 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_next(),
             Err(ParseError {
-                message: "expected end of expression or file, found ')'".to_string(),
+                message: "expected end of expression or file".to_string(),
                 position: content.find(')').map(|p| (p..p + 1)).unwrap(),
                 kind: ParseErrorKind::Unexpected,
             })

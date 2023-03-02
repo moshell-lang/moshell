@@ -34,9 +34,6 @@ fn this_fails() -> Result<()> {
     let src = fs::read_to_string("lexer/tests/sample.msh").unwrap();
     let source = Source::new(&src, "sample.msh");
     let parsed = parse(source);
-    parsed.errors.iter().for_each(|err| {
-        println!("{:?}", err);
-    });
     let errors = parsed
         .errors
         .into_iter()
