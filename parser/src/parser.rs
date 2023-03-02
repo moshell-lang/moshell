@@ -56,12 +56,6 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// Parses an expression or binary expression.
-    pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
-        let expr = self.next_expression()?;
-        self.parse_binary_expr(expr)
-    }
-
     /// Parses a statement or binary expression.
     /// a statement is usually on a single line
     pub(crate) fn statement(&mut self) -> ParseResult<Expr<'a>> {
@@ -69,9 +63,22 @@ impl<'a> Parser<'a> {
         self.parse_binary_expr(result)
     }
 
+    /// Parses an expression-statement or binary expression.
+    pub(crate) fn expression_statement(&mut self) -> ParseResult<Expr<'a>> {
+        let expr = self.next_expression_statement()?;
+        self.parse_binary_expr(expr)
+    }
+
+    /// Parses an expression or binary expression.
+    pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
+        let expr = self.next_expression()?;
+        self.parse_binary_expr(expr)
+    }
+
     /// Parses a value or binary expression
     pub(crate) fn value(&mut self) -> ParseResult<Expr<'a>> {
         let value = self.next_value()?;
+        //values needs a different handling of right-handed binary expressions
         self.parse_binary_value_expr(value)
     }
 
@@ -81,8 +88,21 @@ impl<'a> Parser<'a> {
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
-            Identifier | Quote | DoubleQuote => self.call(),
             Var | Val => self.var_declaration(),
+
+            _ => self.next_expression_statement(),
+        }
+    }
+
+
+    ///Parse the next expression
+    pub(crate) fn next_expression_statement(&mut self) -> ParseResult<Expr<'a>> {
+        self.repos()?;
+
+        let pivot = self.cursor.peek().token_type;
+        match pivot {
+
+            Identifier | Quote | DoubleQuote => self.call(),
 
             _ => self.next_expression(),
         }
@@ -97,7 +117,10 @@ impl<'a> Parser<'a> {
             //if we are parsing an expression, then we want to see a parenthesised expr as a subshell expression
             RoundedLeftBracket => Ok(Expr::Subshell(self.subshell()?)),
             SquaredLeftBracket => self.parse_test(),
-            Not => self.not(Parser::next_expression),
+
+            Not => self.not(Parser::next_expression_statement),
+
+
             _ => self.next_value(),
         }
     }
@@ -110,6 +133,9 @@ impl<'a> Parser<'a> {
         match pivot {
             RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
             CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
+            //test expressions has nothing to do in a value expression.
+            SquaredLeftBracket => self.expected("Unexpected start of test expression"),
+
             Not => self.not(Parser::next_value),
 
             IntLiteral | FloatLiteral => self.literal(),
@@ -158,7 +184,7 @@ impl<'a> Parser<'a> {
         }
 
         if self.cursor.lookahead(of_types(&[Or, And])).is_some() {
-            return self.binary_operation_right(expr, Parser::next_statement);
+            return self.binary_operation_right(expr, Parser::next_expression_statement);
         }
 
         //now, we know that there is something right after the expression.

@@ -74,7 +74,7 @@ mod tests {
 
 
     #[test]
-    fn test_native_empty() {
+    fn native_empty() {
         let result = parse(lex("[]"));
         assert_eq!(
             result,
@@ -85,7 +85,18 @@ mod tests {
     }
 
     #[test]
-    fn test_call_empty() {
+    fn native_empty_not() {
+        let result = parse(lex("[! ]"));
+        assert_eq!(
+            result,
+            Err(ParseError {
+                message: "Unexpected closing bracket.".to_string()
+            })
+        )
+    }
+
+    #[test]
+    fn call_empty() {
         let result = parse(lex("[[]]")).expect("parsing failed");
         assert_eq!(
             result,
@@ -98,7 +109,7 @@ mod tests {
     }
 
     #[test]
-    fn test_call_with_content() {
+    fn call_with_content() {
         let result = parse(lex("[[48 -gt 100]]")).expect("parsing failed");
         assert_eq!(
             result,
@@ -122,7 +133,7 @@ mod tests {
     }
 
     #[test]
-    fn test_native_test() {
+    fn test_integration() {
         let result = parse(lex("echo && [ ($a == $b) ] || [[ $x ]]")).expect("parse error");
         assert_eq!(
             result,
@@ -164,18 +175,63 @@ mod tests {
     }
 
     #[test]
-    fn test_test_in_test() {
+    fn test_in_test() {
         let result = parse(lex("[ test == [] ]"));
         assert_eq!(
             result,
             Err(ParseError {
-                message: "wtf".to_string()
+                message: "Unexpected start of test expression".to_string()
             })
         )
     }
 
     #[test]
-    fn test_not() {
+    fn unclosed_test() {
+        let result = parse(lex("[ test == $USER "));
+        assert_eq!(
+            result,
+            Err(ParseError {
+                message: "missing ']'".to_string()
+            })
+        )
+    }
+
+    #[test]
+    fn unclosed_test_call() {
+        let result = parse(lex("[[ test == $USER "));
+        assert_eq!(
+            result,
+            Err(ParseError {
+                message: "missing ']]'".to_string()
+            })
+        )
+    }
+
+    #[test]
+    fn not_call() {
+        let result = parse(lex("!grep -E '^[0-9]+$'")).expect("parse fail");
+        assert_eq!(
+            result,
+            vec![
+                Expr::Not(Not {
+                    right: Box::new(Expr::Call(Call {
+                        arguments: vec![
+                            Expr::Literal("grep".into()),
+                            Expr::Literal("-E".into()),
+                            Expr::Literal(Literal {
+                                lexme: "'^[0-9]+$'",
+                                parsed: LiteralValue::String("^[0-9]+$".to_string())
+                            })
+                        ]
+                    }))
+                })
+            ]
+        )
+
+    }
+
+    #[test]
+    fn not() {
         let result = parse(lex("! ($a && $b) || ! $c == 78")).expect("parse error");
         assert_eq!(
             result,

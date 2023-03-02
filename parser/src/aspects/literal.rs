@@ -254,7 +254,7 @@ mod tests {
     #[test]
     fn string_literal() {
         let tokens = lex("'hello $world! $(this is a test) @(of course)'");
-        let parsed = Parser::new(tokens).expression().expect("Failed to parse.");
+        let parsed = Parser::new(tokens).value().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
@@ -267,7 +267,7 @@ mod tests {
     #[test]
     fn escaped_literal() {
         let tokens = lex("a\\a");
-        let parsed = Parser::new(tokens).expression().expect("Failed to parse.");
+        let parsed = Parser::new(tokens).value().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Literal(Literal {

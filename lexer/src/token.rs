@@ -20,7 +20,7 @@ pub enum TokenType {
     #[token("val")]
     Val,
 
-    #[regex("[^;:<>|&\\s'\\[\\]\"$\\\\)(*+-/=;:}{,@}]+")]
+    #[regex("[^;:<>|&\\s'\\[\\]\"$\\\\)(*+-/=!;:}{,@}]+")]
     Identifier,
 
     #[regex("-?[0-9]+", priority = 2)]
