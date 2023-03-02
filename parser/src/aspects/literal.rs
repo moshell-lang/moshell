@@ -1,6 +1,6 @@
 use std::num::IntErrorKind;
 
-use crate::aspects::substitution_parser::SubstitutionParser;
+use crate::aspects::substitution::SubstitutionAspect;
 use lexer::token::TokenType;
 
 use crate::ast::literal::{Literal, LiteralValue};
@@ -11,7 +11,7 @@ use crate::parser::{ParseResult, Parser};
 use crate::source::try_join_str;
 
 /// A trait that contains all the methods for parsing literals.
-pub(crate) trait LiteralParser<'a> {
+pub(crate) trait LiteralAspect<'a> {
     /// Parses a number-like literal expression.
     fn literal(&mut self) -> ParseResult<Expr<'a>>;
 
@@ -32,7 +32,7 @@ pub(crate) trait LiteralParser<'a> {
     fn parse_literal(&mut self) -> ParseResult<LiteralValue>;
 }
 
-impl<'a> LiteralParser<'a> for Parser<'a> {
+impl<'a> LiteralAspect<'a> for Parser<'a> {
     fn literal(&mut self) -> ParseResult<Expr<'a>> {
         Ok(Expr::Literal(Literal {
             lexme: self.cursor.peek().value,

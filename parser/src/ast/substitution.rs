@@ -1,10 +1,10 @@
-use crate::ast::Expr;
+use crate::ast::group::Subshell;
 
 /// A special type of grouping expression that should be substituted
 /// based on its expression and kind.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Substitution<'a> {
-    pub expr: Box<Expr<'a>>,
+    pub underlying: Subshell<'a>,
     pub kind: SubstitutionKind,
 }
 

@@ -1,14 +1,14 @@
 use crate::ast::callable::{Call, FunDeclaration, Pipeline, Redirected};
+use crate::ast::group::{Block, Parenthesis, Subshell};
 use crate::ast::literal::Literal;
 use crate::ast::operation::BinaryOperation;
-use crate::ast::statement::Block;
 use crate::ast::substitution::Substitution;
 use crate::ast::variable::{Assign, VarDeclaration, VarReference};
 
 pub mod callable;
+pub mod group;
 pub mod literal;
 pub mod operation;
-pub mod statement;
 pub mod substitution;
 pub mod variable;
 
@@ -24,7 +24,16 @@ pub enum Expr<'a> {
     Redirected(Redirected<'a>),
     Substitution(Substitution<'a>),
     TemplateString(Vec<Expr<'a>>),
+
+    //var / val handling expressions
     VarReference(VarReference<'a>),
     VarDeclaration(VarDeclaration<'a>),
+
+    //Grouping expressions
+    /// a parenthesis expression `( ... )` that contains one value expression
+    Parenthesis(Parenthesis<'a>),
+    /// a subshell expression `( ... )` that contains several expressions
+    Subshell(Subshell<'a>),
+    /// a block expression `{ ... }` that contains several expressions
     Block(Block<'a>),
 }

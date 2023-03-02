@@ -56,7 +56,7 @@ impl<'a> ParseReport<'a> {
         if self.is_ok() {
             self.expr
         } else {
-            panic!("{}", msg)
+            panic!("{} {:?}", msg, self.errors)
         }
     }
 

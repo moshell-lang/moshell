@@ -1,5 +1,5 @@
-use lexer::token::{Token, TokenType};
 use parser::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
+use parser::ast::group::Subshell;
 use parser::ast::literal::Literal;
 use parser::ast::substitution::{Substitution, SubstitutionKind};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
@@ -18,7 +18,7 @@ fn with_lexer_variable() {
         vec![Expr::VarDeclaration(VarDeclaration {
             kind: VarKind::Var,
             var: TypedVariable {
-                name: Token::new(TokenType::Identifier, "a"),
+                name: "a",
                 ty: None,
             },
             initializer: Some(Box::new(Expr::Literal(Literal {
@@ -43,9 +43,7 @@ fn with_lexer_var_reference_one() {
                     lexme: "'$var5'",
                     parsed: "$var5".into(),
                 }),
-                Expr::VarReference(VarReference {
-                    name: Token::new(TokenType::Identifier, "var5"),
-                }),
+                Expr::VarReference(VarReference { name: "var5" }),
             ],
         })]
     );
@@ -62,14 +60,10 @@ fn with_lexer_var_reference_two() {
             arguments: vec![
                 Expr::TemplateString(vec![
                     Expr::Literal("fake".into()),
-                    Expr::VarReference(VarReference {
-                        name: Token::new(TokenType::Identifier, "cmd"),
-                    }),
+                    Expr::VarReference(VarReference { name: "cmd" }),
                 ]),
                 Expr::Literal("do".into()),
-                Expr::VarReference(VarReference {
-                    name: Token::new(TokenType::Identifier, "arg2"),
-                }),
+                Expr::VarReference(VarReference { name: "arg2" }),
             ],
         })]
     );
@@ -87,16 +81,10 @@ fn with_lexer_var_reference_three() {
                 Expr::Literal("echo".into()),
                 Expr::TemplateString(vec![
                     Expr::Literal("hello ".into()),
-                    Expr::VarReference(VarReference {
-                        name: Token::new(TokenType::Identifier, "world"),
-                    }),
+                    Expr::VarReference(VarReference { name: "world" }),
                     Expr::Literal(" everyone ".into()),
-                    Expr::VarReference(VarReference {
-                        name: Token::new(TokenType::Identifier, "verb"),
-                    }),
-                    Expr::VarReference(VarReference {
-                        name: Token::new(TokenType::Identifier, "ready"),
-                    }),
+                    Expr::VarReference(VarReference { name: "verb" }),
+                    Expr::VarReference(VarReference { name: "ready" }),
                     Expr::Literal("!".into()),
                 ]),
             ],
@@ -242,9 +230,11 @@ fn with_lexer_substitution() {
             arguments: vec![
                 Expr::Literal("echo".into()),
                 Expr::Substitution(Substitution {
-                    expr: Box::new(Expr::Call(Call {
-                        arguments: vec![Expr::Literal("ls".into()), Expr::Literal("-l".into()),],
-                    })),
+                    underlying: Subshell {
+                        expressions: vec![Expr::Call(Call {
+                            arguments: vec![Expr::Literal("ls".into()), Expr::Literal("-l".into())],
+                        })]
+                    },
                     kind: SubstitutionKind::Capture,
                 }),
             ],
@@ -262,20 +252,24 @@ fn with_lexer_substitution_in_substitution() {
             arguments: vec![
                 Expr::Literal("echo".into()),
                 Expr::Substitution(Substitution {
-                    expr: Box::new(Expr::Call(Call {
-                        arguments: vec![
-                            Expr::Literal("ls".into()),
-                            Expr::TemplateString(vec![
-                                Expr::Substitution(Substitution {
-                                    expr: Box::new(Expr::Call(Call {
-                                        arguments: vec![Expr::Literal("pwd".into())],
-                                    })),
-                                    kind: SubstitutionKind::Capture,
-                                }),
-                                Expr::Literal("/test".into()),
-                            ]),
-                        ],
-                    })),
+                    underlying: Subshell {
+                        expressions: vec![Expr::Call(Call {
+                            arguments: vec![
+                                Expr::Literal("ls".into()),
+                                Expr::TemplateString(vec![
+                                    Expr::Substitution(Substitution {
+                                        underlying: Subshell {
+                                            expressions: vec![Expr::Call(Call {
+                                                arguments: vec![Expr::Literal("pwd".into())]
+                                            })],
+                                        },
+                                        kind: SubstitutionKind::Capture,
+                                    }),
+                                    Expr::Literal("/test".into()),
+                                ]),
+                            ],
+                        })]
+                    },
                     kind: SubstitutionKind::Capture,
                 }),
             ],
@@ -292,13 +286,15 @@ fn with_lexer_here_invoke() {
         vec![Expr::VarDeclaration(VarDeclaration {
             kind: VarKind::Val,
             var: TypedVariable {
-                name: Token::new(TokenType::Identifier, "valid"),
+                name: "valid",
                 ty: None,
             },
             initializer: Some(Box::new(Expr::Substitution(Substitution {
-                expr: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("nginx".into()), Expr::Literal("-t".into()),],
-                })),
+                underlying: Subshell {
+                    expressions: vec![Expr::Call(Call {
+                        arguments: vec![Expr::Literal("nginx".into()), Expr::Literal("-t".into())]
+                    })],
+                },
                 kind: SubstitutionKind::Return,
             }))),
         })]

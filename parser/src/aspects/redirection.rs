@@ -1,45 +1,26 @@
-use crate::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
+use crate::aspects::call::CallAspect;
+use crate::ast::callable::{Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use crate::ast::Expr;
 use crate::err::ParseErrorKind;
-use crate::moves::{eox, next, of_type, of_types, predicate, space, spaces, MoveOperations};
+use crate::moves::{eox, next, of_type, of_types, space, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
+use lexer::token::TokenType::{BackSlash, DoubleQuote, Quote};
 
-/// A parse aspect for command and function calls
-pub trait CallParser<'a> {
-    /// Attempts to parse the next call expression
-    fn call(&mut self) -> ParseResult<Expr<'a>>;
+pub(crate) trait RedirectionAspect<'a> {
     /// Attempts to parse the next pipeline expression
+    /// inputs an "end of call" statements to determine where the call can stop.
     fn pipeline(&mut self, first_call: Expr<'a>) -> ParseResult<Expr<'a>>;
     /// Attempts to parse the next redirection
     fn redirection(&mut self) -> ParseResult<Redir<'a>>;
     /// Associates any potential redirections to a redirectable expression
     fn redirectable(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
+
     /// Tests if the current and subsequent tokens can be part of a redirection expression
-    fn is_redirection_sign(&self) -> bool;
+    fn is_at_redirection_sign(&self) -> bool;
 }
 
-impl<'a> CallParser<'a> for Parser<'a> {
-    fn call(&mut self) -> ParseResult<Expr<'a>> {
-        let mut arguments = vec![self.expression()?];
-        // Continue reading arguments until we reach the end of the input or a closing ponctuation
-        while !self.cursor.is_at_end()
-            && self
-                .cursor
-                .lookahead(
-                    spaces().then(eox().or(predicate(|t| t.token_type.is_closing_ponctuation()))),
-                )
-                .is_none()
-        {
-            self.cursor.advance(space());
-            if self.is_redirection_sign() {
-                return self.redirectable(Expr::Call(Call { arguments }));
-            }
-            arguments.push(self.expression()?);
-        }
-        Ok(Expr::Call(Call { arguments }))
-    }
-
+impl<'a> RedirectionAspect<'a> for Parser<'a> {
     fn pipeline(&mut self, first_call: Expr<'a>) -> ParseResult<Expr<'a>> {
         let mut commands = vec![first_call];
         // Continue as long as we have a pipe
@@ -114,7 +95,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
             };
         }
 
-        let operand = self.expression()?;
+        let operand = self.next_expression()?;
         Ok(Redir {
             fd,
             operator,
@@ -125,11 +106,13 @@ impl<'a> CallParser<'a> for Parser<'a> {
     fn redirectable(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
         let mut redirections = vec![];
         self.cursor.advance(spaces());
+
         while self.cursor.lookahead(eox()).is_none() {
             match self.cursor.peek().token_type {
                 TokenType::Ampersand | TokenType::Less | TokenType::Greater => {
                     redirections.push(self.redirection()?);
                 }
+
                 TokenType::Pipe => {
                     return self.pipeline(expr);
                 }
@@ -145,6 +128,7 @@ impl<'a> CallParser<'a> for Parser<'a> {
             };
             self.cursor.advance(spaces());
         }
+
         if redirections.is_empty() {
             Ok(expr)
         } else {
@@ -155,9 +139,20 @@ impl<'a> CallParser<'a> for Parser<'a> {
         }
     }
 
-    fn is_redirection_sign(&self) -> bool {
-        match self.cursor.peek().token_type {
+    fn is_at_redirection_sign(&self) -> bool {
+        //handle escaped redirection signs (can be \\ for one-character signs or quoted signs)
+        if self
+            .cursor
+            .lookahead(of_types(&[BackSlash, Quote, DoubleQuote]))
+            .is_some()
+        {
+            return false;
+        }
+
+        let pivot = self.cursor.peek().token_type;
+        match pivot {
             TokenType::Ampersand | TokenType::Less | TokenType::Greater | TokenType::Pipe => true,
+            //search for '>' or '<' in case of std-determined redirection sign (ex: 2>>)
             _ => self
                 .cursor
                 .lookahead(next().then(of_types(&[TokenType::Less, TokenType::Greater])))
@@ -167,9 +162,12 @@ impl<'a> CallParser<'a> for Parser<'a> {
 }
 
 #[cfg(test)]
-mod tests {
-    use crate::aspects::call_parser::CallParser;
+mod test {
+    use pretty_assertions::assert_eq;
+
+    use crate::aspects::call::CallAspect;
     use crate::ast::callable::{Call, Redir, RedirFd, RedirOp, Redirected};
+    use crate::ast::group::Block;
     use crate::ast::literal::Literal;
     use crate::ast::Expr;
     use crate::parse;
@@ -177,7 +175,33 @@ mod tests {
     use crate::source::Source;
 
     #[test]
-    fn redirection() {
+    fn expr_redirection() {
+        let source = Source::unknown("{ls; cd;} > /tmp/out");
+        let parsed = parse(source).expect("Failed to parse");
+        assert_eq!(
+            parsed,
+            vec![Expr::Redirected(Redirected {
+                expr: Box::new(Expr::Block(Block {
+                    expressions: vec![
+                        Expr::Call(Call {
+                            arguments: vec![Expr::Literal("ls".into())]
+                        }),
+                        Expr::Call(Call {
+                            arguments: vec![Expr::Literal("cd".into())]
+                        }),
+                    ]
+                })),
+                redirections: vec![Redir {
+                    operator: RedirOp::Write,
+                    fd: RedirFd::Default,
+                    operand: Expr::Literal("/tmp/out".into()),
+                }],
+            }),]
+        );
+    }
+
+    #[test]
+    fn call_redirection() {
         let source = Source::unknown("ls> /tmp/out");
         let parsed = Parser::new(source).call().expect("Failed to parse");
         assert_eq!(

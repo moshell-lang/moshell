@@ -16,34 +16,34 @@ pub trait Move {
 }
 
 ///Defines operations over a Move struct.
-pub(crate) trait MoveOperations<This: Move> {
+pub(crate) trait MoveOperations<This: Move + Copy> {
     ///Used to chain `This` move with `other` move.
     /// returns a move that will first execute this move then other one only if this first succeeded.
-    fn and_then<B: Move>(self, other: B) -> AndThenMove<This, B>;
+    fn and_then<B: Move + Copy>(self, other: B) -> AndThenMove<This, B>;
 
     ///Used to bind `This` move with `other` move.
     /// returns a move that will first execute this move then the other one.
-    fn then<B: Move>(self, other: B) -> ThenMove<This, B>;
+    fn then<B: Move + Copy>(self, other: B) -> ThenMove<This, B>;
 
     ///Used to execute `This` or else other if `This` fails
     /// returned move is a move that executes either this or other if this move fails.
-    fn or<B: Move>(self, other: B) -> OrMove<This, B>;
+    fn or<B: Move + Copy>(self, other: B) -> OrMove<This, B>;
 }
 
-impl<A: Move> MoveOperations<A> for A {
-    fn and_then<B: Move>(self, other: B) -> AndThenMove<Self, B> {
+impl<A: Move + Copy> MoveOperations<A> for A {
+    fn and_then<B: Move + Copy>(self, other: B) -> AndThenMove<Self, B> {
         AndThenMove {
             left: self,
             right: other,
         }
     }
-    fn then<B: Move>(self, other: B) -> ThenMove<Self, B> {
+    fn then<B: Move + Copy>(self, other: B) -> ThenMove<Self, B> {
         ThenMove {
             left: self,
             right: other,
         }
     }
-    fn or<B: Move>(self, other: B) -> OrMove<Self, B> {
+    fn or<B: Move + Copy>(self, other: B) -> OrMove<Self, B> {
         OrMove {
             left: self,
             right: other,
@@ -52,10 +52,10 @@ impl<A: Move> MoveOperations<A> for A {
 }
 
 ///A Move that only move over one token and only if it satisfies its predicate.
-#[derive()]
+#[derive(Copy, Clone)]
 pub(crate) struct PredicateMove<P>
 where
-    P: Fn(Token) -> bool,
+    P: Fn(Token) -> bool + Copy,
 {
     ///The used predicate
     predicate: P,
@@ -63,10 +63,10 @@ where
 
 impl<P> PredicateMove<P>
 where
-    P: Fn(Token) -> bool,
+    P: Fn(Token) -> bool + Copy,
 {
     /// Invert the current predicate.
-    pub fn negate(self) -> PredicateMove<impl Fn(Token) -> bool> {
+    pub fn negate(self) -> PredicateMove<impl Fn(Token) -> bool + Copy> {
         PredicateMove {
             predicate: move |t| !(self.predicate)(t),
         }
@@ -75,13 +75,13 @@ where
 
 impl<P> Move for PredicateMove<P>
 where
-    P: Fn(Token) -> bool,
+    P: Fn(Token) -> bool + Copy,
 {
     fn apply<'a, F>(&self, mut at: F, pos: usize) -> Option<usize>
     where
         F: FnMut(usize) -> Token<'a>,
     {
-        let t = at(pos);
+        let t: Token = at(pos);
         (self.predicate)(t).then_some(pos + 1)
     }
 }
@@ -91,18 +91,18 @@ where
 /// * `predicate` - the predicate to satisfy
 pub(crate) fn predicate<P>(predicate: P) -> PredicateMove<P>
 where
-    P: Fn(Token) -> bool,
+    P: Fn(Token) -> bool + Copy,
 {
     PredicateMove { predicate }
 }
 
 ///Move to next token if its type is in the given set
 /// * `set` - the set of TokenType to satisfy
-pub(crate) fn of_types(set: &[TokenType]) -> PredicateMove<impl Fn(Token) -> bool + '_> {
+pub(crate) fn of_types(set: &[TokenType]) -> PredicateMove<impl Fn(Token) -> bool + '_ + Copy> {
     predicate(move |token| set.contains(&token.token_type))
 }
 
-pub(crate) fn of_type(tpe: TokenType) -> PredicateMove<impl Fn(Token) -> bool> {
+pub(crate) fn of_type(tpe: TokenType) -> PredicateMove<impl Fn(Token) -> bool + Copy> {
     predicate(move |token| tpe == token.token_type)
 }
 
@@ -121,30 +121,36 @@ pub(crate) fn fail() -> PredicateMove<fn(Token) -> bool> {
     predicate(|_| false)
 }
 
+///A move that consumes noting
+pub(crate) fn none() -> PredicateMove<fn(Token) -> bool> {
+    predicate(|_| false)
+}
+
 ///Move to next token if it's not a space
-pub(crate) fn no_space() -> PredicateMove<impl for<'a> Fn(Token<'a>) -> bool> {
+pub(crate) fn no_space() -> PredicateMove<impl for<'a> Fn(Token<'a>) -> bool + Copy> {
     of_type(Space).negate()
 }
 
 ///Move to next token if it's a space
-pub(crate) fn space() -> PredicateMove<impl for<'a> Fn(Token<'a>) -> bool> {
+pub(crate) fn space() -> PredicateMove<impl for<'a> Fn(Token<'a>) -> bool + Copy> {
     of_type(Space)
 }
 
 ///repeats until it finds a token that's not a space
-pub(crate) fn spaces() -> impl Move {
+pub(crate) fn spaces() -> RepeatedMove<PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>> {
     repeat_n(1, space())
 }
 
-/// A RepeatedMove is a special kind of move that will repeat as long as the underlying move succeeds.
-#[derive()]
-pub(crate) struct RepeatedMove<M: Move> {
+/// A RepeatedMove is a special kind of move that will repeat as long as the underlying move succeeds
+/// and until it hits the end of token stream.
+#[derive(Copy, Clone)]
+pub(crate) struct RepeatedMove<M: Move + Copy> {
     underlying: M,
     min: isize,
     max: isize,
 }
 
-impl<M: Move> Move for RepeatedMove<M> {
+impl<M: Move + Copy> Move for RepeatedMove<M> {
     fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
     where
         F: Fn(usize) -> Token<'a>,
@@ -157,6 +163,11 @@ impl<M: Move> Move for RepeatedMove<M> {
             if self.max != -1 && repeats > self.max {
                 return None; // we exceeded the maximum amount of repetitions.
             }
+
+            if at(current_pos).token_type == EndOfFile {
+                //we hit eof
+                break;
+            }
         }
         // We do not repeated enough time to satisfy this movement
         if self.min != -1 && repeats < self.min {
@@ -166,9 +177,10 @@ impl<M: Move> Move for RepeatedMove<M> {
     }
 }
 
-///Repeats the given move until it fails, exiting on the first token that made the underlying move fail.
+///Repeats the given move until it fails,
+/// exiting on the first token that made the underlying move fail or if it hits EOF.
 /// NOTE: a repeat always succeed
-pub(crate) fn repeat<M: Move>(mov: M) -> RepeatedMove<M> {
+pub(crate) fn repeat<M: Move + Copy>(mov: M) -> RepeatedMove<M> {
     RepeatedMove {
         underlying: mov,
         min: -1,
@@ -176,10 +188,11 @@ pub(crate) fn repeat<M: Move>(mov: M) -> RepeatedMove<M> {
     }
 }
 
-///Repeat at least n times the given move until it fails, exiting on the first token that made the underlying move fail.
-/// /// if the number of repetition is strictly inferior than n, the move fails
+///Repeat at least n times the given move until it fails,
+/// exiting on the first token that made the underlying move fail or if it hits EOF.
+/// if the number of repetition is strictly inferior than n, the move fails
 /// NOTE: a repeat always succeed
-pub(crate) fn repeat_n<M: Move>(n: usize, mov: M) -> RepeatedMove<M> {
+pub(crate) fn repeat_n<M: Move + Copy>(n: usize, mov: M) -> RepeatedMove<M> {
     RepeatedMove {
         underlying: mov,
         min: n as isize,
@@ -187,11 +200,12 @@ pub(crate) fn repeat_n<M: Move>(n: usize, mov: M) -> RepeatedMove<M> {
     }
 }
 
-///Repeats between n and m times the given move until it fails, exiting on the first token that made the underlying move fail.
+///Repeats between n and m times the given move until it fails,
+/// exiting on the first token that made the underlying move fail or if it hits EOF.
 /// if the number of repetition is strictly inferior than n, the move fails
 /// if the number of repetition is strictly superior than m, the move also fails
 /// NOTE: a repeat always succeed
-pub(crate) fn repeat_nm<M: Move>(n: usize, m: usize, mov: M) -> RepeatedMove<M> {
+pub(crate) fn repeat_nm<M: Move + Copy>(n: usize, m: usize, mov: M) -> RepeatedMove<M> {
     RepeatedMove {
         underlying: mov,
         min: n as isize,
@@ -200,16 +214,16 @@ pub(crate) fn repeat_nm<M: Move>(n: usize, m: usize, mov: M) -> RepeatedMove<M> 
 }
 
 ///Execute origin and then, if it succeeds, execute the other
-#[derive()]
-pub(crate) struct AndThenMove<A: Move, B: Move> {
+#[derive(Copy, Clone)]
+pub(crate) struct AndThenMove<A: Move + Copy, B: Move + Copy> {
     left: A,
     right: B,
 }
 
-impl<A: Move, B: Move> Move for AndThenMove<A, B> {
-    fn apply<'b, F>(&self, at: F, pos: usize) -> Option<usize>
+impl<A: Move + Copy, B: Move + Copy> Move for AndThenMove<A, B> {
+    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
     where
-        F: Fn(usize) -> Token<'b>,
+        F: Fn(usize) -> Token<'a>,
     {
         self.left
             .apply(&at, pos)
@@ -218,16 +232,16 @@ impl<A: Move, B: Move> Move for AndThenMove<A, B> {
 }
 
 ///Execute origin and then, if it succeeds, execute the other
-#[derive()]
-pub(crate) struct ThenMove<A: Move, B: Move> {
+#[derive(Copy, Clone)]
+pub(crate) struct ThenMove<A: Move + Copy, B: Move + Copy> {
     left: A,
     right: B,
 }
 
-impl<A: Move, B: Move> Move for ThenMove<A, B> {
-    fn apply<'b, F>(&self, at: F, mut pos: usize) -> Option<usize>
+impl<A: Move + Copy, B: Move + Copy> Move for ThenMove<A, B> {
+    fn apply<'a, F>(&self, at: F, mut pos: usize) -> Option<usize>
     where
-        F: Fn(usize) -> Token<'b>,
+        F: Fn(usize) -> Token<'a>,
     {
         if let Some(new_pos) = self.left.apply(&at, pos) {
             pos = new_pos
@@ -237,16 +251,16 @@ impl<A: Move, B: Move> Move for ThenMove<A, B> {
 }
 
 ///Execute left or right.
-#[derive()]
-pub(crate) struct OrMove<A: Move, B: Move> {
+#[derive(Copy, Clone)]
+pub(crate) struct OrMove<A: Move + Copy, B: Move + Copy> {
     left: A,
     right: B,
 }
 
-impl<A: Move, B: Move> Move for OrMove<A, B> {
-    fn apply<'b, F>(&self, at: F, pos: usize) -> Option<usize>
+impl<A: Move + Copy, B: Move + Copy> Move for OrMove<A, B> {
+    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
     where
-        F: Fn(usize) -> Token<'b>,
+        F: Fn(usize) -> Token<'a>,
     {
         self.left
             .apply(&at, pos)
@@ -256,23 +270,51 @@ impl<A: Move, B: Move> Move for OrMove<A, B> {
 
 //////////////////// STANDARD MOVES ////////////////////
 
-///a move to consume semicolons or new lines as long as they are not escaped.
-pub(crate) fn eox() -> OrMove<
+///End of _group_ Delimiter, any closing punctuation as long as they are unescaped
+pub(crate) fn eod() -> OrMove<
     AndThenMove<
-        PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool)>,
-        PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool)>,
+        PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
+        PredicateMove<for<'a> fn(Token<'a>) -> bool>,
     >,
-    PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool)>,
+    PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
 > {
-    //if it's escaped then it's not an EOX
-    (of_type(BackSlash).and_then(escapable().negate()))
-        //else it must be either new line or ';'
-        .or(of_types(&[NewLine, SemiColon]))
+    unescaped(predicate(|t| t.token_type.is_closing_ponctuation()))
 }
 
+///a move to consume default eox tokens as long as they are not escaped.
+/// default eox tokens are semicolon (;) and newline (\n)
+pub(crate) fn eox() -> OrMove<
+    AndThenMove<
+        PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
+        PredicateMove<for<'a> fn(Token<'a>) -> bool>,
+    >,
+    PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
+> {
+    unescaped(of_types(&[NewLine, SemiColon, EndOfFile]))
+}
 ///a move that consumes a character if it can be escaped.
-pub(crate) fn escapable() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool)> {
+pub(crate) fn escapable() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
     predicate(|t| t.token_type.is_ponctuation())
+}
+
+pub(crate) fn unescaped<M: Move + Copy>(
+    eox: M,
+) -> OrMove<
+    AndThenMove<
+        PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
+        PredicateMove<for<'a> fn(Token<'a>) -> bool>,
+    >,
+    M,
+> {
+    //if it's escaped then it's a fail
+    (of_type(BackSlash).and_then(fail()))
+        //else it must be caller-delimited
+        .or(eox)
+}
+
+///a move that consumes a binary operation character
+pub(crate) fn bin_op() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
+    predicate(|t| t.token_type.is_bin_operator())
 }
 
 #[cfg(test)]
@@ -289,13 +331,5 @@ mod tests {
         let cursor = ParserCursor::new(tokens);
         let result = cursor.lookahead(eox());
         assert_eq!(result, Some(Token::new(TokenType::SemiColon, ";")));
-    }
-
-    #[test]
-    fn eox_move_escaped() {
-        let tokens = lex("\\;");
-        let cursor = ParserCursor::new(tokens);
-        let result = cursor.lookahead(eox());
-        assert_eq!(result, None);
     }
 }
