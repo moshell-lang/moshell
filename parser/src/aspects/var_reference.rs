@@ -41,14 +41,14 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     #[test]
-    fn test_simple_ref() {
+    fn simple_ref() {
         let source = Source::unknown("$VARIABLE");
         let ast = Parser::new(source).substitution().expect("failed to parse");
         assert_eq!(ast, Expr::VarReference(VarReference { name: "VARIABLE" }))
     }
 
     #[test]
-    fn test_wrapped_ref() {
+    fn wrapped_ref() {
         let source = Source::unknown("${VAR}IABLE");
         let ast = Parser::new(source).substitution().expect("failed to parse");
         assert_eq!(ast, Expr::VarReference(VarReference { name: "VAR" }))

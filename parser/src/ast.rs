@@ -3,6 +3,7 @@ use crate::ast::group::{Block, Parenthesis, Subshell};
 use crate::ast::literal::Literal;
 use crate::ast::operation::BinaryOperation;
 use crate::ast::substitution::Substitution;
+use crate::ast::test::{Not, Test};
 use crate::ast::variable::{Assign, VarDeclaration, VarReference};
 
 pub mod callable;
@@ -10,6 +11,7 @@ pub mod group;
 pub mod literal;
 pub mod operation;
 pub mod substitution;
+pub mod test;
 pub mod variable;
 
 /// A expression that can be evaluated.
@@ -24,6 +26,9 @@ pub enum Expr<'a> {
     Redirected(Redirected<'a>),
     Substitution(Substitution<'a>),
     TemplateString(Vec<Expr<'a>>),
+
+    Test(Test<'a>),
+    Not(Not<'a>),
 
     //var / val handling expressions
     VarReference(VarReference<'a>),

@@ -9,11 +9,19 @@ use lexer::token::TokenType::{And, Or};
 pub trait CallAspect<'a> {
     /// Attempts to parse the next call expression
     fn call(&mut self) -> ParseResult<Expr<'a>>;
+
+    /// Continues to parse a call expression from a known command name expression
+    fn call_arguments(&mut self, command: Expr<'a>) -> ParseResult<Expr<'a>>;
 }
 
 impl<'a> CallAspect<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
-        let mut arguments = vec![self.next_value()?];
+        let cmd = self.next_value()?;
+        self.call_arguments(cmd)
+    }
+
+    fn call_arguments(&mut self, command: Expr<'a>) -> ParseResult<Expr<'a>> {
+        let mut arguments = vec![command];
         // Continue reading arguments until we reach the end of the input or a closing ponctuation
         while !self.cursor.is_at_end()
             && self

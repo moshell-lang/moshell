@@ -4,5 +4,6 @@ pub(super) mod group;
 pub(super) mod literal;
 pub(super) mod redirection;
 pub(super) mod substitution;
+pub(super) mod test;
 pub(super) mod var_declaration;
 pub(super) mod var_reference;

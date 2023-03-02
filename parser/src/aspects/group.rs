@@ -133,7 +133,7 @@ mod tests {
 
     //noinspection DuplicatedCode
     #[test]
-    fn test_empty_blocks() {
+    fn empty_blocks() {
         let source = Source::unknown("{{{}; {}}}");
         let mut parser = Parser::new(source);
         let ast = parser.block().expect("failed to parse block");
@@ -157,7 +157,7 @@ mod tests {
 
     //noinspection DuplicatedCode
     #[test]
-    fn test_empty_blocks_empty_content() {
+    fn empty_blocks_empty_content() {
         let source = Source::unknown("{;;{;;;{;;}; {\n\n};}}");
         let mut parser = Parser::new(source);
         let ast = parser.block().expect("failed to parse block");
@@ -180,28 +180,28 @@ mod tests {
     }
 
     #[test]
-    fn test_block_not_ended() {
+    fn block_not_ended() {
         let source = Source::unknown("{ val test = 2 ");
         let mut parser = Parser::new(source);
         parser.block().expect_err("block parse did not failed");
     }
 
     #[test]
-    fn test_neighbour_blocks() {
+    fn neighbour_parenthesis() {
         let source = Source::unknown("{ {} {} }");
         let mut parser = Parser::new(source);
         parser.block().expect_err("block parse did not failed");
     }
 
     #[test]
-    fn test_block_not_started() {
+    fn block_not_started() {
         let source = Source::unknown(" val test = 2 }");
         let mut parser = Parser::new(source);
         parser.block().expect_err("block parse did not failed");
     }
 
     #[test]
-    fn test_block_with_nested_blocks() {
+    fn block_with_nested_blocks() {
         let source = Source::unknown(
             "\
         {\
@@ -279,7 +279,7 @@ mod tests {
     }
 
     #[test]
-    fn test_block() {
+    fn block() {
         let source = Source::unknown(
             "\
         {\

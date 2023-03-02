@@ -397,7 +397,7 @@ mod tests {
     }
 
     #[test]
-    fn test_exitcode_operators() {
+    fn exitcode_operators() {
         let source = Source::unknown("(echo hello && echo world ) || echo damn");
         let mut parser = Parser::new(source);
         let ast = parser
@@ -432,7 +432,7 @@ mod tests {
     }
 
     #[test]
-    fn test_escaped_operators() {
+    fn escaped_operators() {
         let source = Source::unknown("(echo hello \\&& world \\);) || echo damn");
         let mut parser = Parser::new(source);
         let ast = parser
