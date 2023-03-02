@@ -134,15 +134,16 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         let mut builder = String::new();
         let mut lexme = current.value;
 
+
         //pushes current token then advance
-        macro_rules! push_current {
+        macro_rules! append_current {
             () => {
                 let value = self.cursor.next()?.value;
                 builder.push_str(value);
-                if lexme.is_empty() {
-                    lexme = value;
-                } else if let Some(joined) = try_join_str(lexme, value) {
+                if let Some(joined) = try_join_str(lexme, value) {
                     lexme = joined;
+                } else {
+                    lexme = value;
                 }
                 ()
             };
@@ -154,14 +155,16 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 //never retain first backslash
                 self.cursor.next()?; //advance so we are not pointing to token after '\'
                                      //will append the escaped value (token after the backslash)
-                push_current!();
+                append_current!();
             }
             _ => {
-                push_current!();
+                append_current!();
             }
         };
+
         while !self.cursor.is_at_end() {
-            let pivot = self.cursor.peek().token_type;
+            let token = self.cursor.peek();
+            let pivot = token.token_type;
             match pivot {
                 TokenType::Space => break,
 
@@ -170,7 +173,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                     self.cursor.next()?;
                     //advance so we are not pointing to token after '\'
                     //will append the escaped value (token after the backslash)
-                    push_current!();
+                    append_current!();
                 }
 
                 TokenType::At | TokenType::Dollar => {
@@ -180,16 +183,16 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                             parsed: LiteralValue::String(builder.clone()),
                         }));
                         builder.clear();
-                        lexme = "";
                     }
                     parts.push(self.substitution()?);
                 }
                 _ if pivot.is_ponctuation() => break,
                 _ => {
-                    push_current!();
+                    append_current!();
                 }
             }
         }
+
         if !builder.is_empty() {
             parts.push(Expr::Literal(Literal {
                 lexme,

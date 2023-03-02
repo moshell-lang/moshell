@@ -147,6 +147,14 @@ pub enum TokenType {
 }
 
 impl TokenType {
+
+    pub fn is_valid_var_ref_name(self) -> bool {
+        matches!(
+            self,
+            Identifier | Dollar | Ampersand | At | Not | IntLiteral
+        )
+    }
+
     pub fn is_bin_operator(self) -> bool {
         match self {
             And | Or | Plus | Minus | Star | EqualEqual | NotEqual | Less | LessEqual | Greater

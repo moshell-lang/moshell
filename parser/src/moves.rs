@@ -90,10 +90,18 @@ where
 /// Will move once only if the given predicate is satisfied.
 /// * `predicate` - the predicate to satisfy
 pub(crate) fn predicate<P>(predicate: P) -> PredicateMove<P>
-where
-    P: Fn(Token) -> bool + Copy,
+    where
+        P: Fn(Token) -> bool + Copy,
 {
     PredicateMove { predicate }
+}
+
+/// a predicate move on the type of the token rather than it's integrity
+pub(crate) fn like<P>(predicate: P) -> PredicateMove<impl Fn(Token) -> bool + Copy>
+    where
+        P: Fn(TokenType) -> bool + Copy
+{
+    PredicateMove { predicate: move |t| predicate(t.token_type) }
 }
 
 ///Move to next token if its type is in the given set

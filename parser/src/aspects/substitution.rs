@@ -2,10 +2,10 @@ use crate::aspects::group::GroupAspect;
 use crate::aspects::var_reference::VarReferenceAspect;
 use crate::ast::substitution::{Substitution, SubstitutionKind};
 use crate::ast::Expr;
-use crate::moves::{eox, MoveOperations, not, of_type, of_types};
+use crate::moves::{eox, like, MoveOperations, not, of_type, of_types};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
-use lexer::token::TokenType::{CurlyLeftBracket, Space};
+use lexer::token::TokenType::CurlyLeftBracket;
 
 /// A parser for substitution expressions.
 pub(crate) trait SubstitutionAspect<'a> {
@@ -17,14 +17,18 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
     fn substitution(&mut self) -> ParseResult<Expr<'a>> {
         let start_token = self.cursor.force(
             of_types(&[TokenType::At, TokenType::Dollar]),
-            "Expected at or dollar sign.",
+            "Expected '@' or '$' sign.",
         )?;
 
         // Short pass for variable references
         if self.cursor
             .lookahead(
                 not(of_type(TokenType::RoundedLeftBracket))
-                    .and_then(of_types(&[Space, CurlyLeftBracket]).or(eox()))
+                    .and_then(
+                        like(TokenType::is_valid_var_ref_name)
+                            .or(of_type(CurlyLeftBracket))
+                            .or(eox())
+                    )
             )
             .is_some()
             && start_token.token_type == TokenType::Dollar

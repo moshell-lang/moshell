@@ -1,8 +1,9 @@
+use lexer::token::TokenType;
 use lexer::token::TokenType::*;
 
 use crate::ast::variable::VarReference;
 use crate::ast::Expr;
-use crate::moves::{of_type, of_types};
+use crate::moves::{like, of_type};
 use crate::parser::{ParseResult, Parser};
 
 pub trait VarReferenceAspect<'a> {
@@ -19,10 +20,7 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
             .is_some();
         let name = self
             .cursor
-            .force(of_types(&[
-                Identifier, IntLiteral,
-                Dollar, At, Not,
-            ]), "Expected variable name.")?.value;
+            .force(like(TokenType::is_valid_var_ref_name), "Expected valid variable name.")?.value;
 
         if has_bracket {
             self.cursor.force(
@@ -42,6 +40,7 @@ mod tests {
     use crate::ast::Expr;
     use pretty_assertions::assert_eq;
     use crate::parse;
+    use crate::parser::ParseError;
 
     #[test]
     fn test_simple_ref() {
@@ -64,11 +63,49 @@ mod tests {
         assert_eq!(
             ast,
             vec![
-                Expr::VarReference(VarReference {
-                    name: "VAR"
-                }),
-                Expr::Literal("IABLE".into())
+                Expr::TemplateString(vec![
+                    Expr::VarReference(VarReference {
+                        name: "VAR"
+                    }),
+                    Expr::Literal("IABLE".into())
+                ])
             ]
         )
     }
+
+    #[test]
+    fn test_ref_in_ref() {
+        let tokens = lex("${V${A}R}");
+        let ast = parse(tokens);
+        assert_eq!(
+            ast,
+            Err(ParseError {
+                message: "Expected closing curly bracket.".to_string()
+            })
+        )
+    }
+
+    #[test]
+    fn test_multiple_wrapped_ref() {
+        let tokens = lex("${VAR}IABLE${LONG}${VERY_LONG}");
+        let ast = parse(tokens).expect("failed to parse");
+        assert_eq!(
+            ast,
+            vec![
+                Expr::TemplateString(vec![
+                    Expr::VarReference(VarReference {
+                        name: "VAR"
+                    }),
+                    Expr::Literal("IABLE".into()),
+                    Expr::VarReference(VarReference {
+                        name: "LONG"
+                    }),
+                    Expr::VarReference(VarReference {
+                        name: "VERY_LONG"
+                    }),
+                ])
+            ]
+        )
+    }
+
 }
