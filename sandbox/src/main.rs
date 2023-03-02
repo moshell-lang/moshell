@@ -1,10 +1,10 @@
 use miette::{Diagnostic, NamedSource, Result, SourceSpan};
 use parser::err::ParseErrorKind;
 use parser::parse;
-use parser::source::Source;
 use std::fmt::Display;
 use std::fs;
 use thiserror::Error;
+use context::source::Source;
 
 #[derive(Error, Debug, Diagnostic)]
 #[error("Parse error")]
@@ -22,6 +22,8 @@ struct FormattedError {
     #[label("Start")]
     related: Option<SourceSpan>,
     message: String,
+    #[help]
+    help: Option<String>,
 }
 
 impl Display for FormattedError {
@@ -40,11 +42,15 @@ fn this_fails() -> Result<()> {
         .map(|err| FormattedError {
             src: NamedSource::new("sample.msh", src.clone()),
             cursor: err.position.into(),
-            related: match err.kind {
-                ParseErrorKind::Unpaired(pos) => Some(pos.into()),
+            related: match &err.kind {
+                ParseErrorKind::Unpaired(pos) => Some(pos.clone().into()),
                 _ => None,
             },
             message: err.message,
+            help: match &err.kind {
+                ParseErrorKind::Excepted(excepted) => Some(format!("Excepted: {:?}", excepted)),
+                _ => None,
+            },
         })
         .collect::<Vec<FormattedError>>();
     if !errors.is_empty() {

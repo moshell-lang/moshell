@@ -1,4 +1,5 @@
 use std::num::IntErrorKind;
+use context::source::try_join_str;
 
 use crate::aspects::substitution::SubstitutionAspect;
 use lexer::token::TokenType;
@@ -8,7 +9,6 @@ use crate::ast::*;
 use crate::err::ParseErrorKind;
 use crate::moves::{next, of_type};
 use crate::parser::{ParseResult, Parser};
-use crate::source::try_join_str;
 
 /// A trait that contains all the methods for parsing literals.
 pub(crate) trait LiteralAspect<'a> {

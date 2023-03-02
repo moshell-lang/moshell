@@ -1,3 +1,4 @@
+use context::source::Source;
 use lexer::lexer::lex;
 use lexer::token::Token;
 use lexer::token::TokenType::*;
@@ -12,7 +13,6 @@ use crate::ast::Expr;
 use crate::cursor::ParserCursor;
 use crate::err::{ParseError, ParseErrorKind};
 use crate::moves::{bin_op, eod, eox, next, of_types, spaces, MoveOperations};
-use crate::source::Source;
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
 
