@@ -1,10 +1,10 @@
+use context::source::Source;
 use miette::{Diagnostic, NamedSource, Result, SourceSpan};
 use parser::err::ParseErrorKind;
 use parser::parse;
 use std::fmt::Display;
 use std::fs;
 use thiserror::Error;
-use context::source::Source;
 
 #[derive(Error, Debug, Diagnostic)]
 #[error("Parse error")]

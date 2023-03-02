@@ -53,7 +53,7 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
-    use crate::source::Source;
+    use context::source::Source;
     use pretty_assertions::assert_eq;
 
     #[test]

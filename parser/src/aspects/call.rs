@@ -39,6 +39,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
+    use context::source::Source;
     use pretty_assertions::assert_eq;
 
     use crate::ast::callable::Call;
@@ -47,7 +48,6 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::Parser;
-    use crate::source::Source;
 
     #[test]
     fn wrong_group_end() {

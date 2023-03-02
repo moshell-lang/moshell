@@ -64,11 +64,7 @@ impl<'a> Parser<'a> {
         self.cursor.force_with(
             of_type(start),
             "Unexpected start of group expression",
-            ParseErrorKind::Excepted(
-                start
-                    .represent()
-                    .expect(""),
-            ),
+            ParseErrorKind::Excepted(start.represent().expect("")),
         ) //consume group start token
     }
 
@@ -132,7 +128,7 @@ mod tests {
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use crate::ast::Expr;
     use crate::parser::Parser;
-    use crate::source::Source;
+    use context::source::Source;
     use pretty_assertions::assert_eq;
 
     //noinspection DuplicatedCode

@@ -1,6 +1,6 @@
-use context::source::Location;
 use crate::ast::Expr;
 use crate::parser::ParseResult;
+use context::source::Location;
 
 /// An error that occurs during parsing.
 #[derive(Debug, PartialEq)]

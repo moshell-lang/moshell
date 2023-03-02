@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 #![deny(warnings)]
 
-use context::source::Source;
 use crate::err::ParseReport;
+use context::source::Source;
 
 use crate::parser::Parser;
 

@@ -163,6 +163,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod test {
+    use context::source::Source;
     use pretty_assertions::assert_eq;
 
     use crate::aspects::call::CallAspect;
@@ -172,7 +173,6 @@ mod test {
     use crate::ast::Expr;
     use crate::parse;
     use crate::parser::Parser;
-    use crate::source::Source;
 
     #[test]
     fn expr_redirection() {

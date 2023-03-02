@@ -1,5 +1,5 @@
-use std::num::IntErrorKind;
 use context::source::try_join_str;
+use std::num::IntErrorKind;
 
 use crate::aspects::substitution::SubstitutionAspect;
 use lexer::token::TokenType;
@@ -239,7 +239,7 @@ mod tests {
 
     use super::*;
     use crate::err::{ParseError, ParseErrorKind};
-    use crate::source::Source;
+    use context::source::Source;
     use pretty_assertions::assert_eq;
 
     #[test]

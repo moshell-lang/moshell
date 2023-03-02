@@ -1,3 +1,4 @@
+use context::source::Source;
 use parser::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use parser::ast::group::Subshell;
 use parser::ast::literal::Literal;
@@ -5,7 +6,6 @@ use parser::ast::substitution::{Substitution, SubstitutionKind};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 use parser::ast::Expr;
 use parser::parse;
-use parser::source::Source;
 use pretty_assertions::assert_eq;
 
 #[test]

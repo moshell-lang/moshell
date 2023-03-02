@@ -1,6 +1,6 @@
-use context::source::Location;
 use crate::err::{ParseError, ParseErrorKind};
 use crate::moves::Move;
+use context::source::Location;
 use lexer::token::{Token, TokenType};
 
 use crate::parser::ParseResult;
