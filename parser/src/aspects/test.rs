@@ -42,13 +42,10 @@ impl<'a> TestAspect<'a> for Parser<'a> {
             return self.parse_test_call(start);
         }
 
-        if self
-            .cursor
-            .lookahead(of_type(SquaredRightBracket))
-            .is_some()
-        {
-            self.expected(
+        if let Some(end) = self.cursor.lookahead(of_type(SquaredRightBracket)) {
+            self.expected_with(
                 "native test evaluation cannot be empty.",
+                start.clone()..end,
                 ParseErrorKind::Unexpected,
             )?;
         }
@@ -103,7 +100,7 @@ mod tests {
             result,
             Err(ParseError {
                 message: "native test evaluation cannot be empty.".to_string(),
-                position: 1..2,
+                position: 0..content.len(),
                 kind: ParseErrorKind::Unexpected,
             })
         )

@@ -1,6 +1,7 @@
 use crate::ast::Expr;
 use crate::parser::ParseResult;
 use context::source::Location;
+use lexer::token::Token;
 
 /// An error that occurs during parsing.
 #[derive(Debug, PartialEq)]
@@ -8,6 +9,31 @@ pub struct ParseError {
     pub message: String,
     pub position: Location,
     pub kind: ParseErrorKind,
+}
+
+/// A builder to position an error that covers multiple tokens.
+#[derive(Debug, PartialEq)]
+pub(crate) struct ErrorContext<'a> {
+    pub(crate) from: Token<'a>,
+    pub(crate) to: Token<'a>,
+}
+
+impl<'a> From<Token<'a>> for ErrorContext<'a> {
+    fn from(token: Token<'a>) -> Self {
+        Self {
+            from: token.clone(),
+            to: token,
+        }
+    }
+}
+
+impl<'a> From<std::ops::Range<Token<'a>>> for ErrorContext<'a> {
+    fn from(range: std::ops::Range<Token<'a>>) -> Self {
+        Self {
+            from: range.start,
+            to: range.end,
+        }
+    }
 }
 
 /// The kind of error that occurred.

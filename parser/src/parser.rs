@@ -1,6 +1,5 @@
 use context::source::Source;
 use lexer::lexer::lex;
-use lexer::token::Token;
 use lexer::token::TokenType::*;
 
 use crate::aspects::binary_operation::BinaryOperationsAspect;
@@ -12,7 +11,7 @@ use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::err::{ParseError, ParseErrorKind};
+use crate::err::{ErrorContext, ParseError, ParseErrorKind};
 use crate::moves::{bin_op, eod, eox, next, of_types, spaces, MoveOperations};
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
@@ -161,13 +160,22 @@ impl<'a> Parser<'a> {
         Err(self.mk_parse_error(message, self.cursor.peek(), kind))
     }
 
+    pub(crate) fn expected_with<T>(
+        &self,
+        message: &str,
+        context: impl Into<ErrorContext<'a>>,
+        kind: ParseErrorKind,
+    ) -> ParseResult<T> {
+        Err(self.mk_parse_error(message, context, kind))
+    }
+
     pub(crate) fn mk_parse_error(
         &self,
         message: impl Into<String>,
-        erroneous_token: Token,
+        context: impl Into<ErrorContext<'a>>,
         kind: ParseErrorKind,
     ) -> ParseError {
-        self.cursor.mk_parse_error(message, erroneous_token, kind)
+        self.cursor.mk_parse_error(message, context, kind)
     }
 
     //parses any binary expression, considering given input expression

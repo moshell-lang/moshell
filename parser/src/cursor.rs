@@ -1,4 +1,4 @@
-use crate::err::{ParseError, ParseErrorKind};
+use crate::err::{ErrorContext, ParseError, ParseErrorKind};
 use crate::moves::Move;
 use context::source::Location;
 use lexer::token::{Token, TokenType};
@@ -128,12 +128,12 @@ impl<'a> ParserCursor<'a> {
     pub fn mk_parse_error(
         &self,
         message: impl Into<String>,
-        erroneous_token: Token,
+        context: impl Into<ErrorContext<'a>>,
         kind: ParseErrorKind,
     ) -> ParseError {
         ParseError {
             message: message.into(),
-            position: self.relative_pos(&erroneous_token),
+            position: self.relative_pos_ctx(context),
             kind,
         }
     }
@@ -141,6 +141,14 @@ impl<'a> ParserCursor<'a> {
     pub fn relative_pos(&self, token: &Token) -> Location {
         let start = token.value.as_ptr() as usize - self.source.as_ptr() as usize;
         let end = start + token.value.len();
+        start..end
+    }
+
+    pub fn relative_pos_ctx(&self, context: impl Into<ErrorContext<'a>>) -> Location {
+        let context = context.into();
+        let start = context.from.value.as_ptr() as usize - self.source.as_ptr() as usize;
+        let end = context.to.value.as_ptr() as usize + context.to.value.len() as usize
+            - self.source.as_ptr() as usize;
         start..end
     }
 }
