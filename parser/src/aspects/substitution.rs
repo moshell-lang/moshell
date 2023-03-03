@@ -2,10 +2,10 @@ use crate::aspects::group::GroupAspect;
 use crate::aspects::var_reference::VarReferenceAspect;
 use crate::ast::substitution::{Substitution, SubstitutionKind};
 use crate::ast::Expr;
-use crate::moves::{eox, like, MoveOperations, not, of_type, space};
+use crate::moves::{eox, MoveOperations, not, of_type, space};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
-use lexer::token::TokenType::{CurlyLeftBracket, RoundedLeftBracket};
+use lexer::token::TokenType::{RoundedLeftBracket};
 use crate::ast::literal::{Literal, LiteralValue};
 
 /// A parser for substitution expressions.
