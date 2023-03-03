@@ -2,7 +2,7 @@ use crate::aspects::group::GroupAspect;
 use crate::aspects::var_reference::VarReferenceAspect;
 use crate::ast::substitution::{Substitution, SubstitutionKind};
 use crate::ast::Expr;
-use crate::moves::{like, MoveOperations, of_type};
+use crate::moves::{eox, like, MoveOperations, not, of_type, space};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{CurlyLeftBracket, RoundedLeftBracket};
@@ -34,14 +34,12 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
 
         // Short pass for variable references
         if self.cursor
-            .lookahead(
-                like(TokenType::is_valid_var_ref_name)
-                    .or(of_type(CurlyLeftBracket))
-            )
+            .lookahead(not(space().or(eox())))
             .is_some()
         {
             return self.var_reference();
         }
+
         //finaly it's a lonely '$' so we return it as a literal
         return Ok(Expr::Literal(Literal {
             lexeme: dollar_value,
