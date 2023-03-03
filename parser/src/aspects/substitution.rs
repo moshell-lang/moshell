@@ -16,10 +16,10 @@ pub(crate) trait SubstitutionAspect<'a> {
 
 impl<'a> SubstitutionAspect<'a> for Parser<'a> {
     fn substitution(&mut self) -> ParseResult<Expr<'a>> {
-        let start_token = self.cursor.force(
+        let dollar_value = self.cursor.force(
             of_type(TokenType::Dollar),
             "Expected '$' sign.",
-        )?;
+        )?.value;
 
         //if $ is directly followed by a '(' then it's the start of a Capture substitution.
         if self.cursor
@@ -39,14 +39,13 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
                     .or(of_type(CurlyLeftBracket))
             )
             .is_some()
-            && start_token.token_type == TokenType::Dollar
         {
             return self.var_reference();
         }
         //finaly it's a lonely '$' so we return it as a literal
         return Ok(Expr::Literal(Literal {
-            lexeme: start_token.value,
-            parsed: LiteralValue::String(start_token.value.to_string())
+            lexeme: dollar_value,
+            parsed: LiteralValue::String(dollar_value.to_string())
         }))
     }
 }

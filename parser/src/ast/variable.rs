@@ -28,16 +28,16 @@ pub enum VarKind {
 
 /// A variable reference, prefixed with `$`.
 #[derive(Debug, Clone, PartialEq)]
-pub struct VarReference {
+pub struct VarReference<'a> {
     /// The name of the variable.
-    pub name: String,
+    pub name: &'a str,
 }
 
 /// A variable assignation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Assign<'a> {
     /// The identifier of the variable.
-    pub name: String,
+    pub name: &'a str,
     /// The value of the variable to be evaluated.
     pub value: Box<Expr<'a>>,
 }
