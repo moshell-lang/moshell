@@ -2,11 +2,11 @@ use context::source::Source;
 use miette::{Diagnostic, GraphicalReportHandler, NamedSource, SourceSpan};
 use parser::err::ParseErrorKind;
 use parser::parse;
+use std::fmt::Display;
 use std::io::{self, BufRead};
 use thiserror::Error;
 
 #[derive(Error, Debug, Diagnostic)]
-#[error("Parse error")]
 struct FormattedError {
     #[source_code]
     src: NamedSource,
@@ -17,6 +17,12 @@ struct FormattedError {
     message: String,
     #[help]
     help: Option<String>,
+}
+
+impl Display for FormattedError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
 }
 
 fn main() -> io::Result<()> {
