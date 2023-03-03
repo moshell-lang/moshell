@@ -22,7 +22,7 @@ fn with_lexer_variable() {
                 ty: None,
             },
             initializer: Some(Box::new(Expr::Literal(Literal {
-                lexme: "'hello world!'",
+                lexeme: "'hello world!'",
                 parsed: "hello world!".into(),
             }))),
         })]
@@ -40,7 +40,7 @@ fn with_lexer_var_reference_one() {
             arguments: vec![
                 Expr::Literal("echo".into()),
                 Expr::Literal(Literal {
-                    lexme: "'$var5'",
+                    lexeme: "'$var5'",
                     parsed: "$var5".into(),
                 }),
                 Expr::VarReference(VarReference {
@@ -63,7 +63,7 @@ fn with_lexer_var_reference_two() {
                 Expr::TemplateString(vec![
                     Expr::Literal("fake".into()),
                     Expr::VarReference(VarReference {
-                        name:"cmd",
+                        name: "cmd",
                     }),
                 ]),
                 Expr::Literal("do".into()),
@@ -98,14 +98,14 @@ fn with_lexer_var_reference_three() {
                 Expr::TemplateString(vec![
                     Expr::Literal("hello ".into()),
                     Expr::VarReference(VarReference {
-                        name:"world",
+                        name: "world",
                     }),
                     Expr::Literal(" everyone ".into()),
                     Expr::VarReference(VarReference {
-                        name:"verb",
+                        name: "verb",
                     }),
                     Expr::VarReference(VarReference {
-                        name:  "ready",
+                        name: "ready",
                     }),
                     Expr::Literal("!".into()),
                 ]),
@@ -175,7 +175,7 @@ fn with_lexer_pipe_and_redirection() {
                         arguments: vec![
                             Expr::Literal("grep".into()),
                             Expr::Literal(Literal {
-                                lexme: "'hello'",
+                                lexeme: "'hello'",
                                 parsed: "hello".into()
                             }),
                         ]
@@ -210,7 +210,7 @@ fn with_lexer_pipe_and_pipe() {
                         Expr::Literal("tr".into()),
                         Expr::Literal("-s".into()),
                         Expr::Literal(Literal {
-                            lexme: "' '",
+                            lexeme: "' '",
                             parsed: " ".into(),
                         }),
                     ],
@@ -234,7 +234,7 @@ fn with_lexer_here_string() {
                 fd: RedirFd::Default,
                 operator: RedirOp::String,
                 operand: Expr::Literal(Literal {
-                    lexme: "'hello'",
+                    lexeme: "'hello'",
                     parsed: "hello".into(),
                 }),
             }],
@@ -295,30 +295,6 @@ fn with_lexer_substitution_in_substitution() {
                     kind: SubstitutionKind::Capture,
                 }),
             ],
-        })]
-    );
-}
-
-#[test]
-fn with_lexer_here_invoke() {
-    let tokens = lex("val valid = @(nginx -t)");
-    let parsed = parse(tokens).expect("Failed to parse");
-    assert_eq!(
-        parsed,
-        vec![Expr::VarDeclaration(VarDeclaration {
-            kind: VarKind::Val,
-            var: TypedVariable {
-                name: "valid",
-                ty: None,
-            },
-            initializer: Some(Box::new(Expr::Substitution(Substitution {
-                underlying: Subshell {
-                    expressions: vec![Expr::Call(Call {
-                        arguments: vec![Expr::Literal("nginx".into()), Expr::Literal("-t".into())]
-                    })],
-                },
-                kind: SubstitutionKind::Return,
-            }))),
         })]
     );
 }

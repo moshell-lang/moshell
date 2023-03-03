@@ -59,6 +59,17 @@ impl<'a> ParserCursor<'a> {
         })
     }
 
+    ///Advance and returns a selection of token.
+    /// The returned vector is a selection between current position and the position of where this move ended.
+    /// If the given move fails, then an empty token is returned.
+    pub fn select(&mut self, mov: impl Move) -> Vec<Token<'a>> {
+        let from = self.pos;
+        if self.advance(mov).is_some() {
+            return Vec::from(&self.tokens.as_slice()[from..self.pos])
+        }
+        Vec::new()
+    }
+
     ///returns the token at current position
     pub fn peek(&self) -> Token<'a> {
         self.at(self.pos)

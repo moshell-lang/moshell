@@ -101,7 +101,7 @@ mod tests {
                     Expr::Literal("-E".into()),
                     Expr::Literal("regex".into()),
                     Expr::Literal(Literal {
-                        lexme: "\\;",
+                        lexeme: "\\;",
                         parsed: ";".into(),
                     }),
                     Expr::Literal("echo".into()),

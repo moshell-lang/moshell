@@ -177,30 +177,30 @@ mod tests {
                     left: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Literal(Literal {
-                                lexme: "1",
+                                lexeme: "1",
                                 parsed: 1.into(),
                             })),
                             op: And,
                             right: Box::new(Expr::Literal(Literal {
-                                lexme: "2",
+                                lexeme: "2",
                                 parsed: 2.into(),
                             })),
                         })),
                         op: Or,
                         right: Box::new(Expr::Literal(Literal {
-                            lexme: "3",
+                            lexeme: "3",
                             parsed: 3.into(),
                         })),
                     })),
                     op: Or,
                     right: Box::new(Expr::Literal(Literal {
-                        lexme: "4",
+                        lexeme: "4",
                         parsed: 4.into(),
                     })),
                 })),
                 op: And,
                 right: Box::new(Expr::Literal(Literal {
-                    lexme: "5",
+                    lexeme: "5",
                     parsed: 5.into(),
                 })),
             }),
@@ -218,19 +218,19 @@ mod tests {
             ast,
             Expr::Binary(BinaryOperation {
                 left: Box::new(Expr::Literal(Literal {
-                    lexme: "1",
+                    lexeme: "1",
                     parsed: 1.into(),
                 })),
                 op: Plus,
                 right: Box::new(Expr::Parenthesis(Parenthesis {
                     expression: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Literal(Literal {
-                            lexme: "2",
+                            lexeme: "2",
                             parsed: 2.into(),
                         })),
                         op: Plus,
                         right: Box::new(Expr::Literal(Literal {
-                            lexme: "3",
+                            lexeme: "3",
                             parsed: 3.into(),
                         })),
                     })),
@@ -250,18 +250,18 @@ mod tests {
             ast,
             Expr::Binary(BinaryOperation {
                 left: Box::new(Expr::Literal(Literal {
-                    lexme: "1",
+                    lexeme: "1",
                     parsed: 1.into(),
                 })),
                 op: Plus,
                 right: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Literal(Literal {
-                        lexme: "2",
+                        lexeme: "2",
                         parsed: 2.into(),
                     })),
                     op: Times,
                     right: Box::new(Expr::Literal(Literal {
-                        lexme: "3",
+                        lexeme: "3",
                         parsed: 3.into(),
                     })),
                 })),
@@ -283,18 +283,18 @@ mod tests {
                     left: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Literal(Literal {
-                                lexme: "1",
+                                lexeme: "1",
                                 parsed: 1.into(),
                             })),
                             op: Plus,
                             right: Box::new(Expr::Binary(BinaryOperation {
                                 left: Box::new(Expr::Literal(Literal {
-                                    lexme: "2",
+                                    lexeme: "2",
                                     parsed: 2.into(),
                                 })),
                                 op: Times,
                                 right: Box::new(Expr::Literal(Literal {
-                                    lexme: "3",
+                                    lexeme: "3",
                                     parsed: 3.into(),
                                 })),
                             })),
@@ -302,12 +302,12 @@ mod tests {
                         op: Less,
                         right: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Literal(Literal {
-                                lexme: "874",
+                                lexeme: "874",
                                 parsed: 874.into(),
                             })),
                             op: Times,
                             right: Box::new(Expr::Literal(Literal {
-                                lexme: "78",
+                                lexeme: "78",
                                 parsed: 78.into(),
                             })),
                         })),
@@ -316,18 +316,18 @@ mod tests {
                     right: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Literal(Literal {
-                                lexme: "7",
+                                lexeme: "7",
                                 parsed: 7.into(),
                             })),
                             op: Minus,
                             right: Box::new(Expr::Literal(Literal {
-                                lexme: "4",
+                                lexeme: "4",
                                 parsed: 4.into(),
                             })),
                         })),
                         op: EqualEqual,
                         right: Box::new(Expr::Literal(Literal {
-                            lexme: "3",
+                            lexeme: "3",
                             parsed: 3.into(),
                         })),
                     })),
@@ -335,12 +335,12 @@ mod tests {
                 op: And,
                 right: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Literal(Literal {
-                        lexme: "7",
+                        lexeme: "7",
                         parsed: 7.into(),
                     })),
                     op: EqualEqual,
                     right: Box::new(Expr::Literal(Literal {
-                        lexme: "1",
+                        lexeme: "1",
                         parsed: 1.into(),
                     })),
                 })),
@@ -373,18 +373,18 @@ mod tests {
             Expr::Parenthesis(Parenthesis {
                 expression: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Literal(Literal {
-                        lexme: "1",
+                        lexeme: "1",
                         parsed: 1.into(),
                     })),
                     op: Plus,
                     right: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Literal(Literal {
-                            lexme: "2",
+                            lexeme: "2",
                             parsed: 2.into(),
                         })),
                         op: Times,
                         right: Box::new(Expr::Literal(Literal {
-                            lexme: "3",
+                            lexeme: "3",
                             parsed: 3.into(),
                         })),
                     })),
@@ -444,12 +444,12 @@ mod tests {
                             Expr::Literal("echo".into()),
                             Expr::Literal("hello".into()),
                             Expr::Literal(Literal {
-                                lexme: "\\&&",
+                                lexeme: "\\&&",
                                 parsed: "&&".into(),
                             }),
                             Expr::Literal("world".into()),
                             Expr::Literal(Literal {
-                                lexme: "\\)",
+                                lexeme: "\\)",
                                 parsed: ")".into(),
                             }),
                         ],
@@ -459,11 +459,11 @@ mod tests {
                 right: Box::new(Expr::Call(Call {
                     arguments: vec![
                         Expr::Literal(Literal {
-                            lexme: "echo",
+                            lexeme: "echo",
                             parsed: "echo".into(),
                         }),
                         Expr::Literal(Literal {
-                            lexme: "damn",
+                            lexeme: "damn",
                             parsed: "damn".into(),
                         }),
                     ],

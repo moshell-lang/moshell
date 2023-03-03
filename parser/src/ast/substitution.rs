@@ -15,6 +15,4 @@ pub enum SubstitutionKind {
     Arithmetic,
     /// A command standard output substitution with `$(...)`.
     Capture,
-    /// A return value substitution with `@(...)`.
-    Return,
 }

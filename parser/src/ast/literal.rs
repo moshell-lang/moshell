@@ -1,7 +1,7 @@
 /// A literal value that can be used directly.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Literal<'a> {
-    pub lexme: &'a str,
+    pub lexeme: &'a str,
     pub parsed: LiteralValue,
 }
 
@@ -28,7 +28,7 @@ impl From<i64> for LiteralValue {
 impl<'a> From<&'a str> for Literal<'a> {
     fn from(s: &'a str) -> Self {
         Self {
-            lexme: s,
+            lexeme: s,
             parsed: LiteralValue::from(s),
         }
     }
