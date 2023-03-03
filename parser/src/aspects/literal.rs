@@ -116,7 +116,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         }
         if !literal_value.is_empty() {
             parts.push(Expr::Literal(Literal {
-                lexeme: lexeme,
+                lexeme,
                 parsed: LiteralValue::String(literal_value),
             }));
         }
@@ -195,7 +195,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
 
         if !builder.is_empty() {
             parts.push(Expr::Literal(Literal {
-                lexeme: lexeme,
+                lexeme,
                 parsed: LiteralValue::String(builder),
             }));
         }
