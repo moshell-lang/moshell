@@ -93,7 +93,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 TokenType::Dollar => {
                     if !literal_value.is_empty() {
                         parts.push(Expr::Literal(Literal {
-                            lexeme: lexeme,
+                            lexeme,
                             parsed: LiteralValue::String(literal_value.clone()),
                         }));
                         literal_value.clear();
