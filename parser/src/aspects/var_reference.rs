@@ -61,6 +61,18 @@ mod tests {
     }
 
     #[test]
+    fn dollar_is_literal() {
+        let tokens = lex("$");
+        let ast = parse(tokens).expect("failed to parse");
+        assert_eq!(
+            ast,
+            vec![
+                Expr::Literal("$".into())
+            ]
+        )
+    }
+
+    #[test]
     fn special_refs() {
         let tokens = lex("$@;$^;$!;$!!;$$");
         let ast = parse(tokens).expect("failed to parse");

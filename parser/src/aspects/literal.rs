@@ -150,7 +150,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         }
 
         match current.token_type {
-            TokenType::At | TokenType::Dollar => parts.push(self.substitution()?),
+            TokenType::Dollar => parts.push(self.substitution()?),
             TokenType::BackSlash => {
                 //never retain first backslash
                 self.cursor.next()?; //advance so we are not pointing to token after '\'
@@ -176,7 +176,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                     append_current!();
                 }
 
-                TokenType::At | TokenType::Dollar => {
+                TokenType::Dollar => {
                     if !builder.is_empty() {
                         parts.push(Expr::Literal(Literal {
                             lexeme: lexeme,
