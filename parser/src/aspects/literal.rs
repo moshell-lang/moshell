@@ -68,7 +68,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             };
         }
         Ok(Expr::Literal(Literal {
-            lexeme: lexeme,
+            lexeme,
             parsed: LiteralValue::String(value),
         }))
     }
@@ -179,7 +179,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 TokenType::Dollar => {
                     if !builder.is_empty() {
                         parts.push(Expr::Literal(Literal {
-                            lexeme: lexeme,
+                            lexeme,
                             parsed: LiteralValue::String(builder.clone()),
                         }));
                         builder.clear();
