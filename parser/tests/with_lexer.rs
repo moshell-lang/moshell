@@ -70,6 +70,13 @@ fn with_lexer_var_reference_two() {
 }
 
 #[test]
+fn empty_content() {
+    let source = Source::unknown("\n\n//empty lines\n\n");
+    let result = parse(source).expect("Failed to parse");
+    assert_eq!(result, vec![])
+}
+
+#[test]
 fn with_lexer_var_reference_three() {
     let source = Source::unknown("echo \"hello $world everyone $verb${ready}!\"");
     let parsed = parse(source).expect("Failed to parse");

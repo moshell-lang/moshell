@@ -12,7 +12,7 @@ use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
 use crate::err::{ErrorContext, ParseError, ParseErrorKind};
-use crate::moves::{bin_op, eod, eox, next, of_types, spaces, MoveOperations};
+use crate::moves::{bin_op, eod, eox, next, of_types, repeat, space, spaces, MoveOperations};
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
 
@@ -36,7 +36,7 @@ impl<'a> Parser<'a> {
         let mut statements = Vec::new();
         let mut last_error = None;
 
-        while !self.cursor.is_at_end() {
+        while self.look_for_input() {
             match self.parse_next() {
                 Err(error) => {
                     self.repos_to_next_expr();
@@ -53,10 +53,10 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// Parses an expression or binary expression.
-    pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
-        let expr = self.next_expression()?;
-        self.parse_binary_expr(expr)
+    fn look_for_input(&mut self) -> bool {
+        self.cursor.advance(repeat(space().or(eox())));
+
+        !self.cursor.is_at_end()
     }
 
     /// Parses a statement or binary expression.
@@ -69,6 +69,12 @@ impl<'a> Parser<'a> {
     /// Parses an expression-statement or binary expression.
     pub(crate) fn expression_statement(&mut self) -> ParseResult<Expr<'a>> {
         let expr = self.next_expression_statement()?;
+        self.parse_binary_expr(expr)
+    }
+
+    /// Parses an expression or binary expression.
+    pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
+        let expr = self.next_expression()?;
         self.parse_binary_expr(expr)
     }
 
