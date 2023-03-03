@@ -76,6 +76,16 @@ fn with_lexer_var_reference_two() {
 }
 
 #[test]
+fn empty_content() {
+    let tokens = lex("\n\n//empty lines\n\n");
+    let result = parse(tokens).expect("couldn't parse");
+    assert_eq!(
+        result,
+        vec![]
+    )
+}
+
+#[test]
 fn with_lexer_var_reference_three() {
     let tokens = lex("echo \"hello $world everyone $verb${ready}!\"");
     let parsed = parse(tokens).expect("Failed to parse");
