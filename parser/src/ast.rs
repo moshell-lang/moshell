@@ -5,6 +5,7 @@ use crate::ast::operation::BinaryOperation;
 use crate::ast::substitution::Substitution;
 use crate::ast::test::{Not, Test};
 use crate::ast::variable::{Assign, VarDeclaration, VarReference};
+use crate::ast::flow_control::If;
 
 pub mod callable;
 pub mod group;
@@ -13,6 +14,7 @@ pub mod operation;
 pub mod substitution;
 pub mod variable;
 pub mod test;
+pub mod flow_control;
 
 /// A expression that can be evaluated.
 #[derive(Debug, Clone, PartialEq)]
@@ -29,6 +31,8 @@ pub enum Expr<'a> {
 
     Test(Test<'a>),
     Not(Not<'a>),
+
+    If(If<'a>),
 
     //var / val handling expressions
     VarReference(VarReference<'a>),

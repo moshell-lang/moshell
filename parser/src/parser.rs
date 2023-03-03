@@ -4,6 +4,7 @@ use lexer::token::TokenType::*;
 use crate::aspects::binary_operation::BinaryOperationsAspect;
 use crate::aspects::call::CallAspect;
 use crate::aspects::group::GroupAspect;
+use crate::aspects::if_else::IfElseAspect;
 use crate::aspects::literal::LiteralAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::aspects::test::TestAspect;
@@ -107,7 +108,8 @@ impl<'a> Parser<'a> {
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
-
+            If => self.parse_if(),
+            Else => self.expected("unexpected 'else' keyword."),
             Identifier | Quote | DoubleQuote => self.call(),
 
             _ => self.next_expression(),
