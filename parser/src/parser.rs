@@ -9,7 +9,7 @@ use crate::aspects::redirection_parser::RedirectionParser;
 use crate::aspects::var_declaration_parser::VarDeclarationParser;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::moves::{bin_op, eod, eox, next, of_types, spaces, MoveOperations};
+use crate::moves::{bin_op, eod, eox, next, of_types, spaces, MoveOperations, repeat, space};
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -31,7 +31,7 @@ impl<'a> Parser<'a> {
         let mut statements = Vec::new();
         let mut last_error = None;
 
-        while !self.cursor.is_at_end() {
+        while self.look_for_input() {
             match self.parse_next() {
                 Err(error) => {
                     self.repos_to_next_expr();
@@ -46,6 +46,12 @@ impl<'a> Parser<'a> {
         } else {
             Ok(statements)
         }
+    }
+
+    fn look_for_input(&mut self) -> bool {
+        self.cursor.advance(repeat(space().or(eox())));
+
+        !self.cursor.is_at_end()
     }
 
     /// Creates a new parser.
