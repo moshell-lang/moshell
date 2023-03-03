@@ -6,7 +6,7 @@ use crate::moves::{like, MoveOperations, of_type};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{CurlyLeftBracket, RoundedLeftBracket};
-use crate::ast::Expr::Literal;
+use crate::ast::literal::{Literal, LiteralValue};
 
 /// A parser for substitution expressions.
 pub(crate) trait SubstitutionAspect<'a> {
@@ -44,7 +44,10 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
             return self.var_reference();
         }
         //finaly it's a lonely '$' so we return it as a literal
-        return Ok(Literal("$".into()))
+        return Ok(Expr::Literal(Literal {
+            lexeme: start_token.value,
+            parsed: LiteralValue::String(start_token.value.to_string())
+        }))
     }
 }
 
