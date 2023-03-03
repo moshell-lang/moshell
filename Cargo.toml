@@ -3,5 +3,6 @@ members = [
 	"lexer",
 	"sandbox",
 	"parser",
-	"context"
+	"context",
+	"cli"
 ]
