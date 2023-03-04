@@ -51,7 +51,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
                     self.mk_parse_error(
                         "Invalid file descriptor.",
                         token,
-                        ParseErrorKind::NotParsable,
+                        ParseErrorKind::InvalidFormat,
                     )
                 })?);
                 token = self.cursor.next()?;

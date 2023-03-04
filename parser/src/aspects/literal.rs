@@ -220,14 +220,14 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                     IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => self.mk_parse_error(
                         "Integer constant is too large.".to_string(),
                         token,
-                        ParseErrorKind::NotParsable,
+                        ParseErrorKind::InvalidFormat,
                     ),
-                    _ => self.mk_parse_error(e.to_string(), token, ParseErrorKind::NotParsable),
+                    _ => self.mk_parse_error(e.to_string(), token, ParseErrorKind::InvalidFormat),
                 },
             )?)),
             TokenType::FloatLiteral => {
                 Ok(LiteralValue::Float(token.value.parse::<f64>().map_err(
-                    |e| self.mk_parse_error(e.to_string(), token, ParseErrorKind::NotParsable),
+                    |e| self.mk_parse_error(e.to_string(), token, ParseErrorKind::InvalidFormat),
                 )?))
             }
             _ => self.expected("Expected a literal.", ParseErrorKind::Unexpected),
@@ -253,7 +253,7 @@ mod tests {
             Err(ParseError {
                 message: "Integer constant is too large.".to_string(),
                 position: 0..30,
-                kind: ParseErrorKind::NotParsable,
+                kind: ParseErrorKind::InvalidFormat,
             })
         );
     }

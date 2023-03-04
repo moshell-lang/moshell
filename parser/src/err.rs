@@ -53,8 +53,8 @@ pub enum ParseErrorKind {
     /// This reports the location of the opening token.
     Unpaired(Location),
 
-    /// A token cannot be parsed.
-    NotParsable,
+    /// An incorrectly formatted value.
+    InvalidFormat,
 }
 
 /// The parsing result.
