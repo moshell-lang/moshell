@@ -5,6 +5,7 @@ use crate::aspects::binary_operation::BinaryOperationsAspect;
 use crate::aspects::call::CallAspect;
 use crate::aspects::group::GroupAspect;
 use crate::aspects::literal::LiteralAspect;
+use crate::aspects::r#use::UseAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
@@ -95,6 +96,7 @@ impl<'a> Parser<'a> {
         let pivot = self.cursor.peek().token_type;
         match pivot {
             Var | Val => self.var_declaration(),
+            Use => self.parse_use(),
 
             _ => self.next_expression_statement(),
         }

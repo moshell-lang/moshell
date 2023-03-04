@@ -65,7 +65,8 @@ impl<'a> ParserCursor<'a> {
     pub fn select(&mut self, mov: impl Move) -> Vec<Token<'a>> {
         let from = self.pos;
         if self.advance(mov).is_some() {
-            return Vec::from(&self.tokens.as_slice()[from..self.pos])
+            let slice = &self.tokens.as_slice()[from..self.pos];
+            return Vec::from(slice)
         }
         Vec::new()
     }

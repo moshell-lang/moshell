@@ -7,3 +7,4 @@ pub(super) mod substitution;
 pub(super) mod var_declaration;
 pub(super) mod var_reference;
 pub(super) mod test;
+pub(super) mod r#use;
