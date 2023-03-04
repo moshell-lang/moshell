@@ -27,6 +27,12 @@ pub(crate) struct Parser<'a> {
     pub(crate) delimiter_stack: VecDeque<Token<'a>>,
 }
 
+macro_rules! non_infix {
+    () =>  {
+        eox().or(eod()).or(like(TokenType::is_keyword)).or(of_types(&[RoundedLeftBracket, CurlyLeftBracket, SquaredLeftBracket]))
+    }
+}
+
 impl<'a> Parser<'a> {
     /// Creates a new parser from a defined source.
     pub(crate) fn new(source: Source<'a>) -> Self {
@@ -209,11 +215,7 @@ impl<'a> Parser<'a> {
 
         //if there is an end of expression, it means that the expr is terminated so we return it here
         //any keyword would also stop this expression.
-        if self
-            .cursor
-            .lookahead(eox().or(eod()).or(like(TokenType::is_keyword)))
-            .is_some()
-        {
+        if self.cursor.lookahead(non_infix!()).is_some() {
             return Ok(expr);
         }
 
@@ -257,11 +259,7 @@ impl<'a> Parser<'a> {
 
         //if there is an end of expression, it means that the expr is terminated so we return it here
         //any keyword would also stop this expression.
-        if self
-            .cursor
-            .lookahead(eox().or(eod()).or(like(TokenType::is_keyword)))
-            .is_some()
-        {
+        if self.cursor.lookahead(non_infix!()).is_some() {
             return Ok(expr);
         }
 
