@@ -63,6 +63,7 @@ mod tests {
     use crate::ast::group::Block;
     use crate::ast::literal::Literal;
     use crate::ast::operation::{BinaryOperation, BinaryOperator};
+    use crate::ast::operation::BinaryOperator::And;
     use crate::ast::test::Test;
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
     use crate::parse;
@@ -92,14 +93,18 @@ mod tests {
 
     #[test]
     fn if_else_if() {
-        let ast = parse(lex("if [ $1 ]; echo test\n\n\nelse if [ $a ] \n;\n { $7 }; else $5")).expect("parse failed");
+        let ast = parse(lex("if echo a && [[ -f /file/exe ]]; echo test\n\n\nelse if [ $a ] \n;\n { $7 }; else $5")).expect("parse failed");
         assert_eq!(
             ast,
             vec![
                 Expr::If(If {
-                    condition: Box::new(Expr::Test(Test {
-                        expression: Box::new(Expr::VarReference(VarReference {
-                            name: "1"
+                    condition: Box::new(Expr::Binary(BinaryOperation {
+                        left: Box::new(Expr::Call(Call {
+                            arguments: vec![Expr::Literal("echo".into()), Expr::Literal("a".into())]
+                        })),
+                        op: And,
+                        right: Box::new(Expr::Call(Call {
+                            arguments: vec![Expr::Literal("test".into()), Expr::Literal("-f".into()), Expr::Literal("/file/exe".into())]
                         }))
                     })),
                     success_branch: Box::new(Expr::Call(Call {
