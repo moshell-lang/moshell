@@ -74,3 +74,22 @@ fn excepted_value_found_semicolon() {
         }
     );
 }
+
+#[test]
+fn arithmetic_help() {
+    let content = "6 + 3 * 9";
+    let source = Source::unknown("6 + 3 * 9");
+    let report = parse(source);
+    assert_eq!(
+        report,
+        ParseReport {
+            expr: vec![],
+            errors: vec![ParseError {
+                message: "Binary operations must be enclosed in a value expression.".to_string(),
+                position: 0..content.len(),
+                kind: ParseErrorKind::UnexpectedInContext("$(( 6 + 3 * 9 ))".to_string())
+            }],
+            stack_ended: true,
+        }
+    );
+}
