@@ -18,9 +18,9 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
 
         //skip only one semicolon if any, surrounded by newlines and spaces
         self.cursor.advance(spaces().then(
-            repeat(spaces().then(of_type(NewLine)))
+            repeat(spaces().pipe(of_type(NewLine)))
                 .then(of_type(SemiColon))
-                .then(repeat(spaces().then(of_type(NewLine))))
+                .then(repeat(spaces().pipe(of_type(NewLine))))
 
         ));
 
@@ -30,14 +30,16 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
         }
 
         //the success_branch of the if
-        let success_branch = self.statement()?;
+        let success_branch = self.next_statement()?;
 
         let fail_branch =
             if self.cursor.advance(
-                repeat(spaces().then(of_type(NewLine)))
+                repeat(spaces().pipe(of_type(NewLine)))
+                    .then(of_type(SemiColon))
+                    .then(repeat(spaces().pipe(of_type(NewLine))))
                     .then(of_type(Else))
             ).is_some() {
-                Some(self.statement()?)
+                Some(self.next_statement()?)
             } else {
                 None
             };
@@ -86,7 +88,7 @@ mod tests {
 
     #[test]
     fn if_else_if() {
-        let ast = parse(lex("if [ $1 ]; echo test\n\n\nelse if [ $a ] \n;\n {\"7\"} else \"5\"")).expect("parse failed");
+        let ast = parse(lex("if [ $1 ]; echo test\n\n\nelse if [ $a ] \n;\n { $7 }; else $5")).expect("parse failed");
         assert_eq!(
             ast,
             vec![
@@ -106,12 +108,50 @@ mod tests {
                             }))
                         })),
                         success_branch: Box::new(Expr::Block(Block {
-                            expressions: vec![Expr::Literal("7".into())]
+                            expressions: vec![Expr::VarReference(VarReference {
+                                name: "7"
+                            })]
                         })),
-                        fail_branch: Box::new(Some(Expr::Literal("5".into()))),
+                        fail_branch: Box::new(Some(Expr::VarReference(VarReference {
+                            name: "5"
+                        }))),
                     }))),
                 })
             ]
         )
     }
+
+    #[test]
+    fn if_else_if_separations() {
+        let ast = parse(lex("if [ $1 ]; echo test; else if [ $a ]; $7 else $5")).expect("parse failed");
+        assert_eq!(
+            ast,
+            vec![
+                Expr::If(If {
+                    condition: Box::new(Expr::Test(Test {
+                        expression: Box::new(Expr::VarReference(VarReference {
+                            name: "1"
+                        }))
+                    })),
+                    success_branch: Box::new(Expr::Call(Call {
+                        arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())]
+                    })),
+                    fail_branch: Box::new(Some(Expr::If(If {
+                        condition: Box::new(Expr::Test(Test {
+                            expression: Box::new(Expr::VarReference(VarReference {
+                                name: "a"
+                            }))
+                        })),
+                        success_branch: Box::new(Expr::VarReference(VarReference {
+                            name: "7"
+                        })),
+                        fail_branch: Box::new(Some(Expr::VarReference(VarReference {
+                            name: "5"
+                        }))),
+                    }))),
+                })
+            ]
+        )
+    }
+
 }

@@ -25,6 +25,10 @@ pub(crate) trait MoveOperations<This: Move + Copy> {
     /// returns a move that will first execute this move then the other one.
     fn then<B: Move + Copy>(self, other: B) -> ThenMove<This, B>;
 
+    ///Used to bind `This` move with `other` move.
+    /// returns a move that pipes this move with other move.
+    fn pipe<B: Move + Copy>(self, other: B) -> PipeMove<This, B>;
+
     ///Used to execute `This` or else other if `This` fails
     /// returned move is a move that executes either this or other if this move fails.
     fn or<B: Move + Copy>(self, other: B) -> OrMove<This, B>;
@@ -39,6 +43,12 @@ impl<A: Move + Copy> MoveOperations<A> for A {
     }
     fn then<B: Move + Copy>(self, other: B) -> ThenMove<Self, B> {
         ThenMove {
+            left: self,
+            right: other,
+        }
+    }
+    fn pipe<B: Move + Copy>(self, other: B) -> PipeMove<Self, B> {
+        PipeMove {
             left: self,
             right: other,
         }
@@ -279,13 +289,49 @@ pub(crate) struct ThenMove<A: Move + Copy, B: Move + Copy> {
 
 impl<A: Move + Copy, B: Move + Copy> Move for ThenMove<A, B> {
     fn apply<'a, F>(&self, at: F, mut pos: usize) -> Option<usize>
-    where
-        F: Fn(usize) -> Token<'a>,
+        where
+            F: Fn(usize) -> Token<'a>,
     {
         if let Some(new_pos) = self.left.apply(&at, pos) {
             pos = new_pos
         }
         self.right.apply(&at, pos)
+    }
+}
+
+///Execute left then right move.
+/// if both move fails, this move fails.
+/// if one or both moves succeeds, then the move succeeds returning either left result if right failed,
+/// or right result if right succeeded
+///
+/// left fails, right fails       -> fail
+/// left succeeds, right fails    -> left result
+/// left fails, right succeeds    -> right result
+/// left succeeds, right succeeds -> right result
+#[derive(Copy, Clone)]
+pub(crate) struct PipeMove<A: Move + Copy, B: Move + Copy> {
+    left: A,
+    right: B,
+}
+
+impl<A: Move + Copy, B: Move + Copy> Move for PipeMove<A, B> {
+    fn apply<'a, F>(&self, at: F, mut pos: usize) -> Option<usize>
+        where
+            F: Fn(usize) -> Token<'a>,
+    {
+        let mut succeed = false;
+        if let Some(new_pos) = self.left.apply(&at, pos) {
+            pos = new_pos;
+            succeed = true;
+        }
+        if let Some(new_pos) = self.right.apply(&at, pos) {
+            pos = new_pos;
+            succeed = true;
+        }
+        if succeed {
+            return Some(pos)
+        }
+        return None
     }
 }
 
