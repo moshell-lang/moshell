@@ -90,10 +90,18 @@ where
 /// Will move once only if the given predicate is satisfied.
 /// * `predicate` - the predicate to satisfy
 pub(crate) fn predicate<P>(predicate: P) -> PredicateMove<P>
-where
-    P: Fn(Token) -> bool + Copy,
+    where
+        P: Fn(Token) -> bool + Copy,
 {
     PredicateMove { predicate }
+}
+
+/// a predicate move on the type of the token rather than it's integrity
+pub(crate) fn like<P>(predicate: P) -> PredicateMove<impl Fn(Token) -> bool + Copy>
+    where
+        P: Fn(TokenType) -> bool + Copy
+{
+    PredicateMove { predicate: move |t| predicate(t.token_type) }
 }
 
 ///Move to next token if its type is in the given set
@@ -102,6 +110,7 @@ pub(crate) fn of_types(set: &[TokenType]) -> PredicateMove<impl Fn(Token) -> boo
     predicate(move |token| set.contains(&token.token_type))
 }
 
+///Move to next token if its type match the given tpe param
 pub(crate) fn of_type(tpe: TokenType) -> PredicateMove<impl Fn(Token) -> bool + Copy> {
     predicate(move |token| tpe == token.token_type)
 }
@@ -137,8 +146,35 @@ pub(crate) fn space() -> PredicateMove<impl for<'a> Fn(Token<'a>) -> bool + Copy
 }
 
 ///repeats until it finds a token that's not a space
-pub(crate) fn spaces() -> RepeatedMove<PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>> {
+pub(crate) fn spaces() -> RepeatedMove<PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>> {
     repeat_n(1, space())
+}
+
+/// A Move to inverse the matching status of underlying move.
+/// If underlying succeeds: fail
+/// if underlying fails: succeed at given pos.
+#[derive(Copy, Clone)]
+pub(crate) struct NotMove<M: Move + Copy> {
+    underlying: M,
+}
+
+impl<M: Move + Copy> Move for NotMove<M> {
+    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
+        where F: Fn(usize) -> Token<'a> {
+        match self.underlying.apply(at, pos) {
+            Some(_) => None,
+            None => Some(pos)
+        }
+    }
+}
+
+/// inverse the matching status of input move.
+/// If underlying succeeds: fail
+/// if underlying fails: succeed at given pos.
+pub(crate) fn not<M: Move + Copy>(m: M) -> NotMove<M> {
+    NotMove {
+        underlying: m
+    }
 }
 
 /// A RepeatedMove is a special kind of move that will repeat as long as the underlying move succeeds

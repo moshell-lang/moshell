@@ -26,7 +26,7 @@ fn variable_type_and_initializer() {
             ty: Some("int"),
         },
         initializer: Some(Box::new(Expr::Literal(Literal {
-            lexme: "1",
+            lexeme: "1",
             parsed: LiteralValue::Int(1),
         }))),
     })];

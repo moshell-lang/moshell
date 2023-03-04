@@ -225,7 +225,7 @@ mod test {
                     fd: RedirFd::Default,
                     operator: RedirOp::FdOut,
                     operand: Expr::Literal(Literal {
-                        lexme: "2",
+                        lexeme: "2",
                         parsed: 2.into(),
                     }),
                 }],
