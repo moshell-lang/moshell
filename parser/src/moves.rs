@@ -151,6 +151,19 @@ pub(crate) fn spaces() -> RepeatedMove<PredicateMove<impl ( for<'a> Fn(Token<'a>
     repeat_n(1, space())
 }
 
+///A move to consume all spaces and escaped newlines
+pub(crate) fn word_sep() -> RepeatedMove<
+    OrMove<
+        PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
+        ThenMove<
+            PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
+            PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>
+        >
+    >
+> {
+    repeat(space().or(of_type(BackSlash).then(of_type(NewLine))))
+}
+
 /// A Move to inverse the matching status of underlying move.
 /// If underlying succeeds: fail
 /// if underlying fails: succeed at given pos.
