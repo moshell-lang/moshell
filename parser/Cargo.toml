@@ -9,6 +9,7 @@ edition = "2021"
 lexer = { path = "../lexer" }
 context = { path = "../context" }
 enum-assoc = "0.4.0"
+dbg-pls = { version = "0.3.5", features = ["derive"] }
 
 [dev-dependencies]
 pretty_assertions = "1.3.0"

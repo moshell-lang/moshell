@@ -2,6 +2,7 @@ mod report;
 
 use crate::report::print_flush;
 use context::source::Source;
+use dbg_pls::color;
 use miette::{Diagnostic, GraphicalReportHandler, SourceSpan};
 use parser::err::ParseErrorKind;
 use parser::parse;
@@ -71,7 +72,7 @@ fn main() -> io::Result<()> {
             .collect::<Vec<_>>();
 
         if errors.is_empty() {
-            print_flush!("{:?}\n=> ", report.expr);
+            print_flush!("{}\n=> ", color(&report.expr));
             content.clear();
             continue;
         }
