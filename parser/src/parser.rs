@@ -220,8 +220,8 @@ impl<'a> Parser<'a> {
         self.cursor.advance(spaces()); //consume spaces
 
         //if there is an end of expression, it means that the expr is terminated so we return it here
-        //if there is a `else` keyword, maybe that the expression is within a if <expr> else clause
-        if self.cursor.lookahead(eox().or(eod()).or(of_type(Else))).is_some() {
+        //any keyword would also stop this expression.
+        if self.cursor.lookahead(eox().or(eod()).or(like(TokenType::is_keyword))).is_some() {
             return Ok(expr);
         }
 
