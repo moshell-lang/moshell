@@ -1,7 +1,7 @@
 use lexer::token::TokenType;
-use lexer::token::TokenType::{Else, SemiColon};
+use lexer::token::TokenType::{Else, NewLine, SemiColon};
 use crate::ast::Expr;
-use crate::moves::{MoveOperations, of_type, spaces, times};
+use crate::moves::{MoveOperations, of_type, repeat, spaces};
 use crate::parser::{Parser, ParseResult};
 use crate::ast::flow_control::If;
 pub trait IfElseAspect<'a> {
@@ -12,21 +12,31 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
     fn parse_if(&mut self) -> ParseResult<Expr<'a>> {
         self.cursor.force(
             of_type(TokenType::If),
-            "expected 'if' at start of if expression"
+            "expected 'if' at start of if expression",
         )?;
         let condition = self.expression_statement()?;
 
+        //skip only one semicolon if any, surrounded by newlines and spaces
+        self.cursor.advance(spaces().then(
+            repeat(spaces().then(of_type(NewLine)))
+                .then(of_type(SemiColon))
+                .then(repeat(spaces().then(of_type(NewLine))))
 
-        if self.cursor.advance(times(2, spaces().then(of_type(SemiColon)))).is_some() {
+        ));
+
+        if self.cursor.lookahead(spaces().then(of_type(SemiColon))).is_some() {
             //if the if condition is followed by at least two semicolon, then the if body is invalid
-            self.expected("Forbidden ';' expression after if condition")?
+            return self.expected("Forbidden ';' expression after if condition")
         }
 
         //the success_branch of the if
         let success_branch = self.statement()?;
 
         let fail_branch =
-            if self.cursor.advance(spaces().then(of_type(Else))).is_some() {
+            if self.cursor.advance(
+                repeat(spaces().then(of_type(NewLine)))
+                    .then(of_type(Else))
+            ).is_some() {
                 Some(self.statement()?)
             } else {
                 None
@@ -35,7 +45,73 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
         Ok(Expr::If(If {
             condition: Box::new(condition),
             success_branch: Box::new(success_branch),
-            fail_branch: Box::new(fail_branch)
+            fail_branch: Box::new(fail_branch),
         }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+    use lexer::lexer::lex;
+    use crate::ast::callable::Call;
+    use crate::ast::Expr;
+    use crate::ast::flow_control::If;
+    use crate::ast::group::Block;
+    use crate::ast::test::Test;
+    use crate::ast::variable::VarReference;
+    use crate::parse;
+
+    #[test]
+    fn simple_if() {
+        let ast = parse(lex("if [ $1 ]; echo test")).expect("parse failed");
+        assert_eq!(
+            ast,
+            vec![
+                Expr::If(If {
+                    condition: Box::new(Expr::Test(Test {
+                        expression: Box::new(Expr::VarReference(VarReference {
+                            name: "1"
+                        }))
+                    })),
+                    success_branch: Box::new(Expr::Call(Call {
+                        arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())]
+                    })),
+                    fail_branch: Box::new(None),
+                })
+            ]
+        )
+    }
+
+
+    #[test]
+    fn if_else_if() {
+        let ast = parse(lex("if [ $1 ]; echo test\n\n\nelse if [ $a ] \n;\n {\"7\"} else \"5\"")).expect("parse failed");
+        assert_eq!(
+            ast,
+            vec![
+                Expr::If(If {
+                    condition: Box::new(Expr::Test(Test {
+                        expression: Box::new(Expr::VarReference(VarReference {
+                            name: "1"
+                        }))
+                    })),
+                    success_branch: Box::new(Expr::Call(Call {
+                        arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())]
+                    })),
+                    fail_branch: Box::new(Some(Expr::If(If {
+                        condition: Box::new(Expr::Test(Test {
+                            expression: Box::new(Expr::VarReference(VarReference {
+                                name: "a"
+                            }))
+                        })),
+                        success_branch: Box::new(Expr::Block(Block {
+                            expressions: vec![Expr::Literal("7".into())]
+                        })),
+                        fail_branch: Box::new(Some(Expr::Literal("5".into()))),
+                    }))),
+                })
+            ]
+        )
     }
 }
