@@ -1,4 +1,4 @@
-use lexer::token::{Token};
+use lexer::token::Token;
 use lexer::token::TokenType::*;
 
 use crate::aspects::binary_operation::BinaryOperationsAspect;
