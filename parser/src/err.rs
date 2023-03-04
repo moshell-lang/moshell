@@ -65,8 +65,24 @@ pub enum ParseErrorKind {
 /// process have failed.
 #[derive(Debug, PartialEq)]
 pub struct ParseReport<'a> {
+    /// Lists all parsed expressions.
+    ///
+    /// This may be empty if the input is empty or if all read expressions
+    /// were invalid. Note that a parse error may have occurred between two
+    /// valid expressions, so always check for errors first.
     pub expr: Vec<Expr<'a>>,
+
+    /// Lists all errors that occurred during parsing.
+    ///
+    /// This may be empty if the parsing process succeeded.
     pub errors: Vec<ParseError>,
+
+    /// Indicates that the end of the input has been reached too early and
+    /// that the parser is waiting for more input.
+    ///
+    /// This flag is set only when a block delimiter is opened, but not closed,
+    /// and there was no actual error in the input.
+    pub stack_ended: bool,
 }
 
 impl<'a> ParseReport<'a> {
@@ -101,10 +117,12 @@ impl<'a> From<ParseResult<Vec<Expr<'a>>>> for ParseReport<'a> {
             Ok(expr) => Self {
                 expr,
                 errors: Vec::new(),
+                stack_ended: true,
             },
             Err(err) => Self {
                 expr: Vec::new(),
                 errors: vec![err],
+                stack_ended: true,
             },
         }
     }

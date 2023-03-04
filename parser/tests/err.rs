@@ -32,6 +32,7 @@ fn repos_delimiter_stack() {
                     kind: ParseErrorKind::Unexpected
                 }
             ],
+            stack_ended: true,
         }
     );
 }
@@ -50,6 +51,7 @@ fn excepted_value_found_eof() {
                 position: content.find('=').map(|p| p + 1..p + 2).unwrap(),
                 kind: ParseErrorKind::Unexpected
             }],
+            stack_ended: true,
         }
     );
 }
@@ -68,6 +70,7 @@ fn excepted_value_found_semicolon() {
                 position: content.find(';').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected
             }],
+            stack_ended: true,
         }
     );
 }

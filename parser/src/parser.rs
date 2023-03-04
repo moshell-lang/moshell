@@ -53,6 +53,7 @@ impl<'a> Parser<'a> {
         ParseReport {
             expr: statements,
             errors,
+            stack_ended: self.delimiter_stack.is_empty(),
         }
     }
 

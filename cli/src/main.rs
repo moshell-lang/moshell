@@ -1,9 +1,12 @@
+mod report;
+
+use crate::report::print_flush;
 use context::source::Source;
 use miette::{Diagnostic, GraphicalReportHandler, SourceSpan};
 use parser::err::ParseErrorKind;
 use parser::parse;
 use std::fmt::Display;
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, Write};
 use thiserror::Error;
 
 #[derive(Error, Debug, Diagnostic)]
@@ -31,16 +34,23 @@ fn main() -> io::Result<()> {
 
     let handler = GraphicalReportHandler::default();
 
+    print_flush!("=> ");
     let mut content = String::new();
     while let Some(line) = lines.next() {
         let line = line?;
         content.push_str(&line);
         if line.ends_with('\\') {
+            print!(".. ");
             continue;
         }
 
         let source = Source::new(&content, "stdin");
         let report = parse(source.clone());
+        if !report.stack_ended {
+            print_flush!(".. ");
+            continue; // Silently ignore incomplete input
+        }
+
         let errors = report
             .errors
             .into_iter()
@@ -60,7 +70,7 @@ fn main() -> io::Result<()> {
             .collect::<Vec<_>>();
 
         if errors.is_empty() {
-            println!("{:?}", report.expr);
+            print_flush!("{:?}\n=> ", report.expr);
             content.clear();
             continue;
         }
@@ -74,6 +84,7 @@ fn main() -> io::Result<()> {
             msg.clear();
         }
         content.clear();
+        print_flush!("=> ");
     }
 
     Ok(())
