@@ -43,6 +43,7 @@ impl<A: Move + Copy> MoveOperations<A> for A {
             right: other,
         }
     }
+
     fn or<B: Move + Copy>(self, other: B) -> OrMove<Self, B> {
         OrMove {
             left: self,
@@ -292,8 +293,8 @@ pub(crate) struct ThenMove<A: Move + Copy, B: Move + Copy> {
 
 impl<A: Move + Copy, B: Move + Copy> Move for ThenMove<A, B> {
     fn apply<'a, F>(&self, at: F, mut pos: usize) -> Option<usize>
-    where
-        F: Fn(usize) -> Token<'a>,
+        where
+            F: Fn(usize) -> Token<'a>,
     {
         if let Some(new_pos) = self.left.apply(&at, pos) {
             pos = new_pos

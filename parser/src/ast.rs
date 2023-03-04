@@ -6,6 +6,7 @@ use crate::ast::r#use::Use;
 use crate::ast::substitution::Substitution;
 use crate::ast::test::{Not, Test};
 use crate::ast::variable::{Assign, VarDeclaration, VarReference};
+use crate::ast::control_flow::If;
 
 pub mod callable;
 pub mod group;
@@ -15,6 +16,7 @@ pub mod substitution;
 pub mod variable;
 pub mod test;
 pub mod r#use;
+pub mod control_flow;
 
 /// A expression that can be evaluated.
 #[derive(Debug, Clone, PartialEq)]
@@ -35,6 +37,8 @@ pub enum Expr<'a> {
 
     Test(Test<'a>),
     Not(Not<'a>),
+
+    If(If<'a>),
 
     //var / val handling expressions
     VarReference(VarReference<'a>),

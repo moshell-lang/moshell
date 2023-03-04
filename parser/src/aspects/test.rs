@@ -92,7 +92,7 @@ mod tests {
         assert_eq!(
             result,
             Err(ParseError {
-                message: "Unexpected closing bracket.".to_string()
+                message: "Unexpected token ']'.".to_string()
             })
         )
     }
