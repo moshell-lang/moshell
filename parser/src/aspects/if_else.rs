@@ -40,7 +40,7 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
                     .then(repeat(spaces().pipe(of_type(NewLine))))
                     .then(of_type(Else))
             ).is_some() {
-                Some(parse_branch(self)?)
+                Some(Box::new(parse_branch(self)?))
             } else {
                 None
             };
@@ -48,7 +48,7 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
         Ok(Expr::If(If {
             condition: Box::new(condition),
             success_branch: Box::new(success_branch),
-            fail_branch: Box::new(fail_branch),
+            fail_branch,
         }))
     }
 }
@@ -84,7 +84,7 @@ mod tests {
                     success_branch: Box::new(Expr::Call(Call {
                         arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())]
                     })),
-                    fail_branch: Box::new(None),
+                    fail_branch: None,
                 })
             ]
         )
@@ -110,7 +110,7 @@ mod tests {
                     success_branch: Box::new(Expr::Call(Call {
                         arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())]
                     })),
-                    fail_branch: Box::new(Some(Expr::If(If {
+                    fail_branch: Some(Box::new(Expr::If(If {
                         condition: Box::new(Expr::Test(Test {
                             expression: Box::new(Expr::VarReference(VarReference {
                                 name: "a"
@@ -121,7 +121,7 @@ mod tests {
                                 name: "7"
                             })]
                         })),
-                        fail_branch: Box::new(Some(Expr::VarReference(VarReference {
+                        fail_branch: Some(Box::new(Expr::VarReference(VarReference {
                             name: "5"
                         }))),
                     }))),
@@ -145,7 +145,7 @@ mod tests {
                     success_branch: Box::new(Expr::Call(Call {
                         arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())]
                     })),
-                    fail_branch: Box::new(Some(Expr::If(If {
+                    fail_branch: Some(Box::new(Expr::If(If {
                         condition: Box::new(Expr::Test(Test {
                             expression: Box::new(Expr::VarReference(VarReference {
                                 name: "a"
@@ -154,7 +154,7 @@ mod tests {
                         success_branch: Box::new(Expr::VarReference(VarReference {
                             name: "7"
                         })),
-                        fail_branch: Box::new(Some(Expr::VarReference(VarReference {
+                        fail_branch: Some(Box::new(Expr::VarReference(VarReference {
                             name: "5"
                         }))),
                     }))),
@@ -193,7 +193,7 @@ mod tests {
                             }))
                         })),
                         success_branch: Box::new(Expr::TemplateString(vec![Expr::Literal("bash".into())])),
-                        fail_branch: Box::new(Some(Expr::TemplateString(vec![Expr::Literal("moshell".into())]))),
+                        fail_branch: Some(Box::new(Expr::TemplateString(vec![Expr::Literal("moshell".into())]))),
                     }))),
                 }),
             ]
