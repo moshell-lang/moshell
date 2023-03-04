@@ -117,7 +117,7 @@ impl<'a> Parser<'a> {
             }
 
             if eox_res.is_err() && self.cursor.peek().token_type.is_closing_ponctuation() {
-                if let Some(last) = self.delimiter_stack.pop_back() {
+                if let Some(last) = self.delimiter_stack.back() {
                     self.expected(
                         "Mismatched closing delimiter.",
                         ParseErrorKind::Unpaired(self.cursor.relative_pos(&last)),

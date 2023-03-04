@@ -244,8 +244,23 @@ impl<'a> Parser<'a> {
 
     //traverse current expression and go to next expression
     fn repos_to_next_expr(&mut self) {
-        while self.cursor.lookahead(eox()).is_none() {
-            self.cursor.advance(next());
+        while !self.cursor.is_at_end() {
+            if let Some(last) = self.delimiter_stack.back() {
+                if let Some(token) = self.cursor.advance(next()) {
+                    if last
+                        .token_type
+                        .closing_pair()
+                        .expect("invalid delimiter passed to stack")
+                        == token.token_type
+                    {
+                        self.delimiter_stack.pop_back();
+                    }
+                }
+            } else if self.cursor.lookahead(eox()).is_none() {
+                self.cursor.advance(next());
+            } else {
+                break;
+            }
         }
     }
 }

@@ -5,6 +5,7 @@ use parser::ast::literal::Literal;
 use parser::ast::substitution::{Substitution, SubstitutionKind};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 use parser::ast::Expr;
+use parser::err::{ParseError, ParseErrorKind, ParseReport};
 use parser::parse;
 use pretty_assertions::assert_eq;
 
@@ -281,5 +282,37 @@ fn with_lexer_substitution_in_substitution() {
                 }),
             ],
         })]
+    );
+}
+
+#[test]
+fn repos_delimiter_stack() {
+    let content = "{\n\
+    val n=$(test $n})\n\
+    echo invalid ]\n\
+    }\n\
+    echo end\n\
+    val n=9!3";
+    let source = Source::unknown(content);
+    let report = parse(source);
+    assert_eq!(
+        report,
+        ParseReport {
+            expr: vec![Expr::Call(Call {
+                arguments: vec![Expr::Literal("echo".into()), Expr::Literal("end".into())],
+            })],
+            errors: vec![
+                ParseError {
+                    message: "Mismatched closing delimiter.".to_string(),
+                    position: content.find('}').map(|p| p..p + 1).unwrap(),
+                    kind: ParseErrorKind::Unpaired(content.find('(').map(|p| p..p + 1).unwrap())
+                },
+                ParseError {
+                    message: "invalid infix operator".to_string(),
+                    position: content.rfind('!').map(|p| p..p + 1).unwrap(),
+                    kind: ParseErrorKind::Unexpected
+                }
+            ],
+        }
     );
 }

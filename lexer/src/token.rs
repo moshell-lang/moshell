@@ -256,4 +256,13 @@ impl TokenType {
                 | TokenType::CurlyRightBracket
         )
     }
+
+    pub fn closing_pair(self) -> Option<TokenType> {
+        match self {
+            SquaredLeftBracket => Some(SquaredRightBracket),
+            RoundedLeftBracket => Some(RoundedRightBracket),
+            CurlyLeftBracket => Some(CurlyRightBracket),
+            _ => None,
+        }
+    }
 }
