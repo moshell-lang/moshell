@@ -1,8 +1,9 @@
 use crate::token::TokenType::*;
+use dbg_pls::DebugPls;
 use enum_assoc::Assoc;
 use logos::Logos;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Token<'a> {
     pub token_type: TokenType,
     pub value: &'a str,
@@ -14,7 +15,7 @@ impl<'a> Token<'a> {
     }
 }
 
-#[derive(Assoc, Logos, Debug, PartialEq, Clone, Copy)]
+#[derive(Assoc, Logos, Debug, PartialEq, Clone, Copy, DebugPls)]
 #[func(pub fn str(&self) -> Option<&'static str>)]
 pub enum TokenType {
     #[token("var")]

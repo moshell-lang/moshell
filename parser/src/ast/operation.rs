@@ -1,3 +1,4 @@
+use dbg_pls::DebugPls;
 use enum_assoc::Assoc;
 use lexer::token::TokenType;
 
@@ -5,7 +6,7 @@ use crate::ast::operation::BinaryOperator::*;
 use crate::ast::Expr;
 
 /// A binary operation between two expressions.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct BinaryOperation<'a> {
     /// The left-hand side of the operation.
     pub left: Box<Expr<'a>>,
@@ -15,7 +16,7 @@ pub struct BinaryOperation<'a> {
     pub right: Box<Expr<'a>>,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Assoc)]
+#[derive(Debug, Copy, Clone, PartialEq, Assoc, DebugPls)]
 #[func(pub const fn priority(& self) -> i8)]
 #[func(pub const fn token(& self) -> TokenType)]
 pub enum BinaryOperator {
