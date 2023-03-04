@@ -66,6 +66,7 @@ mod tests {
     use crate::ast::test::Test;
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
     use crate::parse;
+    use crate::parser::ParseError;
 
     #[test]
     fn simple_if() {
@@ -221,6 +222,17 @@ mod tests {
                     }))),
                 }),
             ]
+        )
+    }
+
+    #[test]
+    fn if_else_bad_brackets() {
+        let ast = parse(lex("val x = if [ $1 ] \n { echo hey; else if [ $a ]; echo hola; else echo bonjour }"));
+        assert_eq!(
+            ast,
+            Err(ParseError {
+                message: "Unexpected keyword 'else'".to_string()
+            })
         )
     }
 }

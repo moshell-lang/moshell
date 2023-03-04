@@ -1,4 +1,4 @@
-use lexer::token::Token;
+use lexer::token::{Token};
 use lexer::token::TokenType::*;
 
 use crate::aspects::binary_operation::BinaryOperationsAspect;
@@ -109,7 +109,6 @@ impl<'a> Parser<'a> {
         let pivot = self.cursor.peek().token_type;
         match pivot {
             If => self.parse_if(Parser::statement),
-            Else => self.expected("unexpected 'else' keyword."),
             Identifier | Quote | DoubleQuote => self.call(),
 
             _ => self.next_expression(),
@@ -137,7 +136,8 @@ impl<'a> Parser<'a> {
     pub(crate) fn next_value(&mut self) -> ParseResult<Expr<'a>> {
         self.repos()?;
 
-        let pivot = self.cursor.peek().token_type;
+        let token = self.cursor.peek();
+        let pivot = token.token_type;
         match pivot {
             RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
             CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
@@ -151,9 +151,9 @@ impl<'a> Parser<'a> {
             DoubleQuote => self.templated_string_literal(),
 
             If => self.parse_if(Parser::value),
-            Else => self.expected("unexpected 'else' keyword."),
 
-            _ if pivot.is_closing_ponctuation() => self.expected("Unexpected closing bracket."),
+            _ if pivot.is_keyword() => self.expected(&format!("Unexpected keyword '{}'", token.value)),
+            _ if pivot.is_ponctuation() => self.expected(&format!("Unexpected token '{}'.", token.value)),
             _ => self.argument(),
         }
     }
@@ -230,8 +230,6 @@ impl<'a> Parser<'a> {
         if self.cursor.lookahead(bin_op()).is_some() {
             return self.binary_operation_right(expr, Parser::next_value);
         }
-
-
 
         //else, we hit an invalid binary expression.
         self.expected(&format!(

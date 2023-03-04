@@ -37,8 +37,6 @@ pub enum TokenType {
     Use,
     #[token("if")]
     If,
-    #[token("then")]
-    Then,
     #[token("else")]
     Else,
     #[token("for")]
@@ -147,6 +145,12 @@ pub enum TokenType {
 }
 
 impl TokenType {
+
+    pub fn is_keyword(self) -> bool {
+        matches!(self,
+            Fun | Use | IntLiteral | Else | For | In | While | Match | Val | Var
+        )
+    }
 
     ///is this lexeme a valid reference name for a variable ?
     pub fn is_valid_var_ref_name(self) -> bool {
