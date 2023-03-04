@@ -64,7 +64,7 @@ impl<'a> Parser<'a> {
         self.cursor.force_with(
             of_type(start),
             "Unexpected start of group expression",
-            ParseErrorKind::Excepted(start.represent().expect("")),
+            ParseErrorKind::Excepted(start.str().unwrap_or("specific token")),
         ) //consume group start token
     }
 

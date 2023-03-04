@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+enum-assoc = "0.4.0"
 logos = "0.12.1"
 
 [dev-dependencies]

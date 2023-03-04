@@ -1,4 +1,5 @@
 use crate::token::TokenType::*;
+use enum_assoc::Assoc;
 use logos::Logos;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -13,11 +14,14 @@ impl<'a> Token<'a> {
     }
 }
 
-#[derive(Logos, Debug, PartialEq, Clone, Copy)]
+#[derive(Assoc, Logos, Debug, PartialEq, Clone, Copy)]
+#[func(pub fn str(&self) -> Option<&'static str>)]
 pub enum TokenType {
     #[token("var")]
+    #[assoc(str = "var")]
     Var,
     #[token("val")]
+    #[assoc(str = "val")]
     Val,
 
     #[regex("[^;:<>|&\\s'\\[\\]\"$\\\\)(*+-/=!;:}{,@}]+")]
@@ -29,111 +33,160 @@ pub enum TokenType {
     FloatLiteral,
 
     #[token("\n")]
+    #[assoc(str = "\\n")]
     NewLine,
 
     #[token("fun")]
+    #[assoc(str = "fun")]
     Fun,
     #[token("use")]
+    #[assoc(str = "use")]
     Use,
     #[token("if")]
+    #[assoc(str = "if")]
     If,
     #[token("then")]
+    #[assoc(str = "then")]
     Then,
     #[token("else")]
+    #[assoc(str = "else")]
     Else,
     #[token("for")]
+    #[assoc(str = "for")]
     For,
     #[token("in")]
+    #[assoc(str = "in")]
     In,
     #[token("while")]
+    #[assoc(str = "while")]
     While,
     #[token("match")]
+    #[assoc(str = "match")]
     Match,
 
     #[token("->")]
+    #[assoc(str = "->")]
     Arrow,
     #[token("=>")]
+    #[assoc(str = "=>")]
     FatArrow,
 
     #[token(":")]
+    #[assoc(str = ":")]
     Colon,
     #[token(";")]
+    #[assoc(str = ";")]
     SemiColon,
     #[token("=")]
+    #[assoc(str = "=")]
     Equal,
     #[token("'")]
+    #[assoc(str = "'")]
     Quote,
     #[token("\"")]
+    #[assoc(str = "\"")]
     DoubleQuote,
     #[token("$")]
+    #[assoc(str = "$")]
     Dollar,
     #[token("&")]
+    #[assoc(str = "&")]
     Ampersand,
     #[token("@")]
+    #[assoc(str = "@")]
     At,
     #[token(",")]
+    #[assoc(str = ",")]
     Comma,
     #[token(".")]
+    #[assoc(str = ".")]
     Dot,
 
     #[token("|")]
+    #[assoc(str = "|")]
     Pipe,
 
     #[token("&&")]
+    #[assoc(str = "&&")]
     And,
     #[token("||")]
+    #[assoc(str = "||")]
     Or,
     #[token("!")]
+    #[assoc(str = "!")]
     Not,
 
     #[token("==")]
+    #[assoc(str = "==")]
     EqualEqual,
     #[token("!=")]
+    #[assoc(str = "!=")]
     NotEqual,
     #[token("<")]
+    #[assoc(str = "<")]
     Less,
     #[token("<=")]
+    #[assoc(str = "<=")]
     LessEqual,
     #[token(">")]
+    #[assoc(str = ">")]
     Greater,
     #[token(">=")]
+    #[assoc(str = ">=")]
     GreaterEqual,
 
     #[token("+=")]
+    #[assoc(str = "+=")]
     PlusEqual,
     #[token("-=")]
+    #[assoc(str = "-=")]
     MinusEqual,
     #[token("*=")]
+    #[assoc(str = "*=")]
     TimesEqual,
     #[token("/=")]
+    #[assoc(str = "/=")]
     DivideEqual,
     #[token("%=")]
+    #[assoc(str = "%=")]
     ModuloEqual,
 
     #[token("+")]
+    #[assoc(str = "+")]
     Plus,
     #[token("-")]
+    #[assoc(str = "-")]
     Minus,
     #[token("*")]
+    #[assoc(str = "*")]
     Star,
     #[token("/")]
+    #[assoc(str = "/")]
     Slash,
     #[token("\\")]
+    #[assoc(str = "\\")]
     BackSlash,
     #[token("%")]
+    #[assoc(str = "%")]
     Percent,
 
     #[token("[")]
+    #[assoc(str = "[")]
     SquaredLeftBracket,
     #[token("]")]
+    #[assoc(str = "]")]
     SquaredRightBracket,
     #[token("(")]
+    #[assoc(str = "(")]
     RoundedLeftBracket,
     #[token(")")]
+    #[assoc(str = ")")]
     RoundedRightBracket,
     #[token("{")]
+    #[assoc(str = "{")]
     CurlyLeftBracket,
     #[token("}")]
+    #[assoc(str = "}")]
     CurlyRightBracket,
 
     #[regex(r"[ \t\f]+")]
@@ -202,64 +255,5 @@ impl TokenType {
             |TokenType::SquaredRightBracket| TokenType::RoundedRightBracket
                 | TokenType::CurlyRightBracket
         )
-    }
-
-    /// Get a exact string representation of the token type
-    ///
-    /// Returns `None` if the token type is not a keyword.
-    pub fn represent(self) -> Option<&'static str> {
-        match self {
-            Var => Some("var"),
-            Val => Some("val"),
-            Fun => Some("fun"),
-            Use => Some("use"),
-            If => Some("if"),
-            Then => Some("then"),
-            Else => Some("else"),
-            For => Some("for"),
-            In => Some("in"),
-            While => Some("while"),
-            Match => Some("match"),
-            Arrow => Some("->"),
-            FatArrow => Some("=>"),
-            Colon => Some(":"),
-            SemiColon => Some(";"),
-            Equal => Some("="),
-            Quote => Some("'"),
-            DoubleQuote => Some("\""),
-            Dollar => Some("$"),
-            Ampersand => Some("&"),
-            At => Some("@"),
-            Comma => Some(","),
-            Dot => Some("."),
-            Pipe => Some("|"),
-            And => Some("&&"),
-            Or => Some("||"),
-            Not => Some("!"),
-            EqualEqual => Some("=="),
-            NotEqual => Some("!="),
-            Less => Some("<"),
-            LessEqual => Some("<="),
-            Greater => Some(">"),
-            GreaterEqual => Some(">="),
-            PlusEqual => Some("+="),
-            MinusEqual => Some("-="),
-            TimesEqual => Some("*="),
-            DivideEqual => Some("/="),
-            ModuloEqual => Some("%="),
-            Plus => Some("+"),
-            Minus => Some("-"),
-            Star => Some("*"),
-            Slash => Some("/"),
-            BackSlash => Some("\\"),
-            Percent => Some("%"),
-            SquaredLeftBracket => Some("["),
-            SquaredRightBracket => Some("]"),
-            RoundedLeftBracket => Some("("),
-            RoundedRightBracket => Some(")"),
-            CurlyLeftBracket => Some("{"),
-            CurlyRightBracket => Some("}"),
-            _ => None,
-        }
     }
 }
