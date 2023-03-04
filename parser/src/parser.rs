@@ -11,7 +11,7 @@ use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::err::{ErrorContext, ParseError, ParseErrorKind};
+use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
 use crate::moves::{bin_op, eod, eox, next, of_types, repeat, space, spaces, MoveOperations};
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
@@ -32,24 +32,23 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses input tokens into an abstract syntax tree representation.
-    pub fn parse(&mut self) -> ParseResult<Vec<Expr<'a>>> {
+    pub fn parse(&mut self) -> ParseReport<'a> {
         let mut statements = Vec::new();
-        let mut last_error = None;
+        let mut errors = Vec::new();
 
         while self.look_for_input() {
             match self.parse_next() {
                 Err(error) => {
                     self.repos_to_next_expr();
-                    last_error = Some(error);
+                    errors.push(error);
                 }
                 Ok(statement) => statements.push(statement),
             }
         }
 
-        if let Some(error) = last_error {
-            Err(error)
-        } else {
-            Ok(statements)
+        ParseReport {
+            expr: statements,
+            errors,
         }
     }
 

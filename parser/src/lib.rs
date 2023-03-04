@@ -15,5 +15,5 @@ mod moves;
 mod parser;
 
 pub fn parse(src: Source) -> ParseReport {
-    Parser::new(src).parse().into()
+    Parser::new(src).parse()
 }

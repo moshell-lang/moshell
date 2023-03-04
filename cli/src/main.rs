@@ -63,6 +63,7 @@ fn main() -> io::Result<()> {
             } else {
                 eprintln!("{msg}");
             }
+            msg.clear();
         }
     }
 
