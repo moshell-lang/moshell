@@ -146,6 +146,7 @@ pub enum TokenType {
 
 impl TokenType {
 
+    ///is this lexeme a keyword of the language ?
     pub fn is_keyword(self) -> bool {
         matches!(self,
             Fun | Use | IntLiteral | Else | For | In | While | Match | Val | Var

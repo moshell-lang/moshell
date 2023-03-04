@@ -4,7 +4,11 @@ use crate::ast::Expr;
 use crate::moves::{MoveOperations, of_type, repeat, spaces};
 use crate::parser::{Parser, ParseResult};
 use crate::ast::flow_control::If;
+
+///parser aspect for if and else expressions.
 pub trait IfElseAspect<'a> {
+    ///parse a if with optional else expression.
+    /// `parse_branch` argument defines how the branches must be parsed.
     fn parse_if<F>(&mut self, parse_branch: F) -> ParseResult<Expr<'a>>
         where F: FnMut(&mut Self) -> ParseResult<Expr<'a>>;
 }
@@ -25,14 +29,10 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
                 .then(repeat(spaces().pipe(of_type(NewLine))))
         ));
 
-        if self.cursor.lookahead(spaces().then(of_type(SemiColon))).is_some() {
-            //if the if condition is followed by at least two semicolon, then the if body is invalid
-            return self.expected("Forbidden ';' after if condition")
-        }
-
         //the success_branch of the if
         let success_branch = parse_branch(self)?;
 
+        //parse the 'else' branch.
         let fail_branch =
             if self.cursor.advance(
                 repeat(spaces().pipe(of_type(NewLine)))
