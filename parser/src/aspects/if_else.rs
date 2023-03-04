@@ -27,7 +27,7 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
 
         if self.cursor.lookahead(spaces().then(of_type(SemiColon))).is_some() {
             //if the if condition is followed by at least two semicolon, then the if body is invalid
-            return self.expected("Forbidden ';' expression after if condition")
+            return self.expected("Forbidden ';' after if condition")
         }
 
         //the success_branch of the if
@@ -237,6 +237,17 @@ mod tests {
             ast,
             Err(ParseError {
                 message: "Unexpected keyword 'else'".to_string()
+            })
+        )
+    }
+
+    #[test]
+    fn lonely_if() {
+        let ast = parse(lex("if [ $1 ];"));
+        assert_eq!(
+            ast,
+            Err(ParseError {
+                message: "Unexpected end of expression".to_string()
             })
         )
     }
