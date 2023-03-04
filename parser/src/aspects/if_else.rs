@@ -3,7 +3,7 @@ use lexer::token::TokenType::{Else, NewLine, SemiColon};
 use crate::ast::Expr;
 use crate::moves::{MoveOperations, of_type, repeat, spaces};
 use crate::parser::{Parser, ParseResult};
-use crate::ast::flow_control::If;
+use crate::ast::control_flow::If;
 
 ///parser aspect for if and else expressions.
 pub trait IfElseAspect<'a> {
@@ -22,12 +22,14 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
         )?;
         let condition = self.expression_statement()?;
 
-        //skip only one semicolon if any, surrounded by newlines and spaces
-        self.cursor.advance(spaces().then(
-            repeat(spaces().pipe(of_type(NewLine)))
+        //a local move to consume a semicolon ';' being between newlines and spaces
+        let aerated_semicolon =
+            repeat(spaces().or(of_type(NewLine)))
                 .then(of_type(SemiColon))
-                .then(repeat(spaces().pipe(of_type(NewLine))))
-        ));
+                .then(repeat(spaces().or(of_type(NewLine))));
+
+        //skip only one semicolon if any, surrounded by newlines and spaces
+        self.cursor.advance(spaces().then(aerated_semicolon));
 
         //the success_branch of the if
         let success_branch = parse_branch(self)?;
@@ -35,10 +37,7 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
         //parse the 'else' branch.
         let fail_branch =
             if self.cursor.advance(
-                repeat(spaces().pipe(of_type(NewLine)))
-                    .then(of_type(SemiColon))
-                    .then(repeat(spaces().pipe(of_type(NewLine))))
-                    .then(of_type(Else))
+                aerated_semicolon.then(of_type(Else))
             ).is_some() {
                 Some(Box::new(parse_branch(self)?))
             } else {
@@ -59,7 +58,7 @@ mod tests {
     use lexer::lexer::lex;
     use crate::ast::callable::Call;
     use crate::ast::Expr;
-    use crate::ast::flow_control::If;
+    use crate::ast::control_flow::If;
     use crate::ast::group::Block;
     use crate::ast::literal::Literal;
     use crate::ast::operation::{BinaryOperation, BinaryOperator};

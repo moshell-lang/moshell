@@ -5,7 +5,7 @@ use crate::ast::operation::BinaryOperation;
 use crate::ast::substitution::Substitution;
 use crate::ast::test::{Not, Test};
 use crate::ast::variable::{Assign, VarDeclaration, VarReference};
-use crate::ast::flow_control::If;
+use crate::ast::control_flow::If;
 
 pub mod callable;
 pub mod group;
@@ -14,7 +14,7 @@ pub mod operation;
 pub mod substitution;
 pub mod variable;
 pub mod test;
-pub mod flow_control;
+pub mod control_flow;
 
 /// A expression that can be evaluated.
 #[derive(Debug, Clone, PartialEq)]
