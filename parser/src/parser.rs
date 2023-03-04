@@ -90,7 +90,7 @@ impl<'a> Parser<'a> {
 
     ///Parse the next statement
     pub(crate) fn next_statement(&mut self) -> ParseResult<Expr<'a>> {
-        self.repos()?;
+        self.repos("Expected statement")?;
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
@@ -102,7 +102,7 @@ impl<'a> Parser<'a> {
 
     ///Parse the next expression
     pub(crate) fn next_expression_statement(&mut self) -> ParseResult<Expr<'a>> {
-        self.repos()?;
+        self.repos("Expected expression statement")?;
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
@@ -114,7 +114,7 @@ impl<'a> Parser<'a> {
 
     ///Parse the next expression
     pub(crate) fn next_expression(&mut self) -> ParseResult<Expr<'a>> {
-        self.repos()?;
+        self.repos("Expected expression")?;
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
@@ -130,7 +130,7 @@ impl<'a> Parser<'a> {
 
     ///Parse the next value
     pub(crate) fn next_value(&mut self) -> ParseResult<Expr<'a>> {
-        self.repos()?;
+        self.repos("Expected value")?;
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
@@ -234,10 +234,10 @@ impl<'a> Parser<'a> {
 
     //Skips spaces and verify that this parser is not parsing the end of an expression
     // (unescaped newline or semicolon)
-    fn repos(&mut self) -> ParseResult<()> {
+    fn repos(&mut self, message: &str) -> ParseResult<()> {
         self.cursor.advance(spaces()); //skip spaces
         if self.cursor.lookahead(eox()).is_some() {
-            return self.expected("Unexpected end of expression", ParseErrorKind::Unexpected);
+            return self.expected(message, ParseErrorKind::Unexpected);
         }
         Ok(())
     }
