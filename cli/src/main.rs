@@ -1,5 +1,5 @@
 use context::source::Source;
-use miette::{Diagnostic, GraphicalReportHandler, NamedSource, SourceSpan};
+use miette::{Diagnostic, GraphicalReportHandler, SourceSpan};
 use parser::err::ParseErrorKind;
 use parser::parse;
 use std::fmt::Display;
@@ -7,9 +7,9 @@ use std::io::{self, BufRead};
 use thiserror::Error;
 
 #[derive(Error, Debug, Diagnostic)]
-struct FormattedError {
+struct FormattedError<'s> {
     #[source_code]
-    src: NamedSource,
+    src: &'s Source<'s>,
     #[label("Here")]
     cursor: SourceSpan,
     #[label("Start")]
@@ -19,7 +19,7 @@ struct FormattedError {
     help: Option<String>,
 }
 
-impl Display for FormattedError {
+impl Display for FormattedError<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.message)
     }
@@ -33,12 +33,13 @@ fn main() -> io::Result<()> {
 
     while let Some(line) = lines.next() {
         let line = line?;
-        let report = parse(Source::new(&line, "stdin"));
+        let source = Source::new(&line, "stdin");
+        let report = parse(source.clone());
         let errors = report
             .errors
             .into_iter()
             .map(|err| FormattedError {
-                src: NamedSource::new("stdin", line.clone()),
+                src: &source,
                 cursor: err.position.into(),
                 related: match &err.kind {
                     ParseErrorKind::Unpaired(pos) => Some(pos.clone().into()),

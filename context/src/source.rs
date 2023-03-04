@@ -1,6 +1,10 @@
+use miette::{MietteError, MietteSpanContents, SourceCode, SourceSpan, SpanContents};
+use std::fmt::Debug;
+
 pub type Location = std::ops::Range<usize>;
 
 /// Defines a named source code from which tokens can be produced.
+#[derive(Clone)]
 pub struct Source<'a> {
     /// The source code.
     pub source: &'a str,
@@ -25,6 +29,36 @@ impl<'a> Source<'a> {
             source,
             name: "unknown".to_string(),
         }
+    }
+}
+
+impl Debug for Source<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Source")
+            .field("name", &self.name)
+            .field("source", &"<redacted>")
+            .finish()
+    }
+}
+
+impl<'s> SourceCode for &'s Source<'_> {
+    fn read_span<'a>(
+        &'a self,
+        span: &SourceSpan,
+        context_lines_before: usize,
+        context_lines_after: usize,
+    ) -> Result<Box<dyn SpanContents<'a> + 'a>, MietteError> {
+        let contents = self
+            .source
+            .read_span(span, context_lines_before, context_lines_after)?;
+        Ok(Box::new(MietteSpanContents::new_named(
+            self.name.clone(),
+            contents.data(),
+            *contents.span(),
+            contents.line(),
+            contents.column(),
+            contents.line_count(),
+        )))
     }
 }
 
