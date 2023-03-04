@@ -28,6 +28,12 @@ pub(crate) struct Parser<'a> {
     pub(crate) cursor: ParserCursor<'a>,
 }
 
+macro_rules! non_infix {
+    () =>  {
+        eox().or(eod()).or(like(TokenType::is_keyword)).or(of_types(&[RoundedLeftBracket, CurlyLeftBracket, SquaredLeftBracket]))
+    }
+}
+
 impl<'a> Parser<'a> {
     /// Parses input tokens into an abstract syntax tree representation.
     pub fn parse(&mut self) -> ParseResult<Vec<Expr<'a>>> {
@@ -193,7 +199,7 @@ impl<'a> Parser<'a> {
 
         //if there is an end of expression, it means that the expr is terminated so we return it here
         //any keyword would also stop this expression.
-        if self.cursor.lookahead(eox().or(eod()).or(like(TokenType::is_keyword))).is_some() {
+        if self.cursor.lookahead(non_infix!()).is_some() {
             return Ok(expr);
         }
 
@@ -223,7 +229,7 @@ impl<'a> Parser<'a> {
 
         //if there is an end of expression, it means that the expr is terminated so we return it here
         //any keyword would also stop this expression.
-        if self.cursor.lookahead(eox().or(eod()).or(like(TokenType::is_keyword))).is_some() {
+        if self.cursor.lookahead(non_infix!()).is_some() {
             return Ok(expr);
         }
 

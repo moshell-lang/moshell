@@ -163,6 +163,27 @@ mod tests {
     }
 
     #[test]
+    fn no_separation_else() {
+        let ast = parse(lex("if $x {} else {}")).expect("parse fail");
+        assert_eq!(
+            ast,
+            vec![
+                Expr::If(If {
+                    condition: Box::new(Expr::VarReference(VarReference {
+                        name: "x"
+                    })),
+                    success_branch: Box::new(Expr::Block(Block {
+                        expressions: vec![]
+                    })),
+                    fail_branch: Some(Box::new(Expr::Block(Block {
+                        expressions: vec![]
+                    })))
+                })
+            ]
+        )
+    }
+
+    #[test]
     fn if_else_as_value() {
         let ast = parse(lex("val x = if [ {date +\"%Y\"} < 2023 ]; \"bash\" else \"moshell\"")).expect("parse failed");
         assert_eq!(
