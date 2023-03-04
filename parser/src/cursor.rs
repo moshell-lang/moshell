@@ -146,15 +146,19 @@ impl<'a> ParserCursor<'a> {
     }
 
     pub fn relative_pos(&self, token: &Token) -> Location {
-        let start = token.value.as_ptr() as usize - self.source.as_ptr() as usize;
-        let end = start + token.value.len();
+        self.relative_pos_str(token.value)
+    }
+
+    pub fn relative_pos_str(&self, str: &str) -> Location {
+        let start = str.as_ptr() as usize - self.source.as_ptr() as usize;
+        let end = start + str.len();
         start..end
     }
 
     pub fn relative_pos_ctx(&self, context: impl Into<ErrorContext<'a>>) -> Location {
         let context = context.into();
-        let start = context.from.value.as_ptr() as usize - self.source.as_ptr() as usize;
-        let end = context.to.value.as_ptr() as usize + context.to.value.len() as usize
+        let start = context.from.as_ptr() as usize - self.source.as_ptr() as usize;
+        let end = context.to.as_ptr() as usize + context.to.len() as usize
             - self.source.as_ptr() as usize;
         start..end
     }

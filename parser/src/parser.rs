@@ -227,8 +227,26 @@ impl<'a> Parser<'a> {
             return self.redirectable(expr);
         }
 
+        if let Expr::Literal(literal) = &expr {
+            if self.cursor.lookahead(bin_op()).is_some() {
+                let start_pos = self.cursor.relative_pos_str(literal.lexeme).start;
+                if self
+                    .binary_operation_right(expr, Parser::next_value)
+                    .is_ok()
+                {
+                    let end_pos = self.cursor.relative_pos(&self.cursor.peek()).end;
+                    let slice = &self.source.source[start_pos..end_pos];
+                    return self.expected_with(
+                        "Binary operations must be enclosed in an value expression.",
+                        slice,
+                        ParseErrorKind::UnexpectedInContext(format!("$(( {} ))", slice)),
+                    );
+                }
+            }
+        }
+
         //else, we hit an invalid binary expression.
-        self.expected("invalid infix operator", ParseErrorKind::Unexpected)
+        self.expected("invalid expression operator", ParseErrorKind::Unexpected)
     }
 
     //parses any binary value expression, considering given input expression

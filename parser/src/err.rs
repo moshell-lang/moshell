@@ -14,15 +14,15 @@ pub struct ParseError {
 /// A builder to position an error that covers multiple tokens.
 #[derive(Debug, PartialEq)]
 pub(crate) struct ErrorContext<'a> {
-    pub(crate) from: Token<'a>,
-    pub(crate) to: Token<'a>,
+    pub(crate) from: &'a str,
+    pub(crate) to: &'a str,
 }
 
 impl<'a> From<Token<'a>> for ErrorContext<'a> {
     fn from(token: Token<'a>) -> Self {
         Self {
-            from: token.clone(),
-            to: token,
+            from: token.value,
+            to: token.value,
         }
     }
 }
@@ -30,9 +30,15 @@ impl<'a> From<Token<'a>> for ErrorContext<'a> {
 impl<'a> From<std::ops::Range<Token<'a>>> for ErrorContext<'a> {
     fn from(range: std::ops::Range<Token<'a>>) -> Self {
         Self {
-            from: range.start,
-            to: range.end,
+            from: range.start.value,
+            to: range.end.value,
         }
+    }
+}
+
+impl<'a> From<&'a str> for ErrorContext<'a> {
+    fn from(str: &'a str) -> Self {
+        Self { from: str, to: str }
     }
 }
 
@@ -47,6 +53,12 @@ pub enum ParseErrorKind {
 
     /// A unexpected token was found in the current context.
     Unexpected,
+
+    /// A token was found in a context where it is not allowed.
+    ///
+    /// This is the same as `Unexpected`, but the error also
+    /// explains what could be changed to fix the error.
+    UnexpectedInContext(String),
 
     /// A group has been opened, but not closed.
     ///
