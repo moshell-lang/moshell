@@ -3,10 +3,11 @@ use crate::aspects::var_reference::VarReferenceAspect;
 use crate::ast::literal::{Literal, LiteralValue};
 use crate::ast::substitution::{Substitution, SubstitutionKind};
 use crate::ast::Expr;
-use crate::moves::{eox, not, of_type, space, MoveOperations};
+use crate::err::ParseErrorKind;
+use crate::moves::{eox, not, of_type, repeat_n, space, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
-use lexer::token::TokenType::RoundedLeftBracket;
+use lexer::token::TokenType::{RoundedLeftBracket, RoundedRightBracket};
 
 /// A parser for substitution expressions.
 pub(crate) trait SubstitutionAspect<'a> {
@@ -16,13 +17,26 @@ pub(crate) trait SubstitutionAspect<'a> {
 
 impl<'a> SubstitutionAspect<'a> for Parser<'a> {
     fn substitution(&mut self) -> ParseResult<Expr<'a>> {
-        let dollar_value = self
+        let dollar = self
             .cursor
-            .force(of_type(TokenType::Dollar), "Expected '$' sign.")?
-            .value;
+            .force(of_type(TokenType::Dollar), "Expected '$' sign.")?;
+        let dollar_value = dollar.value;
 
         //if $ is directly followed by a '(' then it's the start of a Capture substitution.
         if self.cursor.lookahead(of_type(RoundedLeftBracket)).is_some() {
+            if let Some(start) = self
+                .cursor
+                .lookahead(repeat_n(2, of_type(RoundedLeftBracket)))
+            {
+                self.cursor.advance(of_type(RoundedLeftBracket));
+                let parenthesis = self.parenthesis()?;
+                self.cursor.force_with(
+                    of_type(RoundedRightBracket),
+                    "Expected a second closing parenthesis.",
+                    ParseErrorKind::Unpaired(self.cursor.relative_pos_ctx(dollar..start)),
+                )?;
+                return Ok(Expr::Parenthesis(parenthesis));
+            }
             return Ok(Expr::Substitution(Substitution {
                 // Read the expression inside the parentheses as a new statement
                 underlying: self.subshell()?,
@@ -50,7 +64,10 @@ mod tests {
     use crate::ast::substitution::{Substitution, SubstitutionKind};
     use crate::ast::Expr;
 
-    use crate::ast::group::{Block, Subshell};
+    use crate::ast::group::{Block, Parenthesis, Subshell};
+    use crate::ast::literal::Literal;
+    use crate::ast::operation::{BinaryOperation, BinaryOperator};
+    use crate::ast::variable::VarReference;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
@@ -142,6 +159,25 @@ mod tests {
                 message: "Mismatched closing delimiter.".to_string(),
                 position: content.find('}').map(|p| (p..p + 1)).unwrap(),
                 kind: ParseErrorKind::Unpaired(content.find('(').map(|p| (p..p + 1)).unwrap())
+            })
+        );
+    }
+
+    #[test]
+    fn arithmetic() {
+        let source = Source::unknown("$(($a + 1))");
+        let ast = Parser::new(source).substitution().expect("Failed to parse");
+        assert_eq!(
+            ast,
+            Expr::Parenthesis(Parenthesis {
+                expression: Box::new(Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::VarReference(VarReference { name: "a".into() })),
+                    op: BinaryOperator::Plus,
+                    right: Box::new(Expr::Literal(Literal {
+                        lexeme: "1",
+                        parsed: 1.into(),
+                    })),
+                })),
             })
         );
     }
