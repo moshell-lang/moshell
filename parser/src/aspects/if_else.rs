@@ -165,7 +165,7 @@ mod tests {
 
     #[test]
     fn if_else_as_value() {
-        let ast = parse(lex("val x = if [ $1 ]; 1 + 8 * 7 else if [ $a ]; 2 == 2 else $a && b")).expect("parse failed");
+        let ast = parse(lex("val x = if [ {date +\"%Y\"} < 2023 ]; \"bash\" else \"moshell\"")).expect("parse failed");
         assert_eq!(
             ast,
             vec![
@@ -177,53 +177,23 @@ mod tests {
                     },
                     initializer: Some(Box::new(Expr::If(If {
                         condition: Box::new(Expr::Test(Test {
-                            expression: Box::new(Expr::VarReference(VarReference {
-                                name: "1"
+                            expression: Box::new(Expr::Binary(BinaryOperation {
+                                left: Box::new(Expr::Block(Block {
+                                    expressions: vec![
+                                        Expr::Call(Call {
+                                            arguments: vec![Expr::Literal("date".into()), Expr::Literal("+\"%Y\"".into())]
+                                        })
+                                    ]
+                                })),
+                                op: BinaryOperator::Less,
+                                right: Box::new(Expr::Literal(Literal {
+                                    lexeme: "2023",
+                                    parsed: 2023.into()
+                                }))
                             }))
                         })),
-                        success_branch: Box::new(Expr::Binary(BinaryOperation {
-                            left: Box::new(Expr::Literal(Literal {
-                                lexeme: "1",
-                                parsed: 1.into(),
-                            })),
-                            op: BinaryOperator::Plus,
-                            right: Box::new(Expr::Binary(BinaryOperation {
-                                left: Box::new(Expr::Literal(Literal {
-                                    lexeme: "8",
-                                    parsed: 8.into(),
-                                })),
-                                op: BinaryOperator::Times,
-                                right: Box::new(Expr::Literal(Literal {
-                                    lexeme: "7",
-                                    parsed: 7.into(),
-                                })),
-                            })),
-                        })),
-                        fail_branch: Box::new(Some(Expr::If(If {
-                            condition: Box::new(Expr::Test(Test {
-                                expression: Box::new(Expr::VarReference(VarReference {
-                                    name: "a"
-                                }))
-                            })),
-                            success_branch: Box::new(Expr::Binary(BinaryOperation {
-                                left: Box::new(Expr::Literal(Literal {
-                                    lexeme: "2",
-                                    parsed: 2.into(),
-                                })),
-                                op: BinaryOperator::EqualEqual,
-                                right: Box::new(Expr::Literal(Literal {
-                                    lexeme: "2",
-                                    parsed: 2.into(),
-                                })),
-                            })),
-                            fail_branch: Box::new(Some(Expr::Binary(BinaryOperation {
-                                left: Box::new(Expr::VarReference(VarReference {
-                                    name: "a"
-                                })),
-                                op: BinaryOperator::And,
-                                right: Box::new(Expr::Literal("b".into())),
-                            }))),
-                        }))),
+                        success_branch: Box::new(Expr::TemplateString(vec![Expr::Literal("bash".into())])),
+                        fail_branch: Box::new(Some(Expr::TemplateString(vec![Expr::Literal("moshell".into())]))),
                     }))),
                 }),
             ]
