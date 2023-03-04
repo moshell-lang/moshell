@@ -1,20 +1,22 @@
 use context::source::Source;
 use lexer::lexer::lex;
-use lexer::token::Token;
 use lexer::token::TokenType::*;
+use lexer::token::{Token, TokenType};
 use std::collections::VecDeque;
 
 use crate::aspects::binary_operation::BinaryOperationsAspect;
 use crate::aspects::call::CallAspect;
 use crate::aspects::group::GroupAspect;
+use crate::aspects::if_else::IfElseAspect;
 use crate::aspects::literal::LiteralAspect;
+use crate::aspects::r#use::UseAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
 use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
-use crate::moves::{bin_op, eod, eox, next, of_types, repeat, space, spaces, MoveOperations};
+use crate::moves::{bin_op, eod, eox, like, next, of_types, repeat, space, spaces, MoveOperations};
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
 
@@ -96,6 +98,7 @@ impl<'a> Parser<'a> {
         let pivot = self.cursor.peek().token_type;
         match pivot {
             Var | Val => self.var_declaration(),
+            Use => self.parse_use(),
 
             _ => self.next_expression_statement(),
         }
@@ -107,6 +110,7 @@ impl<'a> Parser<'a> {
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
+            If => self.parse_if(Parser::statement),
             Identifier | Quote | DoubleQuote => self.call(),
 
             _ => self.next_expression(),
@@ -129,11 +133,12 @@ impl<'a> Parser<'a> {
         }
     }
 
-    ///Parse the next value
+    ///Parse the next value expression
     pub(crate) fn next_value(&mut self) -> ParseResult<Expr<'a>> {
         self.repos("Expected value")?;
 
-        let pivot = self.cursor.peek().token_type;
+        let token = self.cursor.peek();
+        let pivot = token.token_type;
         match pivot {
             RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
             CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
@@ -149,8 +154,16 @@ impl<'a> Parser<'a> {
             Quote => self.string_literal(),
             DoubleQuote => self.templated_string_literal(),
 
+            If => self.parse_if(Parser::value),
+
             _ if pivot.is_closing_ponctuation() => {
                 self.expected("Unexpected closing bracket.", ParseErrorKind::Unexpected)
+            }
+            _ if pivot.is_keyword() => {
+                self.expected("Unexpected keyword.", ParseErrorKind::Unexpected)
+            }
+            _ if pivot.is_ponctuation() => {
+                self.expected("Unexpected token.", ParseErrorKind::Unexpected)
             }
             _ => self.argument(),
         }
@@ -195,7 +208,12 @@ impl<'a> Parser<'a> {
         self.cursor.advance(spaces()); //consume spaces
 
         //if there is an end of expression, it means that the expr is terminated so we return it here
-        if self.cursor.lookahead(eox().or(eod())).is_some() {
+        //any keyword would also stop this expression.
+        if self
+            .cursor
+            .lookahead(eox().or(eod()).or(like(TokenType::is_keyword)))
+            .is_some()
+        {
             return Ok(expr);
         }
 
@@ -218,8 +236,14 @@ impl<'a> Parser<'a> {
     //if given expression is directly followed by an eox delimiter, then return it as is
     fn parse_binary_value_expr(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
         self.cursor.advance(spaces()); //consume spaces
-                                       //if there is an end of expression, it means that the expr is terminated so we return it here
-        if self.cursor.lookahead(eox().or(eod())).is_some() {
+
+        //if there is an end of expression, it means that the expr is terminated so we return it here
+        //any keyword would also stop this expression.
+        if self
+            .cursor
+            .lookahead(eox().or(eod()).or(like(TokenType::is_keyword)))
+            .is_some()
+        {
             return Ok(expr);
         }
 
