@@ -5,7 +5,9 @@ use crate::ast::r#use::Use;
 use crate::moves::{eox, MoveOperations, of_type, repeat, spaces, word_sep};
 use crate::parser::{Parser, ParseResult};
 
+/// Parser aspect to parse use statements
 pub trait UseAspect<'a> {
+    ///parse a 'use x, y' statement
     fn parse_use(&mut self) -> ParseResult<Expr<'a>>;
 }
 
