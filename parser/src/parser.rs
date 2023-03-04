@@ -11,7 +11,7 @@ use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::moves::{bin_op, eod, eox, next, of_types, spaces, MoveOperations, repeat, space, of_type, like};
+use crate::moves::{bin_op, eod, eox, next, of_types, spaces, MoveOperations, repeat, space, like};
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
