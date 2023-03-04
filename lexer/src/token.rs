@@ -147,6 +147,15 @@ pub enum TokenType {
 }
 
 impl TokenType {
+    ///is this lexeme a valid reference name for a variable ?
+    pub fn is_valid_var_ref_name(self) -> bool {
+        matches!(
+            self,
+            Identifier | Dollar | Ampersand | At | Not | IntLiteral
+        )
+    }
+
+    ///is this lexeme a binary operator ?
     pub fn is_bin_operator(self) -> bool {
         match self {
             And | Or | Plus | Minus | Star | EqualEqual | NotEqual | Less | LessEqual | Greater
@@ -155,6 +164,7 @@ impl TokenType {
         }
     }
 
+    ///is this lexeme a lexeme that cannot fusion with other glued tokens
     pub fn is_identifier_bound(self) -> bool {
         match self {
             NewLine | SemiColon | Less | Pipe | Greater | And | Or => true,
@@ -162,6 +172,7 @@ impl TokenType {
         }
     }
 
+    ///is this lexeme a punctuation
     pub fn is_ponctuation(self) -> bool {
         matches!(
             self,
@@ -184,6 +195,7 @@ impl TokenType {
         )
     }
 
+    ///is this lexeme a closing punctuation
     pub fn is_closing_ponctuation(self) -> bool {
         matches!(
             self,

@@ -143,12 +143,12 @@ mod tests {
                 arguments: vec![
                     Expr::Literal("test".into()),
                     Expr::Literal(Literal {
-                        lexme: "48",
+                        lexeme: "48",
                         parsed: LiteralValue::Int(48),
                     }),
                     Expr::Literal("-gt".into()),
                     Expr::Literal(Literal {
-                        lexme: "100",
+                        lexeme: "100",
                         parsed: LiteralValue::Int(100),
                     }),
                 ]
@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     fn test_integration() {
-        let source = Source::unknown("echo && [ ($a == $b) ] || [[ $x ]]");
+        let source = Source::unknown("echo && [ ($a == $b) ] || [[ $1 ]]");
         let result = parse(source).expect("parse error");
         assert_eq!(
             result,
@@ -182,7 +182,7 @@ mod tests {
                 right: Box::new(Expr::Call(Call {
                     arguments: vec![
                         Expr::Literal("test".into()),
-                        Expr::VarReference(VarReference { name: "x" }),
+                        Expr::VarReference(VarReference { name: "1" }),
                     ]
                 })),
             })]
@@ -246,7 +246,7 @@ mod tests {
                         Expr::Literal("grep".into()),
                         Expr::Literal("-E".into()),
                         Expr::Literal(Literal {
-                            lexme: "'^[0-9]+$'",
+                            lexeme: "'^[0-9]+$'",
                             parsed: LiteralValue::String("^[0-9]+$".to_string())
                         })
                     ]
@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn not() {
-        let source = Source::unknown("! ($a && $b) || ! $c == 78");
+        let source = Source::unknown("! ($a && $b) || ! $2 == 78");
         let result = parse(source).expect("parse error");
         assert_eq!(
             result,
@@ -274,11 +274,11 @@ mod tests {
                 op: BinaryOperator::Or,
                 right: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Not(Not {
-                        right: Box::new(Expr::VarReference(VarReference { name: "c" }))
+                        right: Box::new(Expr::VarReference(VarReference { name: "2" }))
                     })),
                     op: BinaryOperator::EqualEqual,
                     right: Box::new(Expr::Literal(Literal {
-                        lexme: "78",
+                        lexeme: "78",
                         parsed: 78.into(),
                     })),
                 })),

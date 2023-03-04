@@ -1,10 +1,12 @@
 use crate::aspects::group::GroupAspect;
 use crate::aspects::var_reference::VarReferenceAspect;
+use crate::ast::literal::{Literal, LiteralValue};
 use crate::ast::substitution::{Substitution, SubstitutionKind};
 use crate::ast::Expr;
-use crate::moves::{of_type, of_types};
+use crate::moves::{eox, not, of_type, space, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
+use lexer::token::TokenType::RoundedLeftBracket;
 
 /// A parser for substitution expressions.
 pub(crate) trait SubstitutionAspect<'a> {
@@ -14,31 +16,30 @@ pub(crate) trait SubstitutionAspect<'a> {
 
 impl<'a> SubstitutionAspect<'a> for Parser<'a> {
     fn substitution(&mut self) -> ParseResult<Expr<'a>> {
-        let start_token = self.cursor.force(
-            of_types(&[TokenType::At, TokenType::Dollar]),
-            "Expected at or dollar sign.",
-        )?;
-        let next_token = self
+        let dollar_value = self
             .cursor
-            .lookahead(of_type(TokenType::RoundedLeftBracket));
+            .force(of_type(TokenType::Dollar), "Expected '$' sign.")?
+            .value;
+
+        //if $ is directly followed by a '(' then it's the start of a Capture substitution.
+        if self.cursor.lookahead(of_type(RoundedLeftBracket)).is_some() {
+            return Ok(Expr::Substitution(Substitution {
+                // Read the expression inside the parentheses as a new statement
+                underlying: self.subshell()?,
+                kind: SubstitutionKind::Capture,
+            }));
+        }
 
         // Short pass for variable references
-        if next_token.is_none() && start_token.token_type == TokenType::Dollar {
+        if self.cursor.lookahead(not(space().or(eox()))).is_some() {
             return self.var_reference();
         }
 
-        // Read the expression inside the parentheses as a new statement
-        let expr = self.subshell()?;
-
-        // Finally return the expression
-        Ok(Expr::Substitution(Substitution {
-            underlying: expr,
-            kind: if start_token.token_type == TokenType::At {
-                SubstitutionKind::Return
-            } else {
-                SubstitutionKind::Capture
-            },
-        }))
+        //finally it's a lonely '$' so we return it as a literal
+        return Ok(Expr::Literal(Literal {
+            lexeme: dollar_value,
+            parsed: LiteralValue::String(dollar_value.to_string()),
+        }));
     }
 }
 

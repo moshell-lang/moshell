@@ -233,7 +233,7 @@ mod test {
                     fd: RedirFd::Default,
                     operator: RedirOp::FdOut,
                     operand: Expr::Literal(Literal {
-                        lexme: "2",
+                        lexeme: "2",
                         parsed: 2.into(),
                     }),
                 }],
@@ -274,7 +274,7 @@ mod test {
                     Expr::Literal("-E".into()),
                     Expr::Literal("regex".into()),
                     Expr::Literal(Literal {
-                        lexme: "\\;",
+                        lexeme: "\\;",
                         parsed: ";".into(),
                     }),
                     Expr::Literal("echo".into()),
