@@ -61,11 +61,13 @@ impl<'a> GroupAspect<'a> for Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn ensure_at_group_start(&mut self, start: TokenType) -> ParseResult<Token<'a>> {
-        self.cursor.force_with(
+        let token = self.cursor.force_with(
             of_type(start),
             "Unexpected start of group expression",
             ParseErrorKind::Excepted(start.str().unwrap_or("specific token")),
-        ) //consume group start token
+        )?; //consume group start token
+        self.delimiter_stack.push_back(token.clone());
+        Ok(token)
     }
 
     ///parses sub expressions of a grouping expression
@@ -85,6 +87,7 @@ impl<'a> Parser<'a> {
 
         //if we directly hit end of group, return an empty block.
         if self.cursor.advance(of_type(eog)).is_some() {
+            self.delimiter_stack.pop_back();
             return Ok(statements);
         }
 
@@ -109,8 +112,24 @@ impl<'a> Parser<'a> {
 
             //if the group is closed, then we stop looking for other expressions.
             if closed {
+                self.delimiter_stack.pop_back();
                 break;
             }
+
+            if eox_res.is_err() && self.cursor.peek().token_type.is_closing_ponctuation() {
+                if let Some(last) = self.delimiter_stack.pop_back() {
+                    self.expected(
+                        "Mismatched closing delimiter.",
+                        ParseErrorKind::Unpaired(self.cursor.relative_pos(&last)),
+                    )?;
+                } else {
+                    self.expected(
+                        "Unexpected closing delimiter.",
+                        ParseErrorKind::Excepted(eog.str().unwrap_or("specific token")),
+                    )?;
+                }
+            }
+
             //but if not closed, expect the cursor to hit EOX.
             eox_res?;
         }

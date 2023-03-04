@@ -130,4 +130,19 @@ mod tests {
             })
         );
     }
+
+    #[test]
+    fn parenthesis_mismatch() {
+        let content = "$(test 9})";
+        let source = Source::unknown(content);
+        let ast: ParseResult<_> = parse(source).into();
+        assert_eq!(
+            ast,
+            Err(ParseError {
+                message: "Mismatched closing delimiter.".to_string(),
+                position: content.find('}').map(|p| (p..p + 1)).unwrap(),
+                kind: ParseErrorKind::Unpaired(content.find('(').map(|p| (p..p + 1)).unwrap())
+            })
+        );
+    }
 }

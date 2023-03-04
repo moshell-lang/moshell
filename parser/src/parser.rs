@@ -1,6 +1,8 @@
 use context::source::Source;
 use lexer::lexer::lex;
+use lexer::token::Token;
 use lexer::token::TokenType::*;
+use std::collections::VecDeque;
 
 use crate::aspects::binary_operation::BinaryOperationsAspect;
 use crate::aspects::call::CallAspect;
@@ -20,6 +22,7 @@ pub(crate) type ParseResult<T> = Result<T, ParseError>;
 pub(crate) struct Parser<'a> {
     pub(crate) cursor: ParserCursor<'a>,
     pub(crate) source: Source<'a>,
+    pub(crate) delimiter_stack: VecDeque<Token<'a>>,
 }
 
 impl<'a> Parser<'a> {
@@ -28,6 +31,7 @@ impl<'a> Parser<'a> {
         Self {
             cursor: ParserCursor::new_with_source(lex(source.source), source.source),
             source,
+            delimiter_stack: VecDeque::new(),
         }
     }
 
