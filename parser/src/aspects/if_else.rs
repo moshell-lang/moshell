@@ -5,11 +5,13 @@ use crate::moves::{MoveOperations, of_type, repeat, spaces};
 use crate::parser::{Parser, ParseResult};
 use crate::ast::flow_control::If;
 pub trait IfElseAspect<'a> {
-    fn parse_if(&mut self) -> ParseResult<Expr<'a>>;
+    fn parse_if<F>(&mut self, parse_branch: F) -> ParseResult<Expr<'a>>
+        where F: FnMut(&mut Self) -> ParseResult<Expr<'a>>;
 }
 
 impl<'a> IfElseAspect<'a> for Parser<'a> {
-    fn parse_if(&mut self) -> ParseResult<Expr<'a>> {
+    fn parse_if<F>(&mut self, mut parse_branch: F) -> ParseResult<Expr<'a>>
+        where F: FnMut(&mut Self) -> ParseResult<Expr<'a>> {
         self.cursor.force(
             of_type(TokenType::If),
             "expected 'if' at start of if expression",
@@ -21,7 +23,6 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
             repeat(spaces().pipe(of_type(NewLine)))
                 .then(of_type(SemiColon))
                 .then(repeat(spaces().pipe(of_type(NewLine))))
-
         ));
 
         if self.cursor.lookahead(spaces().then(of_type(SemiColon))).is_some() {
@@ -30,7 +31,7 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
         }
 
         //the success_branch of the if
-        let success_branch = self.next_statement()?;
+        let success_branch = parse_branch(self)?;
 
         let fail_branch =
             if self.cursor.advance(
@@ -39,7 +40,7 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
                     .then(repeat(spaces().pipe(of_type(NewLine))))
                     .then(of_type(Else))
             ).is_some() {
-                Some(self.next_statement()?)
+                Some(parse_branch(self)?)
             } else {
                 None
             };
@@ -60,8 +61,10 @@ mod tests {
     use crate::ast::Expr;
     use crate::ast::flow_control::If;
     use crate::ast::group::Block;
+    use crate::ast::literal::Literal;
+    use crate::ast::operation::{BinaryOperation, BinaryOperator};
     use crate::ast::test::Test;
-    use crate::ast::variable::VarReference;
+    use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
     use crate::parse;
 
     #[test]
@@ -154,4 +157,70 @@ mod tests {
         )
     }
 
+    #[test]
+    fn if_else_as_value() {
+        let ast = parse(lex("val x = if [ $1 ]; 1 + 8 * 7 else if [ $a ]; 2 == 2 else $a && b")).expect("parse failed");
+        assert_eq!(
+            ast,
+            vec![
+                Expr::VarDeclaration(VarDeclaration {
+                    kind: VarKind::Val,
+                    var: TypedVariable {
+                        name: "x",
+                        ty: None,
+                    },
+                    initializer: Some(Box::new(Expr::If(If {
+                        condition: Box::new(Expr::Test(Test {
+                            expression: Box::new(Expr::VarReference(VarReference {
+                                name: "1"
+                            }))
+                        })),
+                        success_branch: Box::new(Expr::Binary(BinaryOperation {
+                            left: Box::new(Expr::Literal(Literal {
+                                lexeme: "1",
+                                parsed: 1.into(),
+                            })),
+                            op: BinaryOperator::Plus,
+                            right: Box::new(Expr::Binary(BinaryOperation {
+                                left: Box::new(Expr::Literal(Literal {
+                                    lexeme: "8",
+                                    parsed: 8.into(),
+                                })),
+                                op: BinaryOperator::Times,
+                                right: Box::new(Expr::Literal(Literal {
+                                    lexeme: "7",
+                                    parsed: 7.into(),
+                                })),
+                            })),
+                        })),
+                        fail_branch: Box::new(Some(Expr::If(If {
+                            condition: Box::new(Expr::Test(Test {
+                                expression: Box::new(Expr::VarReference(VarReference {
+                                    name: "a"
+                                }))
+                            })),
+                            success_branch: Box::new(Expr::Binary(BinaryOperation {
+                                left: Box::new(Expr::Literal(Literal {
+                                    lexeme: "2",
+                                    parsed: 2.into(),
+                                })),
+                                op: BinaryOperator::EqualEqual,
+                                right: Box::new(Expr::Literal(Literal {
+                                    lexeme: "2",
+                                    parsed: 2.into(),
+                                })),
+                            })),
+                            fail_branch: Box::new(Some(Expr::Binary(BinaryOperation {
+                                left: Box::new(Expr::VarReference(VarReference {
+                                    name: "a"
+                                })),
+                                op: BinaryOperator::And,
+                                right: Box::new(Expr::Literal("b".into())),
+                            }))),
+                        }))),
+                    }))),
+                }),
+            ]
+        )
+    }
 }
