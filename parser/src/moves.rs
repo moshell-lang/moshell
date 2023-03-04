@@ -331,7 +331,7 @@ impl<A: Move + Copy, B: Move + Copy> Move for PipeMove<A, B> {
         if succeed {
             return Some(pos)
         }
-        return None
+        None
     }
 }
 
