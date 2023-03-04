@@ -237,7 +237,7 @@ impl<'a> Parser<'a> {
                     let end_pos = self.cursor.relative_pos(&self.cursor.peek()).end;
                     let slice = &self.source.source[start_pos..end_pos];
                     return self.expected_with(
-                        "Binary operations must be enclosed in an value expression.",
+                        "Binary operations must be enclosed in a value expression.",
                         slice,
                         ParseErrorKind::UnexpectedInContext(format!("$(( {} ))", slice)),
                     );

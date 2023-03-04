@@ -40,7 +40,7 @@ fn main() -> io::Result<()> {
         let line = line?;
         content.push_str(&line);
         if line.ends_with('\\') {
-            print!(".. ");
+            print_flush!(".. ");
             continue;
         }
 
