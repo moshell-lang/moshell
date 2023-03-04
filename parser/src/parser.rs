@@ -1,4 +1,4 @@
-use lexer::token::Token;
+use lexer::token::{Token, TokenType};
 use lexer::token::TokenType::*;
 
 use crate::aspects::binary_operation::BinaryOperationsAspect;
@@ -11,7 +11,7 @@ use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::moves::{bin_op, eod, eox, next, of_types, spaces, MoveOperations, repeat, space, of_type};
+use crate::moves::{bin_op, eod, eox, next, of_types, spaces, MoveOperations, repeat, space, of_type, like};
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -190,8 +190,8 @@ impl<'a> Parser<'a> {
         self.cursor.advance(spaces()); //consume spaces
 
         //if there is an end of expression, it means that the expr is terminated so we return it here
-        //if there is a `else` keyword, maybe that the expression is within a if <expr> else clause
-        if self.cursor.lookahead(eox().or(eod()).or(of_type(Else))).is_some() {
+        //any keyword would also stop this expression.
+        if self.cursor.lookahead(eox().or(eod()).or(like(TokenType::is_keyword))).is_some() {
             return Ok(expr);
         }
 
