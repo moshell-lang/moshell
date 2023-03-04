@@ -31,9 +31,15 @@ fn main() -> io::Result<()> {
 
     let handler = GraphicalReportHandler::default();
 
+    let mut content = String::new();
     while let Some(line) = lines.next() {
         let line = line?;
-        let source = Source::new(&line, "stdin");
+        content.push_str(&line);
+        if line.ends_with('\\') {
+            continue;
+        }
+
+        let source = Source::new(&content, "stdin");
         let report = parse(source.clone());
         let errors = report
             .errors
@@ -55,6 +61,7 @@ fn main() -> io::Result<()> {
 
         if errors.is_empty() {
             println!("{:?}", report.expr);
+            content.clear();
             continue;
         }
         let mut msg = String::new();
@@ -66,6 +73,7 @@ fn main() -> io::Result<()> {
             }
             msg.clear();
         }
+        content.clear();
     }
 
     Ok(())
