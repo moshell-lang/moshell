@@ -52,6 +52,7 @@ impl<'a> GroupAspect<'a> for Parser<'a> {
                 .then(spaces().then(of_type(TokenType::RoundedRightBracket))), //expect closing ')' token
             "parenthesis in value expression can only contain one expression",
         )?;
+        self.delimiter_stack.pop_back();
 
         Ok(Parenthesis {
             expression: Box::new(expr),
