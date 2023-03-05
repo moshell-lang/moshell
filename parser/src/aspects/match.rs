@@ -5,7 +5,7 @@ use crate::aspects::literal::LiteralAspect;
 use crate::ast::Expr;
 use crate::ast::r#match::{Match, MatchArm, MatchPattern};
 use crate::ast::r#match::MatchPattern::{Literal, Template, VarRef, Wildcard};
-use crate::moves::{aerated, any, blanks, MoveOperations, not, of_type, of_types, repeat};
+use crate::moves::{aerated, any, blanks, eox, MoveOperations, not, of_type, of_types, repeat};
 use crate::parser::{Parser, ParseResult};
 
 pub trait MatchAspect<'a> {
@@ -145,7 +145,9 @@ impl<'a> Parser<'a> {
     fn parse_body<P>(&mut self, mut parse_arm: P) -> ParseResult<Expr<'a>>
         where P: FnMut(&mut Self) -> ParseResult<Expr<'a>> {
         self.cursor.force(aerated(of_type(FatArrow)), "missing '=>'")?;
-        parse_arm(self)
+        let body = parse_arm(self);
+        self.cursor.advance(repeat(eox()));
+        body
     }
 }
 
@@ -170,9 +172,9 @@ mod tests {
     fn parse_complete_match() {
         let ast = parse(lex("\
         match $1 {\
-           -e => ()
+           -e => ();;;;;;;;;;;;\
            y@\"test $2\" | 2 | $USER | 't x' => ()
-           x@* if [ $a == 1 ] => ()
+           x@* if [ $a == 1 ] => ();\
            * => echo $it
         }\
         ")).expect("parse fail");
