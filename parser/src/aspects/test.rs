@@ -26,7 +26,7 @@ impl<'a> TestAspect<'a> for Parser<'a> {
             "expected '!'",
         )?;
 
-        Ok(Expr::Not(Not { right: Box::new(parse_next(self)?) }))
+        Ok(Expr::Not(Not { underlying: Box::new(parse_next(self)?) }))
     }
 
     fn parse_test(&mut self) -> ParseResult<Expr<'a>> {
@@ -216,7 +216,7 @@ mod tests {
             result,
             vec![
                 Expr::Not(Not {
-                    right: Box::new(Expr::Call(Call {
+                    underlying: Box::new(Expr::Call(Call {
                         arguments: vec![
                             Expr::Literal("grep".into()),
                             Expr::Literal("-E".into()),
@@ -240,7 +240,7 @@ mod tests {
             vec![
                 Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Not(Not {
-                        right: Box::new(Expr::Subshell(Subshell {
+                        underlying: Box::new(Expr::Subshell(Subshell {
                             expressions: vec![
                                 Expr::Binary(BinaryOperation {
                                     left: Box::new(Expr::VarReference(VarReference {
@@ -257,7 +257,7 @@ mod tests {
                     op: BinaryOperator::Or,
                     right: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Not(Not {
-                            right: Box::new(Expr::VarReference(VarReference {
+                            underlying: Box::new(Expr::VarReference(VarReference {
                                 name: "2"
                             }))
                         })),

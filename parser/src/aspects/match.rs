@@ -10,6 +10,7 @@ use crate::parser::{Parser, ParseResult};
 
 /// A Parser Aspect for match expression-statement and value
 pub trait MatchAspect<'a> {
+    ///parse a match statement, input parser determines how to parse each arm body
     fn parse_match<P>(&mut self, parse_arm: P) -> ParseResult<Match<'a>>
         where P: FnMut(&mut Self) -> ParseResult<Expr<'a>> + Clone;
 }

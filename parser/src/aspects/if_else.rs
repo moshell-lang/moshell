@@ -88,7 +88,7 @@ mod tests {
 
     #[test]
     fn if_else_if() {
-        let ast = parse(lex("if echo a && [[ -f /file/exe ]]; echo test\n\n\nelse if [ $a ] \n;\n { $7 } else $5")).expect("parse failed");
+        let ast = parse(lex("if echo a && [[ -f /file/exe ]]; echo test\n\n\nelse if [ $a ] \n;\n { $7 }; else $5")).expect("parse failed");
         assert_eq!(
             ast,
             vec![
