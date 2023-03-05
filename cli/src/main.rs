@@ -41,6 +41,7 @@ fn main() -> io::Result<()> {
         let line = line?;
         content.push_str(&line);
         if line.ends_with('\\') {
+            content.push('\n');
             print_flush!(".. ");
             continue;
         }
@@ -48,6 +49,7 @@ fn main() -> io::Result<()> {
         let source = Source::new(&content, "stdin");
         let report = parse(source.clone());
         if !report.stack_ended {
+            content.push('\n');
             print_flush!(".. ");
             continue; // Silently ignore incomplete input
         }
