@@ -172,7 +172,7 @@ mod tests {
     fn parse_complete_match() {
         let ast = parse(lex("\
         match $1 {\
-           -e => ();;;;;;;;;;;;\
+           -e => ();;;;;\n;;\n;;;;;\
            y@\"test $2\" | 2 | $USER | 't x' => ()
            x@* if [ $a == 1 ] => ();\
            * => echo $it
