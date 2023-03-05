@@ -28,9 +28,16 @@ pub(crate) struct Parser<'a> {
 }
 
 macro_rules! non_infix {
-    () =>  {
-        eox().or(eod()).or(like(TokenType::is_keyword)).or(of_types(&[RoundedLeftBracket, CurlyLeftBracket, SquaredLeftBracket]))
-    }
+    () => {
+        eox()
+            .or(eod())
+            .or(like(TokenType::is_keyword))
+            .or(of_types(&[
+                RoundedLeftBracket,
+                CurlyLeftBracket,
+                SquaredLeftBracket,
+            ]))
+    };
 }
 
 impl<'a> Parser<'a> {
