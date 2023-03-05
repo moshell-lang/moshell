@@ -5,7 +5,7 @@ use crate::aspects::literal::LiteralAspect;
 use crate::ast::Expr;
 use crate::ast::r#match::{Match, MatchArm, MatchPattern};
 use crate::ast::r#match::MatchPattern::{Literal, Template, VarRef, Wildcard};
-use crate::moves::{aerated, any, blanks, eox, MoveOperations, not, of_type, of_types, repeat};
+use crate::moves::{aerated, any, blanks, eod, eox, MoveOperations, not, of_type, of_types, repeat};
 use crate::parser::{Parser, ParseResult};
 
 /// A Parser Aspect for match expression-statement and value
@@ -41,10 +41,11 @@ impl<'a> Parser<'a> {
 
         let mut arms: Vec<MatchArm<'a>> = Vec::new();
 
-        while self.cursor.advance(blanks().then(of_type(CurlyRightBracket))).is_none() {
+        while self.cursor.lookahead(blanks().then(eod())).is_none() {
             let arm = self.parse_match_arm(parse_arm.clone())?;
             arms.push(arm);
         }
+        self.cursor.force(blanks().then(of_type(CurlyRightBracket)), "expected '}'")?;
 
         Ok(arms)
     }
@@ -56,7 +57,7 @@ impl<'a> Parser<'a> {
         let val_name = self.parse_extracted_name()?;
         let patterns = self.parse_patterns()?;
         let guard = self.parse_guard()?;
-        let body = Box::new(self.parse_body(parse_arm)?);
+        let body = self.parse_body(parse_arm)?;
 
         Ok(MatchArm {
             val_name,
@@ -93,11 +94,11 @@ impl<'a> Parser<'a> {
         let first = self.parse_pattern()?;
 
         if first == Wildcard {
-            return if !is_at_pattern_end!() {
-                self.expected("wildcard pattern cannot be followed by other patterns")
-            } else {
+            return if is_at_pattern_end!() {
                 Ok(vec![first])
-            }
+            } else {
+                self.expected("wildcard pattern cannot be followed by other patterns")
+            };
         }
 
         let mut patterns = vec![first];
@@ -201,10 +202,10 @@ mod tests {
                                         MatchPattern::Literal("-e".into())
                                     ],
                                     guard: None,
-                                    body: Box::new(Expr::Literal(Literal {
+                                    body: Expr::Literal(Literal {
                                         lexeme: "75",
                                         parsed: 75.into(),
-                                    })),
+                                    }),
                                 },
                                 MatchArm {
                                     val_name: Some("y"),
@@ -230,7 +231,7 @@ mod tests {
                                         }),
                                     ],
                                     guard: None,
-                                    body: Box::new(Expr::Binary(BinaryOperation {
+                                    body: Expr::Binary(BinaryOperation {
                                         left: Box::new(Expr::Literal(Literal {
                                             lexeme: "4",
                                             parsed: 4.into(),
@@ -240,7 +241,7 @@ mod tests {
                                             lexeme: "7",
                                             parsed: 7.into(),
                                         })),
-                                    })),
+                                    }),
                                 },
                             ],
                         })
@@ -275,9 +276,9 @@ mod tests {
                                 MatchPattern::Literal("-e".into())
                             ],
                             guard: None,
-                            body: Box::new(Expr::Subshell(Subshell {
+                            body:Expr::Subshell(Subshell {
                                 expressions: Vec::new()
-                            })),
+                            }),
                         },
                         MatchArm {
                             val_name: Some("y"),
@@ -303,9 +304,9 @@ mod tests {
                                 }),
                             ],
                             guard: None,
-                            body: Box::new(Expr::Subshell(Subshell {
+                            body:Expr::Subshell(Subshell {
                                 expressions: Vec::new()
-                            })),
+                            }),
                         },
                         MatchArm {
                             val_name: Some("x"),
@@ -324,9 +325,9 @@ mod tests {
                                     })),
                                 }))
                             })),
-                            body: Box::new(Expr::Subshell(Subshell {
+                            body: Expr::Subshell(Subshell {
                                 expressions: Vec::new()
-                            })),
+                            }),
                         },
                         MatchArm {
                             val_name: None,
@@ -334,20 +335,60 @@ mod tests {
                                 MatchPattern::Wildcard
                             ],
                             guard: None,
-                            body: Box::new(Expr::Call(Call {
+                            body: Expr::Call(Call {
                                 arguments: vec![
                                     Expr::Literal("echo".into()),
                                     Expr::VarReference(VarReference {
                                         name: "it"
                                     }),
                                 ]
-                            })),
+                            }),
                         },
                     ],
                 })
             ]
         )
     }
+
+
+
+    #[test]
+    fn parse_match_direct_wildcard() {
+        let ast = parse(lex("\
+        match nginx {\
+           * => echo $it
+        }\
+        ")).expect("parse fail");
+
+        assert_eq!(
+            ast,
+            vec![
+                Expr::Match(Match {
+                    operand: Box::new(Expr::Call(Call {
+                        arguments: vec![Expr::Literal("nginx".into())]
+                    })),
+                    arms: vec![
+                        MatchArm {
+                            val_name: None,
+                            patterns: vec![
+                                MatchPattern::Wildcard
+                            ],
+                            guard: None,
+                            body:Expr::Call(Call {
+                                arguments: vec![
+                                    Expr::Literal("echo".into()),
+                                    Expr::VarReference(VarReference {
+                                        name: "it"
+                                    }),
+                                ]
+                            }),
+                        },
+                    ],
+                })
+            ]
+        )
+    }
+
 
     #[test]
     fn parse_complete_match_blanks() {
@@ -374,9 +415,9 @@ mod tests {
                                 MatchPattern::Literal("-e".into())
                             ],
                             guard: None,
-                            body: Box::new(Expr::Subshell(Subshell {
+                            body: Expr::Subshell(Subshell {
                                 expressions: Vec::new()
-                            })),
+                            }),
                         },
                         MatchArm {
                             val_name: Some("y"),
@@ -402,9 +443,9 @@ mod tests {
                                 }),
                             ],
                             guard: None,
-                            body: Box::new(Expr::Subshell(Subshell {
+                            body:Expr::Subshell(Subshell {
                                 expressions: Vec::new()
-                            })),
+                            }),
                         },
                         MatchArm {
                             val_name: Some("x"),
@@ -423,9 +464,9 @@ mod tests {
                                     })),
                                 }))
                             })),
-                            body: Box::new(Expr::Subshell(Subshell {
+                            body: Expr::Subshell(Subshell {
                                 expressions: Vec::new()
-                            })),
+                            }),
                         },
                         MatchArm {
                             val_name: None,
@@ -433,14 +474,14 @@ mod tests {
                                 MatchPattern::Wildcard
                             ],
                             guard: None,
-                            body: Box::new(Expr::Call(Call {
+                            body: Expr::Call(Call {
                                 arguments: vec![
                                     Expr::Literal("echo".into()),
                                     Expr::VarReference(VarReference {
                                         name: "it"
                                     }),
                                 ]
-                            })),
+                            }),
                         },
                     ],
                 })

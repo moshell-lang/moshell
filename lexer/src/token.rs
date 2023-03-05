@@ -196,9 +196,7 @@ impl TokenType {
                 | TokenType::RoundedRightBracket
                 | TokenType::CurlyLeftBracket
                 | TokenType::CurlyRightBracket
-                | TokenType::Space
                 | TokenType::SemiColon
-                | TokenType::NewLine
                 | TokenType::Error
         )
     }

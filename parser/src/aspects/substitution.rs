@@ -74,7 +74,7 @@ mod tests {
 
     #[test]
     fn unpaired_parenthesis() {
-        let tokens = lex("$(a @(b) $(c d\\))");
+        let tokens = lex("$(a $(b) $(c d\\))");
         let ast = Parser::new(tokens).statement();
         assert_eq!(
             ast,

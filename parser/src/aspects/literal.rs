@@ -188,7 +188,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             let token = self.cursor.peek();
             let pivot = token.token_type;
             match pivot {
-                Space => break,
+                Space | NewLine => break,
 
                 BackSlash => {
                     if self.cursor.advance(word_sep()).is_some() {

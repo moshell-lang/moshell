@@ -19,7 +19,7 @@ pub struct MatchArm<'a> {
     //the arm's guard (.. if .. => ..)
     pub guard: Option<Expr<'a>>,
     //the body (.. => <body>)
-    pub body: Box<Expr<'a>>,
+    pub body: Expr<'a>,
 }
 
 ///all different kinds of patterns available for a pattern expression
