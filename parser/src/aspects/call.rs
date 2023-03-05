@@ -93,6 +93,24 @@ mod tests {
     }
 
     #[test]
+    fn multiline_call() {
+        let source = Source::unknown("g++ -std=c++20 \\\n-Wall \\\n-Wextra\\\n-Wpedantic");
+        let parsed = parse(source).expect("Failed to parse");
+        assert_eq!(
+            parsed,
+            vec![Expr::Call(Call {
+                arguments: vec![
+                    Expr::Literal("g++".into()),
+                    Expr::Literal("-std=c++20".into()),
+                    Expr::Literal("-Wall".into()),
+                    Expr::Literal("-Wextra".into()),
+                    Expr::Literal("-Wpedantic".into()),
+                ],
+            }),]
+        )
+    }
+
+    #[test]
     fn escaped_call() {
         let source = Source::unknown("grep -E regex \\; echo test");
         let parsed = parse(source).expect("Failed to parse");

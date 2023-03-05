@@ -35,3 +35,15 @@ fn command_echo() {
     })];
     assert_eq!(parsed, expected);
 }
+
+#[test]
+fn command_starting_with_arg() {
+    let source = Source::unknown("- W");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Call(Call {
+            arguments: vec![Expr::Literal("-".into()), Expr::Literal("W".into())],
+        })]
+    );
+}

@@ -16,7 +16,7 @@ use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
 use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
-use crate::moves::{bin_op, eod, eox, like, next, of_types, repeat, space, spaces, MoveOperations};
+use crate::moves::{bin_op, eod, eox, next, of_types, spaces, MoveOperations, repeat, space, like, word_sep};
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
 
@@ -125,6 +125,7 @@ impl<'a> Parser<'a> {
         match pivot {
             If => self.parse_if(Parser::statement),
             Identifier | Quote | DoubleQuote => self.call(),
+            _ if pivot.is_bin_operator() => self.call(),
 
             _ => self.next_expression(),
         }
@@ -283,7 +284,7 @@ impl<'a> Parser<'a> {
     //Skips spaces and verify that this parser is not parsing the end of an expression
     // (unescaped newline or semicolon)
     fn repos(&mut self, message: &str) -> ParseResult<()> {
-        self.cursor.advance(spaces()); //skip spaces
+        self.cursor.advance(word_sep()); //skip word separators
         if self.cursor.lookahead(eox()).is_some() {
             return self.expected(message, ParseErrorKind::Unexpected);
         }
