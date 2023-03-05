@@ -6,6 +6,7 @@ use crate::aspects::call::CallAspect;
 use crate::aspects::group::GroupAspect;
 use crate::aspects::if_else::IfElseAspect;
 use crate::aspects::literal::LiteralAspect;
+use crate::aspects::r#match::MatchAspect;
 use crate::aspects::r#use::UseAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::aspects::test::TestAspect;
@@ -118,6 +119,8 @@ impl<'a> Parser<'a> {
         match pivot {
             If => self.parse_if(Parser::statement),
             Identifier | Quote | DoubleQuote => self.call(),
+            Match => Ok(Expr::Match(self.parse_match(Parser::statement)?)),
+
             _ if pivot.is_bin_operator() => self.call(),
 
             _ => self.next_expression(),
@@ -150,8 +153,6 @@ impl<'a> Parser<'a> {
         match pivot {
             RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
             CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
-            //test expressions has nothing to do in a value expression.
-            SquaredLeftBracket => self.expected("Unexpected start of test expression"),
 
             Not => self.not(Parser::next_value),
 
@@ -159,8 +160,12 @@ impl<'a> Parser<'a> {
             Quote => self.string_literal(),
             DoubleQuote => self.templated_string_literal(),
 
+            //expression that can also be used as values
             If => self.parse_if(Parser::value),
+            Match => Ok(Expr::Match(self.parse_match(Parser::value)?)),
 
+            //test expressions has nothing to do in a value expression.
+            SquaredLeftBracket => self.expected("Unexpected start of test expression"),
             _ if pivot.is_keyword() => self.expected(&format!("Unexpected keyword '{}'", token.value)),
             _ if pivot.is_ponctuation() => self.expected(&format!("Unexpected token '{}'.", token.value)),
             _ => self.argument(),

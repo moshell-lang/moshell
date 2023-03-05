@@ -9,3 +9,4 @@ pub(super) mod var_reference;
 pub(super) mod test;
 pub(super) mod r#use;
 pub(super) mod if_else;
+pub(super) mod r#match;

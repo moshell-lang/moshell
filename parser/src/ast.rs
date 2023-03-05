@@ -7,6 +7,7 @@ use crate::ast::substitution::Substitution;
 use crate::ast::test::{Not, Test};
 use crate::ast::variable::{Assign, VarDeclaration, VarReference};
 use crate::ast::control_flow::If;
+use crate::ast::r#match::Match;
 
 pub mod callable;
 pub mod group;
@@ -17,6 +18,7 @@ pub mod variable;
 pub mod test;
 pub mod r#use;
 pub mod control_flow;
+pub mod r#match;
 
 /// A expression that can be evaluated.
 #[derive(Debug, Clone, PartialEq)]
@@ -25,6 +27,8 @@ pub enum Expr<'a> {
     Binary(BinaryOperation<'a>),
     FunDeclaration(FunDeclaration<'a>),
     Literal(Literal<'a>),
+
+    Match(Match<'a>),
 
     Call(Call<'a>),
     Pipeline(Pipeline<'a>),
