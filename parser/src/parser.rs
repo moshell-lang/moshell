@@ -29,6 +29,7 @@ pub(crate) struct Parser<'a> {
     pub(crate) cursor: ParserCursor<'a>,
 }
 
+//all tokens that can't be an infix operator
 macro_rules! non_infix {
     () =>  {
         eox()
