@@ -12,7 +12,7 @@ use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::moves::{bin_op, eod, eox, next, of_types, spaces, MoveOperations, repeat, space, like};
+use crate::moves::{bin_op, eod, eox, next, of_types, spaces, MoveOperations, repeat, space, like, word_sep};
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -249,7 +249,7 @@ impl<'a> Parser<'a> {
     //Skips spaces and verify that this parser is not parsing the end of an expression
     // (unescaped newline or semicolon)
     fn repos(&mut self) -> ParseResult<()> {
-        self.cursor.advance(spaces()); //skip spaces
+        self.cursor.advance(word_sep()); //skip word separators
         if self.cursor.lookahead(eox()).is_some() {
             return self.expected("Unexpected end of expression");
         }

@@ -5,7 +5,7 @@ use lexer::token::TokenType;
 
 use crate::ast::literal::{Literal, LiteralValue};
 use crate::ast::*;
-use crate::moves::{next, of_type};
+use crate::moves::{next, of_type, word_sep};
 use crate::parser::{ParseResult, Parser};
 use crate::source::try_join_str;
 
@@ -134,7 +134,6 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         let mut builder = String::new();
         let mut lexeme = current.value;
 
-
         //pushes current token then advance
         macro_rules! append_current {
             () => {
@@ -169,6 +168,10 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 TokenType::Space => break,
 
                 TokenType::BackSlash => {
+                    if self.cursor.advance(word_sep()).is_some() {
+                        break;
+                    }
+
                     //never retain first backslash
                     self.cursor.next()?;
                     //advance so we are not pointing to token after '\'
