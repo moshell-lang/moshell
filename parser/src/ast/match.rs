@@ -1,5 +1,6 @@
 use crate::ast::Expr;
 use crate::ast::value::{Literal, TemplateString};
+use crate::ast::variable::VarReference;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Match<'a> {
@@ -17,7 +18,7 @@ pub struct MatchArm<'a> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum MatchPattern<'a> {
-    VarRef(&'a str),
+    VarRef(VarReference<'a>),
     Literal(Literal<'a>),
     Template(TemplateString<'a>),
     Wildcard,

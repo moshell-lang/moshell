@@ -31,7 +31,10 @@ pub(crate) struct Parser<'a> {
 
 macro_rules! non_infix {
     () =>  {
-        eox().or(eod()).or(like(TokenType::is_keyword)).or(of_types(&[RoundedLeftBracket, CurlyLeftBracket, SquaredLeftBracket]))
+        eox()
+            .or(eod())
+            .or(like(TokenType::is_keyword))
+            .or(of_types(&[RoundedLeftBracket, CurlyLeftBracket, SquaredLeftBracket, Bar, FatArrow]))
     }
 }
 
@@ -41,7 +44,7 @@ impl<'a> Parser<'a> {
         let mut statements = Vec::new();
 
         while self.look_for_input() {
-            let statement = self.parse_next().expect("parse failed");
+            let statement = self.parse_next()?;
             statements.push(statement);
         }
 

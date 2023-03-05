@@ -1,7 +1,7 @@
 use lexer::token::TokenType;
-use lexer::token::TokenType::{Else, NewLine, SemiColon};
+use lexer::token::TokenType::{Else, SemiColon};
 use crate::ast::Expr;
-use crate::moves::{MoveOperations, of_type, repeat, spaces};
+use crate::moves::{aerated, MoveOperations, of_type, spaces};
 use crate::parser::{Parser, ParseResult};
 use crate::ast::control_flow::If;
 
@@ -22,14 +22,9 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
         )?;
         let condition = self.expression_statement()?;
 
-        //a local move to consume a semicolon ';' being between newlines and spaces
-        let aerated_semicolon =
-            repeat(spaces().or(of_type(NewLine)))
-                .then(of_type(SemiColon))
-                .then(repeat(spaces().or(of_type(NewLine))));
 
         //skip only one semicolon if any, surrounded by newlines and spaces
-        self.cursor.advance(spaces().then(aerated_semicolon));
+        self.cursor.advance(spaces().then(aerated(of_type(SemiColon))));
 
         //the success_branch of the if
         let success_branch = parse_branch(self)?;
@@ -37,7 +32,7 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
         //parse the 'else' branch.
         let fail_branch =
             if self.cursor.advance(
-                aerated_semicolon.then(of_type(Else))
+                aerated(of_type(SemiColon)).then(of_type(Else))
             ).is_some() {
                 Some(Box::new(parse_branch(self)?))
             } else {

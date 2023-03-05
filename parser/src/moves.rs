@@ -169,6 +169,21 @@ pub(crate) fn blank() -> PredicateMove<impl Fn(Token) -> bool + Copy> {
     of_types(&[Space, NewLine])
 }
 
+///a move to consume any spaces or any newlines
+pub(crate) fn blanks() -> RepeatedMove<PredicateMove<impl Fn(Token) -> bool + Copy>> {
+    repeat(of_types(&[Space, NewLine]))
+}
+
+///a move to consume a move between spaces and newlines
+pub(crate) fn aerated<M: Move + Copy>(m: M) -> ThenMove<
+    ThenMove<
+        RepeatedMove<PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>>,
+        M>,
+    RepeatedMove<PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>>
+> {
+    blanks().then(m).then(blanks())
+}
+
 /// A Move to inverse the matching status of underlying move.
 /// If underlying succeeds: fail
 /// if underlying fails: succeed at given pos.
