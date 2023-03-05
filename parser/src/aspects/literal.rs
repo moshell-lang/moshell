@@ -36,11 +36,16 @@ pub(crate) trait LiteralAspect<'a> {
 
 impl<'a> LiteralAspect<'a> for Parser<'a> {
     fn literal(&mut self) -> ParseResult<Expr<'a>> {
-        let pivot = self.cursor.peek().token_type;
+        let token = self.cursor.peek();
+        let pivot = token.token_type;
         match pivot {
             IntLiteral | FloatLiteral => self.number_literal().map(Expr::Literal),
             Quote => self.string_literal().map(Expr::Literal),
             DoubleQuote => self.templated_string_literal().map(Expr::TemplateString),
+
+            _ if pivot.is_keyword() => self.expected(&format!("Unexpected keyword '{}'", token.value)),
+            _ if pivot.is_ponctuation() => self.expected(&format!("Unexpected token '{}'.", token.value)),
+
             _ => self.argument(),
         }
     }

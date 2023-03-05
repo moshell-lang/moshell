@@ -1,5 +1,5 @@
 use lexer::token::TokenType;
-use lexer::token::TokenType::{At, CurlyLeftBracket, CurlyRightBracket, FatArrow, Identifier, Bar, If};
+use lexer::token::TokenType::{At, Bar, CurlyLeftBracket, CurlyRightBracket, FatArrow, Identifier, If};
 
 use crate::aspects::literal::LiteralAspect;
 use crate::ast::Expr;
@@ -92,7 +92,7 @@ impl<'a> Parser<'a> {
 
         if first == Wildcard {
             return if !is_at_pattern_end!() {
-                self.expected("wildcard pattern cannot be followed with other patterns")
+                self.expected("wildcard pattern cannot be followed by other patterns")
             } else {
                 Ok(vec![first])
             }
@@ -109,8 +109,8 @@ impl<'a> Parser<'a> {
         }
 
         if !is_at_pattern_end!() {
-            let token = self.cursor.peek().value;
-            return self.expected(&format!("unexpected token, expected 'if' or '=>', found '{token}'"))
+            let token = self.cursor.lookahead(blanks().then(any())).unwrap().value;
+            return self.expected(&format!("unexpected token, expected '|', 'if' or '=>', found '{token}'"))
         }
 
         Ok(patterns)
@@ -152,7 +152,9 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
+
     use lexer::lexer::lex;
+
     use crate::ast::callable::Call;
     use crate::ast::Expr;
     use crate::ast::group::Subshell;
@@ -162,6 +164,7 @@ mod tests {
     use crate::ast::value::{Literal, TemplateString};
     use crate::ast::variable::VarReference;
     use crate::parse;
+    use crate::parser::ParseError;
 
     #[test]
     fn parse_complete_match() {
@@ -270,7 +273,7 @@ mod tests {
            \n\n y \n\n @ \n\n \"test $2\" \n\n | 2 \n\n | \n\n $USER \n\n | \n\n 't x' \n\n =>\n\n  () \n\n\
            \n\n x@* \n\n if \n\n [ $a == 1 ]\n\n  =>\n\n  () \n\n\
            \n\n * \n\n => \n\n echo $it \n\n\
-        }\
+        \n\n }\
         ")).expect("parse fail");
 
         assert_eq!(
@@ -358,6 +361,81 @@ mod tests {
                     ],
                 })
             ]
+        )
+    }
+
+    #[test]
+    fn match_patterns_with_wildcard() {
+        let res = parse(lex("\
+        match $1 {\
+           -e | * => ()\
+        }\
+        "));
+        assert_eq!(
+            res,
+            Err(ParseError {
+                message: "unexpected wildcard".to_string()
+            })
+        )
+    }
+
+    #[test]
+    fn match_wildcard_with_patterns() {
+        let res = parse(lex("\
+        match $1 {\
+           * | x | y => ()\
+        }\
+        "));
+        assert_eq!(
+            res,
+            Err(ParseError {
+                message: "wildcard pattern cannot be followed by other patterns".to_string()
+            })
+        )
+    }
+
+    #[test]
+    fn match_patterns_missing_bar() {
+        let res = parse(lex("\
+        match $1 {\
+           x y => ()\
+        }\
+        "));
+        assert_eq!(
+            res,
+            Err(ParseError {
+                message: "unexpected token, expected '|', 'if' or '=>', found 'y'".to_string()
+            })
+        )
+    }
+
+    #[test]
+    fn match_patterns_trailing_bar() {
+        let res = parse(lex("\
+        match $1 {\
+           x | => ()\
+        }\
+        "));
+        assert_eq!(
+            res,
+            Err(ParseError {
+                message: "Unexpected token '=>'.".to_string()
+            })
+        )
+    }
+
+    #[test]
+    fn match_patterns_missing_fatarrow() {
+        let res = parse(lex("\
+        match $1 {\
+           x | y ()\
+        }\
+        "));
+        assert_eq!(
+            res,
+            Err(ParseError {
+                message: "unexpected token, expected '|', 'if' or '=>', found '('".to_string()
+            })
         )
     }
 

@@ -141,8 +141,7 @@ impl<'a> Parser<'a> {
     pub(crate) fn next_value(&mut self) -> ParseResult<Expr<'a>> {
         self.repos()?;
 
-        let token = self.cursor.peek();
-        let pivot = token.token_type;
+        let pivot = self.cursor.peek().token_type;
         match pivot {
             RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
             CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
@@ -155,8 +154,6 @@ impl<'a> Parser<'a> {
 
             //test expressions has nothing to do in a value expression.
             SquaredLeftBracket => self.expected("Unexpected start of test expression"),
-            _ if pivot.is_keyword() => self.expected(&format!("Unexpected keyword '{}'", token.value)),
-            _ if pivot.is_ponctuation() => self.expected(&format!("Unexpected token '{}'.", token.value)),
             _ => self.literal(),
         }
     }

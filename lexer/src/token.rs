@@ -188,6 +188,8 @@ impl TokenType {
                 | TokenType::And
                 | TokenType::Or
                 | TokenType::Bar
+                | TokenType::Arrow
+                | TokenType::FatArrow
                 | TokenType::SquaredLeftBracket
                 | TokenType::SquaredRightBracket
                 | TokenType::RoundedLeftBracket
