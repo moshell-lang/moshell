@@ -8,6 +8,7 @@ use crate::ast::r#match::MatchPattern::{Literal, Template, VarRef, Wildcard};
 use crate::moves::{aerated, any, blanks, eox, MoveOperations, not, of_type, of_types, repeat};
 use crate::parser::{Parser, ParseResult};
 
+/// A Parser Aspect for match expression-statement and value
 pub trait MatchAspect<'a> {
     fn parse_match<P>(&mut self, parse_arm: P) -> ParseResult<Match<'a>>
         where P: FnMut(&mut Self) -> ParseResult<Expr<'a>> + Clone;
@@ -164,9 +165,89 @@ mod tests {
     use crate::ast::r#match::{Match, MatchArm, MatchPattern};
     use crate::ast::test::Test;
     use crate::ast::value::{Literal, TemplateString};
-    use crate::ast::variable::VarReference;
+    use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
     use crate::parse;
     use crate::parser::ParseError;
+
+
+    #[test]
+    fn parse_match_as_value() {
+        let ast = parse(lex("
+        val x = match $1 {
+           -e => 75
+           y@\"test $2\" | 2 | $USER | 't x' => 4 - 7
+        }
+        ")).expect("parse fail");
+
+        assert_eq!(
+            ast,
+            vec![
+                Expr::VarDeclaration(VarDeclaration {
+                    kind: VarKind::Val,
+                    var: TypedVariable {
+                        name: "x",
+                        ty: None,
+                    },
+                    initializer: Some(Box::new(
+                        Expr::Match(Match {
+                            operand: Box::new(Expr::VarReference(VarReference {
+                                name: "1"
+                            })),
+                            arms: vec![
+                                MatchArm {
+                                    val_name: None,
+                                    patterns: vec![
+                                        MatchPattern::Literal("-e".into())
+                                    ],
+                                    guard: None,
+                                    body: Box::new(Expr::Literal(Literal {
+                                        lexeme: "75",
+                                        parsed: 75.into(),
+                                    })),
+                                },
+                                MatchArm {
+                                    val_name: Some("y"),
+                                    patterns: vec![
+                                        MatchPattern::Template(TemplateString {
+                                            parts: vec![
+                                                Expr::Literal("test ".into()),
+                                                Expr::VarReference(VarReference {
+                                                    name: "2"
+                                                }),
+                                            ]
+                                        }),
+                                        MatchPattern::Literal(Literal {
+                                            lexeme: "2",
+                                            parsed: 2.into(),
+                                        }),
+                                        MatchPattern::VarRef(VarReference {
+                                            name: "USER"
+                                        }),
+                                        MatchPattern::Literal(Literal {
+                                            lexeme: "'t x'",
+                                            parsed: "t x".into(),
+                                        }),
+                                    ],
+                                    guard: None,
+                                    body: Box::new(Expr::Binary(BinaryOperation {
+                                        left: Box::new(Expr::Literal(Literal {
+                                            lexeme: "4",
+                                            parsed: 4.into(),
+                                        })),
+                                        op: BinaryOperator::Minus,
+                                        right: Box::new(Expr::Literal(Literal {
+                                            lexeme: "7",
+                                            parsed: 7.into(),
+                                        })),
+                                    })),
+                                },
+                            ],
+                        })
+                    )),
+                }),
+            ]
+        )
+    }
 
     #[test]
     fn parse_complete_match() {
