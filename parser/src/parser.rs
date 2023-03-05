@@ -8,11 +8,12 @@ use crate::aspects::if_else::IfElseAspect;
 use crate::aspects::literal::LiteralAspect;
 use crate::aspects::r#use::UseAspect;
 use crate::aspects::redirection::RedirectionAspect;
+use crate::aspects::structure::StructureAspect;
 use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::moves::{bin_op, eod, eox, next, of_types, spaces, MoveOperations, repeat, space, like, word_sep};
+use crate::moves::{bin_op, eod, eox, next, of_types, spaces, MoveOperations, repeat, space, like, word_sep, of_type};
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -117,6 +118,7 @@ impl<'a> Parser<'a> {
         let pivot = self.cursor.peek().token_type;
         match pivot {
             If => self.parse_if(Parser::statement),
+            Identifier if self.cursor.lookahead(of_type(Identifier).and_then(of_type(RoundedLeftBracket))).is_some() => self.constructor(),
             Identifier | Quote | DoubleQuote => self.call(),
             _ if pivot.is_bin_operator() => self.call(),
 
@@ -160,6 +162,7 @@ impl<'a> Parser<'a> {
             DoubleQuote => self.templated_string_literal(),
 
             If => self.parse_if(Parser::value),
+            Identifier if self.cursor.lookahead(of_type(Identifier).and_then(of_type(RoundedLeftBracket))).is_some() => self.constructor(),
 
             _ if pivot.is_keyword() => self.expected(&format!("Unexpected keyword '{}'", token.value)),
             _ if pivot.is_ponctuation() => self.expected(&format!("Unexpected token '{}'.", token.value)),

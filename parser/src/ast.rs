@@ -3,6 +3,7 @@ use crate::ast::group::{Block, Parenthesis, Subshell};
 use crate::ast::literal::Literal;
 use crate::ast::operation::BinaryOperation;
 use crate::ast::r#use::Use;
+use crate::ast::structure::Construct;
 use crate::ast::substitution::Substitution;
 use crate::ast::test::{Not, Test};
 use crate::ast::variable::{Assign, VarDeclaration, VarReference};
@@ -12,6 +13,7 @@ pub mod callable;
 pub mod group;
 pub mod literal;
 pub mod operation;
+pub mod structure;
 pub mod substitution;
 pub mod variable;
 pub mod test;
@@ -29,6 +31,7 @@ pub enum Expr<'a> {
     Call(Call<'a>),
     Pipeline(Pipeline<'a>),
     Redirected(Redirected<'a>),
+    Construct(Construct<'a>),
 
     Substitution(Substitution<'a>),
     TemplateString(Vec<Expr<'a>>),
