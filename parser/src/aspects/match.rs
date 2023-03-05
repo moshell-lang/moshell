@@ -40,24 +40,21 @@ impl<'a> Parser<'a> {
         let mut arms: Vec<MatchArm<'a>> = Vec::new();
 
         while self.cursor.advance(blank().then(of_type(CurlyRightBracket))).is_none() {
-            let mut arm = vec![self.parse_match_arm(parse_arm.clone())?];
-            arms.append(&mut arm);
+            let arm = self.parse_match_arm(parse_arm.clone())?;
+            arms.push(arm);
         }
 
         Ok(arms)
     }
 
-    fn parse_match_arm<P>(&mut self, mut parse_arm: P) -> ParseResult<MatchArm<'a>>
+    fn parse_match_arm<P>(&mut self, parse_arm: P) -> ParseResult<MatchArm<'a>>
         where P: FnMut(&mut Self) -> ParseResult<Expr<'a>> {
         self.cursor.advance(repeat(blank())); //consume blanks
 
         let val_name = self.parse_extracted_name()?;
-
         let patterns = self.parse_patterns()?;
-
         let guard = self.parse_guard()?;
-
-        let body = Box::new(parse_arm(self)?);
+        let body = Box::new(self.parse_body(parse_arm)?);
 
         Ok(MatchArm {
             val_name,
@@ -84,20 +81,28 @@ impl<'a> Parser<'a> {
             () =>{ self.cursor.lookahead(blank().then(of_types(&[If, FatArrow]))).is_some() }
         }
 
+        if is_at_pattern_end!() {
+            return self.expected("required pattern")
+        }
+
         let first = self.parse_pattern()?;
 
-        if first == Wildcard && !is_at_pattern_end!() {
-            return self.expected("wildcard pattern cannot be followed with other patterns")
+        if first == Wildcard {
+            return if !is_at_pattern_end!() {
+                self.expected("wildcard pattern cannot be followed with other patterns")
+            } else {
+                Ok(vec![first])
+            }
         }
 
         let mut patterns = vec![first];
 
-        while self.cursor.advance(blank().then(of_type(Bar))).is_none() {
+        while self.cursor.advance(blank().then(of_type(Bar))).is_some() {
             let pattern = self.parse_pattern()?;
             if pattern == Wildcard {
                 return self.expected("unexpected wildcard");
             }
-            patterns.append(&mut vec![pattern])
+            patterns.push(pattern)
         }
 
         if !is_at_pattern_end!() {
@@ -128,5 +133,35 @@ impl<'a> Parser<'a> {
         }
 
         self.expression().map(Some)
+    }
+
+    fn parse_body<P>(&mut self, mut parse_arm: P) -> ParseResult<Expr<'a>>
+        where P: FnMut(&mut Self) -> ParseResult<Expr<'a>> {
+        self.cursor.force(blank().then(of_type(FatArrow)), "missing '=>'")?;
+        parse_arm(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+    use lexer::lexer::lex;
+    use crate::parse;
+
+    #[test]
+    fn parse_simple_match() {
+        let ast = parse(lex("\
+        match $1 {\
+           -e => ()
+           \"test $2\" | -g | $USER | 't x' => ()
+           * if [ $a == 1 ] => ()
+           * => echo $it
+        }\
+        ")).expect("parse fail");
+
+        assert_eq!(
+            ast,
+            vec![]
+        )
     }
 }
