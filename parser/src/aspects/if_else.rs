@@ -1,7 +1,7 @@
 use lexer::token::TokenType;
 use lexer::token::TokenType::{Else, SemiColon};
 use crate::ast::Expr;
-use crate::moves::{aerated, MoveOperations, of_type, spaces};
+use crate::moves::{aerated, blanks, MoveOperations, of_type};
 use crate::parser::{Parser, ParseResult};
 use crate::ast::control_flow::If;
 
@@ -24,7 +24,7 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
 
 
         //skip only one semicolon if any, surrounded by newlines and spaces
-        self.cursor.advance(spaces().then(aerated(of_type(SemiColon))));
+        self.cursor.advance(aerated(of_type(SemiColon)).or(blanks()));
 
         //the success_branch of the if
         let success_branch = parse_branch(self)?;
@@ -32,7 +32,8 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
         //parse the 'else' branch.
         let fail_branch =
             if self.cursor.advance(
-                aerated(of_type(SemiColon)).then(of_type(Else))
+                blanks().then(of_type(SemiColon)).then(
+                    aerated(of_type(Else)))
             ).is_some() {
                 Some(Box::new(parse_branch(self)?))
             } else {
@@ -87,7 +88,7 @@ mod tests {
 
     #[test]
     fn if_else_if() {
-        let ast = parse(lex("if echo a && [[ -f /file/exe ]]; echo test\n\n\nelse if [ $a ] \n;\n { $7 }; else $5")).expect("parse failed");
+        let ast = parse(lex("if echo a && [[ -f /file/exe ]]; echo test\n\n\nelse if [ $a ] \n;\n { $7 } else $5")).expect("parse failed");
         assert_eq!(
             ast,
             vec![

@@ -5,7 +5,7 @@ use crate::aspects::literal::LiteralAspect;
 use crate::ast::Expr;
 use crate::ast::r#match::{Match, MatchArm, MatchPattern};
 use crate::ast::r#match::MatchPattern::{Literal, Template, VarRef, Wildcard};
-use crate::moves::{aerated, any, blank, blanks, MoveOperations, not, of_type, of_types, repeat};
+use crate::moves::{aerated, any, blanks, MoveOperations, not, of_type, of_types, repeat};
 use crate::parser::{Parser, ParseResult};
 
 pub trait MatchAspect<'a> {
@@ -17,7 +17,7 @@ impl<'a> MatchAspect<'a> for Parser<'a> {
     fn parse_match<P>(&mut self, parse_arm: P) -> ParseResult<Match<'a>>
         where P: FnMut(&mut Self) -> ParseResult<Expr<'a>> + Clone {
         self.cursor.force(
-            of_type(TokenType::Match),
+            of_type(TokenType::Match).and_then(blanks()),
             "expected 'match' keyword at start of match expression.",
         )?;
 
@@ -35,7 +35,7 @@ impl<'a> MatchAspect<'a> for Parser<'a> {
 impl<'a> Parser<'a> {
     fn parse_match_arms<P>(&mut self, parse_arm: P) -> ParseResult<Vec<MatchArm<'a>>>
         where P: FnMut(&mut Self) -> ParseResult<Expr<'a>> + Clone {
-        self.cursor.force(repeat(blank().then(of_type(CurlyLeftBracket))), "expected '{'")?;
+        self.cursor.force(blanks().then(of_type(CurlyLeftBracket)), "expected '{'")?;
 
         let mut arms: Vec<MatchArm<'a>> = Vec::new();
 
@@ -72,7 +72,7 @@ impl<'a> Parser<'a> {
                 .map(|t| t.value)
                 .map(Some);
             //consume everything before 'at' included
-            self.cursor.advance(repeat(not(of_type(At))).then(any()));
+            self.cursor.advance(repeat(not(of_type(At)).and_then(any())).then(any()));
             name
         } else {
             Ok(None)
@@ -135,7 +135,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_guard(&mut self) -> ParseResult<Option<Expr<'a>>> {
-        if self.cursor.advance(blanks().then(of_type(If))).is_none() {
+        if self.cursor.advance(aerated(of_type(If))).is_none() {
             return Ok(None)
         }
 
@@ -144,7 +144,7 @@ impl<'a> Parser<'a> {
 
     fn parse_body<P>(&mut self, mut parse_arm: P) -> ParseResult<Expr<'a>>
         where P: FnMut(&mut Self) -> ParseResult<Expr<'a>> {
-        self.cursor.force(blanks().then(of_type(FatArrow)), "missing '=>'")?;
+        self.cursor.force(aerated(of_type(FatArrow)), "missing '=>'")?;
         parse_arm(self)
     }
 }
@@ -261,4 +261,104 @@ mod tests {
             ]
         )
     }
+
+    #[test]
+    fn parse_complete_match_blanks() {
+        let ast = parse(lex("\
+        match \n\n $1 \n\n {\n\n\
+           \n\n -e \n\n => \n\n () \n\n\
+           \n\n y \n\n @ \n\n \"test $2\" \n\n | 2 \n\n | \n\n $USER \n\n | \n\n 't x' \n\n =>\n\n  () \n\n\
+           \n\n x@* \n\n if \n\n [ $a == 1 ]\n\n  =>\n\n  () \n\n\
+           \n\n * \n\n => \n\n echo $it \n\n\
+        }\
+        ")).expect("parse fail");
+
+        assert_eq!(
+            ast,
+            vec![
+                Expr::Match(Match {
+                    operand: Box::new(Expr::VarReference(VarReference {
+                        name: "1"
+                    })),
+                    arms: vec![
+                        MatchArm {
+                            val_name: None,
+                            patterns: vec![
+                                MatchPattern::Literal("-e".into())
+                            ],
+                            guard: None,
+                            body: Box::new(Expr::Subshell(Subshell {
+                                expressions: Vec::new()
+                            })),
+                        },
+                        MatchArm {
+                            val_name: Some("y"),
+                            patterns: vec![
+                                MatchPattern::Template(TemplateString {
+                                    parts: vec![
+                                        Expr::Literal("test ".into()),
+                                        Expr::VarReference(VarReference {
+                                            name: "2"
+                                        }),
+                                    ]
+                                }),
+                                MatchPattern::Literal(Literal {
+                                    lexeme: "2",
+                                    parsed: 2.into(),
+                                }),
+                                MatchPattern::VarRef(VarReference {
+                                    name: "USER"
+                                }),
+                                MatchPattern::Literal(Literal {
+                                    lexeme: "'t x'",
+                                    parsed: "t x".into(),
+                                }),
+                            ],
+                            guard: None,
+                            body: Box::new(Expr::Subshell(Subshell {
+                                expressions: Vec::new()
+                            })),
+                        },
+                        MatchArm {
+                            val_name: Some("x"),
+                            patterns: vec![
+                                MatchPattern::Wildcard
+                            ],
+                            guard: Some(Expr::Test(Test {
+                                expression: Box::new(Expr::Binary(BinaryOperation {
+                                    left: Box::new(Expr::VarReference(VarReference {
+                                        name: "a"
+                                    })),
+                                    op: BinaryOperator::EqualEqual,
+                                    right: Box::new(Expr::Literal(Literal {
+                                        lexeme: "1",
+                                        parsed: 1.into(),
+                                    })),
+                                }))
+                            })),
+                            body: Box::new(Expr::Subshell(Subshell {
+                                expressions: Vec::new()
+                            })),
+                        },
+                        MatchArm {
+                            val_name: None,
+                            patterns: vec![
+                                MatchPattern::Wildcard
+                            ],
+                            guard: None,
+                            body: Box::new(Expr::Call(Call {
+                                arguments: vec![
+                                    Expr::Literal("echo".into()),
+                                    Expr::VarReference(VarReference {
+                                        name: "it"
+                                    }),
+                                ]
+                            })),
+                        },
+                    ],
+                })
+            ]
+        )
+    }
+
 }

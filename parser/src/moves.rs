@@ -37,6 +37,7 @@ impl<A: Move + Copy> MoveOperations<A> for A {
             right: other,
         }
     }
+
     fn then<B: Move + Copy>(self, other: B) -> ThenMove<Self, B> {
         ThenMove {
             left: self,
@@ -50,6 +51,7 @@ impl<A: Move + Copy> MoveOperations<A> for A {
             right: other,
         }
     }
+
 }
 
 ///A Move that only move over one token and only if it satisfies its predicate.
@@ -174,14 +176,15 @@ pub(crate) fn blanks() -> RepeatedMove<PredicateMove<impl Fn(Token) -> bool + Co
     repeat(of_types(&[Space, NewLine]))
 }
 
-///a move to consume a move between spaces and newlines
-pub(crate) fn aerated<M: Move + Copy>(m: M) -> ThenMove<
+///a move to consume a move between spaces and newlines, this move succeeds only if the given move
+/// succeeds.
+pub(crate) fn aerated<M: Move + Copy>(m: M) -> AndThenMove<
     ThenMove<
         RepeatedMove<PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>>,
         M>,
     RepeatedMove<PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>>
 > {
-    blanks().then(m).then(blanks())
+    blanks().then(m).and_then(blanks())
 }
 
 /// A Move to inverse the matching status of underlying move.
