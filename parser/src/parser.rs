@@ -118,7 +118,6 @@ impl<'a> Parser<'a> {
         let pivot = self.cursor.peek().token_type;
         match pivot {
             If => self.parse_if(Parser::statement),
-            Identifier | Quote | DoubleQuote => self.call(),
             Match => Ok(Expr::Match(self.parse_match(Parser::statement)?)),
 
             _ if pivot.is_bin_operator() => self.call(),
@@ -138,6 +137,7 @@ impl<'a> Parser<'a> {
             SquaredLeftBracket => self.parse_test(),
 
             Not => self.not(Parser::next_expression_statement),
+            Identifier | Quote | DoubleQuote => self.call(),
 
 
             _ => self.next_value(),
@@ -156,10 +156,6 @@ impl<'a> Parser<'a> {
 
             Not => self.not(Parser::next_value),
 
-            IntLiteral | FloatLiteral => self.literal(),
-            Quote => self.string_literal(),
-            DoubleQuote => self.templated_string_literal(),
-
             //expression that can also be used as values
             If => self.parse_if(Parser::value),
             Match => Ok(Expr::Match(self.parse_match(Parser::value)?)),
@@ -168,7 +164,7 @@ impl<'a> Parser<'a> {
             SquaredLeftBracket => self.expected("Unexpected start of test expression"),
             _ if pivot.is_keyword() => self.expected(&format!("Unexpected keyword '{}'", token.value)),
             _ if pivot.is_ponctuation() => self.expected(&format!("Unexpected token '{}'.", token.value)),
-            _ => self.argument(),
+            _ => self.literal(),
         }
     }
 

@@ -1,6 +1,6 @@
 use crate::ast::callable::{Call, FunDeclaration, Pipeline, Redirected};
 use crate::ast::group::{Block, Parenthesis, Subshell};
-use crate::ast::literal::Literal;
+use crate::ast::value::{Literal, TemplateString};
 use crate::ast::operation::BinaryOperation;
 use crate::ast::r#use::Use;
 use crate::ast::substitution::Substitution;
@@ -11,7 +11,7 @@ use crate::ast::r#match::Match;
 
 pub mod callable;
 pub mod group;
-pub mod literal;
+pub mod value;
 pub mod operation;
 pub mod substitution;
 pub mod variable;
@@ -35,7 +35,7 @@ pub enum Expr<'a> {
     Redirected(Redirected<'a>),
 
     Substitution(Substitution<'a>),
-    TemplateString(Vec<Expr<'a>>),
+    TemplateString(TemplateString<'a>),
 
     Use(Use<'a>),
 

@@ -1,9 +1,9 @@
 use std::num::IntErrorKind;
 
 use crate::aspects::substitution::SubstitutionAspect;
-use lexer::token::TokenType;
+use lexer::token::TokenType::*;
 
-use crate::ast::literal::{Literal, LiteralValue};
+use crate::ast::value::{Literal, LiteralValue, TemplateString};
 use crate::ast::*;
 use crate::moves::{next, of_type, word_sep};
 use crate::parser::{ParseResult, Parser};
@@ -11,38 +11,51 @@ use crate::source::try_join_str;
 
 /// A trait that contains all the methods for parsing literals.
 pub(crate) trait LiteralAspect<'a> {
-    /// Parses a number-like literal expression.
+
+    /// Parses any literal, number, argument, string, string template
     fn literal(&mut self) -> ParseResult<Expr<'a>>;
+
+    /// Parses a number-like literal expression.
+    fn number_literal(&mut self) -> ParseResult<Literal<'a>>;
 
     /// Parses a string literal expression.
     ///
     /// This method is only used for single quoted strings.
-    fn string_literal(&mut self) -> ParseResult<Expr<'a>>;
+    fn string_literal(&mut self) -> ParseResult<Literal<'a>>;
 
     /// Parses a string template literal expression.
     ///
     /// This method is only used for double quoted strings, which may contain variable references for instance.
-    fn templated_string_literal(&mut self) -> ParseResult<Expr<'a>>;
+    fn templated_string_literal(&mut self) -> ParseResult<TemplateString<'a>>;
 
     /// Parse a raw argument.
     ///
     /// Arguments are not quoted and are separated by spaces.
     fn argument(&mut self) -> ParseResult<Expr<'a>>;
-    fn parse_literal(&mut self) -> ParseResult<LiteralValue>;
 }
 
 impl<'a> LiteralAspect<'a> for Parser<'a> {
     fn literal(&mut self) -> ParseResult<Expr<'a>> {
-        Ok(Expr::Literal(Literal {
-            lexeme: self.cursor.peek().value,
-            parsed: self.parse_literal()?,
-        }))
+        let pivot = self.cursor.peek().token_type;
+        match pivot {
+            IntLiteral | FloatLiteral => self.number_literal().map(Expr::Literal),
+            Quote => self.string_literal().map(Expr::Literal),
+            DoubleQuote => self.templated_string_literal().map(Expr::TemplateString),
+            _ => self.argument(),
+        }
     }
 
-    fn string_literal(&mut self) -> ParseResult<Expr<'a>> {
+    fn number_literal(&mut self) -> ParseResult<Literal<'a>> {
+        Ok(Literal {
+            lexeme: self.cursor.peek().value,
+            parsed: self.parse_number_value()?,
+        })
+    }
+
+    fn string_literal(&mut self) -> ParseResult<Literal<'a>> {
         let mut lexeme = self
             .cursor
-            .force(of_type(TokenType::Quote), "Expected quote.")?
+            .force(of_type(Quote), "Expected quote.")?
             .value;
 
         let mut value = String::new();
@@ -54,7 +67,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 }
 
                 Some(token) => {
-                    if token.token_type == TokenType::Quote {
+                    if token.token_type == Quote {
                         if let Some(joined) = try_join_str(lexeme, token.value) {
                             lexeme = joined;
                         }
@@ -67,15 +80,15 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 }
             };
         }
-        Ok(Expr::Literal(Literal {
+        Ok(Literal {
             lexeme,
             parsed: LiteralValue::String(value),
-        }))
+        })
     }
 
-    fn templated_string_literal(&mut self) -> ParseResult<Expr<'a>> {
+    fn templated_string_literal(&mut self) -> ParseResult<TemplateString<'a>> {
         self.cursor
-            .force(of_type(TokenType::DoubleQuote), "Expected quote.")?;
+            .force(of_type(DoubleQuote), "Expected quote.")?;
         let mut lexeme = self.cursor.peek().value;
         let mut literal_value = String::new();
         let mut parts = Vec::new();
@@ -85,12 +98,12 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             }
 
             match self.cursor.peek().token_type {
-                TokenType::DoubleQuote => {
+                DoubleQuote => {
                     self.cursor.advance(next());
                     break;
                 }
 
-                TokenType::Dollar => {
+                Dollar => {
                     if !literal_value.is_empty() {
                         parts.push(Expr::Literal(Literal {
                             lexeme,
@@ -121,7 +134,9 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             }));
         }
 
-        Ok(Expr::TemplateString(parts))
+        Ok(TemplateString {
+            parts
+        })
     }
 
     /// Parses a single argument.
@@ -149,11 +164,12 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         }
 
         match current.token_type {
-            TokenType::Dollar => parts.push(self.substitution()?),
-            TokenType::BackSlash => {
+            Dollar => parts.push(self.substitution()?),
+            BackSlash => {
                 //never retain first backslash
-                self.cursor.next()?; //advance so we are not pointing to token after '\'
-                                     //will append the escaped value (token after the backslash)
+                self.cursor.next()?;
+                //advance so we are not pointing to token after '\'
+                //will append the escaped value (token after the backslash)
                 append_current!();
             }
             _ => {
@@ -165,9 +181,9 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             let token = self.cursor.peek();
             let pivot = token.token_type;
             match pivot {
-                TokenType::Space => break,
+                Space => break,
 
-                TokenType::BackSlash => {
+                BackSlash => {
                     if self.cursor.advance(word_sep()).is_some() {
                         break;
                     }
@@ -179,7 +195,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                     append_current!();
                 }
 
-                TokenType::Dollar => {
+                Dollar => {
                     if !builder.is_empty() {
                         parts.push(Expr::Literal(Literal {
                             lexeme,
@@ -205,13 +221,18 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         if parts.len() == 1 {
             return Ok(parts.pop().unwrap());
         }
-        Ok(Expr::TemplateString(parts))
-    }
 
-    fn parse_literal(&mut self) -> ParseResult<LiteralValue> {
+        Ok(Expr::TemplateString(TemplateString {
+            parts
+        }))
+    }
+}
+
+impl<'a> Parser<'a> {
+    fn parse_number_value(&mut self) -> ParseResult<LiteralValue> {
         let token = self.cursor.next()?;
         match token.token_type {
-            TokenType::IntLiteral => Ok(LiteralValue::Int(token.value.parse::<i64>().map_err(
+            IntLiteral => Ok(LiteralValue::Int(token.value.parse::<i64>().map_err(
                 |e| {
                     match e.kind() {
                         IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => self
@@ -221,7 +242,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                     }
                 },
             )?)),
-            TokenType::FloatLiteral => Ok(LiteralValue::Float(
+            FloatLiteral => Ok(LiteralValue::Float(
                 token
                     .value
                     .parse::<f64>()
@@ -245,7 +266,7 @@ mod tests {
     #[test]
     fn int_overflow() {
         let tokens = vec![Token::new(
-            TokenType::IntLiteral,
+            IntLiteral,
             "123456789012345678901234567890",
         )];
         let parsed = Parser::new(tokens).statement();
@@ -285,7 +306,7 @@ mod tests {
 
     #[test]
     fn missing_quote() {
-        let tokens = vec![Token::new(TokenType::Quote, "' command")];
+        let tokens = vec![Token::new(Quote, "' command")];
         let parsed = Parser::new(tokens).statement();
         assert_eq!(
             parsed,

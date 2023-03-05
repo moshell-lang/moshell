@@ -1,4 +1,5 @@
 use crate::ast::Expr;
+use crate::ast::value::{Literal, TemplateString};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Match<'a> {
@@ -8,20 +9,16 @@ pub struct Match<'a> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MatchArm<'a> {
-    pub var_name: Option<&'a str>,
-    pub pattern: Option<MatchPattern<'a>>,
+    pub val_name: Option<&'a str>,
+    pub patterns: Vec<MatchPattern<'a>>,
     pub guard: Option<Expr<'a>>,
     pub body: Box<Expr<'a>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct MatchPattern<'a> {
-    pub kind: MatchPatternKind<'a>,
-    pub next: Option<Box<MatchPattern<'a>>>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum MatchPatternKind<'a> {
+pub enum MatchPattern<'a> {
     VarRef(&'a str),
-    Literal(&'a str),
+    Literal(Literal<'a>),
+    Template(TemplateString<'a>),
+    Wildcard,
 }

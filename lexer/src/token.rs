@@ -75,7 +75,7 @@ pub enum TokenType {
     Dot,
 
     #[token("|")]
-    Pipe,
+    Bar,
 
     #[token("&&")]
     And,
@@ -173,7 +173,7 @@ impl TokenType {
     ///is this lexeme a lexeme that cannot fusion with other glued tokens
     pub fn is_identifier_bound(self) -> bool {
         match self {
-            NewLine | SemiColon | Less | Pipe | Greater | And | Or => true,
+            NewLine | SemiColon | Less | Bar | Greater | And | Or => true,
             _ => false,
         }
     }
@@ -187,7 +187,7 @@ impl TokenType {
                 | TokenType::Greater
                 | TokenType::And
                 | TokenType::Or
-                | TokenType::Pipe
+                | TokenType::Bar
                 | TokenType::SquaredLeftBracket
                 | TokenType::SquaredRightBracket
                 | TokenType::RoundedLeftBracket

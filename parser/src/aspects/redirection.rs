@@ -25,7 +25,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
         // Continue as long as we have a pipe
         while self
             .cursor
-            .advance(space().then(of_type(TokenType::Pipe)))
+            .advance(space().then(of_type(TokenType::Bar)))
             .is_some()
         {
             match self.call()? {
@@ -87,7 +87,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
             };
         }
 
-        let operand = self.next_expression()?;
+        let operand = self.next_value()?;
         Ok(Redir {
             fd,
             operator,
@@ -105,7 +105,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
                     redirections.push(self.redirection()?);
                 }
 
-                TokenType::Pipe => {
+                TokenType::Bar => {
                     return self.pipeline(expr);
                 }
                 // Detect redirections without a specific file descriptor
@@ -143,7 +143,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
-            TokenType::Ampersand | TokenType::Less | TokenType::Greater | TokenType::Pipe => true,
+            TokenType::Ampersand | TokenType::Less | TokenType::Greater | TokenType::Bar => true,
             //search for '>' or '<' in case of std-determined redirection sign (ex: 2>>)
             _ => self
                 .cursor
@@ -160,7 +160,7 @@ mod test {
     use crate::aspects::call::CallAspect;
     use crate::ast::callable::{Call, Redir, RedirFd, RedirOp, Redirected};
     use crate::ast::group::Block;
-    use crate::ast::literal::Literal;
+    use crate::ast::value::Literal;
     use crate::ast::Expr;
     use crate::parse;
     use crate::parser::Parser;

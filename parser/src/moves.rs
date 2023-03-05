@@ -164,6 +164,11 @@ pub(crate) fn word_sep() -> RepeatedMove<
     repeat_n(1, space().or(of_type(BackSlash).and_then(of_type(NewLine))))
 }
 
+///a move to consume any space or any newline
+pub(crate) fn blank() -> PredicateMove<impl Fn(Token) -> bool + Copy> {
+    of_types(&[Space, NewLine])
+}
+
 /// A Move to inverse the matching status of underlying move.
 /// If underlying succeeds: fail
 /// if underlying fails: succeed at given pos.

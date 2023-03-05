@@ -68,7 +68,7 @@ mod tests {
     use crate::ast::callable::Call;
     use crate::ast::Expr;
     use crate::ast::group::{Parenthesis, Subshell};
-    use crate::ast::literal::{Literal, LiteralValue};
+    use crate::ast::value::{Literal, LiteralValue};
     use crate::ast::operation::{BinaryOperation, BinaryOperator};
     use crate::ast::test::{Not, Test};
     use crate::ast::variable::VarReference;

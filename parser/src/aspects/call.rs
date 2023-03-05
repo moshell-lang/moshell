@@ -52,7 +52,7 @@ mod tests {
     use lexer::lexer::lex;
 
     use crate::ast::callable::Call;
-    use crate::ast::literal::Literal;
+    use crate::ast::value::Literal;
     use crate::ast::Expr;
     use crate::parse;
     use crate::parser::{ParseError, Parser};

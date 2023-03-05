@@ -6,7 +6,7 @@ use crate::moves::{eox, MoveOperations, not, of_type, space};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{RoundedLeftBracket};
-use crate::ast::literal::{Literal, LiteralValue};
+use crate::ast::value::{Literal, LiteralValue};
 
 /// A parser for substitution expressions.
 pub(crate) trait SubstitutionAspect<'a> {

@@ -1,7 +1,7 @@
 use lexer::lexer::lex;
 use parser::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use parser::ast::group::Subshell;
-use parser::ast::literal::Literal;
+use parser::ast::value::{Literal, TemplateString};
 use parser::ast::substitution::{Substitution, SubstitutionKind};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 use parser::ast::Expr;
@@ -60,12 +60,14 @@ fn with_lexer_var_reference_two() {
         parsed,
         vec![Expr::Call(Call {
             arguments: vec![
-                Expr::TemplateString(vec![
-                    Expr::Literal("fake".into()),
-                    Expr::VarReference(VarReference {
-                        name: "cmd",
-                    }),
-                ]),
+                Expr::TemplateString(TemplateString {
+                    parts: vec![
+                        Expr::Literal("fake".into()),
+                        Expr::VarReference(VarReference {
+                            name: "cmd",
+                        }),
+                    ]
+                }),
                 Expr::Literal("do".into()),
                 Expr::VarReference(VarReference {
                     name: "arg2",
@@ -95,20 +97,22 @@ fn with_lexer_var_reference_three() {
         vec![Expr::Call(Call {
             arguments: vec![
                 Expr::Literal("echo".into()),
-                Expr::TemplateString(vec![
-                    Expr::Literal("hello ".into()),
-                    Expr::VarReference(VarReference {
-                        name: "world",
-                    }),
-                    Expr::Literal(" everyone ".into()),
-                    Expr::VarReference(VarReference {
-                        name: "verb",
-                    }),
-                    Expr::VarReference(VarReference {
-                        name: "ready",
-                    }),
-                    Expr::Literal("!".into()),
-                ]),
+                Expr::TemplateString(TemplateString {
+                    parts: vec![
+                        Expr::Literal("hello ".into()),
+                        Expr::VarReference(VarReference {
+                            name: "world",
+                        }),
+                        Expr::Literal(" everyone ".into()),
+                        Expr::VarReference(VarReference {
+                            name: "verb",
+                        }),
+                        Expr::VarReference(VarReference {
+                            name: "ready",
+                        }),
+                        Expr::Literal("!".into()),
+                    ]
+                }),
             ],
         })]
     );
@@ -278,17 +282,19 @@ fn with_lexer_substitution_in_substitution() {
                         expressions: vec![Expr::Call(Call {
                             arguments: vec![
                                 Expr::Literal("ls".into()),
-                                Expr::TemplateString(vec![
-                                    Expr::Substitution(Substitution {
-                                        underlying: Subshell {
-                                            expressions: vec![Expr::Call(Call {
-                                                arguments: vec![Expr::Literal("pwd".into())]
-                                            })],
-                                        },
-                                        kind: SubstitutionKind::Capture,
-                                    }),
-                                    Expr::Literal("/test".into()),
-                                ]),
+                                Expr::TemplateString(TemplateString {
+                                    parts: vec![
+                                        Expr::Substitution(Substitution {
+                                            underlying: Subshell {
+                                                expressions: vec![Expr::Call(Call {
+                                                    arguments: vec![Expr::Literal("pwd".into())]
+                                                })],
+                                            },
+                                            kind: SubstitutionKind::Capture,
+                                        }),
+                                        Expr::Literal("/test".into()),
+                                    ]
+                                }),
                             ],
                         })]
                     },

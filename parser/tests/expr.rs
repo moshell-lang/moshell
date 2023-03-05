@@ -1,7 +1,7 @@
 use lexer::lexer::lex;
 use lexer::token::{Token, TokenType};
 use parser::ast::callable::Call;
-use parser::ast::literal::{Literal, LiteralValue};
+use parser::ast::value::{Literal, LiteralValue};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use parser::ast::Expr;
 use parser::parse;

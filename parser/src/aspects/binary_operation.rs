@@ -157,7 +157,7 @@ mod tests {
     use crate::aspects::binary_operation::BinaryOperationsAspect;
     use crate::ast::callable::Call;
     use crate::ast::group::{Parenthesis, Subshell};
-    use crate::ast::literal::Literal;
+    use crate::ast::value::Literal;
     use crate::ast::operation::BinaryOperation;
     use crate::ast::operation::BinaryOperator::*;
     use crate::ast::Expr;

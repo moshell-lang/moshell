@@ -51,6 +51,7 @@ mod tests {
     use crate::ast::variable::VarReference;
     use crate::ast::Expr;
     use pretty_assertions::assert_eq;
+    use crate::ast::value::TemplateString;
     use crate::parse;
     use crate::parser::ParseError;
 
@@ -113,12 +114,14 @@ mod tests {
         assert_eq!(
             ast,
             vec![
-                Expr::TemplateString(vec![
-                    Expr::VarReference(VarReference {
-                        name: "VAR"
-                    }),
-                    Expr::Literal("IABLE".into())
-                ])
+                Expr::TemplateString(TemplateString {
+                    parts: vec![
+                        Expr::VarReference(VarReference {
+                            name: "VAR"
+                        }),
+                        Expr::Literal("IABLE".into()),
+                    ]
+                })
             ]
         )
     }
@@ -142,18 +145,20 @@ mod tests {
         assert_eq!(
             ast,
             vec![
-                Expr::TemplateString(vec![
-                    Expr::VarReference(VarReference {
-                        name: "VAR"
-                    }),
-                    Expr::Literal("IABLE".into()),
-                    Expr::VarReference(VarReference {
-                        name: "LONG"
-                    }),
-                    Expr::VarReference(VarReference {
-                        name: "VERY_LONG"
-                    }),
-                ])
+                Expr::TemplateString(TemplateString {
+                    parts: vec![
+                        Expr::VarReference(VarReference {
+                            name: "VAR"
+                        }),
+                        Expr::Literal("IABLE".into()),
+                        Expr::VarReference(VarReference {
+                            name: "LONG"
+                        }),
+                        Expr::VarReference(VarReference {
+                            name: "VERY_LONG"
+                        }),
+                    ]
+                })
             ]
         )
     }

@@ -60,7 +60,7 @@ mod tests {
     use crate::ast::Expr;
     use crate::ast::control_flow::If;
     use crate::ast::group::Block;
-    use crate::ast::literal::Literal;
+    use crate::ast::value::{Literal, TemplateString};
     use crate::ast::operation::{BinaryOperation, BinaryOperator};
     use crate::ast::operation::BinaryOperator::And;
     use crate::ast::test::Test;
@@ -212,8 +212,12 @@ mod tests {
                                 }))
                             }))
                         })),
-                        success_branch: Box::new(Expr::TemplateString(vec![Expr::Literal("bash".into())])),
-                        fail_branch: Some(Box::new(Expr::TemplateString(vec![Expr::Literal("moshell".into())]))),
+                        success_branch: Box::new(Expr::TemplateString(TemplateString {
+                            parts: vec![Expr::Literal("bash".into())]
+                        })),
+                        fail_branch: Some(Box::new(Expr::TemplateString(TemplateString {
+                            parts: vec![Expr::Literal("moshell".into())]
+                        }))),
                     }))),
                 }),
             ]

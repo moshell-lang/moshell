@@ -1,3 +1,5 @@
+use crate::ast::Expr;
+
 /// A literal value that can be used directly.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Literal<'a> {
@@ -11,6 +13,11 @@ pub enum LiteralValue {
     String(String),
     Int(i64),
     Float(f64),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TemplateString<'a> {
+    pub parts: Vec<Expr<'a>>,
 }
 
 impl From<&str> for LiteralValue {
