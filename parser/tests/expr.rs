@@ -1,3 +1,4 @@
+use lexer::lexer::lex;
 use lexer::token::{Token, TokenType};
 use parser::ast::callable::Call;
 use parser::ast::literal::{Literal, LiteralValue};
@@ -46,4 +47,16 @@ fn command_echo() {
         arguments: vec![Expr::Literal("echo".into()), Expr::Literal("hello".into())],
     })];
     assert_eq!(parsed, expected);
+}
+
+#[test]
+fn command_starting_with_arg() {
+    let tokens = lex("- W");
+    let parsed = parse(tokens).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Call(Call {
+            arguments: vec![Expr::Literal("-".into()), Expr::Literal("W".into())],
+        })]
+    );
 }

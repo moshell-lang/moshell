@@ -118,6 +118,7 @@ impl<'a> Parser<'a> {
         match pivot {
             If => self.parse_if(Parser::statement),
             Identifier | Quote | DoubleQuote => self.call(),
+            _ if pivot.is_bin_operator() => self.call(),
 
             _ => self.next_expression(),
         }
