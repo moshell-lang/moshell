@@ -43,13 +43,23 @@ impl<'a> Parser<'a> {
     /// Parses input tokens into an abstract syntax tree representation.
     pub fn parse(&mut self) -> ParseResult<Vec<Expr<'a>>> {
         let mut statements = Vec::new();
+        let mut last_error = None;
 
         while self.look_for_input() {
-            let statement = self.parse_next()?;
-            statements.push(statement);
+            match self.parse_next() {
+                Err(error) => {
+                    self.repos_to_next_expr();
+                    last_error = Some(error);
+                }
+                Ok(statement) => statements.push(statement),
+            }
         }
 
-        Ok(statements)
+        if let Some(error) = last_error {
+            Err(error)
+        } else {
+            Ok(statements)
+        }
     }
 
     fn look_for_input(&mut self) -> bool {
