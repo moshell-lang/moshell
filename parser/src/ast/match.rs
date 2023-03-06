@@ -1,16 +1,17 @@
+use dbg_pls::DebugPls;
 use crate::ast::value::{Literal, TemplateString};
 use crate::ast::variable::VarReference;
 use crate::ast::Expr;
 
 /// structure of a `match` expression.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Match<'a> {
     pub operand: Box<Expr<'a>>,
     pub arms: Vec<MatchArm<'a>>,
 }
 
 ///the arm (a@ b | c if d => ..) of a match expression
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct MatchArm<'a> {
     //the extracted value name (x@ ..)
     pub val_name: Option<&'a str>,
@@ -23,7 +24,7 @@ pub struct MatchArm<'a> {
 }
 
 ///all different kinds of patterns available for a pattern expression
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, DebugPls)]
 pub enum MatchPattern<'a> {
     //*, any
     Wildcard,

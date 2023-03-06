@@ -1,5 +1,6 @@
 use crate::ast::r#use::Use;
 use crate::ast::Expr;
+use crate::err::ParseErrorKind;
 use crate::moves::{eox, of_type, repeat, spaces, word_sep, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
@@ -33,6 +34,7 @@ impl<'a> UseAspect<'a> for Parser<'a> {
                 repeat(word_sep())
                     .then(of_type(Comma))
                     .then(repeat(word_sep()).then(of_type(Identifier))),
+
             ))
             .into_iter()
             .filter(|t| t.token_type == Identifier)
@@ -41,7 +43,7 @@ impl<'a> UseAspect<'a> for Parser<'a> {
 
         //look for any trailing ','
         if self.cursor.lookahead(spaces().or(of_type(Comma))).is_some() {
-            return self.expected("Unexpected comma ','");
+            return self.expected("Unexpected comma ','", ParseErrorKind::Unexpected);
         }
         self.cursor
             .force(spaces().then(eox()), "expected new line or semicolon.")?;
@@ -57,13 +59,15 @@ mod tests {
     use crate::ast::r#use::Use;
     use crate::ast::Expr;
     use crate::parse;
-    use crate::parser::ParseError;
-    use lexer::lexer::lex;
+    use crate::parser::ParseResult;
+    use context::source::Source;
     use pretty_assertions::assert_eq;
+    use crate::err::{ParseError, ParseErrorKind};
 
     #[test]
     fn test_use() {
-        let result = parse(lex("use TOKEN")).expect("parser failed");
+        let source = Source::unknown("use TOKEN");
+        let result = parse(source).expect("parser failed");
         assert_eq!(
             result,
             vec![Expr::Use(Use {
@@ -74,7 +78,8 @@ mod tests {
 
     #[test]
     fn test_uses() {
-        let result = parse(lex("use TOKEN,    A \\\n , B \\\n , C")).expect("parser failed");
+        let source = Source::unknown("use TOKEN,    A \\\n , B \\\n , C");
+        let result = parse(source).expect("parser failed");
         assert_eq!(
             result,
             vec![Expr::Use(Use {
@@ -85,22 +90,30 @@ mod tests {
 
     #[test]
     fn test_use_trailing_comma() {
-        let result = parse(lex("use TOKEN, A, B, "));
+        let content = "use TOKEN, A, B, ";
+        let source = Source::unknown(content);
+        let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Err(ParseError {
-                message: "Unexpected comma ','".to_string()
+                message: "Unexpected comma ','".to_string(),
+                position: content.rfind(',').map(|p| p..p + 1).unwrap(),
+                kind: ParseErrorKind::Unexpected,
             })
         )
     }
 
     #[test]
     fn test_use_empty() {
-        let result = parse(lex("use"));
+        let content = "use";
+        let source = Source::unknown(content);
+        let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Err(ParseError {
-                message: "expected at least one identifier".to_string()
+                message: "expected at least one identifier".to_string(),
+                position: content.len()..content.len(),
+                kind: ParseErrorKind::Unexpected,
             })
         )
     }

@@ -150,9 +150,8 @@ impl<'p> Parser<'p> {
 
 #[cfg(test)]
 mod tests {
+    use context::source::Source;
     use pretty_assertions::assert_eq;
-
-    use lexer::lexer::lex;
 
     use crate::aspects::binary_operation::BinaryOperationsAspect;
     use crate::ast::callable::Call;
@@ -161,12 +160,13 @@ mod tests {
     use crate::ast::operation::BinaryOperator::*;
     use crate::ast::value::Literal;
     use crate::ast::Expr;
-    use crate::parser::{ParseError, Parser};
+    use crate::err::{ParseError, ParseErrorKind};
+    use crate::parser::Parser;
 
     #[test]
     fn is_left_associative() {
-        let tokens = lex("1 && 2 || 3 || 4 && 5");
-        let mut parser = Parser::new(tokens);
+        let source = Source::unknown("1 && 2 || 3 || 4 && 5");
+        let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_statement)
             .expect("parsing error");
@@ -209,8 +209,8 @@ mod tests {
 
     #[test]
     fn explicit_priority() {
-        let tokens = lex("1 + (2 + 3)");
-        let mut parser = Parser::new(tokens);
+        let source = Source::unknown("1 + (2 + 3)");
+        let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_value)
             .expect("parsing error");
@@ -241,8 +241,8 @@ mod tests {
 
     #[test]
     fn arithmetic_priority() {
-        let tokens = lex("1 + 2 * 3");
-        let mut parser = Parser::new(tokens);
+        let source = Source::unknown("1 + 2 * 3");
+        let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_value)
             .expect("parsing error");
@@ -271,8 +271,8 @@ mod tests {
 
     #[test]
     fn complete_prioritization_test() {
-        let tokens = lex("1 + 2 * 3 < 874 * 78 || 7 - 4 == 3 && 7 == 1");
-        let mut parser = Parser::new(tokens);
+        let source = Source::unknown("1 + 2 * 3 < 874 * 78 || 7 - 4 == 3 && 7 == 1");
+        let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_value)
             .expect("parsing error");
@@ -350,21 +350,24 @@ mod tests {
 
     #[test]
     fn unterminated_expr() {
-        let tokens = lex("(1 + 2 * )");
-        let mut parser = Parser::new(tokens);
+        let content = "(1 + 2 * )";
+        let source = Source::unknown(content);
+        let mut parser = Parser::new(source);
         let result = parser.binary_operation(Parser::next_value);
         assert_eq!(
             result,
             Err(ParseError {
-                message: "Unexpected token ')'.".to_string()
+                message: "Unexpected closing bracket.".to_string(),
+                position: content.find(')').map(|p| (p..p + 1)).unwrap(),
+                kind: ParseErrorKind::Unexpected,
             })
         )
     }
 
     #[test]
     fn bin_expression_in_group() {
-        let tokens = lex("(1 + 2 * 3)");
-        let mut parser = Parser::new(tokens);
+        let source = Source::unknown("(1 + 2 * 3)");
+        let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_value)
             .expect("parsing error");
@@ -395,8 +398,8 @@ mod tests {
 
     #[test]
     fn exitcode_operators() {
-        let tokens = lex("(echo hello && echo world ) || echo damn");
-        let mut parser = Parser::new(tokens);
+        let source = Source::unknown("(echo hello && echo world ) || echo damn");
+        let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_statement)
             .expect("parsing error");
@@ -430,8 +433,8 @@ mod tests {
 
     #[test]
     fn escaped_operators() {
-        let tokens = lex("(echo hello \\&& world \\);) || echo damn");
-        let mut parser = Parser::new(tokens);
+        let source = Source::unknown("(echo hello \\&& world \\);) || echo damn");
+        let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_statement)
             .expect("parsing error");

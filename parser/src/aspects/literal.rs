@@ -1,3 +1,4 @@
+use context::source::try_join_str;
 use std::num::IntErrorKind;
 
 use crate::aspects::substitution::SubstitutionAspect;
@@ -5,9 +6,10 @@ use lexer::token::TokenType::*;
 
 use crate::ast::value::{Literal, LiteralValue, TemplateString};
 use crate::ast::*;
+use crate::err::ParseErrorKind;
+use crate::err::ParseErrorKind::{InvalidFormat, Unexpected};
 use crate::moves::{next, of_type, repeat_n, word_sep};
 use crate::parser::{ParseResult, Parser};
-use crate::source::try_join_str;
 
 /// A trait that contains all the methods for parsing literals.
 pub(crate) trait LiteralAspect<'a> {
@@ -43,10 +45,10 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             DoubleQuote => self.templated_string_literal().map(Expr::TemplateString),
 
             _ if pivot.is_keyword() => {
-                self.expected(&format!("Unexpected keyword '{}'", token.value))
+                self.expected(&format!("Unexpected keyword '{}'", token.value), Unexpected)
             }
             _ if pivot.is_ponctuation() => {
-                self.expected(&format!("Unexpected token '{}'.", token.value))
+                self.expected(&format!("Unexpected token '{}'.", token.value), Unexpected)
             }
 
             _ => self.argument(),
@@ -68,7 +70,10 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         loop {
             match self.cursor.next_opt() {
                 None => {
-                    return self.expected("Unterminated string literal.");
+                    return self.expected(
+                        "Unterminated string literal.",
+                        ParseErrorKind::Unpaired(self.cursor.relative_pos(lexeme)),
+                    );
                 }
 
                 Some(token) => {
@@ -93,12 +98,16 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
 
     fn templated_string_literal(&mut self) -> ParseResult<TemplateString<'a>> {
         self.cursor.force(of_type(DoubleQuote), "Expected quote.")?;
+
         let mut lexeme = self.cursor.peek().value;
         let mut literal_value = String::new();
         let mut parts = Vec::new();
         loop {
             if self.cursor.is_at_end() {
-                return self.expected("Unterminated string literal.");
+                return self.expected(
+                    "Unterminated string literal.",
+                    ParseErrorKind::Unpaired(self.cursor.relative_pos(lexeme)),
+                );
             }
 
             match self.cursor.peek().token_type {
@@ -236,9 +245,9 @@ impl<'a> Parser<'a> {
                 |e| {
                     match e.kind() {
                         IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => self
-                            .expected::<()>("Integer constant is too large.")
+                            .expected::<()>("Integer constant is too large.", InvalidFormat)
                             .unwrap_err(),
-                        _ => self.mk_parse_error(e.to_string()),
+                        _ => self.mk_parse_error(e.to_string(), self.cursor.peek(), InvalidFormat),
                     }
                 },
             )?)),
@@ -246,39 +255,40 @@ impl<'a> Parser<'a> {
                 token
                     .value
                     .parse::<f64>()
-                    .map_err(|e| self.mk_parse_error(e.to_string()))?,
+                    .map_err(|e| self.mk_parse_error(e.to_string(), self.cursor.peek(), InvalidFormat))?,
             )),
-            _ => self.expected("Expected a literal."),
+            _ => self.expected("Expected a literal.", Unexpected),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use lexer::lexer::lex;
-    use lexer::token::Token;
-
-    use crate::parser::ParseError;
+    use crate::parse;
 
     use super::*;
+    use crate::err::{ParseError, ParseErrorKind};
+    use context::source::Source;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn int_overflow() {
-        let tokens = vec![Token::new(IntLiteral, "123456789012345678901234567890")];
-        let parsed = Parser::new(tokens).statement();
+        let source = Source::unknown("123456789012345678901234567890");
+        let parsed: ParseResult<_> = parse(source).into();
         assert_eq!(
             parsed,
             Err(ParseError {
                 message: "Integer constant is too large.".to_string(),
+                position: 0..30,
+                kind: InvalidFormat,
             })
         );
     }
 
     #[test]
     fn string_literal() {
-        let tokens = lex("'hello $world! $(this is a test) @(of course)'");
-        let parsed = Parser::new(tokens).value().expect("Failed to parse.");
+        let source = Source::unknown("'hello $world! $(this is a test) @(of course)'");
+        let parsed = Parser::new(source).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
@@ -290,8 +300,8 @@ mod tests {
 
     #[test]
     fn escaped_literal() {
-        let tokens = lex("a\\a");
-        let parsed = Parser::new(tokens).value().expect("Failed to parse.");
+        let source = Source::unknown("a\\a");
+        let parsed = Parser::new(source).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
@@ -303,12 +313,15 @@ mod tests {
 
     #[test]
     fn missing_quote() {
-        let tokens = vec![Token::new(Quote, "' command")];
-        let parsed = Parser::new(tokens).statement();
+        let content = "' command";
+        let source = Source::unknown(content);
+        let parsed: ParseResult<_> = parse(source).into();
         assert_eq!(
             parsed,
             Err(ParseError {
                 message: "Unterminated string literal.".to_string(),
+                position: content.len()..content.len(),
+                kind: ParseErrorKind::Unpaired(0..1),
             })
         );
     }

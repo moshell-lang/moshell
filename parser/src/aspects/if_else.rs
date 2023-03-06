@@ -1,6 +1,6 @@
 use crate::ast::control_flow::If;
 use crate::ast::Expr;
-use crate::moves::{aerated, blanks, of_type, MoveOperations};
+use crate::moves::{of_type, MoveOperations, aerated, blanks};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{Else, SemiColon};
@@ -24,7 +24,7 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
             "expected 'if' at start of if expression",
         )?;
         let condition = self.expression_statement()?;
-
+        
         //skip only one semicolon if any, surrounded by newlines and spaces
         self.cursor
             .advance(aerated(of_type(SemiColon)).or(blanks()));
@@ -67,13 +67,15 @@ mod tests {
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
     use crate::ast::Expr;
     use crate::parse;
-    use crate::parser::ParseError;
-    use lexer::lexer::lex;
+    use crate::err::{ParseError, ParseErrorKind};
+    use crate::parser::ParseResult;
+    use context::source::Source;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn simple_if() {
-        let ast = parse(lex("if [ $1 ]; echo test")).expect("parse failed");
+        let source = Source::unknown("if [ $1 ]; echo test");
+        let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::If(If {
@@ -90,10 +92,11 @@ mod tests {
 
     #[test]
     fn if_else_if() {
-        let ast = parse(lex(
+
+        let source = Source::unknown(
             "if echo a && [[ -f /file/exe ]]; echo test\n\n\nelse if [ $a ] \n;\n { $7 }; else $5",
-        ))
-        .expect("parse failed");
+        );
+        let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::If(If {
@@ -128,8 +131,9 @@ mod tests {
 
     #[test]
     fn if_else_if_separations() {
-        let ast =
-            parse(lex("if [ $1 ]; echo test; else if [ $a ]; $7 else $5")).expect("parse failed");
+
+        let source = Source::unknown("if [ $1 ]; echo test; else if [ $a ]; $7 else $5");
+        let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::If(If {
@@ -152,7 +156,8 @@ mod tests {
 
     #[test]
     fn no_separation_else() {
-        let ast = parse(lex("if $x {} else {}")).expect("parse fail");
+        let source = Source::unknown("if $x {} else {}");
+        let ast = parse(source).expect("parse fail");
         assert_eq!(
             ast,
             vec![Expr::If(If {
@@ -169,10 +174,10 @@ mod tests {
 
     #[test]
     fn if_else_as_value() {
-        let ast = parse(lex(
-            "val x = if [ {date +\"%Y\"} < 2023 ]; \"bash\" else \"moshell\"",
-        ))
-        .expect("parse failed");
+
+        let source =
+            Source::unknown("val x = if [ {date +\"%Y\"} < 2023 ]; \"bash\" else \"moshell\"");
+        let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::VarDeclaration(VarDeclaration {
@@ -205,6 +210,7 @@ mod tests {
                     fail_branch: Some(Box::new(Expr::TemplateString(TemplateString {
                         parts: vec![Expr::Literal("moshell".into())]
                     }))),
+
                 }))),
             }),]
         )
@@ -212,24 +218,32 @@ mod tests {
 
     #[test]
     fn if_else_bad_brackets() {
-        let ast = parse(lex(
-            "val x = if [ $1 ] \n { echo hey; else if [ $a ]; echo hola; else echo bonjour }",
-        ));
+
+        let content =
+            "val x = if [ $1 ] \n { echo hey; else if [ $a ]; echo hola; else echo bonjour }";
+        let source = Source::unknown(content);
+        let ast: ParseResult<_> = parse(source).into();
         assert_eq!(
             ast,
             Err(ParseError {
-                message: "Unexpected keyword 'else'".to_string()
+                message: "Unexpected keyword.".to_string(),
+                position: content.find("else").map(|p| p..p + "else".len()).unwrap(),
+                kind: ParseErrorKind::Unexpected,
             })
         )
     }
 
     #[test]
     fn lonely_if() {
-        let ast = parse(lex("if [ $1 ];"));
+        let content = "if [ $1 ];";
+        let source = Source::unknown(content);
+        let ast: ParseResult<_> = parse(source).into();
         assert_eq!(
             ast,
             Err(ParseError {
-                message: "Unexpected end of expression".to_string()
+                message: "Expected statement".to_string(),
+                position: content.len()..content.len(),
+                kind: ParseErrorKind::Unexpected,
             })
         )
     }

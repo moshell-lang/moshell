@@ -4,8 +4,9 @@ use crate::ast::Expr;
 use crate::ast::Expr::Literal;
 use crate::moves::{of_type, spaces, times, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use lexer::token::TokenType;
+use lexer::token::{Token, TokenType};
 use lexer::token::TokenType::{SquaredLeftBracket, SquaredRightBracket};
+use crate::err::ParseErrorKind;
 
 pub(crate) trait TestAspect<'a> {
     ///parse a not (! ..) expression.
@@ -31,29 +32,32 @@ impl<'a> TestAspect<'a> for Parser<'a> {
 
     fn parse_test(&mut self) -> ParseResult<Expr<'a>> {
         //expect the first '[' lexeme
-        self.cursor.force(
+
+        let start = self.cursor.force(
             of_type(SquaredLeftBracket),
             "expected '[' at start of test expression.",
         )?;
 
         //if first bracket is followed by a second, then this expression is a direct call to the `test` command.
         if self.cursor.advance(of_type(SquaredLeftBracket)).is_some() {
-            return self.parse_test_call();
+            return self.parse_test_call(start);
         }
 
-        if self
-            .cursor
-            .lookahead(of_type(SquaredRightBracket))
-            .is_some()
-        {
-            self.expected("native test evaluation cannot be empty.")?
+
+        if let Some(end) = self.cursor.lookahead(of_type(SquaredRightBracket)) {
+            self.expected_with(
+                "native test evaluation cannot be empty.",
+                start.clone()..end,
+                ParseErrorKind::Unexpected,
+            )?;
         }
 
         let underlying = Box::new(self.value()?);
-        self.cursor.force(
+        self.cursor.force_with(
             //expect trailing ']'
             spaces().then(of_type(SquaredRightBracket)),
             "missing ']'",
+            ParseErrorKind::Unpaired(self.cursor.relative_pos(&start)),
         )?;
         Ok(Expr::Test(Test {
             expression: underlying,
@@ -62,12 +66,14 @@ impl<'a> TestAspect<'a> for Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn parse_test_call(&mut self) -> ParseResult<Expr<'a>> {
+    fn parse_test_call(&mut self, start: Token) -> ParseResult<Expr<'a>> {
         let call = self.call_arguments(Literal("test".into()));
-        self.cursor.force(
+
+        self.cursor.force_with(
             //expect trailing ']]'
             spaces().then(times(2, of_type(SquaredRightBracket))),
             "missing ']]'",
+            ParseErrorKind::Unpaired(self.cursor.relative_pos(&start)),
         )?;
         call
     }
@@ -83,35 +89,45 @@ mod tests {
     use crate::ast::variable::VarReference;
     use crate::ast::Expr;
     use crate::parse;
-    use crate::parser::ParseError;
-    use lexer::lexer::lex;
+    use crate::parser::ParseResult;
+    use context::source::Source;
     use pretty_assertions::assert_eq;
+    use crate::err::{ParseError, ParseErrorKind};
 
     #[test]
     fn native_empty() {
-        let result = parse(lex("[]"));
+        let content = "[]";
+        let source = Source::unknown(content);
+        let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Err(ParseError {
-                message: "native test evaluation cannot be empty.".to_string()
+                message: "native test evaluation cannot be empty.".to_string(),
+                position: 0..content.len(),
+                kind: ParseErrorKind::Unexpected,
             })
         )
     }
 
     #[test]
     fn native_empty_not() {
-        let result = parse(lex("[! ]"));
+        let content = "[! ]";
+        let source = Source::unknown(content);
+        let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Err(ParseError {
-                message: "Unexpected token ']'.".to_string()
+                message: "Unexpected token ']'.".to_string(),
+                position: content.len() - 1..content.len(),
+                kind: ParseErrorKind::Unexpected,
             })
         )
     }
 
     #[test]
     fn call_empty() {
-        let result = parse(lex("[[]]")).expect("parsing failed");
+        let source = Source::unknown("[[]]");
+        let result = parse(source).expect("parsing failed");
         assert_eq!(
             result,
             vec![Expr::Call(Call {
@@ -122,7 +138,8 @@ mod tests {
 
     #[test]
     fn call_with_content() {
-        let result = parse(lex("[[48 -gt 100]]")).expect("parsing failed");
+        let source = Source::unknown("[[48 -gt 100]]");
+        let result = parse(source).expect("parsing failed");
         assert_eq!(
             result,
             vec![Expr::Call(Call {
@@ -144,7 +161,8 @@ mod tests {
 
     #[test]
     fn test_integration() {
-        let result = parse(lex("echo && [ ($a == $b) ] || [[ $1 ]]")).expect("parse error");
+        let source = Source::unknown("echo && [ ($a == $b) ] || [[ $1 ]]");
+        let result = parse(source).expect("parse error");
         assert_eq!(
             result,
             vec![Expr::Binary(BinaryOperation {
@@ -176,40 +194,53 @@ mod tests {
 
     #[test]
     fn test_in_test() {
-        let result = parse(lex("[ test == [] ]"));
+        let content = "[ test == [] ]";
+        let source = Source::unknown(content);
+        let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Err(ParseError {
-                message: "Unexpected start of test expression".to_string()
+                message: "Unexpected start of test expression".to_string(),
+                position: content[1..].find('[').map(|p| p + 1..p + 2).unwrap(),
+                kind: ParseErrorKind::Unexpected,
             })
         )
     }
 
     #[test]
     fn unclosed_test() {
-        let result = parse(lex("[ test == $USER "));
+        let content = "[ test == $USER ";
+        let source = Source::unknown(content);
+        let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Err(ParseError {
-                message: "missing ']'".to_string()
+                message: "missing ']'".to_string(),
+                position: content.len()..content.len(),
+                kind: ParseErrorKind::Unpaired(0..1),
             })
         )
     }
 
     #[test]
     fn unclosed_test_call() {
-        let result = parse(lex("[[ test == $USER "));
+        let content = "[[ test == $USER ";
+        let source = Source::unknown(content);
+        let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Err(ParseError {
-                message: "missing ']]'".to_string()
+                message: "missing ']]'".to_string(),
+                position: content.len()..content.len(),
+                kind: ParseErrorKind::Unpaired(0..1),
             })
         )
     }
 
     #[test]
     fn not_call() {
-        let result = parse(lex("!grep -E '^[0-9]+$'")).expect("parse fail");
+        let source = Source::unknown("!grep -E '^[0-9]+$'");
+        let result = parse(source).expect("parse fail");
         assert_eq!(
             result,
             vec![Expr::Not(Not {
@@ -219,8 +250,8 @@ mod tests {
                         Expr::Literal("-E".into()),
                         Expr::Literal(Literal {
                             lexeme: "'^[0-9]+$'",
-                            parsed: LiteralValue::String("^[0-9]+$".to_string())
-                        })
+                            parsed: LiteralValue::String("^[0-9]+$".to_string()),
+                        }),
                     ]
                 }))
             })]
@@ -229,7 +260,8 @@ mod tests {
 
     #[test]
     fn not() {
-        let result = parse(lex("! ($a && $b) || ! $2 == 78")).expect("parse error");
+        let source = Source::unknown("! ($a && $b) || ! $2 == 78");
+        let result = parse(source).expect("parse error");
         assert_eq!(
             result,
             vec![Expr::Binary(BinaryOperation {

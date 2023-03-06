@@ -1,9 +1,10 @@
 use crate::ast::variable::TypedVariable;
 use crate::ast::Expr;
+use dbg_pls::DebugPls;
 use lexer::token::Token;
 
 /// A call to a function or a command.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, dbg_pls::DebugPls)]
 pub struct Call<'a> {
     /// The arguments of the command.
     ///
@@ -11,14 +12,14 @@ pub struct Call<'a> {
     pub arguments: Vec<Expr<'a>>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Redirected<'a> {
     pub expr: Box<Expr<'a>>,
     pub redirections: Vec<Redir<'a>>,
 }
 
 /// A function declaration.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct FunDeclaration<'a> {
     pub name: Token<'a>,
     pub parameters: Vec<TypedVariable<'a>>,
@@ -26,7 +27,7 @@ pub struct FunDeclaration<'a> {
 }
 
 /// A redirection.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Redir<'a> {
     /// File descriptor that is modified by this redirection.
     pub fd: RedirFd,
@@ -37,7 +38,7 @@ pub struct Redir<'a> {
 }
 
 /// A file descriptor that is redirected.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, DebugPls)]
 pub enum RedirFd {
     /// The default file descriptor, if not specified.
     ///
@@ -50,7 +51,7 @@ pub enum RedirFd {
 }
 
 /// Commands separated by `|`
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, DebugPls)]
 pub struct Pipeline<'a> {
     /// Elements of the pipeline.
     ///
@@ -62,7 +63,7 @@ pub struct Pipeline<'a> {
 ///
 /// This enum defines the redirection operator types except here-document and
 /// process redirection.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, DebugPls)]
 pub enum RedirOp {
     /// Open a file for input (`<`)
     Read,

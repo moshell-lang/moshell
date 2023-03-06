@@ -7,6 +7,7 @@ use crate::aspects::literal::LiteralAspect;
 use crate::ast::r#match::MatchPattern::{Literal, Template, VarRef, Wildcard};
 use crate::ast::r#match::{Match, MatchArm, MatchPattern};
 use crate::ast::Expr;
+use crate::err::ParseErrorKind;
 use crate::moves::{
     aerated, any, blanks, eod, eox, not, of_type, of_types, repeat, MoveOperations,
 };
@@ -110,34 +111,40 @@ impl<'a> Parser<'a> {
         }
 
         if is_at_pattern_end!() {
-            return self.expected("required pattern");
+            return self.expected("required pattern", ParseErrorKind::Unexpected);
         }
 
+        //store start lexeme
+        let start = self.cursor.lookahead(blanks()).unwrap().value; //blanks always succeeds
         let first = self.parse_pattern()?;
 
-        if first == Wildcard {
-            return if is_at_pattern_end!() {
-                Ok(vec![first])
-            } else {
-                self.expected("wildcard pattern cannot be followed by other patterns")
-            };
-        }
-
-        let mut patterns = vec![first];
+        let mut patterns = vec![first.clone()];
 
         while self.cursor.advance(blanks().then(of_type(Bar))).is_some() {
             let pattern = self.parse_pattern()?;
             if pattern == Wildcard {
-                return self.expected("unexpected wildcard");
+                return self.expected("unexpected wildcard", ParseErrorKind::Unexpected);
             }
             patterns.push(pattern)
+        }
+
+        if first == Wildcard {
+            return if patterns.len() == 1 {
+                Ok(vec![first])
+            } else {
+                Err(self.mk_parse_error(
+                    "wildcard pattern cannot be followed by other patterns",
+                    patterns.last().map(|l| self.cursor.relative_pos(start).start..7).unwrap(),
+                    ParseErrorKind::Unexpected
+                ))
+            };
         }
 
         if !is_at_pattern_end!() {
             let token = self.cursor.lookahead(blanks().then(any())).unwrap().value;
             return self.expected(&format!(
                 "unexpected token, expected '|', 'if' or '=>', found '{token}'"
-            ));
+            ), ParseErrorKind::Unexpected);
         }
 
         Ok(patterns)
@@ -155,7 +162,7 @@ impl<'a> Parser<'a> {
                 Expr::Literal(literal) => Ok(Literal(literal)),
                 Expr::TemplateString(template) => Ok(Template(template)),
                 Expr::VarReference(var_ref) => Ok(VarRef(var_ref)),
-                _ => self.expected("unexpected literal"), //TODO make a proposal to make AST more typed
+                _ => self.expected("unexpected literal", ParseErrorKind::Unexpected),
             },
         }
     }
@@ -183,8 +190,8 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
+    use context::source::Source;
 
-    use lexer::lexer::lex;
 
     use crate::ast::callable::Call;
     use crate::ast::group::Subshell;
@@ -194,18 +201,19 @@ mod tests {
     use crate::ast::value::{Literal, TemplateString};
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
     use crate::ast::Expr;
+    use crate::err::{ParseError};
+    use crate::err::ParseErrorKind::Unexpected;
     use crate::parse;
-    use crate::parser::ParseError;
 
     #[test]
     fn parse_match_as_value() {
-        let ast = parse(lex("
+        let source = Source::unknown("
         val x = match $1 {
            -e => 75
            y@\"test $2\" | 2 | $USER | 't x' => 4 - 7
         }
-        "))
-        .expect("parse fail");
+        ");
+        let ast = parse(source).expect("parser failed");
 
         assert_eq!(
             ast,
@@ -267,7 +275,7 @@ mod tests {
 
     #[test]
     fn parse_complete_match() {
-        let ast = parse(lex("\
+        let ast = parse(Source::unknown("\
         match $1 {\
            -e => ();;;;;\n;;\n;;;;;\
            y@\"test $2\" | 2 | $USER | 't x' => ()
@@ -275,7 +283,7 @@ mod tests {
            * => echo $it
         }\
         "))
-        .expect("parse fail");
+            .expect("parse fail");
 
         assert_eq!(
             ast,
@@ -349,12 +357,12 @@ mod tests {
 
     #[test]
     fn parse_match_direct_wildcard() {
-        let ast = parse(lex("\
+        let ast = parse(Source::unknown("\
         match nginx {\
            * => echo $it
         }\
         "))
-        .expect("parse fail");
+            .expect("parse fail");
 
         assert_eq!(
             ast,
@@ -379,7 +387,7 @@ mod tests {
 
     #[test]
     fn parse_complete_match_blanks() {
-        let ast = parse(lex("\
+        let ast = parse(Source::unknown("\
         match \n\n $1 \n\n {\n\n\
            \n\n -e \n\n => \n\n () \n\n\
            \n\n y \n\n @ \n\n \"test $2\" \n\n | 2 \n\n | \n\n $USER \n\n | \n\n 't x' \n\n =>\n\n  () \n\n\
@@ -460,76 +468,95 @@ mod tests {
 
     #[test]
     fn match_patterns_with_wildcard() {
-        let res = parse(lex("\
+        let src = "\
         match $1 {\
            -e | * => ()\
         }\
-        "));
+        ";
+        let res = parse(Source::unknown(src)).errors;
         assert_eq!(
             res,
-            Err(ParseError {
-                message: "unexpected wildcard".to_string()
-            })
+            vec![
+                ParseError {
+                    message: "unexpected wildcard".to_string(),
+                    position: src.find('*').map(|i| i..i + 1).unwrap(),
+                    kind: Unexpected,
+                }
+            ]
         )
     }
 
     #[test]
     fn match_wildcard_with_patterns() {
-        let res = parse(lex("\
+        let src = "\
         match $1 {\
            * | x | y => ()\
         }\
-        "));
+        ";
+        let res = parse(Source::unknown(src)).errors;
         assert_eq!(
             res,
-            Err(ParseError {
-                message: "wildcard pattern cannot be followed by other patterns".to_string()
-            })
+            vec![ParseError {
+                message: "wildcard pattern cannot be followed by other patterns".to_string(),
+                kind: Unexpected,
+                position: src.find("|").map(|i| i..i + 1).unwrap(),
+            }]
         )
     }
 
     #[test]
     fn match_patterns_missing_bar() {
-        let res = parse(lex("\
+        let src = "\
         match $1 {\
            x y => ()\
         }\
-        "));
+        ";
+        let res = parse(Source::unknown(src)).errors;
         assert_eq!(
             res,
-            Err(ParseError {
-                message: "unexpected token, expected '|', 'if' or '=>', found 'y'".to_string()
-            })
+            vec![ParseError {
+                message: "unexpected token, expected '|', 'if' or '=>', found 'y'".to_string(),
+                kind: Unexpected,
+                position: src.find('y').map(|i| i..i + 1).unwrap(),
+            }]
         )
     }
 
     #[test]
     fn match_patterns_trailing_bar() {
-        let res = parse(lex("\
+        let src = "\
         match $1 {\
            x | => ()\
         }\
-        "));
+        ";
+        let res = parse(Source::unknown(src)).errors;
         assert_eq!(
             res,
-            Err(ParseError {
-                message: "Unexpected token '=>'.".to_string()
-            })
+            vec![
+                ParseError {
+                    message: "Unexpected token '=>'.".to_string(),
+                    position: src.find("=>").map(|i| i..i + 1).unwrap(),
+                    kind: Unexpected,
+                }
+            ]
         )
     }
 
     #[test]
     fn match_patterns_missing_fatarrow() {
-        let res = parse(lex("\
+        let src = "\
         match $1 {\
            x | y ()\
         }\
-        "));
+        ";
+        let res = parse(Source::unknown(src)).errors;
         assert_eq!(
             res,
-            Err(ParseError {
-                message: "unexpected token, expected '|', 'if' or '=>', found '('".to_string()
-            })
+            vec![ParseError {
+                message: "unexpected token, expected '|', 'if' or '=>', found '('".to_string(),
+                kind: Unexpected,
+                position: src.find('(').map(|i| i..i + 1).unwrap(),
+            }]
         )
     }
 }

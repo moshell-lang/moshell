@@ -1,14 +1,9 @@
 [package]
-name = "lexer"
+name = "context"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dbg-pls = { version = "0.3.5", features = ["derive"] }
-enum-assoc = "0.4.0"
-logos = "0.12.1"
-
-[dev-dependencies]
-pretty_assertions = "1.3.0"
+miette = "5.5.0"

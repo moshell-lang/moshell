@@ -2,6 +2,7 @@ use lexer::token::TokenType;
 
 use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use crate::ast::Expr;
+use crate::err::ParseErrorKind;
 
 use crate::moves::{of_type, of_types, space, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
@@ -17,7 +18,12 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
         let kind = match self.cursor.next()?.token_type {
             TokenType::Var => VarKind::Var,
             TokenType::Val => VarKind::Val,
-            _ => return self.expected("expected var or val keywords"),
+            _ => {
+                return self.expected(
+                    "expected var or val keywords",
+                    ParseErrorKind::Excepted("var or val"),
+                )
+            }
         };
         let name = self
             .cursor
@@ -73,14 +79,15 @@ mod tests {
     use crate::ast::operation::BinaryOperator::Plus;
     use crate::ast::value::{Literal, LiteralValue};
     use crate::ast::Expr;
-    use crate::parser::{ParseError, Parser};
-    use lexer::lexer::lex;
+    use crate::err::ParseError;
+    use crate::parser::Parser;
+    use context::source::Source;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn val_declaration() {
-        let tokens = lex("val variable");
-        let ast = Parser::new(tokens)
+        let source = Source::unknown("val variable");
+        let ast = Parser::new(source)
             .var_declaration()
             .expect("failed to parse");
         assert_eq!(
@@ -98,8 +105,8 @@ mod tests {
 
     #[test]
     fn val_declaration_with_type() {
-        let tokens = lex("val variable: Array");
-        let ast = Parser::new(tokens)
+        let source = Source::unknown("val variable: Array");
+        let ast = Parser::new(source)
             .var_declaration()
             .expect("failed to parse");
         assert_eq!(
@@ -117,16 +124,16 @@ mod tests {
 
     #[test]
     fn val_declaration_with_type_no_colon() {
-        let tokens = lex("val variable Array");
-        Parser::new(tokens)
+        let source = Source::unknown("val variable Array");
+        Parser::new(source)
             .var_declaration()
             .expect_err("did not fail");
     }
 
     #[test]
     fn val_declaration_inferred() {
-        let tokens = lex("val variable = 'hello $test'");
-        let ast = Parser::new(tokens)
+        let source = Source::unknown("val variable = 'hello $test'");
+        let ast = Parser::new(source)
             .var_declaration()
             .expect("failed to parse");
         assert_eq!(
@@ -147,20 +154,23 @@ mod tests {
 
     #[test]
     fn val_declaration_parenthesis_command() {
-        let tokens = lex("val x = (echo a)");
-        let err = Parser::new(tokens).var_declaration();
+        let content = "val x = (echo a)";
+        let source = Source::unknown(content);
+        let err = Parser::new(source).var_declaration();
         assert_eq!(
             err,
             Err(ParseError {
-                message: "invalid infix operator, found 'a'".to_string()
+                message: "invalid infix operator".to_string(),
+                position: content.rfind('a').map(|p| (p..p + 1)).unwrap(),
+                kind: ParseErrorKind::Unexpected,
             })
         )
     }
 
     #[test]
     fn val_declaration_block_command() {
-        let tokens = lex("val x = {echo a}");
-        let result = Parser::new(tokens).var_declaration().expect("parse fail");
+        let source = Source::unknown("val x = {echo a}");
+        let result = Parser::new(source).var_declaration().expect("parse fail");
         assert_eq!(
             result,
             Expr::VarDeclaration(VarDeclaration {
@@ -189,8 +199,8 @@ mod tests {
 
     #[test]
     fn val_declaration_arithmetic_expr() {
-        let tokens = lex("val variable = 7 + 2");
-        let ast = Parser::new(tokens)
+        let source = Source::unknown("val variable = 7 + 2");
+        let ast = Parser::new(source)
             .var_declaration()
             .expect("failed to parse");
         assert_eq!(
