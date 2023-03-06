@@ -178,7 +178,7 @@ impl TokenType {
         }
     }
 
-    ///is this lexeme a punctuation
+    ///is this a lexeme that stops a call line
     pub fn is_call_bound(self) -> bool {
         matches!(
             self,
