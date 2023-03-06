@@ -1,5 +1,4 @@
-use lexer::lexer::lex;
-use lexer::token::{Token, TokenType};
+use context::source::Source;
 use parser::ast::callable::Call;
 use parser::ast::literal::{Literal, LiteralValue};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind};
@@ -8,17 +7,16 @@ use parser::parse;
 use pretty_assertions::assert_eq;
 
 #[test]
+fn empty() {
+    let source = Source::unknown("");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(parsed, vec![]);
+}
+
+#[test]
 fn variable_type_and_initializer() {
-    let tokens = vec![
-        Token::new(TokenType::Var, "var"),
-        Token::new(TokenType::Space, " "),
-        Token::new(TokenType::Identifier, "a"),
-        Token::new(TokenType::Colon, ":"),
-        Token::new(TokenType::Identifier, "int"),
-        Token::new(TokenType::Equal, "="),
-        Token::new(TokenType::IntLiteral, "1"),
-    ];
-    let parsed = parse(tokens).expect("Failed to parse");
+    let source = Source::unknown("var a:int=1");
+    let parsed = parse(source).expect("Failed to parse");
 
     let expected = vec![Expr::VarDeclaration(VarDeclaration {
         kind: VarKind::Var,
@@ -36,12 +34,8 @@ fn variable_type_and_initializer() {
 
 #[test]
 fn command_echo() {
-    let tokens = vec![
-        Token::new(TokenType::Identifier, "echo"),
-        Token::new(TokenType::Space, " "),
-        Token::new(TokenType::Identifier, "hello"),
-    ];
-    let parsed = parse(tokens).expect("Failed to parse");
+    let source = Source::unknown("echo hello");
+    let parsed = parse(source).expect("Failed to parse");
 
     let expected = vec![Expr::Call(Call {
         arguments: vec![Expr::Literal("echo".into()), Expr::Literal("hello".into())],
@@ -51,8 +45,8 @@ fn command_echo() {
 
 #[test]
 fn command_starting_with_arg() {
-    let tokens = lex("- W");
-    let parsed = parse(tokens).expect("Failed to parse");
+    let source = Source::unknown("- W");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {

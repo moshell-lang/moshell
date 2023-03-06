@@ -6,4 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+parser = { path = "../parser" }
+context = { path = "../context" }
 logos = "0.12.1"
+miette = { version = "5.5.0", features = ["fancy"] }
+thiserror = "1.0.38"

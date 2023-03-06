@@ -1,6 +1,7 @@
 use crate::aspects::call::CallAspect;
 use crate::ast::callable::{Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use crate::ast::Expr;
+use crate::err::ParseErrorKind;
 use crate::moves::{eox, next, of_type, of_types, space, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
@@ -46,12 +47,13 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
                 RedirFd::Wildcard
             }
             TokenType::IntLiteral => {
-                let redir = RedirFd::Fd(
-                    token
-                        .value
-                        .parse()
-                        .map_err(|_| self.mk_parse_error("Invalid file descriptor."))?,
-                );
+                let redir = RedirFd::Fd(token.value.parse().map_err(|_| {
+                    self.mk_parse_error(
+                        "Invalid file descriptor.",
+                        token,
+                        ParseErrorKind::InvalidFormat,
+                    )
+                })?);
                 token = self.cursor.next()?;
                 redir
             }
@@ -75,7 +77,10 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
                 None => RedirOp::Write,
                 Some(_) => RedirOp::Append,
             },
-            _ => Err(self.mk_parse_error("Expected redirection operator."))?,
+            _ => self.expected(
+                "Expected redirection operator.",
+                ParseErrorKind::Excepted("< >"),
+            )?,
         };
 
         // Parse file descriptor duplication and update the operator
@@ -83,7 +88,10 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
             operator = match operator {
                 RedirOp::Read => RedirOp::FdIn,
                 RedirOp::Write => RedirOp::FdOut,
-                _ => Err(self.mk_parse_error("Invalid redirection operator."))?,
+                _ => self.expected(
+                    "Invalid redirection operator.",
+                    ParseErrorKind::Excepted("< or >"),
+                )?,
             };
         }
 
@@ -155,6 +163,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod test {
+    use context::source::Source;
     use pretty_assertions::assert_eq;
 
     use crate::aspects::call::CallAspect;
@@ -164,12 +173,11 @@ mod test {
     use crate::ast::Expr;
     use crate::parse;
     use crate::parser::Parser;
-    use lexer::lexer::lex;
 
     #[test]
     fn expr_redirection() {
-        let tokens = lex("{ls; cd;} > /tmp/out");
-        let parsed = parse(tokens).expect("Failed to parse");
+        let source = Source::unknown("{ls; cd;} > /tmp/out");
+        let parsed = parse(source).expect("Failed to parse");
         assert_eq!(
             parsed,
             vec![Expr::Redirected(Redirected {
@@ -194,8 +202,8 @@ mod test {
 
     #[test]
     fn call_redirection() {
-        let tokens = lex("ls> /tmp/out");
-        let parsed = Parser::new(tokens).call().expect("Failed to parse");
+        let source = Source::unknown("ls> /tmp/out");
+        let parsed = Parser::new(source).call().expect("Failed to parse");
         assert_eq!(
             parsed,
             Expr::Redirected(Redirected {
@@ -213,8 +221,8 @@ mod test {
 
     #[test]
     fn dupe_fd() {
-        let tokens = lex("ls>&2");
-        let parsed = Parser::new(tokens).call().expect("Failed to parse");
+        let source = Source::unknown("ls>&2");
+        let parsed = Parser::new(source).call().expect("Failed to parse");
         assert_eq!(
             parsed,
             Expr::Redirected(Redirected {
@@ -231,5 +239,48 @@ mod test {
                 }],
             })
         );
+    }
+
+    #[test]
+    fn multiple_calls() {
+        let source = Source::unknown("grep -E regex; echo test");
+        let parsed = parse(source).expect("parsing error");
+        assert_eq!(
+            parsed,
+            vec![
+                Expr::Call(Call {
+                    arguments: vec![
+                        Expr::Literal("grep".into()),
+                        Expr::Literal("-E".into()),
+                        Expr::Literal("regex".into()),
+                    ],
+                }),
+                Expr::Call(Call {
+                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into()),],
+                }),
+            ]
+        )
+    }
+
+    #[test]
+    fn escaped_call() {
+        let source = Source::unknown("grep -E regex \\; echo test");
+        let parsed = parse(source).expect("parsing error");
+        assert_eq!(
+            parsed,
+            vec![Expr::Call(Call {
+                arguments: vec![
+                    Expr::Literal("grep".into()),
+                    Expr::Literal("-E".into()),
+                    Expr::Literal("regex".into()),
+                    Expr::Literal(Literal {
+                        lexeme: "\\;",
+                        parsed: ";".into(),
+                    }),
+                    Expr::Literal("echo".into()),
+                    Expr::Literal("test".into()),
+                ],
+            }),]
+        )
     }
 }

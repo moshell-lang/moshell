@@ -63,4 +63,3 @@ fn quoted_arithmetic() {
         ]
     );
 }
-

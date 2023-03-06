@@ -2,5 +2,7 @@
 members = [
 	"lexer",
 	"sandbox",
-	"parser"
+	"parser",
+	"context",
+	"cli"
 ]

@@ -1,5 +1,8 @@
-use lexer::token::{Token, TokenType};
+use context::source::Source;
+use lexer::lexer::lex;
 use lexer::token::TokenType::*;
+use lexer::token::{Token, TokenType};
+use std::collections::VecDeque;
 
 use crate::aspects::binary_operation::BinaryOperationsAspect;
 use crate::aspects::call::CallAspect;
@@ -13,48 +16,63 @@ use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::moves::{bin_op, eod, eox, next, of_types, spaces, MoveOperations, repeat, space, like, word_sep, of_type};
+use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
+use crate::moves::{
+    bin_op, eod, eox, like, next, of_type, of_types, repeat, space, spaces, word_sep,
+    MoveOperations,
+};
 
-pub type ParseResult<T> = Result<T, ParseError>;
-
-/// An error that occurs during parsing.
-#[derive(Debug, PartialEq)]
-pub struct ParseError {
-    pub message: String,
-    //pub actual: Token<'a>,
-}
+pub(crate) type ParseResult<T> = Result<T, ParseError>;
 
 /// A parser for the Moshell scripting language.
 pub(crate) struct Parser<'a> {
     pub(crate) cursor: ParserCursor<'a>,
+    pub(crate) source: Source<'a>,
+    pub(crate) delimiter_stack: VecDeque<Token<'a>>,
 }
 
 macro_rules! non_infix {
-    () =>  {
-        eox().or(eod()).or(like(TokenType::is_keyword)).or(of_types(&[RoundedLeftBracket, CurlyLeftBracket, SquaredLeftBracket]))
-    }
+    () => {
+        eox()
+            .or(eod())
+            .or(like(TokenType::is_keyword))
+            .or(of_types(&[
+                RoundedLeftBracket,
+                CurlyLeftBracket,
+                SquaredLeftBracket,
+            ]))
+    };
 }
 
 impl<'a> Parser<'a> {
+    /// Creates a new parser from a defined source.
+    pub(crate) fn new(source: Source<'a>) -> Self {
+        Self {
+            cursor: ParserCursor::new_with_source(lex(source.source), source.source),
+            source,
+            delimiter_stack: VecDeque::new(),
+        }
+    }
+
     /// Parses input tokens into an abstract syntax tree representation.
-    pub fn parse(&mut self) -> ParseResult<Vec<Expr<'a>>> {
+    pub fn parse(&mut self) -> ParseReport<'a> {
         let mut statements = Vec::new();
-        let mut last_error = None;
+        let mut errors = Vec::new();
 
         while self.look_for_input() {
             match self.parse_next() {
                 Err(error) => {
                     self.repos_to_next_expr();
-                    last_error = Some(error);
+                    errors.push(error);
                 }
                 Ok(statement) => statements.push(statement),
             }
         }
 
-        if let Some(error) = last_error {
-            Err(error)
-        } else {
-            Ok(statements)
+        ParseReport {
+            expr: statements,
+            errors,
+            stack_ended: self.delimiter_stack.is_empty(),
         }
     }
 
@@ -62,13 +80,6 @@ impl<'a> Parser<'a> {
         self.cursor.advance(repeat(space().or(eox())));
 
         !self.cursor.is_at_end()
-    }
-
-    /// Creates a new parser.
-    pub(crate) fn new(tokens: Vec<Token<'a>>) -> Self {
-        Self {
-            cursor: ParserCursor::new(tokens),
-        }
     }
 
     /// Parses a statement or binary expression.
@@ -99,7 +110,7 @@ impl<'a> Parser<'a> {
 
     ///Parse the next statement
     pub(crate) fn next_statement(&mut self) -> ParseResult<Expr<'a>> {
-        self.repos()?;
+        self.repos("Expected statement")?;
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
@@ -110,15 +121,21 @@ impl<'a> Parser<'a> {
         }
     }
 
-
     ///Parse the next expression
     pub(crate) fn next_expression_statement(&mut self) -> ParseResult<Expr<'a>> {
-        self.repos()?;
+        self.repos("Expected expression statement")?;
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
             If => self.parse_if(Parser::statement),
-            Identifier if self.cursor.lookahead(of_type(Identifier).and_then(of_type(RoundedLeftBracket))).is_some() => self.constructor(),
+            Identifier
+                if self
+                    .cursor
+                    .lookahead(of_type(Identifier).and_then(of_type(RoundedLeftBracket)))
+                    .is_some() =>
+            {
+                self.constructor()
+            }
             Identifier | Quote | DoubleQuote => self.call(),
             _ if pivot.is_bin_operator() => self.call(),
 
@@ -128,7 +145,7 @@ impl<'a> Parser<'a> {
 
     ///Parse the next expression
     pub(crate) fn next_expression(&mut self) -> ParseResult<Expr<'a>> {
-        self.repos()?;
+        self.repos("Expected expression")?;
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
@@ -138,14 +155,13 @@ impl<'a> Parser<'a> {
 
             Not => self.not(Parser::next_expression_statement),
 
-
             _ => self.next_value(),
         }
     }
 
     ///Parse the next value expression
     pub(crate) fn next_value(&mut self) -> ParseResult<Expr<'a>> {
-        self.repos()?;
+        self.repos("Expected value")?;
 
         let token = self.cursor.peek();
         let pivot = token.token_type;
@@ -153,7 +169,10 @@ impl<'a> Parser<'a> {
             RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
             CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
             //test expressions has nothing to do in a value expression.
-            SquaredLeftBracket => self.expected("Unexpected start of test expression"),
+            SquaredLeftBracket => self.expected(
+                "Unexpected start of test expression",
+                ParseErrorKind::Unexpected,
+            ),
 
             Not => self.not(Parser::next_value),
 
@@ -162,10 +181,24 @@ impl<'a> Parser<'a> {
             DoubleQuote => self.templated_string_literal(),
 
             If => self.parse_if(Parser::value),
-            Identifier if self.cursor.lookahead(of_type(Identifier).and_then(of_type(RoundedLeftBracket))).is_some() => self.constructor(),
+            Identifier
+                if self
+                    .cursor
+                    .lookahead(of_type(Identifier).and_then(of_type(RoundedLeftBracket)))
+                    .is_some() =>
+            {
+                self.constructor()
+            }
 
-            _ if pivot.is_keyword() => self.expected(&format!("Unexpected keyword '{}'", token.value)),
-            _ if pivot.is_ponctuation() => self.expected(&format!("Unexpected token '{}'.", token.value)),
+            _ if pivot.is_closing_ponctuation() => {
+                self.expected("Unexpected closing bracket.", ParseErrorKind::Unexpected)
+            }
+            _ if pivot.is_keyword() => {
+                self.expected("Unexpected keyword.", ParseErrorKind::Unexpected)
+            }
+            _ if pivot.is_ponctuation() => {
+                self.expected("Unexpected token.", ParseErrorKind::Unexpected)
+            }
             _ => self.argument(),
         }
     }
@@ -174,25 +207,39 @@ impl<'a> Parser<'a> {
         let statement = self.statement();
         if statement.is_ok() {
             //consume end of expression
-            self.cursor.force(
-                eox(),
-                &format!(
-                    "expected end of expression or file, found '{}'",
-                    self.cursor.peek().value
-                ),
-            )?;
+            self.cursor
+                .force(eox(), "expected end of expression or file")?;
         };
         statement
     }
 
-    pub(crate) fn expected<T>(&self, message: &str) -> ParseResult<T> {
-        Err(self.mk_parse_error(message))
+    /// Raise an error on the current token.
+    ///
+    /// Use [Parser::expected_with] if the error is not on the current token.
+    pub(crate) fn expected<T>(&self, message: &str, kind: ParseErrorKind) -> ParseResult<T> {
+        Err(self.mk_parse_error(message, self.cursor.peek(), kind))
     }
 
-    pub(crate) fn mk_parse_error(&self, message: impl Into<String>) -> ParseError {
-        ParseError {
-            message: message.into(),
-        }
+    /// Raise an error with a specific context.
+    ///
+    /// The context is used to better display where the error is.
+    /// A context can be a single token or a range of tokens.
+    pub(crate) fn expected_with<T>(
+        &self,
+        message: &str,
+        context: impl Into<ErrorContext<'a>>,
+        kind: ParseErrorKind,
+    ) -> ParseResult<T> {
+        Err(self.mk_parse_error(message, context, kind))
+    }
+
+    pub(crate) fn mk_parse_error(
+        &self,
+        message: impl Into<String>,
+        context: impl Into<ErrorContext<'a>>,
+        kind: ParseErrorKind,
+    ) -> ParseError {
+        self.cursor.mk_parse_error(message, context, kind)
     }
 
     //parses any binary expression, considering given input expression
@@ -217,12 +264,26 @@ impl<'a> Parser<'a> {
             return self.redirectable(expr);
         }
 
+        if let Expr::Literal(literal) = &expr {
+            if self.cursor.lookahead(bin_op()).is_some() {
+                let start_pos = self.cursor.relative_pos(literal.lexeme).start;
+                if self
+                    .binary_operation_right(expr, Parser::next_value)
+                    .is_ok()
+                {
+                    let end_pos = self.cursor.relative_pos(&self.cursor.peek()).end;
+                    let slice = &self.source.source[start_pos..end_pos];
+                    return self.expected_with(
+                        "Binary operations must be enclosed in a value expression.",
+                        slice,
+                        ParseErrorKind::UnexpectedInContext(format!("$(( {} ))", slice)),
+                    );
+                }
+            }
+        }
 
         //else, we hit an invalid binary expression.
-        self.expected(&format!(
-            "invalid infix operator, found '{}'",
-            self.cursor.peek().value
-        ))
+        self.expected("invalid expression operator", ParseErrorKind::Unexpected)
     }
 
     //parses any binary value expression, considering given input expression
@@ -244,26 +305,38 @@ impl<'a> Parser<'a> {
         }
 
         //else, we hit an invalid binary expression.
-        self.expected(&format!(
-            "invalid infix operator, found '{}'",
-            self.cursor.peek().value
-        ))
+        self.expected("invalid infix operator", ParseErrorKind::Unexpected)
     }
 
     //Skips spaces and verify that this parser is not parsing the end of an expression
     // (unescaped newline or semicolon)
-    fn repos(&mut self) -> ParseResult<()> {
+    fn repos(&mut self, message: &str) -> ParseResult<()> {
         self.cursor.advance(word_sep()); //skip word separators
         if self.cursor.lookahead(eox()).is_some() {
-            return self.expected("Unexpected end of expression");
+            return self.expected(message, ParseErrorKind::Unexpected);
         }
         Ok(())
     }
 
     //traverse current expression and go to next expression
     fn repos_to_next_expr(&mut self) {
-        while self.cursor.lookahead(eox()).is_none() {
-            self.cursor.advance(next());
+        while !self.cursor.is_at_end() {
+            if let Some(last) = self.delimiter_stack.back() {
+                if let Some(token) = self.cursor.advance(next()) {
+                    if last
+                        .token_type
+                        .closing_pair()
+                        .expect("invalid delimiter passed to stack")
+                        == token.token_type
+                    {
+                        self.delimiter_stack.pop_back();
+                    }
+                }
+            } else if self.cursor.lookahead(eox()).is_none() {
+                self.cursor.advance(next());
+            } else {
+                break;
+            }
         }
     }
 }

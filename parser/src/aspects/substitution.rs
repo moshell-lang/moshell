@@ -1,12 +1,13 @@
 use crate::aspects::group::GroupAspect;
 use crate::aspects::var_reference::VarReferenceAspect;
+use crate::ast::literal::{Literal, LiteralValue};
 use crate::ast::substitution::{Substitution, SubstitutionKind};
 use crate::ast::Expr;
-use crate::moves::{eox, MoveOperations, not, of_type, space};
+use crate::err::ParseErrorKind;
+use crate::moves::{eox, not, of_type, repeat_n, space, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
-use lexer::token::TokenType::{RoundedLeftBracket};
-use crate::ast::literal::{Literal, LiteralValue};
+use lexer::token::TokenType::{RoundedLeftBracket, RoundedRightBracket};
 
 /// A parser for substitution expressions.
 pub(crate) trait SubstitutionAspect<'a> {
@@ -16,35 +17,43 @@ pub(crate) trait SubstitutionAspect<'a> {
 
 impl<'a> SubstitutionAspect<'a> for Parser<'a> {
     fn substitution(&mut self) -> ParseResult<Expr<'a>> {
-        let dollar_value = self.cursor.force(
-            of_type(TokenType::Dollar),
-            "Expected '$' sign.",
-        )?.value;
+        let dollar = self
+            .cursor
+            .force(of_type(TokenType::Dollar), "Expected '$' sign.")?;
+        let dollar_value = dollar.value;
 
         //if $ is directly followed by a '(' then it's the start of a Capture substitution.
-        if self.cursor
-            .lookahead(of_type(RoundedLeftBracket))
-            .is_some() {
+        if self.cursor.lookahead(of_type(RoundedLeftBracket)).is_some() {
+            if let Some(start) = self
+                .cursor
+                .lookahead(repeat_n(2, of_type(RoundedLeftBracket)))
+            {
+                self.cursor.advance(of_type(RoundedLeftBracket));
+                let parenthesis = self.parenthesis()?;
+                self.cursor.force_with(
+                    of_type(RoundedRightBracket),
+                    "Expected a second closing parenthesis.",
+                    ParseErrorKind::Unpaired(self.cursor.relative_pos_ctx(dollar..start)),
+                )?;
+                return Ok(Expr::Parenthesis(parenthesis));
+            }
             return Ok(Expr::Substitution(Substitution {
                 // Read the expression inside the parentheses as a new statement
                 underlying: self.subshell()?,
                 kind: SubstitutionKind::Capture,
-            }))
+            }));
         }
 
         // Short pass for variable references
-        if self.cursor
-            .lookahead(not(space().or(eox())))
-            .is_some()
-        {
+        if self.cursor.lookahead(not(space().or(eox()))).is_some() {
             return self.var_reference();
         }
 
-        //finaly it's a lonely '$' so we return it as a literal
+        //finally it's a lonely '$' so we return it as a literal
         return Ok(Expr::Literal(Literal {
             lexeme: dollar_value,
-            parsed: LiteralValue::String(dollar_value.to_string())
-        }))
+            parsed: LiteralValue::String(dollar_value.to_string()),
+        }));
     }
 }
 
@@ -55,39 +64,50 @@ mod tests {
     use crate::ast::substitution::{Substitution, SubstitutionKind};
     use crate::ast::Expr;
 
-    use crate::ast::group::{Block, Subshell};
-    use crate::parser::{ParseError, Parser};
-    use lexer::lexer::lex;
+    use crate::ast::group::{Block, Parenthesis, Subshell};
+    use crate::ast::literal::Literal;
+    use crate::ast::operation::{BinaryOperation, BinaryOperator};
+    use crate::ast::variable::VarReference;
+    use crate::err::{ParseError, ParseErrorKind};
+    use crate::parse;
+    use crate::parser::{ParseResult, Parser};
+    use context::source::Source;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn unterminated_substitution() {
-        let tokens = lex("$(echo");
-        let ast = Parser::new(tokens).substitution();
+        let content = "$(echo";
+        let source = Source::unknown(content);
+        let ast = Parser::new(source).substitution();
         assert_eq!(
             ast,
             Err(ParseError {
-                message: "Unexpected end of expression".to_string()
+                message: "Expected closing bracket.".to_string(),
+                position: content.len()..content.len(),
+                kind: ParseErrorKind::Unpaired(1..2)
             })
         );
     }
 
     #[test]
     fn unpaired_parenthesis() {
-        let tokens = lex("$(a @(b) $(c d\\))");
-        let ast = Parser::new(tokens).statement();
+        let content = "$(a @(b) $(c d\\))";
+        let source = Source::unknown(content);
+        let ast: ParseResult<_> = parse(source).into();
         assert_eq!(
             ast,
             Err(ParseError {
-                message: "Unexpected end of expression".to_string()
+                message: "Expected closing bracket.".to_string(),
+                position: content.len()..content.len(),
+                kind: ParseErrorKind::Unpaired(1..2)
             })
         );
     }
 
     #[test]
     fn mix_blocks() {
-        let tokens = lex("$({ls $(pwd)})");
-        let ast = Parser::new(tokens).substitution().expect("Failed to parse");
+        let source = Source::unknown("$({ls $(pwd)})");
+        let ast = Parser::new(source).substitution().expect("Failed to parse");
         assert_eq!(
             ast,
             Expr::Substitution(Substitution {
@@ -109,6 +129,55 @@ mod tests {
                     })],
                 },
                 kind: SubstitutionKind::Capture,
+            })
+        );
+    }
+
+    #[test]
+    fn unexpected_closing_parenthesis() {
+        let content = "some stuff)";
+        let source = Source::unknown(content);
+        let ast: ParseResult<_> = parse(source).into();
+        assert_eq!(
+            ast,
+            Err(ParseError {
+                message: "expected end of expression or file".to_string(),
+                position: content.len()..content.len(),
+                kind: ParseErrorKind::Unexpected
+            })
+        );
+    }
+
+    #[test]
+    fn parenthesis_mismatch() {
+        let content = "$(test 9})";
+        let source = Source::unknown(content);
+        let ast: ParseResult<_> = parse(source).into();
+        assert_eq!(
+            ast,
+            Err(ParseError {
+                message: "Mismatched closing delimiter.".to_string(),
+                position: content.find('}').map(|p| (p..p + 1)).unwrap(),
+                kind: ParseErrorKind::Unpaired(content.find('(').map(|p| (p..p + 1)).unwrap())
+            })
+        );
+    }
+
+    #[test]
+    fn arithmetic() {
+        let source = Source::unknown("$(($a + 1))");
+        let ast = Parser::new(source).substitution().expect("Failed to parse");
+        assert_eq!(
+            ast,
+            Expr::Parenthesis(Parenthesis {
+                expression: Box::new(Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::VarReference(VarReference { name: "a".into() })),
+                    op: BinaryOperator::Plus,
+                    right: Box::new(Expr::Literal(Literal {
+                        lexeme: "1",
+                        parsed: 1.into(),
+                    })),
+                })),
             })
         );
     }

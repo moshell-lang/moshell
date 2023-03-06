@@ -48,9 +48,8 @@ impl<'a> StructureAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
+    use context::source::Source;
     use pretty_assertions::assert_eq;
-
-    use lexer::lexer::lex;
 
     use crate::ast::literal::Literal;
     use crate::ast::structure::Construct;
@@ -59,10 +58,10 @@ mod tests {
 
     #[test]
     fn empty_constructor() {
-        let tokens = lex("Foo()");
-        let tokens2 = lex("Foo( )");
-        let expr = Parser::new(tokens).parse().expect("Failed to parse");
-        let expr2 = Parser::new(tokens2).parse().expect("Failed to parse");
+        let source = Source::unknown("Foo()");
+        let source2 = Source::unknown("Foo( )");
+        let expr = Parser::new(source).parse().expect("Failed to parse");
+        let expr2 = Parser::new(source2).parse().expect("Failed to parse");
         let expected = vec![Expr::Construct(Construct {
             name: "Foo",
             args: vec![],
@@ -73,8 +72,8 @@ mod tests {
 
     #[test]
     fn parse_constructor() {
-        let tokens = lex("Foo(a 2 c)");
-        let expr = Parser::new(tokens).parse().expect("Failed to parse");
+        let source = Source::unknown("Foo(a 2 c)");
+        let expr = Parser::new(source).parse().expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::Construct(Construct {
@@ -93,8 +92,8 @@ mod tests {
 
     #[test]
     fn constructor_with_newlines_and_space() {
-        let tokens = lex("Foo( \\\nthis  \\\n  is\\\nfine)");
-        let expr = Parser::new(tokens).parse().expect("Failed to parse");
+        let source = Source::unknown("Foo( \\\nthis  \\\n  is\\\nfine)");
+        let expr = Parser::new(source).parse().expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::Construct(Construct {

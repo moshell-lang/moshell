@@ -2,6 +2,7 @@ use lexer::token::{Token, TokenType};
 
 use crate::ast::group::{Block, Parenthesis, Subshell};
 use crate::ast::Expr;
+use crate::err::ParseErrorKind;
 use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
@@ -26,27 +27,32 @@ pub trait GroupAspect<'a> {
 
 impl<'a> GroupAspect<'a> for Parser<'a> {
     fn block(&mut self) -> ParseResult<Block<'a>> {
-        self.ensure_at_group_start(TokenType::CurlyLeftBracket, '{')?;
+        let start = self.ensure_at_group_start(TokenType::CurlyLeftBracket)?;
         Ok(Block {
-            expressions: self.sub_exprs(TokenType::CurlyRightBracket, Parser::statement)?,
+            expressions: self.sub_exprs(start, TokenType::CurlyRightBracket, Parser::statement)?,
         })
     }
 
     fn subshell(&mut self) -> ParseResult<Subshell<'a>> {
-        self.ensure_at_group_start(TokenType::RoundedLeftBracket, '(')?;
+        let start = self.ensure_at_group_start(TokenType::RoundedLeftBracket)?;
         Ok(Subshell {
-            expressions: self.sub_exprs(TokenType::RoundedRightBracket, Parser::statement)?,
+            expressions: self.sub_exprs(
+                start,
+                TokenType::RoundedRightBracket,
+                Parser::statement,
+            )?,
         })
     }
 
     fn parenthesis(&mut self) -> ParseResult<Parenthesis<'a>> {
-        self.ensure_at_group_start(TokenType::RoundedLeftBracket, '(')?;
+        self.ensure_at_group_start(TokenType::RoundedLeftBracket)?;
         let expr = self.value()?;
         self.cursor.force(
             repeat(spaces().then(eox())) //consume possible end of expressions
                 .then(spaces().then(of_type(TokenType::RoundedRightBracket))), //expect closing ')' token
             "parenthesis in value expression can only contain one expression",
         )?;
+        self.delimiter_stack.pop_back();
 
         Ok(Parenthesis {
             expression: Box::new(expr),
@@ -55,23 +61,23 @@ impl<'a> GroupAspect<'a> for Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn ensure_at_group_start(
-        &mut self,
-        start: TokenType,
-        start_val: char,
-    ) -> ParseResult<Token<'a>> {
-        self.cursor.force(
+    fn ensure_at_group_start(&mut self, start: TokenType) -> ParseResult<Token<'a>> {
+        let token = self.cursor.force_with(
             of_type(start),
-            &format!(
-                "unexpected start of group expression. expected '{}', found '{}'",
-                start_val,
-                self.cursor.peek().value
-            ),
-        ) //consume group start token
+            "Unexpected start of group expression",
+            ParseErrorKind::Excepted(start.str().unwrap_or("specific token")),
+        )?; //consume group start token
+        self.delimiter_stack.push_back(token.clone());
+        Ok(token)
     }
 
     ///parses sub expressions of a grouping expression
-    fn sub_exprs<F>(&mut self, eog: TokenType, mut parser: F) -> ParseResult<Vec<Expr<'a>>>
+    fn sub_exprs<F>(
+        &mut self,
+        start_token: Token,
+        eog: TokenType,
+        mut parser: F,
+    ) -> ParseResult<Vec<Expr<'a>>>
     where
         F: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
     {
@@ -82,10 +88,17 @@ impl<'a> Parser<'a> {
 
         //if we directly hit end of group, return an empty block.
         if self.cursor.advance(of_type(eog)).is_some() {
+            self.delimiter_stack.pop_back();
             return Ok(statements);
         }
 
         loop {
+            if self.cursor.is_at_end() {
+                self.expected(
+                    "Expected closing bracket.",
+                    ParseErrorKind::Unpaired(self.cursor.relative_pos(&start_token)),
+                )?;
+            }
             let statement = parser(self)?;
             statements.push(statement);
 
@@ -100,8 +113,24 @@ impl<'a> Parser<'a> {
 
             //if the group is closed, then we stop looking for other expressions.
             if closed {
+                self.delimiter_stack.pop_back();
                 break;
             }
+
+            if eox_res.is_err() && self.cursor.peek().token_type.is_closing_ponctuation() {
+                if let Some(last) = self.delimiter_stack.back() {
+                    self.expected(
+                        "Mismatched closing delimiter.",
+                        ParseErrorKind::Unpaired(self.cursor.relative_pos(last)),
+                    )?;
+                } else {
+                    self.expected(
+                        "Unexpected closing delimiter.",
+                        ParseErrorKind::Excepted(eog.str().unwrap_or("specific token")),
+                    )?;
+                }
+            }
+
             //but if not closed, expect the cursor to hit EOX.
             eox_res?;
         }
@@ -111,10 +140,6 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
-
-    use lexer::lexer::lex;
-
     use crate::aspects::group::GroupAspect;
     use crate::ast::callable::Call;
     use crate::ast::group::{Block, Subshell};
@@ -123,12 +148,14 @@ mod tests {
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use crate::ast::Expr;
     use crate::parser::Parser;
+    use context::source::Source;
+    use pretty_assertions::assert_eq;
 
     //noinspection DuplicatedCode
     #[test]
     fn empty_blocks() {
-        let tokens = lex("{{{}; {}}}");
-        let mut parser = Parser::new(tokens);
+        let source = Source::unknown("{{{}; {}}}");
+        let mut parser = Parser::new(source);
         let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
@@ -151,8 +178,8 @@ mod tests {
     //noinspection DuplicatedCode
     #[test]
     fn empty_blocks_empty_content() {
-        let tokens = lex("{;;{;;;{;;}; {\n\n};}}");
-        let mut parser = Parser::new(tokens);
+        let source = Source::unknown("{;;{;;;{;;}; {\n\n};}}");
+        let mut parser = Parser::new(source);
         let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
@@ -174,28 +201,29 @@ mod tests {
 
     #[test]
     fn block_not_ended() {
-        let tokens = lex("{ val test = 2 ");
-        let mut parser = Parser::new(tokens);
+        let source = Source::unknown("{ val test = 2 ");
+        let mut parser = Parser::new(source);
         parser.block().expect_err("block parse did not failed");
     }
 
     #[test]
     fn neighbour_parenthesis() {
-        let tokens = lex("{ () () }");
-        let mut parser = Parser::new(tokens);
+        let source = Source::unknown("{ {} {} }");
+        let mut parser = Parser::new(source);
         parser.block().expect_err("block parse did not failed");
     }
 
     #[test]
     fn block_not_started() {
-        let tokens = lex(" val test = 2 }");
-        let mut parser = Parser::new(tokens);
+        let source = Source::unknown(" val test = 2 }");
+        let mut parser = Parser::new(source);
         parser.block().expect_err("block parse did not failed");
     }
 
     #[test]
     fn block_with_nested_blocks() {
-        let tokens = lex("\
+        let source = Source::unknown(
+            "\
         {\
             val test = {\
                 val x = 8\n\n\n
@@ -203,8 +231,9 @@ mod tests {
             }\n\
             (val x = 89; command call; 7)\
         }\
-        ");
-        let mut parser = Parser::new(tokens);
+        ",
+        );
+        let mut parser = Parser::new(source);
         let ast = parser
             .block()
             .expect("failed to parse block with nested blocks");
@@ -271,13 +300,15 @@ mod tests {
 
     #[test]
     fn block() {
-        let tokens = lex("\
+        let source = Source::unknown(
+            "\
         {\
             var test: int = 7.0\n\
             val x = 8\
         }\
-        ");
-        let mut parser = Parser::new(tokens);
+        ",
+        );
+        let mut parser = Parser::new(source);
         let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
