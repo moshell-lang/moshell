@@ -132,7 +132,6 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
     }
 
     fn is_at_redirection_sign(&self) -> bool {
-
         //handle escaped redirection signs (can be \\ for one-character signs or quoted signs)
         if self
             .cursor

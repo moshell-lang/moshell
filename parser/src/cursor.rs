@@ -66,7 +66,7 @@ impl<'a> ParserCursor<'a> {
         let from = self.pos;
         if self.advance(mov).is_some() {
             let slice = &self.tokens.as_slice()[from..self.pos];
-            return Vec::from(slice)
+            return Vec::from(slice);
         }
         Vec::new()
     }

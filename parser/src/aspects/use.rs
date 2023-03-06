@@ -1,9 +1,9 @@
+use crate::ast::r#use::Use;
+use crate::ast::Expr;
+use crate::moves::{eox, of_type, repeat, spaces, word_sep, MoveOperations};
+use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{Comma, Identifier};
-use crate::ast::Expr;
-use crate::ast::r#use::Use;
-use crate::moves::{eox, MoveOperations, of_type, repeat, spaces, word_sep};
-use crate::parser::{Parser, ParseResult};
 
 /// Parser aspect to parse use statements
 pub trait UseAspect<'a> {
@@ -13,23 +13,28 @@ pub trait UseAspect<'a> {
 
 impl<'a> UseAspect<'a> for Parser<'a> {
     fn parse_use(&mut self) -> ParseResult<Expr<'a>> {
-        self.cursor.force(of_type(TokenType::Use), "expected 'use'")?;
+        self.cursor
+            .force(of_type(TokenType::Use), "expected 'use'")?;
 
         //first identifier
         let mut uses = vec![
-            self.cursor.force(
-                spaces().then(of_type(Identifier)),
-                "expected at least one identifier",
-            )?.value
+            self.cursor
+                .force(
+                    spaces().then(of_type(Identifier)),
+                    "expected at least one identifier",
+                )?
+                .value,
         ];
 
         //then parse others if any
-        let mut tail: Vec<_> = self.cursor.select(
-            repeat(
-                repeat(word_sep()).then(of_type(Comma))
-                    .then(repeat(word_sep()).then(of_type(Identifier)))
-            )
-        ).into_iter()
+        let mut tail: Vec<_> = self
+            .cursor
+            .select(repeat(
+                repeat(word_sep())
+                    .then(of_type(Comma))
+                    .then(repeat(word_sep()).then(of_type(Identifier))),
+            ))
+            .into_iter()
             .filter(|t| t.token_type == Identifier)
             .map(|t| t.value)
             .collect();
@@ -38,35 +43,32 @@ impl<'a> UseAspect<'a> for Parser<'a> {
         if self.cursor.lookahead(spaces().or(of_type(Comma))).is_some() {
             return self.expected("Unexpected comma ','");
         }
-        self.cursor.force(spaces().then(eox()), "expected new line or semicolon.")?;
+        self.cursor
+            .force(spaces().then(eox()), "expected new line or semicolon.")?;
 
         uses.append(&mut tail);
 
-        Ok(Expr::Use(Use {
-            uses
-        }))
+        Ok(Expr::Use(Use { uses }))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
-    use lexer::lexer::lex;
-    use crate::ast::Expr;
     use crate::ast::r#use::Use;
+    use crate::ast::Expr;
     use crate::parse;
     use crate::parser::ParseError;
+    use lexer::lexer::lex;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_use() {
         let result = parse(lex("use TOKEN")).expect("parser failed");
         assert_eq!(
             result,
-            vec![
-                Expr::Use(Use {
-                    uses: vec!["TOKEN"]
-                })
-            ]
+            vec![Expr::Use(Use {
+                uses: vec!["TOKEN"]
+            })]
         )
     }
 
@@ -75,11 +77,9 @@ mod tests {
         let result = parse(lex("use TOKEN,    A \\\n , B \\\n , C")).expect("parser failed");
         assert_eq!(
             result,
-            vec![
-                Expr::Use(Use {
-                    uses: vec!["TOKEN", "A", "B", "C"]
-                })
-            ]
+            vec![Expr::Use(Use {
+                uses: vec!["TOKEN", "A", "B", "C"]
+            })]
         )
     }
 

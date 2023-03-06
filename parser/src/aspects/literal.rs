@@ -11,7 +11,6 @@ use crate::source::try_join_str;
 
 /// A trait that contains all the methods for parsing literals.
 pub(crate) trait LiteralAspect<'a> {
-
     /// Parses any literal, number, argument, string, string template
     fn literal(&mut self) -> ParseResult<Expr<'a>>;
 
@@ -43,10 +42,12 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             Quote => self.string_literal().map(Expr::Literal),
             DoubleQuote => self.templated_string_literal().map(Expr::TemplateString),
 
-            _ if pivot.is_keyword() =>
-                self.expected(&format!("Unexpected keyword '{}'", token.value)),
-            _ if pivot.is_ponctuation() =>
-                self.expected(&format!("Unexpected token '{}'.", token.value)),
+            _ if pivot.is_keyword() => {
+                self.expected(&format!("Unexpected keyword '{}'", token.value))
+            }
+            _ if pivot.is_ponctuation() => {
+                self.expected(&format!("Unexpected token '{}'.", token.value))
+            }
 
             _ => self.argument(),
         }
@@ -60,10 +61,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
     }
 
     fn string_literal(&mut self) -> ParseResult<Literal<'a>> {
-        let mut lexeme = self
-            .cursor
-            .force(of_type(Quote), "Expected quote.")?
-            .value;
+        let mut lexeme = self.cursor.force(of_type(Quote), "Expected quote.")?.value;
 
         let mut value = String::new();
 
@@ -94,8 +92,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
     }
 
     fn templated_string_literal(&mut self) -> ParseResult<TemplateString<'a>> {
-        self.cursor
-            .force(of_type(DoubleQuote), "Expected quote.")?;
+        self.cursor.force(of_type(DoubleQuote), "Expected quote.")?;
         let mut lexeme = self.cursor.peek().value;
         let mut literal_value = String::new();
         let mut parts = Vec::new();
@@ -141,9 +138,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             }));
         }
 
-        Ok(TemplateString {
-            parts
-        })
+        Ok(TemplateString { parts })
     }
 
     /// Parses a single argument.
@@ -229,9 +224,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             return Ok(parts.pop().unwrap());
         }
 
-        Ok(Expr::TemplateString(TemplateString {
-            parts
-        }))
+        Ok(Expr::TemplateString(TemplateString { parts }))
     }
 }
 
@@ -272,10 +265,7 @@ mod tests {
 
     #[test]
     fn int_overflow() {
-        let tokens = vec![Token::new(
-            IntLiteral,
-            "123456789012345678901234567890",
-        )];
+        let tokens = vec![Token::new(IntLiteral, "123456789012345678901234567890")];
         let parsed = Parser::new(tokens).statement();
         assert_eq!(
             parsed,

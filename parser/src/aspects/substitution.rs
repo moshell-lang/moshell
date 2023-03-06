@@ -1,12 +1,12 @@
 use crate::aspects::group::GroupAspect;
 use crate::aspects::var_reference::VarReferenceAspect;
 use crate::ast::substitution::{Substitution, SubstitutionKind};
+use crate::ast::value::{Literal, LiteralValue};
 use crate::ast::Expr;
-use crate::moves::{eox, MoveOperations, not, of_type, space};
+use crate::moves::{eox, not, of_type, space, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
-use lexer::token::TokenType::{RoundedLeftBracket};
-use crate::ast::value::{Literal, LiteralValue};
+use lexer::token::TokenType::RoundedLeftBracket;
 
 /// A parser for substitution expressions.
 pub(crate) trait SubstitutionAspect<'a> {
@@ -16,35 +16,30 @@ pub(crate) trait SubstitutionAspect<'a> {
 
 impl<'a> SubstitutionAspect<'a> for Parser<'a> {
     fn substitution(&mut self) -> ParseResult<Expr<'a>> {
-        let dollar_value = self.cursor.force(
-            of_type(TokenType::Dollar),
-            "Expected '$' sign.",
-        )?.value;
+        let dollar_value = self
+            .cursor
+            .force(of_type(TokenType::Dollar), "Expected '$' sign.")?
+            .value;
 
         //if $ is directly followed by a '(' then it's the start of a Capture substitution.
-        if self.cursor
-            .lookahead(of_type(RoundedLeftBracket))
-            .is_some() {
+        if self.cursor.lookahead(of_type(RoundedLeftBracket)).is_some() {
             return Ok(Expr::Substitution(Substitution {
                 // Read the expression inside the parentheses as a new statement
                 underlying: self.subshell()?,
                 kind: SubstitutionKind::Capture,
-            }))
+            }));
         }
 
         // Short pass for variable references
-        if self.cursor
-            .lookahead(not(space().or(eox())))
-            .is_some()
-        {
+        if self.cursor.lookahead(not(space().or(eox()))).is_some() {
             return self.var_reference();
         }
 
         //finaly it's a lonely '$' so we return it as a literal
         return Ok(Expr::Literal(Literal {
             lexeme: dollar_value,
-            parsed: LiteralValue::String(dollar_value.to_string())
-        }))
+            parsed: LiteralValue::String(dollar_value.to_string()),
+        }));
     }
 }
 

@@ -1,8 +1,8 @@
 use lexer::lexer::lex;
 use parser::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use parser::ast::group::Subshell;
-use parser::ast::value::{Literal, TemplateString};
 use parser::ast::substitution::{Substitution, SubstitutionKind};
+use parser::ast::value::{Literal, TemplateString};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 use parser::ast::Expr;
 use parser::parse;
@@ -43,9 +43,7 @@ fn with_lexer_var_reference_one() {
                     lexeme: "'$var5'",
                     parsed: "$var5".into(),
                 }),
-                Expr::VarReference(VarReference {
-                    name: "var5",
-                }),
+                Expr::VarReference(VarReference { name: "var5" }),
             ],
         })]
     );
@@ -63,15 +61,11 @@ fn with_lexer_var_reference_two() {
                 Expr::TemplateString(TemplateString {
                     parts: vec![
                         Expr::Literal("fake".into()),
-                        Expr::VarReference(VarReference {
-                            name: "cmd",
-                        }),
+                        Expr::VarReference(VarReference { name: "cmd" }),
                     ]
                 }),
                 Expr::Literal("do".into()),
-                Expr::VarReference(VarReference {
-                    name: "arg2",
-                }),
+                Expr::VarReference(VarReference { name: "arg2" }),
             ],
         })]
     );
@@ -81,10 +75,7 @@ fn with_lexer_var_reference_two() {
 fn empty_content() {
     let tokens = lex("\n\n//empty lines\n\n");
     let result = parse(tokens).expect("couldn't parse");
-    assert_eq!(
-        result,
-        vec![]
-    )
+    assert_eq!(result, vec![])
 }
 
 #[test]
@@ -100,16 +91,10 @@ fn with_lexer_var_reference_three() {
                 Expr::TemplateString(TemplateString {
                     parts: vec![
                         Expr::Literal("hello ".into()),
-                        Expr::VarReference(VarReference {
-                            name: "world",
-                        }),
+                        Expr::VarReference(VarReference { name: "world" }),
                         Expr::Literal(" everyone ".into()),
-                        Expr::VarReference(VarReference {
-                            name: "verb",
-                        }),
-                        Expr::VarReference(VarReference {
-                            name: "ready",
-                        }),
+                        Expr::VarReference(VarReference { name: "verb" }),
+                        Expr::VarReference(VarReference { name: "ready" }),
                         Expr::Literal("!".into()),
                     ]
                 }),

@@ -1,8 +1,8 @@
 use lexer::token::TokenType::*;
 
-use crate::ast::Expr;
 use crate::ast::variable::VarReference;
-use crate::moves::{like, MoveOperations, of_type, repeat};
+use crate::ast::Expr;
+use crate::moves::{like, of_type, repeat, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use crate::source::try_join_str;
 
@@ -14,23 +14,23 @@ pub trait VarReferenceAspect<'a> {
 impl<'a> VarReferenceAspect<'a> for Parser<'a> {
     /// Parses a variable reference.
     fn var_reference(&mut self) -> ParseResult<Expr<'a>> {
-        let has_bracket = self
+        let has_bracket = self.cursor.advance(of_type(CurlyLeftBracket)).is_some();
+
+        let tokens = self
             .cursor
-            .advance(of_type(CurlyLeftBracket))
-            .is_some();
-
-        let tokens = self.cursor.select(
-            of_type(Dollar) //only allow one occurrence of $
-                .or(repeat(like(|t| t != Dollar && t.is_valid_var_ref_name())))
-        ).leak();
-
+            .select(
+                of_type(Dollar) //only allow one occurrence of $
+                    .or(repeat(like(|t| t != Dollar && t.is_valid_var_ref_name()))),
+            )
+            .leak();
 
         if tokens.len() == 0 {
-            return self.expected("variable reference with empty name")
+            return self.expected("variable reference with empty name");
         }
 
         let first = tokens[0].value;
-        let name = tokens.into_iter()
+        let name = tokens
+            .into_iter()
             .skip(1)
             .fold(first, |acc, t| try_join_str(acc, t.value).unwrap());
 
@@ -48,12 +48,12 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
 mod tests {
     use lexer::lexer::lex;
 
+    use crate::ast::value::TemplateString;
     use crate::ast::variable::VarReference;
     use crate::ast::Expr;
-    use pretty_assertions::assert_eq;
-    use crate::ast::value::TemplateString;
     use crate::parse;
     use crate::parser::ParseError;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn simple_ref() {
@@ -61,11 +61,7 @@ mod tests {
         let ast = parse(tokens).expect("failed to parse");
         assert_eq!(
             ast,
-            vec![
-                Expr::VarReference(VarReference {
-                    name: "VARIABLE"
-                })
-            ]
+            vec![Expr::VarReference(VarReference { name: "VARIABLE" })]
         )
     }
 
@@ -73,12 +69,7 @@ mod tests {
     fn dollar_is_literal() {
         let tokens = lex("$");
         let ast = parse(tokens).expect("failed to parse");
-        assert_eq!(
-            ast,
-            vec![
-                Expr::Literal("$".into())
-            ]
-        )
+        assert_eq!(ast, vec![Expr::Literal("$".into())])
     }
 
     #[test]
@@ -88,21 +79,11 @@ mod tests {
         assert_eq!(
             ast,
             vec![
-                Expr::VarReference(VarReference {
-                    name: "@"
-                }),
-                Expr::VarReference(VarReference {
-                    name: "^"
-                }),
-                Expr::VarReference(VarReference {
-                    name: "!"
-                }),
-                Expr::VarReference(VarReference {
-                    name: "!!"
-                }),
-                Expr::VarReference(VarReference {
-                    name: "$"
-                }),
+                Expr::VarReference(VarReference { name: "@" }),
+                Expr::VarReference(VarReference { name: "^" }),
+                Expr::VarReference(VarReference { name: "!" }),
+                Expr::VarReference(VarReference { name: "!!" }),
+                Expr::VarReference(VarReference { name: "$" }),
             ]
         )
     }
@@ -113,16 +94,12 @@ mod tests {
         let ast = parse(tokens).expect("failed to parse");
         assert_eq!(
             ast,
-            vec![
-                Expr::TemplateString(TemplateString {
-                    parts: vec![
-                        Expr::VarReference(VarReference {
-                            name: "VAR"
-                        }),
-                        Expr::Literal("IABLE".into()),
-                    ]
-                })
-            ]
+            vec![Expr::TemplateString(TemplateString {
+                parts: vec![
+                    Expr::VarReference(VarReference { name: "VAR" }),
+                    Expr::Literal("IABLE".into()),
+                ]
+            })]
         )
     }
 
@@ -144,23 +121,14 @@ mod tests {
         let ast = parse(tokens).expect("failed to parse");
         assert_eq!(
             ast,
-            vec![
-                Expr::TemplateString(TemplateString {
-                    parts: vec![
-                        Expr::VarReference(VarReference {
-                            name: "VAR"
-                        }),
-                        Expr::Literal("IABLE".into()),
-                        Expr::VarReference(VarReference {
-                            name: "LONG"
-                        }),
-                        Expr::VarReference(VarReference {
-                            name: "VERY_LONG"
-                        }),
-                    ]
-                })
-            ]
+            vec![Expr::TemplateString(TemplateString {
+                parts: vec![
+                    Expr::VarReference(VarReference { name: "VAR" }),
+                    Expr::Literal("IABLE".into()),
+                    Expr::VarReference(VarReference { name: "LONG" }),
+                    Expr::VarReference(VarReference { name: "VERY_LONG" }),
+                ]
+            })]
         )
     }
-
 }

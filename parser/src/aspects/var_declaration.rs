@@ -19,20 +19,27 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
             TokenType::Val => VarKind::Val,
             _ => return self.expected("expected var or val keywords"),
         };
-        let name = self.cursor.force(
-            space().and_then(of_type(TokenType::Identifier)),
-            "Expected variable name.",
-        )?.value;
+        let name = self
+            .cursor
+            .force(
+                space().and_then(of_type(TokenType::Identifier)),
+                "Expected variable name.",
+            )?
+            .value;
 
         let ty = match self
             .cursor
             .advance(spaces().then(of_type(TokenType::Colon)))
         {
             None => None,
-            Some(_) => Some(self.cursor.force(
-                spaces().then(of_type(TokenType::Identifier)),
-                "Expected identifier for variable type",
-            )?.value),
+            Some(_) => Some(
+                self.cursor
+                    .force(
+                        spaces().then(of_type(TokenType::Identifier)),
+                        "Expected identifier for variable type",
+                    )?
+                    .value,
+            ),
         };
         let initializer = match self
             .cursor
@@ -62,9 +69,9 @@ mod tests {
     use super::*;
     use crate::ast::callable::Call;
     use crate::ast::group::Block;
-    use crate::ast::value::{Literal, LiteralValue};
     use crate::ast::operation::BinaryOperation;
     use crate::ast::operation::BinaryOperator::Plus;
+    use crate::ast::value::{Literal, LiteralValue};
     use crate::ast::Expr;
     use crate::parser::{ParseError, Parser};
     use lexer::lexer::lex;

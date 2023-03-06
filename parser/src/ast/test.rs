@@ -4,12 +4,12 @@ use crate::ast::Expr;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Test<'a> {
     ///expression present between brackets
-    pub(crate) expression: Box<Expr<'a>>
+    pub(crate) expression: Box<Expr<'a>>,
 }
 
 ///a not (`! ..`) expression
 #[derive(Debug, Clone, PartialEq)]
 pub struct Not<'a> {
     ///the expression after `!`
-    pub(crate) underlying: Box<Expr<'a>>
+    pub(crate) underlying: Box<Expr<'a>>,
 }

@@ -1,5 +1,5 @@
-use lexer::token::{Token, TokenType};
 use lexer::token::TokenType::*;
+use lexer::token::{Token, TokenType};
 
 use crate::aspects::binary_operation::BinaryOperationsAspect;
 use crate::aspects::call::CallAspect;
@@ -13,7 +13,9 @@ use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::moves::{bin_op, eod, eox, next, of_types, spaces, MoveOperations, repeat, space, like, word_sep};
+use crate::moves::{
+    bin_op, eod, eox, like, next, of_types, repeat, space, spaces, word_sep, MoveOperations,
+};
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
@@ -31,12 +33,18 @@ pub(crate) struct Parser<'a> {
 
 //all tokens that can't be an infix operator
 macro_rules! non_infix {
-    () =>  {
+    () => {
         eox()
             .or(eod())
             .or(like(TokenType::is_keyword))
-            .or(of_types(&[RoundedLeftBracket, CurlyLeftBracket, SquaredLeftBracket, Bar, FatArrow]))
-    }
+            .or(of_types(&[
+                RoundedLeftBracket,
+                CurlyLeftBracket,
+                SquaredLeftBracket,
+                Bar,
+                FatArrow,
+            ]))
+    };
 }
 
 impl<'a> Parser<'a> {
@@ -104,7 +112,6 @@ impl<'a> Parser<'a> {
         }
     }
 
-
     ///Parse the next expression
     pub(crate) fn next_expression_statement(&mut self) -> ParseResult<Expr<'a>> {
         self.repos()?;
@@ -132,7 +139,6 @@ impl<'a> Parser<'a> {
 
             Not => self.not(Parser::next_expression_statement),
             Identifier | Quote | DoubleQuote => self.call(),
-
 
             _ => self.next_value(),
         }
@@ -205,7 +211,6 @@ impl<'a> Parser<'a> {
         if self.is_at_redirection_sign() {
             return self.redirectable(expr);
         }
-
 
         //else, we hit an invalid binary expression.
         self.expected(&format!(

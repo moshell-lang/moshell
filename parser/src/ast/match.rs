@@ -1,6 +1,6 @@
-use crate::ast::Expr;
 use crate::ast::value::{Literal, TemplateString};
 use crate::ast::variable::VarReference;
+use crate::ast::Expr;
 
 /// structure of a `match` expression.
 #[derive(Debug, Clone, PartialEq)]

@@ -40,5 +40,3 @@ impl<'a> From<&'a str> for Literal<'a> {
         }
     }
 }
-
-
