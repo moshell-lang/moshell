@@ -111,7 +111,7 @@ mod tests {
             result,
             Err(ParseError {
                 message: "expected at least one identifier".to_string(),
-                position: content.len() - 1..content.len(),
+                position: content.len()..content.len(),
                 kind: ParseErrorKind::Unexpected,
             })
         )

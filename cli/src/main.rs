@@ -1,7 +1,7 @@
 mod report;
 
 use crate::report::print_flush;
-use context::source::Source;
+use context::source::{Location, Source};
 use dbg_pls::color;
 use miette::{Diagnostic, GraphicalReportHandler, SourceSpan};
 use parser::err::ParseErrorKind;
@@ -26,6 +26,14 @@ struct FormattedError<'s> {
 impl Display for FormattedError<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.message)
+    }
+}
+
+fn offset_empty_span(span: Location) -> SourceSpan {
+    if span.start == span.end {
+        (span.start - 1..span.end).into()
+    } else {
+        span.into()
     }
 }
 
@@ -59,7 +67,7 @@ fn main() -> io::Result<()> {
             .into_iter()
             .map(|err| FormattedError {
                 src: &source,
-                cursor: err.position.into(),
+                cursor: offset_empty_span(err.position),
                 related: match &err.kind {
                     ParseErrorKind::Unpaired(pos) => Some(pos.clone().into()),
                     _ => None,

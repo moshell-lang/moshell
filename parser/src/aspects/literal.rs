@@ -297,7 +297,7 @@ mod tests {
             parsed,
             Err(ParseError {
                 message: "Unterminated string literal.".to_string(),
-                position: content.len() - 1..content.len(),
+                position: content.len()..content.len(),
                 kind: ParseErrorKind::Unpaired(0..1),
             })
         );

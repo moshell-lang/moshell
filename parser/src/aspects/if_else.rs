@@ -237,7 +237,7 @@ mod tests {
             ast,
             Err(ParseError {
                 message: "Expected statement".to_string(),
-                position: content.find(';').map(|p| p..p + 1).unwrap(),
+                position: content.len()..content.len(),
                 kind: ParseErrorKind::Unexpected,
             })
         )

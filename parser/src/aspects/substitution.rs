@@ -83,7 +83,7 @@ mod tests {
             ast,
             Err(ParseError {
                 message: "Expected closing bracket.".to_string(),
-                position: content.len() - 1..content.len(),
+                position: content.len()..content.len(),
                 kind: ParseErrorKind::Unpaired(1..2)
             })
         );
@@ -98,7 +98,7 @@ mod tests {
             ast,
             Err(ParseError {
                 message: "Expected closing bracket.".to_string(),
-                position: content.len() - 1..content.len(),
+                position: content.len()..content.len(),
                 kind: ParseErrorKind::Unpaired(1..2)
             })
         );
@@ -142,7 +142,7 @@ mod tests {
             ast,
             Err(ParseError {
                 message: "expected end of expression or file".to_string(),
-                position: content.find(')').map(|p| (p..p + 1)).unwrap(),
+                position: content.len()..content.len(),
                 kind: ParseErrorKind::Unexpected
             })
         );

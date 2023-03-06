@@ -156,12 +156,12 @@ pub(crate) fn spaces() -> RepeatedMove<PredicateMove<impl (for<'a> Fn(Token<'a>)
 ///A move to consume all spaces and escaped newlines
 pub(crate) fn word_sep() -> RepeatedMove<
     OrMove<
-        PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
+        PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
         AndThenMove<
-            PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
-            PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>
-        >
-    >
+            PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
+            PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
+        >,
+    >,
 > {
     repeat_n(1, space().or(of_type(BackSlash).and_then(of_type(NewLine))))
 }

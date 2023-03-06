@@ -123,7 +123,7 @@ impl<'a> ParserCursor<'a> {
     fn at(&self, pos: usize) -> Token<'a> {
         self.tokens.get(pos).cloned().unwrap_or_else(|| {
             // Return a pointer to the end of the source code if there is no more token.
-            Token::new(TokenType::EndOfFile, &self.source[self.source.len() - 1..])
+            Token::new(TokenType::EndOfFile, &self.source[self.source.len()..])
         })
     }
 

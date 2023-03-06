@@ -7,6 +7,13 @@ use parser::parse;
 use pretty_assertions::assert_eq;
 
 #[test]
+fn empty() {
+    let source = Source::unknown("");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(parsed, vec![]);
+}
+
+#[test]
 fn variable_type_and_initializer() {
     let source = Source::unknown("var a:int=1");
     let parsed = parse(source).expect("Failed to parse");
