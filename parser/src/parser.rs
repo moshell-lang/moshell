@@ -133,6 +133,7 @@ impl<'a> Parser<'a> {
         match pivot {
             If => self.parse_if(Parser::statement),
             Match => Ok(Expr::Match(self.parse_match(Parser::statement)?)),
+            Identifier | Quote | DoubleQuote => self.call(),
 
             _ if pivot.is_bin_operator() => self.call(),
 
@@ -151,7 +152,6 @@ impl<'a> Parser<'a> {
             SquaredLeftBracket => self.parse_test(),
 
             Not => self.not(Parser::next_expression_statement),
-            Identifier | Quote | DoubleQuote => self.call(),
 
             _ => self.next_value(),
         }
@@ -258,7 +258,7 @@ impl<'a> Parser<'a> {
         }
 
         //else, we hit an invalid binary expression.
-        self.expected("invalid expression operator", ParseErrorKind::Unexpected)
+        self.expected("invalid expression operator", Unexpected)
     }
 
     //parses any binary value expression, considering given input expression
@@ -280,7 +280,7 @@ impl<'a> Parser<'a> {
         }
 
         //else, we hit an invalid binary expression.
-        self.expected("invalid infix operator", ParseErrorKind::Unexpected)
+        self.expected("invalid infix operator", Unexpected)
     }
 
     //Skips spaces and verify that this parser is not parsing the end of an expression
@@ -288,7 +288,7 @@ impl<'a> Parser<'a> {
     fn repos(&mut self, message: &str) -> ParseResult<()> {
         self.cursor.advance(word_sep()); //skip word separators
         if self.cursor.lookahead(eox()).is_some() {
-            return self.expected(message, ParseErrorKind::Unexpected);
+            return self.expected(message, Unexpected);
         }
         Ok(())
     }

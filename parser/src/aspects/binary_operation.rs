@@ -357,7 +357,7 @@ mod tests {
         assert_eq!(
             result,
             Err(ParseError {
-                message: "Unexpected closing bracket.".to_string(),
+                message: "Unexpected token ')'.".to_string(),
                 position: content.find(')').map(|p| (p..p + 1)).unwrap(),
                 kind: ParseErrorKind::Unexpected,
             })

@@ -7,7 +7,7 @@ use lexer::token::TokenType::*;
 use crate::ast::value::{Literal, LiteralValue, TemplateString};
 use crate::ast::*;
 use crate::err::ParseErrorKind;
-use crate::err::ParseErrorKind::{InvalidFormat, Unexpected};
+use crate::err::ParseErrorKind::{Unexpected};
 use crate::moves::{next, of_type, repeat_n, word_sep};
 use crate::parser::{ParseResult, Parser};
 
@@ -242,22 +242,21 @@ impl<'a> Parser<'a> {
         let token = self.cursor.next()?;
         match token.token_type {
             IntLiteral => Ok(LiteralValue::Int(token.value.parse::<i64>().map_err(
-                |e| {
-                    match e.kind() {
-                        IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => self
-                            .expected::<()>("Integer constant is too large.", InvalidFormat)
-                            .unwrap_err(),
-                        _ => self.mk_parse_error(e.to_string(), self.cursor.peek(), InvalidFormat),
-                    }
+                |e| match e.kind() {
+                    IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => self.mk_parse_error(
+                        "Integer constant is too large.".to_string(),
+                        token,
+                        ParseErrorKind::InvalidFormat,
+                    ),
+                    _ => self.mk_parse_error(e.to_string(), token, ParseErrorKind::InvalidFormat),
                 },
             )?)),
-            FloatLiteral => Ok(LiteralValue::Float(
-                token
-                    .value
-                    .parse::<f64>()
-                    .map_err(|e| self.mk_parse_error(e.to_string(), self.cursor.peek(), InvalidFormat))?,
-            )),
-            _ => self.expected("Expected a literal.", Unexpected),
+            FloatLiteral => {
+                Ok(LiteralValue::Float(token.value.parse::<f64>().map_err(
+                    |e| self.mk_parse_error(e.to_string(), token, ParseErrorKind::InvalidFormat),
+                )?))
+            }
+            _ => self.expected("Expected a literal.", ParseErrorKind::Unexpected),
         }
     }
 }
@@ -270,6 +269,7 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use context::source::Source;
     use pretty_assertions::assert_eq;
+    use crate::err::ParseErrorKind::InvalidFormat;
 
     #[test]
     fn int_overflow() {
@@ -321,7 +321,7 @@ mod tests {
             Err(ParseError {
                 message: "Unterminated string literal.".to_string(),
                 position: content.len()..content.len(),
-                kind: ParseErrorKind::Unpaired(0..1),
+                kind: ParseErrorKind::Unpaired(0..9),
             })
         );
     }

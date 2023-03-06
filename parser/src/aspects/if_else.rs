@@ -24,7 +24,7 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
             "expected 'if' at start of if expression",
         )?;
         let condition = self.expression_statement()?;
-        
+
         //skip only one semicolon if any, surrounded by newlines and spaces
         self.cursor
             .advance(aerated(of_type(SemiColon)).or(blanks()));
@@ -226,7 +226,7 @@ mod tests {
         assert_eq!(
             ast,
             Err(ParseError {
-                message: "Unexpected keyword.".to_string(),
+                message: "Unexpected keyword 'else'".to_string(),
                 position: content.find("else").map(|p| p..p + "else".len()).unwrap(),
                 kind: ParseErrorKind::Unexpected,
             })

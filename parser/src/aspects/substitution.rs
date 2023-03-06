@@ -3,10 +3,11 @@ use crate::aspects::var_reference::VarReferenceAspect;
 use crate::ast::substitution::{Substitution, SubstitutionKind};
 use crate::ast::value::{Literal, LiteralValue};
 use crate::ast::Expr;
-use crate::moves::{eox, not, of_type, space, MoveOperations};
+use crate::moves::{eox, not, of_type, space, MoveOperations, repeat_n};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
-use lexer::token::TokenType::RoundedLeftBracket;
+use lexer::token::TokenType::{RoundedLeftBracket, RoundedRightBracket};
+use crate::err::ParseErrorKind;
 
 /// A parser for substitution expressions.
 pub(crate) trait SubstitutionAspect<'a> {
@@ -16,13 +17,26 @@ pub(crate) trait SubstitutionAspect<'a> {
 
 impl<'a> SubstitutionAspect<'a> for Parser<'a> {
     fn substitution(&mut self) -> ParseResult<Expr<'a>> {
-        let dollar_value = self
+        let dollar = self
             .cursor
-            .force(of_type(TokenType::Dollar), "Expected '$' sign.")?
-            .value;
+            .force(of_type(TokenType::Dollar), "Expected '$' sign.")?;
+        let dollar_value = dollar.value;
 
         //if $ is directly followed by a '(' then it's the start of a Capture substitution.
         if self.cursor.lookahead(of_type(RoundedLeftBracket)).is_some() {
+            if let Some(start) = self
+                .cursor
+                .lookahead(repeat_n(2, of_type(RoundedLeftBracket)))
+            {
+                self.cursor.advance(of_type(RoundedLeftBracket));
+                let parenthesis = self.parenthesis()?;
+                self.cursor.force_with(
+                    of_type(RoundedRightBracket),
+                    "Expected a second closing parenthesis.",
+                    ParseErrorKind::Unpaired(self.cursor.relative_pos_ctx(dollar..start)),
+                )?;
+                return Ok(Expr::Parenthesis(parenthesis));
+            }
             return Ok(Expr::Substitution(Substitution {
                 // Read the expression inside the parentheses as a new statement
                 underlying: self.subshell()?,
@@ -77,7 +91,7 @@ mod tests {
 
     #[test]
     fn unpaired_parenthesis() {
-        let content = "$(a @(b) $(c d\\))";
+        let content = "$(a $(b) $(c d\\))";
         let source = Source::unknown(content);
         let ast: ParseResult<_> = parse(source).into();
         assert_eq!(

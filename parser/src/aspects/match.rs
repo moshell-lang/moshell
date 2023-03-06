@@ -132,10 +132,13 @@ impl<'a> Parser<'a> {
             return if patterns.len() == 1 {
                 Ok(vec![first])
             } else {
+                let start = self.cursor.relative_pos(start).start;
+                let end = self.cursor.relative_pos(self.cursor.peek()).end;
+                let selection = start..end;
                 Err(self.mk_parse_error(
                     "wildcard pattern cannot be followed by other patterns",
-                    patterns.last().map(|l| self.cursor.relative_pos(start).start..7).unwrap(),
-                    ParseErrorKind::Unexpected
+                    &self.source.source[selection],
+                    ParseErrorKind::Unexpected,
                 ))
             };
         }
@@ -479,7 +482,7 @@ mod tests {
             vec![
                 ParseError {
                     message: "unexpected wildcard".to_string(),
-                    position: src.find('*').map(|i| i..i + 1).unwrap(),
+                    position: src.find('*').map(|i| i+1..i+2).unwrap(),
                     kind: Unexpected,
                 }
             ]
@@ -499,7 +502,7 @@ mod tests {
             vec![ParseError {
                 message: "wildcard pattern cannot be followed by other patterns".to_string(),
                 kind: Unexpected,
-                position: src.find("|").map(|i| i..i + 1).unwrap(),
+                position: src.find("* | x | y ").map(|i| i..i + "* | x | y ".len()).unwrap(),
             }]
         )
     }
@@ -517,7 +520,7 @@ mod tests {
             vec![ParseError {
                 message: "unexpected token, expected '|', 'if' or '=>', found 'y'".to_string(),
                 kind: Unexpected,
-                position: src.find('y').map(|i| i..i + 1).unwrap(),
+                position: src.find('y').map(|i| i-1..i).unwrap(),
             }]
         )
     }
@@ -535,7 +538,7 @@ mod tests {
             vec![
                 ParseError {
                     message: "Unexpected token '=>'.".to_string(),
-                    position: src.find("=>").map(|i| i..i + 1).unwrap(),
+                    position: src.find("=>").map(|i| i..i + 2).unwrap(),
                     kind: Unexpected,
                 }
             ]
@@ -555,7 +558,7 @@ mod tests {
             vec![ParseError {
                 message: "unexpected token, expected '|', 'if' or '=>', found '('".to_string(),
                 kind: Unexpected,
-                position: src.find('(').map(|i| i..i + 1).unwrap(),
+                position: src.find('(').map(|i| i-1..i).unwrap(),
             }]
         )
     }
