@@ -1,12 +1,14 @@
+use dbg_pls::DebugPls;
+
 /// A literal value that can be used directly.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Literal<'a> {
     pub lexeme: &'a str,
     pub parsed: LiteralValue,
 }
 
 /// A literal value that can be used directly.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, DebugPls)]
 pub enum LiteralValue {
     String(String),
     Int(i64),
@@ -33,5 +35,3 @@ impl<'a> From<&'a str> for Literal<'a> {
         }
     }
 }
-
-

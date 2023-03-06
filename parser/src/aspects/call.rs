@@ -47,31 +47,34 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
+    use context::source::Source;
     use pretty_assertions::assert_eq;
-
-    use lexer::lexer::lex;
 
     use crate::ast::callable::Call;
     use crate::ast::literal::Literal;
     use crate::ast::Expr;
+    use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
-    use crate::parser::{ParseError, Parser};
+    use crate::parser::Parser;
 
     #[test]
     fn wrong_group_end() {
-        let tokens = lex("ls )");
+        let content = "ls )";
+        let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(tokens).parse_next(),
+            Parser::new(source).parse_next(),
             Err(ParseError {
-                message: "expected end of expression or file, found ')'".to_string()
+                message: "expected end of expression or file".to_string(),
+                position: content.len()..content.len(),
+                kind: ParseErrorKind::Unexpected,
             })
         );
     }
 
     #[test]
     fn multiple_calls() {
-        let tokens = lex("grep -E regex; echo test");
-        let parsed = parse(tokens).expect("Failed to parse");
+        let source = Source::unknown("grep -E regex; echo test");
+        let parsed = parse(source).expect("Failed to parse");
         assert_eq!(
             parsed,
             vec![
@@ -91,8 +94,8 @@ mod tests {
 
     #[test]
     fn multiline_call() {
-        let tokens = lex("g++ -std=c++20 \\\n-Wall \\\n-Wextra\\\n-Wpedantic");
-        let parsed = parse(tokens).expect("Failed to parse");
+        let source = Source::unknown("g++ -std=c++20 \\\n-Wall \\\n-Wextra\\\n-Wpedantic");
+        let parsed = parse(source).expect("Failed to parse");
         assert_eq!(
             parsed,
             vec![Expr::Call(Call {
@@ -109,8 +112,8 @@ mod tests {
 
     #[test]
     fn escaped_call() {
-        let tokens = lex("grep -E regex \\; echo test");
-        let parsed = parse(tokens).expect("Failed to parse");
+        let source = Source::unknown("grep -E regex \\; echo test");
+        let parsed = parse(source).expect("Failed to parse");
         assert_eq!(
             parsed,
             vec![Expr::Call(Call {

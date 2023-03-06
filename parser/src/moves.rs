@@ -91,18 +91,20 @@ where
 /// Will move once only if the given predicate is satisfied.
 /// * `predicate` - the predicate to satisfy
 pub(crate) fn predicate<P>(predicate: P) -> PredicateMove<P>
-    where
-        P: Fn(Token) -> bool + Copy,
+where
+    P: Fn(Token) -> bool + Copy,
 {
     PredicateMove { predicate }
 }
 
 /// a predicate move on the type of the token rather than it's integrity
 pub(crate) fn like<P>(predicate: P) -> PredicateMove<impl Fn(Token) -> bool + Copy>
-    where
-        P: Fn(TokenType) -> bool + Copy
+where
+    P: Fn(TokenType) -> bool + Copy,
 {
-    PredicateMove { predicate: move |t| predicate(t.token_type) }
+    PredicateMove {
+        predicate: move |t| predicate(t.token_type),
+    }
 }
 
 ///Move to next token if its type is in the given set
@@ -147,19 +149,19 @@ pub(crate) fn space() -> PredicateMove<impl for<'a> Fn(Token<'a>) -> bool + Copy
 }
 
 ///repeats until it finds a token that's not a space
-pub(crate) fn spaces() -> RepeatedMove<PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>> {
+pub(crate) fn spaces() -> RepeatedMove<PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>> {
     repeat_n(1, space())
 }
 
 ///A move to consume all spaces and escaped newlines
 pub(crate) fn word_sep() -> RepeatedMove<
     OrMove<
-        PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
+        PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
         AndThenMove<
-            PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
-            PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>
-        >
-    >
+            PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
+            PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
+        >,
+    >,
 > {
     repeat_n(1, space().or(of_type(BackSlash).and_then(of_type(NewLine))))
 }
@@ -174,10 +176,12 @@ pub(crate) struct NotMove<M: Move + Copy> {
 
 impl<M: Move + Copy> Move for NotMove<M> {
     fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-        where F: Fn(usize) -> Token<'a> {
+    where
+        F: Fn(usize) -> Token<'a>,
+    {
         match self.underlying.apply(at, pos) {
             Some(_) => None,
-            None => Some(pos)
+            None => Some(pos),
         }
     }
 }
@@ -186,9 +190,7 @@ impl<M: Move + Copy> Move for NotMove<M> {
 /// If underlying succeeds: fail
 /// if underlying fails: succeed at given pos.
 pub(crate) fn not<M: Move + Copy>(m: M) -> NotMove<M> {
-    NotMove {
-        underlying: m
-    }
+    NotMove { underlying: m }
 }
 
 /// A RepeatedMove is a special kind of move that will repeat as long as the underlying move succeeds
@@ -293,8 +295,8 @@ pub(crate) struct ThenMove<A: Move + Copy, B: Move + Copy> {
 
 impl<A: Move + Copy, B: Move + Copy> Move for ThenMove<A, B> {
     fn apply<'a, F>(&self, at: F, mut pos: usize) -> Option<usize>
-        where
-            F: Fn(usize) -> Token<'a>,
+    where
+        F: Fn(usize) -> Token<'a>,
     {
         if let Some(new_pos) = self.left.apply(&at, pos) {
             pos = new_pos

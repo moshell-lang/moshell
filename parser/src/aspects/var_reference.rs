@@ -1,10 +1,11 @@
+use context::source::try_join_str;
 use lexer::token::TokenType::*;
 
-use crate::ast::Expr;
 use crate::ast::variable::VarReference;
-use crate::moves::{like, MoveOperations, of_type, repeat};
+use crate::ast::Expr;
+use crate::err::ParseErrorKind;
+use crate::moves::{like, of_type, repeat, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use crate::source::try_join_str;
 
 pub trait VarReferenceAspect<'a> {
     /// Parses a variable reference.
@@ -14,30 +15,34 @@ pub trait VarReferenceAspect<'a> {
 impl<'a> VarReferenceAspect<'a> for Parser<'a> {
     /// Parses a variable reference.
     fn var_reference(&mut self) -> ParseResult<Expr<'a>> {
-        let has_bracket = self
+        let start_bracket = self.cursor.advance(of_type(CurlyLeftBracket));
+
+        let tokens = self
             .cursor
-            .advance(of_type(CurlyLeftBracket))
-            .is_some();
-
-        let tokens = self.cursor.select(
-            of_type(Dollar) //only allow one occurrence of $
-                .or(repeat(like(|t| t != Dollar && t.is_valid_var_ref_name())))
-        ).leak();
-
+            .select(
+                of_type(Dollar) //only allow one occurrence of $
+                    .or(repeat(like(|t| t != Dollar && t.is_valid_var_ref_name()))),
+            )
+            .leak();
 
         if tokens.len() == 0 {
-            return self.expected("variable reference with empty name")
+            return self.expected(
+                "variable reference with empty name",
+                ParseErrorKind::Unexpected,
+            );
         }
 
         let first = tokens[0].value;
-        let name = tokens.into_iter()
+        let name = tokens
+            .into_iter()
             .skip(1)
             .fold(first, |acc, t| try_join_str(acc, t.value).unwrap());
 
-        if has_bracket {
-            self.cursor.force(
+        if let Some(bracket) = start_bracket {
+            self.cursor.force_with(
                 of_type(CurlyRightBracket),
                 "Expected closing curly bracket.",
+                ParseErrorKind::Unpaired(self.cursor.relative_pos(&bracket)),
             )?;
         }
         Ok(Expr::VarReference(VarReference { name }))
@@ -46,116 +51,85 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use lexer::lexer::lex;
-
+    use crate::aspects::substitution::SubstitutionAspect;
     use crate::ast::variable::VarReference;
     use crate::ast::Expr;
-    use pretty_assertions::assert_eq;
+    use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
-    use crate::parser::ParseError;
+    use crate::parser::{ParseResult, Parser};
+    use context::source::Source;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn simple_ref() {
-        let tokens = lex("$VARIABLE");
-        let ast = parse(tokens).expect("failed to parse");
-        assert_eq!(
-            ast,
-            vec![
-                Expr::VarReference(VarReference {
-                    name: "VARIABLE"
-                })
-            ]
-        )
+        let source = Source::unknown("$VARIABLE");
+        let ast = Parser::new(source).substitution().expect("failed to parse");
+        assert_eq!(ast, Expr::VarReference(VarReference { name: "VARIABLE" }));
     }
 
     #[test]
     fn dollar_is_literal() {
-        let tokens = lex("$");
-        let ast = parse(tokens).expect("failed to parse");
-        assert_eq!(
-            ast,
-            vec![
-                Expr::Literal("$".into())
-            ]
-        )
+        let source = Source::unknown("$");
+        let ast = parse(source).expect("failed to parse");
+        assert_eq!(ast, vec![Expr::Literal("$".into())])
     }
 
     #[test]
     fn special_refs() {
-        let tokens = lex("$@;$^;$!;$!!;$$");
-        let ast = parse(tokens).expect("failed to parse");
+        let source = Source::unknown("$@;$^;$!;$!!;$$");
+        let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,
             vec![
-                Expr::VarReference(VarReference {
-                    name: "@"
-                }),
-                Expr::VarReference(VarReference {
-                    name: "^"
-                }),
-                Expr::VarReference(VarReference {
-                    name: "!"
-                }),
-                Expr::VarReference(VarReference {
-                    name: "!!"
-                }),
-                Expr::VarReference(VarReference {
-                    name: "$"
-                }),
+                Expr::VarReference(VarReference { name: "@" }),
+                Expr::VarReference(VarReference { name: "^" }),
+                Expr::VarReference(VarReference { name: "!" }),
+                Expr::VarReference(VarReference { name: "!!" }),
+                Expr::VarReference(VarReference { name: "$" }),
             ]
         )
     }
 
     #[test]
     fn wrapped_ref() {
-        let tokens = lex("${VAR}IABLE");
-        let ast = parse(tokens).expect("failed to parse");
+        let source = Source::unknown("${VAR}IABLE");
+        let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,
-            vec![
-                Expr::TemplateString(vec![
-                    Expr::VarReference(VarReference {
-                        name: "VAR"
-                    }),
-                    Expr::Literal("IABLE".into())
-                ])
-            ]
+            vec![Expr::TemplateString(vec![
+                Expr::VarReference(VarReference { name: "VAR" }),
+                Expr::Literal("IABLE".into())
+            ])]
         )
     }
 
     #[test]
     fn test_ref_in_ref() {
-        let tokens = lex("${V${A}R}");
-        let ast = parse(tokens);
+        let content = "${V${A}R}";
+        let source = Source::unknown(content);
+        let result: ParseResult<_> = parse(source).into();
         assert_eq!(
-            ast,
+            result,
             Err(ParseError {
-                message: "Expected closing curly bracket.".to_string()
+                message: "Expected closing curly bracket.".to_string(),
+                position: 4..5,
+                kind: ParseErrorKind::Unpaired(content.find('{').map(|p| p..p + 1).unwrap()),
             })
         )
     }
 
     #[test]
     fn test_multiple_wrapped_ref() {
-        let tokens = lex("${VAR}IABLE${LONG}${VERY_LONG}");
-        let ast = parse(tokens).expect("failed to parse");
+        let source = Source::unknown("${VAR}IABLE${LONG}${VERY_LONG}");
+        let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,
-            vec![
-                Expr::TemplateString(vec![
-                    Expr::VarReference(VarReference {
-                        name: "VAR"
-                    }),
-                    Expr::Literal("IABLE".into()),
-                    Expr::VarReference(VarReference {
-                        name: "LONG"
-                    }),
-                    Expr::VarReference(VarReference {
-                        name: "VERY_LONG"
-                    }),
-                ])
-            ]
+            vec![Expr::TemplateString(vec![
+                Expr::VarReference(VarReference { name: "VAR" }),
+                Expr::Literal("IABLE".into()),
+                Expr::VarReference(VarReference { name: "LONG" }),
+                Expr::VarReference(VarReference { name: "VERY_LONG" }),
+            ])]
         )
     }
-
 }
