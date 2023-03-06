@@ -132,6 +132,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
     }
 
     fn is_at_redirection_sign(&self) -> bool {
+
         //handle escaped redirection signs (can be \\ for one-character signs or quoted signs)
         if self
             .cursor
@@ -141,8 +142,8 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
             return false;
         }
 
-        let pivot = self.cursor.peek().token_type;
-        match pivot {
+        let pivot = self.cursor.peek(); //repeat() always succeeds
+        match pivot.token_type {
             TokenType::Ampersand | TokenType::Less | TokenType::Greater | TokenType::Bar => true,
             //search for '>' or '<' in case of std-determined redirection sign (ex: 2>>)
             _ => self

@@ -5,7 +5,7 @@ use lexer::token::TokenType::*;
 
 use crate::ast::value::{Literal, LiteralValue, TemplateString};
 use crate::ast::*;
-use crate::moves::{next, of_type, word_sep};
+use crate::moves::{next, of_type, repeat_n, word_sep};
 use crate::parser::{ParseResult, Parser};
 use crate::source::try_join_str;
 
@@ -191,7 +191,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 Space | NewLine => break,
 
                 BackSlash => {
-                    if self.cursor.advance(word_sep()).is_some() {
+                    if self.cursor.advance(repeat_n(1, word_sep())).is_some() {
                         break;
                     }
 

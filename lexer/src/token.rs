@@ -179,6 +179,25 @@ impl TokenType {
     }
 
     ///is this lexeme a punctuation
+    pub fn is_call_bound(self) -> bool {
+        matches!(
+            self,
+            TokenType::Ampersand
+                | TokenType::And
+                | TokenType::Or
+                | TokenType::SquaredLeftBracket
+                | TokenType::SquaredRightBracket
+                | TokenType::RoundedLeftBracket
+                | TokenType::RoundedRightBracket
+                | TokenType::CurlyLeftBracket
+                | TokenType::CurlyRightBracket
+                | TokenType::SemiColon
+                | TokenType::Error
+                | TokenType::EndOfFile
+        )
+    }
+
+    ///is this lexeme a punctuation
     pub fn is_ponctuation(self) -> bool {
         matches!(
             self,

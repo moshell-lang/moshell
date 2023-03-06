@@ -26,8 +26,8 @@ impl<'a> UseAspect<'a> for Parser<'a> {
         //then parse others if any
         let mut tail: Vec<_> = self.cursor.select(
             repeat(
-                word_sep().then(of_type(Comma))
-                    .then(word_sep().then(of_type(Identifier)))
+                repeat(word_sep()).then(of_type(Comma))
+                    .then(repeat(word_sep()).then(of_type(Identifier)))
             )
         ).into_iter()
             .filter(|t| t.token_type == Identifier)
