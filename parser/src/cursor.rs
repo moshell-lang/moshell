@@ -132,6 +132,9 @@ impl<'a> ParserCursor<'a> {
         self.pos >= self.tokens.len()
     }
 
+    /// Create a new parse error with the given message and context.
+    ///
+    /// The [`excepted`](Parser::expected_with) method wraps the error in a [`Err`].
     pub fn mk_parse_error(
         &self,
         message: impl Into<String>,
@@ -145,19 +148,28 @@ impl<'a> ParserCursor<'a> {
         }
     }
 
-    pub fn relative_pos(&self, token: &Token) -> Location {
-        self.relative_pos_str(token.value)
-    }
-
-    pub fn relative_pos_str(&self, str: &str) -> Location {
-        let start = str.as_ptr() as usize - self.source.as_ptr() as usize;
+    /// Get the relative byte offset of the given string in the source code.
+    ///
+    /// # Panics
+    /// This method panics if the given string is not contained in the source code.
+    pub fn relative_pos<'s>(&self, str: impl Into<&'s str>) -> Location {
+        let str = str.into();
+        let start = (str.as_ptr() as usize)
+            .checked_sub(self.source.as_ptr() as usize)
+            .expect("String is not contained in the source code.");
         let end = start + str.len();
         start..end
     }
 
+    /// Get the relative byte offset of the given context in the source code.
+    ///
+    /// # Panics
+    /// This method panics if the given context is not contained in the source code.
     pub fn relative_pos_ctx(&self, context: impl Into<ErrorContext<'a>>) -> Location {
         let context = context.into();
-        let start = context.from.as_ptr() as usize - self.source.as_ptr() as usize;
+        let start = (context.from.as_ptr() as usize)
+            .checked_sub(self.source.as_ptr() as usize)
+            .expect("Context start is not contained in the source code.");
         let end = context.to.as_ptr() as usize + context.to.len() as usize
             - self.source.as_ptr() as usize;
         start..end

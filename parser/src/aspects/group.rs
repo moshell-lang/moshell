@@ -121,7 +121,7 @@ impl<'a> Parser<'a> {
                 if let Some(last) = self.delimiter_stack.back() {
                     self.expected(
                         "Mismatched closing delimiter.",
-                        ParseErrorKind::Unpaired(self.cursor.relative_pos(&last)),
+                        ParseErrorKind::Unpaired(self.cursor.relative_pos(last)),
                     )?;
                 } else {
                     self.expected(

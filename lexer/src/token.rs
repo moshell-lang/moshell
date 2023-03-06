@@ -15,6 +15,18 @@ impl<'a> Token<'a> {
     }
 }
 
+impl<'a> From<Token<'a>> for &'a str {
+    fn from(token: Token<'a>) -> Self {
+        token.value
+    }
+}
+
+impl<'a> From<&Token<'a>> for &'a str {
+    fn from(token: &Token<'a>) -> Self {
+        token.value
+    }
+}
+
 #[derive(Assoc, Logos, Debug, PartialEq, Clone, Copy, DebugPls)]
 #[func(pub fn str(&self) -> Option<&'static str>)]
 pub enum TokenType {

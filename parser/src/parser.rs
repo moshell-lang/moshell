@@ -195,10 +195,17 @@ impl<'a> Parser<'a> {
         statement
     }
 
+    /// Raise an error on the current token.
+    ///
+    /// Use [Parser::expected_with] if the error is not on the current token.
     pub(crate) fn expected<T>(&self, message: &str, kind: ParseErrorKind) -> ParseResult<T> {
         Err(self.mk_parse_error(message, self.cursor.peek(), kind))
     }
 
+    /// Raise an error with a specific context.
+    ///
+    /// The context is used to better display where the error is.
+    /// A context can be a single token or a range of tokens.
     pub(crate) fn expected_with<T>(
         &self,
         message: &str,
@@ -241,7 +248,7 @@ impl<'a> Parser<'a> {
 
         if let Expr::Literal(literal) = &expr {
             if self.cursor.lookahead(bin_op()).is_some() {
-                let start_pos = self.cursor.relative_pos_str(literal.lexeme).start;
+                let start_pos = self.cursor.relative_pos(literal.lexeme).start;
                 if self
                     .binary_operation_right(expr, Parser::next_value)
                     .is_ok()
