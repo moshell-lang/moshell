@@ -2,11 +2,11 @@ use crate::aspects::call::CallAspect;
 use crate::ast::test::{Not, Test};
 use crate::ast::Expr;
 use crate::ast::Expr::Literal;
-use crate::err::ParseErrorKind;
 use crate::moves::{of_type, spaces, times, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use lexer::token::TokenType::{SquaredLeftBracket, SquaredRightBracket};
 use lexer::token::{Token, TokenType};
+use lexer::token::TokenType::{SquaredLeftBracket, SquaredRightBracket};
+use crate::err::ParseErrorKind;
 
 pub(crate) trait TestAspect<'a> {
     ///parse a not (! ..) expression.
@@ -26,12 +26,13 @@ impl<'a> TestAspect<'a> for Parser<'a> {
         self.cursor.force(of_type(TokenType::Not), "expected '!'")?;
 
         Ok(Expr::Not(Not {
-            right: Box::new(parse_next(self)?),
+            underlying: Box::new(parse_next(self)?),
         }))
     }
 
     fn parse_test(&mut self) -> ParseResult<Expr<'a>> {
         //expect the first '[' lexeme
+
         let start = self.cursor.force(
             of_type(SquaredLeftBracket),
             "expected '[' at start of test expression.",
@@ -41,6 +42,7 @@ impl<'a> TestAspect<'a> for Parser<'a> {
         if self.cursor.advance(of_type(SquaredLeftBracket)).is_some() {
             return self.parse_test_call(start);
         }
+
 
         if let Some(end) = self.cursor.lookahead(of_type(SquaredRightBracket)) {
             self.expected_with(
@@ -66,6 +68,7 @@ impl<'a> TestAspect<'a> for Parser<'a> {
 impl<'a> Parser<'a> {
     fn parse_test_call(&mut self, start: Token) -> ParseResult<Expr<'a>> {
         let call = self.call_arguments(Literal("test".into()));
+
         self.cursor.force_with(
             //expect trailing ']]'
             spaces().then(times(2, of_type(SquaredRightBracket))),
@@ -80,16 +83,16 @@ impl<'a> Parser<'a> {
 mod tests {
     use crate::ast::callable::Call;
     use crate::ast::group::{Parenthesis, Subshell};
-    use crate::ast::literal::{Literal, LiteralValue};
     use crate::ast::operation::{BinaryOperation, BinaryOperator};
     use crate::ast::test::{Not, Test};
+    use crate::ast::value::{Literal, LiteralValue};
     use crate::ast::variable::VarReference;
     use crate::ast::Expr;
-    use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
     use context::source::Source;
     use pretty_assertions::assert_eq;
+    use crate::err::{ParseError, ParseErrorKind};
 
     #[test]
     fn native_empty() {
@@ -114,7 +117,7 @@ mod tests {
         assert_eq!(
             result,
             Err(ParseError {
-                message: "Unexpected closing bracket.".to_string(),
+                message: "Unexpected token ']'.".to_string(),
                 position: content.len() - 1..content.len(),
                 kind: ParseErrorKind::Unexpected,
             })
@@ -241,14 +244,14 @@ mod tests {
         assert_eq!(
             result,
             vec![Expr::Not(Not {
-                right: Box::new(Expr::Call(Call {
+                underlying: Box::new(Expr::Call(Call {
                     arguments: vec![
                         Expr::Literal("grep".into()),
                         Expr::Literal("-E".into()),
                         Expr::Literal(Literal {
                             lexeme: "'^[0-9]+$'",
-                            parsed: LiteralValue::String("^[0-9]+$".to_string())
-                        })
+                            parsed: LiteralValue::String("^[0-9]+$".to_string()),
+                        }),
                     ]
                 }))
             })]
@@ -263,7 +266,7 @@ mod tests {
             result,
             vec![Expr::Binary(BinaryOperation {
                 left: Box::new(Expr::Not(Not {
-                    right: Box::new(Expr::Subshell(Subshell {
+                    underlying: Box::new(Expr::Subshell(Subshell {
                         expressions: vec![Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::VarReference(VarReference { name: "a" })),
                             op: BinaryOperator::And,
@@ -274,7 +277,7 @@ mod tests {
                 op: BinaryOperator::Or,
                 right: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Not(Not {
-                        right: Box::new(Expr::VarReference(VarReference { name: "2" }))
+                        underlying: Box::new(Expr::VarReference(VarReference { name: "2" }))
                     })),
                     op: BinaryOperator::EqualEqual,
                     right: Box::new(Expr::Literal(Literal {

@@ -1,3 +1,4 @@
+use crate::ast::Expr;
 use dbg_pls::DebugPls;
 
 /// A literal value that can be used directly.
@@ -13,6 +14,12 @@ pub enum LiteralValue {
     String(String),
     Int(i64),
     Float(f64),
+}
+
+/// A group of expressions that can be interpolated into a string.
+#[derive(Debug, Clone, PartialEq, DebugPls)]
+pub struct TemplateString<'a> {
+    pub parts: Vec<Expr<'a>>,
 }
 
 impl From<&str> for LiteralValue {

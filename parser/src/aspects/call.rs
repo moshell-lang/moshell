@@ -1,9 +1,10 @@
+use lexer::token::TokenType;
+
 use crate::aspects::redirection::RedirectionAspect;
 use crate::ast::callable::Call;
 use crate::ast::Expr;
-use crate::moves::{eox, of_types, predicate, space, spaces, MoveOperations};
+use crate::moves::{eox, like, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use lexer::token::TokenType::{And, Or};
 
 /// A parse aspect for command and function calls
 pub trait CallAspect<'a> {
@@ -22,24 +23,20 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
     fn call_arguments(&mut self, command: Expr<'a>) -> ParseResult<Expr<'a>> {
         let mut arguments = vec![command];
-        // Continue reading arguments until we reach the end of the input or a closing ponctuation
+
+        self.cursor.advance(word_seps());//consume word separations
+        // Continue reading arguments until we reach the end of the input or a closing punctuation
         while !self.cursor.is_at_end()
             && self
                 .cursor
-                .lookahead(
-                    spaces().then(
-                        eox()
-                            .or(predicate(|t| t.token_type.is_closing_ponctuation()))
-                            .or(of_types(&[And, Or])),
-                    ),
-                )
+                .lookahead(word_seps().then(eox().or(like(TokenType::is_call_bound))))
                 .is_none()
         {
-            self.cursor.advance(space());
             if self.is_at_redirection_sign() {
                 return self.redirectable(Expr::Call(Call { arguments }));
             }
             arguments.push(self.next_value()?);
+            self.cursor.advance(word_seps()); //consume word separations
         }
         Ok(Expr::Call(Call { arguments }))
     }
@@ -51,7 +48,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use crate::ast::callable::Call;
-    use crate::ast::literal::Literal;
+    use crate::ast::value::Literal;
     use crate::ast::Expr;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;

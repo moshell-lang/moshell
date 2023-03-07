@@ -1,13 +1,13 @@
 use crate::aspects::group::GroupAspect;
 use crate::aspects::var_reference::VarReferenceAspect;
-use crate::ast::literal::{Literal, LiteralValue};
 use crate::ast::substitution::{Substitution, SubstitutionKind};
+use crate::ast::value::{Literal, LiteralValue};
 use crate::ast::Expr;
-use crate::err::ParseErrorKind;
-use crate::moves::{eox, not, of_type, repeat_n, space, MoveOperations};
+use crate::moves::{eox, not, of_type, space, MoveOperations, repeat_n};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{RoundedLeftBracket, RoundedRightBracket};
+use crate::err::ParseErrorKind;
 
 /// A parser for substitution expressions.
 pub(crate) trait SubstitutionAspect<'a> {
@@ -65,7 +65,6 @@ mod tests {
     use crate::ast::Expr;
 
     use crate::ast::group::{Block, Parenthesis, Subshell};
-    use crate::ast::literal::Literal;
     use crate::ast::operation::{BinaryOperation, BinaryOperator};
     use crate::ast::variable::VarReference;
     use crate::err::{ParseError, ParseErrorKind};
@@ -73,6 +72,7 @@ mod tests {
     use crate::parser::{ParseResult, Parser};
     use context::source::Source;
     use pretty_assertions::assert_eq;
+    use crate::ast::value::Literal;
 
     #[test]
     fn unterminated_substitution() {
@@ -91,7 +91,7 @@ mod tests {
 
     #[test]
     fn unpaired_parenthesis() {
-        let content = "$(a @(b) $(c d\\))";
+        let content = "$(a $(b) $(c d\\))";
         let source = Source::unknown(content);
         let ast: ParseResult<_> = parse(source).into();
         assert_eq!(

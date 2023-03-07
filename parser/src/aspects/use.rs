@@ -1,7 +1,7 @@
 use crate::ast::r#use::Use;
 use crate::ast::Expr;
 use crate::err::ParseErrorKind;
-use crate::moves::{eox, of_type, repeat, spaces, word_sep, MoveOperations};
+use crate::moves::{eox, of_type, repeat, spaces, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{Comma, Identifier};
@@ -31,9 +31,10 @@ impl<'a> UseAspect<'a> for Parser<'a> {
         let mut tail: Vec<_> = self
             .cursor
             .select(repeat(
-                word_sep()
+                word_seps()
                     .then(of_type(Comma))
-                    .then(word_sep().then(of_type(Identifier))),
+                    .then(word_seps().then(of_type(Identifier))),
+
             ))
             .into_iter()
             .filter(|t| t.token_type == Identifier)
@@ -57,11 +58,11 @@ impl<'a> UseAspect<'a> for Parser<'a> {
 mod tests {
     use crate::ast::r#use::Use;
     use crate::ast::Expr;
-    use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
     use context::source::Source;
     use pretty_assertions::assert_eq;
+    use crate::err::{ParseError, ParseErrorKind};
 
     #[test]
     fn test_use() {

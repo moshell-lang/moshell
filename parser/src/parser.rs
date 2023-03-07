@@ -1,6 +1,6 @@
+use lexer::token::TokenType::*;
 use context::source::Source;
 use lexer::lexer::lex;
-use lexer::token::TokenType::*;
 use lexer::token::{Token, TokenType};
 use std::collections::VecDeque;
 
@@ -9,6 +9,7 @@ use crate::aspects::call::CallAspect;
 use crate::aspects::group::GroupAspect;
 use crate::aspects::if_else::IfElseAspect;
 use crate::aspects::literal::LiteralAspect;
+use crate::aspects::r#match::MatchAspect;
 use crate::aspects::r#use::UseAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::aspects::test::TestAspect;
@@ -16,8 +17,10 @@ use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
 use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
+use crate::err::ParseErrorKind::Unexpected;
 use crate::moves::{
-    bin_op, eod, eox, like, next, of_types, repeat, space, spaces, word_sep, MoveOperations,
+    bin_op, eod, eox, like, next, of_types,
+    repeat, space, spaces, word_seps, MoveOperations,
 };
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
@@ -29,6 +32,7 @@ pub(crate) struct Parser<'a> {
     pub(crate) delimiter_stack: VecDeque<Token<'a>>,
 }
 
+//all tokens that can't be an infix operator
 macro_rules! non_infix {
     () => {
         eox()
@@ -38,6 +42,8 @@ macro_rules! non_infix {
                 RoundedLeftBracket,
                 CurlyLeftBracket,
                 SquaredLeftBracket,
+                Bar,
+                FatArrow,
             ]))
     };
 }
@@ -126,7 +132,9 @@ impl<'a> Parser<'a> {
         let pivot = self.cursor.peek().token_type;
         match pivot {
             If => self.parse_if(Parser::statement),
+            Match => Ok(Expr::Match(self.parse_match(Parser::statement)?)),
             Identifier | Quote | DoubleQuote => self.call(),
+
             _ if pivot.is_bin_operator() => self.call(),
 
             _ => self.next_expression(),
@@ -153,35 +161,19 @@ impl<'a> Parser<'a> {
     pub(crate) fn next_value(&mut self) -> ParseResult<Expr<'a>> {
         self.repos("Expected value")?;
 
-        let token = self.cursor.peek();
-        let pivot = token.token_type;
+        let pivot = self.cursor.peek().token_type;
         match pivot {
             RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
             CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
-            //test expressions has nothing to do in a value expression.
-            SquaredLeftBracket => self.expected(
-                "Unexpected start of test expression",
-                ParseErrorKind::Unexpected,
-            ),
-
             Not => self.not(Parser::next_value),
 
-            IntLiteral | FloatLiteral => self.literal(),
-            Quote => self.string_literal(),
-            DoubleQuote => self.templated_string_literal(),
-
+            //expression that can also be used as values
             If => self.parse_if(Parser::value),
+            Match => Ok(Expr::Match(self.parse_match(Parser::value)?)),
 
-            _ if pivot.is_closing_ponctuation() => {
-                self.expected("Unexpected closing bracket.", ParseErrorKind::Unexpected)
-            }
-            _ if pivot.is_keyword() => {
-                self.expected("Unexpected keyword.", ParseErrorKind::Unexpected)
-            }
-            _ if pivot.is_ponctuation() => {
-                self.expected("Unexpected token.", ParseErrorKind::Unexpected)
-            }
-            _ => self.argument(),
+            //test expressions has nothing to do in a value expression.
+            SquaredLeftBracket => self.expected("Unexpected start of test expression", Unexpected),
+            _ => self.literal(),
         }
     }
 
@@ -246,6 +238,7 @@ impl<'a> Parser<'a> {
             return self.redirectable(expr);
         }
 
+
         if let Expr::Literal(literal) = &expr {
             if self.cursor.lookahead(bin_op()).is_some() {
                 let start_pos = self.cursor.relative_pos(literal.lexeme).start;
@@ -265,7 +258,7 @@ impl<'a> Parser<'a> {
         }
 
         //else, we hit an invalid binary expression.
-        self.expected("invalid expression operator", ParseErrorKind::Unexpected)
+        self.expected("invalid expression operator", Unexpected)
     }
 
     //parses any binary value expression, considering given input expression
@@ -287,15 +280,15 @@ impl<'a> Parser<'a> {
         }
 
         //else, we hit an invalid binary expression.
-        self.expected("invalid infix operator", ParseErrorKind::Unexpected)
+        self.expected("invalid infix operator", Unexpected)
     }
 
     //Skips spaces and verify that this parser is not parsing the end of an expression
     // (unescaped newline or semicolon)
     fn repos(&mut self, message: &str) -> ParseResult<()> {
-        self.cursor.advance(word_sep()); //skip word separators
+        self.cursor.advance(word_seps()); //skip word separators
         if self.cursor.lookahead(eox()).is_some() {
-            return self.expected(message, ParseErrorKind::Unexpected);
+            return self.expected(message, Unexpected);
         }
         Ok(())
     }
