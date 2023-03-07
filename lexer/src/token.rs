@@ -233,8 +233,8 @@ impl TokenType {
     ///is this lexeme a binary operator ?
     pub fn is_bin_operator(self) -> bool {
         match self {
-            And | Or | Plus | Minus | Star | Slash | Percent | EqualEqual | NotEqual | Less | LessEqual | Greater
-            | GreaterEqual => true,
+            And | Or | Plus | Minus | Star | Slash | Percent | EqualEqual | NotEqual | Less
+            | LessEqual | Greater | GreaterEqual => true,
             _ => false,
         }
     }

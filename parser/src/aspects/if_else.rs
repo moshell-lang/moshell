@@ -1,6 +1,6 @@
 use crate::ast::control_flow::If;
 use crate::ast::Expr;
-use crate::moves::{of_type, MoveOperations, aerated, blanks};
+use crate::moves::{aerated, blanks, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{Else, SemiColon};
@@ -66,8 +66,8 @@ mod tests {
     use crate::ast::value::{Literal, TemplateString};
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
     use crate::ast::Expr;
-    use crate::parse;
     use crate::err::{ParseError, ParseErrorKind};
+    use crate::parse;
     use crate::parser::ParseResult;
     use context::source::Source;
     use pretty_assertions::assert_eq;
@@ -207,7 +207,6 @@ mod tests {
                     fail_branch: Some(Box::new(Expr::TemplateString(TemplateString {
                         parts: vec![Expr::Literal("moshell".into())]
                     }))),
-
                 }))),
             }),]
         )

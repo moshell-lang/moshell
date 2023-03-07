@@ -2,12 +2,21 @@ use crate::ast::Expr;
 use dbg_pls::DebugPls;
 
 /// A call to a function or a command.
-#[derive(Debug, Clone, PartialEq, dbg_pls::DebugPls)]
+#[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Call<'a> {
     /// The arguments of the command.
     ///
     /// A valid command must have at least one argument that is the command name.
     pub arguments: Vec<Expr<'a>>,
+}
+
+/// A call to a function or a command.
+#[derive(Debug, Clone, PartialEq, DebugPls)]
+pub struct Detached<'a> {
+    /// The arguments of the command.
+    ///
+    /// A valid command must have at least one argument that is the command name.
+    pub underlying: Box<Expr<'a>>,
 }
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]

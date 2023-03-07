@@ -1,11 +1,12 @@
-use lexer::token::TokenType::*;
 use context::source::Source;
 use lexer::lexer::lex;
+use lexer::token::TokenType::*;
 use lexer::token::{Token, TokenType};
 use std::collections::VecDeque;
 
 use crate::aspects::binary_operation::BinaryOperationsAspect;
 use crate::aspects::call::CallAspect;
+use crate::aspects::detached::DetachedAspect;
 use crate::aspects::group::GroupAspect;
 use crate::aspects::if_else::IfElseAspect;
 use crate::aspects::literal::LiteralAspect;
@@ -17,11 +18,10 @@ use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
 use crate::err::ParseErrorKind::Unexpected;
+use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
 use crate::moves::{
-    bin_op, eod, eox, like, next, of_types,
-    repeat, space, spaces, word_seps, MoveOperations,
+    bin_op, eod, eox, like, next, of_types, repeat, space, spaces, word_seps, MoveOperations,
 };
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
@@ -90,27 +90,31 @@ impl<'a> Parser<'a> {
     /// Parses a statement or binary expression.
     /// a statement is usually on a single line
     pub(crate) fn statement(&mut self) -> ParseResult<Expr<'a>> {
-        let result = self.next_statement()?;
-        self.parse_binary_expr(result)
+        let expr = self.next_statement()?;
+        let expr = self.parse_binary_expr(expr)?;
+        self.parse_detached(expr)
     }
 
     /// Parses an expression-statement or binary expression.
     pub(crate) fn expression_statement(&mut self) -> ParseResult<Expr<'a>> {
         let expr = self.next_expression_statement()?;
-        self.parse_binary_expr(expr)
+        let expr = self.parse_binary_expr(expr)?;
+        self.parse_detached(expr)
     }
 
     /// Parses an expression or binary expression.
     pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
         let expr = self.next_expression()?;
-        self.parse_binary_expr(expr)
+        let expr = self.parse_binary_expr(expr)?;
+        self.parse_detached(expr)
     }
 
     /// Parses a value or binary expression
     pub(crate) fn value(&mut self) -> ParseResult<Expr<'a>> {
         let value = self.next_value()?;
         //values needs a different handling of right-handed binary expressions
-        self.parse_binary_value_expr(value)
+        let value = self.parse_binary_value_expr(value)?;
+        self.parse_detached(value)
     }
 
     ///Parse the next statement
@@ -137,7 +141,7 @@ impl<'a> Parser<'a> {
         match pivot {
             If => self.parse_if(Parser::statement),
             Match => self.parse_match(Parser::statement).map(Expr::Match),
-            
+
             Identifier | Quote | DoubleQuote => self.call(),
 
             _ if pivot.is_bin_operator() => self.call(),
@@ -242,7 +246,6 @@ impl<'a> Parser<'a> {
         if self.is_at_redirection_sign() {
             return self.redirectable(expr);
         }
-
 
         if let Expr::Literal(literal) = &expr {
             if self.cursor.lookahead(bin_op()).is_some() {

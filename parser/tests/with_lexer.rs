@@ -64,7 +64,6 @@ fn with_lexer_var_reference_two() {
                         Expr::VarReference(VarReference { name: "cmd" }),
                     ]
                 }),
-
                 Expr::Literal("do".into()),
                 Expr::VarReference(VarReference { name: "arg2" }),
             ],

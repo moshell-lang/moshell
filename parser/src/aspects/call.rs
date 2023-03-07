@@ -24,8 +24,8 @@ impl<'a> CallAspect<'a> for Parser<'a> {
     fn call_arguments(&mut self, command: Expr<'a>) -> ParseResult<Expr<'a>> {
         let mut arguments = vec![command];
 
-        self.cursor.advance(word_seps());//consume word separations
-        // Continue reading arguments until we reach the end of the input or a closing punctuation
+        self.cursor.advance(word_seps()); //consume word separations
+                                          // Continue reading arguments until we reach the end of the input or a closing punctuation
         while !self.cursor.is_at_end()
             && self
                 .cursor

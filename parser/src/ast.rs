@@ -1,4 +1,4 @@
-use crate::ast::callable::{Call, Pipeline, Redirected};
+use crate::ast::callable::{Call, Detached, Pipeline, Redirected};
 use crate::ast::control_flow::{If, Loop, While};
 use crate::ast::group::{Block, Parenthesis, Subshell};
 use crate::ast::operation::BinaryOperation;
@@ -33,6 +33,7 @@ pub enum Expr<'a> {
     Call(Call<'a>),
     Pipeline(Pipeline<'a>),
     Redirected(Redirected<'a>),
+    Detached(Detached<'a>),
 
     Substitution(Substitution<'a>),
     TemplateString(TemplateString<'a>),
