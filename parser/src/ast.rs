@@ -1,4 +1,4 @@
-use crate::ast::callable::{Call, FunDeclaration, Pipeline, Redirected};
+use crate::ast::callable::{Call, Pipeline, Redirected};
 use crate::ast::control_flow::If;
 use crate::ast::group::{Block, Parenthesis, Subshell};
 use crate::ast::operation::BinaryOperation;
@@ -26,7 +26,6 @@ pub mod variable;
 pub enum Expr<'a> {
     Assign(Assign<'a>),
     Binary(BinaryOperation<'a>),
-    FunDeclaration(FunDeclaration<'a>),
     Literal(Literal<'a>),
 
     Match(Match<'a>),
