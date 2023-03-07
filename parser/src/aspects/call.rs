@@ -3,7 +3,7 @@ use lexer::token::TokenType;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::ast::callable::Call;
 use crate::ast::Expr;
-use crate::moves::{eox, like, repeat, word_seps, MoveOperations};
+use crate::moves::{eox, like, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 /// A parse aspect for command and function calls
@@ -24,9 +24,9 @@ impl<'a> CallAspect<'a> for Parser<'a> {
     fn call_arguments(&mut self, command: Expr<'a>) -> ParseResult<Expr<'a>> {
         let mut arguments = vec![command];
 
+        self.cursor.advance(word_seps());//consume word separations
         // Continue reading arguments until we reach the end of the input or a closing punctuation
         while !self.cursor.is_at_end()
-            && self.cursor.advance(word_seps()).is_some()
             && self
                 .cursor
                 .lookahead(word_seps().then(eox().or(like(TokenType::is_call_bound))))
@@ -36,6 +36,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
                 return self.redirectable(Expr::Call(Call { arguments }));
             }
             arguments.push(self.next_value()?);
+            self.cursor.advance(word_seps()); //consume word separations
         }
         Ok(Expr::Call(Call { arguments }))
     }
