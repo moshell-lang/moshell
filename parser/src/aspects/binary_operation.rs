@@ -1,7 +1,7 @@
-use crate::ast::operation::{BinaryOperation, BinaryOperator};
 use crate::ast::Expr;
-use crate::moves::{bin_op, eox, spaces, MoveOperations};
-use crate::parser::{ParseResult, Parser};
+use crate::ast::operation::{BinaryOperation, BinaryOperator};
+use crate::moves::{bin_op, eox, MoveOperations, spaces, word_seps};
+use crate::parser::{Parser, ParseResult};
 
 /// a parser aspect to parse any kind of binary operations
 pub trait BinaryOperationsAspect<'p> {
@@ -65,7 +65,7 @@ impl<'p> Parser<'p> {
     //does current operator priority has priority over next binary operator ?
     fn has_priority(&self, current_priority: i8) -> bool {
         self.cursor
-            .lookahead(spaces().then(bin_op()))
+            .lookahead(word_seps().then(bin_op()))
             .map(|t| {
                 BinaryOperator::try_from(t.token_type)
                     .expect("conception error") //cannot fail
@@ -85,7 +85,7 @@ impl<'p> Parser<'p> {
         P: FnMut(&mut Self) -> ParseResult<Expr<'p>>,
     {
         //current expressions' infix operator
-        let operator = self.cursor.advance(spaces().then(bin_op())).map(|t| {
+        let operator = self.cursor.advance(word_seps().then(bin_op())).map(|t| {
             BinaryOperator::try_from(t.token_type) //cannot fail
                 .expect("conception error")
         });
@@ -107,7 +107,7 @@ impl<'p> Parser<'p> {
         //is > 0 if current operator's priority is smaller
         let priority_comparison = self
             .cursor
-            .lookahead(spaces().then(bin_op()))
+            .lookahead(word_seps().then(bin_op()))
             .map(|t| {
                 operator_priority
                     - BinaryOperator::try_from(t.token_type)
@@ -150,22 +150,25 @@ impl<'p> Parser<'p> {
 
 #[cfg(test)]
 mod tests {
-    use context::source::Source;
     use pretty_assertions::assert_eq;
+
+    use context::source::Source;
 
     use crate::aspects::binary_operation::BinaryOperationsAspect;
     use crate::ast::callable::Call;
+    use crate::ast::Expr;
     use crate::ast::group::{Parenthesis, Subshell};
-    use crate::ast::operation::BinaryOperation;
+    use crate::ast::operation::{BinaryOperation};
     use crate::ast::operation::BinaryOperator::*;
     use crate::ast::value::Literal;
-    use crate::ast::Expr;
+    use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use crate::err::{ParseError, ParseErrorKind};
+    use crate::parse;
     use crate::parser::Parser;
 
     #[test]
     fn is_left_associative() {
-        let source = Source::unknown("1 && 2 || 3 || 4 && 5");
+        let source = Source::unknown("1 && 2 || \\\n 3 || 4 && 5");
         let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_statement)
@@ -209,7 +212,7 @@ mod tests {
 
     #[test]
     fn explicit_priority() {
-        let source = Source::unknown("1 + (2 + 3)");
+        let source = Source::unknown("1 \\\n+\\\n (2 + 3)");
         let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_value)
@@ -237,6 +240,33 @@ mod tests {
                 })),
             })
         )
+    }
+
+    #[test]
+    fn arithmetic_multiple_lines() {
+        let parsed = parse(Source::unknown("val n = 1\\\n + 2")).expect("Failed to parse");
+
+        assert_eq!(
+            parsed,
+            vec![Expr::VarDeclaration(VarDeclaration {
+                kind: VarKind::Val,
+                var: TypedVariable {
+                    name: "n",
+                    ty: None,
+                },
+                initializer: Some(Box::new(Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::Literal(Literal {
+                        lexeme: "1",
+                        parsed: 1.into(),
+                    })),
+                    op: Plus,
+                    right: Box::new(Expr::Literal(Literal {
+                        lexeme: "2",
+                        parsed: 2.into(),
+                    })),
+                }))),
+            })],
+        );
     }
 
     #[test]
@@ -271,7 +301,7 @@ mod tests {
 
     #[test]
     fn complete_prioritization_test() {
-        let source = Source::unknown("1 + 2 * 3 < 874 * 78 || 7 - 4 == 3 && 7 == 1");
+        let source = Source::unknown("1 +\\\n 2 \\\n*\\\n 3\\\n < 874\\\n * 78 \\\n||\\\n 7\\\n - 4 \\\n== 3 \\\n&& \\\n7 ==\\\n 1");
         let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_value)

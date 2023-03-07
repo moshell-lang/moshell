@@ -2,7 +2,7 @@ use crate::aspects::call::CallAspect;
 use crate::ast::callable::{Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use crate::ast::Expr;
 use crate::err::ParseErrorKind;
-use crate::moves::{eox, next, of_type, of_types, space, spaces, MoveOperations, like};
+use crate::moves::{eox, next, of_type, of_types, spaces, MoveOperations, like};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{BackSlash, DoubleQuote, Quote, Space};
@@ -26,7 +26,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
         // Continue as long as we have a pipe
         while self
             .cursor
-            .advance(space().then(of_type(TokenType::Bar)))
+            .advance(spaces().then(of_type(TokenType::Bar)))
             .is_some()
         {
             match self.call()? {
@@ -38,7 +38,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
     }
 
     fn redirection(&mut self) -> ParseResult<Redir<'a>> {
-        self.cursor.advance(space());
+        self.cursor.advance(spaces());
         let mut token = self.cursor.next()?;
         // Parse if present the redirected file descriptor
         let fd = match token.token_type {

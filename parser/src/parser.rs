@@ -21,7 +21,7 @@ use crate::cursor::ParserCursor;
 use crate::err::ParseErrorKind::Unexpected;
 use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
 use crate::moves::{
-    bin_op, eod, eox, like, next, of_types, repeat, space, spaces, word_seps, MoveOperations,
+    bin_op, eod, eox, like, next, of_types, repeat, spaces, word_seps, MoveOperations,
 };
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
@@ -82,7 +82,7 @@ impl<'a> Parser<'a> {
     }
 
     fn look_for_input(&mut self) -> bool {
-        self.cursor.advance(repeat(space().or(eox())));
+        self.cursor.advance(repeat(spaces().or(eox())));
 
         !self.cursor.is_at_end()
     }
@@ -273,7 +273,7 @@ impl<'a> Parser<'a> {
     //as the left arm of the expression.
     //if given expression is directly followed by an eox delimiter, then return it as is
     fn parse_binary_value_expr(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
-        self.cursor.advance(spaces()); //consume spaces
+        self.cursor.advance(word_seps()); //consume word separators
 
         //if there is an end of expression, it means that the expr is terminated so we return it here
         //any keyword would also stop this expression.
