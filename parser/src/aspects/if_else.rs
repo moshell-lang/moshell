@@ -92,7 +92,6 @@ mod tests {
 
     #[test]
     fn if_else_if() {
-
         let source = Source::unknown(
             "if echo a && [[ -f /file/exe ]]; echo test\n\n\nelse if [ $a ] \n;\n { $7 }; else $5",
         );
@@ -131,7 +130,6 @@ mod tests {
 
     #[test]
     fn if_else_if_separations() {
-
         let source = Source::unknown("if [ $1 ]; echo test; else if [ $a ]; $7 else $5");
         let ast = parse(source).expect("parse failed");
         assert_eq!(
@@ -174,7 +172,6 @@ mod tests {
 
     #[test]
     fn if_else_as_value() {
-
         let source =
             Source::unknown("val x = if [ {date +\"%Y\"} < 2023 ]; \"bash\" else \"moshell\"");
         let ast = parse(source).expect("parse failed");
@@ -218,7 +215,6 @@ mod tests {
 
     #[test]
     fn if_else_bad_brackets() {
-
         let content =
             "val x = if [ $1 ] \n { echo hey; else if [ $a ]; echo hola; else echo bonjour }";
         let source = Source::unknown(content);
