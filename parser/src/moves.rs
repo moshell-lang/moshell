@@ -154,7 +154,10 @@ pub(crate) fn word_seps() -> RepeatedMove<
         >,
     >,
 > {
-    repeat_n(1, spaces().or(of_type(BackSlash).and_then(of_type(NewLine))))
+    repeat_n(
+        1,
+        spaces().or(of_type(BackSlash).and_then(of_type(NewLine))),
+    )
 }
 
 ///a move to consume any space or any newline

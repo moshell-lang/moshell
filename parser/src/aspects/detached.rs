@@ -34,11 +34,11 @@ impl<'a> DetachedAspect<'a> for Parser<'a> {
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use context::source::Source;
     use crate::ast::callable::{Call, Detached};
+    use crate::ast::group::Block;
     use crate::ast::Expr;
     use crate::ast::Expr::Literal;
-    use crate::ast::group::Block;
+    use context::source::Source;
 
     use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
@@ -62,17 +62,15 @@ mod tests {
         let res = parse(Source::unknown("{date &}&")).unwrap();
         assert_eq!(
             res,
-            vec![
-                Expr::Detached(Detached {
-                    underlying: Box::new(Expr::Block(Block {
-                        expressions: vec![Expr::Detached(Detached {
-                            underlying: Box::new(Expr::Call(Call {
-                                arguments: vec![Literal("date".into())]
-                            }))
-                        })]
-                    }))
-                })
-            ]
+            vec![Expr::Detached(Detached {
+                underlying: Box::new(Expr::Block(Block {
+                    expressions: vec![Expr::Detached(Detached {
+                        underlying: Box::new(Expr::Call(Call {
+                            arguments: vec![Literal("date".into())]
+                        }))
+                    })]
+                }))
+            })]
         )
     }
 }

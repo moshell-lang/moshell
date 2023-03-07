@@ -1,7 +1,7 @@
-use crate::ast::Expr;
 use crate::ast::operation::{BinaryOperation, BinaryOperator};
-use crate::moves::{bin_op, eox, MoveOperations, spaces, word_seps};
-use crate::parser::{Parser, ParseResult};
+use crate::ast::Expr;
+use crate::moves::{bin_op, eox, spaces, word_seps, MoveOperations};
+use crate::parser::{ParseResult, Parser};
 
 /// a parser aspect to parse any kind of binary operations
 pub trait BinaryOperationsAspect<'p> {
@@ -156,12 +156,12 @@ mod tests {
 
     use crate::aspects::binary_operation::BinaryOperationsAspect;
     use crate::ast::callable::Call;
-    use crate::ast::Expr;
     use crate::ast::group::{Parenthesis, Subshell};
-    use crate::ast::operation::{BinaryOperation};
+    use crate::ast::operation::BinaryOperation;
     use crate::ast::operation::BinaryOperator::*;
     use crate::ast::value::Literal;
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
+    use crate::ast::Expr;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::Parser;

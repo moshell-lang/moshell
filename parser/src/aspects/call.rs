@@ -1,7 +1,7 @@
-use lexer::token::TokenType;
-use lexer::token::TokenType::*;
 use crate::aspects::group::GroupAspect;
 use crate::aspects::literal::LiteralAspect;
+use lexer::token::TokenType;
+use lexer::token::TokenType::*;
 
 use crate::aspects::redirection::RedirectionAspect;
 use crate::ast::callable::Call;
@@ -91,17 +91,17 @@ mod tests {
         let result = parse(Source::unknown(content)).unwrap();
         assert_eq!(
             result,
-            vec![
-                Expr::Call(Call {
-                    arguments: vec![Expr::Literal("echo".into()),
-                                    Expr::Literal("how".into()),
-                                    Expr::Literal("!".into()),
-                                    Expr::Literal("how".into()),
-                                    Expr::Literal("are".into()),
-                                    Expr::Literal("you".into()),
-                                    Expr::Literal("!".into())]
-                })
-            ]
+            vec![Expr::Call(Call {
+                arguments: vec![
+                    Expr::Literal("echo".into()),
+                    Expr::Literal("how".into()),
+                    Expr::Literal("!".into()),
+                    Expr::Literal("how".into()),
+                    Expr::Literal("are".into()),
+                    Expr::Literal("you".into()),
+                    Expr::Literal("!".into())
+                ]
+            })]
         );
     }
 

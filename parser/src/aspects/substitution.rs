@@ -4,7 +4,7 @@ use crate::ast::substitution::{Substitution, SubstitutionKind};
 use crate::ast::value::{Literal, LiteralValue};
 use crate::ast::Expr;
 use crate::err::ParseErrorKind;
-use crate::moves::{eox, MoveOperations, not, of_type, repeat_n, spaces};
+use crate::moves::{eox, not, of_type, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{RoundedLeftBracket, RoundedRightBracket};
