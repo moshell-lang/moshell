@@ -391,7 +391,7 @@ pub(crate) fn unescaped<M: Move + Copy>(
 
 ///a move that consumes a binary operation character
 pub(crate) fn bin_op() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
-    predicate(|t| t.token_type.is_bin_operator())
+    like(TokenType::is_bin_operator)
 }
 
 #[cfg(test)]

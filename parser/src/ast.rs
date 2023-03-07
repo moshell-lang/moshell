@@ -1,5 +1,5 @@
 use crate::ast::callable::{Call, Pipeline, Redirected};
-use crate::ast::control_flow::If;
+use crate::ast::control_flow::{If, Loop, While};
 use crate::ast::group::{Block, Parenthesis, Subshell};
 use crate::ast::operation::BinaryOperation;
 use crate::ast::r#match::Match;
@@ -43,6 +43,8 @@ pub enum Expr<'a> {
     Not(Not<'a>),
 
     If(If<'a>),
+    While(While<'a>),
+    Loop(Loop<'a>),
 
     //var / val handling expressions
     VarReference(VarReference<'a>),

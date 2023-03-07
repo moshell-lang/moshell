@@ -12,11 +12,11 @@ pub struct If<'a> {
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct While<'a> {
     pub condition: Box<Expr<'a>>,
-    pub underlying: Box<Expr<'a>>
+    pub body: Box<Expr<'a>>
 }
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Loop<'a> {
-    pub underlying: Box<Expr<'a>>
+    pub body: Box<Expr<'a>>
 }
 

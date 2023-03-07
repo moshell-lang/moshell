@@ -9,6 +9,7 @@ use crate::aspects::call::CallAspect;
 use crate::aspects::group::GroupAspect;
 use crate::aspects::if_else::IfElseAspect;
 use crate::aspects::literal::LiteralAspect;
+use crate::aspects::r#loop::LoopAspect;
 use crate::aspects::r#match::MatchAspect;
 use crate::aspects::r#use::UseAspect;
 use crate::aspects::redirection::RedirectionAspect;
@@ -121,6 +122,9 @@ impl<'a> Parser<'a> {
             Var | Val => self.var_declaration(),
             Use => self.parse_use(),
 
+            While => self.parse_while(),
+            Loop => self.parse_loop(),
+
             _ => self.next_expression_statement(),
         }
     }
@@ -132,7 +136,8 @@ impl<'a> Parser<'a> {
         let pivot = self.cursor.peek().token_type;
         match pivot {
             If => self.parse_if(Parser::statement),
-            Match => Ok(Expr::Match(self.parse_match(Parser::statement)?)),
+            Match => self.parse_match(Parser::statement).map(Expr::Match),
+            
             Identifier | Quote | DoubleQuote => self.call(),
 
             _ if pivot.is_bin_operator() => self.call(),

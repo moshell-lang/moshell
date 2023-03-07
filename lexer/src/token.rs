@@ -209,6 +209,7 @@ pub enum TokenType {
     #[error]
     Error,
 
+    #[assoc(str = "<end of input>")]
     EndOfFile,
 }
 
@@ -232,7 +233,7 @@ impl TokenType {
     ///is this lexeme a binary operator ?
     pub fn is_bin_operator(self) -> bool {
         match self {
-            And | Or | Plus | Minus | Star | EqualEqual | NotEqual | Less | LessEqual | Greater
+            And | Or | Plus | Minus | Star | Slash | Percent | EqualEqual | NotEqual | Less | LessEqual | Greater
             | GreaterEqual => true,
             _ => false,
         }
