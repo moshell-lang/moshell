@@ -7,7 +7,6 @@ use lexer::token::TokenType::*;
 use crate::ast::value::{Literal, LiteralValue, TemplateString};
 use crate::ast::*;
 use crate::err::ParseErrorKind;
-use crate::err::ParseErrorKind::{Unexpected};
 use crate::moves::{next, of_type, repeat_n, word_sep};
 use crate::parser::{ParseResult, Parser};
 
@@ -45,10 +44,10 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             DoubleQuote => self.templated_string_literal().map(Expr::TemplateString),
 
             _ if pivot.is_keyword() => {
-                self.expected(&format!("Unexpected keyword '{}'", token.value), Unexpected)
+                self.expected(&format!("Unexpected keyword '{}'", token.value), ParseErrorKind::Unexpected)
             }
             _ if pivot.is_ponctuation() => {
-                self.expected(&format!("Unexpected token '{}'.", token.value), Unexpected)
+                self.expected(&format!("Unexpected token '{}'.", token.value), ParseErrorKind::Unexpected)
             }
 
             _ => self.argument(),
@@ -63,7 +62,10 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
     }
 
     fn string_literal(&mut self) -> ParseResult<Literal<'a>> {
-        let mut lexeme = self.cursor.force(of_type(Quote), "Expected quote.")?.value;
+        let start = self
+            .cursor
+            .force(of_type(Quote), "Expected quote.")?;
+        let mut lexeme = start.value;
 
         let mut value = String::new();
 
@@ -72,7 +74,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 None => {
                     return self.expected(
                         "Unterminated string literal.",
-                        ParseErrorKind::Unpaired(self.cursor.relative_pos(lexeme)),
+                        ParseErrorKind::Unpaired(self.cursor.relative_pos(&start)),
                     );
                 }
 
@@ -321,7 +323,7 @@ mod tests {
             Err(ParseError {
                 message: "Unterminated string literal.".to_string(),
                 position: content.len()..content.len(),
-                kind: ParseErrorKind::Unpaired(0..9),
+                kind: ParseErrorKind::Unpaired(0..1),
             })
         );
     }
