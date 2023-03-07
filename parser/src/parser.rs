@@ -293,7 +293,7 @@ impl<'a> Parser<'a> {
 
     //Skips spaces and verify that this parser is not parsing the end of an expression
     // (unescaped newline or semicolon)
-    fn repos(&mut self, message: &str) -> ParseResult<()> {
+    pub(crate) fn repos(&mut self, message: &str) -> ParseResult<()> {
         self.cursor.advance(word_seps()); //skip word separators
         if self.cursor.lookahead(eox()).is_some() {
             return self.expected(message, Unexpected);
