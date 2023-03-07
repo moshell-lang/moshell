@@ -72,7 +72,7 @@ Another point is that substitution is automatically protected, thus a `$x` and `
 var all: bool = false
 var amount = 1 // infered type: int
 // no need to manually protect $1
-while [ $1 ] match {shift} // calls the shift function and substitutes its return value
+while [ $1 ] match {shift} {// calls the shift function and substitutes its return value
      -a | --all => all = true
      -n         => amount = parse[int] @(shift) || crash "argument after -n is not an int" 
      $n         => crash "unknown argument $n"
