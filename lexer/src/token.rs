@@ -70,6 +70,9 @@ pub enum TokenType {
     #[token("while")]
     #[assoc(str = "while")]
     While,
+    #[token("loop")]
+    #[assoc(str = "loop")]
+    Loop,
     #[token("match")]
     #[assoc(str = "match")]
     Match,
