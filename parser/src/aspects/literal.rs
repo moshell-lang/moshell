@@ -7,7 +7,7 @@ use lexer::token::TokenType::*;
 use crate::ast::value::{Literal, LiteralValue, TemplateString};
 use crate::ast::*;
 use crate::err::ParseErrorKind;
-use crate::moves::{next, of_type, repeat_n, word_sep};
+use crate::moves::{next, of_type, word_seps};
 use crate::parser::{ParseResult, Parser};
 
 /// A trait that contains all the methods for parsing literals.
@@ -198,7 +198,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 Space | NewLine => break,
 
                 BackSlash => {
-                    if self.cursor.advance(repeat_n(1, word_sep())).is_some() {
+                    if self.cursor.advance(word_seps()).is_some() {
                         break;
                     }
 

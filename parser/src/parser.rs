@@ -20,7 +20,7 @@ use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
 use crate::err::ParseErrorKind::Unexpected;
 use crate::moves::{
     bin_op, eod, eox, like, next, of_types,
-    repeat, space, spaces, word_sep, MoveOperations,
+    repeat, space, spaces, word_seps, MoveOperations,
 };
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
@@ -286,7 +286,7 @@ impl<'a> Parser<'a> {
     //Skips spaces and verify that this parser is not parsing the end of an expression
     // (unescaped newline or semicolon)
     fn repos(&mut self, message: &str) -> ParseResult<()> {
-        self.cursor.advance(word_sep()); //skip word separators
+        self.cursor.advance(word_seps()); //skip word separators
         if self.cursor.lookahead(eox()).is_some() {
             return self.expected(message, Unexpected);
         }

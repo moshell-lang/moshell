@@ -16,6 +16,7 @@ pub enum LiteralValue {
     Float(f64),
 }
 
+/// A group of expressions that can be interpolated into a string.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct TemplateString<'a> {
     pub parts: Vec<Expr<'a>>,
