@@ -1,9 +1,9 @@
 use crate::ast::control_flow::If;
 use crate::ast::Expr;
-use crate::moves::{of_type, repeat, spaces, MoveOperations};
+use crate::moves::{aerated, blanks, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
-use lexer::token::TokenType::{Else, NewLine, SemiColon};
+use lexer::token::TokenType::{Else, SemiColon};
 
 ///parser aspect for if and else expressions.
 pub trait IfElseAspect<'a> {
@@ -25,13 +25,9 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
         )?;
         let condition = self.expression_statement()?;
 
-        //a local move to consume a semicolon ';' being between newlines and spaces
-        let aerated_semicolon = repeat(spaces().or(of_type(NewLine)))
-            .then(of_type(SemiColon))
-            .then(repeat(spaces().or(of_type(NewLine))));
-
         //skip only one semicolon if any, surrounded by newlines and spaces
-        self.cursor.advance(spaces().then(aerated_semicolon));
+        self.cursor
+            .advance(aerated(of_type(SemiColon)).or(blanks()));
 
         //the success_branch of the if
         let success_branch = parse_branch(self)?;
@@ -39,7 +35,11 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
         //parse the 'else' branch.
         let fail_branch = if self
             .cursor
-            .advance(aerated_semicolon.then(of_type(Else)))
+            .advance(
+                blanks()
+                    .then(of_type(SemiColon))
+                    .then(aerated(of_type(Else))),
+            )
             .is_some()
         {
             Some(Box::new(parse_branch(self)?))
@@ -60,10 +60,10 @@ mod tests {
     use crate::ast::callable::Call;
     use crate::ast::control_flow::If;
     use crate::ast::group::Block;
-    use crate::ast::literal::Literal;
     use crate::ast::operation::BinaryOperator::And;
     use crate::ast::operation::{BinaryOperation, BinaryOperator};
     use crate::ast::test::Test;
+    use crate::ast::value::{Literal, TemplateString};
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
     use crate::ast::Expr;
     use crate::err::{ParseError, ParseErrorKind};
@@ -201,12 +201,12 @@ mod tests {
                             }))
                         }))
                     })),
-                    success_branch: Box::new(Expr::TemplateString(vec![Expr::Literal(
-                        "bash".into()
-                    )])),
-                    fail_branch: Some(Box::new(Expr::TemplateString(vec![Expr::Literal(
-                        "moshell".into()
-                    )]))),
+                    success_branch: Box::new(Expr::TemplateString(TemplateString {
+                        parts: vec![Expr::Literal("bash".into())]
+                    })),
+                    fail_branch: Some(Box::new(Expr::TemplateString(TemplateString {
+                        parts: vec![Expr::Literal("moshell".into())]
+                    }))),
                 }))),
             }),]
         )
@@ -221,7 +221,7 @@ mod tests {
         assert_eq!(
             ast,
             Err(ParseError {
-                message: "Unexpected keyword.".to_string(),
+                message: "Unexpected keyword 'else'".to_string(),
                 position: content.find("else").map(|p| p..p + "else".len()).unwrap(),
                 kind: ParseErrorKind::Unexpected,
             })

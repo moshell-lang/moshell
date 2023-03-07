@@ -1,6 +1,6 @@
 use crate::ast::structure::Construct;
 use crate::ast::Expr;
-use crate::moves::{eod, eox, of_type, word_sep, MoveOperations};
+use crate::moves::{eod, eox, of_type, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 
@@ -21,7 +21,7 @@ impl<'a> StructureAspect<'a> for Parser<'a> {
         loop {
             if self
                 .cursor
-                .advance(word_sep().then(of_type(TokenType::RoundedRightBracket)))
+                .advance(word_seps().then(of_type(TokenType::RoundedRightBracket)))
                 .is_some()
             {
                 return Ok(Expr::Construct(Construct {
@@ -30,7 +30,7 @@ impl<'a> StructureAspect<'a> for Parser<'a> {
                 }));
             }
             args.push(self.next_value()?);
-            self.cursor.advance(word_sep());
+            self.cursor.advance(word_seps());
             if self.cursor.lookahead(eox().or(eod())).is_some() {
                 self.cursor.force(
                     of_type(TokenType::RoundedRightBracket),
@@ -51,8 +51,8 @@ mod tests {
     use context::source::Source;
     use pretty_assertions::assert_eq;
 
-    use crate::ast::literal::Literal;
     use crate::ast::structure::Construct;
+    use crate::ast::value::Literal;
     use crate::ast::Expr;
     use crate::parser::Parser;
 

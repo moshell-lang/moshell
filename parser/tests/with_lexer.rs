@@ -1,8 +1,8 @@
 use context::source::Source;
 use parser::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use parser::ast::group::Subshell;
-use parser::ast::literal::Literal;
 use parser::ast::substitution::{Substitution, SubstitutionKind};
+use parser::ast::value::{Literal, TemplateString};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 use parser::ast::Expr;
 use parser::parse;
@@ -58,10 +58,12 @@ fn with_lexer_var_reference_two() {
         parsed,
         vec![Expr::Call(Call {
             arguments: vec![
-                Expr::TemplateString(vec![
-                    Expr::Literal("fake".into()),
-                    Expr::VarReference(VarReference { name: "cmd" }),
-                ]),
+                Expr::TemplateString(TemplateString {
+                    parts: vec![
+                        Expr::Literal("fake".into()),
+                        Expr::VarReference(VarReference { name: "cmd" }),
+                    ]
+                }),
                 Expr::Literal("do".into()),
                 Expr::VarReference(VarReference { name: "arg2" }),
             ],
@@ -86,14 +88,16 @@ fn with_lexer_var_reference_three() {
         vec![Expr::Call(Call {
             arguments: vec![
                 Expr::Literal("echo".into()),
-                Expr::TemplateString(vec![
-                    Expr::Literal("hello ".into()),
-                    Expr::VarReference(VarReference { name: "world" }),
-                    Expr::Literal(" everyone ".into()),
-                    Expr::VarReference(VarReference { name: "verb" }),
-                    Expr::VarReference(VarReference { name: "ready" }),
-                    Expr::Literal("!".into()),
-                ]),
+                Expr::TemplateString(TemplateString {
+                    parts: vec![
+                        Expr::Literal("hello ".into()),
+                        Expr::VarReference(VarReference { name: "world" }),
+                        Expr::Literal(" everyone ".into()),
+                        Expr::VarReference(VarReference { name: "verb" }),
+                        Expr::VarReference(VarReference { name: "ready" }),
+                        Expr::Literal("!".into()),
+                    ]
+                }),
             ],
         })]
     );
@@ -153,7 +157,7 @@ fn with_lexer_pipe_and_redirection() {
         vec![Expr::Pipeline(Pipeline {
             commands: vec![
                 Expr::Call(Call {
-                    arguments: vec![Expr::Literal("ls".into()), Expr::Literal("-l".into()),],
+                    arguments: vec![Expr::Literal("ls".into()), Expr::Literal("-l".into())],
                 }),
                 Expr::Redirected(Redirected {
                     expr: Box::new(Expr::Call(Call {
@@ -213,7 +217,7 @@ fn with_lexer_here_string() {
         parsed,
         vec![Expr::Redirected(Redirected {
             expr: Box::new(Expr::Call(Call {
-                arguments: vec![Expr::Literal("grep".into()), Expr::Literal("e".into()),]
+                arguments: vec![Expr::Literal("grep".into()), Expr::Literal("e".into())]
             })),
             redirections: vec![Redir {
                 fd: RedirFd::Default,
@@ -263,17 +267,19 @@ fn with_lexer_substitution_in_substitution() {
                         expressions: vec![Expr::Call(Call {
                             arguments: vec![
                                 Expr::Literal("ls".into()),
-                                Expr::TemplateString(vec![
-                                    Expr::Substitution(Substitution {
-                                        underlying: Subshell {
-                                            expressions: vec![Expr::Call(Call {
-                                                arguments: vec![Expr::Literal("pwd".into())]
-                                            })],
-                                        },
-                                        kind: SubstitutionKind::Capture,
-                                    }),
-                                    Expr::Literal("/test".into()),
-                                ]),
+                                Expr::TemplateString(TemplateString {
+                                    parts: vec![
+                                        Expr::Substitution(Substitution {
+                                            underlying: Subshell {
+                                                expressions: vec![Expr::Call(Call {
+                                                    arguments: vec![Expr::Literal("pwd".into())]
+                                                })],
+                                            },
+                                            kind: SubstitutionKind::Capture,
+                                        }),
+                                        Expr::Literal("/test".into()),
+                                    ]
+                                }),
                             ],
                         })]
                     },

@@ -143,8 +143,8 @@ mod tests {
     use crate::aspects::group::GroupAspect;
     use crate::ast::callable::Call;
     use crate::ast::group::{Block, Subshell};
-    use crate::ast::literal::Literal;
-    use crate::ast::literal::LiteralValue::{Float, Int};
+    use crate::ast::value::Literal;
+    use crate::ast::value::LiteralValue::{Float, Int};
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use crate::ast::Expr;
     use crate::parser::Parser;

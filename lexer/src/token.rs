@@ -114,7 +114,7 @@ pub enum TokenType {
 
     #[token("|")]
     #[assoc(str = "|")]
-    Pipe,
+    Bar,
 
     #[token("&&")]
     #[assoc(str = "&&")]
@@ -238,9 +238,28 @@ impl TokenType {
     ///is this lexeme a lexeme that cannot fusion with other glued tokens
     pub fn is_identifier_bound(self) -> bool {
         match self {
-            NewLine | SemiColon | Less | Pipe | Greater | And | Or => true,
+            NewLine | SemiColon | Less | Bar | Greater | And | Or | FatArrow => true,
             _ => false,
         }
+    }
+
+    ///is this a lexeme that stops a call line
+    pub fn is_call_bound(self) -> bool {
+        matches!(
+            self,
+            TokenType::Ampersand
+                | TokenType::And
+                | TokenType::Or
+                | TokenType::SquaredLeftBracket
+                | TokenType::SquaredRightBracket
+                | TokenType::RoundedLeftBracket
+                | TokenType::RoundedRightBracket
+                | TokenType::CurlyLeftBracket
+                | TokenType::CurlyRightBracket
+                | TokenType::SemiColon
+                | TokenType::Error
+                | TokenType::EndOfFile
+        )
     }
 
     ///is this lexeme a punctuation
@@ -252,16 +271,16 @@ impl TokenType {
                 | TokenType::Greater
                 | TokenType::And
                 | TokenType::Or
-                | TokenType::Pipe
+                | TokenType::Bar
+                | TokenType::Arrow
+                | TokenType::FatArrow
                 | TokenType::SquaredLeftBracket
                 | TokenType::SquaredRightBracket
                 | TokenType::RoundedLeftBracket
                 | TokenType::RoundedRightBracket
                 | TokenType::CurlyLeftBracket
                 | TokenType::CurlyRightBracket
-                | TokenType::Space
                 | TokenType::SemiColon
-                | TokenType::NewLine
                 | TokenType::Error
         )
     }

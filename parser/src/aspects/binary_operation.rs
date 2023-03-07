@@ -156,9 +156,9 @@ mod tests {
     use crate::aspects::binary_operation::BinaryOperationsAspect;
     use crate::ast::callable::Call;
     use crate::ast::group::{Parenthesis, Subshell};
-    use crate::ast::literal::Literal;
     use crate::ast::operation::BinaryOperation;
     use crate::ast::operation::BinaryOperator::*;
+    use crate::ast::value::Literal;
     use crate::ast::Expr;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parser::Parser;
@@ -357,7 +357,7 @@ mod tests {
         assert_eq!(
             result,
             Err(ParseError {
-                message: "Unexpected closing bracket.".to_string(),
+                message: "Unexpected token ')'.".to_string(),
                 position: content.find(')').map(|p| (p..p + 1)).unwrap(),
                 kind: ParseErrorKind::Unexpected,
             })

@@ -37,6 +37,7 @@ impl<A: Move + Copy> MoveOperations<A> for A {
             right: other,
         }
     }
+
     fn then<B: Move + Copy>(self, other: B) -> ThenMove<Self, B> {
         ThenMove {
             left: self,
@@ -154,7 +155,7 @@ pub(crate) fn spaces() -> RepeatedMove<PredicateMove<impl (for<'a> Fn(Token<'a>)
 }
 
 ///A move to consume all spaces and escaped newlines
-pub(crate) fn word_sep() -> RepeatedMove<
+pub(crate) fn word_seps() -> RepeatedMove<
     OrMove<
         PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
         AndThenMove<
@@ -164,6 +165,27 @@ pub(crate) fn word_sep() -> RepeatedMove<
     >,
 > {
     repeat_n(1, space().or(of_type(BackSlash).and_then(of_type(NewLine))))
+}
+
+///a move to consume any space or any newline
+pub(crate) fn blank() -> PredicateMove<impl Fn(Token) -> bool + Copy> {
+    of_types(&[Space, NewLine])
+}
+
+///a move to consume any spaces or any newlines
+pub(crate) fn blanks() -> RepeatedMove<PredicateMove<impl Fn(Token) -> bool + Copy>> {
+    repeat(of_types(&[Space, NewLine]))
+}
+
+///a move to consume a move between spaces and newlines, this move succeeds only if the given move
+/// succeeds.
+pub(crate) fn aerated<M: Move + Copy>(
+    m: M,
+) -> AndThenMove<
+    ThenMove<RepeatedMove<PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>>, M>,
+    RepeatedMove<PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>>,
+> {
+    blanks().then(m).and_then(blanks())
 }
 
 /// A Move to inverse the matching status of underlying move.

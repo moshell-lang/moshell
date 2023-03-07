@@ -15,7 +15,7 @@ pub trait VarReferenceAspect<'a> {
 impl<'a> VarReferenceAspect<'a> for Parser<'a> {
     /// Parses a variable reference.
     fn var_reference(&mut self) -> ParseResult<Expr<'a>> {
-        let start_bracket = self.cursor.advance(of_type(CurlyLeftBracket));
+        let bracket = self.cursor.advance(of_type(CurlyLeftBracket));
 
         let tokens = self
             .cursor
@@ -38,7 +38,7 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
             .skip(1)
             .fold(first, |acc, t| try_join_str(acc, t.value).unwrap());
 
-        if let Some(bracket) = start_bracket {
+        if let Some(bracket) = bracket {
             self.cursor.force_with(
                 of_type(CurlyRightBracket),
                 "Expected closing curly bracket.",
@@ -52,6 +52,7 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::aspects::substitution::SubstitutionAspect;
+    use crate::ast::value::TemplateString;
     use crate::ast::variable::VarReference;
     use crate::ast::Expr;
     use crate::err::{ParseError, ParseErrorKind};
@@ -96,10 +97,12 @@ mod tests {
         let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,
-            vec![Expr::TemplateString(vec![
-                Expr::VarReference(VarReference { name: "VAR" }),
-                Expr::Literal("IABLE".into())
-            ])]
+            vec![Expr::TemplateString(TemplateString {
+                parts: vec![
+                    Expr::VarReference(VarReference { name: "VAR" }),
+                    Expr::Literal("IABLE".into()),
+                ]
+            })]
         )
     }
 
@@ -124,12 +127,14 @@ mod tests {
         let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,
-            vec![Expr::TemplateString(vec![
-                Expr::VarReference(VarReference { name: "VAR" }),
-                Expr::Literal("IABLE".into()),
-                Expr::VarReference(VarReference { name: "LONG" }),
-                Expr::VarReference(VarReference { name: "VERY_LONG" }),
-            ])]
+            vec![Expr::TemplateString(TemplateString {
+                parts: vec![
+                    Expr::VarReference(VarReference { name: "VAR" }),
+                    Expr::Literal("IABLE".into()),
+                    Expr::VarReference(VarReference { name: "LONG" }),
+                    Expr::VarReference(VarReference { name: "VERY_LONG" }),
+                ]
+            })]
         )
     }
 }

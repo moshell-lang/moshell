@@ -75,9 +75,9 @@ mod tests {
     use super::*;
     use crate::ast::callable::Call;
     use crate::ast::group::Block;
-    use crate::ast::literal::{Literal, LiteralValue};
     use crate::ast::operation::BinaryOperation;
     use crate::ast::operation::BinaryOperator::Plus;
+    use crate::ast::value::{Literal, LiteralValue};
     use crate::ast::Expr;
     use crate::err::ParseError;
     use crate::parser::Parser;
