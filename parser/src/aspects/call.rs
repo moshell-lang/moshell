@@ -46,6 +46,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
+    /// special pivot method for argument methods
     fn call_argument(&mut self) -> ParseResult<Expr<'a>> {
         self.repos("Expected value")?;
 

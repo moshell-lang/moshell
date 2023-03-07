@@ -291,8 +291,8 @@ impl<'a> Parser<'a> {
         self.expected("invalid infix operator", Unexpected)
     }
 
-    //Skips spaces and verify that this parser is not parsing the end of an expression
-    // (unescaped newline or semicolon)
+    ///Skips spaces and verify that this parser is not parsing the end of an expression
+    /// (unescaped newline or semicolon)
     pub(crate) fn repos(&mut self, message: &str) -> ParseResult<()> {
         self.cursor.advance(word_seps()); //skip word separators
         if self.cursor.lookahead(eox()).is_some() {

@@ -7,7 +7,9 @@ use crate::parser::{ParseResult, Parser};
 
 ///a parser aspect for loops and while expressions
 pub trait LoopAspect<'a> {
+    ///parse a while expression
     fn parse_while(&mut self) -> ParseResult<Expr<'a>>;
+    ///parse a loop expression
     fn parse_loop(&mut self) -> ParseResult<Expr<'a>>;
 }
 

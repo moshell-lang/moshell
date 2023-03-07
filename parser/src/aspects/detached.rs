@@ -6,7 +6,10 @@ use crate::err::ParseErrorKind;
 use crate::moves::{of_type, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
+///parses a detached expression (<expr> &)
 pub trait DetachedAspect<'a> {
+    ///returns a Detached expression containing underlying,
+    /// or directly returns underlying of no trailing '&' was found
     fn parse_detached(&mut self, underlying: Expr<'a>) -> ParseResult<Expr<'a>>;
 }
 
