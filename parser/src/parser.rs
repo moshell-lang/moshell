@@ -224,6 +224,31 @@ impl<'a> Parser<'a> {
         Err(self.mk_parse_error(message, context, kind))
     }
 
+    /// Expect a specific delimiter token type and pop it from the delimiter stack.
+    pub(crate) fn expect_delimiter(&mut self, eog: TokenType) -> ParseResult<()> {
+        if self.cursor.advance(of_type(eog)).is_some() {
+            self.delimiter_stack.pop_back();
+            Ok(())
+        } else {
+            self.mismatched_delimiter(eog)
+        }
+    }
+
+    /// Raise a mismatched delimiter error on the current token.
+    pub(crate) fn mismatched_delimiter(&mut self, eog: TokenType) -> ParseResult<()> {
+        if let Some(last) = self.delimiter_stack.back() {
+            self.expected(
+                "Mismatched closing delimiter.",
+                ParseErrorKind::Unpaired(self.cursor.relative_pos(last)),
+            )
+        } else {
+            self.expected(
+                "Unexpected closing delimiter.",
+                ParseErrorKind::Excepted(eog.str().unwrap_or("specific token")),
+            )
+        }
+    }
+
     pub(crate) fn mk_parse_error(
         &self,
         message: impl Into<String>,

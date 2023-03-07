@@ -118,17 +118,7 @@ impl<'a> Parser<'a> {
             }
 
             if eox_res.is_err() && self.cursor.peek().token_type.is_closing_ponctuation() {
-                if let Some(last) = self.delimiter_stack.back() {
-                    self.expected(
-                        "Mismatched closing delimiter.",
-                        ParseErrorKind::Unpaired(self.cursor.relative_pos(last)),
-                    )?;
-                } else {
-                    self.expected(
-                        "Unexpected closing delimiter.",
-                        ParseErrorKind::Excepted(eog.str().unwrap_or("specific token")),
-                    )?;
-                }
+                self.mismatched_delimiter(eog)?;
             }
 
             //but if not closed, expect the cursor to hit EOX.
