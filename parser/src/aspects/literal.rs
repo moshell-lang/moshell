@@ -99,8 +99,9 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
     }
 
     fn templated_string_literal(&mut self) -> ParseResult<TemplateString<'a>> {
-        self.cursor.force(of_type(DoubleQuote), "Expected quote.")?;
-
+        let start = self
+            .cursor
+            .force(of_type(DoubleQuote), "Expected quote.")?;
         let mut lexeme = self.cursor.peek().value;
         let mut literal_value = String::new();
         let mut parts = Vec::new();
@@ -108,7 +109,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             if self.cursor.is_at_end() {
                 return self.expected(
                     "Unterminated string literal.",
-                    ParseErrorKind::Unpaired(self.cursor.relative_pos(lexeme)),
+                    ParseErrorKind::Unpaired(self.cursor.relative_pos(&start)),
                 );
             }
 
