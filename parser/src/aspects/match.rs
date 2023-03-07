@@ -44,8 +44,12 @@ impl<'a> Parser<'a> {
     where
         P: FnMut(&mut Self) -> ParseResult<Expr<'a>> + Clone,
     {
-        self.cursor
-            .force(blanks().then(of_type(CurlyLeftBracket)), "expected '{'")?;
+        let opening_bracket = self.cursor.force_with(
+            blanks().then(of_type(CurlyLeftBracket)),
+            "expected match start",
+            ParseErrorKind::Excepted("{"),
+        )?;
+        self.delimiter_stack.push_back(opening_bracket.clone());
 
         let mut arms: Vec<MatchArm<'a>> = Vec::new();
 
@@ -53,8 +57,12 @@ impl<'a> Parser<'a> {
             let arm = self.parse_match_arm(parse_arm.clone())?;
             arms.push(arm);
         }
-        self.cursor
-            .force(blanks().then(of_type(CurlyRightBracket)), "expected '}'")?;
+        self.cursor.force_with(
+            blanks().then(of_type(CurlyRightBracket)),
+            "expected '}'",
+            ParseErrorKind::Unpaired(self.cursor.relative_pos(opening_bracket)),
+        )?;
+        self.delimiter_stack.pop_back();
 
         Ok(arms)
     }
