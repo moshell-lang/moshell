@@ -6,6 +6,7 @@ use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 
 pub trait StructureAspect<'a> {
+    /// Parses a structure constructor.
     fn constructor(&mut self) -> ParseResult<Expr<'a>>;
 }
 
@@ -19,6 +20,8 @@ impl<'a> StructureAspect<'a> for Parser<'a> {
             "Expected opening parenthesis.",
         )?;
         self.delimiter_stack.push_back(open_parenthesis.clone());
+
+        // Read the args until a closing delimiter or a new non-escaped line is found.
         let mut args = vec![];
         loop {
             if self
@@ -33,6 +36,8 @@ impl<'a> StructureAspect<'a> for Parser<'a> {
             }
             args.push(self.next_value()?);
             self.cursor.advance(word_seps());
+
+            // Check if the constructor is abnormally terminated.
             if self.cursor.lookahead(eox()).is_some() {
                 self.expected(
                     "Expected closing parenthesis.",
@@ -111,6 +116,25 @@ mod tests {
                     Expr::Literal("fine".into()),
                 ]
             })],
+        );
+    }
+
+    #[test]
+    fn constructor_accept_string_literals() {
+        let source = Source::unknown("Foo('===\ntesting something\n===' c)");
+        let expr = Parser::new(source).parse().expect("Failed to parse");
+        assert_eq!(
+            expr,
+            vec![Expr::Construct(Construct {
+                name: "Foo",
+                args: vec![
+                    Expr::Literal(Literal {
+                        lexeme: "'===\ntesting something\n==='",
+                        parsed: "===\ntesting something\n===".into(),
+                    }),
+                    Expr::Literal("c".into())
+                ]
+            }),]
         );
     }
 
