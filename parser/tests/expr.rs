@@ -1,5 +1,6 @@
 use context::source::Source;
 use parser::ast::callable::Call;
+use parser::ast::structure::Construct;
 use parser::ast::value::{Literal, LiteralValue};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use parser::ast::Expr;
@@ -51,6 +52,28 @@ fn command_starting_with_arg() {
         parsed,
         vec![Expr::Call(Call {
             arguments: vec![Expr::Literal("-".into()), Expr::Literal("W".into())],
+        })]
+    );
+}
+
+#[test]
+fn constructor_in_call() {
+    let source = Source::unknown("echo Foo() Bar\\(\\)");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Call(Call {
+            arguments: vec![
+                Expr::Literal("echo".into()),
+                Expr::Construct(Construct {
+                    name: "Foo",
+                    args: vec![],
+                }),
+                Expr::Literal(Literal {
+                    lexeme: "Bar\\(\\)",
+                    parsed: "Bar()".into(),
+                }),
+            ],
         })]
     );
 }

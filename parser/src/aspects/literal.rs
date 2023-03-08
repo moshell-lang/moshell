@@ -200,6 +200,9 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                         break;
                     }
 
+                    if let Some(joined) = try_join_str(lexeme, token.value) {
+                        lexeme = joined;
+                    }
                     //never retain first backslash
                     self.cursor.next()?;
                     //advance so we are not pointing to token after '\'
