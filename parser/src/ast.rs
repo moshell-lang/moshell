@@ -47,6 +47,9 @@ pub enum Expr<'a> {
     While(While<'a>),
     Loop(Loop<'a>),
 
+    Continue,
+    Break,
+
     //var / val handling expressions
     VarReference(VarReference<'a>),
     VarDeclaration(VarDeclaration<'a>),

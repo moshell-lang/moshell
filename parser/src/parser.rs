@@ -1,8 +1,8 @@
+use std::collections::vec_deque::VecDeque;
 use context::source::Source;
 use lexer::lexer::lex;
 use lexer::token::TokenType::*;
 use lexer::token::{Token, TokenType};
-use std::collections::VecDeque;
 
 use crate::aspects::binary_operation::BinaryOperationsAspect;
 use crate::aspects::call::CallAspect;
@@ -87,26 +87,28 @@ impl<'a> Parser<'a> {
         !self.cursor.is_at_end()
     }
 
+    #[inline]
+    pub(crate) fn parse_full_expr<P>(&mut self, mut next: P) -> ParseResult<Expr<'a>>
+        where P: FnMut(&mut Self) -> ParseResult<Expr<'a>> {
+        let expr = next(self)?;
+        let expr = self.parse_binary_expr(expr)?;
+        self.parse_detached(expr)
+    }
+
     /// Parses a statement or binary expression.
     /// a statement is usually on a single line
     pub(crate) fn statement(&mut self) -> ParseResult<Expr<'a>> {
-        let expr = self.next_statement()?;
-        let expr = self.parse_binary_expr(expr)?;
-        self.parse_detached(expr)
+        self.parse_full_expr(Parser::next_statement)
     }
 
     /// Parses an expression-statement or binary expression.
     pub(crate) fn expression_statement(&mut self) -> ParseResult<Expr<'a>> {
-        let expr = self.next_expression_statement()?;
-        let expr = self.parse_binary_expr(expr)?;
-        self.parse_detached(expr)
+        self.parse_full_expr(Parser::next_expression_statement)
     }
 
     /// Parses an expression or binary expression.
     pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
-        let expr = self.next_expression()?;
-        let expr = self.parse_binary_expr(expr)?;
-        self.parse_detached(expr)
+        self.parse_full_expr(Parser::next_expression)
     }
 
     /// Parses a value or binary expression
@@ -126,8 +128,8 @@ impl<'a> Parser<'a> {
             Var | Val => self.var_declaration(),
             Use => self.parse_use(),
 
-            While => self.parse_while(),
-            Loop => self.parse_loop(),
+            While => self.parse_while().map(Expr::While),
+            Loop => self.parse_loop().map(Expr::Loop),
 
             _ => self.next_expression_statement(),
         }
@@ -139,10 +141,11 @@ impl<'a> Parser<'a> {
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
-            If => self.parse_if(Parser::statement),
+            If => self.parse_if(Parser::statement).map(Expr::If),
             Match => self.parse_match(Parser::statement).map(Expr::Match),
 
             Identifier | Quote | DoubleQuote => self.call(),
+
 
             _ if pivot.is_bin_operator() => self.call(),
 
@@ -157,8 +160,17 @@ impl<'a> Parser<'a> {
         let pivot = self.cursor.peek().token_type;
         match pivot {
             //if we are parsing an expression, then we want to see a parenthesised expr as a subshell expression
-            RoundedLeftBracket => Ok(Expr::Subshell(self.subshell()?)),
+            RoundedLeftBracket => self.subshell().map(Expr::Subshell),
             SquaredLeftBracket => self.parse_test(),
+
+            Continue => {
+                self.cursor.next()?;
+                Ok(Expr::Continue)
+            }
+            Break => {
+                self.cursor.next()?;
+                Ok(Expr::Break)
+            }
 
             Not => self.not(Parser::next_expression_statement),
 
@@ -172,13 +184,13 @@ impl<'a> Parser<'a> {
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
-            RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
-            CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
+            RoundedLeftBracket => self.parenthesis().map(Expr::Parenthesis),
+            CurlyLeftBracket => self.block().map(Expr::Block),
             Not => self.not(Parser::next_value),
 
-            //expression that can also be used as values
-            If => self.parse_if(Parser::value),
-            Match => Ok(Expr::Match(self.parse_match(Parser::value)?)),
+            //expressions that can also be used as values
+            If => self.parse_if(Parser::value).map(Expr::If),
+            Match => self.parse_match(Parser::value).map(Expr::Match),
 
             //test expressions has nothing to do in a value expression.
             SquaredLeftBracket => self.expected("Unexpected start of test expression", Unexpected),

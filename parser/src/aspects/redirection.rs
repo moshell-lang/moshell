@@ -5,7 +5,7 @@ use crate::err::ParseErrorKind;
 use crate::moves::{eox, like, next, of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
-use lexer::token::TokenType::{BackSlash, DoubleQuote, Quote, Space};
+use lexer::token::TokenType::{BackSlash, DoubleQuote, Quote};
 
 pub(crate) trait RedirectionAspect<'a> {
     /// Attempts to parse the next pipeline expression

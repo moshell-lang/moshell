@@ -1,20 +1,19 @@
 use lexer::token::TokenType;
 
 use crate::ast::control_flow::{Loop, While};
-use crate::ast::Expr;
 use crate::moves::{blanks, eox, of_type};
 use crate::parser::{ParseResult, Parser};
 
 ///a parser aspect for loops and while expressions
 pub trait LoopAspect<'a> {
     ///parse a while expression
-    fn parse_while(&mut self) -> ParseResult<Expr<'a>>;
+    fn parse_while(&mut self) -> ParseResult<While<'a>>;
     ///parse a loop expression
-    fn parse_loop(&mut self) -> ParseResult<Expr<'a>>;
+    fn parse_loop(&mut self) -> ParseResult<Loop<'a>>;
 }
 
 impl<'a> LoopAspect<'a> for Parser<'a> {
-    fn parse_while(&mut self) -> ParseResult<Expr<'a>> {
+    fn parse_while(&mut self) -> ParseResult<While<'a>> {
         self.cursor.force(
             of_type(TokenType::While),
             "expected 'while' at start of while expression",
@@ -30,10 +29,10 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
 
         let body = Box::new(self.expression_statement()?);
 
-        Ok(Expr::While(While { condition, body }))
+        Ok(While { condition, body })
     }
 
-    fn parse_loop(&mut self) -> ParseResult<Expr<'a>> {
+    fn parse_loop(&mut self) -> ParseResult<Loop<'a>> {
         self.cursor.force(
             of_type(TokenType::Loop),
             "expected 'loop' at start of loop expression",
@@ -41,9 +40,10 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
         self.cursor.advance(blanks());
         let body = Box::new(self.expression_statement()?);
 
-        Ok(Expr::Loop(Loop { body }))
+        Ok(Loop { body })
     }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -57,6 +57,47 @@ mod tests {
     use crate::parse;
     use context::source::Source;
     use pretty_assertions::assert_eq;
+    use crate::ast::Expr::{Break, Continue};
+    use crate::ast::operation::BinaryOperation;
+    use crate::ast::operation::BinaryOperator::And;
+    use crate::parser::ParseResult;
+
+    #[test]
+    fn loop_with_break_and_continues() {
+        let res = parse(Source::unknown(
+            "loop {
+            continue; break;
+            }"
+        )).expect("parse failed");
+        assert_eq!(
+            res,
+            vec![Expr::Loop(Loop {
+                body: Box::new(Expr::Block(Block {
+                    expressions: vec![Continue, Break]
+                }))
+            })]
+        )
+    }
+
+    #[test]
+    fn loop_with_break_and_continues_inline() {
+        let res = parse(Source::unknown(
+            "loop ssh mabatista1@iut && break"
+        )).expect("parse failed");
+        assert_eq!(
+            res,
+            vec![Expr::Loop(Loop {
+                body: Box::new(Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::Call(Call {
+                        arguments: vec![Expr::Literal("ssh".into()),
+                                        Expr::Literal("mabatista1@iut".into())]
+                    })),
+                    op: And,
+                    right: Box::new(Break)
+                }))
+            })]
+        )
+    }
 
     #[test]
     fn test_loop() {

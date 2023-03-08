@@ -77,6 +77,16 @@ pub enum TokenType {
     #[assoc(str = "match")]
     Match,
 
+    #[token("continue")]
+    #[assoc(str = "continue")]
+    Continue,
+    #[token("break")]
+    #[assoc(str = "break")]
+    Break,
+    #[token("return")]
+    #[assoc(str = "return")]
+    Return,
+
     #[token("->")]
     #[assoc(str = "->")]
     Arrow,

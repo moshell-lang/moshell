@@ -160,10 +160,8 @@ mod tests {
     use crate::ast::operation::BinaryOperation;
     use crate::ast::operation::BinaryOperator::*;
     use crate::ast::value::Literal;
-    use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use crate::ast::Expr;
     use crate::err::{ParseError, ParseErrorKind};
-    use crate::parse;
     use crate::parser::Parser;
 
     #[test]
@@ -274,7 +272,7 @@ mod tests {
 
     #[test]
     fn complete_prioritization_test() {
-        let source = Source::unknown("1 +\\\n 2 \\\n*\\\n 3\\\n < 874\\\n * 78 \\\n||\\\n 7\\\n - 4 \\\n== 3 \\\n&& \\\n7 ==\\\n 1");
+        let source = Source::unknown("1 +\\\n 2 \\\n*\\\n 3\\\n < 874\\\n / 78 \\\n||\\\n 7\\\n % 4 \\\n== 3 \\\n&& \\\n7 ==\\\n 1");
         let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_value)
@@ -308,7 +306,7 @@ mod tests {
                                 lexeme: "874",
                                 parsed: 874.into(),
                             })),
-                            op: Times,
+                            op: Divide,
                             right: Box::new(Expr::Literal(Literal {
                                 lexeme: "78",
                                 parsed: 78.into(),
@@ -322,7 +320,7 @@ mod tests {
                                 lexeme: "7",
                                 parsed: 7.into(),
                             })),
-                            op: Minus,
+                            op: Modulo,
                             right: Box::new(Expr::Literal(Literal {
                                 lexeme: "4",
                                 parsed: 4.into(),

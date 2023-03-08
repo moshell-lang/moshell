@@ -46,6 +46,7 @@ mod tests {
     use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
     use crate::parse;
+    use crate::parser::ParseResult;
 
     #[test]
     fn twice_derived() {
