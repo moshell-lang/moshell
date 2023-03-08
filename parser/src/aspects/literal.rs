@@ -307,7 +307,7 @@ mod tests {
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
-                lexeme: "a",
+                lexeme: "a\\a",
                 parsed: "aa".into(),
             })
         );
