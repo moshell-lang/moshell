@@ -18,9 +18,12 @@ impl<'a> DetachedAspect<'a> for Parser<'a> {
         let ampersand = word_seps().then(of_type(Ampersand));
         //there is a trailing '&'
         if self.cursor.advance(ampersand).is_some() {
-            if self.cursor.advance(ampersand).is_some() {
-                //if there's another
-                return self.expected("'&' not allowed here", ParseErrorKind::Unexpected);
+            if let Some(another) = self.cursor.advance(ampersand) {
+                return self.expected_with(
+                    "'&' not allowed here",
+                    another,
+                    ParseErrorKind::Unexpected,
+                );
             }
             return Ok(Expr::Detached(Detached {
                 underlying: Box::new(underlying),
@@ -45,21 +48,22 @@ mod tests {
     use crate::parse;
 
     #[test]
-    fn test_twice_derived() {
-        let res = parse(Source::unknown("date & &")).errors;
+    fn twice_derived() {
+        let content = "date & &";
+        let res: ParseResult<_> = parse(Source::unknown(content)).into();
         assert_eq!(
             res,
-            vec![ParseError {
+            Err(ParseError {
                 message: "'&' not allowed here".to_string(),
-                position: 8..8,
+                position: content.len() - 1..content.len(),
                 kind: Unexpected,
-            }]
+            })
         )
     }
 
     #[test]
     fn test_twice_derived_workaround() {
-        let res = parse(Source::unknown("{date &}&")).unwrap();
+        let res = parse(Source::unknown("{date &}&")).expect("Failed to parse");
         assert_eq!(
             res,
             vec![Expr::Detached(Detached {

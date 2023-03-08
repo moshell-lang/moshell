@@ -113,7 +113,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
                 TokenType::Ampersand
                     if self
                         .cursor
-                        .lookahead(next().then(of_type(Space).or(like(TokenType::is_call_bound))))
+                        .lookahead(next().then(spaces().or(like(TokenType::is_call_bound))))
                         .is_none() =>
                 {
                     redirections.push(self.redirection()?);
