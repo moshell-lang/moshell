@@ -63,7 +63,7 @@ mod tests {
 
     #[test]
     fn test_twice_derived_workaround() {
-        let res = parse(Source::unknown("{date &}&")).unwrap();
+        let res = parse(Source::unknown("{date &}&")).expect("Failed to parse");
         assert_eq!(
             res,
             vec![Expr::Detached(Detached {
