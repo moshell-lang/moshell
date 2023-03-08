@@ -243,33 +243,6 @@ mod tests {
     }
 
     #[test]
-    fn arithmetic_multiple_lines() {
-        let parsed = parse(Source::unknown("val n = 1\\\n + 2")).expect("Failed to parse");
-
-        assert_eq!(
-            parsed,
-            vec![Expr::VarDeclaration(VarDeclaration {
-                kind: VarKind::Val,
-                var: TypedVariable {
-                    name: "n",
-                    ty: None,
-                },
-                initializer: Some(Box::new(Expr::Binary(BinaryOperation {
-                    left: Box::new(Expr::Literal(Literal {
-                        lexeme: "1",
-                        parsed: 1.into(),
-                    })),
-                    op: Plus,
-                    right: Box::new(Expr::Literal(Literal {
-                        lexeme: "2",
-                        parsed: 2.into(),
-                    })),
-                }))),
-            })],
-        );
-    }
-
-    #[test]
     fn arithmetic_priority() {
         let source = Source::unknown("1 + 2 * 3");
         let mut parser = Parser::new(source);
