@@ -1,7 +1,6 @@
 use crate::aspects::group::GroupAspect;
 use crate::aspects::literal::LiteralAspect;
 use lexer::token::TokenType;
-use lexer::token::TokenType::*;
 
 use crate::aspects::redirection::RedirectionAspect;
 use crate::ast::callable::Call;
@@ -52,8 +51,8 @@ impl<'a> Parser<'a> {
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
-            RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
-            CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
+            TokenType::RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
+            TokenType::CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
             _ => self.literal(),
         }
     }
@@ -88,7 +87,7 @@ mod tests {
     #[test]
     fn not_in_call_is_literal() {
         let content = "echo how ! how are you !";
-        let result = parse(Source::unknown(content)).unwrap();
+        let result = parse(Source::unknown(content)).expect("Failed to parse");
         assert_eq!(
             result,
             vec![Expr::Call(Call {

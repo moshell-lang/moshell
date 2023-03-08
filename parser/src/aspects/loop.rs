@@ -72,15 +72,16 @@ mod tests {
     }
 
     #[test]
-    fn test_loop_no_body() {
-        let res = parse(Source::unknown("loop")).errors;
+    fn loop_no_body() {
+        let content = "loop";
+        let res: ParseResult<_> = parse(Source::unknown(content)).into();
         assert_eq!(
             res,
-            vec![ParseError {
+            Err(ParseError {
                 message: "Expected expression statement".to_string(),
-                position: 4..4,
+                position: content.len()..content.len(),
                 kind: Unexpected,
-            }]
+            })
         )
     }
 
@@ -102,28 +103,30 @@ mod tests {
     }
 
     #[test]
-    fn test_while_no_condition() {
-        let res = parse(Source::unknown("while")).errors;
+    fn while_no_condition() {
+        let content = "while";
+        let res: ParseResult<_> = parse(Source::unknown(content)).into();
         assert_eq!(
             res,
-            vec![ParseError {
+            Err(ParseError {
                 message: "Expected expression statement".to_string(),
-                position: 5..5,
+                position: content.len()..content.len(),
                 kind: Unexpected,
-            }]
+            })
         )
     }
 
     #[test]
-    fn test_while_no_body() {
-        let res = parse(Source::unknown("while $x")).errors;
+    fn while_no_body() {
+        let content = "while $x";
+        let res: ParseResult<_> = parse(Source::unknown(content)).into();
         assert_eq!(
             res,
-            vec![ParseError {
+            Err(ParseError {
                 message: "Expected expression statement".to_string(),
-                position: 8..8,
+                position: content.len()..content.len(),
                 kind: Unexpected,
-            }]
+            })
         )
     }
 }
