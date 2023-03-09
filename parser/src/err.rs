@@ -99,7 +99,7 @@ pub struct ParseReport<'a> {
 
 impl<'a> ParseReport<'a> {
     pub fn is_ok(&self) -> bool {
-        self.errors.is_empty()
+        self.errors.is_empty() && self.stack_ended
     }
 
     pub fn is_err(&self) -> bool {
@@ -109,16 +109,20 @@ impl<'a> ParseReport<'a> {
     pub fn expect(self, msg: &str) -> Vec<Expr<'a>> {
         if self.is_ok() {
             self.expr
+        } else if !self.errors.is_empty() {
+            panic!("{msg} {:?}", self.errors)
         } else {
-            panic!("{} {:?}", msg, self.errors)
+            panic!("{msg}: The stack was excepted to be ended")
         }
     }
 
     pub fn unwrap(self) -> Vec<Expr<'a>> {
         if self.is_ok() {
             self.expr
-        } else {
+        } else if !self.errors.is_empty() {
             panic!("ParseReport contains errors: {:?}", self.errors)
+        } else {
+            panic!("The stack was excepted to be ended")
         }
     }
 }

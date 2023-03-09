@@ -32,6 +32,7 @@ impl<'a> StructureAspect<'a> for Parser<'a> {
                 .advance(word_seps().then(of_type(TokenType::RoundedRightBracket)))
                 .is_some()
             {
+                self.delimiter_stack.pop_back();
                 return Ok(Expr::Construct(Construct {
                     name: name.value,
                     args,
@@ -89,8 +90,8 @@ mod tests {
             name: "Foo",
             args: vec![],
         })];
-        assert_eq!(expr, expected,);
-        assert_eq!(expr2, expected,);
+        assert_eq!(expr, expected);
+        assert_eq!(expr2, expected);
     }
 
     #[test]
