@@ -8,6 +8,9 @@ use lexer::token::TokenType;
 pub trait StructureAspect<'a> {
     /// Parses a structure constructor call.
     fn constructor(&mut self) -> ParseResult<Expr<'a>>;
+
+    /// Checks if the cursor is at the start of a constructor.
+    fn is_at_constructor_start(&self) -> bool;
 }
 
 impl<'a> StructureAspect<'a> for Parser<'a> {
@@ -53,6 +56,14 @@ impl<'a> StructureAspect<'a> for Parser<'a> {
             name: name.value,
             args,
         }))
+    }
+
+    fn is_at_constructor_start(&self) -> bool {
+        self.cursor
+            .lookahead(
+                of_type(TokenType::Identifier).and_then(of_type(TokenType::RoundedLeftBracket)),
+            )
+            .is_some()
     }
 }
 
