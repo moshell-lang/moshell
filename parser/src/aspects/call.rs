@@ -3,6 +3,7 @@ use crate::aspects::literal::LiteralAspect;
 use lexer::token::TokenType;
 
 use crate::aspects::redirection::RedirectionAspect;
+use crate::aspects::structure::StructureAspect;
 use crate::ast::callable::Call;
 use crate::ast::Expr;
 use crate::moves::{eox, like, word_seps, MoveOperations};
@@ -53,6 +54,7 @@ impl<'a> Parser<'a> {
         match pivot {
             TokenType::RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
             TokenType::CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
+            TokenType::Identifier if self.is_at_constructor_start() => self.constructor(),
             _ => self.literal(),
         }
     }

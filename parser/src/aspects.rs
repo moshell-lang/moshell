@@ -8,6 +8,7 @@ pub(super) mod literal;
 pub(super) mod r#loop;
 pub(super) mod r#match;
 pub(super) mod redirection;
+pub(super) mod structure;
 pub(super) mod substitution;
 pub(super) mod test;
 pub(super) mod r#use;

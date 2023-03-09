@@ -4,6 +4,7 @@ use crate::ast::group::{Block, Parenthesis, Subshell};
 use crate::ast::operation::BinaryOperation;
 use crate::ast::r#match::Match;
 use crate::ast::r#use::Use;
+use crate::ast::structure::Construct;
 use crate::ast::substitution::Substitution;
 use crate::ast::test::{Not, Test};
 use crate::ast::value::{Literal, TemplateString};
@@ -15,6 +16,7 @@ pub mod control_flow;
 pub mod group;
 pub mod r#match;
 pub mod operation;
+pub mod structure;
 pub mod substitution;
 pub mod test;
 pub mod r#use;
@@ -33,6 +35,7 @@ pub enum Expr<'a> {
     Call(Call<'a>),
     Pipeline(Pipeline<'a>),
     Redirected(Redirected<'a>),
+    Construct(Construct<'a>),
     Detached(Detached<'a>),
 
     Substitution(Substitution<'a>),

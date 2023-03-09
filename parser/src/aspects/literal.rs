@@ -85,9 +85,19 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                         }
                         break;
                     }
-                    value.push_str(token.value);
+                    if token.token_type != BackSlash {
+                        value.push_str(token.value);
+                    }
                     if let Some(joined) = try_join_str(lexeme, token.value) {
                         lexeme = joined;
+                    }
+                    if token.token_type == BackSlash {
+                        if let Some(next) = self.cursor.advance(next()) {
+                            value.push_str(next.value);
+                            if let Some(joined) = try_join_str(lexeme, next.value) {
+                                lexeme = joined;
+                            }
+                        }
                     }
                 }
             };
@@ -111,10 +121,24 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 );
             }
 
-            match self.cursor.peek().token_type {
+            let current = self.cursor.peek();
+            match current.token_type {
                 DoubleQuote => {
                     self.cursor.advance(next());
                     break;
+                }
+
+                BackSlash => {
+                    self.cursor.advance(next());
+                    if let Some(joined) = try_join_str(lexeme, current.value) {
+                        lexeme = joined;
+                    }
+                    if let Some(next) = self.cursor.advance(next()) {
+                        literal_value.push_str(next.value);
+                        if let Some(joined) = try_join_str(lexeme, next.value) {
+                            lexeme = joined;
+                        }
+                    }
                 }
 
                 Dollar => {
@@ -200,6 +224,9 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                         break;
                     }
 
+                    if let Some(joined) = try_join_str(lexeme, token.value) {
+                        lexeme = joined;
+                    }
                     //never retain first backslash
                     self.cursor.next()?;
                     //advance so we are not pointing to token after '\'
@@ -304,8 +331,36 @@ mod tests {
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
-                lexeme: "a",
+                lexeme: "a\\a",
                 parsed: "aa".into(),
+            })
+        );
+    }
+
+    #[test]
+    fn escaped_string_literal() {
+        let source = Source::unknown("'a\\'a'");
+        let parsed = Parser::new(source).expression().expect("Failed to parse.");
+        assert_eq!(
+            parsed,
+            Expr::Literal(Literal {
+                lexeme: "'a\\'a'",
+                parsed: "a'a".into(),
+            })
+        );
+    }
+
+    #[test]
+    fn escaped_template_string_literal() {
+        let source = Source::unknown("\"a\\\"a'\"");
+        let parsed = Parser::new(source).expression().expect("Failed to parse.");
+        assert_eq!(
+            parsed,
+            Expr::TemplateString(TemplateString {
+                parts: vec![Expr::Literal(Literal {
+                    lexeme: "a\\\"a'",
+                    parsed: "a\"a'".into(),
+                }),]
             })
         );
     }

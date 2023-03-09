@@ -1,7 +1,7 @@
 use context::source::Source;
 use parser::ast::callable::{Call, Redir, RedirFd, RedirOp, Redirected};
-use parser::ast::operation::BinaryOperator::Plus;
 use parser::ast::operation::{BinaryOperation, BinaryOperator};
+use parser::ast::structure::Construct;
 use parser::ast::value::{Literal, LiteralValue};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use parser::ast::Expr;
@@ -58,9 +58,30 @@ fn command_starting_with_arg() {
 }
 
 #[test]
+fn constructor_in_call() {
+    let source = Source::unknown("echo Foo() Bar\\(\\)");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Call(Call {
+            arguments: vec![
+                Expr::Literal("echo".into()),
+                Expr::Construct(Construct {
+                    name: "Foo",
+                    args: vec![],
+                }),
+                Expr::Literal(Literal {
+                    lexeme: "Bar\\(\\)",
+                    parsed: "Bar()".into(),
+                }),
+            ],
+        })]
+    );
+}
+
+#[test]
 fn arithmetic_multiple_lines() {
     let parsed = parse(Source::unknown("val n = 1\\\n + 2")).expect("Failed to parse");
-
     assert_eq!(
         parsed,
         vec![Expr::VarDeclaration(VarDeclaration {
@@ -74,7 +95,7 @@ fn arithmetic_multiple_lines() {
                     lexeme: "1",
                     parsed: 1.into(),
                 })),
-                op: Plus,
+                op: BinaryOperator::Plus,
                 right: Box::new(Expr::Literal(Literal {
                     lexeme: "2",
                     parsed: 2.into(),

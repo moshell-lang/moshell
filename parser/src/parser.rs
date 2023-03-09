@@ -15,6 +15,7 @@ use crate::aspects::r#loop::LoopAspect;
 use crate::aspects::r#match::MatchAspect;
 use crate::aspects::r#use::UseAspect;
 use crate::aspects::redirection::RedirectionAspect;
+use crate::aspects::structure::StructureAspect;
 use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::ast::Expr;
@@ -154,7 +155,7 @@ impl<'a> Parser<'a> {
         match pivot {
             If => self.parse_if(Parser::statement).map(Expr::If),
             Match => self.parse_match(Parser::statement).map(Expr::Match),
-
+            Identifier if self.is_at_constructor_start() => self.constructor(),
             Identifier | Quote | DoubleQuote => self.call(),
 
             _ if pivot.is_bin_operator() => self.call(),
@@ -198,9 +199,10 @@ impl<'a> Parser<'a> {
             CurlyLeftBracket => self.block().map(Expr::Block),
             Not => self.not(Parser::next_value),
 
-            //expressions that can also be used as values
+            //expression that can also be used as values
             If => self.parse_if(Parser::value).map(Expr::If),
             Match => self.parse_match(Parser::value).map(Expr::Match),
+            Identifier if self.is_at_constructor_start() => self.constructor(),
 
             //test expressions has nothing to do in a value expression.
             SquaredLeftBracket => self.expected("Unexpected start of test expression", Unexpected),
@@ -236,6 +238,31 @@ impl<'a> Parser<'a> {
         kind: ParseErrorKind,
     ) -> ParseResult<T> {
         Err(self.mk_parse_error(message, context, kind))
+    }
+
+    /// Expect a specific delimiter token type and pop it from the delimiter stack.
+    pub(crate) fn expect_delimiter(&mut self, eog: TokenType) -> ParseResult<()> {
+        if self.cursor.advance(of_type(eog)).is_some() {
+            self.delimiter_stack.pop_back();
+            Ok(())
+        } else {
+            self.mismatched_delimiter(eog)
+        }
+    }
+
+    /// Raise a mismatched delimiter error on the current token.
+    pub(crate) fn mismatched_delimiter(&mut self, eog: TokenType) -> ParseResult<()> {
+        if let Some(last) = self.delimiter_stack.back() {
+            self.expected(
+                "Mismatched closing delimiter.",
+                ParseErrorKind::Unpaired(self.cursor.relative_pos(last)),
+            )
+        } else {
+            self.expected(
+                "Unexpected closing delimiter.",
+                ParseErrorKind::Excepted(eog.str().unwrap_or("specific token")),
+            )
+        }
     }
 
     pub(crate) fn mk_parse_error(
