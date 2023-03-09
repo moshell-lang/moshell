@@ -43,12 +43,14 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             Quote => self.string_literal().map(Expr::Literal),
             DoubleQuote => self.templated_string_literal().map(Expr::TemplateString),
 
-            _ if pivot.is_keyword() => {
-                self.expected(&format!("Unexpected keyword '{}'", token.value), ParseErrorKind::Unexpected)
-            }
-            _ if pivot.is_ponctuation() => {
-                self.expected(&format!("Unexpected token '{}'.", token.value), ParseErrorKind::Unexpected)
-            }
+            _ if pivot.is_keyword() => self.expected(
+                &format!("Unexpected keyword '{}'", token.value),
+                ParseErrorKind::Unexpected,
+            ),
+            _ if pivot.is_ponctuation() => self.expected(
+                &format!("Unexpected token '{}'.", token.value),
+                ParseErrorKind::Unexpected,
+            ),
 
             _ => self.argument(),
         }
@@ -62,9 +64,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
     }
 
     fn string_literal(&mut self) -> ParseResult<Literal<'a>> {
-        let start = self
-            .cursor
-            .force(of_type(Quote), "Expected quote.")?;
+        let start = self.cursor.force(of_type(Quote), "Expected quote.")?;
         let mut lexeme = start.value;
 
         let mut value = String::new();
@@ -99,9 +99,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
     }
 
     fn templated_string_literal(&mut self) -> ParseResult<TemplateString<'a>> {
-        let start = self
-            .cursor
-            .force(of_type(DoubleQuote), "Expected quote.")?;
+        let start = self.cursor.force(of_type(DoubleQuote), "Expected quote.")?;
         let mut lexeme = self.cursor.peek().value;
         let mut literal_value = String::new();
         let mut parts = Vec::new();
@@ -254,11 +252,9 @@ impl<'a> Parser<'a> {
                     _ => self.mk_parse_error(e.to_string(), token, ParseErrorKind::InvalidFormat),
                 },
             )?)),
-            FloatLiteral => {
-                Ok(LiteralValue::Float(token.value.parse::<f64>().map_err(
-                    |e| self.mk_parse_error(e.to_string(), token, ParseErrorKind::InvalidFormat),
-                )?))
-            }
+            FloatLiteral => Ok(LiteralValue::Float(token.value.parse::<f64>().map_err(
+                |e| self.mk_parse_error(e.to_string(), token, ParseErrorKind::InvalidFormat),
+            )?)),
             _ => self.expected("Expected a literal.", ParseErrorKind::Unexpected),
         }
     }
@@ -269,10 +265,10 @@ mod tests {
     use crate::parse;
 
     use super::*;
+    use crate::err::ParseErrorKind::InvalidFormat;
     use crate::err::{ParseError, ParseErrorKind};
     use context::source::Source;
     use pretty_assertions::assert_eq;
-    use crate::err::ParseErrorKind::InvalidFormat;
 
     #[test]
     fn int_overflow() {

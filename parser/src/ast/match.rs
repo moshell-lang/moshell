@@ -1,7 +1,7 @@
-use dbg_pls::DebugPls;
 use crate::ast::value::{Literal, TemplateString};
 use crate::ast::variable::VarReference;
 use crate::ast::Expr;
+use dbg_pls::DebugPls;
 
 /// structure of a `match` expression.
 #[derive(Debug, Clone, PartialEq, DebugPls)]

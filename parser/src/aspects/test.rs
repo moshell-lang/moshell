@@ -2,11 +2,11 @@ use crate::aspects::call::CallAspect;
 use crate::ast::test::{Not, Test};
 use crate::ast::Expr;
 use crate::ast::Expr::Literal;
+use crate::err::ParseErrorKind;
 use crate::moves::{of_type, spaces, times, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use lexer::token::{Token, TokenType};
 use lexer::token::TokenType::{SquaredLeftBracket, SquaredRightBracket};
-use crate::err::ParseErrorKind;
+use lexer::token::{Token, TokenType};
 
 pub(crate) trait TestAspect<'a> {
     ///parse a not (! ..) expression.
@@ -42,7 +42,6 @@ impl<'a> TestAspect<'a> for Parser<'a> {
         if self.cursor.advance(of_type(SquaredLeftBracket)).is_some() {
             return self.parse_test_call(start);
         }
-
 
         if let Some(end) = self.cursor.lookahead(of_type(SquaredRightBracket)) {
             self.expected_with(
@@ -88,11 +87,11 @@ mod tests {
     use crate::ast::value::{Literal, LiteralValue};
     use crate::ast::variable::VarReference;
     use crate::ast::Expr;
+    use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
     use context::source::Source;
     use pretty_assertions::assert_eq;
-    use crate::err::{ParseError, ParseErrorKind};
 
     #[test]
     fn native_empty() {

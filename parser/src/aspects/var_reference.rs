@@ -51,15 +51,15 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::variable::VarReference;
-    use crate::ast::Expr;
-    use crate::parse;
-    use crate::parser::{Parser, ParseResult};
-    use pretty_assertions::assert_eq;
-    use context::source::Source;
     use crate::aspects::substitution::SubstitutionAspect;
     use crate::ast::value::TemplateString;
+    use crate::ast::variable::VarReference;
+    use crate::ast::Expr;
     use crate::err::{ParseError, ParseErrorKind};
+    use crate::parse;
+    use crate::parser::{ParseResult, Parser};
+    use context::source::Source;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn simple_ref() {

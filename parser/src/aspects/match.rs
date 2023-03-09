@@ -153,9 +153,10 @@ impl<'a> Parser<'a> {
 
         if !is_at_pattern_end!() {
             let token = self.cursor.lookahead(blanks().then(any())).unwrap().value;
-            return self.expected(&format!(
-                "unexpected token, expected '|', 'if' or '=>', found '{token}'"
-            ), ParseErrorKind::Unexpected);
+            return self.expected(
+                &format!("unexpected token, expected '|', 'if' or '=>', found '{token}'"),
+                ParseErrorKind::Unexpected,
+            );
         }
 
         Ok(patterns)
@@ -200,9 +201,8 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
     use context::source::Source;
-
+    use pretty_assertions::assert_eq;
 
     use crate::ast::callable::Call;
     use crate::ast::group::Subshell;
@@ -212,18 +212,20 @@ mod tests {
     use crate::ast::value::{Literal, TemplateString};
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
     use crate::ast::Expr;
-    use crate::err::{ParseError};
+    use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
     use crate::parse;
 
     #[test]
     fn parse_match_as_value() {
-        let source = Source::unknown("
+        let source = Source::unknown(
+            "
         val x = match $1 {
            -e => 75
            y@\"test $2\" | 2 | $USER | 't x' => 4 - 7
         }
-        ");
+        ",
+        );
         let ast = parse(source).expect("parser failed");
 
         assert_eq!(
@@ -286,15 +288,17 @@ mod tests {
 
     #[test]
     fn parse_complete_match() {
-        let ast = parse(Source::unknown("\
+        let ast = parse(Source::unknown(
+            "\
         match $1 {\
            -e => ();;;;;\n;;\n;;;;;\
            y@\"test $2\" | 2 | $USER | 't x' => ()
            x@* if [ $a == 1 ] => ();\
            * => echo $it
         }\
-        "))
-            .expect("parse fail");
+        ",
+        ))
+        .expect("parse fail");
 
         assert_eq!(
             ast,
@@ -368,12 +372,14 @@ mod tests {
 
     #[test]
     fn parse_match_direct_wildcard() {
-        let ast = parse(Source::unknown("\
+        let ast = parse(Source::unknown(
+            "\
         match nginx {\
            * => echo $it
         }\
-        "))
-            .expect("parse fail");
+        ",
+        ))
+        .expect("parse fail");
 
         assert_eq!(
             ast,
@@ -487,13 +493,11 @@ mod tests {
         let res = parse(Source::unknown(src)).errors;
         assert_eq!(
             res,
-            vec![
-                ParseError {
-                    message: "unexpected wildcard".to_string(),
-                    position: src.find('*').map(|i| i+1..i+2).unwrap(),
-                    kind: Unexpected,
-                }
-            ]
+            vec![ParseError {
+                message: "unexpected wildcard".to_string(),
+                position: src.find('*').map(|i| i + 1..i + 2).unwrap(),
+                kind: Unexpected,
+            }]
         )
     }
 
@@ -510,7 +514,10 @@ mod tests {
             vec![ParseError {
                 message: "wildcard pattern cannot be followed by other patterns".to_string(),
                 kind: Unexpected,
-                position: src.find("* | x | y ").map(|i| i..i + "* | x | y ".len()).unwrap(),
+                position: src
+                    .find("* | x | y ")
+                    .map(|i| i..i + "* | x | y ".len())
+                    .unwrap(),
             }]
         )
     }
@@ -528,7 +535,7 @@ mod tests {
             vec![ParseError {
                 message: "unexpected token, expected '|', 'if' or '=>', found 'y'".to_string(),
                 kind: Unexpected,
-                position: src.find('y').map(|i| i-1..i).unwrap(),
+                position: src.find('y').map(|i| i - 1..i).unwrap(),
             }]
         )
     }
@@ -543,13 +550,11 @@ mod tests {
         let res = parse(Source::unknown(src)).errors;
         assert_eq!(
             res,
-            vec![
-                ParseError {
-                    message: "Unexpected token '=>'.".to_string(),
-                    position: src.find("=>").map(|i| i..i + 2).unwrap(),
-                    kind: Unexpected,
-                }
-            ]
+            vec![ParseError {
+                message: "Unexpected token '=>'.".to_string(),
+                position: src.find("=>").map(|i| i..i + 2).unwrap(),
+                kind: Unexpected,
+            }]
         )
     }
 
@@ -566,7 +571,7 @@ mod tests {
             vec![ParseError {
                 message: "unexpected token, expected '|', 'if' or '=>', found '('".to_string(),
                 kind: Unexpected,
-                position: src.find('(').map(|i| i-1..i).unwrap(),
+                position: src.find('(').map(|i| i - 1..i).unwrap(),
             }]
         )
     }

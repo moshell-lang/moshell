@@ -2,7 +2,7 @@ use crate::aspects::call::CallAspect;
 use crate::ast::callable::{Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use crate::ast::Expr;
 use crate::err::ParseErrorKind;
-use crate::moves::{eox, next, of_type, of_types, space, spaces, MoveOperations};
+use crate::moves::{eox, like, next, of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{BackSlash, DoubleQuote, Quote};
@@ -26,7 +26,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
         // Continue as long as we have a pipe
         while self
             .cursor
-            .advance(space().then(of_type(TokenType::Bar)))
+            .advance(spaces().then(of_type(TokenType::Bar)))
             .is_some()
         {
             match self.call()? {
@@ -38,7 +38,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
     }
 
     fn redirection(&mut self) -> ParseResult<Redir<'a>> {
-        self.cursor.advance(space());
+        self.cursor.advance(spaces());
         let mut token = self.cursor.next()?;
         // Parse if present the redirected file descriptor
         let fd = match token.token_type {
@@ -109,7 +109,17 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
 
         while self.cursor.lookahead(eox()).is_none() {
             match self.cursor.peek().token_type {
-                TokenType::Ampersand | TokenType::Less | TokenType::Greater => {
+                //add a guard to ensure that the ampersand is not followed by space which should later lead to a detached expression
+                TokenType::Ampersand
+                    if self
+                        .cursor
+                        .lookahead(next().then(spaces().or(like(TokenType::is_call_bound))))
+                        .is_none() =>
+                {
+                    redirections.push(self.redirection()?);
+                }
+
+                TokenType::Less | TokenType::Greater => {
                     redirections.push(self.redirection()?);
                 }
 

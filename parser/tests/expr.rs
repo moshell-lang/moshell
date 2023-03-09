@@ -1,5 +1,7 @@
 use context::source::Source;
 use parser::ast::callable::Call;
+use parser::ast::operation::BinaryOperation;
+use parser::ast::operation::BinaryOperator::Plus;
 use parser::ast::value::{Literal, LiteralValue};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use parser::ast::Expr;
@@ -52,5 +54,32 @@ fn command_starting_with_arg() {
         vec![Expr::Call(Call {
             arguments: vec![Expr::Literal("-".into()), Expr::Literal("W".into())],
         })]
+    );
+}
+
+#[test]
+fn arithmetic_multiple_lines() {
+    let parsed = parse(Source::unknown("val n = 1\\\n + 2")).expect("Failed to parse");
+
+    assert_eq!(
+        parsed,
+        vec![Expr::VarDeclaration(VarDeclaration {
+            kind: VarKind::Val,
+            var: TypedVariable {
+                name: "n",
+                ty: None,
+            },
+            initializer: Some(Box::new(Expr::Binary(BinaryOperation {
+                left: Box::new(Expr::Literal(Literal {
+                    lexeme: "1",
+                    parsed: 1.into(),
+                })),
+                op: Plus,
+                right: Box::new(Expr::Literal(Literal {
+                    lexeme: "2",
+                    parsed: 2.into(),
+                })),
+            }))),
+        })],
     );
 }

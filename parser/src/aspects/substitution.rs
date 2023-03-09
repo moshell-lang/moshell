@@ -3,11 +3,11 @@ use crate::aspects::var_reference::VarReferenceAspect;
 use crate::ast::substitution::{Substitution, SubstitutionKind};
 use crate::ast::value::{Literal, LiteralValue};
 use crate::ast::Expr;
-use crate::moves::{eox, not, of_type, space, MoveOperations, repeat_n};
+use crate::err::ParseErrorKind;
+use crate::moves::{eox, not, of_type, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{RoundedLeftBracket, RoundedRightBracket};
-use crate::err::ParseErrorKind;
 
 /// A parser for substitution expressions.
 pub(crate) trait SubstitutionAspect<'a> {
@@ -45,7 +45,7 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
         }
 
         // Short pass for variable references
-        if self.cursor.lookahead(not(space().or(eox()))).is_some() {
+        if self.cursor.lookahead(not(spaces().or(eox()))).is_some() {
             return self.var_reference();
         }
 
@@ -66,13 +66,13 @@ mod tests {
 
     use crate::ast::group::{Block, Parenthesis, Subshell};
     use crate::ast::operation::{BinaryOperation, BinaryOperator};
+    use crate::ast::value::Literal;
     use crate::ast::variable::VarReference;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
     use context::source::Source;
     use pretty_assertions::assert_eq;
-    use crate::ast::value::Literal;
 
     #[test]
     fn unterminated_substitution() {

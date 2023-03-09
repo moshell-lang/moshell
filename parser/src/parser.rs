@@ -1,14 +1,16 @@
-use lexer::token::TokenType::*;
 use context::source::Source;
 use lexer::lexer::lex;
+use lexer::token::TokenType::*;
 use lexer::token::{Token, TokenType};
-use std::collections::VecDeque;
+use std::collections::vec_deque::VecDeque;
 
 use crate::aspects::binary_operation::BinaryOperationsAspect;
 use crate::aspects::call::CallAspect;
+use crate::aspects::detached::DetachedAspect;
 use crate::aspects::group::GroupAspect;
 use crate::aspects::if_else::IfElseAspect;
 use crate::aspects::literal::LiteralAspect;
+use crate::aspects::r#loop::LoopAspect;
 use crate::aspects::r#match::MatchAspect;
 use crate::aspects::r#use::UseAspect;
 use crate::aspects::redirection::RedirectionAspect;
@@ -16,11 +18,10 @@ use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
-use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
 use crate::err::ParseErrorKind::Unexpected;
+use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
 use crate::moves::{
-    bin_op, eod, eox, like, next, of_types,
-    repeat, space, spaces, word_seps, MoveOperations,
+    bin_op, eod, eox, like, next, of_types, repeat, spaces, word_seps, MoveOperations,
 };
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
@@ -81,35 +82,43 @@ impl<'a> Parser<'a> {
     }
 
     fn look_for_input(&mut self) -> bool {
-        self.cursor.advance(repeat(space().or(eox())));
+        self.cursor.advance(repeat(spaces().or(eox())));
 
         !self.cursor.is_at_end()
+    }
+
+    #[inline]
+    pub(crate) fn parse_full_expr<P>(&mut self, mut next: P) -> ParseResult<Expr<'a>>
+    where
+        P: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
+    {
+        let expr = next(self)?;
+        let expr = self.parse_binary_expr(expr)?;
+        self.parse_detached(expr)
     }
 
     /// Parses a statement or binary expression.
     /// a statement is usually on a single line
     pub(crate) fn statement(&mut self) -> ParseResult<Expr<'a>> {
-        let result = self.next_statement()?;
-        self.parse_binary_expr(result)
+        self.parse_full_expr(Parser::next_statement)
     }
 
     /// Parses an expression-statement or binary expression.
     pub(crate) fn expression_statement(&mut self) -> ParseResult<Expr<'a>> {
-        let expr = self.next_expression_statement()?;
-        self.parse_binary_expr(expr)
+        self.parse_full_expr(Parser::next_expression_statement)
     }
 
     /// Parses an expression or binary expression.
     pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
-        let expr = self.next_expression()?;
-        self.parse_binary_expr(expr)
+        self.parse_full_expr(Parser::next_expression)
     }
 
     /// Parses a value or binary expression
     pub(crate) fn value(&mut self) -> ParseResult<Expr<'a>> {
         let value = self.next_value()?;
         //values needs a different handling of right-handed binary expressions
-        self.parse_binary_value_expr(value)
+        let value = self.parse_binary_value_expr(value)?;
+        self.parse_detached(value)
     }
 
     ///Parse the next statement
@@ -121,6 +130,9 @@ impl<'a> Parser<'a> {
             Var | Val => self.var_declaration(),
             Use => self.parse_use(),
 
+            While => self.parse_while().map(Expr::While),
+            Loop => self.parse_loop().map(Expr::Loop),
+
             _ => self.next_expression_statement(),
         }
     }
@@ -131,8 +143,9 @@ impl<'a> Parser<'a> {
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
-            If => self.parse_if(Parser::statement),
-            Match => Ok(Expr::Match(self.parse_match(Parser::statement)?)),
+            If => self.parse_if(Parser::statement).map(Expr::If),
+            Match => self.parse_match(Parser::statement).map(Expr::Match),
+
             Identifier | Quote | DoubleQuote => self.call(),
 
             _ if pivot.is_bin_operator() => self.call(),
@@ -148,8 +161,17 @@ impl<'a> Parser<'a> {
         let pivot = self.cursor.peek().token_type;
         match pivot {
             //if we are parsing an expression, then we want to see a parenthesised expr as a subshell expression
-            RoundedLeftBracket => Ok(Expr::Subshell(self.subshell()?)),
+            RoundedLeftBracket => self.subshell().map(Expr::Subshell),
             SquaredLeftBracket => self.parse_test(),
+
+            Continue => {
+                self.cursor.next()?;
+                Ok(Expr::Continue)
+            }
+            Break => {
+                self.cursor.next()?;
+                Ok(Expr::Break)
+            }
 
             Not => self.not(Parser::next_expression_statement),
 
@@ -163,13 +185,13 @@ impl<'a> Parser<'a> {
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
-            RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
-            CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
+            RoundedLeftBracket => self.parenthesis().map(Expr::Parenthesis),
+            CurlyLeftBracket => self.block().map(Expr::Block),
             Not => self.not(Parser::next_value),
 
-            //expression that can also be used as values
-            If => self.parse_if(Parser::value),
-            Match => Ok(Expr::Match(self.parse_match(Parser::value)?)),
+            //expressions that can also be used as values
+            If => self.parse_if(Parser::value).map(Expr::If),
+            Match => self.parse_match(Parser::value).map(Expr::Match),
 
             //test expressions has nothing to do in a value expression.
             SquaredLeftBracket => self.expected("Unexpected start of test expression", Unexpected),
@@ -238,7 +260,6 @@ impl<'a> Parser<'a> {
             return self.redirectable(expr);
         }
 
-
         if let Expr::Literal(literal) = &expr {
             if self.cursor.lookahead(bin_op()).is_some() {
                 let start_pos = self.cursor.relative_pos(literal.lexeme).start;
@@ -265,7 +286,7 @@ impl<'a> Parser<'a> {
     //as the left arm of the expression.
     //if given expression is directly followed by an eox delimiter, then return it as is
     fn parse_binary_value_expr(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
-        self.cursor.advance(spaces()); //consume spaces
+        self.cursor.advance(word_seps()); //consume word separators
 
         //if there is an end of expression, it means that the expr is terminated so we return it here
         //any keyword would also stop this expression.
@@ -283,9 +304,9 @@ impl<'a> Parser<'a> {
         self.expected("invalid infix operator", Unexpected)
     }
 
-    //Skips spaces and verify that this parser is not parsing the end of an expression
-    // (unescaped newline or semicolon)
-    fn repos(&mut self, message: &str) -> ParseResult<()> {
+    ///Skips spaces and verify that this parser is not parsing the end of an expression
+    /// (unescaped newline or semicolon)
+    pub(crate) fn repos(&mut self, message: &str) -> ParseResult<()> {
         self.cursor.advance(word_seps()); //skip word separators
         if self.cursor.lookahead(eox()).is_some() {
             return self.expected(message, Unexpected);

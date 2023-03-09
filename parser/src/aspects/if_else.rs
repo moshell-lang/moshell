@@ -1,6 +1,6 @@
 use crate::ast::control_flow::If;
 use crate::ast::Expr;
-use crate::moves::{of_type, MoveOperations, aerated, blanks};
+use crate::moves::{aerated, blanks, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{Else, SemiColon};
@@ -9,13 +9,13 @@ use lexer::token::TokenType::{Else, SemiColon};
 pub trait IfElseAspect<'a> {
     ///parse a if with optional else expression.
     /// `parse_branch` argument defines how the branches must be parsed.
-    fn parse_if<F>(&mut self, parse_branch: F) -> ParseResult<Expr<'a>>
+    fn parse_if<F>(&mut self, parse_branch: F) -> ParseResult<If<'a>>
     where
         F: FnMut(&mut Self) -> ParseResult<Expr<'a>>;
 }
 
 impl<'a> IfElseAspect<'a> for Parser<'a> {
-    fn parse_if<F>(&mut self, mut parse_branch: F) -> ParseResult<Expr<'a>>
+    fn parse_if<F>(&mut self, mut parse_branch: F) -> ParseResult<If<'a>>
     where
         F: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
     {
@@ -47,11 +47,11 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
             None
         };
 
-        Ok(Expr::If(If {
+        Ok(If {
             condition: Box::new(condition),
             success_branch: Box::new(success_branch),
             fail_branch,
-        }))
+        })
     }
 }
 
@@ -66,8 +66,8 @@ mod tests {
     use crate::ast::value::{Literal, TemplateString};
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
     use crate::ast::Expr;
-    use crate::parse;
     use crate::err::{ParseError, ParseErrorKind};
+    use crate::parse;
     use crate::parser::ParseResult;
     use context::source::Source;
     use pretty_assertions::assert_eq;
@@ -207,7 +207,6 @@ mod tests {
                     fail_branch: Some(Box::new(Expr::TemplateString(TemplateString {
                         parts: vec![Expr::Literal("moshell".into())]
                     }))),
-
                 }))),
             }),]
         )
