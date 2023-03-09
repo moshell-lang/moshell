@@ -1,8 +1,10 @@
 pub(super) mod binary_operation;
 pub(super) mod call;
+pub(super) mod detached;
 pub(super) mod group;
 pub(super) mod if_else;
 pub(super) mod literal;
+pub(super) mod r#loop;
 pub(super) mod r#match;
 pub(super) mod redirection;
 pub(super) mod structure;

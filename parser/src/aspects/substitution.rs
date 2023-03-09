@@ -4,7 +4,7 @@ use crate::ast::substitution::{Substitution, SubstitutionKind};
 use crate::ast::value::{Literal, LiteralValue};
 use crate::ast::Expr;
 use crate::err::ParseErrorKind;
-use crate::moves::{eox, not, of_type, repeat_n, space, MoveOperations};
+use crate::moves::{eox, not, of_type, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{RoundedLeftBracket, RoundedRightBracket};
@@ -45,7 +45,7 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
         }
 
         // Short pass for variable references
-        if self.cursor.lookahead(not(space().or(eox()))).is_some() {
+        if self.cursor.lookahead(not(spaces().or(eox()))).is_some() {
             return self.var_reference();
         }
 

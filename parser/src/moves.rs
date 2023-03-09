@@ -139,19 +139,9 @@ pub(crate) fn none() -> PredicateMove<fn(Token) -> bool> {
     predicate(|_| false)
 }
 
-///Move to next token if it's not a space
-pub(crate) fn no_space() -> PredicateMove<impl for<'a> Fn(Token<'a>) -> bool + Copy> {
-    of_type(Space).negate()
-}
-
-///Move to next token if it's a space
-pub(crate) fn space() -> PredicateMove<impl for<'a> Fn(Token<'a>) -> bool + Copy> {
-    of_type(Space)
-}
-
 ///repeats until it finds a token that's not a space
-pub(crate) fn spaces() -> RepeatedMove<PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>> {
-    repeat_n(1, space())
+pub(crate) fn spaces() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
+    of_type(Space)
 }
 
 ///A move to consume all spaces and escaped newlines
@@ -164,7 +154,10 @@ pub(crate) fn word_seps() -> RepeatedMove<
         >,
     >,
 > {
-    repeat_n(1, space().or(of_type(BackSlash).and_then(of_type(NewLine))))
+    repeat_n(
+        1,
+        spaces().or(of_type(BackSlash).and_then(of_type(NewLine))),
+    )
 }
 
 ///a move to consume any space or any newline
@@ -391,7 +384,7 @@ pub(crate) fn unescaped<M: Move + Copy>(
 
 ///a move that consumes a binary operation character
 pub(crate) fn bin_op() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
-    predicate(|t| t.token_type.is_bin_operator())
+    like(TokenType::is_bin_operator)
 }
 
 #[cfg(test)]

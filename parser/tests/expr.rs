@@ -1,5 +1,6 @@
 use context::source::Source;
 use parser::ast::callable::Call;
+use parser::ast::operation::{BinaryOperation, BinaryOperator};
 use parser::ast::structure::Construct;
 use parser::ast::value::{Literal, LiteralValue};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind};
@@ -75,5 +76,31 @@ fn constructor_in_call() {
                 }),
             ],
         })]
+    );
+}
+
+#[test]
+fn arithmetic_multiple_lines() {
+    let parsed = parse(Source::unknown("val n = 1\\\n + 2")).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::VarDeclaration(VarDeclaration {
+            kind: VarKind::Val,
+            var: TypedVariable {
+                name: "n",
+                ty: None,
+            },
+            initializer: Some(Box::new(Expr::Binary(BinaryOperation {
+                left: Box::new(Expr::Literal(Literal {
+                    lexeme: "1",
+                    parsed: 1.into(),
+                })),
+                op: BinaryOperator::Plus,
+                right: Box::new(Expr::Literal(Literal {
+                    lexeme: "2",
+                    parsed: 2.into(),
+                })),
+            }))),
+        })],
     );
 }

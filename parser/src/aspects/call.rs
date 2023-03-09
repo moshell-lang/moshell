@@ -1,9 +1,12 @@
+use crate::aspects::group::GroupAspect;
+use crate::aspects::literal::LiteralAspect;
 use lexer::token::TokenType;
 
 use crate::aspects::redirection::RedirectionAspect;
+use crate::aspects::structure::StructureAspect;
 use crate::ast::callable::Call;
 use crate::ast::Expr;
-use crate::moves::{eox, like, word_seps, MoveOperations};
+use crate::moves::{eox, like, next, of_type, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 /// A parse aspect for command and function calls
@@ -35,10 +38,32 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             if self.is_at_redirection_sign() {
                 return self.redirectable(Expr::Call(Call { arguments }));
             }
-            arguments.push(self.next_value()?);
+            arguments.push(self.call_argument()?);
             self.cursor.advance(word_seps()); //consume word separations
         }
         Ok(Expr::Call(Call { arguments }))
+    }
+}
+
+impl<'a> Parser<'a> {
+    /// special pivot method for argument methods
+    fn call_argument(&mut self) -> ParseResult<Expr<'a>> {
+        self.repos("Expected value")?;
+
+        let pivot = self.cursor.peek().token_type;
+        match pivot {
+            TokenType::RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
+            TokenType::CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
+            TokenType::Identifier
+                if self
+                    .cursor
+                    .lookahead(next().and_then(of_type(TokenType::RoundedLeftBracket)))
+                    .is_some() =>
+            {
+                self.constructor()
+            }
+            _ => self.literal(),
+        }
     }
 }
 
@@ -65,6 +90,26 @@ mod tests {
                 position: content.len()..content.len(),
                 kind: ParseErrorKind::Unexpected,
             })
+        );
+    }
+
+    #[test]
+    fn not_in_call_is_literal() {
+        let content = "echo how ! how are you !";
+        let result = parse(Source::unknown(content)).expect("Failed to parse");
+        assert_eq!(
+            result,
+            vec![Expr::Call(Call {
+                arguments: vec![
+                    Expr::Literal("echo".into()),
+                    Expr::Literal("how".into()),
+                    Expr::Literal("!".into()),
+                    Expr::Literal("how".into()),
+                    Expr::Literal("are".into()),
+                    Expr::Literal("you".into()),
+                    Expr::Literal("!".into())
+                ]
+            })]
         );
     }
 

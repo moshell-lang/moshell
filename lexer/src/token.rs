@@ -70,9 +70,22 @@ pub enum TokenType {
     #[token("while")]
     #[assoc(str = "while")]
     While,
+    #[token("loop")]
+    #[assoc(str = "loop")]
+    Loop,
     #[token("match")]
     #[assoc(str = "match")]
     Match,
+
+    #[token("continue")]
+    #[assoc(str = "continue")]
+    Continue,
+    #[token("break")]
+    #[assoc(str = "break")]
+    Break,
+    #[token("return")]
+    #[assoc(str = "return")]
+    Return,
 
     #[token("->")]
     #[assoc(str = "->")]
@@ -206,6 +219,7 @@ pub enum TokenType {
     #[error]
     Error,
 
+    #[assoc(str = "<end of input>")]
     EndOfFile,
 }
 
@@ -229,8 +243,8 @@ impl TokenType {
     ///is this lexeme a binary operator ?
     pub fn is_bin_operator(self) -> bool {
         match self {
-            And | Or | Plus | Minus | Star | EqualEqual | NotEqual | Less | LessEqual | Greater
-            | GreaterEqual => true,
+            And | Or | Plus | Minus | Star | Slash | Percent | EqualEqual | NotEqual | Less
+            | LessEqual | Greater | GreaterEqual => true,
             _ => false,
         }
     }

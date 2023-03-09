@@ -9,13 +9,13 @@ use lexer::token::TokenType::{Else, SemiColon};
 pub trait IfElseAspect<'a> {
     ///parse a if with optional else expression.
     /// `parse_branch` argument defines how the branches must be parsed.
-    fn parse_if<F>(&mut self, parse_branch: F) -> ParseResult<Expr<'a>>
+    fn parse_if<F>(&mut self, parse_branch: F) -> ParseResult<If<'a>>
     where
         F: FnMut(&mut Self) -> ParseResult<Expr<'a>>;
 }
 
 impl<'a> IfElseAspect<'a> for Parser<'a> {
-    fn parse_if<F>(&mut self, mut parse_branch: F) -> ParseResult<Expr<'a>>
+    fn parse_if<F>(&mut self, mut parse_branch: F) -> ParseResult<If<'a>>
     where
         F: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
     {
@@ -47,11 +47,11 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
             None
         };
 
-        Ok(Expr::If(If {
+        Ok(If {
             condition: Box::new(condition),
             success_branch: Box::new(success_branch),
             fail_branch,
-        }))
+        })
     }
 }
 

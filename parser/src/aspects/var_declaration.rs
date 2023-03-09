@@ -4,7 +4,7 @@ use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use crate::ast::Expr;
 use crate::err::ParseErrorKind;
 
-use crate::moves::{of_type, of_types, space, spaces, MoveOperations};
+use crate::moves::{of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 pub trait VarDeclarationAspect<'a> {
@@ -28,7 +28,7 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
         let name = self
             .cursor
             .force(
-                space().and_then(of_type(TokenType::Identifier)),
+                spaces().and_then(of_type(TokenType::Identifier)),
                 "Expected variable name.",
             )?
             .value;
