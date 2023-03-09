@@ -1,7 +1,7 @@
 use context::source::Source;
-use parser::ast::callable::Call;
-use parser::ast::operation::BinaryOperation;
+use parser::ast::callable::{Call, Redir, RedirFd, RedirOp, Redirected};
 use parser::ast::operation::BinaryOperator::Plus;
+use parser::ast::operation::{BinaryOperation, BinaryOperator};
 use parser::ast::value::{Literal, LiteralValue};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use parser::ast::Expr;
@@ -81,5 +81,42 @@ fn arithmetic_multiple_lines() {
                 })),
             }))),
         })],
+    );
+}
+
+#[test]
+fn wildcard_redirect_or() {
+    let source =
+        Source::unknown("docker image inspect moshell:0.1 &> /dev/null || echo 'Unknown image!'");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Binary(BinaryOperation {
+            left: Box::new(Expr::Redirected(Redirected {
+                expr: Box::new(Expr::Call(Call {
+                    arguments: vec![
+                        Expr::Literal("docker".into()),
+                        Expr::Literal("image".into()),
+                        Expr::Literal("inspect".into()),
+                        Expr::Literal("moshell:0.1".into()),
+                    ],
+                })),
+                redirections: vec![Redir {
+                    fd: RedirFd::Wildcard,
+                    operator: RedirOp::Write,
+                    operand: Expr::Literal("/dev/null".into()),
+                },],
+            })),
+            op: BinaryOperator::Or,
+            right: Box::new(Expr::Call(Call {
+                arguments: vec![
+                    Expr::Literal("echo".into()),
+                    Expr::Literal(Literal {
+                        lexeme: "'Unknown image!'",
+                        parsed: "Unknown image!".into(),
+                    }),
+                ],
+            })),
+        })]
     );
 }

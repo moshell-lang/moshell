@@ -257,11 +257,14 @@ impl TokenType {
         }
     }
 
-    ///is this a lexeme that stops a call line
+    /// Tests if this token marks the end of a call statement's arguments.
     pub fn is_call_bound(self) -> bool {
         matches!(
             self,
             TokenType::Ampersand
+                | TokenType::Less
+                | TokenType::Greater
+                | TokenType::Bar
                 | TokenType::And
                 | TokenType::Or
                 | TokenType::SquaredLeftBracket
