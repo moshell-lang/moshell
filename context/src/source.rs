@@ -1,15 +1,15 @@
 use miette::{MietteError, MietteSpanContents, SourceCode, SourceSpan, SpanContents};
 use std::fmt::Debug;
 use std::io;
-use std::io::{BufRead, Lines};
-use lexer::reader::BufferedTokenReader;
+use std::io::{BufRead, Error, Lines};
+use lexer::reader::{BufferedTokenReader, LineSupplier};
 
 pub type Location = std::ops::Range<usize>;
 
-trait Source {
-    fn source_code(&self) -> String;
+trait Source<'a> {
+    fn source_code(&self) -> &'a str;
 
-    fn name(&self) -> String;
+    fn name(&self) -> &'a str;
 }
 
 /// Defines a named source code from which tokens can be produced.
@@ -43,7 +43,7 @@ impl StringSource {
     }
 }
 
-impl Debug for dyn Source {
+impl<'a> Debug for dyn Source<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Source")
             .field("name", &self.name())
@@ -52,7 +52,7 @@ impl Debug for dyn Source {
     }
 }
 
-impl<'s> SourceCode for dyn Source + Send + Sync {
+impl<'s> SourceCode for dyn Source<'s> + Send + Sync {
     fn read_span<'a>(
         &'a self,
         span: &SourceSpan,
@@ -63,7 +63,7 @@ impl<'s> SourceCode for dyn Source + Send + Sync {
             .source_code()
             .read_span(span, context_lines_before, context_lines_after)?;
         Ok(Box::new(MietteSpanContents::new_named(
-            self.name().clone(),
+            self.name().to_string(),
             contents.data(),
             *contents.span(),
             contents.line(),
@@ -89,18 +89,27 @@ impl<'a, B: BufRead> InputSource<B> {
         }
     }
 
-    pub fn reader(&'a mut self) -> BufferedTokenReader<impl FnMut() -> Result<Option<&'a str>, io::Error>> {
-        let x = || self.read_and_append();
-        BufferedTokenReader::from_line_supplier(x)
+    pub fn reader(&'a mut self) -> BufferedTokenReader<&'a mut Self> {
+        BufferedTokenReader::from_line_supplier(self)
     }
 
-    fn read_and_append(&'a mut self) -> Result<Option<&'a str>, io::Error> {
-        let line_start = self.source_name.len();
-        self.input.read_line(&mut self.source_code)?;
-        Ok(Some(&self.source_code[line_start..]))
+    fn read_and_append(line_start: usize, source_code: &'a mut String, input: &mut B) -> Result<Option<&'a str>, Error> {
+        input.read_line(source_code)?;
+        Ok(Some(&source_code[line_start..]))
     }
 }
 
+impl<'a, B: BufRead> LineSupplier<'a, Error> for InputSource<B> {
+
+    fn next_line(&'a mut self) -> Result<Option<&'a str>, Error> {
+        let line_start = self.source_code.len();
+        self.input.read_line(&mut self.source_code)?;
+
+        let line = &self.source_code[line_start..];
+        Ok(Some(line))
+    }
+
+}
 
 /// Joins two slices that are adjacent in memory into one slice.
 ///
