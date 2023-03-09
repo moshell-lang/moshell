@@ -4,6 +4,7 @@ use lexer::token::TokenType::*;
 use lexer::token::{Token, TokenType};
 use std::collections::vec_deque::VecDeque;
 
+use crate::aspects::assign::AssignAspect;
 use crate::aspects::binary_operation::BinaryOperationsAspect;
 use crate::aspects::call::CallAspect;
 use crate::aspects::detached::DetachedAspect;
@@ -21,7 +22,7 @@ use crate::cursor::ParserCursor;
 use crate::err::ParseErrorKind::Unexpected;
 use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
 use crate::moves::{
-    bin_op, eod, eox, like, next, of_types, repeat, spaces, word_seps, MoveOperations,
+    bin_op, eod, eox, like, next, of_type, of_types, repeat, spaces, word_seps, MoveOperations,
 };
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
@@ -132,6 +133,14 @@ impl<'a> Parser<'a> {
 
             While => self.parse_while().map(Expr::While),
             Loop => self.parse_loop().map(Expr::Loop),
+            Identifier
+                if self
+                    .cursor
+                    .lookahead(next().then(word_seps().then(of_type(Equal))))
+                    .is_some() =>
+            {
+                self.parse_assign().map(Expr::Assign)
+            }
 
             _ => self.next_expression_statement(),
         }

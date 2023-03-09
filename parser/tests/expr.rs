@@ -120,3 +120,25 @@ fn wildcard_redirect_or() {
         })]
     );
 }
+
+#[test]
+fn call_not_assign() {
+    let source = Source::unknown("a '=' 5");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Call(Call {
+            arguments: vec![
+                Expr::Literal("a".into()),
+                Expr::Literal(Literal {
+                    lexeme: "'='",
+                    parsed: "=".into(),
+                }),
+                Expr::Literal(Literal {
+                    lexeme: "5",
+                    parsed: 5.into(),
+                }),
+            ],
+        })]
+    );
+}
