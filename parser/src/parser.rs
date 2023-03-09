@@ -1,8 +1,8 @@
-use std::collections::vec_deque::VecDeque;
 use context::source::Source;
 use lexer::lexer::lex;
 use lexer::token::TokenType::*;
 use lexer::token::{Token, TokenType};
+use std::collections::vec_deque::VecDeque;
 
 use crate::aspects::binary_operation::BinaryOperationsAspect;
 use crate::aspects::call::CallAspect;
@@ -89,7 +89,9 @@ impl<'a> Parser<'a> {
 
     #[inline]
     pub(crate) fn parse_full_expr<P>(&mut self, mut next: P) -> ParseResult<Expr<'a>>
-        where P: FnMut(&mut Self) -> ParseResult<Expr<'a>> {
+    where
+        P: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
+    {
         let expr = next(self)?;
         let expr = self.parse_binary_expr(expr)?;
         self.parse_detached(expr)
@@ -145,7 +147,6 @@ impl<'a> Parser<'a> {
             Match => self.parse_match(Parser::statement).map(Expr::Match),
 
             Identifier | Quote | DoubleQuote => self.call(),
-
 
             _ if pivot.is_bin_operator() => self.call(),
 

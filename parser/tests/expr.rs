@@ -1,12 +1,12 @@
 use context::source::Source;
 use parser::ast::callable::Call;
+use parser::ast::operation::BinaryOperation;
+use parser::ast::operation::BinaryOperator::Plus;
 use parser::ast::value::{Literal, LiteralValue};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use parser::ast::Expr;
 use parser::parse;
 use pretty_assertions::assert_eq;
-use parser::ast::operation::BinaryOperation;
-use parser::ast::operation::BinaryOperator::Plus;
 
 #[test]
 fn empty() {
@@ -56,7 +56,6 @@ fn command_starting_with_arg() {
         })]
     );
 }
-
 
 #[test]
 fn arithmetic_multiple_lines() {

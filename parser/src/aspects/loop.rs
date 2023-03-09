@@ -44,31 +44,31 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::ast::callable::Call;
     use crate::ast::control_flow::{Loop, While};
     use crate::ast::group::Block;
+    use crate::ast::operation::BinaryOperation;
+    use crate::ast::operation::BinaryOperator::And;
     use crate::ast::variable::VarReference;
     use crate::ast::Expr;
+    use crate::ast::Expr::{Break, Continue};
     use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
     use crate::parse;
+    use crate::parser::ParseResult;
     use context::source::Source;
     use pretty_assertions::assert_eq;
-    use crate::ast::Expr::{Break, Continue};
-    use crate::ast::operation::BinaryOperation;
-    use crate::ast::operation::BinaryOperator::And;
-    use crate::parser::ParseResult;
 
     #[test]
     fn loop_with_break_and_continues() {
         let res = parse(Source::unknown(
             "loop {
             continue; break;
-            }"
-        )).expect("parse failed");
+            }",
+        ))
+        .expect("parse failed");
         assert_eq!(
             res,
             vec![Expr::Loop(Loop {
@@ -81,16 +81,16 @@ mod tests {
 
     #[test]
     fn loop_with_break_and_continues_inline() {
-        let res = parse(Source::unknown(
-            "loop ssh mabatista1@iut && break"
-        )).expect("parse failed");
+        let res = parse(Source::unknown("loop ssh mabatista1@iut && break")).expect("parse failed");
         assert_eq!(
             res,
             vec![Expr::Loop(Loop {
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Call(Call {
-                        arguments: vec![Expr::Literal("ssh".into()),
-                                        Expr::Literal("mabatista1@iut".into())]
+                        arguments: vec![
+                            Expr::Literal("ssh".into()),
+                            Expr::Literal("mabatista1@iut".into())
+                        ]
                     })),
                     op: And,
                     right: Box::new(Break)
