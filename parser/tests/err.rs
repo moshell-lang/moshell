@@ -1,4 +1,4 @@
-use context::source::Source;
+use context::source::StringSource;
 use parser::ast::callable::Call;
 use parser::ast::Expr;
 use parser::err::{ParseError, ParseErrorKind, ParseReport};
@@ -12,7 +12,7 @@ fn repos_delimiter_stack() {
     }\n\
     echo end\n\
     val n=9!3";
-    let source = Source::unknown(content);
+    let source = StringSource::unknown(content);
     let report = parse(source);
     assert_eq!(
         report,
@@ -40,7 +40,7 @@ fn repos_delimiter_stack() {
 #[test]
 fn excepted_value_found_eof() {
     let content = "val i =\n";
-    let source = Source::unknown(content);
+    let source = StringSource::unknown(content);
     let report = parse(source);
     assert_eq!(
         report,
@@ -59,7 +59,7 @@ fn excepted_value_found_eof() {
 #[test]
 fn excepted_value_found_semicolon() {
     let content = "val j =;";
-    let source = Source::unknown(content);
+    let source = StringSource::unknown(content);
     let report = parse(source);
     assert_eq!(
         report,
@@ -78,7 +78,7 @@ fn excepted_value_found_semicolon() {
 #[test]
 fn arithmetic_help() {
     let content = "6 + 3 * 9";
-    let source = Source::unknown("6 + 3 * 9");
+    let source = StringSource::unknown("6 + 3 * 9");
     let report = parse(source);
     assert_eq!(
         report,

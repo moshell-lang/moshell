@@ -60,12 +60,12 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
-    use context::source::Source;
+    use context::source::StringSource;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn test_use() {
-        let source = Source::unknown("use TOKEN");
+        let source = StringSource::unknown("use TOKEN");
         let result = parse(source).expect("parser failed");
         assert_eq!(
             result,
@@ -77,7 +77,7 @@ mod tests {
 
     #[test]
     fn test_uses() {
-        let source = Source::unknown("use TOKEN,    A \\\n , B \\\n , C");
+        let source = StringSource::unknown("use TOKEN,    A \\\n , B \\\n , C");
         let result = parse(source).expect("parser failed");
         assert_eq!(
             result,
@@ -90,7 +90,7 @@ mod tests {
     #[test]
     fn test_use_trailing_comma() {
         let content = "use TOKEN, A, B, ";
-        let source = Source::unknown(content);
+        let source = StringSource::unknown(content);
         let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
@@ -105,7 +105,7 @@ mod tests {
     #[test]
     fn test_use_empty() {
         let content = "use";
-        let source = Source::unknown(content);
+        let source = StringSource::unknown(content);
         let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,

@@ -1,4 +1,4 @@
-use context::source::Source;
+use context::source::StringSource;
 use parser::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use parser::ast::group::Subshell;
 use parser::ast::substitution::{Substitution, SubstitutionKind};
@@ -10,7 +10,7 @@ use pretty_assertions::assert_eq;
 
 #[test]
 fn with_lexer_variable() {
-    let source = Source::unknown("var a = 'hello world!'");
+    let source = StringSource::unknown("var a = 'hello world!'");
     let parsed = parse(source).expect("Failed to parse");
 
     assert_eq!(
@@ -31,7 +31,7 @@ fn with_lexer_variable() {
 
 #[test]
 fn with_lexer_var_reference_one() {
-    let source = Source::unknown("echo '$var5' $var5");
+    let source = StringSource::unknown("echo '$var5' $var5");
     let parsed = parse(source).expect("Failed to parse");
 
     assert_eq!(
@@ -51,7 +51,7 @@ fn with_lexer_var_reference_one() {
 
 #[test]
 fn with_lexer_var_reference_two() {
-    let source = Source::unknown("\"fake$cmd\" do $arg2");
+    let source = StringSource::unknown("\"fake$cmd\" do $arg2");
     let parsed = parse(source).expect("Failed to parse");
 
     assert_eq!(
@@ -73,14 +73,14 @@ fn with_lexer_var_reference_two() {
 
 #[test]
 fn empty_content() {
-    let source = Source::unknown("\n\n//empty lines\n\n");
+    let source = StringSource::unknown("\n\n//empty lines\n\n");
     let result = parse(source).expect("Failed to parse");
     assert_eq!(result, vec![])
 }
 
 #[test]
 fn with_lexer_var_reference_three() {
-    let source = Source::unknown("echo \"hello $world everyone $verb${ready}!\"");
+    let source = StringSource::unknown("echo \"hello $world everyone $verb${ready}!\"");
     let parsed = parse(source).expect("Failed to parse");
 
     assert_eq!(
@@ -105,7 +105,7 @@ fn with_lexer_var_reference_three() {
 
 #[test]
 fn with_lexer_redirection() {
-    let source = Source::unknown("test &> /dev/null");
+    let source = StringSource::unknown("test &> /dev/null");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
@@ -124,7 +124,7 @@ fn with_lexer_redirection() {
 
 #[test]
 fn with_lexer_redirections() {
-    let source = Source::unknown("command < /tmp/input 2> /tmp/output");
+    let source = StringSource::unknown("command < /tmp/input 2> /tmp/output");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
@@ -150,7 +150,7 @@ fn with_lexer_redirections() {
 
 #[test]
 fn with_lexer_pipe_and_redirection() {
-    let source = Source::unknown("ls -l | grep 'hello' > out.txt");
+    let source = StringSource::unknown("ls -l | grep 'hello' > out.txt");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
@@ -182,7 +182,7 @@ fn with_lexer_pipe_and_redirection() {
 
 #[test]
 fn with_lexer_pipe_and_pipe() {
-    let source = Source::unknown("ls|wc|tr -s ' '");
+    let source = StringSource::unknown("ls|wc|tr -s ' '");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
@@ -211,7 +211,7 @@ fn with_lexer_pipe_and_pipe() {
 
 #[test]
 fn with_lexer_here_string() {
-    let source = Source::unknown("grep e <<< 'hello'");
+    let source = StringSource::unknown("grep e <<< 'hello'");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
@@ -233,7 +233,7 @@ fn with_lexer_here_string() {
 
 #[test]
 fn with_lexer_substitution() {
-    let source = Source::unknown("echo $(ls -l)");
+    let source = StringSource::unknown("echo $(ls -l)");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
@@ -255,7 +255,7 @@ fn with_lexer_substitution() {
 
 #[test]
 fn with_lexer_substitution_in_substitution() {
-    let source = Source::unknown("echo $( ls \"$(pwd)/test\" )");
+    let source = StringSource::unknown("echo $( ls \"$(pwd)/test\" )");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,

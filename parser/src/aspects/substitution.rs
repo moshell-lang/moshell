@@ -71,13 +71,13 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
-    use context::source::Source;
+    use context::source::StringSource;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn unterminated_substitution() {
         let content = "$(echo";
-        let source = Source::unknown(content);
+        let source = StringSource::unknown(content);
         let ast = Parser::new(source).substitution();
         assert_eq!(
             ast,
@@ -92,7 +92,7 @@ mod tests {
     #[test]
     fn unpaired_parenthesis() {
         let content = "$(a $(b) $(c d\\))";
-        let source = Source::unknown(content);
+        let source = StringSource::unknown(content);
         let ast: ParseResult<_> = parse(source).into();
         assert_eq!(
             ast,
@@ -106,7 +106,7 @@ mod tests {
 
     #[test]
     fn mix_blocks() {
-        let source = Source::unknown("$({ls $(pwd)})");
+        let source = StringSource::unknown("$({ls $(pwd)})");
         let ast = Parser::new(source).substitution().expect("Failed to parse");
         assert_eq!(
             ast,
@@ -136,7 +136,7 @@ mod tests {
     #[test]
     fn unexpected_closing_parenthesis() {
         let content = "some stuff)";
-        let source = Source::unknown(content);
+        let source = StringSource::unknown(content);
         let ast: ParseResult<_> = parse(source).into();
         assert_eq!(
             ast,
@@ -151,7 +151,7 @@ mod tests {
     #[test]
     fn parenthesis_mismatch() {
         let content = "$(test 9})";
-        let source = Source::unknown(content);
+        let source = StringSource::unknown(content);
         let ast: ParseResult<_> = parse(source).into();
         assert_eq!(
             ast,
@@ -165,7 +165,7 @@ mod tests {
 
     #[test]
     fn arithmetic() {
-        let source = Source::unknown("$(($a + 1))");
+        let source = StringSource::unknown("$(($a + 1))");
         let ast = Parser::new(source).substitution().expect("Failed to parse");
         assert_eq!(
             ast,

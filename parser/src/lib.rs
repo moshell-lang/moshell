@@ -2,7 +2,7 @@
 #![deny(warnings)]
 
 use crate::err::ParseReport;
-use context::source::Source;
+use context::source::StringSource;
 
 use crate::parser::Parser;
 
@@ -14,6 +14,6 @@ pub mod err;
 mod moves;
 mod parser;
 
-pub fn parse(src: Source) -> ParseReport {
+pub fn parse(src: StringSource) -> ParseReport {
     Parser::new(src).parse()
 }

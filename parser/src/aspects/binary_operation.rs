@@ -152,7 +152,7 @@ impl<'p> Parser<'p> {
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use context::source::Source;
+    use context::source::StringSource;
 
     use crate::aspects::binary_operation::BinaryOperationsAspect;
     use crate::ast::callable::Call;
@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     fn is_left_associative() {
-        let source = Source::unknown("1 && 2 || \\\n 3 || 4 && 5");
+        let source = StringSource::unknown("1 && 2 || \\\n 3 || 4 && 5");
         let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_statement)
@@ -212,7 +212,7 @@ mod tests {
 
     #[test]
     fn explicit_priority() {
-        let source = Source::unknown("1 \\\n+\\\n (2 + 3)");
+        let source = StringSource::unknown("1 \\\n+\\\n (2 + 3)");
         let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_value)
@@ -244,7 +244,7 @@ mod tests {
 
     #[test]
     fn arithmetic_multiple_lines() {
-        let parsed = parse(Source::unknown("val n = 1\\\n + 2")).expect("Failed to parse");
+        let parsed = parse(StringSource::unknown("val n = 1\\\n + 2")).expect("Failed to parse");
 
         assert_eq!(
             parsed,
@@ -271,7 +271,7 @@ mod tests {
 
     #[test]
     fn arithmetic_priority() {
-        let source = Source::unknown("1 + 2 * 3");
+        let source = StringSource::unknown("1 + 2 * 3");
         let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_value)
@@ -301,7 +301,7 @@ mod tests {
 
     #[test]
     fn complete_prioritization_test() {
-        let source = Source::unknown("1 +\\\n 2 \\\n*\\\n 3\\\n < 874\\\n * 78 \\\n||\\\n 7\\\n - 4 \\\n== 3 \\\n&& \\\n7 ==\\\n 1");
+        let source = StringSource::unknown("1 +\\\n 2 \\\n*\\\n 3\\\n < 874\\\n * 78 \\\n||\\\n 7\\\n - 4 \\\n== 3 \\\n&& \\\n7 ==\\\n 1");
         let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_value)
@@ -381,7 +381,7 @@ mod tests {
     #[test]
     fn unterminated_expr() {
         let content = "(1 + 2 * )";
-        let source = Source::unknown(content);
+        let source = StringSource::unknown(content);
         let mut parser = Parser::new(source);
         let result = parser.binary_operation(Parser::next_value);
         assert_eq!(
@@ -396,7 +396,7 @@ mod tests {
 
     #[test]
     fn bin_expression_in_group() {
-        let source = Source::unknown("(1 + 2 * 3)");
+        let source = StringSource::unknown("(1 + 2 * 3)");
         let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_value)
@@ -428,7 +428,7 @@ mod tests {
 
     #[test]
     fn exitcode_operators() {
-        let source = Source::unknown("(echo hello && echo world ) || echo damn");
+        let source = StringSource::unknown("(echo hello && echo world ) || echo damn");
         let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_statement)
@@ -463,7 +463,7 @@ mod tests {
 
     #[test]
     fn escaped_operators() {
-        let source = Source::unknown("(echo hello \\&& world \\);) || echo damn");
+        let source = StringSource::unknown("(echo hello \\&& world \\);) || echo damn");
         let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_statement)

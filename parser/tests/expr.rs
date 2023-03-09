@@ -1,4 +1,4 @@
-use context::source::Source;
+use context::source::StringSource;
 use parser::ast::callable::Call;
 use parser::ast::value::{Literal, LiteralValue};
 use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind};
@@ -8,14 +8,14 @@ use pretty_assertions::assert_eq;
 
 #[test]
 fn empty() {
-    let source = Source::unknown("");
+    let source = StringSource::unknown("");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(parsed, vec![]);
 }
 
 #[test]
 fn variable_type_and_initializer() {
-    let source = Source::unknown("var a:int=1");
+    let source = StringSource::unknown("var a:int=1");
     let parsed = parse(source).expect("Failed to parse");
 
     let expected = vec![Expr::VarDeclaration(VarDeclaration {
@@ -34,7 +34,7 @@ fn variable_type_and_initializer() {
 
 #[test]
 fn command_echo() {
-    let source = Source::unknown("echo hello");
+    let source = StringSource::unknown("echo hello");
     let parsed = parse(source).expect("Failed to parse");
 
     let expected = vec![Expr::Call(Call {
@@ -45,7 +45,7 @@ fn command_echo() {
 
 #[test]
 fn command_starting_with_arg() {
-    let source = Source::unknown("- W");
+    let source = StringSource::unknown("- W");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,

@@ -58,26 +58,26 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
-    use context::source::Source;
+    use context::source::StringSource;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn simple_ref() {
-        let source = Source::unknown("$VARIABLE");
+        let source = StringSource::unknown("$VARIABLE");
         let ast = Parser::new(source).substitution().expect("failed to parse");
         assert_eq!(ast, Expr::VarReference(VarReference { name: "VARIABLE" }));
     }
 
     #[test]
     fn dollar_is_literal() {
-        let source = Source::unknown("$");
+        let source = StringSource::unknown("$");
         let ast = parse(source).expect("failed to parse");
         assert_eq!(ast, vec![Expr::Literal("$".into())])
     }
 
     #[test]
     fn special_refs() {
-        let source = Source::unknown("$@;$^;$!;$!!;$$");
+        let source = StringSource::unknown("$@;$^;$!;$!!;$$");
         let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,
@@ -93,7 +93,7 @@ mod tests {
 
     #[test]
     fn wrapped_ref() {
-        let source = Source::unknown("${VAR}IABLE");
+        let source = StringSource::unknown("${VAR}IABLE");
         let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,
@@ -109,7 +109,7 @@ mod tests {
     #[test]
     fn test_ref_in_ref() {
         let content = "${V${A}R}";
-        let source = Source::unknown(content);
+        let source = StringSource::unknown(content);
         let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
@@ -123,7 +123,7 @@ mod tests {
 
     #[test]
     fn test_multiple_wrapped_ref() {
-        let source = Source::unknown("${VAR}IABLE${LONG}${VERY_LONG}");
+        let source = StringSource::unknown("${VAR}IABLE${LONG}${VERY_LONG}");
         let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,

@@ -1,7 +1,7 @@
 mod report;
 
 use crate::report::print_flush;
-use context::source::{Location, Source};
+use context::source::{Location, StringSource};
 use dbg_pls::color;
 use miette::{Diagnostic, GraphicalReportHandler, SourceSpan};
 use parser::err::ParseErrorKind;
@@ -11,9 +11,9 @@ use std::io::{self, BufRead, Write};
 use thiserror::Error;
 
 #[derive(Error, Debug, Diagnostic)]
-struct FormattedError<'s> {
+struct FormattedError<'s, S> {
     #[source_code]
-    src: &'s Source<'s>,
+    src: &'s StringSource<S>,
     #[label("Here")]
     cursor: SourceSpan,
     #[label("Start")]
@@ -23,7 +23,7 @@ struct FormattedError<'s> {
     help: Option<String>,
 }
 
-impl Display for FormattedError<'_> {
+impl<S> Display for FormattedError<'_, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.message)
     }
@@ -54,7 +54,7 @@ fn main() -> io::Result<()> {
             continue;
         }
 
-        let source = Source::new(&content, "stdin");
+        let source = StringSource::from_str(&content, "stdin");
         let report = parse(source.clone());
         if !report.stack_ended {
             content.push('\n');

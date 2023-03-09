@@ -391,7 +391,7 @@ pub(crate) fn bin_op() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + C
 mod tests {
     use crate::cursor::ParserCursor;
     use crate::moves::eox;
-    use lexer::lexer::lex;
+    use lexer::err::lex;
     use lexer::token::{Token, TokenType};
     use pretty_assertions::assert_eq;
 

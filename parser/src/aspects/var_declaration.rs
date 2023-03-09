@@ -81,12 +81,12 @@ mod tests {
     use crate::ast::Expr;
     use crate::err::ParseError;
     use crate::parser::Parser;
-    use context::source::Source;
+    use context::source::StringSource;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn val_declaration() {
-        let source = Source::unknown("val variable");
+        let source = StringSource::unknown("val variable");
         let ast = Parser::new(source)
             .var_declaration()
             .expect("failed to parse");
@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn val_declaration_with_type() {
-        let source = Source::unknown("val variable: Array");
+        let source = StringSource::unknown("val variable: Array");
         let ast = Parser::new(source)
             .var_declaration()
             .expect("failed to parse");
@@ -124,7 +124,7 @@ mod tests {
 
     #[test]
     fn val_declaration_with_type_no_colon() {
-        let source = Source::unknown("val variable Array");
+        let source = StringSource::unknown("val variable Array");
         Parser::new(source)
             .var_declaration()
             .expect_err("did not fail");
@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn val_declaration_inferred() {
-        let source = Source::unknown("val variable = 'hello $test'");
+        let source = StringSource::unknown("val variable = 'hello $test'");
         let ast = Parser::new(source)
             .var_declaration()
             .expect("failed to parse");
@@ -155,7 +155,7 @@ mod tests {
     #[test]
     fn val_declaration_parenthesis_command() {
         let content = "val x = (echo a)";
-        let source = Source::unknown(content);
+        let source = StringSource::unknown(content);
         let err = Parser::new(source).var_declaration();
         assert_eq!(
             err,
@@ -169,7 +169,7 @@ mod tests {
 
     #[test]
     fn val_declaration_block_command() {
-        let source = Source::unknown("val x = {echo a}");
+        let source = StringSource::unknown("val x = {echo a}");
         let result = Parser::new(source).var_declaration().expect("parse fail");
         assert_eq!(
             result,
@@ -199,7 +199,7 @@ mod tests {
 
     #[test]
     fn val_declaration_arithmetic_expr() {
-        let source = Source::unknown("val variable = 7 + 2");
+        let source = StringSource::unknown("val variable = 7 + 2");
         let ast = Parser::new(source)
             .var_declaration()
             .expect("failed to parse");

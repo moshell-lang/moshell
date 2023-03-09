@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 miette = "5.5.0"
+lexer = { path = "../lexer" }

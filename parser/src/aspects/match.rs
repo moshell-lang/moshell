@@ -201,7 +201,7 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use context::source::Source;
+    use context::source::StringSource;
     use pretty_assertions::assert_eq;
 
     use crate::ast::callable::Call;
@@ -218,7 +218,7 @@ mod tests {
 
     #[test]
     fn parse_match_as_value() {
-        let source = Source::unknown(
+        let source = StringSource::unknown(
             "
         val x = match $1 {
            -e => 75
@@ -288,7 +288,7 @@ mod tests {
 
     #[test]
     fn parse_complete_match() {
-        let ast = parse(Source::unknown(
+        let ast = parse(StringSource::unknown(
             "\
         match $1 {\
            -e => ();;;;;\n;;\n;;;;;\
@@ -372,7 +372,7 @@ mod tests {
 
     #[test]
     fn parse_match_direct_wildcard() {
-        let ast = parse(Source::unknown(
+        let ast = parse(StringSource::unknown(
             "\
         match nginx {\
            * => echo $it
@@ -404,7 +404,7 @@ mod tests {
 
     #[test]
     fn parse_complete_match_blanks() {
-        let ast = parse(Source::unknown("\
+        let ast = parse(StringSource::unknown("\
         match \n\n $1 \n\n {\n\n\
            \n\n -e \n\n => \n\n () \n\n\
            \n\n y \n\n @ \n\n \"test $2\" \n\n | 2 \n\n | \n\n $USER \n\n | \n\n 't x' \n\n =>\n\n  () \n\n\
@@ -490,7 +490,7 @@ mod tests {
            -e | * => ()\
         }\
         ";
-        let res = parse(Source::unknown(src)).errors;
+        let res = parse(StringSource::unknown(src)).errors;
         assert_eq!(
             res,
             vec![ParseError {
@@ -508,7 +508,7 @@ mod tests {
            * | x | y => ()\
         }\
         ";
-        let res = parse(Source::unknown(src)).errors;
+        let res = parse(StringSource::unknown(src)).errors;
         assert_eq!(
             res,
             vec![ParseError {
@@ -529,7 +529,7 @@ mod tests {
            x y => ()\
         }\
         ";
-        let res = parse(Source::unknown(src)).errors;
+        let res = parse(StringSource::unknown(src)).errors;
         assert_eq!(
             res,
             vec![ParseError {
@@ -547,7 +547,7 @@ mod tests {
            x | => ()\
         }\
         ";
-        let res = parse(Source::unknown(src)).errors;
+        let res = parse(StringSource::unknown(src)).errors;
         assert_eq!(
             res,
             vec![ParseError {
@@ -565,7 +565,7 @@ mod tests {
            x | y ()\
         }\
         ";
-        let res = parse(Source::unknown(src)).errors;
+        let res = parse(StringSource::unknown(src)).errors;
         assert_eq!(
             res,
             vec![ParseError {
