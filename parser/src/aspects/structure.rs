@@ -6,7 +6,7 @@ use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 
 pub trait StructureAspect<'a> {
-    /// Parses a structure constructor.
+    /// Parses a structure constructor call.
     fn constructor(&mut self) -> ParseResult<Expr<'a>>;
 }
 
