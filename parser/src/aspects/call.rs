@@ -6,7 +6,7 @@ use crate::aspects::redirection::RedirectionAspect;
 use crate::aspects::structure::StructureAspect;
 use crate::ast::callable::Call;
 use crate::ast::Expr;
-use crate::moves::{eox, like, next, of_type, word_seps, MoveOperations};
+use crate::moves::{eox, like, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 /// A parse aspect for command and function calls
@@ -54,14 +54,7 @@ impl<'a> Parser<'a> {
         match pivot {
             TokenType::RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
             TokenType::CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
-            TokenType::Identifier
-                if self
-                    .cursor
-                    .lookahead(next().and_then(of_type(TokenType::RoundedLeftBracket)))
-                    .is_some() =>
-            {
-                self.constructor()
-            }
+            TokenType::Identifier if self.is_at_constructor_start() => self.constructor(),
             _ => self.literal(),
         }
     }
