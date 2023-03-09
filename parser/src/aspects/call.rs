@@ -35,11 +35,11 @@ impl<'a> CallAspect<'a> for Parser<'a> {
                 .lookahead(word_seps().then(eox().or(like(TokenType::is_call_bound))))
                 .is_none()
         {
-            if self.is_at_redirection_sign() {
-                return self.redirectable(Expr::Call(Call { arguments }));
-            }
             arguments.push(self.call_argument()?);
             self.cursor.advance(word_seps()); //consume word separations
+        }
+        if self.is_at_redirection_sign() {
+            return self.redirectable(Expr::Call(Call { arguments }));
         }
         Ok(Expr::Call(Call { arguments }))
     }

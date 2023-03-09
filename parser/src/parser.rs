@@ -4,6 +4,7 @@ use lexer::token::TokenType::*;
 use lexer::token::{Token, TokenType};
 use std::collections::vec_deque::VecDeque;
 
+use crate::aspects::assign::AssignAspect;
 use crate::aspects::binary_operation::BinaryOperationsAspect;
 use crate::aspects::call::CallAspect;
 use crate::aspects::detached::DetachedAspect;
@@ -133,6 +134,14 @@ impl<'a> Parser<'a> {
 
             While => self.parse_while().map(Expr::While),
             Loop => self.parse_loop().map(Expr::Loop),
+            Identifier
+                if self
+                    .cursor
+                    .lookahead(next().then(word_seps().then(of_type(Equal))))
+                    .is_some() =>
+            {
+                self.parse_assign().map(Expr::Assign)
+            }
 
             _ => self.next_expression_statement(),
         }
