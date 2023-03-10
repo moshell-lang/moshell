@@ -13,6 +13,7 @@ mod cursor;
 pub mod err;
 mod moves;
 mod parser;
+mod helper;
 
 pub fn parse<S>(reader: BufferedTokenReader<S>) -> ParseReport {
     Parser::new(reader).parse()

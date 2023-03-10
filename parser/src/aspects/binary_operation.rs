@@ -1,3 +1,6 @@
+use std::fmt::Debug;
+use context::poller::Poller;
+use lexer::token::Token;
 use crate::ast::operation::{BinaryOperation, BinaryOperator};
 use crate::ast::Expr;
 use crate::moves::{bin_op, eox, spaces, word_seps, MoveOperations};
@@ -19,34 +22,35 @@ pub trait BinaryOperationsAspect<'p> {
         P: FnMut(&mut Self) -> ParseResult<Expr<'p>>;
 }
 
-impl<'p, I> BinaryOperationsAspect<'p> for Parser<'p, I> {
-    fn binary_operation<P>(&mut self, mut parse: P) -> ParseResult<Expr<'p>>
+impl<'a, P: Poller<'a, Token<'a>> + Debug> BinaryOperationsAspect<'a> for Parser<'a, P> {
+
+    fn binary_operation<A>(&mut self, mut parse: A) -> ParseResult<Expr<'a>>
     where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'p>>,
+        A: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
     {
         let left = parse(self)?;
         self.binary_operation_right(left, parse)
     }
 
-    fn binary_operation_right<P>(&mut self, left: Expr<'p>, mut parse: P) -> ParseResult<Expr<'p>>
+    fn binary_operation_right<A>(&mut self, left: Expr<'a>, mut parse: A) -> ParseResult<Expr<'a>>
     where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'p>>,
+        A: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
     {
         //parsing a top-level tree operation with fewest priority
         self.binary_op_right_internal(i8::MIN, left, &mut parse)
     }
 }
 
-impl<'p, I> Parser<'p, I> {
+impl<'a, P: Poller<'a, Token<'a>> + Debug> Parser<'a, P> {
     //Parses a binary operation tree as long as it does not hits an operation with smaller priority.
-    fn binary_op_right_internal<P>(
+    fn binary_op_right_internal<A>(
         &mut self,
         priority: i8,
-        left: Expr<'p>,
-        parse: &mut P,
-    ) -> ParseResult<Expr<'p>>
+        left: Expr<'a>,
+        parse: &mut A,
+    ) -> ParseResult<Expr<'a>>
     where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'p>>,
+        A: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
     {
         let mut operation = self.binary_operation_internal(left, parse)?;
         macro_rules! hit_eox {
@@ -63,7 +67,7 @@ impl<'p, I> Parser<'p, I> {
     }
 
     //does current operator priority has priority over next binary operator ?
-    fn has_priority(&self, current_priority: i8) -> bool {
+    fn has_priority(&mut self, current_priority: i8) -> bool {
         self.cursor
             .lookahead(word_seps().then(bin_op()))
             .map(|t| {
@@ -76,13 +80,13 @@ impl<'p, I> Parser<'p, I> {
             .unwrap_or(false)
     }
 
-    fn binary_operation_internal<P>(
+    fn binary_operation_internal<A>(
         &mut self,
-        left: Expr<'p>,
-        parse: &mut P,
-    ) -> ParseResult<Expr<'p>>
+        left: Expr<'a>,
+        parse: &mut A,
+    ) -> ParseResult<Expr<'a>>
     where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'p>>,
+        A: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
     {
         //current expressions' infix operator
         let operator = self.cursor.advance(word_seps().then(bin_op())).map(|t| {

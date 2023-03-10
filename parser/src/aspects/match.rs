@@ -1,4 +1,6 @@
-use lexer::token::TokenType;
+use std::fmt::Debug;
+use context::poller::Poller;
+use lexer::token::{Token, TokenType};
 use lexer::token::TokenType::{
     At, Bar, CurlyLeftBracket, CurlyRightBracket, FatArrow, Identifier, If,
 };
@@ -16,15 +18,15 @@ use crate::parser::{ParseResult, Parser};
 /// A Parser Aspect for match expression-statement and value
 pub trait MatchAspect<'a> {
     ///parse a match statement, input parser determines how to parse each arm body
-    fn parse_match<P>(&mut self, parse_arm: P) -> ParseResult<Match<'a>>
+    fn parse_match<A>(&mut self, parse_arm: A) -> ParseResult<Match<'a>>
     where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'a>> + Clone;
+        A: FnMut(&mut Self) -> ParseResult<Expr<'a>> + Clone;
 }
 
-impl<'a> MatchAspect<'a> for Parser<'a> {
-    fn parse_match<P>(&mut self, parse_arm: P) -> ParseResult<Match<'a>>
+impl<'a, P: Poller<'a, Token<'a>> + Debug> MatchAspect<'a> for Parser<'a, P> {
+    fn parse_match<A>(&mut self, parse_arm: A) -> ParseResult<Match<'a>>
     where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'a>> + Clone,
+        A: FnMut(&mut Self) -> ParseResult<Expr<'a>> + Clone,
     {
         self.cursor.force(
             of_type(TokenType::Match).and_then(blanks()),
@@ -39,10 +41,10 @@ impl<'a> MatchAspect<'a> for Parser<'a> {
     }
 }
 
-impl<'a> Parser<'a> {
-    fn parse_match_arms<P>(&mut self, parse_arm: P) -> ParseResult<Vec<MatchArm<'a>>>
+impl<'a, P: Poller<'a, Token<'a>> + Debug> Parser<'a, P> {
+    fn parse_match_arms<A>(&mut self, parse_arm: A) -> ParseResult<Vec<MatchArm<'a>>>
     where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'a>> + Clone,
+        A: FnMut(&mut Self) -> ParseResult<Expr<'a>> + Clone,
     {
         let opening_bracket = self.cursor.force_with(
             blanks().then(of_type(CurlyLeftBracket)),
@@ -60,16 +62,16 @@ impl<'a> Parser<'a> {
         self.cursor.force_with(
             blanks().then(of_type(CurlyRightBracket)),
             "expected '}'",
-            ParseErrorKind::Unpaired(self.cursor.relative_pos(opening_bracket)),
+            ParseErrorKind::Unpaired(self.relative_pos(opening_bracket.value)),
         )?;
         self.delimiter_stack.pop_back();
 
         Ok(arms)
     }
 
-    fn parse_match_arm<P>(&mut self, parse_arm: P) -> ParseResult<MatchArm<'a>>
+    fn parse_match_arm<A>(&mut self, parse_arm: A) -> ParseResult<MatchArm<'a>>
     where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
+        A: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
     {
         self.cursor.advance(blanks()); //consume blanks
 
@@ -140,8 +142,8 @@ impl<'a> Parser<'a> {
             return if patterns.len() == 1 {
                 Ok(vec![first])
             } else {
-                let start = self.cursor.relative_pos(start).start;
-                let end = self.cursor.relative_pos(self.cursor.peek()).end;
+                let start = self.relative_pos(start).start;
+                let end = self.relative_pos(self.cursor.peek().value).end;
                 let selection = start..end;
                 Err(self.mk_parse_error(
                     "wildcard pattern cannot be followed by other patterns",
@@ -187,9 +189,9 @@ impl<'a> Parser<'a> {
         self.expression().map(Some)
     }
 
-    fn parse_body<P>(&mut self, mut parse_arm: P) -> ParseResult<Expr<'a>>
+    fn parse_body<A>(&mut self, mut parse_arm: A) -> ParseResult<Expr<'a>>
     where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
+        A: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
     {
         self.cursor
             .force(aerated(of_type(FatArrow)), "missing '=>'")?;

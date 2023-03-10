@@ -1,10 +1,12 @@
+use std::fmt::Debug;
+use context::poller::Poller;
 use crate::aspects::call::CallAspect;
 use crate::ast::callable::{Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use crate::ast::Expr;
 use crate::err::ParseErrorKind;
 use crate::moves::{eox, like, next, of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use lexer::token::TokenType;
+use lexer::token::{Token, TokenType};
 use lexer::token::TokenType::{BackSlash, DoubleQuote, Quote, Space};
 
 pub(crate) trait RedirectionAspect<'a> {
@@ -20,7 +22,7 @@ pub(crate) trait RedirectionAspect<'a> {
     fn is_at_redirection_sign(&self) -> bool;
 }
 
-impl<'a> RedirectionAspect<'a> for Parser<'a> {
+impl<'a, P: Poller<'a, Token<'a>> + Debug> RedirectionAspect<'a> for Parser<'a, P> {
     fn pipeline(&mut self, first_call: Expr<'a>) -> ParseResult<Expr<'a>> {
         let mut commands = vec![first_call];
         // Continue as long as we have a pipe

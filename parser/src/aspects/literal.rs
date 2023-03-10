@@ -1,5 +1,8 @@
+use std::fmt::Debug;
 use context::source::try_join_str;
 use std::num::IntErrorKind;
+use context::poller::Poller;
+use lexer::token::Token;
 
 use crate::aspects::substitution::SubstitutionAspect;
 use lexer::token::TokenType::*;
@@ -34,7 +37,7 @@ pub(crate) trait LiteralAspect<'a> {
     fn argument(&mut self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> LiteralAspect<'a> for Parser<'a> {
+impl<'a, P: Poller<'a, Token<'a>> + Debug> LiteralAspect<'a> for Parser<'a, P> {
     fn literal(&mut self) -> ParseResult<Expr<'a>> {
         let token = self.cursor.peek();
         let pivot = token.token_type;
@@ -74,7 +77,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 None => {
                     return self.expected(
                         "Unterminated string literal.",
-                        ParseErrorKind::Unpaired(self.cursor.relative_pos(&start)),
+                        ParseErrorKind::Unpaired(self.relative_pos(start.value)),
                     );
                 }
 
@@ -107,7 +110,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             if self.cursor.is_at_end() {
                 return self.expected(
                     "Unterminated string literal.",
-                    ParseErrorKind::Unpaired(self.cursor.relative_pos(&start)),
+                    ParseErrorKind::Unpaired(self.relative_pos(start.value)),
                 );
             }
 
@@ -238,7 +241,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
     }
 }
 
-impl<'a> Parser<'a> {
+impl<'a, P: Poller<'a, Token<'a>> + Debug> Parser<'a, P> {
     fn parse_number_value(&mut self) -> ParseResult<LiteralValue> {
         let token = self.cursor.next()?;
         match token.token_type {

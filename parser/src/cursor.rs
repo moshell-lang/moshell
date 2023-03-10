@@ -1,35 +1,26 @@
-use crate::err::{ErrorContext, ParseError, ParseErrorKind};
+use std::fmt::Debug;
+use context::poller::Poller;
+use crate::err::{ParseErrorKind};
 use crate::moves::Move;
-use context::source::Location;
-use lexer::reader::BufferedTokenReader;
-use lexer::token::{Token};
+use lexer::token::{Token, TokenType};
 
 use crate::parser::ParseResult;
 
 /// Parser cursor is used by parsers to navigate in the token stream
 #[derive(Debug, Clone)]
-pub(crate) struct ParserCursor<'a, I> {
-    /// The manipulated reader
-    reader: I,
-    ///
+pub(crate) struct ParserCursor<'a, P: Debug> {
+    /// The token poller
+    poller: P,
+    /// token buffer
     buff: Vec<Token<'a>>,
     /// current position in the tokens vector.
     pos: usize,
 }
 
-impl<'a, I> ParserCursor<'a, I> {
-    ///Creates a new cursor at position 0 in the given token vector
-    pub fn new(reader: BufferedTokenReader<'a, I>) -> Self {
+impl<'a, P: Poller<'a, Token<'a>> + Debug> ParserCursor<'a, P> {
+    pub fn new(poller: P) -> Self {
         Self {
-            reader,
-            buff: Vec::new(),
-            pos: 0,
-        }
-    }
-
-    pub fn new_with_reader(reader: BufferedTokenReader<'a, I>) -> Self {
-        Self {
-            reader,
+            poller,
             buff: Vec::new(),
             pos: 0,
         }
@@ -90,7 +81,7 @@ impl<'a, I> ParserCursor<'a, I> {
     pub fn select(&mut self, mov: impl Move) -> Vec<Token<'a>> {
         let from = self.pos;
         if self.advance(mov).is_some() {
-            let slice = &self.tokens.as_slice()[from..self.pos];
+            let slice = &self.buff.as_slice()[from..self.pos];
             return Vec::from(slice);
         }
         Vec::new()
@@ -112,7 +103,7 @@ impl<'a, I> ParserCursor<'a, I> {
     ///returns current token then advance or None if this cursor hits the
     /// end of the stream.
     pub fn next_opt(&mut self) -> Option<Token<'a>> {
-        self.tokens.get(self.pos).map(|t| {
+        self.buff.get(self.pos).map(|t| {
             self.pos += 1;
             t.clone()
         })
@@ -120,9 +111,19 @@ impl<'a, I> ParserCursor<'a, I> {
 
     ///returns token at specified position.
     fn at(&mut self, pos: usize) -> Token<'a> {
-        self.tokens.get(pos).cloned().unwrap_or_else(|| {
-            self.reader
-        })
+        if let Some(tk) = self.buff.get(pos) {
+            return tk.clone()
+        }
+
+        let mut diff = self.buff.len() - pos;
+        while diff > 0 && !self.poller.empty() {
+            let next_token = self.poller.next().expect("fatal error while polling next line").unwrap();
+            self.buff.push(next_token);
+            diff -= 1;
+        }
+        
+        let result = self.buff.get(pos).unwrap_or_else(|| &Token::new(TokenType::EndOfFile, ""));
+        result.clone()
     }
 
     fn reset(&mut self) {
@@ -131,49 +132,10 @@ impl<'a, I> ParserCursor<'a, I> {
 
     ///return true if this cursor is at the end of the
     pub fn is_at_end(&self) -> bool {
-        self.pos >= self.tokens.len()
+        self.poller.empty()
     }
 
-    /// Create a new parse error with the given message and context.
-    ///
-    /// The [`excepted`](Parser::expected_with) method wraps the error in a [`Err`].
-    pub fn mk_parse_error(
-        &self,
-        message: impl Into<String>,
-        context: impl Into<ErrorContext<'a>>,
-        kind: ParseErrorKind,
-    ) -> ParseError {
-        ParseError {
-            message: message.into(),
-            position: self.relative_pos_ctx(context),
-            kind,
-        }
-    }
 
-    /// Get the relative byte offset of the given string in the source code.
-    ///
-    /// # Panics
-    /// This method panics if the given string is not contained in the source code.
-    pub fn relative_pos<'s>(&self, str: impl Into<&'s str>) -> Location {
-        let str = str.into();
-        let start = (str.as_ptr() as usize)
-            .checked_sub(self.source.as_ptr() as usize)
-            .expect("String is not contained in the source code.");
-        let end = start + str.len();
-        start..end
-    }
 
-    /// Get the relative byte offset of the given context in the source code.
-    ///
-    /// # Panics
-    /// This method panics if the given context is not contained in the source code.
-    pub fn relative_pos_ctx(&self, context: impl Into<ErrorContext<'a>>) -> Location {
-        let context = context.into();
-        let start = (context.from.as_ptr() as usize)
-            .checked_sub(self.source.as_ptr() as usize)
-            .expect("Context start is not contained in the source code.");
-        let end = context.to.as_ptr() as usize + context.to.len() as usize
-            - self.source.as_ptr() as usize;
-        start..end
-    }
+
 }

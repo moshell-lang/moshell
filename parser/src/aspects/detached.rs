@@ -1,3 +1,6 @@
+use std::fmt::Debug;
+use context::poller::Poller;
+use lexer::token::Token;
 use lexer::token::TokenType::Ampersand;
 
 use crate::ast::callable::Detached;
@@ -13,7 +16,8 @@ pub trait DetachedAspect<'a> {
     fn parse_detached(&mut self, underlying: Expr<'a>) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> DetachedAspect<'a> for Parser<'a> {
+impl<'a, P: Poller<'a, Token<'a>> + Debug> DetachedAspect<'a> for Parser<'a, P> {
+
     fn parse_detached(&mut self, underlying: Expr<'a>) -> ParseResult<Expr<'a>> {
         let ampersand = word_seps().then(of_type(Ampersand));
         //there is a trailing '&'

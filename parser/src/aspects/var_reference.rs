@@ -1,4 +1,7 @@
+use std::fmt::Debug;
+use context::poller::Poller;
 use context::source::try_join_str;
+use lexer::token::Token;
 use lexer::token::TokenType::*;
 
 use crate::ast::variable::VarReference;
@@ -12,7 +15,7 @@ pub trait VarReferenceAspect<'a> {
     fn var_reference(&mut self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> VarReferenceAspect<'a> for Parser<'a> {
+impl<'a, P: Poller<'a, Token<'a>> + Debug> VarReferenceAspect<'a> for Parser<'a, P> {
     /// Parses a variable reference.
     fn var_reference(&mut self) -> ParseResult<Expr<'a>> {
         let bracket = self.cursor.advance(of_type(CurlyLeftBracket));
@@ -42,7 +45,7 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
             self.cursor.force_with(
                 of_type(CurlyRightBracket),
                 "Expected closing curly bracket.",
-                ParseErrorKind::Unpaired(self.cursor.relative_pos(&bracket)),
+                ParseErrorKind::Unpaired(self.relative_pos(bracket.value)),
             )?;
         }
         Ok(Expr::VarReference(VarReference { name }))

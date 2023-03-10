@@ -1,6 +1,8 @@
+use std::fmt::Debug;
+use context::poller::Poller;
 use crate::aspects::group::GroupAspect;
 use crate::aspects::literal::LiteralAspect;
-use lexer::token::TokenType;
+use lexer::token::{Token, TokenType};
 use lexer::token::TokenType::*;
 
 use crate::aspects::redirection::RedirectionAspect;
@@ -18,7 +20,7 @@ pub trait CallAspect<'a> {
     fn call_arguments(&mut self, command: Expr<'a>) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> CallAspect<'a> for Parser<'a> {
+impl<'a, P: Poller<'a, Token<'a>> + Debug> CallAspect<'a> for Parser<'a, P> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
         let cmd = self.next_value()?;
         self.call_arguments(cmd)
@@ -45,7 +47,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
     }
 }
 
-impl<'a> Parser<'a> {
+impl<'a, P: Poller<'a, Token<'a>> + Debug> Parser<'a, P> {
     /// special pivot method for argument methods
     fn call_argument(&mut self) -> ParseResult<Expr<'a>> {
         self.repos("Expected value")?;

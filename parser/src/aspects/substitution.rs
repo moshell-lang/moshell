@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+use context::poller::Poller;
 use crate::aspects::group::GroupAspect;
 use crate::aspects::var_reference::VarReferenceAspect;
 use crate::ast::substitution::{Substitution, SubstitutionKind};
@@ -6,7 +8,7 @@ use crate::ast::Expr;
 use crate::err::ParseErrorKind;
 use crate::moves::{eox, not, of_type, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use lexer::token::TokenType;
+use lexer::token::{Token, TokenType};
 use lexer::token::TokenType::{RoundedLeftBracket, RoundedRightBracket};
 
 /// A parser for substitution expressions.
@@ -15,7 +17,7 @@ pub(crate) trait SubstitutionAspect<'a> {
     fn substitution(&mut self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> SubstitutionAspect<'a> for Parser<'a> {
+impl<'a, P: Poller<'a, Token<'a>> + Debug> SubstitutionAspect<'a> for Parser<'a, P> {
     fn substitution(&mut self) -> ParseResult<Expr<'a>> {
         let dollar = self
             .cursor
@@ -33,7 +35,7 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
                 self.cursor.force_with(
                     of_type(RoundedRightBracket),
                     "Expected a second closing parenthesis.",
-                    ParseErrorKind::Unpaired(self.cursor.relative_pos_ctx(dollar..start)),
+                    ParseErrorKind::Unpaired(self.relative_pos_ctx(dollar..start)),
                 )?;
                 return Ok(Expr::Parenthesis(parenthesis));
             }

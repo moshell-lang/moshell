@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+use context::poller::Poller;
 use crate::aspects::call::CallAspect;
 use crate::ast::test::{Not, Test};
 use crate::ast::Expr;
@@ -18,10 +20,10 @@ pub(crate) trait TestAspect<'a> {
     fn parse_test(&mut self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> TestAspect<'a> for Parser<'a> {
-    fn not<P>(&mut self, mut parse_next: P) -> ParseResult<Expr<'a>>
+impl<'a, P: Poller<'a, Token<'a>> + Debug> TestAspect<'a> for Parser<'a, P> {
+    fn not<A>(&mut self, mut parse_next: A) -> ParseResult<Expr<'a>>
     where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
+        A: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
     {
         self.cursor.force(of_type(TokenType::Not), "expected '!'")?;
 
@@ -56,7 +58,7 @@ impl<'a> TestAspect<'a> for Parser<'a> {
             //expect trailing ']'
             spaces().then(of_type(SquaredRightBracket)),
             "missing ']'",
-            ParseErrorKind::Unpaired(self.cursor.relative_pos(&start)),
+            ParseErrorKind::Unpaired(self.relative_pos(start.value)),
         )?;
         Ok(Expr::Test(Test {
             expression: underlying,
@@ -64,7 +66,7 @@ impl<'a> TestAspect<'a> for Parser<'a> {
     }
 }
 
-impl<'a> Parser<'a> {
+impl<'a, P: Poller<'a, Token<'a>> + Debug> Parser<'a, P> {
     fn parse_test_call(&mut self, start: Token) -> ParseResult<Expr<'a>> {
         let call = self.call_arguments(Literal("test".into()));
 
@@ -72,7 +74,7 @@ impl<'a> Parser<'a> {
             //expect trailing ']]'
             spaces().then(times(2, of_type(SquaredRightBracket))),
             "missing ']]'",
-            ParseErrorKind::Unpaired(self.cursor.relative_pos(&start)),
+            ParseErrorKind::Unpaired(self.relative_pos(start.value)),
         )?;
         call
     }

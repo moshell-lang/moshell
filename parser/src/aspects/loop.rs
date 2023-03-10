@@ -1,4 +1,6 @@
-use lexer::token::TokenType;
+use std::fmt::Debug;
+use context::poller::Poller;
+use lexer::token::{Token, TokenType};
 
 use crate::ast::control_flow::{Loop, While};
 use crate::ast::Expr;
@@ -13,7 +15,7 @@ pub trait LoopAspect<'a> {
     fn parse_loop(&mut self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> LoopAspect<'a> for Parser<'a> {
+impl<'a, P: Poller<'a, Token<'a>> + Debug> LoopAspect<'a> for Parser<'a, P> {
     fn parse_while(&mut self) -> ParseResult<Expr<'a>> {
         self.cursor.force(
             of_type(TokenType::While),

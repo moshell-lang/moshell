@@ -1,4 +1,6 @@
-use lexer::token::TokenType;
+use std::fmt::Debug;
+use context::poller::Poller;
+use lexer::token::{Token, TokenType};
 
 use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use crate::ast::Expr;
@@ -12,7 +14,7 @@ pub trait VarDeclarationAspect<'a> {
     fn var_declaration(&mut self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
+impl<'a, P: Poller<'a, Token<'a>> + Debug> VarDeclarationAspect<'a> for Parser<'a, P> {
     /// Parses a variable declaration.
     fn var_declaration(&mut self) -> ParseResult<Expr<'a>> {
         let kind = match self.cursor.next()?.token_type {

@@ -1,7 +1,9 @@
 use lexer::token::TokenType::*;
 use lexer::token::{Token, TokenType};
 use std::collections::VecDeque;
-use lexer::reader::BufferedTokenReader;
+use std::fmt::Debug;
+use context::poller::Poller;
+use context::source::Location;
 
 use crate::aspects::binary_operation::BinaryOperationsAspect;
 use crate::aspects::call::CallAspect;
@@ -25,9 +27,9 @@ use crate::moves::{
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
 
-/// A parser for the Moshell scripting language.
-pub(crate) struct Parser<'a, I> {
-    pub(crate) cursor: ParserCursor<'a, I>,
+
+pub(crate) struct Parser<'a, P: Poller<'a, Token<'a>> + Debug> {
+    pub(crate) cursor: ParserCursor<'a, P>,
     pub(crate) delimiter_stack: VecDeque<Token<'a>>,
 }
 
@@ -47,11 +49,12 @@ macro_rules! non_infix {
     };
 }
 
-impl<'a, I> Parser<'a, I> {
+impl<'a, P: Poller<'a, Token<'a>> + Debug> Parser<'a, P> {
+
     /// Creates a new parser from a defined source.
-    pub(crate) fn new(reader: BufferedTokenReader<'a, I>) -> Self {
+    pub(crate) fn new(poller: P) -> Self {
         Self {
-            cursor: ParserCursor::new_with_reader(reader),
+            cursor: ParserCursor::new(poller),
             delimiter_stack: VecDeque::new(),
         }
     }
@@ -196,7 +199,7 @@ impl<'a, I> Parser<'a, I> {
     /// Raise an error on the current token.
     ///
     /// Use [Parser::expected_with] if the error is not on the current token.
-    pub(crate) fn expected<T>(&self, message: &str, kind: ParseErrorKind) -> ParseResult<T> {
+    pub(crate) fn expected<T>(&mut self, message: &str, kind: ParseErrorKind) -> ParseResult<T> {
         Err(self.mk_parse_error(message, self.cursor.peek(), kind))
     }
 
@@ -219,7 +222,11 @@ impl<'a, I> Parser<'a, I> {
         context: impl Into<ErrorContext<'a>>,
         kind: ParseErrorKind,
     ) -> ParseError {
-        self.cursor.mk_parse_error(message, context, kind)
+        ParseError {
+            message: message.into(),
+            position: self.relative_pos_ctx(context),
+            kind,
+        }
     }
 
     //parses any binary expression, considering given input expression
@@ -246,12 +253,12 @@ impl<'a, I> Parser<'a, I> {
 
         if let Expr::Literal(literal) = &expr {
             if self.cursor.lookahead(bin_op()).is_some() {
-                let start_pos = self.cursor.relative_pos(literal.lexeme).start;
+                let start_pos = self.relative_pos(literal.lexeme).start;
                 if self
                     .binary_operation_right(expr, Parser::next_value)
                     .is_ok()
                 {
-                    let end_pos = self.cursor.relative_pos(&self.cursor.peek()).end;
+                    let end_pos = self.relative_pos(&self.cursor.peek()).end;
                     let slice = &self.source.source[start_pos..end_pos];
                     return self.expected_with(
                         "Binary operations must be enclosed in a value expression.",
@@ -319,4 +326,6 @@ impl<'a, I> Parser<'a, I> {
             }
         }
     }
+
+
 }

@@ -1,8 +1,10 @@
+use std::fmt::Debug;
+use context::poller::Poller;
 use crate::ast::control_flow::If;
 use crate::ast::Expr;
 use crate::moves::{aerated, blanks, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use lexer::token::TokenType;
+use lexer::token::{Token, TokenType};
 use lexer::token::TokenType::{Else, SemiColon};
 
 ///parser aspect for if and else expressions.
@@ -14,7 +16,7 @@ pub trait IfElseAspect<'a> {
         F: FnMut(&mut Self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> IfElseAspect<'a> for Parser<'a> {
+impl<'a, P: Poller<'a, Token<'a>> + Debug> IfElseAspect<'a> for Parser<'a, P> {
     fn parse_if<F>(&mut self, mut parse_branch: F) -> ParseResult<Expr<'a>>
     where
         F: FnMut(&mut Self) -> ParseResult<Expr<'a>>,

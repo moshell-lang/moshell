@@ -1,15 +1,17 @@
-use std::io;
 use logos::Logos;
 use crate::token::{Token, TokenType};
 
+use context::poller::Poller;
+
+
 pub struct BufferedTokenReader<'a, I> {
     input: I,
-    buff:Vec<Token<'a>>,
+    buff: Vec<Token<'a>>,
     pos: usize,
     end_of_input: bool,
 }
 
-impl<'a, S> BufferedTokenReader<'a, S> {
+impl<'a, I> BufferedTokenReader<'a, I> {
     fn is_at_end(&self) -> bool {
         self.end_of_input
     }
@@ -17,20 +19,19 @@ impl<'a, S> BufferedTokenReader<'a, S> {
 
 ///implementation for a line supplier input
 impl<'a, I> BufferedTokenReader<'a, I>
-    where I: FnMut() -> Result<Option<&'a str>, io::Error>
+    where I: Poller<'a, &'a str>
 {
-    pub fn from_line_supplier(supplier: I) -> Self {
+
+    pub fn new(input: I) -> Self {
         Self {
-            input: supplier,
+            input,
             buff: Vec::new(),
             pos: 0,
-            end_of_input: false,
+            end_of_input: false
         }
     }
 
-
-    pub fn next(&mut self) -> Result<Option<Token>, io::Error> {
-
+    fn next(&mut self) -> Result<Option<Token<'a>>, I::Error> {
         if self.pos == self.buff.len() {
             self.refill()?;
             return self.next();
@@ -45,9 +46,8 @@ impl<'a, I> BufferedTokenReader<'a, I>
         Ok(Some(token.clone()))
     }
 
-    fn refill(&mut self) -> Result<(), io::Error> {
-        if let Some(line) = (self.input)()? {
-
+    fn refill(&mut self) -> Result<(), I::Error> {
+        if let Some(line) = self.input.next()? {
             let mut lexer = TokenType::lexer(line);
 
             self.buff.clear();

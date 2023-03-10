@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+use context::poller::Poller;
 use lexer::token::{Token, TokenType};
 
 use crate::ast::group::{Block, Parenthesis, Subshell};
@@ -25,7 +27,7 @@ pub trait GroupAspect<'a> {
     fn parenthesis(&mut self) -> ParseResult<Parenthesis<'a>>;
 }
 
-impl<'a> GroupAspect<'a> for Parser<'a> {
+impl<'a, P: Poller<'a, Token<'a>> + Debug> GroupAspect<'a> for Parser<'a, P> {
     fn block(&mut self) -> ParseResult<Block<'a>> {
         let start = self.ensure_at_group_start(TokenType::CurlyLeftBracket)?;
         Ok(Block {
@@ -60,7 +62,7 @@ impl<'a> GroupAspect<'a> for Parser<'a> {
     }
 }
 
-impl<'a> Parser<'a> {
+impl<'a, P: Poller<'a, Token<'a>> + Debug> Parser<'a, P> {
     fn ensure_at_group_start(&mut self, start: TokenType) -> ParseResult<Token<'a>> {
         let token = self.cursor.force_with(
             of_type(start),
@@ -96,7 +98,7 @@ impl<'a> Parser<'a> {
             if self.cursor.is_at_end() {
                 self.expected(
                     "Expected closing bracket.",
-                    ParseErrorKind::Unpaired(self.cursor.relative_pos(&start_token)),
+                    ParseErrorKind::Unpaired(self.relative_pos(&start_token.value)),
                 )?;
             }
             let statement = parser(self)?;
@@ -121,7 +123,7 @@ impl<'a> Parser<'a> {
                 if let Some(last) = self.delimiter_stack.back() {
                     self.expected(
                         "Mismatched closing delimiter.",
-                        ParseErrorKind::Unpaired(self.cursor.relative_pos(last)),
+                        ParseErrorKind::Unpaired(self.relative_pos(last.value)),
                     )?;
                 } else {
                     self.expected(

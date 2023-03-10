@@ -1,9 +1,11 @@
+use std::fmt::Debug;
+use context::poller::Poller;
 use crate::ast::r#use::Use;
 use crate::ast::Expr;
 use crate::err::ParseErrorKind;
 use crate::moves::{eox, of_type, repeat, spaces, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use lexer::token::TokenType;
+use lexer::token::{Token, TokenType};
 use lexer::token::TokenType::{Comma, Identifier};
 
 /// Parser aspect to parse use statements
@@ -12,7 +14,7 @@ pub trait UseAspect<'a> {
     fn parse_use(&mut self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> UseAspect<'a> for Parser<'a> {
+impl<'a, P: Poller<'a, Token<'a>> + Debug> UseAspect<'a> for Parser<'a, P> {
     fn parse_use(&mut self) -> ParseResult<Expr<'a>> {
         self.cursor
             .force(of_type(TokenType::Use), "expected 'use'")?;
