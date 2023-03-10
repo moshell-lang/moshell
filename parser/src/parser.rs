@@ -1,8 +1,8 @@
 use context::source::StringSource;
-use lexer::err::lex;
 use lexer::token::TokenType::*;
 use lexer::token::{Token, TokenType};
 use std::collections::VecDeque;
+use lexer::reader::BufferedTokenReader;
 
 use crate::aspects::binary_operation::BinaryOperationsAspect;
 use crate::aspects::call::CallAspect;
@@ -27,9 +27,9 @@ use crate::moves::{
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
 
 /// A parser for the Moshell scripting language.
-pub(crate) struct Parser<'a> {
-    pub(crate) cursor: ParserCursor<'a>,
-    pub(crate) source: StringSource<'a>,
+pub(crate) struct Parser<'a, I> {
+    pub(crate) cursor: ParserCursor<'a, I>,
+    pub(crate) source: StringSource,
     pub(crate) delimiter_stack: VecDeque<Token<'a>>,
 }
 
@@ -49,11 +49,11 @@ macro_rules! non_infix {
     };
 }
 
-impl<'a> Parser<'a> {
+impl<'a, I> Parser<'a> {
     /// Creates a new parser from a defined source.
-    pub(crate) fn new(source: StringSource<'a>) -> Self {
+    pub(crate) fn new(reader: BufferedTokenReader<'a, I>) -> Self {
         Self {
-            cursor: ParserCursor::new_with_source(lex(source.source), source.source),
+            cursor: ParserCursor::new_with_source(reader, source.source),
             source,
             delimiter_stack: VecDeque::new(),
         }

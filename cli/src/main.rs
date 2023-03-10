@@ -1,7 +1,7 @@
 mod report;
 
 use crate::report::print_flush;
-use context::source::{Location, StringSource};
+use context::source::{InputSource, Location, StringSource};
 use dbg_pls::color;
 use miette::{Diagnostic, GraphicalReportHandler, SourceSpan};
 use parser::err::ParseErrorKind;
@@ -9,11 +9,12 @@ use parser::parse;
 use std::fmt::Display;
 use std::io::{self, BufRead, Write};
 use thiserror::Error;
+use lexer::reader::BufferedTokenReader;
 
 #[derive(Error, Debug, Diagnostic)]
 struct FormattedError<'s, S> {
     #[source_code]
-    src: &'s StringSource<S>,
+    src: &'s StringSource,
     #[label("Here")]
     cursor: SourceSpan,
     #[label("Start")]
@@ -41,26 +42,24 @@ fn main() -> io::Result<()> {
     let stdin = io::stdin();
     let mut lines = stdin.lock().lines();
 
+
     let handler = GraphicalReportHandler::default();
 
     print_flush!("=> ");
-    let mut content = String::new();
     while let Some(line) = lines.next() {
-        let line = line?;
-        content.push_str(&line);
-        if line.ends_with('\\') {
-            content.push('\n');
-            print_flush!(".. ");
-            continue;
-        }
+        let first_line = line?;
+        let mut source = StringSource::new(first_line, "cli");
 
-        let source = StringSource::from_str(&content, "stdin");
-        let report = parse(source.clone());
-        if !report.stack_ended {
-            content.push('\n');
-            print_flush!(".. ");
-            continue; // Silently ignore incomplete input
-        }
+        let reader = BufferedTokenReader::from_line_supplier(|| {
+            print_flush!("..");
+            let result = lines.next();
+            if let Ok(Some(ln)) = result {
+                source.append_code(ln);
+            }
+            result
+        });
+
+        let report = parse(reader);
 
         let errors = report
             .errors

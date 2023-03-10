@@ -2,9 +2,9 @@ use std::io;
 use logos::Logos;
 use crate::token::{Token, TokenType};
 
-pub struct BufferedTokenReader<'a, S> {
-    input: S,
-    buff: Vec<Token<'a>>,
+pub struct BufferedTokenReader<'a, I> {
+    input: I,
+    buff:Vec<Token<'a>>,
     pos: usize,
     end_of_input: bool,
 }
@@ -16,7 +16,7 @@ impl<'a, S> BufferedTokenReader<'a, S> {
 }
 
 pub trait LineSupplier<'a, E> {
-    fn next_line(&'a mut self) -> Result<Option<&'a str>, E>;
+    fn next_line(&mut self) -> Result<Option<&'a str>, E>;
 }
 
 
@@ -32,10 +32,11 @@ impl<'a, S: LineSupplier<'a, io::Error>> BufferedTokenReader<'a, S>
         }
     }
 
-    pub fn next(&'a mut self) -> Result<Option<Token>, io::Error> {
+    pub fn next(&mut self) -> Result<Option<Token>, io::Error> {
 
         if self.pos == self.buff.len() {
-            return self.refill();
+            self.refill()?;
+            return self.next();
         }
 
         if self.end_of_input {
@@ -47,20 +48,21 @@ impl<'a, S: LineSupplier<'a, io::Error>> BufferedTokenReader<'a, S>
         Ok(Some(token.clone()))
     }
 
-    fn refill(&'a mut self) -> Result<Option<Token>, io::Error> {
+    fn refill(&mut self) -> Result<(), io::Error> {
         if let Some(line) = self.input.next_line()? {
 
             let mut lexer = TokenType::lexer(line);
 
             self.buff.clear();
             while let Some(token_type) = lexer.next() {
-                self.buff.push(Token::new(token_type, lexer.slice()))
+                let slice = lexer.slice();
+                self.buff.push(Token::new(token_type, slice).clone())
             }
             self.pos = 0; //reset buffer pos
-            return self.next();
+            return Ok(());
         }
 
         self.end_of_input = true;
-        return self.next();
+        return Ok(());
     }
 }

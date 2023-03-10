@@ -1,15 +1,16 @@
 use crate::err::{ErrorContext, ParseError, ParseErrorKind};
 use crate::moves::Move;
 use context::source::Location;
+use lexer::reader::BufferedTokenReader;
 use lexer::token::{Token, TokenType};
 
 use crate::parser::ParseResult;
 
 /// Parser cursor is used by parsers to navigate in the token stream
 #[derive(Debug, Clone)]
-pub(crate) struct ParserCursor<'a> {
-    /// The manipulated tokens
-    tokens: Vec<Token<'a>>,
+pub(crate) struct ParserCursor<'a, I> {
+    /// The manipulated reader
+    reader: BufferedTokenReader<'a, I>,
     /// current position in the tokens vector.
     pos: usize,
     /// The source code of the tokens.
@@ -18,19 +19,19 @@ pub(crate) struct ParserCursor<'a> {
     source: &'a str,
 }
 
-impl<'a> ParserCursor<'a> {
+impl<'a, I> ParserCursor<'a, I> {
     ///Creates a new cursor at position 0 in the given token vector
-    pub fn new(tokens: Vec<Token<'a>>) -> Self {
+    pub fn new(reader: BufferedTokenReader<'a, I>) -> Self {
         Self {
-            tokens,
+            reader,
             pos: 0,
             source: "",
         }
     }
 
-    pub fn new_with_source(tokens: Vec<Token<'a>>, source: &'a str) -> Self {
+    pub fn new_with_source(reader: BufferedTokenReader<'a, I>, source: &'a str) -> Self {
         Self {
-            tokens,
+            reader,
             pos: 0,
             source,
         }

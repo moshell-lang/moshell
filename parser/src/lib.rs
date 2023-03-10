@@ -2,7 +2,7 @@
 #![deny(warnings)]
 
 use crate::err::ParseReport;
-use context::source::StringSource;
+use lexer::reader::BufferedTokenReader;
 
 use crate::parser::Parser;
 
@@ -14,6 +14,6 @@ pub mod err;
 mod moves;
 mod parser;
 
-pub fn parse(src: StringSource) -> ParseReport {
-    Parser::new(src).parse()
+pub fn parse<S>(reader: BufferedTokenReader<S>) -> ParseReport {
+    Parser::new(reader).parse()
 }
