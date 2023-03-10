@@ -61,7 +61,7 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use context::source::StringSource;
+    use context::source::Source;
     use pretty_assertions::assert_eq;
 
     use crate::ast::callable::Call;
@@ -74,7 +74,7 @@ mod tests {
     #[test]
     fn wrong_group_end() {
         let content = "ls )";
-        let source = StringSource::unknown(content);
+        let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source).parse_next(),
             Err(ParseError {
@@ -88,7 +88,7 @@ mod tests {
     #[test]
     fn not_in_call_is_literal() {
         let content = "echo how ! how are you !";
-        let result = parse(StringSource::unknown(content)).unwrap();
+        let result = parse(Source::unknown(content)).unwrap();
         assert_eq!(
             result,
             vec![Expr::Call(Call {
@@ -107,7 +107,7 @@ mod tests {
 
     #[test]
     fn multiple_calls() {
-        let source = StringSource::unknown("grep -E regex; echo test");
+        let source = Source::unknown("grep -E regex; echo test");
         let parsed = parse(source).expect("Failed to parse");
         assert_eq!(
             parsed,
@@ -128,7 +128,7 @@ mod tests {
 
     #[test]
     fn multiline_call() {
-        let source = StringSource::unknown("g++ -std=c++20 \\\n-Wall \\\n-Wextra\\\n-Wpedantic");
+        let source = Source::unknown("g++ -std=c++20 \\\n-Wall \\\n-Wextra\\\n-Wpedantic");
         let parsed = parse(source).expect("Failed to parse");
         assert_eq!(
             parsed,
@@ -146,7 +146,7 @@ mod tests {
 
     #[test]
     fn escaped_call() {
-        let source = StringSource::unknown("grep -E regex \\; echo test");
+        let source = Source::unknown("grep -E regex \\; echo test");
         let parsed = parse(source).expect("Failed to parse");
         assert_eq!(
             parsed,

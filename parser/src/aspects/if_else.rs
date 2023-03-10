@@ -69,12 +69,12 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
-    use context::source::StringSource;
+    use context::source::Source;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn simple_if() {
-        let source = StringSource::unknown("if [ $1 ]; echo test");
+        let source = Source::unknown("if [ $1 ]; echo test");
         let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
@@ -92,7 +92,7 @@ mod tests {
 
     #[test]
     fn if_else_if() {
-        let source = StringSource::unknown(
+        let source = Source::unknown(
             "if echo a && [[ -f /file/exe ]]; echo test\n\n\nelse if [ $a ] \n;\n { $7 }; else $5",
         );
         let ast = parse(source).expect("parse failed");
@@ -130,7 +130,7 @@ mod tests {
 
     #[test]
     fn if_else_if_separations() {
-        let source = StringSource::unknown("if [ $1 ]; echo test; else if [ $a ]; $7 else $5");
+        let source = Source::unknown("if [ $1 ]; echo test; else if [ $a ]; $7 else $5");
         let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
@@ -154,7 +154,7 @@ mod tests {
 
     #[test]
     fn no_separation_else() {
-        let source = StringSource::unknown("if $x {} else {}");
+        let source = Source::unknown("if $x {} else {}");
         let ast = parse(source).expect("parse fail");
         assert_eq!(
             ast,
@@ -173,7 +173,7 @@ mod tests {
     #[test]
     fn if_else_as_value() {
         let source =
-            StringSource::unknown("val x = if [ {date +\"%Y\"} < 2023 ]; \"bash\" else \"moshell\"");
+            Source::unknown("val x = if [ {date +\"%Y\"} < 2023 ]; \"bash\" else \"moshell\"");
         let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
@@ -216,7 +216,7 @@ mod tests {
     fn if_else_bad_brackets() {
         let content =
             "val x = if [ $1 ] \n { echo hey; else if [ $a ]; echo hola; else echo bonjour }";
-        let source = StringSource::unknown(content);
+        let source = Source::unknown(content);
         let ast: ParseResult<_> = parse(source).into();
         assert_eq!(
             ast,
@@ -231,7 +231,7 @@ mod tests {
     #[test]
     fn lonely_if() {
         let content = "if [ $1 ];";
-        let source = StringSource::unknown(content);
+        let source = Source::unknown(content);
         let ast: ParseResult<_> = parse(source).into();
         assert_eq!(
             ast,

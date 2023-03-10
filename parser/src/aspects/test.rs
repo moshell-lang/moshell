@@ -90,13 +90,13 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
-    use context::source::StringSource;
+    use context::source::Source;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn native_empty() {
         let content = "[]";
-        let source = StringSource::unknown(content);
+        let source = Source::unknown(content);
         let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
@@ -111,7 +111,7 @@ mod tests {
     #[test]
     fn native_empty_not() {
         let content = "[! ]";
-        let source = StringSource::unknown(content);
+        let source = Source::unknown(content);
         let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
@@ -125,7 +125,7 @@ mod tests {
 
     #[test]
     fn call_empty() {
-        let source = StringSource::unknown("[[]]");
+        let source = Source::unknown("[[]]");
         let result = parse(source).expect("parsing failed");
         assert_eq!(
             result,
@@ -137,7 +137,7 @@ mod tests {
 
     #[test]
     fn call_with_content() {
-        let source = StringSource::unknown("[[48 -gt 100]]");
+        let source = Source::unknown("[[48 -gt 100]]");
         let result = parse(source).expect("parsing failed");
         assert_eq!(
             result,
@@ -160,7 +160,7 @@ mod tests {
 
     #[test]
     fn test_integration() {
-        let source = StringSource::unknown("echo && [ ($a == $b) ] || [[ $1 ]]");
+        let source = Source::unknown("echo && [ ($a == $b) ] || [[ $1 ]]");
         let result = parse(source).expect("parse error");
         assert_eq!(
             result,
@@ -194,7 +194,7 @@ mod tests {
     #[test]
     fn test_in_test() {
         let content = "[ test == [] ]";
-        let source = StringSource::unknown(content);
+        let source = Source::unknown(content);
         let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
@@ -209,7 +209,7 @@ mod tests {
     #[test]
     fn unclosed_test() {
         let content = "[ test == $USER ";
-        let source = StringSource::unknown(content);
+        let source = Source::unknown(content);
         let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
@@ -224,7 +224,7 @@ mod tests {
     #[test]
     fn unclosed_test_call() {
         let content = "[[ test == $USER ";
-        let source = StringSource::unknown(content);
+        let source = Source::unknown(content);
         let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
@@ -238,7 +238,7 @@ mod tests {
 
     #[test]
     fn not_call() {
-        let source = StringSource::unknown("!grep -E '^[0-9]+$'");
+        let source = Source::unknown("!grep -E '^[0-9]+$'");
         let result = parse(source).expect("parse fail");
         assert_eq!(
             result,
@@ -259,7 +259,7 @@ mod tests {
 
     #[test]
     fn not() {
-        let source = StringSource::unknown("! ($a && $b) || ! $2 == 78");
+        let source = Source::unknown("! ($a && $b) || ! $2 == 78");
         let result = parse(source).expect("parse error");
         assert_eq!(
             result,

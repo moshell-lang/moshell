@@ -1,7 +1,7 @@
 mod report;
 
 use crate::report::print_flush;
-use context::source::{InputSource, Location, StringSource};
+use context::source::{InputSource, Location, Source};
 use dbg_pls::color;
 use miette::{Diagnostic, GraphicalReportHandler, SourceSpan};
 use parser::err::ParseErrorKind;
@@ -14,7 +14,7 @@ use lexer::reader::BufferedTokenReader;
 #[derive(Error, Debug, Diagnostic)]
 struct FormattedError<'s, S> {
     #[source_code]
-    src: &'s StringSource,
+    src: &'s Source,
     #[label("Here")]
     cursor: SourceSpan,
     #[label("Start")]
@@ -48,15 +48,11 @@ fn main() -> io::Result<()> {
     print_flush!("=> ");
     while let Some(line) = lines.next() {
         let first_line = line?;
-        let mut source = StringSource::new(first_line, "cli");
+        let mut source = Source::new(first_line, "cli");
 
         let reader = BufferedTokenReader::from_line_supplier(|| {
             print_flush!("..");
-            let result = lines.next();
-            if let Ok(Some(ln)) = result {
-                source.append_code(ln);
-            }
-            result
+            
         });
 
         let report = parse(reader);

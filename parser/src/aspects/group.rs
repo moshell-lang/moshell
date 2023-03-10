@@ -148,13 +148,13 @@ mod tests {
     use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use crate::ast::Expr;
     use crate::parser::Parser;
-    use context::source::StringSource;
+    use context::source::Source;
     use pretty_assertions::assert_eq;
 
     //noinspection DuplicatedCode
     #[test]
     fn empty_blocks() {
-        let source = StringSource::unknown("{{{}; {}}}");
+        let source = Source::unknown("{{{}; {}}}");
         let mut parser = Parser::new(source);
         let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
@@ -178,7 +178,7 @@ mod tests {
     //noinspection DuplicatedCode
     #[test]
     fn empty_blocks_empty_content() {
-        let source = StringSource::unknown("{;;{;;;{;;}; {\n\n};}}");
+        let source = Source::unknown("{;;{;;;{;;}; {\n\n};}}");
         let mut parser = Parser::new(source);
         let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
@@ -201,28 +201,28 @@ mod tests {
 
     #[test]
     fn block_not_ended() {
-        let source = StringSource::unknown("{ val test = 2 ");
+        let source = Source::unknown("{ val test = 2 ");
         let mut parser = Parser::new(source);
         parser.block().expect_err("block parse did not failed");
     }
 
     #[test]
     fn neighbour_parenthesis() {
-        let source = StringSource::unknown("{ {} {} }");
+        let source = Source::unknown("{ {} {} }");
         let mut parser = Parser::new(source);
         parser.block().expect_err("block parse did not failed");
     }
 
     #[test]
     fn block_not_started() {
-        let source = StringSource::unknown(" val test = 2 }");
+        let source = Source::unknown(" val test = 2 }");
         let mut parser = Parser::new(source);
         parser.block().expect_err("block parse did not failed");
     }
 
     #[test]
     fn block_with_nested_blocks() {
-        let source = StringSource::unknown(
+        let source = Source::unknown(
             "\
         {\
             val test = {\
@@ -300,7 +300,7 @@ mod tests {
 
     #[test]
     fn block() {
-        let source = StringSource::unknown(
+        let source = Source::unknown(
             "\
         {\
             var test: int = 7.0\n\

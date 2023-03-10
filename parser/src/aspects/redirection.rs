@@ -173,7 +173,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod test {
-    use context::source::StringSource;
+    use context::source::Source;
     use pretty_assertions::assert_eq;
 
     use crate::aspects::call::CallAspect;
@@ -186,7 +186,7 @@ mod test {
 
     #[test]
     fn expr_redirection() {
-        let source = StringSource::unknown("{ls; cd;} > /tmp/out");
+        let source = Source::unknown("{ls; cd;} > /tmp/out");
         let parsed = parse(source).expect("Failed to parse");
         assert_eq!(
             parsed,
@@ -212,7 +212,7 @@ mod test {
 
     #[test]
     fn call_redirection() {
-        let source = StringSource::unknown("ls> /tmp/out");
+        let source = Source::unknown("ls> /tmp/out");
         let parsed = Parser::new(source).call().expect("Failed to parse");
         assert_eq!(
             parsed,
@@ -231,7 +231,7 @@ mod test {
 
     #[test]
     fn dupe_fd() {
-        let source = StringSource::unknown("ls>&2");
+        let source = Source::unknown("ls>&2");
         let parsed = Parser::new(source).call().expect("Failed to parse");
         assert_eq!(
             parsed,
@@ -253,7 +253,7 @@ mod test {
 
     #[test]
     fn multiple_calls() {
-        let source = StringSource::unknown("grep -E regex; echo test");
+        let source = Source::unknown("grep -E regex; echo test");
         let parsed = parse(source).expect("parsing error");
         assert_eq!(
             parsed,
@@ -274,7 +274,7 @@ mod test {
 
     #[test]
     fn escaped_call() {
-        let source = StringSource::unknown("grep -E regex \\; echo test");
+        let source = Source::unknown("grep -E regex \\; echo test");
         let parsed = parse(source).expect("parsing error");
         assert_eq!(
             parsed,

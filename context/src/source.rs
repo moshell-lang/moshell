@@ -1,32 +1,35 @@
 use std::fmt::Debug;
 use std::io;
-use std::io::{BufRead, Error, Lines};
-use std::ptr::null;
+use std::io::BufRead;
 
 use miette::{MietteError, MietteSpanContents, SourceCode, SourceSpan, SpanContents};
+use lexer::reader::{BufferedTokenReader};
 
-use lexer::reader::{BufferedTokenReader, LineSupplier};
 
 pub type Location = std::ops::Range<usize>;
 
-trait Source<'a> {
-    fn source_code(&self) -> &'a str;
 
-    fn name(&self) -> &'a str;
+pub struct SourceInput<I> {
+    input: I,
+    source: Source
+}
+
+impl<'a, B: BufRead> SourceInput<B> {
+    
 }
 
 /// Defines a named source code from which tokens can be produced.
 #[derive(Clone)]
-pub struct StringSource {
+pub struct Source {
     /// The source code.
-    source: String,
+    pub source: String,
     /// The source code name.
-    source_name: String,
+    pub source_name: String,
 }
 
 
 ///String source implementation
-impl StringSource {
+impl Source {
     /// Creates a new named source from a string.
     pub fn new(source: &str, name: impl Into<String>) -> Self {
         Self {
@@ -34,7 +37,7 @@ impl StringSource {
             source_name: name.into(),
         }
     }
-    
+
     pub fn empty(name: impl Into<String>) -> Self {
         Self {
             source: String::new(),
@@ -57,16 +60,16 @@ impl StringSource {
     }
 }
 
-impl<'a> Debug for dyn Source<'a> {
+impl<'a> Debug for Source {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Source")
-            .field("name", &self.name())
+            .field("name", &self.source_name)
             .field("source", &"<redacted>")
             .finish()
     }
 }
 
-impl<'s> SourceCode for dyn Source<'s> + Send + Sync {
+impl<'s> SourceCode for Source {
     fn read_span<'a>(
         &'a self,
         span: &SourceSpan,
@@ -74,11 +77,11 @@ impl<'s> SourceCode for dyn Source<'s> + Send + Sync {
         context_lines_after: usize,
     ) -> Result<Box<dyn SpanContents<'a> + 'a>, MietteError> {
         let contents = self
-            .source_code()
+            .source
             .read_span(span, context_lines_before, context_lines_after)?;
 
         Ok(Box::new(MietteSpanContents::new_named(
-            self.name().to_string(),
+            self.source_name.to_string(),
             contents.data(),
             *contents.span(),
             contents.line(),

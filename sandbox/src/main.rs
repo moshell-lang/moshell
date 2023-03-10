@@ -1,4 +1,4 @@
-use context::source::StringSource;
+use context::source::Source;
 use miette::{Diagnostic, NamedSource, Result, SourceSpan};
 use parser::err::ParseErrorKind;
 use parser::parse;
@@ -34,7 +34,7 @@ impl Display for FormattedError {
 
 fn this_fails() -> Result<()> {
     let src = fs::read_to_string("lexer/tests/sample.msh").unwrap();
-    let source = StringSource::from_str(&src, "sample.msh");
+    let source = Source::from_str(&src, "sample.msh");
     let parsed = parse(source);
     let errors = parsed
         .errors

@@ -267,12 +267,12 @@ mod tests {
     use super::*;
     use crate::err::ParseErrorKind::InvalidFormat;
     use crate::err::{ParseError, ParseErrorKind};
-    use context::source::StringSource;
+    use context::source::Source;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn int_overflow() {
-        let source = StringSource::unknown("123456789012345678901234567890");
+        let source = Source::unknown("123456789012345678901234567890");
         let parsed: ParseResult<_> = parse(source).into();
         assert_eq!(
             parsed,
@@ -286,7 +286,7 @@ mod tests {
 
     #[test]
     fn string_literal() {
-        let source = StringSource::unknown("'hello $world! $(this is a test) @(of course)'");
+        let source = Source::unknown("'hello $world! $(this is a test) @(of course)'");
         let parsed = Parser::new(source).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
@@ -299,7 +299,7 @@ mod tests {
 
     #[test]
     fn escaped_literal() {
-        let source = StringSource::unknown("a\\a");
+        let source = Source::unknown("a\\a");
         let parsed = Parser::new(source).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
@@ -313,7 +313,7 @@ mod tests {
     #[test]
     fn missing_quote() {
         let content = "' command";
-        let source = StringSource::unknown(content);
+        let source = Source::unknown(content);
         let parsed: ParseResult<_> = parse(source).into();
         assert_eq!(
             parsed,

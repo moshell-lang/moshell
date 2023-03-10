@@ -55,12 +55,12 @@ mod tests {
     use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
     use crate::parse;
-    use context::source::StringSource;
+    use context::source::Source;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn test_loop() {
-        let res = parse(StringSource::unknown("loop \n\n \n \n date")).expect("parse failed");
+        let res = parse(Source::unknown("loop \n\n \n \n date")).expect("parse failed");
         assert_eq!(
             res,
             vec![Expr::Loop(Loop {
@@ -73,7 +73,7 @@ mod tests {
 
     #[test]
     fn test_loop_no_body() {
-        let res = parse(StringSource::unknown("loop")).errors;
+        let res = parse(Source::unknown("loop")).errors;
         assert_eq!(
             res,
             vec![ParseError {
@@ -86,7 +86,7 @@ mod tests {
 
     #[test]
     fn test_while() {
-        let res = parse(StringSource::unknown("while \n\n \n \n $1 \n\n \n{ echo test }"))
+        let res = parse(Source::unknown("while \n\n \n \n $1 \n\n \n{ echo test }"))
             .expect("parse failed");
         assert_eq!(
             res,
@@ -103,7 +103,7 @@ mod tests {
 
     #[test]
     fn test_while_no_condition() {
-        let res = parse(StringSource::unknown("while")).errors;
+        let res = parse(Source::unknown("while")).errors;
         assert_eq!(
             res,
             vec![ParseError {
@@ -116,7 +116,7 @@ mod tests {
 
     #[test]
     fn test_while_no_body() {
-        let res = parse(StringSource::unknown("while $x")).errors;
+        let res = parse(Source::unknown("while $x")).errors;
         assert_eq!(
             res,
             vec![ParseError {

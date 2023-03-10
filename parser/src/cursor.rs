@@ -2,7 +2,7 @@ use crate::err::{ErrorContext, ParseError, ParseErrorKind};
 use crate::moves::Move;
 use context::source::Location;
 use lexer::reader::BufferedTokenReader;
-use lexer::token::{Token, TokenType};
+use lexer::token::{Token};
 
 use crate::parser::ParseResult;
 
@@ -10,13 +10,11 @@ use crate::parser::ParseResult;
 #[derive(Debug, Clone)]
 pub(crate) struct ParserCursor<'a, I> {
     /// The manipulated reader
-    reader: BufferedTokenReader<'a, I>,
+    reader: I,
+    ///
+    buff: Vec<Token<'a>>,
     /// current position in the tokens vector.
     pos: usize,
-    /// The source code of the tokens.
-    ///
-    /// This must contains all the string slices in the tokens present in the `tokens` vector.
-    source: &'a str,
 }
 
 impl<'a, I> ParserCursor<'a, I> {
@@ -24,16 +22,16 @@ impl<'a, I> ParserCursor<'a, I> {
     pub fn new(reader: BufferedTokenReader<'a, I>) -> Self {
         Self {
             reader,
+            buff: Vec::new(),
             pos: 0,
-            source: "",
         }
     }
 
-    pub fn new_with_source(reader: BufferedTokenReader<'a, I>, source: &'a str) -> Self {
+    pub fn new_with_reader(reader: BufferedTokenReader<'a, I>) -> Self {
         Self {
             reader,
+            buff: Vec::new(),
             pos: 0,
-            source,
         }
     }
 
@@ -57,7 +55,7 @@ impl<'a, I> ParserCursor<'a, I> {
 
     /// Returns the token where the move ended if the move succeeds, or None instead.
     /// This method is similar to `advance` except that it does not makes the cursor change its current pos.
-    pub fn lookahead(&self, mov: impl Move) -> Option<Token<'a>> {
+    pub fn lookahead(&mut self, mov: impl Move) -> Option<Token<'a>> {
         let result = mov.apply(|pos| self.at(pos), self.pos);
 
         if let Some(next_pos) = result {
@@ -99,7 +97,7 @@ impl<'a, I> ParserCursor<'a, I> {
     }
 
     ///returns the token at current position
-    pub fn peek(&self) -> Token<'a> {
+    pub fn peek(&mut self) -> Token<'a> {
         self.at(self.pos)
     }
 
@@ -121,11 +119,14 @@ impl<'a, I> ParserCursor<'a, I> {
     }
 
     ///returns token at specified position.
-    fn at(&self, pos: usize) -> Token<'a> {
+    fn at(&mut self, pos: usize) -> Token<'a> {
         self.tokens.get(pos).cloned().unwrap_or_else(|| {
-            // Return a pointer to the end of the source code if there is no more token.
-            Token::new(TokenType::EndOfFile, &self.source[self.source.len()..])
+            self.reader
         })
+    }
+
+    fn reset(&mut self) {
+        self.pos = 0;
     }
 
     ///return true if this cursor is at the end of the

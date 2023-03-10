@@ -15,22 +15,19 @@ impl<'a, S> BufferedTokenReader<'a, S> {
     }
 }
 
-pub trait LineSupplier<'a, E> {
-    fn next_line(&mut self) -> Result<Option<&'a str>, E>;
-}
-
-
 ///implementation for a line supplier input
-impl<'a, S: LineSupplier<'a, io::Error>> BufferedTokenReader<'a, S>
+impl<'a, I> BufferedTokenReader<'a, I>
+    where I: FnMut() -> Result<Option<&'a str>, io::Error>
 {
-    pub fn from_line_supplier(supplier: S) -> Self {
+    pub fn from_line_supplier(supplier: I) -> Self {
         Self {
             input: supplier,
             buff: Vec::new(),
             pos: 0,
-            end_of_input: false
+            end_of_input: false,
         }
     }
+
 
     pub fn next(&mut self) -> Result<Option<Token>, io::Error> {
 
@@ -49,7 +46,7 @@ impl<'a, S: LineSupplier<'a, io::Error>> BufferedTokenReader<'a, S>
     }
 
     fn refill(&mut self) -> Result<(), io::Error> {
-        if let Some(line) = self.input.next_line()? {
+        if let Some(line) = (self.input)()? {
 
             let mut lexer = TokenType::lexer(line);
 
