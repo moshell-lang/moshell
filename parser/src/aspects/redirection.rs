@@ -3,7 +3,7 @@ use context::poller::Poller;
 use crate::aspects::call::CallAspect;
 use crate::ast::callable::{Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use crate::ast::Expr;
-use crate::err::ParseErrorKind;
+use crate::err::{ErrorReporter, ParseErrorKind};
 use crate::moves::{eox, like, next, of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::{Token, TokenType};

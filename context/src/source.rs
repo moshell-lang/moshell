@@ -46,32 +46,6 @@ impl Source {
     }
 
 
-    /// Get the relative byte offset of the given string in the source code.
-    ///
-    /// # Panics
-    /// This method panics if the given string is not contained in the source code.
-    pub fn relative_pos(&self, str: &str) -> Location {
-        let start = (str.as_ptr() as usize)
-            .checked_sub(self.source.as_ptr() as usize)
-            .expect("String is not contained in the source code.");
-        let end = start + str.len();
-        start..end
-    }
-
-    /// Get the relative byte offset of the given context in the source code.
-    ///
-    /// # Panics
-    /// This method panics if the given context is not contained in the source code.
-    pub fn relative_pos_ctx(&self, context: impl Into<ErrorContext<'a>>) -> Location {
-        let context = context.into();
-        let start = (context.from.as_ptr() as usize)
-            .checked_sub(self.source.as_ptr() as usize)
-            .expect("Context start is not contained in the source code.");
-        let end = context.to.as_ptr() as usize + context.to.len() as usize
-            - self.source.as_ptr() as usize;
-        start..end
-    }
-    
 }
 
 impl<'a> Debug for Source {

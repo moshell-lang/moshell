@@ -9,7 +9,7 @@ use lexer::token::TokenType::*;
 
 use crate::ast::value::{Literal, LiteralValue, TemplateString};
 use crate::ast::*;
-use crate::err::ParseErrorKind;
+use crate::err::{ErrorReporter, ParseErrorKind};
 use crate::moves::{next, of_type, word_seps};
 use crate::parser::{ParseResult, Parser};
 

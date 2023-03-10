@@ -3,7 +3,7 @@ use lexer::token::{Token, TokenType};
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use context::poller::Poller;
-use context::source::Location;
+use context::source::{Location, Source};
 
 use crate::aspects::binary_operation::BinaryOperationsAspect;
 use crate::aspects::call::CallAspect;
@@ -20,7 +20,7 @@ use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::ast::Expr;
 use crate::cursor::ParserCursor;
 use crate::err::ParseErrorKind::Unexpected;
-use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
+use crate::err::{ErrorContext, ErrorReporter, ParseError, ParseErrorKind, ParseReport};
 use crate::moves::{
     bin_op, eod, eox, like, next, of_types, repeat, spaces, word_seps, MoveOperations,
 };
@@ -29,6 +29,7 @@ pub(crate) type ParseResult<T> = Result<T, ParseError>;
 
 
 pub(crate) struct Parser<'a, P: Poller<'a, Token<'a>> + Debug> {
+    pub(crate) source: &'a Source,
     pub(crate) cursor: ParserCursor<'a, P>,
     pub(crate) delimiter_stack: VecDeque<Token<'a>>,
 }
@@ -52,8 +53,9 @@ macro_rules! non_infix {
 impl<'a, P: Poller<'a, Token<'a>> + Debug> Parser<'a, P> {
 
     /// Creates a new parser from a defined source.
-    pub(crate) fn new(poller: P) -> Self {
+    pub(crate) fn new(poller: P, source: &'a Source) -> Self {
         Self {
+            source,
             cursor: ParserCursor::new(poller),
             delimiter_stack: VecDeque::new(),
         }
@@ -216,19 +218,6 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> Parser<'a, P> {
         Err(self.mk_parse_error(message, context, kind))
     }
 
-    pub(crate) fn mk_parse_error(
-        &self,
-        message: impl Into<String>,
-        context: impl Into<ErrorContext<'a>>,
-        kind: ParseErrorKind,
-    ) -> ParseError {
-        ParseError {
-            message: message.into(),
-            position: self.relative_pos_ctx(context),
-            kind,
-        }
-    }
-
     //parses any binary expression, considering given input expression
     //as the left arm of the expression.
     //if given expression is directly followed by an eox delimiter, then return it as is
@@ -258,7 +247,7 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> Parser<'a, P> {
                     .binary_operation_right(expr, Parser::next_value)
                     .is_ok()
                 {
-                    let end_pos = self.relative_pos(&self.cursor.peek()).end;
+                    let end_pos = self.relative_pos(self.cursor.peek().value).end;
                     let slice = &self.source.source[start_pos..end_pos];
                     return self.expected_with(
                         "Binary operations must be enclosed in a value expression.",
@@ -327,5 +316,44 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> Parser<'a, P> {
         }
     }
 
+    /// Get the relative byte offset of the given string in the source code.
+    ///
+    /// # Panics
+    /// This method panics if the given string is not contained in the source code.
+    pub fn relative_pos(&self, str: &str) -> Location {
+        let start = (str.as_ptr() as usize)
+            .checked_sub(self.source.source.as_ptr() as usize)
+            .expect("String is not contained in the source code.");
+        let end = start + str.len();
+        start..end
+    }
 
+    /// Get the relative byte offset of the given context in the source code.
+    ///
+    /// # Panics
+    /// This method panics if the given context is not contained in the source code.
+    pub fn relative_pos_ctx(&self, context: impl Into<ErrorContext<'a>>) -> Location {
+        let context = context.into();
+        let start = (context.from.as_ptr() as usize)
+            .checked_sub(self.source.source.as_ptr() as usize)
+            .expect("Context start is not contained in the source code.");
+        let end = context.to.as_ptr() as usize + context.to.len() as usize
+            - self.source.source.as_ptr() as usize;
+        start..end
+    }
+}
+
+impl<'a, P: Poller<'a, Token<'a>> + Debug> ErrorReporter for Parser<'a, P> {
+    fn mk_parse_error<'b>(
+        &self,
+        message: impl Into<String>,
+        context: impl Into<ErrorContext<'b>>,
+        kind: ParseErrorKind,
+    ) -> ParseError {
+        ParseError {
+            message: message.into(),
+            position: self.relative_pos_ctx(context),
+            kind,
+        }
+    }
 }

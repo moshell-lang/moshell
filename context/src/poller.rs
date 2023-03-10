@@ -21,15 +21,15 @@ impl<'a> StringPoller<'a> {
     }
 }
 
-impl<'a> Poller<'a, String> for StringPoller<'a> {
+impl<'a> Poller<'a, &'a str> for StringPoller<'a> {
     type Error = Infallible;
 
-    fn next(&mut self) -> Result<Option<String>, Infallible> {
+    fn next(&mut self) -> Result<Option<&'a str>, Infallible> {
         if self.end_of_lines {
             return Ok(None)
         }
         if let Some(ln) = self.lines.next() {
-            return  Ok(Some(ln.to_string()))
+            return  Ok(Some(ln))
         }
         self.end_of_lines = true;
         Ok(None)

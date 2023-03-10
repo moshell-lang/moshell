@@ -11,6 +11,15 @@ pub struct ParseError {
     pub kind: ParseErrorKind,
 }
 
+pub(crate) trait ErrorReporter {
+    fn mk_parse_error<'a>(
+        &self,
+        message: impl Into<String>,
+        context: impl Into<ErrorContext<'a>>,
+        kind: ParseErrorKind,
+    ) -> ParseError;
+}
+
 /// A builder to position an error that covers multiple tokens.
 #[derive(Debug, PartialEq)]
 pub(crate) struct ErrorContext<'a> {

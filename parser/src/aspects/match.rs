@@ -9,7 +9,7 @@ use crate::aspects::literal::LiteralAspect;
 use crate::ast::r#match::MatchPattern::{Literal, Template, VarRef, Wildcard};
 use crate::ast::r#match::{Match, MatchArm, MatchPattern};
 use crate::ast::Expr;
-use crate::err::ParseErrorKind;
+use crate::err::{ErrorReporter, ParseErrorKind};
 use crate::moves::{
     aerated, any, blanks, eod, eox, not, of_type, of_types, repeat, MoveOperations,
 };
