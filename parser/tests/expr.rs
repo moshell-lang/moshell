@@ -1,5 +1,7 @@
 use ast::callable::{Call, Redir, RedirFd, RedirOp, Redirected};
+use ast::control_flow::{For, ForKind, RangeFor};
 use ast::operation::{BinaryOperation, BinaryOperator};
+use ast::range::{Iterable, NumericRange};
 use ast::structure::Construct;
 use ast::value::{Literal, LiteralValue};
 use ast::variable::{TypedVariable, VarDeclaration, VarKind};
@@ -143,6 +145,36 @@ fn wildcard_redirect_or() {
                 ],
                 tparams: Vec::new()
             })),
+        })]
+    );
+}
+
+#[test]
+fn for_in_step_2_range() {
+    let source = Source::unknown("for i in 1..=10..2; break");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::For(For {
+            kind: Box::new(ForKind::Range(RangeFor {
+                receiver: "i",
+                iterable: Iterable::Range(NumericRange {
+                    start: Expr::Literal(Literal {
+                        lexeme: "1",
+                        parsed: 1.into(),
+                    }),
+                    end: Expr::Literal(Literal {
+                        lexeme: "10",
+                        parsed: 10.into(),
+                    }),
+                    step: Some(Expr::Literal(Literal {
+                        lexeme: "2",
+                        parsed: 2.into(),
+                    })),
+                    upper_inclusive: true,
+                })
+            })),
+            body: Box::new(Expr::Break),
         })]
     );
 }

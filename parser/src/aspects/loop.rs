@@ -195,6 +195,7 @@ impl<'a> Parser<'a> {
                 Self::suggest_range(&start),
             );
         }
+        let upper_inclusive = self.cursor.advance(of_type(TokenType::Equal)).is_some();
         let end = self.next_value()?;
         let mut step: Option<Expr<'a>> = None;
         if self.cursor.advance(of_type(TokenType::Dot)).is_some() {
@@ -208,7 +209,7 @@ impl<'a> Parser<'a> {
             start,
             end,
             step,
-            upper_inclusive: false,
+            upper_inclusive,
         }))
     }
 
