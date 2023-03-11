@@ -1,11 +1,11 @@
 use context::source::try_join_str;
 use lexer::token::TokenType::*;
 
-use ast::variable::VarReference;
-use ast::Expr;
 use crate::err::ParseErrorKind;
 use crate::moves::{like, of_type, repeat, MoveOperations};
 use crate::parser::{ParseResult, Parser};
+use ast::variable::VarReference;
+use ast::Expr;
 
 pub trait VarReferenceAspect<'a> {
     /// Parses a variable reference.
@@ -52,12 +52,12 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::aspects::substitution::SubstitutionAspect;
-    use ast::value::TemplateString;
-    use ast::variable::VarReference;
-    use ast::Expr;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
+    use ast::value::TemplateString;
+    use ast::variable::VarReference;
+    use ast::Expr;
     use context::source::Source;
     use pretty_assertions::assert_eq;
 

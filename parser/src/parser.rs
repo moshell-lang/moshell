@@ -18,13 +18,13 @@ use crate::aspects::redirection::RedirectionAspect;
 use crate::aspects::structure::StructureAspect;
 use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
-use ast::Expr;
 use crate::cursor::ParserCursor;
 use crate::err::ParseErrorKind::Unexpected;
 use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
 use crate::moves::{
     bin_op, eod, eox, like, next, of_type, of_types, repeat, spaces, word_seps, MoveOperations,
 };
+use ast::Expr;
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
 

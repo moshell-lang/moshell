@@ -1,8 +1,8 @@
-use ast::structure::Construct;
-use ast::Expr;
 use crate::err::ParseErrorKind;
 use crate::moves::{eod, eox, of_type, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
+use ast::structure::Construct;
+use ast::Expr;
 use lexer::token::TokenType;
 
 pub trait StructureAspect<'a> {
@@ -73,12 +73,12 @@ mod tests {
     use context::source::Source;
     use pretty_assertions::assert_eq;
 
-    use ast::structure::Construct;
-    use ast::value::Literal;
-    use ast::Expr;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
+    use ast::structure::Construct;
+    use ast::value::Literal;
+    use ast::Expr;
 
     #[test]
     fn empty_constructor() {

@@ -1,8 +1,8 @@
 use lexer::token::TokenType;
 
+use crate::err::ParseErrorKind;
 use ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use ast::Expr;
-use crate::err::ParseErrorKind;
 
 use crate::moves::{of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
@@ -73,14 +73,14 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::err::ParseError;
+    use crate::parser::Parser;
     use ast::callable::Call;
     use ast::group::Block;
     use ast::operation::BinaryOperation;
     use ast::operation::BinaryOperator::Plus;
     use ast::value::{Literal, LiteralValue};
     use ast::Expr;
-    use crate::err::ParseError;
-    use crate::parser::Parser;
     use context::source::Source;
     use pretty_assertions::assert_eq;
 

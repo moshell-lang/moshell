@@ -1,10 +1,10 @@
-use context::source::Source;
 use ast::callable::{Call, Redir, RedirFd, RedirOp, Redirected};
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::structure::Construct;
 use ast::value::{Literal, LiteralValue};
 use ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use ast::Expr;
+use context::source::Source;
 use parser::parse;
 use pretty_assertions::assert_eq;
 

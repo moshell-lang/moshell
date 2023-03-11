@@ -4,14 +4,14 @@ use lexer::token::TokenType::{
 };
 
 use crate::aspects::literal::LiteralAspect;
-use ast::r#match::MatchPattern::{Literal, Template, VarRef, Wildcard};
-use ast::r#match::{Match, MatchArm, MatchPattern};
-use ast::Expr;
 use crate::err::ParseErrorKind;
 use crate::moves::{
     aerated, any, blanks, eod, eox, not, of_type, of_types, repeat, MoveOperations,
 };
 use crate::parser::{ParseResult, Parser};
+use ast::r#match::MatchPattern::{Literal, Template, VarRef, Wildcard};
+use ast::r#match::{Match, MatchArm, MatchPattern};
+use ast::Expr;
 
 /// A Parser Aspect for match expression-statement and value
 pub trait MatchAspect<'a> {
@@ -204,6 +204,9 @@ mod tests {
     use context::source::Source;
     use pretty_assertions::assert_eq;
 
+    use crate::err::ParseError;
+    use crate::err::ParseErrorKind::Unexpected;
+    use crate::parse;
     use ast::callable::Call;
     use ast::group::Subshell;
     use ast::operation::{BinaryOperation, BinaryOperator};
@@ -212,9 +215,6 @@ mod tests {
     use ast::value::{Literal, TemplateString};
     use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
     use ast::Expr;
-    use crate::err::ParseError;
-    use crate::err::ParseErrorKind::Unexpected;
-    use crate::parse;
 
     #[test]
     fn parse_match_as_value() {

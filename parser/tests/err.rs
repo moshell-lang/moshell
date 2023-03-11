@@ -1,6 +1,6 @@
-use context::source::Source;
 use ast::callable::Call;
 use ast::Expr;
+use context::source::Source;
 use parser::err::{ParseError, ParseErrorKind, ParseReport};
 use parser::parse;
 

@@ -1,7 +1,7 @@
-use ast::operation::{BinaryOperation, BinaryOperator};
-use ast::Expr;
 use crate::moves::{bin_op, eox, spaces, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
+use ast::operation::{BinaryOperation, BinaryOperator};
+use ast::Expr;
 
 /// a parser aspect to parse any kind of binary operations
 pub trait BinaryOperationsAspect<'p> {
@@ -155,14 +155,14 @@ mod tests {
     use context::source::Source;
 
     use crate::aspects::binary_operation::BinaryOperationsAspect;
+    use crate::err::{ParseError, ParseErrorKind};
+    use crate::parser::Parser;
     use ast::callable::Call;
     use ast::group::{Parenthesis, Subshell};
     use ast::operation::BinaryOperation;
     use ast::operation::BinaryOperator::*;
     use ast::value::Literal;
     use ast::Expr;
-    use crate::err::{ParseError, ParseErrorKind};
-    use crate::parser::Parser;
 
     #[test]
     fn is_left_associative() {

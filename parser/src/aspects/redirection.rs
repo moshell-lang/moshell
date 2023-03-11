@@ -1,9 +1,9 @@
 use crate::aspects::call::CallAspect;
-use ast::callable::{Pipeline, Redir, RedirFd, RedirOp, Redirected};
-use ast::Expr;
 use crate::err::ParseErrorKind;
 use crate::moves::{eox, like, next, of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
+use ast::callable::{Pipeline, Redir, RedirFd, RedirOp, Redirected};
+use ast::Expr;
 use lexer::token::TokenType;
 use lexer::token::TokenType::{BackSlash, DoubleQuote, Quote};
 
@@ -177,12 +177,12 @@ mod test {
     use pretty_assertions::assert_eq;
 
     use crate::aspects::call::CallAspect;
+    use crate::parse;
+    use crate::parser::Parser;
     use ast::callable::{Call, Redir, RedirFd, RedirOp, Redirected};
     use ast::group::Block;
     use ast::value::Literal;
     use ast::Expr;
-    use crate::parse;
-    use crate::parser::Parser;
 
     #[test]
     fn expr_redirection() {

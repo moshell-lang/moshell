@@ -1,10 +1,10 @@
 use lexer::token::{Token, TokenType};
 
-use ast::group::{Block, Parenthesis, Subshell};
-use ast::Expr;
 use crate::err::ParseErrorKind;
 use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
+use ast::group::{Block, Parenthesis, Subshell};
+use ast::Expr;
 
 ///A parser aspect for parsing block expressions
 pub trait GroupAspect<'a> {
@@ -131,13 +131,13 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::aspects::group::GroupAspect;
+    use crate::parser::Parser;
     use ast::callable::Call;
     use ast::group::{Block, Subshell};
     use ast::value::Literal;
     use ast::value::LiteralValue::{Float, Int};
     use ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use ast::Expr;
-    use crate::parser::Parser;
     use context::source::Source;
     use pretty_assertions::assert_eq;
 

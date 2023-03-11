@@ -1,5 +1,5 @@
-use ast::Expr;
 use crate::parser::ParseResult;
+use ast::Expr;
 use context::source::Location;
 use lexer::token::Token;
 

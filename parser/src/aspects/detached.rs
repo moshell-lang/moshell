@@ -1,10 +1,10 @@
 use lexer::token::TokenType::Ampersand;
 
-use ast::callable::Detached;
-use ast::Expr;
 use crate::err::ParseErrorKind;
 use crate::moves::{of_type, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
+use ast::callable::Detached;
+use ast::Expr;
 
 ///parses a detached expression (<expr> &)
 pub trait DetachedAspect<'a> {
