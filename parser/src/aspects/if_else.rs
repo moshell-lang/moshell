@@ -83,7 +83,8 @@ mod tests {
                     expression: Box::new(Expr::VarReference(VarReference { name: "1" }))
                 })),
                 success_branch: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())]
+                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
+                    tparams: vec![],
                 })),
                 fail_branch: None,
             })]
@@ -101,7 +102,8 @@ mod tests {
             vec![Expr::If(If {
                 condition: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Call(Call {
-                        arguments: vec![Expr::Literal("echo".into()), Expr::Literal("a".into())]
+                        arguments: vec![Expr::Literal("echo".into()), Expr::Literal("a".into())],
+                        tparams: vec![],
                     })),
                     op: And,
                     right: Box::new(Expr::Call(Call {
@@ -109,11 +111,13 @@ mod tests {
                             Expr::Literal("test".into()),
                             Expr::Literal("-f".into()),
                             Expr::Literal("/file/exe".into())
-                        ]
+                        ],
+                        tparams: vec![],
                     }))
                 })),
                 success_branch: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())]
+                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
+                    tparams: vec![],
                 })),
                 fail_branch: Some(Box::new(Expr::If(If {
                     condition: Box::new(Expr::Test(Test {
@@ -139,7 +143,8 @@ mod tests {
                     expression: Box::new(Expr::VarReference(VarReference { name: "1" }))
                 })),
                 success_branch: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())]
+                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
+                    tparams: vec![],
                 })),
                 fail_branch: Some(Box::new(Expr::If(If {
                     condition: Box::new(Expr::Test(Test {
@@ -191,7 +196,8 @@ mod tests {
                                     arguments: vec![
                                         Expr::Literal("date".into()),
                                         Expr::Literal("+\"%Y\"".into())
-                                    ]
+                                    ],
+                                    tparams: vec![],
                                 })]
                             })),
                             op: BinaryOperator::Less,

@@ -190,7 +190,8 @@ mod tests {
                                 lexeme: "a",
                                 parsed: "a".into(),
                             }),
-                        ]
+                        ],
+                        tparams: vec![],
                     })]
                 }))),
             })

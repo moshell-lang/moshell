@@ -276,6 +276,7 @@ mod tests {
                                     Expr::Literal("command".into()),
                                     Expr::Literal("call".into()),
                                 ],
+                                tparams: vec![],
                             }),
                             Expr::Literal(Literal {
                                 lexeme: "7",

@@ -90,7 +90,8 @@ mod tests {
                         arguments: vec![
                             Expr::Literal("ssh".into()),
                             Expr::Literal("mabatista1@iut".into())
-                        ]
+                        ],
+                        tparams: vec![],
                     })),
                     op: And,
                     right: Box::new(Break)
@@ -106,7 +107,8 @@ mod tests {
             res,
             vec![Expr::Loop(Loop {
                 body: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("date".into())]
+                    arguments: vec![Expr::Literal("date".into())],
+                    tparams: vec![],
                 }))
             })]
         )
@@ -136,7 +138,8 @@ mod tests {
                 condition: Box::new(Expr::VarReference(VarReference { name: "1" })),
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
-                        arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())]
+                        arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
+                        tparams: vec![],
                     })]
                 })),
             })]

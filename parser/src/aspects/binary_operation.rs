@@ -414,6 +414,7 @@ mod tests {
                                 Expr::Literal("echo".into()),
                                 Expr::Literal("hello".into()),
                             ],
+                            tparams: vec![],
                         })),
                         op: And,
                         right: Box::new(Expr::Call(Call {
@@ -421,12 +422,14 @@ mod tests {
                                 Expr::Literal("echo".into()),
                                 Expr::Literal("world".into()),
                             ],
+                            tparams: vec![],
                         })),
                     })]
                 })),
                 op: Or,
                 right: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("damn".into()),],
+                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("damn".into())],
+                    tparams: vec![],
                 })),
             })
         )
@@ -457,6 +460,7 @@ mod tests {
                                 parsed: ")".into(),
                             }),
                         ],
+                        tparams: vec![],
                     })]
                 })),
                 op: Or,
@@ -471,6 +475,7 @@ mod tests {
                             parsed: "damn".into(),
                         }),
                     ],
+                    tparams: vec![],
                 })),
             })
         )
