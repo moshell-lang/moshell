@@ -1,8 +1,8 @@
-use crate::aspects::var_reference::VarReferenceAspect;
 use lexer::token::TokenType;
 
 use crate::ast::control_flow::{ConditionalFor, For, ForKind, Loop, RangeFor, While};
 use crate::ast::range::{FilePattern, Iterable, NumericRange};
+use crate::ast::value::LiteralValue;
 use crate::ast::Expr;
 use crate::err::ParseErrorKind;
 use crate::moves::{blanks, eod, eox, of_type, repeat_nm, MoveOperations};
@@ -156,14 +156,9 @@ impl<'a> Parser<'a> {
     fn parse_iterable(&mut self) -> ParseResult<Iterable<'a>> {
         let current = self.cursor.peek();
         match current.token_type {
-            TokenType::Dollar => self.var_reference().map(|expr| {
-                if let Expr::VarReference(path) = expr {
-                    Iterable::Var(path)
-                } else {
-                    panic!("Expected var reference")
-                }
-            }),
-            TokenType::IntLiteral => self.parse_range().map(Iterable::Range),
+            TokenType::Dollar | TokenType::IntLiteral | TokenType::RoundedLeftBracket => {
+                self.parse_range()
+            }
             TokenType::Star => self.parse_files_pattern().map(Iterable::Files),
             _ => Err(self.cursor.mk_parse_error(
                 "Expected iterable",
@@ -173,32 +168,38 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_range(&mut self) -> ParseResult<NumericRange<'a>> {
+    fn parse_range(&mut self) -> ParseResult<Iterable<'a>> {
+        let start_token = self.cursor.peek();
         let start = self.next_value()?;
-        self.cursor.force(
-            repeat_nm(2, 2, of_type(TokenType::Dot)),
-            "expected '..' after start of range",
-        )?;
+        if self
+            .cursor
+            .advance(repeat_nm(2, 2, of_type(TokenType::Dot)))
+            .is_none()
+        {
+            if let Expr::VarReference(path) = start {
+                return Ok(Iterable::Var(path));
+            }
+            return self.expected_with(
+                "Expected a numeric range, got a single value.",
+                start_token..self.cursor.peek(),
+                Self::suggest_range(&start),
+            );
+        }
         let end = self.next_value()?;
+        let mut step: Option<Expr<'a>> = None;
         if self.cursor.advance(of_type(TokenType::Dot)).is_some() {
             self.cursor.force(
                 of_type(TokenType::Dot),
                 "expected '..' before step of range",
             )?;
-            let step = self.next_value()?;
-            return Ok(NumericRange {
-                start,
-                end,
-                step: Some(step),
-                upper_inclusive: false,
-            });
+            step = Some(self.next_value()?);
         }
-        Ok(NumericRange {
+        Ok(Iterable::Range(NumericRange {
             start,
             end,
-            step: None,
+            step,
             upper_inclusive: false,
-        })
+        }))
     }
 
     fn parse_files_pattern(&mut self) -> ParseResult<FilePattern<'a>> {
@@ -209,6 +210,22 @@ impl<'a> Parser<'a> {
             lexeme: lexme.value,
             pattern: lexme.value.to_owned(),
         })
+    }
+
+    fn suggest_range(actual_expr: &Expr) -> ParseErrorKind {
+        if let Expr::Literal(literal) = actual_expr {
+            if let LiteralValue::Int(value) = literal.parsed {
+                ParseErrorKind::UnexpectedInContext(if value > 0 {
+                    format!("Use the range syntax: 0..{value}")
+                } else {
+                    format!("Use the range syntax: 0..10")
+                })
+            } else {
+                ParseErrorKind::Unexpected
+            }
+        } else {
+            ParseErrorKind::Unexpected
+        }
     }
 }
 
@@ -224,8 +241,8 @@ mod tests {
     use crate::ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference};
     use crate::ast::Expr;
     use crate::ast::Expr::{Break, Continue};
-    use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
+    use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
     use context::source::Source;
@@ -342,6 +359,84 @@ mod tests {
                             Expr::VarReference(VarReference { name: "i" })
                         ]
                     })]
+                }))
+            })]
+        );
+    }
+
+    #[test]
+    fn for_in_variable_range() {
+        let source = Source::unknown("for n in ($a)..$b; cat"); // value parser is too greedy
+        let expr = parse(source).expect("Failed to parse");
+        assert_eq!(
+            expr,
+            vec![Expr::For(For {
+                kind: Box::new(ForKind::Range(RangeFor {
+                    receiver: "n",
+                    iterable: Iterable::Range(NumericRange {
+                        start: Expr::Parenthesis(Parenthesis {
+                            expression: Box::new(Expr::VarReference(VarReference { name: "a" }))
+                        }),
+                        end: Expr::VarReference(VarReference { name: "b" }),
+                        step: None,
+                        upper_inclusive: false,
+                    })
+                })),
+                body: Box::new(Expr::Call(Call {
+                    arguments: vec![Expr::Literal("cat".into())]
+                }))
+            })]
+        );
+    }
+
+    #[test]
+    fn for_in_invalid_range() {
+        let content = "for i in 5; ls";
+        let source = Source::unknown(content);
+        let expr: ParseResult<_> = parse(source).into();
+        assert_eq!(
+            expr,
+            Err(ParseError {
+                message: "Expected a numeric range, got a single value.".to_string(),
+                position: content.find('5').map(|p| p..p + 2).unwrap(),
+                kind: ParseErrorKind::UnexpectedInContext("Use the range syntax: 0..5".to_string(),),
+            })
+        );
+    }
+
+    #[test]
+    fn for_in_calculated_range() {
+        let source = Source::unknown("for i in (1 + 1)..5; ls");
+        let expr = parse(source).expect("Failed to parse");
+        assert_eq!(
+            expr,
+            vec![Expr::For(For {
+                kind: Box::new(ForKind::Range(RangeFor {
+                    receiver: "i",
+                    iterable: Iterable::Range(NumericRange {
+                        start: Expr::Parenthesis(Parenthesis {
+                            expression: Box::new(Expr::Binary(BinaryOperation {
+                                left: Box::new(Expr::Literal(Literal {
+                                    lexeme: "1",
+                                    parsed: 1.into(),
+                                })),
+                                op: BinaryOperator::Plus,
+                                right: Box::new(Expr::Literal(Literal {
+                                    lexeme: "1",
+                                    parsed: 1.into(),
+                                })),
+                            }))
+                        }),
+                        end: Expr::Literal(Literal {
+                            lexeme: "5",
+                            parsed: 5.into(),
+                        }),
+                        step: None,
+                        upper_inclusive: false,
+                    })
+                })),
+                body: Box::new(Expr::Call(Call {
+                    arguments: vec![Expr::Literal("ls".into())]
                 }))
             })]
         );
