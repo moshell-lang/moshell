@@ -90,9 +90,13 @@ impl<'a> Parser<'a> {
                         )),
                     );
                 }
-                self.expected("Excepted identifier", ParseErrorKind::Unexpected)
+                self.expected("Expected identifier", ParseErrorKind::Unexpected)
             }
-            _ => self.expected("Excepted identifier or '['", ParseErrorKind::Unexpected),
+            TokenType::In => self.expected(
+                "Expected variable name before 'in'",
+                ParseErrorKind::Unexpected,
+            ),
+            _ => self.expected("Expected identifier or '(('", ParseErrorKind::Unexpected),
         }
     }
 
@@ -528,6 +532,21 @@ mod tests {
                     tparams: vec![],
                 }))
             })]
+        );
+    }
+
+    #[test]
+    fn for_into_nothing() {
+        let content = "for in 1..5";
+        let source = Source::unknown(content);
+        let expr: ParseResult<_> = parse(source).into();
+        assert_eq!(
+            expr,
+            Err(ParseError {
+                message: "Expected variable name before 'in'".to_string(),
+                position: content.find("in").map(|p| p..p + 2).unwrap(),
+                kind: Unexpected,
+            })
         );
     }
 
