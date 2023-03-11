@@ -66,12 +66,10 @@ impl<'a> Parser<'a> {
     }
 
     fn call_type_parameters(&mut self) -> ParseResult<Vec<&'a str>> {
-        let start = self.cursor.peek();
-        if start.token_type != SquaredLeftBracket {
-            return Ok(Vec::new());
-        }
-
-        self.cursor.next()?; //skip start (']') peeked token.
+        let start = match self.cursor.advance(of_type(SquaredLeftBracket)) {
+            Some(start) => start,
+            None => return Ok(Vec::new()),
+        };
 
         if self
             .cursor
@@ -214,7 +212,7 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_next(),
             Err(ParseError {
-                message: "comma expected before here".to_string(),
+                message: "A comma or a closing bracket was expected here".to_string(),
                 kind: ParseErrorKind::Unexpected,
                 position: content.find('y').map(|i| i..i + 1).unwrap()
             })
