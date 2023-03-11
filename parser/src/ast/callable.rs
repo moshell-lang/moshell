@@ -8,6 +8,9 @@ pub struct Call<'a> {
     ///
     /// A valid command must have at least one argument that is the command name.
     pub arguments: Vec<Expr<'a>>,
+
+    /// type parameters of the call.
+    pub tparams: Vec<&'a str>,
 }
 
 /// A call to a function or a command.

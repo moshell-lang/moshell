@@ -362,7 +362,8 @@ mod tests {
                             arguments: vec![
                                 Expr::Literal("echo".into()),
                                 Expr::VarReference(VarReference { name: "it" }),
-                            ]
+                            ],
+                            tparams: vec![],
                         }),
                     },
                 ],
@@ -385,7 +386,8 @@ mod tests {
             ast,
             vec![Expr::Match(Match {
                 operand: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("nginx".into())]
+                    arguments: vec![Expr::Literal("nginx".into())],
+                    tparams: vec![],
                 })),
                 arms: vec![MatchArm {
                     val_name: None,
@@ -395,7 +397,8 @@ mod tests {
                         arguments: vec![
                             Expr::Literal("echo".into()),
                             Expr::VarReference(VarReference { name: "it" }),
-                        ]
+                        ],
+                        tparams: vec![],
                     }),
                 },],
             })]
@@ -475,7 +478,8 @@ mod tests {
                             arguments: vec![
                                 Expr::Literal("echo".into()),
                                 Expr::VarReference(VarReference { name: "it" }),
-                            ]
+                            ],
+                            tparams: vec![],
                         }),
                     },
                 ],

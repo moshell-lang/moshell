@@ -194,10 +194,12 @@ mod test {
                 expr: Box::new(Expr::Block(Block {
                     expressions: vec![
                         Expr::Call(Call {
-                            arguments: vec![Expr::Literal("ls".into())]
+                            arguments: vec![Expr::Literal("ls".into())],
+                            tparams: vec![],
                         }),
                         Expr::Call(Call {
-                            arguments: vec![Expr::Literal("cd".into())]
+                            arguments: vec![Expr::Literal("cd".into())],
+                            tparams: vec![],
                         }),
                     ]
                 })),
@@ -218,7 +220,8 @@ mod test {
             parsed,
             Expr::Redirected(Redirected {
                 expr: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("ls".into())]
+                    arguments: vec![Expr::Literal("ls".into())],
+                    tparams: vec![],
                 })),
                 redirections: vec![Redir {
                     fd: RedirFd::Default,
@@ -237,7 +240,8 @@ mod test {
             parsed,
             Expr::Redirected(Redirected {
                 expr: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("ls".into())]
+                    arguments: vec![Expr::Literal("ls".into())],
+                    tparams: vec![],
                 })),
                 redirections: vec![Redir {
                     fd: RedirFd::Default,
@@ -264,9 +268,11 @@ mod test {
                         Expr::Literal("-E".into()),
                         Expr::Literal("regex".into()),
                     ],
+                    tparams: vec![],
                 }),
                 Expr::Call(Call {
-                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into()),],
+                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
+                    tparams: vec![],
                 }),
             ]
         )
@@ -290,6 +296,7 @@ mod test {
                     Expr::Literal("echo".into()),
                     Expr::Literal("test".into()),
                 ],
+                tparams: vec![],
             }),]
         )
     }

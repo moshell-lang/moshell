@@ -66,7 +66,7 @@ impl<'a> TestAspect<'a> for Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn parse_test_call(&mut self, start: Token) -> ParseResult<Expr<'a>> {
-        let call = self.call_arguments(Literal("test".into()));
+        let call = self.call_arguments(Literal("test".into()), Vec::new());
 
         self.cursor.force_with(
             //expect trailing ']]'
@@ -130,7 +130,8 @@ mod tests {
         assert_eq!(
             result,
             vec![Expr::Call(Call {
-                arguments: vec![Expr::Literal("test".into())]
+                arguments: vec![Expr::Literal("test".into())],
+                tparams: vec![],
             })]
         )
     }
@@ -153,7 +154,8 @@ mod tests {
                         lexeme: "100",
                         parsed: LiteralValue::Int(100),
                     }),
-                ]
+                ],
+                tparams: vec![],
             })]
         )
     }
@@ -167,7 +169,8 @@ mod tests {
             vec![Expr::Binary(BinaryOperation {
                 left: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Call(Call {
-                        arguments: vec![Expr::Literal("echo".into())]
+                        arguments: vec![Expr::Literal("echo".into())],
+                        tparams: vec![],
                     })),
                     op: BinaryOperator::And,
                     right: Box::new(Expr::Test(Test {
@@ -185,7 +188,8 @@ mod tests {
                     arguments: vec![
                         Expr::Literal("test".into()),
                         Expr::VarReference(VarReference { name: "1" }),
-                    ]
+                    ],
+                    tparams: vec![],
                 })),
             })]
         )
@@ -251,7 +255,8 @@ mod tests {
                             lexeme: "'^[0-9]+$'",
                             parsed: LiteralValue::String("^[0-9]+$".to_string()),
                         }),
-                    ]
+                    ],
+                    tparams: vec![],
                 }))
             })]
         )

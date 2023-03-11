@@ -119,12 +119,14 @@ mod tests {
                                 Expr::Substitution(Substitution {
                                     underlying: Subshell {
                                         expressions: vec![Expr::Call(Call {
-                                            arguments: vec![Expr::Literal("pwd".into())]
+                                            arguments: vec![Expr::Literal("pwd".into())],
+                                            tparams: vec![],
                                         })],
                                     },
                                     kind: SubstitutionKind::Capture,
                                 }),
                             ],
+                            tparams: vec![],
                         })]
                     })],
                 },
