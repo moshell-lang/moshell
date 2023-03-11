@@ -10,7 +10,7 @@ pub struct Call<'a> {
     pub arguments: Vec<Expr<'a>>,
 
     /// type parameters of the call.
-    pub tparams: Vec<&'a str>
+    pub tparams: Vec<&'a str>,
 }
 
 /// A call to a function or a command.

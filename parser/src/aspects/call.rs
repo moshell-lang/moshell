@@ -8,7 +8,7 @@ use crate::aspects::structure::StructureAspect;
 use crate::ast::callable::Call;
 use crate::ast::Expr;
 use crate::err::ParseErrorKind;
-use crate::moves::{eox, like, word_seps, MoveOperations, of_type, spaces};
+use crate::moves::{eox, like, of_type, spaces, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 /// A parse aspect for command and function calls
@@ -17,7 +17,8 @@ pub trait CallAspect<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>>;
 
     /// Continues to parse a call expression from a known command name expression
-    fn call_arguments(&mut self, command: Expr<'a>, tparams: Vec<&'a str>) -> ParseResult<Expr<'a>>;
+    fn call_arguments(&mut self, command: Expr<'a>, tparams: Vec<&'a str>)
+        -> ParseResult<Expr<'a>>;
 }
 
 impl<'a> CallAspect<'a> for Parser<'a> {
@@ -31,12 +32,12 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         let mut arguments = vec![callee];
 
         self.cursor.advance(word_seps()); //consume word separations
-        // Continue reading arguments until we reach the end of the input or a closing punctuation
+                                          // Continue reading arguments until we reach the end of the input or a closing punctuation
         while !self.cursor.is_at_end()
             && self
-            .cursor
-            .lookahead(word_seps().then(eox().or(like(TokenType::is_call_bound))))
-            .is_none()
+                .cursor
+                .lookahead(word_seps().then(eox().or(like(TokenType::is_call_bound))))
+                .is_none()
         {
             arguments.push(self.call_argument()?);
             self.cursor.advance(word_seps()); //consume word separations
@@ -67,22 +68,31 @@ impl<'a> Parser<'a> {
     fn call_type_parameters(&mut self) -> ParseResult<Vec<&'a str>> {
         let start = self.cursor.peek();
         if start.token_type != SquaredLeftBracket {
-            return Ok(Vec::new())
+            return Ok(Vec::new());
         }
 
         self.cursor.next()?; //skip start (']') peeked token.
 
-        if self.cursor.advance(spaces().then(of_type(SquaredRightBracket))).is_some() {
+        if self
+            .cursor
+            .advance(spaces().then(of_type(SquaredRightBracket)))
+            .is_some()
+        {
             return Err(self.mk_parse_error(
                 "unexpected empty type parameter list",
                 start..self.cursor.peek(),
-                ParseErrorKind::Unexpected)
-            );
+                ParseErrorKind::Unexpected,
+            ));
         }
         let mut tparams = vec![self.call_type_parameter()?];
 
-        while self.cursor.advance(spaces().then(of_type(SquaredRightBracket))).is_none() {
-            self.cursor.force(spaces().then(of_type(Comma)), "comma expected before here")?;
+        while self
+            .cursor
+            .advance(spaces().then(of_type(SquaredRightBracket)))
+            .is_none()
+        {
+            self.cursor
+                .force(spaces().then(of_type(Comma)), "comma expected before here")?;
             tparams.push(self.call_type_parameter()?);
         }
 
@@ -98,11 +108,10 @@ impl<'a> Parser<'a> {
                 format!("'{}' is not an identifier.", first.value),
                 first,
                 ParseErrorKind::Unexpected,
-            ))
+            ));
         }
         Ok(first.value)
     }
-
 }
 
 #[cfg(test)]
@@ -138,7 +147,11 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_next(),
             Ok(Expr::Call(Call {
-                arguments: vec![Expr::Literal("parse".into()), Expr::Literal("x".into()), Expr::Literal("y".into())],
+                arguments: vec![
+                    Expr::Literal("parse".into()),
+                    Expr::Literal("x".into()),
+                    Expr::Literal("y".into())
+                ],
                 tparams: vec!["Int"]
             }))
         );
@@ -151,7 +164,11 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_next(),
             Ok(Expr::Call(Call {
-                arguments: vec![Expr::Literal("complex".into()), Expr::Literal("x".into()), Expr::Literal("y".into())],
+                arguments: vec![
+                    Expr::Literal("complex".into()),
+                    Expr::Literal("x".into()),
+                    Expr::Literal("y".into())
+                ],
                 tparams: vec!["int", "float", "Structure"]
             }))
         );
@@ -166,11 +183,13 @@ mod tests {
             Err(ParseError {
                 message: "unexpected empty type parameter list".to_string(),
                 kind: ParseErrorKind::Unexpected,
-                position: content.find("[    ]").map(|i| i..i + "[    ]".len() + 1).unwrap()
+                position: content
+                    .find("[    ]")
+                    .map(|i| i..i + "[    ]".len() + 1)
+                    .unwrap()
             })
         );
     }
-
 
     #[test]
     fn call_with_not_identifier_parameter() {
@@ -195,7 +214,7 @@ mod tests {
             Err(ParseError {
                 message: "comma expected before here".to_string(),
                 kind: ParseErrorKind::Unexpected,
-                position: content.find("y").map(|i| i..i+1).unwrap()
+                position: content.find("y").map(|i| i..i + 1).unwrap()
             })
         );
     }

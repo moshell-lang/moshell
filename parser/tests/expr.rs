@@ -41,7 +41,7 @@ fn command_echo() {
 
     let expected = vec![Expr::Call(Call {
         arguments: vec![Expr::Literal("echo".into()), Expr::Literal("hello".into())],
-        tparams: Vec::new()
+        tparams: Vec::new(),
     })];
     assert_eq!(parsed, expected);
 }
