@@ -65,7 +65,9 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn parse_for_kind(&mut self) -> ParseResult<ForKind<'a>> {
-        match self.cursor.peek().token_type {
+        let current = self.cursor.peek();
+        let start_pos = self.cursor.relative_pos(&current).start;
+        match current.token_type {
             TokenType::Identifier => {
                 let range_for = self.parse_range_for()?;
                 Ok(ForKind::Range(range_for))
@@ -73,6 +75,21 @@ impl<'a> Parser<'a> {
             TokenType::RoundedLeftBracket => {
                 let conditional_for = self.parse_conditional_for()?;
                 Ok(ForKind::Conditional(conditional_for))
+            }
+            TokenType::Dollar => {
+                self.cursor.next_opt();
+                if self.parse_range_for().is_ok() {
+                    let end_pos = self.cursor.relative_pos(&self.cursor.peek()).end;
+                    let slice = &self.source.source[start_pos + 1..end_pos];
+                    return self.expected_with(
+                        "Receiver variables do not start with '$'.",
+                        current,
+                        ParseErrorKind::UnexpectedInContext(format!(
+                            "Consider removing the '$' prefix: for {slice}"
+                        )),
+                    );
+                }
+                self.expected("Excepted identifier", ParseErrorKind::Unexpected)
             }
             _ => self.expected("Excepted identifier or '['", ParseErrorKind::Unexpected),
         }

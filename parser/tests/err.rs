@@ -78,7 +78,7 @@ fn excepted_value_found_semicolon() {
 #[test]
 fn arithmetic_help() {
     let content = "6 + 3 * 9";
-    let source = Source::unknown("6 + 3 * 9");
+    let source = Source::unknown(content);
     let report = parse(source);
     assert_eq!(
         report,
@@ -88,6 +88,27 @@ fn arithmetic_help() {
                 message: "Binary operations must be enclosed in a value expression.".to_string(),
                 position: 0..content.len(),
                 kind: ParseErrorKind::UnexpectedInContext("$(( 6 + 3 * 9 ))".to_string())
+            }],
+            stack_ended: true,
+        }
+    );
+}
+
+#[test]
+fn for_no_dollar_help() {
+    let content = "for $i in 5..9";
+    let source = Source::unknown(content);
+    let report = parse(source);
+    assert_eq!(
+        report,
+        ParseReport {
+            expr: vec![],
+            errors: vec![ParseError {
+                message: "Receiver variables do not start with '$'.".to_string(),
+                position: content.find('$').map(|p| p..p + 1).unwrap(),
+                kind: ParseErrorKind::UnexpectedInContext(
+                    "Consider removing the '$' prefix: for i in 5..9".to_string()
+                )
             }],
             stack_ended: true,
         }
