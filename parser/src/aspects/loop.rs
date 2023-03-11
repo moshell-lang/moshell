@@ -380,7 +380,7 @@ mod tests {
 
     #[test]
     fn for_in_variable_range() {
-        let source = Source::unknown("for n in $a..$b; cat"); // value parser is too greedy
+        let source = Source::unknown("for n in $a..$b; cat");
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
