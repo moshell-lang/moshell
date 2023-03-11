@@ -1,10 +1,10 @@
+use ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
+use ast::group::Subshell;
+use ast::substitution::{Substitution, SubstitutionKind};
+use ast::value::{Literal, TemplateString};
+use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
+use ast::Expr;
 use context::source::Source;
-use parser::ast::callable::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
-use parser::ast::group::Subshell;
-use parser::ast::substitution::{Substitution, SubstitutionKind};
-use parser::ast::value::{Literal, TemplateString};
-use parser::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
-use parser::ast::Expr;
 use parser::parse;
 use pretty_assertions::assert_eq;
 

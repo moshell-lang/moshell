@@ -1,11 +1,11 @@
 use crate::aspects::group::GroupAspect;
 use crate::aspects::var_reference::VarReferenceAspect;
-use crate::ast::substitution::{Substitution, SubstitutionKind};
-use crate::ast::value::{Literal, LiteralValue};
-use crate::ast::Expr;
 use crate::err::ParseErrorKind;
 use crate::moves::{eox, not, of_type, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
+use ast::substitution::{Substitution, SubstitutionKind};
+use ast::value::{Literal, LiteralValue};
+use ast::Expr;
 use lexer::token::TokenType;
 use lexer::token::TokenType::{RoundedLeftBracket, RoundedRightBracket};
 
@@ -60,17 +60,17 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::aspects::substitution::SubstitutionAspect;
-    use crate::ast::callable::Call;
-    use crate::ast::substitution::{Substitution, SubstitutionKind};
-    use crate::ast::Expr;
+    use ast::callable::Call;
+    use ast::substitution::{Substitution, SubstitutionKind};
+    use ast::Expr;
 
-    use crate::ast::group::{Block, Parenthesis, Subshell};
-    use crate::ast::operation::{BinaryOperation, BinaryOperator};
-    use crate::ast::value::Literal;
-    use crate::ast::variable::VarReference;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
+    use ast::group::{Block, Parenthesis, Subshell};
+    use ast::operation::{BinaryOperation, BinaryOperator};
+    use ast::value::Literal;
+    use ast::variable::VarReference;
     use context::source::Source;
     use pretty_assertions::assert_eq;
 

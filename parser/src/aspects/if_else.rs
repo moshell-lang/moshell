@@ -1,7 +1,7 @@
-use crate::ast::control_flow::If;
-use crate::ast::Expr;
 use crate::moves::{aerated, blanks, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
+use ast::control_flow::If;
+use ast::Expr;
 use lexer::token::TokenType;
 use lexer::token::TokenType::{Else, SemiColon};
 
@@ -57,18 +57,18 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::callable::Call;
-    use crate::ast::control_flow::If;
-    use crate::ast::group::Block;
-    use crate::ast::operation::BinaryOperator::And;
-    use crate::ast::operation::{BinaryOperation, BinaryOperator};
-    use crate::ast::test::Test;
-    use crate::ast::value::{Literal, TemplateString};
-    use crate::ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
-    use crate::ast::Expr;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
+    use ast::callable::Call;
+    use ast::control_flow::If;
+    use ast::group::Block;
+    use ast::operation::BinaryOperator::And;
+    use ast::operation::{BinaryOperation, BinaryOperator};
+    use ast::test::Test;
+    use ast::value::{Literal, TemplateString};
+    use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
+    use ast::Expr;
     use context::source::Source;
     use pretty_assertions::assert_eq;
 

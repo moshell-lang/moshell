@@ -1,4 +1,4 @@
-use crate::ast::Expr;
+use crate::Expr;
 use dbg_pls::DebugPls;
 
 /// A call to a function or a command.
