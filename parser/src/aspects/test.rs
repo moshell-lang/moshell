@@ -58,7 +58,7 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> TestAspect<'a> for Parser<'a, P> {
             //expect trailing ']'
             spaces().then(of_type(SquaredRightBracket)),
             "missing ']'",
-            ParseErrorKind::Unpaired(self.relative_pos(start.value)),
+            ParseErrorKind::Unpaired(self.ctx.relative_pos(start.value)),
         )?;
         Ok(Expr::Test(Test {
             expression: underlying,
@@ -74,7 +74,7 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> Parser<'a, P> {
             //expect trailing ']]'
             spaces().then(times(2, of_type(SquaredRightBracket))),
             "missing ']]'",
-            ParseErrorKind::Unpaired(self.relative_pos(start.value)),
+            ParseErrorKind::Unpaired(self.ctx.relative_pos(start.value)),
         )?;
         call
     }

@@ -1,8 +1,11 @@
 #![allow(dead_code)]
 #![deny(warnings)]
 
+use std::fmt::Debug;
+use ::context::poller::Poller;
 use crate::err::ParseReport;
-use lexer::reader::BufferedTokenReader;
+use lexer::token::Token;
+use crate::context::ParserContext;
 
 use crate::parser::Parser;
 
@@ -13,8 +16,8 @@ mod cursor;
 pub mod err;
 mod moves;
 mod parser;
-mod helper;
+mod context;
 
-pub fn parse<S>(reader: BufferedTokenReader<S>) -> ParseReport {
-    Parser::new(reader).parse()
+pub fn parse<'a, P: Poller<'a, Token<'a>> + Debug>(ctx: &'a mut ParserContext<'a, P>) -> ParseReport {
+    Parser::new(ctx).parse()
 }

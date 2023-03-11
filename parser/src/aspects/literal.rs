@@ -77,7 +77,7 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> LiteralAspect<'a> for Parser<'a, P> {
                 None => {
                     return self.expected(
                         "Unterminated string literal.",
-                        ParseErrorKind::Unpaired(self.relative_pos(start.value)),
+                        ParseErrorKind::Unpaired(self.ctx.relative_pos(start.value)),
                     );
                 }
 
@@ -110,7 +110,7 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> LiteralAspect<'a> for Parser<'a, P> {
             if self.cursor.is_at_end() {
                 return self.expected(
                     "Unterminated string literal.",
-                    ParseErrorKind::Unpaired(self.relative_pos(start.value)),
+                    ParseErrorKind::Unpaired(self.ctx.relative_pos(start.value)),
                 );
             }
 
@@ -247,16 +247,16 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> Parser<'a, P> {
         match token.token_type {
             IntLiteral => Ok(LiteralValue::Int(token.value.parse::<i64>().map_err(
                 |e| match e.kind() {
-                    IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => self.mk_parse_error(
+                    IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => self.ctx.mk_parse_error(
                         "Integer constant is too large.".to_string(),
                         token,
                         ParseErrorKind::InvalidFormat,
                     ),
-                    _ => self.mk_parse_error(e.to_string(), token, ParseErrorKind::InvalidFormat),
+                    _ => self.ctx.mk_parse_error(e.to_string(), token, ParseErrorKind::InvalidFormat),
                 },
             )?)),
             FloatLiteral => Ok(LiteralValue::Float(token.value.parse::<f64>().map_err(
-                |e| self.mk_parse_error(e.to_string(), token, ParseErrorKind::InvalidFormat),
+                |e| self.ctx.mk_parse_error(e.to_string(), token, ParseErrorKind::InvalidFormat),
             )?)),
             _ => self.expected("Expected a literal.", ParseErrorKind::Unexpected),
         }

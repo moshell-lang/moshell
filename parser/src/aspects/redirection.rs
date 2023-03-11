@@ -19,7 +19,7 @@ pub(crate) trait RedirectionAspect<'a> {
     fn redirectable(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
 
     /// Tests if the current and subsequent tokens can be part of a redirection expression
-    fn is_at_redirection_sign(&self) -> bool;
+    fn is_at_redirection_sign(&mut self) -> bool;
 }
 
 impl<'a, P: Poller<'a, Token<'a>> + Debug> RedirectionAspect<'a> for Parser<'a, P> {
@@ -50,7 +50,7 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> RedirectionAspect<'a> for Parser<'a, 
             }
             TokenType::IntLiteral => {
                 let redir = RedirFd::Fd(token.value.parse().map_err(|_| {
-                    self.mk_parse_error(
+                    self.ctx.mk_parse_error(
                         "Invalid file descriptor.",
                         token,
                         ParseErrorKind::InvalidFormat,
@@ -151,7 +151,7 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> RedirectionAspect<'a> for Parser<'a, 
         }
     }
 
-    fn is_at_redirection_sign(&self) -> bool {
+    fn is_at_redirection_sign(&mut self) -> bool {
         //handle escaped redirection signs (can be \\ for one-character signs or quoted signs)
         if self
             .cursor

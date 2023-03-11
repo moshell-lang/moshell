@@ -98,7 +98,7 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> Parser<'a, P> {
             if self.cursor.is_at_end() {
                 self.expected(
                     "Expected closing bracket.",
-                    ParseErrorKind::Unpaired(self.relative_pos(&start_token.value)),
+                    ParseErrorKind::Unpaired(self.ctx.relative_pos(&start_token.value)),
                 )?;
             }
             let statement = parser(self)?;
@@ -123,7 +123,7 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> Parser<'a, P> {
                 if let Some(last) = self.delimiter_stack.back() {
                     self.expected(
                         "Mismatched closing delimiter.",
-                        ParseErrorKind::Unpaired(self.relative_pos(last.value)),
+                        ParseErrorKind::Unpaired(self.ctx.relative_pos(last.value)),
                     )?;
                 } else {
                     self.expected(

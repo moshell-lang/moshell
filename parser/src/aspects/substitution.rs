@@ -35,7 +35,7 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> SubstitutionAspect<'a> for Parser<'a,
                 self.cursor.force_with(
                     of_type(RoundedRightBracket),
                     "Expected a second closing parenthesis.",
-                    ParseErrorKind::Unpaired(self.relative_pos_ctx(dollar..start)),
+                    ParseErrorKind::Unpaired(self.ctx.relative_pos_ctx(dollar..start)),
                 )?;
                 return Ok(Expr::Parenthesis(parenthesis));
             }

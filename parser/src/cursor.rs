@@ -1,16 +1,17 @@
 use std::fmt::Debug;
 use context::poller::Poller;
-use crate::err::{ParseErrorKind};
+use crate::err::{ErrorReporter, ParseErrorKind};
 use crate::moves::Move;
 use lexer::token::{Token, TokenType};
+use crate::context::ParserContext;
 
 use crate::parser::ParseResult;
 
 /// Parser cursor is used by parsers to navigate in the token stream
-#[derive(Debug, Clone)]
-pub(crate) struct ParserCursor<'a, P: Debug> {
-    /// The token poller
-    poller: P,
+#[derive(Debug)]
+pub(crate) struct ParserCursor<'a, P: Poller<'a, Token<'a>> + Debug> {
+    /// The parser context
+    ctx: &'a mut ParserContext<'a, P>,
     /// token buffer
     buff: Vec<Token<'a>>,
     /// current position in the tokens vector.
@@ -18,9 +19,9 @@ pub(crate) struct ParserCursor<'a, P: Debug> {
 }
 
 impl<'a, P: Poller<'a, Token<'a>> + Debug> ParserCursor<'a, P> {
-    pub fn new(poller: P) -> Self {
+    pub fn new(ctx: &'a mut ParserContext<'a, P>) -> Self {
         Self {
-            poller,
+            ctx,
             buff: Vec::new(),
             pos: 0,
         }
@@ -31,7 +32,8 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> ParserCursor<'a, P> {
     ///         The returned value is Some(Token) if the move succeeded, None instead.
     /// This method will move the current cursor position on where the move ended.
     pub fn advance(&mut self, mov: impl Move) -> Option<Token<'a>> {
-        let result = mov.apply(|pos| self.at(pos), self.pos);
+        let pos = self.pos;
+        let result = mov.apply(&mut |pos| self.at(pos), pos);
 
         if let Some(next_pos) = result {
             //we subtract 1 to next_pos because the move returns the next position
@@ -47,7 +49,8 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> ParserCursor<'a, P> {
     /// Returns the token where the move ended if the move succeeds, or None instead.
     /// This method is similar to `advance` except that it does not makes the cursor change its current pos.
     pub fn lookahead(&mut self, mov: impl Move) -> Option<Token<'a>> {
-        let result = mov.apply(|pos| self.at(pos), self.pos);
+        let pos = self.pos;
+        let result = mov.apply(&mut |pos| self.at(pos), pos);
 
         if let Some(next_pos) = result {
             //we subtract 1 to next_pos because the move returns the next position
@@ -62,7 +65,8 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> ParserCursor<'a, P> {
     /// This method will move the current cursor position on where the move ended.
     pub fn force(&mut self, mov: impl Move, err: &str) -> ParseResult<Token<'a>> {
         self.advance(mov).ok_or_else(|| {
-            self.mk_parse_error(err, self.at(self.pos + 1), ParseErrorKind::Unexpected)
+            let token = self.at(self.pos + 1);
+            self.ctx.mk_parse_error(err, token, ParseErrorKind::Unexpected)
         })
     }
 
@@ -72,8 +76,9 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> ParserCursor<'a, P> {
         err: &str,
         kind: ParseErrorKind,
     ) -> ParseResult<Token<'a>> {
+        let token = self.at(self.pos + 1);
         self.advance(mov)
-            .ok_or_else(|| self.mk_parse_error(err, self.at(self.pos + 1), kind))
+            .ok_or_else(|| self.ctx.mk_parse_error(err, token, kind))
     }
 
     ///Advance and returns a selection of token.
@@ -116,13 +121,13 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> ParserCursor<'a, P> {
         }
 
         let mut diff = self.buff.len() - pos;
-        while diff > 0 && !self.poller.empty() {
-            let next_token = self.poller.next().expect("fatal error while polling next line").unwrap();
+        while diff > 0 && !self.ctx.poller.empty() {
+            let next_token = self.ctx.poller.next().unwrap();
             self.buff.push(next_token);
             diff -= 1;
         }
         
-        let result = self.buff.get(pos).unwrap_or_else(|| &Token::new(TokenType::EndOfFile, ""));
+        let result = self.buff.get(pos).cloned().unwrap_or_else(|| Token::new(TokenType::EndOfFile, ""));
         result.clone()
     }
 
@@ -132,7 +137,7 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> ParserCursor<'a, P> {
 
     ///return true if this cursor is at the end of the
     pub fn is_at_end(&self) -> bool {
-        self.poller.empty()
+        self.ctx.poller.empty()
     }
 
 

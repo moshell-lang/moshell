@@ -62,7 +62,7 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> Parser<'a, P> {
         self.cursor.force_with(
             blanks().then(of_type(CurlyRightBracket)),
             "expected '}'",
-            ParseErrorKind::Unpaired(self.relative_pos(opening_bracket.value)),
+            ParseErrorKind::Unpaired(self.ctx.relative_pos(opening_bracket.value)),
         )?;
         self.delimiter_stack.pop_back();
 
@@ -142,12 +142,12 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> Parser<'a, P> {
             return if patterns.len() == 1 {
                 Ok(vec![first])
             } else {
-                let start = self.relative_pos(start).start;
-                let end = self.relative_pos(self.cursor.peek().value).end;
+                let start = self.ctx.relative_pos(start).start;
+                let end = self.ctx.relative_pos(self.cursor.peek().value).end;
                 let selection = start..end;
-                Err(self.mk_parse_error(
+                Err(self.ctx.mk_parse_error(
                     "wildcard pattern cannot be followed by other patterns",
-                    &self.source.source[selection],
+                    &self.ctx.source.source[selection],
                     ParseErrorKind::Unexpected,
                 ))
             };

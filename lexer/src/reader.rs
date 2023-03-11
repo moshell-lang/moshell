@@ -31,23 +31,23 @@ impl<'a, I> BufferedTokenReader<'a, I>
         }
     }
 
-    fn next(&mut self) -> Result<Option<Token<'a>>, I::Error> {
+    fn next(&mut self) -> Option<Token<'a>> {
         if self.pos == self.buff.len() {
-            self.refill()?;
+            self.refill();
             return self.next();
         }
 
         if self.end_of_input {
-            return Ok(None);
+            return None;
         }
 
         let token = self.buff[self.pos].clone();
         self.pos += 1;
-        Ok(Some(token.clone()))
+        Some(token.clone())
     }
 
-    fn refill(&mut self) -> Result<(), I::Error> {
-        if let Some(line) = self.input.next()? {
+    fn refill(&mut self) {
+        if let Some(line) = self.input.next() {
             let mut lexer = TokenType::lexer(line);
 
             self.buff.clear();
@@ -56,10 +56,9 @@ impl<'a, I> BufferedTokenReader<'a, I>
                 self.buff.push(Token::new(token_type, slice).clone())
             }
             self.pos = 0; //reset buffer pos
-            return Ok(());
+            return;
         }
 
         self.end_of_input = true;
-        return Ok(());
     }
 }

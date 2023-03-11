@@ -1,9 +1,7 @@
-use std::convert::Infallible;
 use std::str::Lines;
 
 pub trait Poller<'a, I> {
-    type Error;
-    fn next(&mut self) -> Result<Option<I>, Self::Error>;
+    fn next(&mut self) -> Option<I>;
     fn empty(&self) -> bool;
 }
 
@@ -22,17 +20,16 @@ impl<'a> StringPoller<'a> {
 }
 
 impl<'a> Poller<'a, &'a str> for StringPoller<'a> {
-    type Error = Infallible;
 
-    fn next(&mut self) -> Result<Option<&'a str>, Infallible> {
+    fn next(&mut self) -> Option<&'a str> {
         if self.end_of_lines {
-            return Ok(None)
+            return None
         }
         if let Some(ln) = self.lines.next() {
-            return  Ok(Some(ln))
+            return  Some(ln)
         }
         self.end_of_lines = true;
-        Ok(None)
+        None
     }
     fn empty(&self) -> bool {
         self.end_of_lines

@@ -45,7 +45,7 @@ impl<'a, P: Poller<'a, Token<'a>> + Debug> VarReferenceAspect<'a> for Parser<'a,
             self.cursor.force_with(
                 of_type(CurlyRightBracket),
                 "Expected closing curly bracket.",
-                ParseErrorKind::Unpaired(self.relative_pos(bracket.value)),
+                ParseErrorKind::Unpaired(self.ctx.relative_pos(bracket.value)),
             )?;
         }
         Ok(Expr::VarReference(VarReference { name }))

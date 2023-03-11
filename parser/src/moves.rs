@@ -10,9 +10,9 @@ pub trait Move {
     /// `None` if the move did not take effect.
     ///* `at` - get token at given position
     ///* `pos` - the position in ParserCursor at beginning of the move
-    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-    where
-        F: Fn(usize) -> Token<'a>;
+    fn apply<'a, F>(&self, at: &mut F, pos: usize) -> Option<usize>
+        where
+            F: FnMut(usize) -> Token<'a>;
 }
 
 ///Defines operations over a Move struct.
@@ -79,7 +79,7 @@ impl<P> Move for PredicateMove<P>
 where
     P: Fn(Token) -> bool + Copy,
 {
-    fn apply<'a, F>(&self, mut at: F, pos: usize) -> Option<usize>
+    fn apply<'a, F>(&self, at: &mut F, pos: usize) -> Option<usize>
     where
         F: FnMut(usize) -> Token<'a>,
     {
@@ -190,9 +190,9 @@ pub(crate) struct NotMove<M: Move + Copy> {
 }
 
 impl<M: Move + Copy> Move for NotMove<M> {
-    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-    where
-        F: Fn(usize) -> Token<'a>,
+    fn apply<'a, F>(&self, at: &mut F, pos: usize) -> Option<usize>
+        where
+            F: FnMut(usize) -> Token<'a>,
     {
         match self.underlying.apply(at, pos) {
             Some(_) => None,
@@ -218,13 +218,13 @@ pub(crate) struct RepeatedMove<M: Move + Copy> {
 }
 
 impl<M: Move + Copy> Move for RepeatedMove<M> {
-    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-    where
-        F: Fn(usize) -> Token<'a>,
+    fn apply<'a, F>(&self, at: &mut F, pos: usize) -> Option<usize>
+        where
+            F: FnMut(usize) -> Token<'a>,
     {
         let mut repeats = 0;
         let mut current_pos = pos;
-        while let Some(pos) = self.underlying.apply(&at, current_pos) {
+        while let Some(pos) = self.underlying.apply(at, current_pos) {
             current_pos = pos;
             repeats += 1;
             if self.max != -1 && repeats > self.max {
@@ -291,13 +291,13 @@ pub(crate) struct AndThenMove<A: Move + Copy, B: Move + Copy> {
 }
 
 impl<A: Move + Copy, B: Move + Copy> Move for AndThenMove<A, B> {
-    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-    where
-        F: Fn(usize) -> Token<'a>,
+    fn apply<'a, F>(&self, at: &mut F, pos: usize) -> Option<usize>
+        where
+            F: FnMut(usize) -> Token<'a>,
     {
         self.left
-            .apply(&at, pos)
-            .and_then(|pos| self.right.apply(&at, pos))
+            .apply(at, pos)
+            .and_then(|pos| self.right.apply(at, pos))
     }
 }
 
@@ -309,14 +309,14 @@ pub(crate) struct ThenMove<A: Move + Copy, B: Move + Copy> {
 }
 
 impl<A: Move + Copy, B: Move + Copy> Move for ThenMove<A, B> {
-    fn apply<'a, F>(&self, at: F, mut pos: usize) -> Option<usize>
-    where
-        F: Fn(usize) -> Token<'a>,
+    fn apply<'a, F>(&self, at: &mut F, mut pos: usize) -> Option<usize>
+        where
+            F: FnMut(usize) -> Token<'a>,
     {
-        if let Some(new_pos) = self.left.apply(&at, pos) {
+        if let Some(new_pos) = self.left.apply(at, pos) {
             pos = new_pos
         }
-        self.right.apply(&at, pos)
+        self.right.apply(at, pos)
     }
 }
 
@@ -328,12 +328,12 @@ pub(crate) struct OrMove<A: Move + Copy, B: Move + Copy> {
 }
 
 impl<A: Move + Copy, B: Move + Copy> Move for OrMove<A, B> {
-    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-    where
-        F: Fn(usize) -> Token<'a>,
+    fn apply<'a, F>(&self, at: &mut F, pos: usize) -> Option<usize>
+        where
+            F: FnMut(usize) -> Token<'a>,
     {
         self.left
-            .apply(&at, pos)
+            .apply(at, pos)
             .or_else(|| self.right.apply(at, pos))
     }
 }
@@ -391,7 +391,6 @@ pub(crate) fn bin_op() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + C
 mod tests {
     use crate::cursor::ParserCursor;
     use crate::moves::eox;
-    use lexer::err::lex;
     use lexer::token::{Token, TokenType};
     use pretty_assertions::assert_eq;
 
