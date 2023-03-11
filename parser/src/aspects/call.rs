@@ -75,24 +75,26 @@ impl<'a> Parser<'a> {
 
         if self
             .cursor
-            .advance(spaces().then(of_type(SquaredRightBracket)))
+            .advance(word_seps().then(of_type(SquaredRightBracket)))
             .is_some()
         {
-            return Err(self.mk_parse_error(
+            return self.expected_with(
                 "unexpected empty type parameter list",
                 start..self.cursor.peek(),
                 ParseErrorKind::Unexpected,
-            ));
+            );
         }
         let mut tparams = vec![self.call_type_parameter()?];
 
         while self
             .cursor
-            .advance(spaces().then(of_type(SquaredRightBracket)))
+            .advance(word_seps().then(of_type(SquaredRightBracket)))
             .is_none()
         {
-            self.cursor
-                .force(spaces().then(of_type(Comma)), "comma expected before here")?;
+            self.cursor.force(
+                word_seps().then(of_type(Comma)),
+                "A comma or a closing bracket was expected here",
+            )?;
             tparams.push(self.call_type_parameter()?);
         }
 
@@ -104,11 +106,11 @@ impl<'a> Parser<'a> {
         let first = self.cursor.next()?;
 
         if first.token_type != TokenType::Identifier {
-            return Err(self.mk_parse_error(
-                format!("'{}' is not an identifier.", first.value),
+            return self.expected_with(
+                &format!("'{}' is not a valid type identifier.", first.value),
                 first,
                 ParseErrorKind::Unexpected,
-            ));
+            );
         }
         Ok(first.value)
     }
@@ -198,9 +200,9 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_next(),
             Err(ParseError {
-                message: "'@' is not an identifier.".to_string(),
+                message: "'@' is not a valid type identifier.".to_string(),
                 kind: ParseErrorKind::Unexpected,
-                position: content.find("@").map(|i| i..i + 1).unwrap()
+                position: content.find('@').map(|i| i..i + 1).unwrap()
             })
         );
     }
@@ -214,7 +216,7 @@ mod tests {
             Err(ParseError {
                 message: "comma expected before here".to_string(),
                 kind: ParseErrorKind::Unexpected,
-                position: content.find("y").map(|i| i..i + 1).unwrap()
+                position: content.find('y').map(|i| i..i + 1).unwrap()
             })
         );
     }
