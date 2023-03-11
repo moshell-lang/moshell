@@ -1,5 +1,5 @@
-use crate::ast::variable::VarReference;
-use crate::ast::Expr;
+use crate::variable::VarReference;
+use crate::Expr;
 use dbg_pls::DebugPls;
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]

@@ -1,5 +1,5 @@
-use crate::ast::range::Iterable;
-use crate::ast::Expr;
+use crate::range::Iterable;
+use crate::Expr;
 use dbg_pls::DebugPls;
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]

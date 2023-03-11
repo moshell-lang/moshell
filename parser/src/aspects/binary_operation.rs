@@ -1,7 +1,7 @@
-use crate::ast::operation::{BinaryOperation, BinaryOperator};
-use crate::ast::Expr;
 use crate::moves::{bin_op, eox, spaces, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
+use ast::operation::{BinaryOperation, BinaryOperator};
+use ast::Expr;
 
 /// a parser aspect to parse any kind of binary operations
 pub trait BinaryOperationsAspect<'p> {
@@ -155,14 +155,14 @@ mod tests {
     use context::source::Source;
 
     use crate::aspects::binary_operation::BinaryOperationsAspect;
-    use crate::ast::callable::Call;
-    use crate::ast::group::{Parenthesis, Subshell};
-    use crate::ast::operation::BinaryOperation;
-    use crate::ast::operation::BinaryOperator::*;
-    use crate::ast::value::Literal;
-    use crate::ast::Expr;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parser::Parser;
+    use ast::callable::Call;
+    use ast::group::{Parenthesis, Subshell};
+    use ast::operation::BinaryOperation;
+    use ast::operation::BinaryOperator::*;
+    use ast::value::Literal;
+    use ast::Expr;
 
     #[test]
     fn is_left_associative() {
@@ -414,6 +414,7 @@ mod tests {
                                 Expr::Literal("echo".into()),
                                 Expr::Literal("hello".into()),
                             ],
+                            tparams: vec![],
                         })),
                         op: And,
                         right: Box::new(Expr::Call(Call {
@@ -421,12 +422,14 @@ mod tests {
                                 Expr::Literal("echo".into()),
                                 Expr::Literal("world".into()),
                             ],
+                            tparams: vec![],
                         })),
                     })]
                 })),
                 op: Or,
                 right: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("damn".into()),],
+                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("damn".into())],
+                    tparams: vec![],
                 })),
             })
         )
@@ -457,6 +460,7 @@ mod tests {
                                 parsed: ")".into(),
                             }),
                         ],
+                        tparams: vec![],
                     })]
                 })),
                 op: Or,
@@ -471,6 +475,7 @@ mod tests {
                             parsed: "damn".into(),
                         }),
                     ],
+                    tparams: vec![],
                 })),
             })
         )

@@ -1,6 +1,6 @@
+use ast::callable::Call;
+use ast::Expr;
 use context::source::Source;
-use parser::ast::callable::Call;
-use parser::ast::Expr;
 use parser::err::{ParseError, ParseErrorKind, ParseReport};
 use parser::parse;
 
@@ -19,6 +19,7 @@ fn repos_delimiter_stack() {
         ParseReport {
             expr: vec![Expr::Call(Call {
                 arguments: vec![Expr::Literal("echo".into()), Expr::Literal("end".into())],
+                tparams: Vec::new()
             })],
             errors: vec![
                 ParseError {
