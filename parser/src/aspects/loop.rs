@@ -1,3 +1,4 @@
+use crate::aspects::var_reference::VarReferenceAspect;
 use lexer::token::TokenType;
 
 use crate::ast::control_flow::{ConditionalFor, For, ForKind, Loop, RangeFor, While};
@@ -5,7 +6,7 @@ use crate::ast::range::{FilePattern, Iterable, NumericRange};
 use crate::ast::value::LiteralValue;
 use crate::ast::Expr;
 use crate::err::ParseErrorKind;
-use crate::moves::{blanks, eod, eox, of_type, repeat_nm, MoveOperations};
+use crate::moves::{blanks, eod, eox, next, of_type, repeat_nm, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 ///a parser aspect for loops and while expressions
@@ -170,7 +171,12 @@ impl<'a> Parser<'a> {
 
     fn parse_range(&mut self) -> ParseResult<Iterable<'a>> {
         let start_token = self.cursor.peek();
-        let start = self.next_value()?;
+        let start = if start_token.token_type == TokenType::Dollar {
+            self.cursor.advance(next());
+            self.var_reference()?
+        } else {
+            self.next_value()?
+        };
         if self
             .cursor
             .advance(repeat_nm(2, 2, of_type(TokenType::Dot)))
@@ -366,7 +372,7 @@ mod tests {
 
     #[test]
     fn for_in_variable_range() {
-        let source = Source::unknown("for n in ($a)..$b; cat"); // value parser is too greedy
+        let source = Source::unknown("for n in $a..$b; cat"); // value parser is too greedy
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
@@ -374,9 +380,7 @@ mod tests {
                 kind: Box::new(ForKind::Range(RangeFor {
                     receiver: "n",
                     iterable: Iterable::Range(NumericRange {
-                        start: Expr::Parenthesis(Parenthesis {
-                            expression: Box::new(Expr::VarReference(VarReference { name: "a" }))
-                        }),
+                        start: Expr::VarReference(VarReference { name: "a" }),
                         end: Expr::VarReference(VarReference { name: "b" }),
                         step: None,
                         upper_inclusive: false,
