@@ -1,5 +1,5 @@
 use crate::ast::callable::{Call, Detached, Pipeline, Redirected};
-use crate::ast::control_flow::{If, Loop, While};
+use crate::ast::control_flow::{For, If, Loop, While};
 use crate::ast::group::{Block, Parenthesis, Subshell};
 use crate::ast::operation::BinaryOperation;
 use crate::ast::r#match::Match;
@@ -16,6 +16,7 @@ pub mod control_flow;
 pub mod group;
 pub mod r#match;
 pub mod operation;
+pub mod range;
 pub mod structure;
 pub mod substitution;
 pub mod test;
@@ -49,6 +50,7 @@ pub enum Expr<'a> {
     If(If<'a>),
     While(While<'a>),
     Loop(Loop<'a>),
+    For(For<'a>),
 
     Continue,
     Break,

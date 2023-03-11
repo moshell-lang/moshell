@@ -134,6 +134,7 @@ impl<'a> Parser<'a> {
 
             While => self.parse_while().map(Expr::While),
             Loop => self.parse_loop().map(Expr::Loop),
+            For => self.parse_for().map(Expr::For),
             Identifier
                 if self
                     .cursor
