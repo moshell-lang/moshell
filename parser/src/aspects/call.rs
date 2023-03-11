@@ -5,8 +5,8 @@ use lexer::token::TokenType::{Comma, SquaredLeftBracket, SquaredRightBracket};
 
 use crate::aspects::redirection::RedirectionAspect;
 use crate::aspects::structure::StructureAspect;
-use crate::ast::callable::Call;
-use crate::ast::Expr;
+use ast::callable::Call;
+use ast::Expr;
 use crate::err::ParseErrorKind;
 use crate::moves::{eox, like, of_type, spaces, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
@@ -119,9 +119,9 @@ mod tests {
     use context::source::Source;
     use pretty_assertions::assert_eq;
 
-    use crate::ast::callable::Call;
-    use crate::ast::value::Literal;
-    use crate::ast::Expr;
+    use ast::callable::Call;
+    use ast::value::Literal;
+    use ast::Expr;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::Parser;

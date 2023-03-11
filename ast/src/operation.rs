@@ -2,8 +2,8 @@ use dbg_pls::DebugPls;
 use enum_assoc::Assoc;
 use lexer::token::TokenType;
 
-use crate::ast::operation::BinaryOperator::*;
-use crate::ast::Expr;
+use crate::operation::BinaryOperator::*;
+use crate::Expr;
 
 /// A binary operation between two expressions.
 #[derive(Debug, Clone, PartialEq, DebugPls)]

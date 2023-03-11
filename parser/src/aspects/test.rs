@@ -1,7 +1,7 @@
 use crate::aspects::call::CallAspect;
-use crate::ast::test::{Not, Test};
-use crate::ast::Expr;
-use crate::ast::Expr::Literal;
+use ast::test::{Not, Test};
+use ast::Expr;
+use ast::Expr::Literal;
 use crate::err::ParseErrorKind;
 use crate::moves::{of_type, spaces, times, MoveOperations};
 use crate::parser::{ParseResult, Parser};
@@ -80,13 +80,13 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::callable::Call;
-    use crate::ast::group::{Parenthesis, Subshell};
-    use crate::ast::operation::{BinaryOperation, BinaryOperator};
-    use crate::ast::test::{Not, Test};
-    use crate::ast::value::{Literal, LiteralValue};
-    use crate::ast::variable::VarReference;
-    use crate::ast::Expr;
+    use ast::callable::Call;
+    use ast::group::{Parenthesis, Subshell};
+    use ast::operation::{BinaryOperation, BinaryOperator};
+    use ast::test::{Not, Test};
+    use ast::value::{Literal, LiteralValue};
+    use ast::variable::VarReference;
+    use ast::Expr;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;

@@ -1,4 +1,4 @@
-use crate::ast::variable::Assign;
+use ast::variable::Assign;
 use crate::moves::{of_type, word_seps};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
@@ -26,9 +26,9 @@ impl<'a> AssignAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::value::Literal;
-    use crate::ast::variable::Assign;
-    use crate::ast::Expr;
+    use ast::value::Literal;
+    use ast::variable::Assign;
+    use ast::Expr;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;

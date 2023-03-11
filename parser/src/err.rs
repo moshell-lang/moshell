@@ -1,4 +1,4 @@
-use crate::ast::Expr;
+use ast::Expr;
 use crate::parser::ParseResult;
 use context::source::Location;
 use lexer::token::Token;

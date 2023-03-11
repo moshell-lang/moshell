@@ -1,5 +1,5 @@
-use crate::ast::structure::Construct;
-use crate::ast::Expr;
+use ast::structure::Construct;
+use ast::Expr;
 use crate::err::ParseErrorKind;
 use crate::moves::{eod, eox, of_type, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
@@ -73,9 +73,9 @@ mod tests {
     use context::source::Source;
     use pretty_assertions::assert_eq;
 
-    use crate::ast::structure::Construct;
-    use crate::ast::value::Literal;
-    use crate::ast::Expr;
+    use ast::structure::Construct;
+    use ast::value::Literal;
+    use ast::Expr;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};

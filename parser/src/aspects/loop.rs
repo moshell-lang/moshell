@@ -1,6 +1,6 @@
 use lexer::token::TokenType;
 
-use crate::ast::control_flow::{Loop, While};
+use ast::control_flow::{Loop, While};
 use crate::moves::{blanks, eox, of_type};
 use crate::parser::{ParseResult, Parser};
 
@@ -46,14 +46,14 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::callable::Call;
-    use crate::ast::control_flow::{Loop, While};
-    use crate::ast::group::Block;
-    use crate::ast::operation::BinaryOperation;
-    use crate::ast::operation::BinaryOperator::And;
-    use crate::ast::variable::VarReference;
-    use crate::ast::Expr;
-    use crate::ast::Expr::{Break, Continue};
+    use ast::callable::Call;
+    use ast::control_flow::{Loop, While};
+    use ast::group::Block;
+    use ast::operation::BinaryOperation;
+    use ast::operation::BinaryOperator::And;
+    use ast::variable::VarReference;
+    use ast::Expr;
+    use ast::Expr::{Break, Continue};
     use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
     use crate::parse;

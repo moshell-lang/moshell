@@ -1,14 +1,14 @@
-use crate::ast::callable::{Call, Detached, Pipeline, Redirected};
-use crate::ast::control_flow::{If, Loop, While};
-use crate::ast::group::{Block, Parenthesis, Subshell};
-use crate::ast::operation::BinaryOperation;
-use crate::ast::r#match::Match;
-use crate::ast::r#use::Use;
-use crate::ast::structure::Construct;
-use crate::ast::substitution::Substitution;
-use crate::ast::test::{Not, Test};
-use crate::ast::value::{Literal, TemplateString};
-use crate::ast::variable::{Assign, VarDeclaration, VarReference};
+use crate::callable::{Call, Detached, Pipeline, Redirected};
+use crate::control_flow::{If, Loop, While};
+use crate::group::{Block, Parenthesis, Subshell};
+use crate::operation::BinaryOperation;
+use crate::r#match::Match;
+use crate::r#use::Use;
+use crate::structure::Construct;
+use crate::substitution::Substitution;
+use crate::test::{Not, Test};
+use crate::value::{Literal, TemplateString};
+use crate::variable::{Assign, VarDeclaration, VarReference};
 use dbg_pls::DebugPls;
 
 pub mod callable;

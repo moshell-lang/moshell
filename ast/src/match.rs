@@ -1,6 +1,6 @@
-use crate::ast::value::{Literal, TemplateString};
-use crate::ast::variable::VarReference;
-use crate::ast::Expr;
+use crate::value::{Literal, TemplateString};
+use crate::variable::VarReference;
+use crate::Expr;
 use dbg_pls::DebugPls;
 
 /// structure of a `match` expression.

@@ -4,8 +4,8 @@ use std::num::IntErrorKind;
 use crate::aspects::substitution::SubstitutionAspect;
 use lexer::token::TokenType::*;
 
-use crate::ast::value::{Literal, LiteralValue, TemplateString};
-use crate::ast::*;
+use ast::value::{Literal, LiteralValue, TemplateString};
+use ast::*;
 use crate::err::ParseErrorKind;
 use crate::moves::{next, of_type, word_seps};
 use crate::parser::{ParseResult, Parser};

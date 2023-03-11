@@ -1,5 +1,5 @@
-use crate::ast::r#use::Use;
-use crate::ast::Expr;
+use ast::r#use::Use;
+use ast::Expr;
 use crate::err::ParseErrorKind;
 use crate::moves::{eox, of_type, repeat, spaces, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
@@ -55,8 +55,8 @@ impl<'a> UseAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::r#use::Use;
-    use crate::ast::Expr;
+    use ast::r#use::Use;
+    use ast::Expr;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;

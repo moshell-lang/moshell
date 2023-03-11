@@ -18,7 +18,7 @@ use crate::aspects::redirection::RedirectionAspect;
 use crate::aspects::structure::StructureAspect;
 use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
-use crate::ast::Expr;
+use ast::Expr;
 use crate::cursor::ParserCursor;
 use crate::err::ParseErrorKind::Unexpected;
 use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};

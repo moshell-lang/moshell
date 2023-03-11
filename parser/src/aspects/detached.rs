@@ -1,7 +1,7 @@
 use lexer::token::TokenType::Ampersand;
 
-use crate::ast::callable::Detached;
-use crate::ast::Expr;
+use ast::callable::Detached;
+use ast::Expr;
 use crate::err::ParseErrorKind;
 use crate::moves::{of_type, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
@@ -37,10 +37,10 @@ impl<'a> DetachedAspect<'a> for Parser<'a> {
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use crate::ast::callable::{Call, Detached};
-    use crate::ast::group::Block;
-    use crate::ast::Expr;
-    use crate::ast::Expr::Literal;
+    use ast::callable::{Call, Detached};
+    use ast::group::Block;
+    use ast::Expr;
+    use ast::Expr::Literal;
     use context::source::Source;
 
     use crate::err::ParseError;
