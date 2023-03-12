@@ -1,6 +1,6 @@
-use crate::err::ParseErrorKind;
+use crate::diagnostic::{ParseDiagnosisReporter, ParseErrorKind, ParseResult};
 use crate::moves::{eod, eox, of_type, word_seps, MoveOperations};
-use crate::parser::{ParseResult, Parser};
+use crate::parser::{Parser};
 use ast::structure::Construct;
 use ast::Expr;
 use lexer::token::TokenType;
@@ -13,7 +13,7 @@ pub trait StructureAspect<'a> {
     fn is_at_constructor_start(&self) -> bool;
 }
 
-impl<'a> StructureAspect<'a> for Parser<'a> {
+impl<'a, R: ParseDiagnosisReporter> StructureAspect<'a> for Parser<'a, R> {
     fn constructor(&mut self) -> ParseResult<Expr<'a>> {
         let name = self
             .cursor
@@ -73,9 +73,9 @@ mod tests {
     use context::source::Source;
     use pretty_assertions::assert_eq;
 
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::diagnostic::{ParseError, ParseErrorKind, ParseResult};
     use crate::parse;
-    use crate::parser::{ParseResult, Parser};
+    use crate::parser::{Parser};
     use ast::structure::Construct;
     use ast::value::Literal;
     use ast::Expr;

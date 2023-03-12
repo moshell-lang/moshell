@@ -1,8 +1,9 @@
 use lexer::token::{Token, TokenType};
 
-use crate::err::ParseErrorKind;
-use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations};
-use crate::parser::{ParseResult, Parser};
+use crate::diagnostic::{ParseDiagnosisReporter, ParseErrorKind, ParseResultOps, RecoverableResultOps};
+use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations, blanks};
+use crate::parser::{Parser};
+use crate::diagnostic::ParseResult;
 use ast::group::{Block, Parenthesis, Subshell};
 use ast::Expr;
 
@@ -25,7 +26,7 @@ pub trait GroupAspect<'a> {
     fn parenthesis(&mut self) -> ParseResult<Parenthesis<'a>>;
 }
 
-impl<'a> GroupAspect<'a> for Parser<'a> {
+impl<'a, R: ParseDiagnosisReporter> GroupAspect<'a> for Parser<'a, R> {
     fn block(&mut self) -> ParseResult<Block<'a>> {
         let start = self.ensure_at_group_start(TokenType::CurlyLeftBracket)?;
         Ok(Block {
@@ -60,7 +61,7 @@ impl<'a> GroupAspect<'a> for Parser<'a> {
     }
 }
 
-impl<'a> Parser<'a> {
+impl<'a, R: ParseDiagnosisReporter> Parser<'a, R> {
     fn ensure_at_group_start(&mut self, start: TokenType) -> ParseResult<Token<'a>> {
         let token = self.cursor.force_with(
             of_type(start),
@@ -99,8 +100,10 @@ impl<'a> Parser<'a> {
                     ParseErrorKind::Unpaired(self.cursor.relative_pos(&start_token)),
                 )?;
             }
-            let statement = parser(self)?;
-            statements.push(statement);
+            match parser(self) {
+                Ok(stmnt) => statements.push(stmnt),
+                err => err.recover(self)
+            }
 
             //expects at least one newline or ';'
             let eox_res = self.cursor.force(
@@ -118,11 +121,13 @@ impl<'a> Parser<'a> {
             }
 
             if eox_res.is_err() && self.cursor.peek().token_type.is_closing_ponctuation() {
-                self.mismatched_delimiter(eog)?;
+                self.mismatched_delimiter(eog).report(self)?;
             }
 
             //but if not closed, expect the cursor to hit EOX.
-            eox_res?;
+            eox_res
+                .report(self, repeat(eox()).then(blanks()))
+                .recover(self)
         }
         Ok(statements)
     }

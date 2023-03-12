@@ -1,8 +1,8 @@
 use lexer::token::TokenType::Ampersand;
 
-use crate::err::ParseErrorKind;
+use crate::diagnostic::{ParseDiagnosisReporter, ParseErrorKind, ParseResult};
 use crate::moves::{of_type, word_seps, MoveOperations};
-use crate::parser::{ParseResult, Parser};
+use crate::parser::{Parser};
 use ast::callable::Detached;
 use ast::Expr;
 
@@ -13,7 +13,7 @@ pub trait DetachedAspect<'a> {
     fn parse_detached(&mut self, underlying: Expr<'a>) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> DetachedAspect<'a> for Parser<'a> {
+impl<'a, R: ParseDiagnosisReporter> DetachedAspect<'a> for Parser<'a, R> {
     fn parse_detached(&mut self, underlying: Expr<'a>) -> ParseResult<Expr<'a>> {
         let ampersand = word_seps().then(of_type(Ampersand));
         //there is a trailing '&'
@@ -43,10 +43,9 @@ mod tests {
     use ast::Expr::Literal;
     use context::source::Source;
 
-    use crate::err::ParseError;
-    use crate::err::ParseErrorKind::Unexpected;
+    use crate::diagnostic::{ParseError, ParseResult};
+    use crate::diagnostic::ParseErrorKind::Unexpected;
     use crate::parse;
-    use crate::parser::ParseResult;
 
     #[test]
     fn twice_derived() {

@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![deny(warnings)]
 
-use crate::err::ParseReport;
+use crate::diagnostic::ParseReport;
 use context::source::Source;
 
 use crate::parser::Parser;
@@ -9,7 +9,7 @@ use crate::parser::Parser;
 ///! The parser crate contains the parser for the Moshell scripting language.
 mod aspects;
 mod cursor;
-pub mod err;
+pub mod diagnostic;
 mod moves;
 mod parser;
 

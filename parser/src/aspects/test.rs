@@ -1,7 +1,9 @@
 use crate::aspects::call::CallAspect;
-use crate::err::ParseErrorKind;
+use crate::diagnostic::ParseErrorKind;
 use crate::moves::{of_type, spaces, times, MoveOperations};
-use crate::parser::{ParseResult, Parser};
+use crate::parser::{Parser};
+use crate::diagnostic::{ParseDiagnosisReporter, ParseResult};
+
 use ast::test::{Not, Test};
 use ast::Expr;
 use ast::Expr::Literal;
@@ -18,7 +20,7 @@ pub(crate) trait TestAspect<'a> {
     fn parse_test(&mut self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> TestAspect<'a> for Parser<'a> {
+impl<'a, R: ParseDiagnosisReporter> TestAspect<'a> for Parser<'a, R> {
     fn not<P>(&mut self, mut parse_next: P) -> ParseResult<Expr<'a>>
     where
         P: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
@@ -64,7 +66,7 @@ impl<'a> TestAspect<'a> for Parser<'a> {
     }
 }
 
-impl<'a> Parser<'a> {
+impl<'a, R: ParseDiagnosisReporter> Parser<'a, R> {
     fn parse_test_call(&mut self, start: Token) -> ParseResult<Expr<'a>> {
         let call = self.call_arguments(Literal("test".into()), Vec::new());
 
@@ -80,9 +82,9 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::diagnostic::{ParseError, ParseErrorKind};
     use crate::parse;
-    use crate::parser::ParseResult;
+    use crate::diagnostic::ParseResult;
     use ast::callable::Call;
     use ast::group::{Parenthesis, Subshell};
     use ast::operation::{BinaryOperation, BinaryOperator};

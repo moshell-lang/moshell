@@ -2,7 +2,7 @@ use lexer::token::TokenType::*;
 use lexer::token::{Token, TokenType};
 
 ///defines a way to move along a ParserCursor.
-pub trait Move {
+pub trait Move<'a> {
     /// Returns
     /// * `Some<usize>` - if the move succeeded, where the wrapped `usize` is the position where this move ended.
     /// * `None` - if the move did not succeed (prerequisites not satisfied)
@@ -10,24 +10,22 @@ pub trait Move {
     /// `None` if the move did not take effect.
     ///* `at` - get token at given position
     ///* `pos` - the position in ParserCursor at beginning of the move
-    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-    where
-        F: Fn(usize) -> Token<'a>;
+    fn apply(&self, at: impl Fn(usize) -> Token<'a>, pos: usize) -> Option<usize>;
 }
 
 ///Defines operations over a Move struct.
-pub(crate) trait MoveOperations<This: Move + Copy> {
+pub(crate) trait MoveOperations<'a, This: Move<'a> + Copy> {
     ///Used to chain `This` move with `other` move.
     /// returns a move that will first execute this move then other one only if this first succeeded.
-    fn and_then<B: Move + Copy>(self, other: B) -> AndThenMove<This, B>;
+    fn and_then<B: Move<'a> + Copy>(self, other: B) -> AndThenMove<This, B>;
 
     ///Used to bind `This` move with `other` move.
     /// returns a move that will first execute this move then the other one.
-    fn then<B: Move + Copy>(self, other: B) -> ThenMove<This, B>;
+    fn then<B: Move<'a> + Copy>(self, other: B) -> ThenMove<This, B>;
 
     ///Used to execute `This` or else other if `This` fails
     /// returned move is a move that executes either this or other if this move fails.
-    fn or<B: Move + Copy>(self, other: B) -> OrMove<This, B>;
+    fn or<B: Move<'a> + Copy>(self, other: B) -> OrMove<This, B>;
 }
 
 impl<A: Move + Copy> MoveOperations<A> for A {

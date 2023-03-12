@@ -4,7 +4,7 @@ use crate::report::print_flush;
 use context::source::{Location, Source};
 use dbg_pls::color;
 use miette::{Diagnostic, GraphicalReportHandler, SourceSpan};
-use parser::err::ParseErrorKind;
+use parser::diagnostic::ParseErrorKind;
 use parser::parse;
 use std::fmt::Display;
 use std::io::{self, BufRead, Write};

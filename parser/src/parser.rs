@@ -19,18 +19,16 @@ use crate::aspects::structure::StructureAspect;
 use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::cursor::ParserCursor;
-use crate::err::ParseErrorKind::Unexpected;
-use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
-use crate::moves::{
-    bin_op, eod, eox, like, next, of_type, of_types, repeat, spaces, word_seps, MoveOperations,
-};
+use crate::diagnostic::ParseErrorKind::Unexpected;
+use crate::diagnostic::{ErrorContext, ParseDiagnosisReporter, ParseError, ParseErrorKind, ParseReport, ParseResult};
+use crate::moves::{bin_op, eod, eox, like, next, of_type, of_types, repeat, spaces, word_seps, MoveOperations};
 use ast::Expr;
 
-pub(crate) type ParseResult<T> = Result<T, ParseError>;
 
 /// A parser for the Moshell scripting language.
-pub(crate) struct Parser<'a> {
+pub(crate) struct Parser<'a, R: ParseDiagnosisReporter> {
     pub(crate) cursor: ParserCursor<'a>,
+    pub(crate) diagnostic: R,
     pub(crate) source: Source<'a>,
     pub(crate) delimiter_stack: VecDeque<Token<'a>>,
 }
@@ -51,18 +49,19 @@ macro_rules! non_infix {
     };
 }
 
-impl<'a> Parser<'a> {
+impl<'a, D: ParseDiagnosisReporter> Parser<'a, D> {
     /// Creates a new parser from a defined source.
-    pub(crate) fn new(source: Source<'a>) -> Self {
+    pub(crate) fn new(source: Source<'a>, diagnostic: D) -> Self {
         Self {
             cursor: ParserCursor::new_with_source(lex(source.source), source.source),
+            diagnostic,
             source,
             delimiter_stack: VecDeque::new(),
         }
     }
 
     /// Parses input tokens into an abstract syntax tree representation.
-    pub fn parse(&mut self) -> ParseReport<'a> {
+    pub(crate) fn parse(&mut self) -> ParseReport<'a> {
         let mut statements = Vec::new();
         let mut errors = Vec::new();
 
@@ -370,5 +369,6 @@ impl<'a> Parser<'a> {
                 break;
             }
         }
+
     }
 }

@@ -1,9 +1,11 @@
 use context::source::try_join_str;
 use lexer::token::TokenType::*;
 
-use crate::err::ParseErrorKind;
+use crate::diagnostic::ParseErrorKind;
 use crate::moves::{like, of_type, repeat, MoveOperations};
-use crate::parser::{ParseResult, Parser};
+use crate::parser::{Parser};
+use crate::diagnostic::{ParseDiagnosisReporter, ParseResult};
+
 use ast::variable::VarReference;
 use ast::Expr;
 
@@ -12,7 +14,7 @@ pub trait VarReferenceAspect<'a> {
     fn var_reference(&mut self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> VarReferenceAspect<'a> for Parser<'a> {
+impl<'a, R: ParseDiagnosisReporter> VarReferenceAspect<'a> for Parser<'a, R> {
     /// Parses a variable reference.
     fn var_reference(&mut self) -> ParseResult<Expr<'a>> {
         let bracket = self.cursor.advance(of_type(CurlyLeftBracket));
@@ -52,9 +54,9 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::aspects::substitution::SubstitutionAspect;
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::diagnostic::{ParseError, ParseErrorKind, ParseResult};
     use crate::parse;
-    use crate::parser::{ParseResult, Parser};
+    use crate::parser::{Parser};
     use ast::value::TemplateString;
     use ast::variable::VarReference;
     use ast::Expr;

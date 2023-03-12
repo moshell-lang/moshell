@@ -1,5 +1,7 @@
 use crate::moves::{bin_op, eox, spaces, word_seps, MoveOperations};
-use crate::parser::{ParseResult, Parser};
+use crate::parser::{Parser};
+use crate::diagnostic::{ParseDiagnosisReporter, ParseResult};
+
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::Expr;
 
@@ -19,7 +21,7 @@ pub trait BinaryOperationsAspect<'p> {
         P: FnMut(&mut Self) -> ParseResult<Expr<'p>>;
 }
 
-impl<'p> BinaryOperationsAspect<'p> for Parser<'p> {
+impl<'p, R: ParseDiagnosisReporter> BinaryOperationsAspect<'p> for Parser<'p, R> {
     fn binary_operation<P>(&mut self, mut parse: P) -> ParseResult<Expr<'p>>
     where
         P: FnMut(&mut Self) -> ParseResult<Expr<'p>>,
@@ -37,7 +39,7 @@ impl<'p> BinaryOperationsAspect<'p> for Parser<'p> {
     }
 }
 
-impl<'p> Parser<'p> {
+impl<'p, R: ParseDiagnosisReporter> Parser<'p, R> {
     //Parses a binary operation tree as long as it does not hits an operation with smaller priority.
     fn binary_op_right_internal<P>(
         &mut self,
@@ -155,7 +157,7 @@ mod tests {
     use context::source::Source;
 
     use crate::aspects::binary_operation::BinaryOperationsAspect;
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::diagnostic::{ParseError, ParseErrorKind};
     use crate::parser::Parser;
     use ast::callable::Call;
     use ast::group::{Parenthesis, Subshell};

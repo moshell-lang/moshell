@@ -1,18 +1,20 @@
 use lexer::token::TokenType;
 
-use crate::err::ParseErrorKind;
+use crate::diagnostic::ParseErrorKind;
 use ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use ast::Expr;
 
 use crate::moves::{of_type, of_types, spaces, MoveOperations};
-use crate::parser::{ParseResult, Parser};
+use crate::parser::{Parser};
+use crate::diagnostic::{ParseDiagnosisReporter, ParseResult};
+
 
 pub trait VarDeclarationAspect<'a> {
     /// Parses a variable declaration.
     fn var_declaration(&mut self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
+impl<'a, R: ParseDiagnosisReporter> VarDeclarationAspect<'a> for Parser<'a, R> {
     /// Parses a variable declaration.
     fn var_declaration(&mut self) -> ParseResult<Expr<'a>> {
         let kind = match self.cursor.next()?.token_type {
@@ -73,7 +75,7 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::err::ParseError;
+    use crate::diagnostic::ParseError;
     use crate::parser::Parser;
     use ast::callable::Call;
     use ast::group::Block;

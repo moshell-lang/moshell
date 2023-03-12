@@ -1,7 +1,45 @@
-use crate::parser::ParseResult;
+use crate::parser::{Parser};
 use ast::Expr;
+use context::diagnostic::{ErrorReporter};
 use context::source::Location;
 use lexer::token::Token;
+use crate::moves::Move;
+
+
+pub trait ParseDiagnosisReporter: ErrorReporter<ParseError> + /*WarnReporter<ParseWarn>*/ {}
+
+pub(crate) type RecoverableResult<T> = Result<T, Box<dyn for<'a> Move<'a>>>;
+pub(crate) type ParseResult<T> = Result<T, ParseError>;
+
+pub trait RecoverableResultOps<A> {
+    fn recover<R: ParseDiagnosisReporter>(&self, parser: &mut Parser<R>);
+}
+
+pub trait ParseResultOps<A> {
+    fn report<R: ParseDiagnosisReporter>(&self, parser: &mut Parser<R>, recover: impl Move) -> RecoverableResult<A>;
+}
+
+impl<A> RecoverableResultOps<A> for RecoverableResult<A> {
+    fn recover<R: ParseDiagnosisReporter>(&self, parser: &mut Parser<R>) {
+        if let Err(mv) = self {
+            parser.cursor.advance(mv)
+        }
+    }
+}
+
+impl<A> ParseResultOps<A> for ParseResult<A> {
+    #[inline]
+    fn report<R: ParseDiagnosisReporter>(&self, parser: &mut Parser<R>, recover: impl Move) -> RecoverableResult<A> {
+        match self {
+            Ok(v) => Ok(v),
+            Err(error) => {
+                parser.diagnostic.error(error);
+                Err(recover)
+            }
+        }
+    }
+}
+
 
 /// An error that occurs during parsing.
 #[derive(Debug, PartialEq)]

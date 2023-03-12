@@ -4,9 +4,9 @@ use std::num::IntErrorKind;
 use crate::aspects::substitution::SubstitutionAspect;
 use lexer::token::TokenType::*;
 
-use crate::err::ParseErrorKind;
+use crate::diagnostic::{ParseDiagnosisReporter, ParseErrorKind, ParseResult};
 use crate::moves::{next, of_type, word_seps};
-use crate::parser::{ParseResult, Parser};
+use crate::parser::{Parser};
 use ast::value::{Literal, LiteralValue, TemplateString};
 use ast::*;
 
@@ -34,7 +34,7 @@ pub(crate) trait LiteralAspect<'a> {
     fn argument(&mut self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> LiteralAspect<'a> for Parser<'a> {
+impl<'a, R: ParseDiagnosisReporter> LiteralAspect<'a> for Parser<'a, R> {
     fn literal(&mut self) -> ParseResult<Expr<'a>> {
         let token = self.cursor.peek();
         let pivot = token.token_type;
@@ -265,7 +265,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
     }
 }
 
-impl<'a> Parser<'a> {
+impl<'a, R: ParseDiagnosisReporter> Parser<'a, R> {
     fn parse_number_value(&mut self) -> ParseResult<LiteralValue> {
         let token = self.cursor.next()?;
         match token.token_type {
@@ -292,8 +292,8 @@ mod tests {
     use crate::parse;
 
     use super::*;
-    use crate::err::ParseErrorKind::InvalidFormat;
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::diagnostic::ParseErrorKind::InvalidFormat;
+    use crate::diagnostic::{ParseError, ParseErrorKind};
     use context::source::Source;
     use pretty_assertions::assert_eq;
 

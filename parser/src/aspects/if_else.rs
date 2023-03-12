@@ -1,9 +1,10 @@
 use crate::moves::{aerated, blanks, of_type, MoveOperations};
-use crate::parser::{ParseResult, Parser};
+use crate::parser::{Parser};
 use ast::control_flow::If;
 use ast::Expr;
 use lexer::token::TokenType;
 use lexer::token::TokenType::{Else, SemiColon};
+use crate::diagnostic::{ParseDiagnosisReporter, ParseResult};
 
 ///parser aspect for if and else expressions.
 pub trait IfElseAspect<'a> {
@@ -14,7 +15,7 @@ pub trait IfElseAspect<'a> {
         F: FnMut(&mut Self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> IfElseAspect<'a> for Parser<'a> {
+impl<'a, R: ParseDiagnosisReporter> IfElseAspect<'a> for Parser<'a, R> {
     fn parse_if<F>(&mut self, mut parse_branch: F) -> ParseResult<If<'a>>
     where
         F: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
@@ -57,9 +58,9 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::diagnostic::{ParseError, ParseErrorKind};
     use crate::parse;
-    use crate::parser::ParseResult;
+    use crate::diagnostic::ParseResult;
     use ast::callable::Call;
     use ast::control_flow::If;
     use ast::group::Block;

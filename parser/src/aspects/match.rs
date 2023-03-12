@@ -4,11 +4,13 @@ use lexer::token::TokenType::{
 };
 
 use crate::aspects::literal::LiteralAspect;
-use crate::err::ParseErrorKind;
+use crate::diagnostic::ParseErrorKind;
 use crate::moves::{
     aerated, any, blanks, eod, eox, not, of_type, of_types, repeat, MoveOperations,
 };
-use crate::parser::{ParseResult, Parser};
+use crate::diagnostic::{ParseDiagnosisReporter, ParseResult};
+
+use crate::parser::{Parser};
 use ast::r#match::MatchPattern::{Literal, Template, VarRef, Wildcard};
 use ast::r#match::{Match, MatchArm, MatchPattern};
 use ast::Expr;
@@ -21,7 +23,7 @@ pub trait MatchAspect<'a> {
         P: FnMut(&mut Self) -> ParseResult<Expr<'a>> + Clone;
 }
 
-impl<'a> MatchAspect<'a> for Parser<'a> {
+impl<'a, R: ParseDiagnosisReporter> MatchAspect<'a> for Parser<'a, R> {
     fn parse_match<P>(&mut self, parse_arm: P) -> ParseResult<Match<'a>>
     where
         P: FnMut(&mut Self) -> ParseResult<Expr<'a>> + Clone,
@@ -39,7 +41,7 @@ impl<'a> MatchAspect<'a> for Parser<'a> {
     }
 }
 
-impl<'a> Parser<'a> {
+impl<'a, R: ParseDiagnosisReporter> Parser<'a, R> {
     fn parse_match_arms<P>(&mut self, parse_arm: P) -> ParseResult<Vec<MatchArm<'a>>>
     where
         P: FnMut(&mut Self) -> ParseResult<Expr<'a>> + Clone,
@@ -204,8 +206,8 @@ mod tests {
     use context::source::Source;
     use pretty_assertions::assert_eq;
 
-    use crate::err::ParseError;
-    use crate::err::ParseErrorKind::Unexpected;
+    use crate::diagnostic::ParseError;
+    use crate::diagnostic::ParseErrorKind::Unexpected;
     use crate::parse;
     use ast::callable::Call;
     use ast::group::Subshell;

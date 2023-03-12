@@ -1,6 +1,6 @@
 use context::source::Source;
 use miette::{Diagnostic, NamedSource, Result, SourceSpan};
-use parser::err::ParseErrorKind;
+use parser::diagnostic::ParseErrorKind;
 use parser::parse;
 use std::fmt::Display;
 use std::fs;

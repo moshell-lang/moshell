@@ -1,8 +1,9 @@
 use lexer::token::TokenType;
 
 use crate::moves::{blanks, eox, of_type};
-use crate::parser::{ParseResult, Parser};
+use crate::parser::{Parser};
 use ast::control_flow::{Loop, While};
+use crate::diagnostic::{ParseDiagnosisReporter, ParseResult};
 
 ///a parser aspect for loops and while expressions
 pub trait LoopAspect<'a> {
@@ -12,7 +13,7 @@ pub trait LoopAspect<'a> {
     fn parse_loop(&mut self) -> ParseResult<Loop<'a>>;
 }
 
-impl<'a> LoopAspect<'a> for Parser<'a> {
+impl<'a, R: ParseDiagnosisReporter> LoopAspect<'a> for Parser<'a, R> {
     fn parse_while(&mut self) -> ParseResult<While<'a>> {
         self.cursor.force(
             of_type(TokenType::While),
@@ -46,10 +47,10 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::err::ParseError;
-    use crate::err::ParseErrorKind::Unexpected;
+    use crate::diagnostic::ParseError;
+    use crate::diagnostic::ParseErrorKind::Unexpected;
     use crate::parse;
-    use crate::parser::ParseResult;
+    use crate::diagnostic::ParseResult;
     use ast::callable::Call;
     use ast::control_flow::{Loop, While};
     use ast::group::Block;

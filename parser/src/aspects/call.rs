@@ -5,9 +5,9 @@ use lexer::token::TokenType::{Comma, SquaredLeftBracket, SquaredRightBracket};
 
 use crate::aspects::redirection::RedirectionAspect;
 use crate::aspects::structure::StructureAspect;
-use crate::err::ParseErrorKind;
+use crate::diagnostic::{ParseDiagnosisReporter, ParseErrorKind, ParseResult};
 use crate::moves::{eox, like, of_type, spaces, word_seps, MoveOperations};
-use crate::parser::{ParseResult, Parser};
+use crate::parser::{Parser};
 use ast::callable::Call;
 use ast::Expr;
 
@@ -21,7 +21,7 @@ pub trait CallAspect<'a> {
         -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> CallAspect<'a> for Parser<'a> {
+impl<'a, R: ParseDiagnosisReporter> CallAspect<'a> for Parser<'a, R> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
         let callee = self.next_value()?;
         let tparams = self.call_type_parameters()?;
@@ -51,7 +51,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
     }
 }
 
-impl<'a> Parser<'a> {
+impl<'a, R: ParseDiagnosisReporter> Parser<'a, R> {
     /// special pivot method for argument methods
     fn call_argument(&mut self) -> ParseResult<Expr<'a>> {
         self.repos("Expected value")?;
@@ -119,7 +119,7 @@ mod tests {
     use context::source::Source;
     use pretty_assertions::assert_eq;
 
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::diagnostic::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::Parser;
     use ast::callable::Call;

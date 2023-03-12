@@ -1,6 +1,8 @@
-use crate::err::ParseErrorKind;
+use crate::diagnostic::ParseErrorKind;
 use crate::moves::{eox, of_type, repeat, spaces, word_seps, MoveOperations};
-use crate::parser::{ParseResult, Parser};
+use crate::parser::{Parser};
+use crate::diagnostic::{ParseDiagnosisReporter, ParseResult};
+
 use ast::r#use::Use;
 use ast::Expr;
 use lexer::token::TokenType;
@@ -12,7 +14,7 @@ pub trait UseAspect<'a> {
     fn parse_use(&mut self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> UseAspect<'a> for Parser<'a> {
+impl<'a, R: ParseDiagnosisReporter> UseAspect<'a> for Parser<'a, R> {
     fn parse_use(&mut self) -> ParseResult<Expr<'a>> {
         self.cursor
             .force(of_type(TokenType::Use), "expected 'use'")?;
@@ -55,9 +57,9 @@ impl<'a> UseAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::diagnostic::{ParseError, ParseErrorKind};
     use crate::parse;
-    use crate::parser::ParseResult;
+    use crate::diagnostic::ParseResult;
     use ast::r#use::Use;
     use ast::Expr;
     use context::source::Source;

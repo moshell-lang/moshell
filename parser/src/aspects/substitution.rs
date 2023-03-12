@@ -1,8 +1,8 @@
 use crate::aspects::group::GroupAspect;
 use crate::aspects::var_reference::VarReferenceAspect;
-use crate::err::ParseErrorKind;
+use crate::diagnostic::{ParseDiagnosisReporter, ParseErrorKind, ParseResult};
 use crate::moves::{eox, not, of_type, repeat_n, spaces, MoveOperations};
-use crate::parser::{ParseResult, Parser};
+use crate::parser::{Parser};
 use ast::substitution::{Substitution, SubstitutionKind};
 use ast::value::{Literal, LiteralValue};
 use ast::Expr;
@@ -15,7 +15,7 @@ pub(crate) trait SubstitutionAspect<'a> {
     fn substitution(&mut self) -> ParseResult<Expr<'a>>;
 }
 
-impl<'a> SubstitutionAspect<'a> for Parser<'a> {
+impl<'a, R: ParseDiagnosisReporter> SubstitutionAspect<'a> for Parser<'a, R> {
     fn substitution(&mut self) -> ParseResult<Expr<'a>> {
         let dollar = self
             .cursor
@@ -64,9 +64,9 @@ mod tests {
     use ast::substitution::{Substitution, SubstitutionKind};
     use ast::Expr;
 
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::diagnostic::{ParseError, ParseErrorKind, ParseResult};
     use crate::parse;
-    use crate::parser::{ParseResult, Parser};
+    use crate::parser::{Parser};
     use ast::group::{Block, Parenthesis, Subshell};
     use ast::operation::{BinaryOperation, BinaryOperator};
     use ast::value::Literal;

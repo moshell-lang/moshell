@@ -1,14 +1,15 @@
 use crate::moves::{of_type, word_seps};
-use crate::parser::{ParseResult, Parser};
+use crate::parser::{Parser};
 use ast::variable::Assign;
 use lexer::token::TokenType;
+use crate::diagnostic::{ParseDiagnosisReporter, ParseResult};
 
 pub trait AssignAspect<'a> {
     /// Parses a variable assignment.
     fn parse_assign(&mut self) -> ParseResult<Assign<'a>>;
 }
 
-impl<'a> AssignAspect<'a> for Parser<'a> {
+impl<'a, R: ParseDiagnosisReporter> AssignAspect<'a> for Parser<'a, R> {
     fn parse_assign(&mut self) -> ParseResult<Assign<'a>> {
         let name = self
             .cursor
@@ -26,9 +27,8 @@ impl<'a> AssignAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::diagnostic::{ParseError, ParseErrorKind, ParseResult};
     use crate::parse;
-    use crate::parser::ParseResult;
     use ast::value::Literal;
     use ast::variable::Assign;
     use ast::Expr;
