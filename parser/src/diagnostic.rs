@@ -8,28 +8,28 @@ use crate::moves::Move;
 
 pub trait ParseDiagnosisReporter: ErrorReporter<ParseError> + /*WarnReporter<ParseWarn>*/ {}
 
-pub(crate) type RecoverableResult<T> = Result<T, Box<dyn for<'a> Move<'a>>>;
+pub(crate) type RecoverableResult<T, M: Move> = Result<T, M>;
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
 
 pub trait RecoverableResultOps<A> {
-    fn recover<R: ParseDiagnosisReporter>(&self, parser: &mut Parser<R>);
+    fn recover<R: ParseDiagnosisReporter>(self, parser: &mut Parser<R>);
 }
 
 pub trait ParseResultOps<A> {
-    fn report<R: ParseDiagnosisReporter>(&self, parser: &mut Parser<R>, recover: impl Move) -> RecoverableResult<A>;
+    fn report<R: ParseDiagnosisReporter, M: Move>(self, parser: &mut Parser<R>, recover: M) -> RecoverableResult<A, M>;
 }
 
-impl<A> RecoverableResultOps<A> for RecoverableResult<A> {
-    fn recover<R: ParseDiagnosisReporter>(&self, parser: &mut Parser<R>) {
+impl<A, M: Move> RecoverableResultOps<A> for RecoverableResult<A, M> {
+    fn recover<R: ParseDiagnosisReporter>(self, parser: &mut Parser<R>) {
         if let Err(mv) = self {
-            parser.cursor.advance(mv)
+            parser.cursor.advance(mv);
         }
     }
 }
 
 impl<A> ParseResultOps<A> for ParseResult<A> {
     #[inline]
-    fn report<R: ParseDiagnosisReporter>(&self, parser: &mut Parser<R>, recover: impl Move) -> RecoverableResult<A> {
+    fn report<R: ParseDiagnosisReporter, M: Move>(self, parser: &mut Parser<R>, recover: M) -> RecoverableResult<A, M> {
         match self {
             Ok(v) => Ok(v),
             Err(error) => {

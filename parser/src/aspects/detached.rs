@@ -1,7 +1,7 @@
 use lexer::token::TokenType::Ampersand;
 
-use crate::diagnostic::{ParseDiagnosisReporter, ParseErrorKind, ParseResult};
-use crate::moves::{of_type, word_seps, MoveOperations};
+use crate::diagnostic::{ParseDiagnosisReporter, ParseErrorKind, ParseResultOps, RecoverableResult};
+use crate::moves::{of_type, word_seps, MoveOperations, Move, repeat, spaces};
 use crate::parser::{Parser};
 use ast::callable::Detached;
 use ast::Expr;
@@ -10,11 +10,11 @@ use ast::Expr;
 pub trait DetachedAspect<'a> {
     ///returns a Detached expression containing underlying,
     /// or directly returns underlying of no trailing '&' was found
-    fn parse_detached(&mut self, underlying: Expr<'a>) -> ParseResult<Expr<'a>>;
+    fn parse_detached(&mut self, underlying: Expr<'a>) -> RecoverableResult<Expr<'a>, impl Move>;
 }
 
 impl<'a, R: ParseDiagnosisReporter> DetachedAspect<'a> for Parser<'a, R> {
-    fn parse_detached(&mut self, underlying: Expr<'a>) -> ParseResult<Expr<'a>> {
+    fn parse_detached(&mut self, underlying: Expr<'a>) -> RecoverableResult<Expr<'a>, impl Move> {
         let ampersand = word_seps().then(of_type(Ampersand));
         //there is a trailing '&'
         if self.cursor.advance(ampersand).is_some() {
@@ -23,7 +23,7 @@ impl<'a, R: ParseDiagnosisReporter> DetachedAspect<'a> for Parser<'a, R> {
                     "'&' not allowed here",
                     another,
                     ParseErrorKind::Unexpected,
-                );
+                ).report(self, repeat(spaces().or(of_type(Ampersand))));
             }
             return Ok(Expr::Detached(Detached {
                 underlying: Box::new(underlying),

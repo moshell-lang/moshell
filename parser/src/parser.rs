@@ -20,8 +20,8 @@ use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::cursor::ParserCursor;
 use crate::diagnostic::ParseErrorKind::Unexpected;
-use crate::diagnostic::{ErrorContext, ParseDiagnosisReporter, ParseError, ParseErrorKind, ParseReport, ParseResult};
-use crate::moves::{bin_op, eod, eox, like, next, of_type, of_types, repeat, spaces, word_seps, MoveOperations};
+use crate::diagnostic::{ErrorContext, ParseDiagnosisReporter, ParseError, ParseErrorKind, ParseReport, ParseResult, RecoverableResult};
+use crate::moves::{bin_op, eod, eox, like, next, of_type, of_types, repeat, spaces, word_seps, MoveOperations, Move};
 use ast::Expr;
 
 
@@ -89,18 +89,18 @@ impl<'a, D: ParseDiagnosisReporter> Parser<'a, D> {
     }
 
     #[inline]
-    pub(crate) fn parse_full_expr<P>(&mut self, mut next: P) -> ParseResult<Expr<'a>>
+    pub(crate) fn parse_full_expr<P>(&mut self, mut next: P) -> RecoverableResult<Expr<'a>>
     where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
+        P: FnMut(&mut Self) -> RecoverableResult<Expr<'a>, impl Move>,
     {
         let expr = next(self)?;
-        let expr = self.parse_binary_expr(expr)?;
-        self.parse_detached(expr)
+        let expr = self.parse_binary_expr(expr)?; //goto next expression
+        self.parse_detached(expr)?
     }
 
     /// Parses a statement or binary expression.
     /// a statement is usually on a single line
-    pub(crate) fn statement(&mut self) -> ParseResult<Expr<'a>> {
+    pub(crate) fn statement(&mut self) -> RecoverableResult<Expr<'a>, impl Move> {
         self.parse_full_expr(Parser::next_statement)
     }
 
@@ -276,7 +276,7 @@ impl<'a, D: ParseDiagnosisReporter> Parser<'a, D> {
     //parses any binary expression, considering given input expression
     //as the left arm of the expression.
     //if given expression is directly followed by an eox delimiter, then return it as is
-    fn parse_binary_expr(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
+    fn parse_binary_expr(&mut self, expr: Expr<'a>) -> RecoverableResult<Expr<'a>, impl Move> {
         self.cursor.advance(spaces()); //consume spaces
 
         //if there is an end of expression, it means that the expr is terminated so we return it here

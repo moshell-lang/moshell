@@ -2,7 +2,7 @@ use lexer::token::TokenType::*;
 use lexer::token::{Token, TokenType};
 
 ///defines a way to move along a ParserCursor.
-pub trait Move<'a> {
+pub trait Move {
     /// Returns
     /// * `Some<usize>` - if the move succeeded, where the wrapped `usize` is the position where this move ended.
     /// * `None` - if the move did not succeed (prerequisites not satisfied)
@@ -10,22 +10,24 @@ pub trait Move<'a> {
     /// `None` if the move did not take effect.
     ///* `at` - get token at given position
     ///* `pos` - the position in ParserCursor at beginning of the move
-    fn apply(&self, at: impl Fn(usize) -> Token<'a>, pos: usize) -> Option<usize>;
+    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
+        where
+            F: Fn(usize) -> Token<'a>;
 }
 
 ///Defines operations over a Move struct.
-pub(crate) trait MoveOperations<'a, This: Move<'a> + Copy> {
+pub(crate) trait MoveOperations<This: Move + Copy> {
     ///Used to chain `This` move with `other` move.
     /// returns a move that will first execute this move then other one only if this first succeeded.
-    fn and_then<B: Move<'a> + Copy>(self, other: B) -> AndThenMove<This, B>;
+    fn and_then<B: Move + Copy>(self, other: B) -> AndThenMove<This, B>;
 
     ///Used to bind `This` move with `other` move.
     /// returns a move that will first execute this move then the other one.
-    fn then<B: Move<'a> + Copy>(self, other: B) -> ThenMove<This, B>;
+    fn then<B: Move + Copy>(self, other: B) -> ThenMove<This, B>;
 
     ///Used to execute `This` or else other if `This` fails
     /// returned move is a move that executes either this or other if this move fails.
-    fn or<B: Move<'a> + Copy>(self, other: B) -> OrMove<This, B>;
+    fn or<B: Move + Copy>(self, other: B) -> OrMove<This, B>;
 }
 
 impl<A: Move + Copy> MoveOperations<A> for A {
@@ -54,16 +56,16 @@ impl<A: Move + Copy> MoveOperations<A> for A {
 ///A Move that only move over one token and only if it satisfies its predicate.
 #[derive(Copy, Clone)]
 pub(crate) struct PredicateMove<P>
-where
-    P: Fn(Token) -> bool + Copy,
+    where
+        P: Fn(Token) -> bool + Copy,
 {
     ///The used predicate
     predicate: P,
 }
 
 impl<P> PredicateMove<P>
-where
-    P: Fn(Token) -> bool + Copy,
+    where
+        P: Fn(Token) -> bool + Copy,
 {
     /// Invert the current predicate.
     pub fn negate(self) -> PredicateMove<impl Fn(Token) -> bool + Copy> {
@@ -74,12 +76,12 @@ where
 }
 
 impl<P> Move for PredicateMove<P>
-where
-    P: Fn(Token) -> bool + Copy,
+    where
+        P: Fn(Token) -> bool + Copy,
 {
     fn apply<'a, F>(&self, mut at: F, pos: usize) -> Option<usize>
-    where
-        F: FnMut(usize) -> Token<'a>,
+        where
+            F: FnMut(usize) -> Token<'a>,
     {
         let t: Token = at(pos);
         (self.predicate)(t).then_some(pos + 1)
@@ -90,16 +92,16 @@ where
 /// Will move once only if the given predicate is satisfied.
 /// * `predicate` - the predicate to satisfy
 pub(crate) fn predicate<P>(predicate: P) -> PredicateMove<P>
-where
-    P: Fn(Token) -> bool + Copy,
+    where
+        P: Fn(Token) -> bool + Copy,
 {
     PredicateMove { predicate }
 }
 
 /// a predicate move on the type of the token rather than it's integrity
 pub(crate) fn like<P>(predicate: P) -> PredicateMove<impl Fn(Token) -> bool + Copy>
-where
-    P: Fn(TokenType) -> bool + Copy,
+    where
+        P: Fn(TokenType) -> bool + Copy,
 {
     PredicateMove {
         predicate: move |t| predicate(t.token_type),
@@ -189,8 +191,8 @@ pub(crate) struct NotMove<M: Move + Copy> {
 
 impl<M: Move + Copy> Move for NotMove<M> {
     fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-    where
-        F: Fn(usize) -> Token<'a>,
+        where
+            F: Fn(usize) -> Token<'a>,
     {
         match self.underlying.apply(at, pos) {
             Some(_) => None,
@@ -217,8 +219,8 @@ pub(crate) struct RepeatedMove<M: Move + Copy> {
 
 impl<M: Move + Copy> Move for RepeatedMove<M> {
     fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-    where
-        F: Fn(usize) -> Token<'a>,
+        where
+            F: Fn(usize) -> Token<'a>,
     {
         let mut repeats = 0;
         let mut current_pos = pos;
@@ -290,8 +292,8 @@ pub(crate) struct AndThenMove<A: Move + Copy, B: Move + Copy> {
 
 impl<A: Move + Copy, B: Move + Copy> Move for AndThenMove<A, B> {
     fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-    where
-        F: Fn(usize) -> Token<'a>,
+        where
+            F: Fn(usize) -> Token<'a>,
     {
         self.left
             .apply(&at, pos)
@@ -308,8 +310,8 @@ pub(crate) struct ThenMove<A: Move + Copy, B: Move + Copy> {
 
 impl<A: Move + Copy, B: Move + Copy> Move for ThenMove<A, B> {
     fn apply<'a, F>(&self, at: F, mut pos: usize) -> Option<usize>
-    where
-        F: Fn(usize) -> Token<'a>,
+        where
+            F: Fn(usize) -> Token<'a>,
     {
         if let Some(new_pos) = self.left.apply(&at, pos) {
             pos = new_pos
@@ -327,8 +329,8 @@ pub(crate) struct OrMove<A: Move + Copy, B: Move + Copy> {
 
 impl<A: Move + Copy, B: Move + Copy> Move for OrMove<A, B> {
     fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-    where
-        F: Fn(usize) -> Token<'a>,
+        where
+            F: Fn(usize) -> Token<'a>,
     {
         self.left
             .apply(&at, pos)
@@ -346,7 +348,7 @@ pub(crate) fn eod() -> OrMove<
     >,
     PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
 > {
-    unescaped(predicate(|t| t.token_type.is_closing_ponctuation()))
+    unescaped(like(TokenType::is_closing_ponctuation))
 }
 
 ///a move to consume default eox tokens as long as they are not escaped.

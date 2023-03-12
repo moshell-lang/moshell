@@ -1,7 +1,7 @@
 use lexer::token::{Token, TokenType};
 
-use crate::diagnostic::{ParseDiagnosisReporter, ParseErrorKind, ParseResultOps, RecoverableResultOps};
-use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations, blanks};
+use crate::diagnostic::{ParseDiagnosisReporter, ParseErrorKind, ParseResultOps, RecoverableResult, RecoverableResultOps};
+use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations, blanks, Move};
 use crate::parser::{Parser};
 use crate::diagnostic::ParseResult;
 use ast::group::{Block, Parenthesis, Subshell};
@@ -73,14 +73,14 @@ impl<'a, R: ParseDiagnosisReporter> Parser<'a, R> {
     }
 
     ///parses sub expressions of a grouping expression
-    fn sub_exprs<F>(
+    fn sub_exprs<F, M: Move>(
         &mut self,
         start_token: Token,
         eog: TokenType,
         mut parser: F,
     ) -> ParseResult<Vec<Expr<'a>>>
     where
-        F: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
+        F: FnMut(&mut Self) -> RecoverableResult<Expr<'a>, M>,
     {
         let mut statements: Vec<Expr<'a>> = Vec::new();
 
@@ -121,7 +121,7 @@ impl<'a, R: ParseDiagnosisReporter> Parser<'a, R> {
             }
 
             if eox_res.is_err() && self.cursor.peek().token_type.is_closing_ponctuation() {
-                self.mismatched_delimiter(eog).report(self)?;
+                self.mismatched_delimiter(eog)?; //this is a fatal error
             }
 
             //but if not closed, expect the cursor to hit EOX.
