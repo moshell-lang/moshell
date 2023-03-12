@@ -20,12 +20,16 @@ pub struct Loop<'a> {
     pub body: Box<Expr<'a>>,
 }
 
+/// A for loop.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct For<'a> {
+    /// The type of the for loop.
     pub kind: Box<ForKind<'a>>,
+    /// The body of the for loop.
     pub body: Box<Expr<'a>>,
 }
 
+/// A for loop can be either a range loop or a conditional loop.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub enum ForKind<'a> {
     Range(RangeFor<'a>),

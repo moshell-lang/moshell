@@ -65,6 +65,7 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
+    /// Parses the for kind, either a range for or a conditional for.
     fn parse_for_kind(&mut self) -> ParseResult<ForKind<'a>> {
         let current = self.cursor.peek();
         let start_pos = self.cursor.relative_pos(&current).start;
@@ -77,6 +78,9 @@ impl<'a> Parser<'a> {
                 let conditional_for = self.parse_conditional_for()?;
                 Ok(ForKind::Conditional(conditional_for))
             }
+
+            // Those tokens are not valid here, but we can try to parse them and give a better error
+            // message.
             TokenType::Dollar => {
                 self.cursor.next_opt();
                 if self.parse_range_for().is_ok() {
@@ -100,6 +104,7 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Parses a for loop with range, with a receiver and an iterable.
     fn parse_range_for(&mut self) -> ParseResult<RangeFor<'a>> {
         let receiver = self.cursor.force(
             of_type(TokenType::Identifier),
@@ -119,6 +124,7 @@ impl<'a> Parser<'a> {
         })
     }
 
+    /// Parses a "traditional" conditional for, with a initializer, a condition and an increment.
     fn parse_conditional_for(&mut self) -> ParseResult<ConditionalFor<'a>> {
         let start = self.cursor.force(
             repeat_nm(2, 2, of_type(TokenType::RoundedLeftBracket)),
@@ -140,15 +146,15 @@ impl<'a> Parser<'a> {
         )?;
         let increment = self.statement()?;
 
-        if self.cursor.lookahead(eod()).is_some() {
-            for _ in 0..2 {
+        for _ in 0..2 {
+            if self.cursor.lookahead(eod()).is_some() {
                 self.expect_delimiter(TokenType::RoundedRightBracket)?;
+            } else {
+                self.expected(
+                    "Expected '))' at end of conditional for",
+                    ParseErrorKind::Unpaired(self.cursor.relative_pos(&start)),
+                )?;
             }
-        } else {
-            self.expected(
-                "Expected '))' at end of conditional for",
-                ParseErrorKind::Unexpected,
-            )?;
         }
 
         Ok(ConditionalFor {
@@ -158,6 +164,7 @@ impl<'a> Parser<'a> {
         })
     }
 
+    /// Parses an iterable.
     fn parse_iterable(&mut self) -> ParseResult<Iterable<'a>> {
         let current = self.cursor.peek();
         match current.token_type {
@@ -173,20 +180,28 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Parses a range or an iterable variable expression.
     fn parse_range(&mut self) -> ParseResult<Iterable<'a>> {
         let start_token = self.cursor.peek();
         let start = if start_token.token_type == TokenType::Dollar {
+            // We want the least greedy match, so we specifically ask for only one variable reference.
+            // The two dots that are not part of the variable reference would be matched by the
+            // value parser.
             self.cursor.advance(next());
             self.var_reference()?
         } else {
             self.next_value()?
         };
+
+        // Test if the range is a single value
         if self
             .cursor
             .advance(repeat_nm(2, 2, of_type(TokenType::Dot)))
             .is_none()
         {
             if let Expr::VarReference(path) = start {
+                // We don't know yet if the variable is really iterable,
+                // until type checking.
                 return Ok(Iterable::Var(path));
             }
             return self.expected_with(
@@ -195,8 +210,12 @@ impl<'a> Parser<'a> {
                 Self::suggest_range(&start),
             );
         }
+
+        // Read the second bound of the range
         let upper_inclusive = self.cursor.advance(of_type(TokenType::Equal)).is_some();
         let end = self.next_value()?;
+
+        // Read the step of the range if it exists
         let mut step: Option<Expr<'a>> = None;
         if self.cursor.advance(of_type(TokenType::Dot)).is_some() {
             self.cursor.force(
@@ -205,6 +224,7 @@ impl<'a> Parser<'a> {
             )?;
             step = Some(self.next_value()?);
         }
+
         Ok(Iterable::Range(NumericRange {
             start,
             end,
@@ -213,6 +233,9 @@ impl<'a> Parser<'a> {
         }))
     }
 
+    /// Parse a file pattern.
+    ///
+    /// For now, this is just a single wildcard star.
     fn parse_files_pattern(&mut self) -> ParseResult<FilePattern<'a>> {
         let lexme = self
             .cursor
@@ -223,6 +246,11 @@ impl<'a> Parser<'a> {
         })
     }
 
+    /// Suggests at the parser level that the user might have wanted to use a range instead of a
+    /// single value.
+    ///
+    /// This is parse error and not a type error, because the parser doesn't know if the variable
+    /// is iterable or not. This might be moved to the type checker in the future.
     fn suggest_range(actual_expr: &Expr) -> ParseErrorKind {
         if let Expr::Literal(literal) = actual_expr {
             if let LiteralValue::Int(value) = literal.parsed {
