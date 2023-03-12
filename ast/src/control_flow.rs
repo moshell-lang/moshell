@@ -2,21 +2,30 @@ use crate::range::Iterable;
 use crate::Expr;
 use dbg_pls::DebugPls;
 
+///An if statement
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct If<'a> {
+    ///The if condition expression
     pub condition: Box<Expr<'a>>,
+    ///The executed branch if the condition succeeds
     pub success_branch: Box<Expr<'a>>,
+    ///The 'else' branch if the condition fails
     pub fail_branch: Option<Box<Expr<'a>>>,
 }
 
+///A while loop statement
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct While<'a> {
+    ///The while condition expression
     pub condition: Box<Expr<'a>>,
+    ///The loop's body expression
     pub body: Box<Expr<'a>>,
 }
 
+///A loop statement
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Loop<'a> {
+    ///The loop's body expression
     pub body: Box<Expr<'a>>,
 }
 
