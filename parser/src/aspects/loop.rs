@@ -126,13 +126,16 @@ impl<'a> Parser<'a> {
 
     /// Parses a "traditional" conditional for, with a initializer, a condition and an increment.
     fn parse_conditional_for(&mut self) -> ParseResult<ConditionalFor<'a>> {
-        let start = self.cursor.force(
-            times(2, of_type(TokenType::RoundedLeftBracket)),
-            "expected '((' at start of conditional for",
-        )?;
-        for _ in 0..2 {
-            self.delimiter_stack.push_back(start.clone());
+        let start = self
+            .cursor
+            .select(times(2, of_type(TokenType::RoundedLeftBracket)));
+        if start.is_empty() {
+            return self.expected(
+                "Expected '((' at start of conditional for",
+                ParseErrorKind::Unexpected,
+            );
         }
+        self.delimiter_stack.extend(start.clone());
 
         let initializer = self.statement()?;
         self.cursor.force(
@@ -152,7 +155,7 @@ impl<'a> Parser<'a> {
             } else {
                 self.expected(
                     "Expected '))' at end of conditional for",
-                    ParseErrorKind::Unpaired(self.cursor.relative_pos(&start)),
+                    ParseErrorKind::Unpaired(self.cursor.relative_pos_ctx(&start[..])),
                 )?;
             }
         }

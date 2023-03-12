@@ -117,7 +117,7 @@ fn for_no_dollar_help() {
 }
 
 #[test]
-fn excepted_double_delimiter_for() {
+fn expected_double_delimiter_for() {
     let content = "for ((i = 0; i < 10; i++); break";
     let source = Source::unknown(content);
     let report = parse(source);
@@ -128,7 +128,7 @@ fn excepted_double_delimiter_for() {
             errors: vec![ParseError {
                 message: "Expected '))' at end of conditional for".to_string(),
                 position: content.find(')').map(|p| p + 1..p + 2).unwrap(),
-                kind: ParseErrorKind::Unpaired(content.find('(').map(|p| p + 1..p + 2).unwrap())
+                kind: ParseErrorKind::Unpaired(content.find('(').map(|p| p..p + 2).unwrap())
             }],
             stack_ended: false,
         }
