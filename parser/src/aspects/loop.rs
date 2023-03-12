@@ -2,7 +2,7 @@ use crate::aspects::var_reference::VarReferenceAspect;
 use lexer::token::TokenType;
 
 use crate::err::ParseErrorKind;
-use crate::moves::{blanks, eod, eox, next, of_type, repeat_nm, MoveOperations};
+use crate::moves::{blanks, eod, eox, next, of_type, times, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::control_flow::{ConditionalFor, For, ForKind, Loop, RangeFor, While};
 use ast::range::{FilePattern, Iterable, NumericRange};
@@ -127,7 +127,7 @@ impl<'a> Parser<'a> {
     /// Parses a "traditional" conditional for, with a initializer, a condition and an increment.
     fn parse_conditional_for(&mut self) -> ParseResult<ConditionalFor<'a>> {
         let start = self.cursor.force(
-            repeat_nm(2, 2, of_type(TokenType::RoundedLeftBracket)),
+            times(2, of_type(TokenType::RoundedLeftBracket)),
             "expected '((' at start of conditional for",
         )?;
         for _ in 0..2 {
@@ -196,7 +196,7 @@ impl<'a> Parser<'a> {
         // Test if the range is a single value
         if self
             .cursor
-            .advance(repeat_nm(2, 2, of_type(TokenType::Dot)))
+            .advance(times(2, of_type(TokenType::Dot)))
             .is_none()
         {
             if let Expr::VarReference(path) = start {
