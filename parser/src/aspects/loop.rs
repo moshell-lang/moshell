@@ -514,7 +514,7 @@ mod tests {
 
     #[test]
     fn classical_for() {
-        let source = Source::unknown("for (( var i=0; $i<10; i=$(( $i + 1 )) ))\necho $i");
+        let source = Source::unknown("for (( var i=0; $i<10; i=$i + 1 ))\necho $i");
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
@@ -541,14 +541,12 @@ mod tests {
                     }),
                     increment: Expr::Assign(Assign {
                         name: "i",
-                        value: Box::new(Expr::Parenthesis(Parenthesis {
-                            expression: Box::new(Expr::Binary(BinaryOperation {
-                                left: Box::new(Expr::VarReference(VarReference { name: "i" })),
-                                op: BinaryOperator::Plus,
-                                right: Box::new(Expr::Literal(Literal {
-                                    lexeme: "1",
-                                    parsed: 1.into(),
-                                }))
+                        value: Box::new(Expr::Binary(BinaryOperation {
+                            left: Box::new(Expr::VarReference(VarReference { name: "i" })),
+                            op: BinaryOperator::Plus,
+                            right: Box::new(Expr::Literal(Literal {
+                                lexeme: "1",
+                                parsed: 1.into(),
                             }))
                         })),
                     })
