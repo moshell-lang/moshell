@@ -10,12 +10,13 @@ on:
       - '**.rs'
       - '**/Cargo.toml'
   workflow_dispatch:
-  
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   build:
+    if: github.event_name != 'pull_request' || github.repository != github.event.pull_request.head.repo.full_name
     runs-on: ubuntu-latest
     steps:
     - uses: fkirc/skip-duplicate-actions@v5
