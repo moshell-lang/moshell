@@ -158,21 +158,21 @@ fn for_in_step_2_range() {
         vec![Expr::For(For {
             kind: Box::new(ForKind::Range(RangeFor {
                 receiver: "i",
-                iterable: Iterable::Range(NumericRange {
-                    start: Expr::Literal(Literal {
+                iterable: Expr::Range(Iterable::Range(NumericRange {
+                    start: Box::new(Expr::Literal(Literal {
                         lexeme: "1",
                         parsed: 1.into(),
-                    }),
-                    end: Expr::Literal(Literal {
+                    })),
+                    end: Box::new(Expr::Literal(Literal {
                         lexeme: "10",
                         parsed: 10.into(),
-                    }),
-                    step: Some(Expr::Literal(Literal {
+                    })),
+                    step: Some(Box::new(Expr::Literal(Literal {
                         lexeme: "2",
                         parsed: 2.into(),
-                    })),
+                    }))),
                     upper_inclusive: true,
-                })
+                }))
             })),
             body: Box::new(Expr::Break),
         })]

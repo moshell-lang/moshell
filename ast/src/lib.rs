@@ -4,6 +4,7 @@ use crate::group::{Block, Parenthesis, Subshell};
 use crate::operation::BinaryOperation;
 use crate::r#match::Match;
 use crate::r#use::Use;
+use crate::range::Iterable;
 use crate::structure::Construct;
 use crate::substitution::Substitution;
 use crate::test::{Not, Test};
@@ -58,6 +59,7 @@ pub enum Expr<'a> {
     //var / val handling expressions
     VarReference(VarReference<'a>),
     VarDeclaration(VarDeclaration<'a>),
+    Range(Iterable<'a>),
 
     //Grouping expressions
     /// a parenthesis expression `( ... )` that contains one value expression

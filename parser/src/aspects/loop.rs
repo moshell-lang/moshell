@@ -1,11 +1,10 @@
-use crate::aspects::var_reference::VarReferenceAspect;
 use lexer::token::TokenType;
 
 use crate::err::ParseErrorKind;
-use crate::moves::{blanks, eod, eox, next, of_type, times, MoveOperations};
+use crate::moves::{blanks, eod, eox, of_type, times, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::control_flow::{ConditionalFor, For, ForKind, Loop, RangeFor, While};
-use ast::range::{FilePattern, Iterable, NumericRange};
+use ast::range::FilePattern;
 use ast::value::LiteralValue;
 use ast::Expr;
 
@@ -116,7 +115,7 @@ impl<'a> Parser<'a> {
             "expected 'in' after receiver in range for",
         )?;
         self.cursor.advance(blanks());
-        let iterable = self.parse_iterable()?;
+        let iterable = self.expression()?;
 
         Ok(RangeFor {
             receiver: receiver.value,
@@ -168,72 +167,8 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses an iterable.
-    fn parse_iterable(&mut self) -> ParseResult<Iterable<'a>> {
-        let current = self.cursor.peek();
-        match current.token_type {
-            TokenType::Dollar | TokenType::IntLiteral | TokenType::RoundedLeftBracket => {
-                self.parse_range()
-            }
-            TokenType::Star => self.parse_files_pattern().map(Iterable::Files),
-            _ => Err(self.cursor.mk_parse_error(
-                "Expected iterable",
-                current,
-                ParseErrorKind::Unexpected,
-            )),
-        }
-    }
-
-    /// Parses a range or an iterable variable expression.
-    fn parse_range(&mut self) -> ParseResult<Iterable<'a>> {
-        let start_token = self.cursor.peek();
-        let start = if start_token.token_type == TokenType::Dollar {
-            // We want the least greedy match, so we specifically ask for only one variable reference.
-            // The two dots that are not part of the variable reference would be matched by the
-            // value parser.
-            self.cursor.advance(next());
-            self.var_reference()?
-        } else {
-            self.next_value()?
-        };
-
-        // Test if the range is a single value
-        if self
-            .cursor
-            .advance(times(2, of_type(TokenType::Dot)))
-            .is_none()
-        {
-            if let Expr::VarReference(path) = start {
-                // We don't know yet if the variable is really iterable,
-                // until type checking.
-                return Ok(Iterable::Var(path));
-            }
-            return self.expected_with(
-                "Expected a numeric range, got a single value.",
-                start_token..self.cursor.peek(),
-                Self::suggest_range(&start),
-            );
-        }
-
-        // Read the second bound of the range
-        let upper_inclusive = self.cursor.advance(of_type(TokenType::Equal)).is_some();
-        let end = self.next_value()?;
-
-        // Read the step of the range if it exists
-        let mut step: Option<Expr<'a>> = None;
-        if self.cursor.advance(of_type(TokenType::Dot)).is_some() {
-            self.cursor.force(
-                of_type(TokenType::Dot),
-                "expected '..' before step of range",
-            )?;
-            step = Some(self.next_value()?);
-        }
-
-        Ok(Iterable::Range(NumericRange {
-            start,
-            end,
-            step,
-            upper_inclusive,
-        }))
+    fn parse_iterable(&mut self) -> ParseResult<Expr<'a>> {
+        self.next_value()
     }
 
     /// Parse a file pattern.
@@ -273,8 +208,8 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
-    use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
     use ast::callable::Call;
@@ -384,18 +319,18 @@ mod tests {
             vec![Expr::For(For {
                 kind: Box::new(ForKind::Range(RangeFor {
                     receiver: "i",
-                    iterable: Iterable::Range(NumericRange {
-                        start: Expr::Literal(Literal {
+                    iterable: Expr::Range(Iterable::Range(NumericRange {
+                        start: Box::new(Expr::Literal(Literal {
                             lexeme: "1",
                             parsed: 1.into(),
-                        }),
-                        end: Expr::Literal(Literal {
+                        })),
+                        end: Box::new(Expr::Literal(Literal {
                             lexeme: "10",
                             parsed: 10.into(),
-                        }),
+                        })),
                         step: None,
                         upper_inclusive: false,
-                    })
+                    }))
                 })),
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
@@ -419,12 +354,12 @@ mod tests {
             vec![Expr::For(For {
                 kind: Box::new(ForKind::Range(RangeFor {
                     receiver: "n",
-                    iterable: Iterable::Range(NumericRange {
-                        start: Expr::VarReference(VarReference { name: "a" }),
-                        end: Expr::VarReference(VarReference { name: "b" }),
+                    iterable: Expr::Range(Iterable::Range(NumericRange {
+                        start: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                        end: Box::new(Expr::VarReference(VarReference { name: "b" })),
                         step: None,
                         upper_inclusive: false,
-                    })
+                    }))
                 })),
                 body: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal("cat".into())],
@@ -435,31 +370,16 @@ mod tests {
     }
 
     #[test]
-    fn for_in_invalid_range() {
-        let content = "for i in 5; ls";
-        let source = Source::unknown(content);
-        let expr: ParseResult<_> = parse(source).into();
-        assert_eq!(
-            expr,
-            Err(ParseError {
-                message: "Expected a numeric range, got a single value.".to_string(),
-                position: content.find('5').map(|p| p..p + 2).unwrap(),
-                kind: ParseErrorKind::UnexpectedInContext("Use the range syntax: 0..5".to_string(),),
-            })
-        );
-    }
-
-    #[test]
     fn for_in_calculated_range() {
-        let source = Source::unknown("for i in (1 + 1)..5; ls");
+        let source = Source::unknown("for i in $((1 + 1))..5; ls");
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::For(For {
                 kind: Box::new(ForKind::Range(RangeFor {
                     receiver: "i",
-                    iterable: Iterable::Range(NumericRange {
-                        start: Expr::Parenthesis(Parenthesis {
+                    iterable: Expr::Range(Iterable::Range(NumericRange {
+                        start: Box::new(Expr::Parenthesis(Parenthesis {
                             expression: Box::new(Expr::Binary(BinaryOperation {
                                 left: Box::new(Expr::Literal(Literal {
                                     lexeme: "1",
@@ -471,14 +391,14 @@ mod tests {
                                     parsed: 1.into(),
                                 })),
                             }))
-                        }),
-                        end: Expr::Literal(Literal {
+                        })),
+                        end: Box::new(Expr::Literal(Literal {
                             lexeme: "5",
                             parsed: 5.into(),
-                        }),
+                        })),
                         step: None,
                         upper_inclusive: false,
-                    })
+                    }))
                 })),
                 body: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal("ls".into())],
@@ -497,10 +417,10 @@ mod tests {
             vec![Expr::For(For {
                 kind: Box::new(ForKind::Range(RangeFor {
                     receiver: "f",
-                    iterable: Iterable::Files(FilePattern {
+                    iterable: Expr::Range(Iterable::Files(FilePattern {
                         lexeme: "*",
                         pattern: "*".to_owned(),
-                    })
+                    }))
                 })),
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {

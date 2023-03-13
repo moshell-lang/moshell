@@ -1,4 +1,3 @@
-use crate::range::Iterable;
 use crate::Expr;
 use dbg_pls::DebugPls;
 
@@ -51,7 +50,7 @@ pub struct RangeFor<'a> {
     /// The variable name that will be used in the loop to designate the current item.
     pub receiver: &'a str,
     /// The range of values that will be iterated over.
-    pub iterable: Iterable<'a>,
+    pub iterable: Expr<'a>,
 }
 
 /// A for in conditional loop, e.g. `for (( i = 0; i < 10; i++ )); ...`.

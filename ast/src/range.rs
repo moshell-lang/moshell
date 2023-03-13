@@ -1,4 +1,3 @@
-use crate::variable::VarReference;
 use crate::Expr;
 use dbg_pls::DebugPls;
 
@@ -7,22 +6,21 @@ use dbg_pls::DebugPls;
 pub enum Iterable<'a> {
     Range(NumericRange<'a>),
     Files(FilePattern<'a>),
-    Var(VarReference<'a>),
 }
 
 /// A range of numeric values.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct NumericRange<'a> {
     /// The inclusive start of the range.
-    pub start: Expr<'a>,
+    pub start: Box<Expr<'a>>,
 
     /// The end of the range.
     ///
     /// See `upper_inclusive` for whether this is inclusive or exclusive.
-    pub end: Expr<'a>,
+    pub end: Box<Expr<'a>>,
 
     /// The step of the range.
-    pub step: Option<Expr<'a>>,
+    pub step: Option<Box<Expr<'a>>>,
 
     /// Whether the upper bound is inclusive or exclusive.
     pub upper_inclusive: bool,
