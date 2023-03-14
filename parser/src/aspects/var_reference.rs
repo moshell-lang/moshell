@@ -6,6 +6,7 @@ use crate::moves::{like, of_type, repeat, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::variable::VarReference;
 use ast::Expr;
+use lexer::token::TokenType;
 
 pub trait VarReferenceAspect<'a> {
     /// Parses a variable reference.
@@ -21,7 +22,7 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
             .cursor
             .select(
                 of_type(Dollar) //only allow one occurrence of $
-                    .or(repeat(like(|t| t != Dollar && t.is_valid_var_ref_name()))),
+                    .or(repeat(like(TokenType::is_valid_var_ref_name))),
             )
             .leak();
 
@@ -115,7 +116,7 @@ mod tests {
             result,
             Err(ParseError {
                 message: "Expected closing curly bracket.".to_string(),
-                position: 4..5,
+                position: 3..4,
                 kind: ParseErrorKind::Unpaired(content.find('{').map(|p| p..p + 1).unwrap()),
             })
         )

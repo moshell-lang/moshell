@@ -144,7 +144,7 @@ mod tests {
             ast,
             Err(ParseError {
                 message: "expected end of expression or file".to_string(),
-                position: content.len()..content.len(),
+                position: content.len()-1..content.len(),
                 kind: ParseErrorKind::Unexpected
             })
         );

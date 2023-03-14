@@ -1,3 +1,5 @@
+use dbg_pls::DebugPls;
+
 use crate::call::{Call, Detached, Pipeline, Redirected};
 use crate::control_flow::{If, Loop, While};
 use crate::group::{Block, Parenthesis, Subshell};
@@ -9,20 +11,20 @@ use crate::substitution::Substitution;
 use crate::test::{Not, Test};
 use crate::value::{Literal, TemplateString};
 use crate::variable::{Assign, VarDeclaration, VarReference};
-use dbg_pls::DebugPls;
 
 pub mod call;
 pub mod control_flow;
+pub mod function;
 pub mod group;
 pub mod r#match;
 pub mod operation;
 pub mod structure;
 pub mod substitution;
 pub mod test;
+pub mod r#type;
 pub mod r#use;
 pub mod value;
 pub mod variable;
-pub mod function;
 
 /// A expression that can be evaluated.
 #[derive(Debug, Clone, PartialEq, DebugPls)]

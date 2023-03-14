@@ -72,7 +72,7 @@ impl<'a> ParserCursor<'a> {
     /// This method will move the current cursor position on where the move ended.
     pub fn force(&mut self, mov: impl Move, err: &str) -> ParseResult<Token<'a>> {
         self.advance(mov).ok_or_else(|| {
-            self.mk_parse_error(err, self.at(self.pos + 1), ParseErrorKind::Unexpected)
+            self.mk_parse_error(err, self.at(self.pos), ParseErrorKind::Unexpected)
         })
     }
 
@@ -83,7 +83,7 @@ impl<'a> ParserCursor<'a> {
         kind: ParseErrorKind,
     ) -> ParseResult<Token<'a>> {
         self.advance(mov)
-            .ok_or_else(|| self.mk_parse_error(err, self.at(self.pos + 1), kind))
+            .ok_or_else(|| self.mk_parse_error(err, self.at(self.pos), kind))
     }
 
     ///Advance and returns a selection of token.

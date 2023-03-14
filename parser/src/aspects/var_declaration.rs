@@ -3,6 +3,7 @@ use lexer::token::TokenType;
 use crate::err::ParseErrorKind;
 use ast::variable::{NamedDeclaration, VarDeclaration, VarKind};
 use ast::Expr;
+use crate::aspects::r#type::TypeAspect;
 
 use crate::moves::{of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
@@ -39,12 +40,7 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
         {
             None => None,
             Some(_) => Some(
-                self.cursor
-                    .force(
-                        spaces().then(of_type(TokenType::Identifier)),
-                        "Expected identifier for variable type",
-                    )?
-                    .value,
+                self.parse_type()?,
             ),
         };
         let initializer = match self
@@ -83,6 +79,7 @@ mod tests {
     use ast::Expr;
     use context::source::Source;
     use pretty_assertions::assert_eq;
+    use ast::r#type::Type;
 
     #[test]
     fn val_declaration() {
@@ -105,7 +102,7 @@ mod tests {
 
     #[test]
     fn val_declaration_with_type() {
-        let source = Source::unknown("val variable: Array");
+        let source = Source::unknown("val variable: int");
         let ast = Parser::new(source)
             .var_declaration()
             .expect("failed to parse");
@@ -115,7 +112,10 @@ mod tests {
                 kind: VarKind::Val,
                 var: NamedDeclaration {
                     name: "variable",
-                    ty: Some("Array"),
+                    ty: Some(Type {
+                        name: "int",
+                        params: Vec::new(),
+                    }),
                 },
                 initializer: None,
             })

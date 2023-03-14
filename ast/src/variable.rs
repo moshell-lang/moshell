@@ -1,7 +1,6 @@
 use crate::Expr;
 use dbg_pls::DebugPls;
-
-
+use crate::r#type::Type;
 
 /// A variable declaration.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
@@ -20,7 +19,7 @@ pub struct NamedDeclaration<'a> {
     /// The name of the variable.
     pub name: &'a str,
     /// The type of the declared variable.
-    pub ty: Option<&'a str>,
+    pub ty: Option<Type<'a>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, DebugPls)]

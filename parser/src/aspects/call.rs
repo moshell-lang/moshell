@@ -1,15 +1,15 @@
 use crate::aspects::group::GroupAspect;
 use crate::aspects::literal::LiteralAspect;
 use lexer::token::TokenType;
-use lexer::token::TokenType::{Comma, SquaredLeftBracket, SquaredRightBracket};
 
 use crate::aspects::redirection::RedirectionAspect;
 use crate::aspects::structure::StructureAspect;
-use crate::err::ParseErrorKind;
-use crate::moves::{eox, like, of_type, spaces, word_seps, MoveOperations};
+use crate::moves::{eox, like, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::call::Call;
 use ast::Expr;
+use ast::r#type::Type;
+use crate::aspects::r#type::TypeAspect;
 
 /// A parse aspect for command and function calls
 pub trait CallAspect<'a> {
@@ -17,18 +17,18 @@ pub trait CallAspect<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>>;
 
     /// Continues to parse a call expression from a known command name expression
-    fn call_arguments(&mut self, command: Expr<'a>, tparams: Vec<&'a str>)
+    fn call_arguments(&mut self, command: Expr<'a>, tparams: Vec<Type<'a>>)
         -> ParseResult<Expr<'a>>;
 }
 
 impl<'a> CallAspect<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
         let callee = self.next_value()?;
-        let tparams = self.call_type_parameters()?;
+        let tparams = self.parse_type_parameter_list()?;
         self.call_arguments(callee, tparams)
     }
 
-    fn call_arguments(&mut self, callee: Expr<'a>, tparams: Vec<&'a str>) -> ParseResult<Expr<'a>> {
+    fn call_arguments(&mut self, callee: Expr<'a>, tparams: Vec<Type<'a>>) -> ParseResult<Expr<'a>> {
         let mut arguments = vec![callee];
 
         self.cursor.advance(word_seps()); //consume word separations
@@ -65,53 +65,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn call_type_parameters(&mut self) -> ParseResult<Vec<&'a str>> {
-        let start = match self.cursor.advance(of_type(SquaredLeftBracket)) {
-            Some(start) => start,
-            None => return Ok(Vec::new()),
-        };
 
-        if self
-            .cursor
-            .advance(word_seps().then(of_type(SquaredRightBracket)))
-            .is_some()
-        {
-            return self.expected_with(
-                "unexpected empty type parameter list",
-                start..self.cursor.peek(),
-                ParseErrorKind::Unexpected,
-            );
-        }
-        let mut tparams = vec![self.call_type_parameter()?];
-
-        while self
-            .cursor
-            .advance(word_seps().then(of_type(SquaredRightBracket)))
-            .is_none()
-        {
-            self.cursor.force(
-                word_seps().then(of_type(Comma)),
-                "A comma or a closing bracket was expected here",
-            )?;
-            tparams.push(self.call_type_parameter()?);
-        }
-
-        Ok(tparams)
-    }
-
-    fn call_type_parameter(&mut self) -> ParseResult<&'a str> {
-        self.cursor.advance(spaces()); //consume spaces
-        let first = self.cursor.next()?;
-
-        if first.token_type != TokenType::Identifier {
-            return self.expected_with(
-                &format!("'{}' is not a valid type identifier.", first.value),
-                first,
-                ParseErrorKind::Unexpected,
-            );
-        }
-        Ok(first.value)
-    }
 }
 
 #[cfg(test)]
@@ -125,6 +79,7 @@ mod tests {
     use ast::call::Call;
     use ast::value::Literal;
     use ast::Expr;
+    use ast::r#type::Type;
 
     #[test]
     fn wrong_group_end() {
@@ -134,7 +89,7 @@ mod tests {
             Parser::new(source).parse_next(),
             Err(ParseError {
                 message: "expected end of expression or file".to_string(),
-                position: content.len()..content.len(),
+                position: content.len()-1..content.len(),
                 kind: ParseErrorKind::Unexpected,
             })
         );
@@ -142,7 +97,7 @@ mod tests {
 
     #[test]
     fn call_with_type_parameter() {
-        let content = "parse[Int] x y";
+        let content = "parse[int] x y";
         let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source).parse_next(),
@@ -152,24 +107,10 @@ mod tests {
                     Expr::Literal("x".into()),
                     Expr::Literal("y".into())
                 ],
-                type_parameters: vec!["Int"]
-            }))
-        );
-    }
-
-    #[test]
-    fn call_with_type_parameters() {
-        let content = "complex[  int , float  ,  Structure  ] x y";
-        let source = Source::unknown(content);
-        assert_eq!(
-            Parser::new(source).parse_next(),
-            Ok(Expr::Call(Call {
-                arguments: vec![
-                    Expr::Literal("complex".into()),
-                    Expr::Literal("x".into()),
-                    Expr::Literal("y".into())
-                ],
-                type_parameters: vec!["int", "float", "Structure"]
+                type_parameters: vec![Type {
+                    name: "int",
+                    params: Vec::new()
+                }]
             }))
         );
     }
@@ -214,7 +155,7 @@ mod tests {
             Err(ParseError {
                 message: "A comma or a closing bracket was expected here".to_string(),
                 kind: ParseErrorKind::Unexpected,
-                position: content.find('y').map(|i| i..i + 1).unwrap()
+                position: content.find('y').map(|i| i-1..i).unwrap()
             })
         );
     }

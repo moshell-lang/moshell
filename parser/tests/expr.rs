@@ -7,6 +7,7 @@ use ast::Expr;
 use context::source::Source;
 use parser::parse;
 use pretty_assertions::assert_eq;
+use ast::r#type::Type;
 
 #[test]
 fn empty() {
@@ -24,7 +25,10 @@ fn variable_type_and_initializer() {
         kind: VarKind::Var,
         var: NamedDeclaration {
             name: "a",
-            ty: Some("int"),
+            ty: Some(Type {
+                name: "int",
+                params: Vec::new()
+            }),
         },
         initializer: Some(Box::new(Expr::Literal(Literal {
             lexeme: "1",

@@ -140,6 +140,7 @@ mod tests {
     use ast::Expr;
     use context::source::Source;
     use pretty_assertions::assert_eq;
+    use ast::r#type::Type;
 
     //noinspection DuplicatedCode
     #[test]
@@ -310,7 +311,10 @@ mod tests {
                         kind: VarKind::Var,
                         var: NamedDeclaration {
                             name: "test",
-                            ty: Some("int"),
+                            ty: Some(Type {
+                                name: "int",
+                                params: Vec::new()
+                            }),
                         },
                         initializer: Some(Box::new(Expr::Literal(Literal {
                             lexeme: "7.0",
