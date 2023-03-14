@@ -343,7 +343,7 @@ mod tests {
 
     #[test]
     fn for_in_calculated_range() {
-        let source = Source::unknown("for i in $((1 + 1))..5; ls");
+        let source = Source::unknown("for i in (1 + 1)..5; ls");
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
