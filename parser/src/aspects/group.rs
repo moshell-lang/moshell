@@ -132,11 +132,11 @@ impl<'a> Parser<'a> {
 mod tests {
     use crate::aspects::group::GroupAspect;
     use crate::parser::Parser;
-    use ast::callable::Call;
+    use ast::call::Call;
     use ast::group::{Block, Subshell};
     use ast::value::Literal;
     use ast::value::LiteralValue::{Float, Int};
-    use ast::variable::{TypedVariable, VarDeclaration, VarKind};
+    use ast::variable::{NamedDeclaration, VarDeclaration, VarKind};
     use ast::Expr;
     use context::source::Source;
     use pretty_assertions::assert_eq;
@@ -234,7 +234,7 @@ mod tests {
                 expressions: vec![
                     Expr::VarDeclaration(VarDeclaration {
                         kind: VarKind::Val,
-                        var: TypedVariable {
+                        var: NamedDeclaration {
                             name: "test",
                             ty: None,
                         },
@@ -242,7 +242,7 @@ mod tests {
                             expressions: vec![
                                 Expr::VarDeclaration(VarDeclaration {
                                     kind: VarKind::Val,
-                                    var: TypedVariable {
+                                    var: NamedDeclaration {
                                         name: "x",
                                         ty: None,
                                     },
@@ -262,7 +262,7 @@ mod tests {
                         expressions: vec![
                             Expr::VarDeclaration(VarDeclaration {
                                 kind: VarKind::Val,
-                                var: TypedVariable {
+                                var: NamedDeclaration {
                                     name: "x",
                                     ty: None,
                                 },
@@ -276,7 +276,7 @@ mod tests {
                                     Expr::Literal("command".into()),
                                     Expr::Literal("call".into()),
                                 ],
-                                tparams: vec![],
+                                type_parameters: vec![],
                             }),
                             Expr::Literal(Literal {
                                 lexeme: "7",
@@ -308,7 +308,7 @@ mod tests {
                 expressions: vec![
                     Expr::VarDeclaration(VarDeclaration {
                         kind: VarKind::Var,
-                        var: TypedVariable {
+                        var: NamedDeclaration {
                             name: "test",
                             ty: Some("int"),
                         },
@@ -319,7 +319,7 @@ mod tests {
                     }),
                     Expr::VarDeclaration(VarDeclaration {
                         kind: VarKind::Val,
-                        var: TypedVariable {
+                        var: NamedDeclaration {
                             name: "x",
                             ty: None,
                         },

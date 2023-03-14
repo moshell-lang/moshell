@@ -50,7 +50,7 @@ mod tests {
     use crate::err::ParseErrorKind::Unexpected;
     use crate::parse;
     use crate::parser::ParseResult;
-    use ast::callable::Call;
+    use ast::call::Call;
     use ast::control_flow::{Loop, While};
     use ast::group::Block;
     use ast::operation::BinaryOperation;
@@ -91,7 +91,7 @@ mod tests {
                             Expr::Literal("ssh".into()),
                             Expr::Literal("mabatista1@iut".into())
                         ],
-                        tparams: vec![],
+                        type_parameters: vec![],
                     })),
                     op: And,
                     right: Box::new(Break)
@@ -108,7 +108,7 @@ mod tests {
             vec![Expr::Loop(Loop {
                 body: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal("date".into())],
-                    tparams: vec![],
+                    type_parameters: vec![],
                 }))
             })]
         )
@@ -139,7 +139,7 @@ mod tests {
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
                         arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
-                        tparams: vec![],
+                        type_parameters: vec![],
                     })]
                 })),
             })]

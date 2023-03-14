@@ -60,14 +60,14 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
-    use ast::callable::Call;
+    use ast::call::Call;
     use ast::control_flow::If;
     use ast::group::Block;
     use ast::operation::BinaryOperator::And;
     use ast::operation::{BinaryOperation, BinaryOperator};
     use ast::test::Test;
     use ast::value::{Literal, TemplateString};
-    use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
+    use ast::variable::{NamedDeclaration, VarDeclaration, VarKind, VarReference};
     use ast::Expr;
     use context::source::Source;
     use pretty_assertions::assert_eq;
@@ -84,7 +84,7 @@ mod tests {
                 })),
                 success_branch: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
-                    tparams: vec![],
+                    type_parameters: vec![],
                 })),
                 fail_branch: None,
             })]
@@ -103,7 +103,7 @@ mod tests {
                 condition: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Call(Call {
                         arguments: vec![Expr::Literal("echo".into()), Expr::Literal("a".into())],
-                        tparams: vec![],
+                        type_parameters: vec![],
                     })),
                     op: And,
                     right: Box::new(Expr::Call(Call {
@@ -112,12 +112,12 @@ mod tests {
                             Expr::Literal("-f".into()),
                             Expr::Literal("/file/exe".into())
                         ],
-                        tparams: vec![],
+                        type_parameters: vec![],
                     }))
                 })),
                 success_branch: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
-                    tparams: vec![],
+                    type_parameters: vec![],
                 })),
                 fail_branch: Some(Box::new(Expr::If(If {
                     condition: Box::new(Expr::Test(Test {
@@ -144,7 +144,7 @@ mod tests {
                 })),
                 success_branch: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
-                    tparams: vec![],
+                    type_parameters: vec![],
                 })),
                 fail_branch: Some(Box::new(Expr::If(If {
                     condition: Box::new(Expr::Test(Test {
@@ -184,7 +184,7 @@ mod tests {
             ast,
             vec![Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
-                var: TypedVariable {
+                var: NamedDeclaration {
                     name: "x",
                     ty: None,
                 },
@@ -197,7 +197,7 @@ mod tests {
                                         Expr::Literal("date".into()),
                                         Expr::Literal("+\"%Y\"".into())
                                     ],
-                                    tparams: vec![],
+                                    type_parameters: vec![],
                                 })]
                             })),
                             op: BinaryOperator::Less,

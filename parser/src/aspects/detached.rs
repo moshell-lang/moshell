@@ -3,7 +3,7 @@ use lexer::token::TokenType::Ampersand;
 use crate::err::ParseErrorKind;
 use crate::moves::{of_type, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use ast::callable::Detached;
+use ast::call::Detached;
 use ast::Expr;
 
 ///parses a detached expression (<expr> &)
@@ -37,7 +37,7 @@ impl<'a> DetachedAspect<'a> for Parser<'a> {
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use ast::callable::{Call, Detached};
+    use ast::call::{Call, Detached};
     use ast::group::Block;
     use ast::Expr;
     use ast::Expr::Literal;
@@ -72,7 +72,7 @@ mod tests {
                     expressions: vec![Expr::Detached(Detached {
                         underlying: Box::new(Expr::Call(Call {
                             arguments: vec![Literal("date".into())],
-                            tparams: vec![],
+                            type_parameters: vec![],
                         }))
                     })]
                 }))

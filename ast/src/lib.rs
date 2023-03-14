@@ -1,4 +1,4 @@
-use crate::callable::{Call, Detached, Pipeline, Redirected};
+use crate::call::{Call, Detached, Pipeline, Redirected};
 use crate::control_flow::{If, Loop, While};
 use crate::group::{Block, Parenthesis, Subshell};
 use crate::operation::BinaryOperation;
@@ -11,7 +11,7 @@ use crate::value::{Literal, TemplateString};
 use crate::variable::{Assign, VarDeclaration, VarReference};
 use dbg_pls::DebugPls;
 
-pub mod callable;
+pub mod call;
 pub mod control_flow;
 pub mod group;
 pub mod r#match;
@@ -22,6 +22,7 @@ pub mod test;
 pub mod r#use;
 pub mod value;
 pub mod variable;
+pub mod function;
 
 /// A expression that can be evaluated.
 #[derive(Debug, Clone, PartialEq, DebugPls)]

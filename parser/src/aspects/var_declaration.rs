@@ -1,7 +1,7 @@
 use lexer::token::TokenType;
 
 use crate::err::ParseErrorKind;
-use ast::variable::{TypedVariable, VarDeclaration, VarKind};
+use ast::variable::{NamedDeclaration, VarDeclaration, VarKind};
 use ast::Expr;
 
 use crate::moves::{of_type, of_types, spaces, MoveOperations};
@@ -64,7 +64,7 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
 
         Ok(Expr::VarDeclaration(VarDeclaration {
             kind,
-            var: TypedVariable { name, ty },
+            var: NamedDeclaration { name, ty },
             initializer: initializer.map(Box::new),
         }))
     }
@@ -75,7 +75,7 @@ mod tests {
     use super::*;
     use crate::err::ParseError;
     use crate::parser::Parser;
-    use ast::callable::Call;
+    use ast::call::Call;
     use ast::group::Block;
     use ast::operation::BinaryOperation;
     use ast::operation::BinaryOperator::Plus;
@@ -94,7 +94,7 @@ mod tests {
             ast,
             Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
-                var: TypedVariable {
+                var: NamedDeclaration {
                     name: "variable",
                     ty: None
                 },
@@ -113,7 +113,7 @@ mod tests {
             ast,
             Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
-                var: TypedVariable {
+                var: NamedDeclaration {
                     name: "variable",
                     ty: Some("Array"),
                 },
@@ -140,7 +140,7 @@ mod tests {
             ast,
             Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
-                var: TypedVariable {
+                var: NamedDeclaration {
                     name: "variable",
                     ty: None,
                 },
@@ -175,7 +175,7 @@ mod tests {
             result,
             Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
-                var: TypedVariable {
+                var: NamedDeclaration {
                     name: "x",
                     ty: None,
                 },
@@ -191,7 +191,7 @@ mod tests {
                                 parsed: "a".into(),
                             }),
                         ],
-                        tparams: vec![],
+                        type_parameters: vec![],
                     })]
                 }))),
             })
@@ -208,7 +208,7 @@ mod tests {
             ast,
             Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
-                var: TypedVariable {
+                var: NamedDeclaration {
                     name: "variable",
                     ty: None,
                 },

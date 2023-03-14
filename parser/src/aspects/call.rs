@@ -8,7 +8,7 @@ use crate::aspects::structure::StructureAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{eox, like, of_type, spaces, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use ast::callable::Call;
+use ast::call::Call;
 use ast::Expr;
 
 /// A parse aspect for command and function calls
@@ -44,10 +44,10 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         }
 
         if self.is_at_redirection_sign() {
-            return self.redirectable(Expr::Call(Call { arguments, tparams }));
+            return self.redirectable(Expr::Call(Call { arguments, type_parameters: tparams }));
         }
 
-        Ok(Expr::Call(Call { arguments, tparams }))
+        Ok(Expr::Call(Call { arguments, type_parameters: tparams }))
     }
 }
 
@@ -122,7 +122,7 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::Parser;
-    use ast::callable::Call;
+    use ast::call::Call;
     use ast::value::Literal;
     use ast::Expr;
 
@@ -152,7 +152,7 @@ mod tests {
                     Expr::Literal("x".into()),
                     Expr::Literal("y".into())
                 ],
-                tparams: vec!["Int"]
+                type_parameters: vec!["Int"]
             }))
         );
     }
@@ -169,7 +169,7 @@ mod tests {
                     Expr::Literal("x".into()),
                     Expr::Literal("y".into())
                 ],
-                tparams: vec!["int", "float", "Structure"]
+                type_parameters: vec!["int", "float", "Structure"]
             }))
         );
     }
@@ -235,7 +235,7 @@ mod tests {
                     Expr::Literal("you".into()),
                     Expr::Literal("!".into()),
                 ],
-                tparams: vec![],
+                type_parameters: vec![],
             })]
         );
     }
@@ -253,11 +253,11 @@ mod tests {
                         Expr::Literal("-E".into()),
                         Expr::Literal("regex".into()),
                     ],
-                    tparams: vec![]
+                    type_parameters: vec![]
                 }),
                 Expr::Call(Call {
                     arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
-                    tparams: vec![],
+                    type_parameters: vec![],
                 }),
             ]
         )
@@ -277,7 +277,7 @@ mod tests {
                     Expr::Literal("-Wextra".into()),
                     Expr::Literal("-Wpedantic".into()),
                 ],
-                tparams: vec![],
+                type_parameters: vec![],
             }),]
         )
     }
@@ -300,7 +300,7 @@ mod tests {
                     Expr::Literal("echo".into()),
                     Expr::Literal("test".into()),
                 ],
-                tparams: vec![]
+                type_parameters: vec![]
             }),]
         )
     }

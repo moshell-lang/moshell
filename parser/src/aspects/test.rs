@@ -83,7 +83,7 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
-    use ast::callable::Call;
+    use ast::call::Call;
     use ast::group::{Parenthesis, Subshell};
     use ast::operation::{BinaryOperation, BinaryOperator};
     use ast::test::{Not, Test};
@@ -131,7 +131,7 @@ mod tests {
             result,
             vec![Expr::Call(Call {
                 arguments: vec![Expr::Literal("test".into())],
-                tparams: vec![],
+                type_parameters: vec![],
             })]
         )
     }
@@ -155,7 +155,7 @@ mod tests {
                         parsed: LiteralValue::Int(100),
                     }),
                 ],
-                tparams: vec![],
+                type_parameters: vec![],
             })]
         )
     }
@@ -170,7 +170,7 @@ mod tests {
                 left: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Call(Call {
                         arguments: vec![Expr::Literal("echo".into())],
-                        tparams: vec![],
+                        type_parameters: vec![],
                     })),
                     op: BinaryOperator::And,
                     right: Box::new(Expr::Test(Test {
@@ -189,7 +189,7 @@ mod tests {
                         Expr::Literal("test".into()),
                         Expr::VarReference(VarReference { name: "1" }),
                     ],
-                    tparams: vec![],
+                    type_parameters: vec![],
                 })),
             })]
         )
@@ -256,7 +256,7 @@ mod tests {
                             parsed: LiteralValue::String("^[0-9]+$".to_string()),
                         }),
                     ],
-                    tparams: vec![],
+                    type_parameters: vec![],
                 }))
             })]
         )

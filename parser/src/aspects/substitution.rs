@@ -60,7 +60,7 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::aspects::substitution::SubstitutionAspect;
-    use ast::callable::Call;
+    use ast::call::Call;
     use ast::substitution::{Substitution, SubstitutionKind};
     use ast::Expr;
 
@@ -120,13 +120,13 @@ mod tests {
                                     underlying: Subshell {
                                         expressions: vec![Expr::Call(Call {
                                             arguments: vec![Expr::Literal("pwd".into())],
-                                            tparams: vec![],
+                                            type_parameters: vec![],
                                         })],
                                     },
                                     kind: SubstitutionKind::Capture,
                                 }),
                             ],
-                            tparams: vec![],
+                            type_parameters: vec![],
                         })]
                     })],
                 },
