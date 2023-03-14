@@ -4,7 +4,7 @@ use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::range::{Iterable, NumericRange};
 use ast::structure::Construct;
 use ast::value::{Literal, LiteralValue};
-use ast::variable::{TypedVariable, VarDeclaration, VarKind};
+use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind};
 use ast::Expr;
 use context::source::Source;
 use parser::parse;
@@ -145,6 +145,30 @@ fn wildcard_redirect_or() {
                 ],
                 tparams: Vec::new()
             })),
+        })]
+    );
+}
+
+#[test]
+fn assign_iterable() {
+    let source = Source::unknown("it = 1..10");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Assign(Assign {
+            name: "it",
+            value: Box::new(Expr::Range(Iterable::Range(NumericRange {
+                start: Box::new(Expr::Literal(Literal {
+                    lexeme: "1",
+                    parsed: 1.into(),
+                })),
+                end: Box::new(Expr::Literal(Literal {
+                    lexeme: "10",
+                    parsed: 10.into(),
+                })),
+                step: None,
+                upper_inclusive: false,
+            }))),
         })]
     );
 }

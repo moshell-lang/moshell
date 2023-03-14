@@ -172,7 +172,7 @@ impl<'a> Parser<'a> {
         self.repos("Expected expression")?;
 
         let pivot = self.cursor.peek().token_type;
-        let expr = match pivot {
+        match pivot {
             //if we are parsing an expression, then we want to see a parenthesised expr as a subshell expression
             RoundedLeftBracket => self.subshell().map(Expr::Subshell),
             SquaredLeftBracket => self.parse_test(),
@@ -189,13 +189,6 @@ impl<'a> Parser<'a> {
             Not => self.not(Parser::next_expression_statement),
 
             _ => self.next_value(),
-        }?;
-
-        if self.cursor.advance(of_type(DotDot)).is_some() {
-            self.parse_range(expr)
-                .map(|expr| Expr::Range(Iterable::Range(expr)))
-        } else {
-            Ok(expr)
         }
     }
 
@@ -333,6 +326,12 @@ impl<'a> Parser<'a> {
     //if given expression is directly followed by an eox delimiter, then return it as is
     fn parse_binary_value_expr(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
         self.cursor.advance(word_seps()); //consume word separators
+
+        if self.cursor.advance(of_type(DotDot)).is_some() {
+            return self
+                .parse_range(expr)
+                .map(|expr| Expr::Range(Iterable::Range(expr)));
+        }
 
         //if there is an end of expression, it means that the expr is terminated so we return it here
         //any keyword would also stop this expression.

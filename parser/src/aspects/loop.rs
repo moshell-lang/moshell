@@ -5,8 +5,6 @@ use crate::moves::{blanks, eod, eox, of_type, times, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::control_flow::{ConditionalFor, For, ForKind, Loop, RangeFor, While};
 use ast::range::FilePattern;
-use ast::value::LiteralValue;
-use ast::Expr;
 
 ///a parser aspect for loops and while expressions
 pub trait LoopAspect<'a> {
@@ -115,7 +113,7 @@ impl<'a> Parser<'a> {
             "expected 'in' after receiver in range for",
         )?;
         self.cursor.advance(blanks());
-        let iterable = self.expression()?;
+        let iterable = self.value()?;
 
         Ok(RangeFor {
             receiver: receiver.value,
@@ -166,11 +164,6 @@ impl<'a> Parser<'a> {
         })
     }
 
-    /// Parses an iterable.
-    fn parse_iterable(&mut self) -> ParseResult<Expr<'a>> {
-        self.next_value()
-    }
-
     /// Parse a file pattern.
     ///
     /// For now, this is just a single wildcard star.
@@ -182,27 +175,6 @@ impl<'a> Parser<'a> {
             lexeme: lexme.value,
             pattern: lexme.value.to_owned(),
         })
-    }
-
-    /// Suggests at the parser level that the user might have wanted to use a range instead of a
-    /// single value.
-    ///
-    /// This is parse error and not a type error, because the parser doesn't know if the variable
-    /// is iterable or not. This might be moved to the type checker in the future.
-    fn suggest_range(actual_expr: &Expr) -> ParseErrorKind {
-        if let Expr::Literal(literal) = actual_expr {
-            if let LiteralValue::Int(value) = literal.parsed {
-                ParseErrorKind::UnexpectedInContext(if value > 0 {
-                    format!("Use the range syntax: 0..{value}")
-                } else {
-                    format!("Use the range syntax: 0..10")
-                })
-            } else {
-                ParseErrorKind::Unexpected
-            }
-        } else {
-            ParseErrorKind::Unexpected
-        }
     }
 }
 
