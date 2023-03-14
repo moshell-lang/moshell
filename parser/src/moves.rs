@@ -348,7 +348,7 @@ pub(crate) fn eod() -> OrMove<
     >,
     PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
 > {
-    unescaped(predicate(|t| t.token_type.is_closing_ponctuation()))
+    unescaped(like(TokenType::is_closing_ponctuation))
 }
 
 ///a move to consume default eox tokens as long as they are not escaped.

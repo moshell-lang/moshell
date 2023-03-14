@@ -3,6 +3,7 @@ use crate::moves::{of_type, MoveOperations, eod, word_seps};
 use crate::parser::{ParseResult, Parser};
 use ast::r#type::Type;
 use lexer::token::TokenType::{Comma, Identifier, SquaredLeftBracket, SquaredRightBracket};
+use crate::err::ParseErrorKind::Excepted;
 
 pub trait TypeAspect<'a> {
     fn parse_type(&mut self) -> ParseResult<Type<'a>>;
@@ -53,16 +54,18 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
 
         while self
             .cursor
-            .lookahead(eod())
+            .lookahead(word_seps().then(eod()))
             .is_none()
         {
-            self.cursor.force(
+            self.cursor.force_with(
                 word_seps().then(of_type(Comma)),
                 "A comma or a closing bracket was expected here",
+                Excepted("',' or ']'")
             )?;
             tparams.push(self.parse_type()?);
         }
 
+        self.cursor.advance(word_seps());
         self.expect_delimiter(SquaredRightBracket)?;
 
         Ok(tparams)
@@ -71,10 +74,13 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
     use ast::r#type::Type;
     use context::source::Source;
     use crate::aspects::r#type::TypeAspect;
-    use crate::parser::Parser;
+    use crate::err::{ParseError, ParseErrorKind};
+    use crate::err::ParseErrorKind::Excepted;
+    use crate::parser::{Parser};
 
     #[test]
     fn test_simple_type() {
@@ -85,6 +91,23 @@ mod tests {
             Ok(Type {
                 name: "MyType",
                 params: Vec::new(),
+            })
+        );
+    }
+
+    #[test]
+    fn test_empty_param_list() {
+        let content = "Complex[    ]";
+        let source = Source::unknown(content);
+        assert_eq!(
+            Parser::new(source).parse_type(),
+            Err(ParseError {
+                message: "unexpected empty type parameter list".to_string(),
+                kind: ParseErrorKind::Unexpected,
+                position: content
+                    .find("[    ]")
+                    .map(|i| i..i + "[    ]".len())
+                    .unwrap()
             })
         );
     }
@@ -132,4 +155,48 @@ mod tests {
             })
         );
     }
+
+    #[test]
+    fn test_type_params_missing_comma() {
+        let content = "MyType[X Y]";
+        let source = Source::unknown(content);
+        assert_eq!(
+            Parser::new(source).parse_type(),
+            Err(ParseError {
+                message: "A comma or a closing bracket was expected here".to_string(),
+                position: "MyType[X".len().."MyType[X".len() + 1,
+                kind: Excepted("',' or ']'")
+            })
+        );
+    }
+
+
+    #[test]
+    fn test_type_invalid_name() {
+        let content = "Complex[  @  ]";
+        let source = Source::unknown(content);
+        assert_eq!(
+            Parser::new(source).parse_type(),
+            Err(ParseError {
+                message: "'@' is not a valid type identifier.".to_string(),
+                kind: ParseErrorKind::Unexpected,
+                position: content.find('@').map(|i| i..i + 1).unwrap()
+            })
+        );
+    }
+
+    #[test]
+    fn test_type_invalid_eod() {
+        let content = "Complex[  x  }";
+        let source = Source::unknown(content);
+        assert_eq!(
+            Parser::new(source).parse_type(),
+            Err(ParseError {
+                message: "Unexpected closing delimiter.".to_string(),
+                kind: Excepted("]"),
+                position: content.find('}').map(|i| i..i + 1).unwrap()
+            })
+        );
+    }
+
 }

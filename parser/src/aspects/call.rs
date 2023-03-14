@@ -116,51 +116,6 @@ mod tests {
     }
 
     #[test]
-    fn call_with_empty_type_parameters() {
-        let content = "complex[    ] x y";
-        let source = Source::unknown(content);
-        assert_eq!(
-            Parser::new(source).parse_next(),
-            Err(ParseError {
-                message: "unexpected empty type parameter list".to_string(),
-                kind: ParseErrorKind::Unexpected,
-                position: content
-                    .find("[    ]")
-                    .map(|i| i..i + "[    ]".len() + 1)
-                    .unwrap()
-            })
-        );
-    }
-
-    #[test]
-    fn call_with_not_identifier_parameter() {
-        let content = "complex[  @  ] x y";
-        let source = Source::unknown(content);
-        assert_eq!(
-            Parser::new(source).parse_next(),
-            Err(ParseError {
-                message: "'@' is not a valid type identifier.".to_string(),
-                kind: ParseErrorKind::Unexpected,
-                position: content.find('@').map(|i| i..i + 1).unwrap()
-            })
-        );
-    }
-
-    #[test]
-    fn call_with_bad_commas() {
-        let content = "complex[x y] x y";
-        let source = Source::unknown(content);
-        assert_eq!(
-            Parser::new(source).parse_next(),
-            Err(ParseError {
-                message: "A comma or a closing bracket was expected here".to_string(),
-                kind: ParseErrorKind::Unexpected,
-                position: content.find('y').map(|i| i-1..i).unwrap()
-            })
-        );
-    }
-
-    #[test]
     fn not_in_call_is_literal() {
         let content = "echo how ! how are you !";
         let result = parse(Source::unknown(content)).expect("Failed to parse");

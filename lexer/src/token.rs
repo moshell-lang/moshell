@@ -310,7 +310,7 @@ impl TokenType {
     pub fn is_closing_ponctuation(self) -> bool {
         matches!(
             self,
-            |TokenType::SquaredRightBracket| TokenType::RoundedRightBracket
+            | TokenType::SquaredRightBracket | TokenType::RoundedRightBracket
                 | TokenType::CurlyRightBracket
         )
     }
