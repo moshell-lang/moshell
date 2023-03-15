@@ -136,7 +136,7 @@ mod tests {
     use ast::group::{Block, Subshell};
     use ast::value::Literal;
     use ast::value::LiteralValue::{Float, Int};
-    use ast::variable::{NamedDeclaration, VarDeclaration, VarKind};
+    use ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use ast::Expr;
     use context::source::Source;
     use pretty_assertions::assert_eq;
@@ -235,7 +235,7 @@ mod tests {
                 expressions: vec![
                     Expr::VarDeclaration(VarDeclaration {
                         kind: VarKind::Val,
-                        var: NamedDeclaration {
+                        var: TypedVariable {
                             name: "test",
                             ty: None,
                         },
@@ -243,7 +243,7 @@ mod tests {
                             expressions: vec![
                                 Expr::VarDeclaration(VarDeclaration {
                                     kind: VarKind::Val,
-                                    var: NamedDeclaration {
+                                    var: TypedVariable {
                                         name: "x",
                                         ty: None,
                                     },
@@ -263,7 +263,7 @@ mod tests {
                         expressions: vec![
                             Expr::VarDeclaration(VarDeclaration {
                                 kind: VarKind::Val,
-                                var: NamedDeclaration {
+                                var: TypedVariable {
                                     name: "x",
                                     ty: None,
                                 },
@@ -309,7 +309,7 @@ mod tests {
                 expressions: vec![
                     Expr::VarDeclaration(VarDeclaration {
                         kind: VarKind::Var,
-                        var: NamedDeclaration {
+                        var: TypedVariable {
                             name: "test",
                             ty: Some(Type {
                                 name: "int",
@@ -323,7 +323,7 @@ mod tests {
                     }),
                     Expr::VarDeclaration(VarDeclaration {
                         kind: VarKind::Val,
-                        var: NamedDeclaration {
+                        var: TypedVariable {
                             name: "x",
                             ty: None,
                         },

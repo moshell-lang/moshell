@@ -2,7 +2,7 @@ use ast::call::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use ast::group::Subshell;
 use ast::substitution::{Substitution, SubstitutionKind};
 use ast::value::{Literal, TemplateString};
-use ast::variable::{NamedDeclaration, VarDeclaration, VarKind, VarReference};
+use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
 use context::source::Source;
 use parser::parse;
@@ -17,7 +17,7 @@ fn with_lexer_variable() {
         parsed,
         vec![Expr::VarDeclaration(VarDeclaration {
             kind: VarKind::Var,
-            var: NamedDeclaration {
+            var: TypedVariable {
                 name: "a",
                 ty: None,
             },

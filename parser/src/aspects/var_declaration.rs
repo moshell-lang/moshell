@@ -1,16 +1,18 @@
+use ast::Expr;
+use ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use lexer::token::TokenType;
 
-use crate::err::ParseErrorKind;
-use ast::variable::{NamedDeclaration, VarDeclaration, VarKind};
-use ast::Expr;
 use crate::aspects::r#type::TypeAspect;
-
-use crate::moves::{of_type, of_types, spaces, MoveOperations};
-use crate::parser::{ParseResult, Parser};
+use crate::err::ParseErrorKind;
+use crate::moves::{MoveOperations, of_type, of_types, spaces};
+use crate::parser::{Parser, ParseResult};
 
 pub trait VarDeclarationAspect<'a> {
     /// Parses a variable declaration.
     fn var_declaration(&mut self) -> ParseResult<Expr<'a>>;
+
+    /// Parses a typed var, 
+    fn parse_typed_var(&mut self) -> ParseResult<TypedVariable<'a>>;
 }
 
 impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
@@ -26,6 +28,32 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
                 )
             }
         };
+
+        let var = self.parse_typed_var()?;
+
+        let initializer = match self
+            .cursor
+            .advance(spaces().then(of_type(TokenType::Equal)))
+        {
+            None => {
+                self.cursor.force(
+                    of_types(&[TokenType::NewLine, TokenType::EndOfFile]),
+                    "Expected newline after variable declaration",
+                )?;
+                None
+            }
+
+            Some(_) => Some(self.value()?),
+        }.map(Box::new);
+
+        Ok(Expr::VarDeclaration(VarDeclaration {
+            kind,
+            var,
+            initializer,
+        }))
+    }
+
+    fn parse_typed_var(&mut self) -> ParseResult<TypedVariable<'a>> {
         let name = self
             .cursor
             .force(
@@ -43,43 +71,28 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
                 self.parse_type()?,
             ),
         };
-        let initializer = match self
-            .cursor
-            .advance(spaces().then(of_type(TokenType::Equal)))
-        {
-            None => {
-                self.cursor.force(
-                    of_types(&[TokenType::NewLine, TokenType::EndOfFile]),
-                    "Expected newline after variable declaration",
-                )?;
-                None
-            }
-
-            Some(_) => Some(self.value()?),
-        };
-
-        Ok(Expr::VarDeclaration(VarDeclaration {
-            kind,
-            var: NamedDeclaration { name, ty },
-            initializer: initializer.map(Box::new),
-        }))
+        Ok(TypedVariable { name, ty })
     }
+    
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::err::ParseError;
-    use crate::parser::Parser;
+    use pretty_assertions::assert_eq;
+
     use ast::call::Call;
+    use ast::Expr;
     use ast::group::Block;
     use ast::operation::BinaryOperation;
     use ast::operation::BinaryOperator::Plus;
-    use ast::value::{Literal, LiteralValue};
-    use ast::Expr;
-    use context::source::Source;
-    use pretty_assertions::assert_eq;
     use ast::r#type::Type;
+    use ast::value::{Literal, LiteralValue};
+    use context::source::Source;
+
+    use crate::err::ParseError;
+    use crate::parser::Parser;
+
+    use super::*;
 
     #[test]
     fn val_declaration() {
@@ -91,9 +104,9 @@ mod tests {
             ast,
             Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
-                var: NamedDeclaration {
+                var: TypedVariable {
                     name: "variable",
-                    ty: None
+                    ty: None,
                 },
                 initializer: None,
             })
@@ -110,7 +123,7 @@ mod tests {
             ast,
             Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
-                var: NamedDeclaration {
+                var: TypedVariable {
                     name: "variable",
                     ty: Some(Type {
                         name: "int",
@@ -140,7 +153,7 @@ mod tests {
             ast,
             Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
-                var: NamedDeclaration {
+                var: TypedVariable {
                     name: "variable",
                     ty: None,
                 },
@@ -175,7 +188,7 @@ mod tests {
             result,
             Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
-                var: NamedDeclaration {
+                var: TypedVariable {
                     name: "x",
                     ty: None,
                 },
@@ -208,7 +221,7 @@ mod tests {
             ast,
             Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
-                var: NamedDeclaration {
+                var: TypedVariable {
                     name: "variable",
                     ty: None,
                 },

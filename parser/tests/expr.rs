@@ -2,7 +2,7 @@ use ast::call::{Call, Redir, RedirFd, RedirOp, Redirected};
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::structure::Construct;
 use ast::value::{Literal, LiteralValue};
-use ast::variable::{NamedDeclaration, VarDeclaration, VarKind};
+use ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use ast::Expr;
 use context::source::Source;
 use parser::parse;
@@ -23,7 +23,7 @@ fn variable_type_and_initializer() {
 
     let expected = vec![Expr::VarDeclaration(VarDeclaration {
         kind: VarKind::Var,
-        var: NamedDeclaration {
+        var: TypedVariable {
             name: "a",
             ty: Some(Type {
                 name: "int",
@@ -93,7 +93,7 @@ fn arithmetic_multiple_lines() {
         parsed,
         vec![Expr::VarDeclaration(VarDeclaration {
             kind: VarKind::Val,
-            var: NamedDeclaration {
+            var: TypedVariable {
                 name: "n",
                 ty: None,
             },

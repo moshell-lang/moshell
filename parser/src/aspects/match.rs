@@ -213,7 +213,7 @@ mod tests {
     use ast::r#match::{Match, MatchArm, MatchPattern};
     use ast::test::Test;
     use ast::value::{Literal, TemplateString};
-    use ast::variable::{NamedDeclaration, VarDeclaration, VarKind, VarReference};
+    use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
     use ast::Expr;
 
     #[test]
@@ -232,7 +232,7 @@ mod tests {
             ast,
             vec![Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
-                var: NamedDeclaration {
+                var: TypedVariable {
                     name: "x",
                     ty: None,
                 },

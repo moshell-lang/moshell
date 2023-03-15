@@ -124,6 +124,9 @@ pub enum TokenType {
     #[token(".")]
     #[assoc(str = ".")]
     Dot,
+    #[token("...")]
+    #[assoc(str = "...")]
+    Vararg,
 
     #[token("|")]
     #[assoc(str = "|")]
