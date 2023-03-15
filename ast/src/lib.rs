@@ -2,6 +2,7 @@ use dbg_pls::DebugPls;
 
 use crate::call::{Call, Detached, Pipeline, Redirected};
 use crate::control_flow::{If, Loop, While};
+use crate::function::FunctionDeclaration;
 use crate::group::{Block, Parenthesis, Subshell};
 use crate::operation::BinaryOperation;
 use crate::r#match::Match;
@@ -59,6 +60,8 @@ pub enum Expr<'a> {
     //var / val handling expressions
     VarReference(VarReference<'a>),
     VarDeclaration(VarDeclaration<'a>),
+
+    FunctionDeclaration(FunctionDeclaration<'a>),
 
     //Grouping expressions
     /// a parenthesis expression `( ... )` that contains one value expression

@@ -1,17 +1,17 @@
 use ast::Expr;
 use ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use lexer::token::TokenType;
-
 use crate::aspects::r#type::TypeAspect;
+
 use crate::err::ParseErrorKind;
-use crate::moves::{MoveOperations, of_type, of_types, spaces};
+use crate::moves::{blanks, MoveOperations, of_type, of_types, spaces};
 use crate::parser::{Parser, ParseResult};
 
 pub trait VarDeclarationAspect<'a> {
     /// Parses a variable declaration.
     fn var_declaration(&mut self) -> ParseResult<Expr<'a>>;
 
-    /// Parses a typed var, 
+    /// Parses a typed var,
     fn parse_typed_var(&mut self) -> ParseResult<TypedVariable<'a>>;
 }
 
@@ -57,23 +57,18 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
         let name = self
             .cursor
             .force(
-                spaces().and_then(of_type(TokenType::Identifier)),
+                blanks().then(of_type(TokenType::Identifier)),
                 "Expected variable name.",
             )?
             .value;
 
-        let ty = match self
+        let ty = self
             .cursor
-            .advance(spaces().then(of_type(TokenType::Colon)))
-        {
-            None => None,
-            Some(_) => Some(
-                self.parse_type()?,
-            ),
-        };
+            .advance(blanks().then(of_type(TokenType::Colon)))
+            .map(|_| self.parse_type())
+            .transpose()?;
         Ok(TypedVariable { name, ty })
     }
-    
 }
 
 #[cfg(test)]

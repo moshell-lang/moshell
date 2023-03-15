@@ -1,5 +1,5 @@
 use crate::err::ParseErrorKind;
-use crate::moves::{of_type, MoveOperations, eod, word_seps};
+use crate::moves::{of_type, MoveOperations, eod, word_seps, lookahead};
 use crate::parser::{ParseResult, Parser};
 use ast::r#type::Type;
 use lexer::token::TokenType::{Comma, Identifier, SquaredLeftBracket, SquaredRightBracket};
@@ -37,32 +37,29 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             None => return Ok(Vec::new()),
         };
 
-        self.cursor.advance(word_seps());
-        if self
-            .cursor
-            .lookahead(eod())
-            .is_some()
-        {
-            self.expect_delimiter(SquaredRightBracket)?;
-            return self.expected_with(
-                "unexpected empty type parameter list",
-                start..self.cursor.peek(),
-                ParseErrorKind::Unexpected,
-            );
-        }
-        let mut tparams = vec![self.parse_type()?];
+        let mut tparams = vec![];
 
         while self
             .cursor
             .lookahead(word_seps().then(eod()))
             .is_none()
         {
+            tparams.push(self.parse_type()?);
             self.cursor.force_with(
-                word_seps().then(of_type(Comma)),
+                word_seps().then(of_type(Comma).or(lookahead(eod()))),
                 "A comma or a closing bracket was expected here",
                 Excepted("',' or ']'")
             )?;
-            tparams.push(self.parse_type()?);
+        }
+        self.cursor.advance(word_seps());
+
+        if tparams.is_empty() {
+            self.expect_delimiter(SquaredRightBracket)?;
+            return self.expected_with(
+                "unexpected empty type parameter list",
+                start..self.cursor.peek(),
+                ParseErrorKind::Unexpected,
+            );
         }
 
         self.cursor.advance(word_seps());
