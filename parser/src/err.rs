@@ -36,6 +36,15 @@ impl<'a> From<std::ops::Range<Token<'a>>> for ErrorContext<'a> {
     }
 }
 
+impl<'a> From<&[Token<'a>]> for ErrorContext<'a> {
+    fn from(tokens: &[Token<'a>]) -> Self {
+        Self {
+            from: tokens.first().map(|t| t.value).expect("Empty token slice."),
+            to: tokens.last().map(|t| t.value).unwrap(),
+        }
+    }
+}
+
 impl<'a> From<&'a str> for ErrorContext<'a> {
     fn from(str: &'a str) -> Self {
         Self { from: str, to: str }

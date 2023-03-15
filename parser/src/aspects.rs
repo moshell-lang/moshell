@@ -7,6 +7,7 @@ pub(super) mod if_else;
 pub(super) mod literal;
 pub(super) mod r#loop;
 pub(super) mod r#match;
+pub(super) mod range;
 pub(super) mod redirection;
 pub(super) mod structure;
 pub(super) mod substitution;

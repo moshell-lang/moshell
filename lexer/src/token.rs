@@ -124,6 +124,9 @@ pub enum TokenType {
     #[token(".")]
     #[assoc(str = ".")]
     Dot,
+    #[token("..")]
+    #[assoc(str = "..")]
+    DotDot,
 
     #[token("|")]
     #[assoc(str = "|")]
@@ -252,7 +255,7 @@ impl TokenType {
     ///is this lexeme a lexeme that cannot fusion with other glued tokens
     pub fn is_identifier_bound(self) -> bool {
         match self {
-            NewLine | SemiColon | Less | Bar | Greater | And | Or | FatArrow => true,
+            NewLine | SemiColon | Less | Bar | Greater | DotDot | And | Or | FatArrow => true,
             _ => false,
         }
     }

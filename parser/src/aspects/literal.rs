@@ -7,6 +7,7 @@ use lexer::token::TokenType::*;
 use crate::err::ParseErrorKind;
 use crate::moves::{next, of_type, word_seps};
 use crate::parser::{ParseResult, Parser};
+use ast::range::{FilePattern, Iterable};
 use ast::value::{Literal, LiteralValue, TemplateString};
 use ast::*;
 
@@ -236,15 +237,12 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
 
                 Dollar => {
                     if !builder.is_empty() {
-                        parts.push(Expr::Literal(Literal {
-                            lexeme,
-                            parsed: LiteralValue::String(builder.clone()),
-                        }));
+                        parts.push(Self::literal_or_wildcard(builder.clone(), lexeme));
                         builder.clear();
                     }
                     parts.push(self.substitution()?);
                 }
-                _ if pivot.is_ponctuation() => break,
+                _ if pivot.is_ponctuation() | pivot.is_identifier_bound() => break,
                 _ => {
                     append_current!();
                 }
@@ -252,10 +250,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         }
 
         if !builder.is_empty() {
-            parts.push(Expr::Literal(Literal {
-                lexeme,
-                parsed: LiteralValue::String(builder),
-            }));
+            parts.push(Self::literal_or_wildcard(builder.clone(), lexeme));
         }
         if parts.len() == 1 {
             return Ok(parts.pop().unwrap());
@@ -283,6 +278,20 @@ impl<'a> Parser<'a> {
                 |e| self.mk_parse_error(e.to_string(), token, ParseErrorKind::InvalidFormat),
             )?)),
             _ => self.expected("Expected a literal.", ParseErrorKind::Unexpected),
+        }
+    }
+
+    fn literal_or_wildcard(read: String, lexeme: &'a str) -> Expr<'a> {
+        if read.contains('*') {
+            Expr::Range(Iterable::Files(FilePattern {
+                lexeme,
+                pattern: read,
+            }))
+        } else {
+            Expr::Literal(Literal {
+                lexeme,
+                parsed: LiteralValue::String(read),
+            })
         }
     }
 }
