@@ -1,5 +1,5 @@
-# Moshell
-
+Moshell
+https://komarev.com/ghpvc/?username=moshell)
 Moshell is a modern shell scripting language with a static typesystem.
 
 ## Motivation
