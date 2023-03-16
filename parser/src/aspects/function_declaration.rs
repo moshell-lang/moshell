@@ -53,15 +53,18 @@ impl<'a> Parser<'a> {
         self.cursor.advance(blanks()); //consume blanks
 
         let is_vararg = self.cursor.lookahead(
-            repeat(//                           skip everything that could compose a type expression
-                   of_types(&[Space, NewLine, Identifier, SquaredLeftBracket, SquaredRightBracket])
-            ).then(of_type(Vararg))
+            of_type(Vararg).or(
+                repeat(//                           skip everything that could compose a type expression
+                       of_types(&[Space, NewLine, Identifier, SquaredLeftBracket, SquaredRightBracket])
+                ).then(of_type(Vararg))
+            )
         ).is_some();
 
 
         if is_vararg {
-            let param = self.parse_type()
-                .map(Some)
+            let param = self.cursor.lookahead(not(of_type(Vararg)))
+                .map(|_| self.parse_type())
+                .transpose()
                 .map(FunctionParameter::Variadic)?;
             self.cursor.force(of_type(Vararg), "expected '...'")?;
             return Ok(param)
@@ -157,6 +160,20 @@ mod tests {
 
     #[test]
     fn function_invalid_name() {
+        let src = "fun 78() = ()";
+        let errs = parse(Source::unknown(src)).errors;
+        assert_eq!(
+            errs,
+            vec![ParseError {
+                message: "function name is invalid.".to_string(),
+                position: src.find("78").map(|i| i..i + 2).unwrap(),
+                kind: ParseErrorKind::InvalidFormat,
+            }]
+        );
+    }
+
+    #[test]
+    fn function_invalid_name_() {
         let src = "fun 78() = ()";
         let errs = parse(Source::unknown(src)).errors;
         assert_eq!(
@@ -309,6 +326,33 @@ mod tests {
                     name: "X",
                     params: Vec::new(),
                 }))],
+                return_type: None,
+                body: Box::new(Expr::VarReference(VarReference {
+                    name: "x"
+                })),
+            })]
+        )
+    }
+
+
+    #[test]
+    fn function_declaration_vararg_notype() {
+        let source = Source::unknown("\
+        fun test(x: int, ...) = $x
+        ");
+        let ast = parse(source).expect("parse failed");
+        assert_eq!(
+            ast,
+            vec![Expr::FunctionDeclaration(FunctionDeclaration {
+                name: "test",
+                type_parameters: vec![],
+                parameters: vec![FunctionParameter::Named(TypedVariable {
+                    name: "x",
+                    ty: Some(Type {
+                        name: "int",
+                        params: Vec::new(),
+                    }),
+                }), FunctionParameter::Variadic(None)],
                 return_type: None,
                 body: Box::new(Expr::VarReference(VarReference {
                     name: "x"
