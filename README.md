@@ -1,5 +1,5 @@
-Moshell
-https://komarev.com/ghpvc/?username=moshell)
+# Moshell
+![](https://komarev.com/ghpvc/?username=moshell&color=orange&labels=views)
 Moshell is a modern shell scripting language with a static typesystem.
 
 ## Motivation
