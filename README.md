@@ -20,7 +20,7 @@ Moshell is a project in its early stages.
 
 - [x] Lexer
 - [ ] [Parser](https://github.com/orgs/moshell-lang/projects/1) *(in progress)*
-- [ ] Static analysis
+- [ ] [Static analysis / Type system](https://github.com/orgs/moshell-lang/projects/1) *(in progress)*
 - [ ] Bytecode Compiler
 - [ ] Bytecode Interpreter
 - [ ] REPL
