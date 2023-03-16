@@ -1,12 +1,13 @@
 use dbg_pls::DebugPls;
 
 use crate::call::{Call, Detached, Pipeline, Redirected};
-use crate::control_flow::{If, Loop, While};
+use crate::control_flow::{For, If, Loop, While};
 use crate::function::FunctionDeclaration;
 use crate::group::{Block, Parenthesis, Subshell};
 use crate::operation::BinaryOperation;
 use crate::r#match::Match;
 use crate::r#use::Use;
+use crate::range::Iterable;
 use crate::structure::Construct;
 use crate::substitution::Substitution;
 use crate::test::{Not, Test};
@@ -19,6 +20,7 @@ pub mod function;
 pub mod group;
 pub mod r#match;
 pub mod operation;
+pub mod range;
 pub mod structure;
 pub mod substitution;
 pub mod test;
@@ -53,6 +55,7 @@ pub enum Expr<'a> {
     If(If<'a>),
     While(While<'a>),
     Loop(Loop<'a>),
+    For(For<'a>),
 
     Continue,
     Break,
@@ -60,6 +63,7 @@ pub enum Expr<'a> {
     //var / val handling expressions
     VarReference(VarReference<'a>),
     VarDeclaration(VarDeclaration<'a>),
+    Range(Iterable<'a>),
 
     FunctionDeclaration(FunctionDeclaration<'a>),
 

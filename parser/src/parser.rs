@@ -14,6 +14,7 @@ use crate::aspects::literal::LiteralAspect;
 use crate::aspects::r#loop::LoopAspect;
 use crate::aspects::r#match::MatchAspect;
 use crate::aspects::r#use::UseAspect;
+use crate::aspects::range::RangeAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::aspects::structure::StructureAspect;
 use crate::aspects::test::TestAspect;
@@ -24,6 +25,7 @@ use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
 use crate::moves::{
     bin_op, eod, eox, like, next, of_type, of_types, repeat, spaces, word_seps, MoveOperations,
 };
+use ast::range::Iterable;
 use ast::Expr;
 use crate::aspects::function_declaration::FunctionDeclarationAspect;
 
@@ -136,6 +138,7 @@ impl<'a> Parser<'a> {
 
             While => self.parse_while().map(Expr::While),
             Loop => self.parse_loop().map(Expr::Loop),
+            For => self.parse_for().map(Expr::For),
             Identifier
                 if self
                     .cursor
@@ -325,6 +328,12 @@ impl<'a> Parser<'a> {
     //if given expression is directly followed by an eox delimiter, then return it as is
     fn parse_binary_value_expr(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
         self.cursor.advance(word_seps()); //consume word separators
+
+        if self.cursor.advance(of_type(DotDot)).is_some() {
+            return self
+                .parse_range(expr)
+                .map(|expr| Expr::Range(Iterable::Range(expr)));
+        }
 
         //if there is an end of expression, it means that the expr is terminated so we return it here
         //any keyword would also stop this expression.

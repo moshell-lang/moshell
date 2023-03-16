@@ -1,8 +1,10 @@
 use lexer::token::TokenType;
 
-use crate::moves::{blanks, eox, of_type};
+use crate::err::ParseErrorKind;
+use crate::moves::{blanks, eod, eox, of_type, times, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use ast::control_flow::{Loop, While};
+use ast::control_flow::{ConditionalFor, For, ForKind, Loop, RangeFor, While};
+use ast::range::FilePattern;
 
 ///a parser aspect for loops and while expressions
 pub trait LoopAspect<'a> {
@@ -10,6 +12,8 @@ pub trait LoopAspect<'a> {
     fn parse_while(&mut self) -> ParseResult<While<'a>>;
     ///parse a loop expression
     fn parse_loop(&mut self) -> ParseResult<Loop<'a>>;
+    /// Parse a for expression
+    fn parse_for(&mut self) -> ParseResult<For<'a>>;
 }
 
 impl<'a> LoopAspect<'a> for Parser<'a> {
@@ -42,6 +46,136 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
 
         Ok(Loop { body })
     }
+
+    fn parse_for(&mut self) -> ParseResult<For<'a>> {
+        self.cursor.force(
+            of_type(TokenType::For),
+            "expected 'for' at start of for expression",
+        )?;
+        self.cursor.advance(blanks());
+        let kind = Box::new(self.parse_for_kind()?);
+        self.cursor.advance(eox());
+        let body = Box::new(self.expression_statement()?);
+
+        Ok(For { kind, body })
+    }
+}
+
+impl<'a> Parser<'a> {
+    /// Parses the for kind, either a range for or a conditional for.
+    fn parse_for_kind(&mut self) -> ParseResult<ForKind<'a>> {
+        let current = self.cursor.peek();
+        let start_pos = self.cursor.relative_pos(&current).start;
+        match current.token_type {
+            TokenType::Identifier => {
+                let range_for = self.parse_range_for()?;
+                Ok(ForKind::Range(range_for))
+            }
+            TokenType::RoundedLeftBracket => {
+                let conditional_for = self.parse_conditional_for()?;
+                Ok(ForKind::Conditional(conditional_for))
+            }
+
+            // Those tokens are not valid here, but we can try to parse them and give a better error
+            // message.
+            TokenType::Dollar => {
+                self.cursor.next_opt();
+                if self.parse_range_for().is_ok() {
+                    let end_pos = self.cursor.relative_pos(&self.cursor.peek()).end;
+                    let slice = &self.source.source[start_pos + 1..end_pos];
+                    return self.expected_with(
+                        "Receiver variables do not start with '$'.",
+                        current,
+                        ParseErrorKind::UnexpectedInContext(format!(
+                            "Consider removing the '$' prefix: for {slice}"
+                        )),
+                    );
+                }
+                self.expected("Expected identifier", ParseErrorKind::Unexpected)
+            }
+            TokenType::In => self.expected(
+                "Expected variable name before 'in'",
+                ParseErrorKind::Unexpected,
+            ),
+            _ => self.expected("Expected identifier or '(('", ParseErrorKind::Unexpected),
+        }
+    }
+
+    /// Parses a for loop with range, with a receiver and an iterable.
+    fn parse_range_for(&mut self) -> ParseResult<RangeFor<'a>> {
+        let receiver = self.cursor.force(
+            of_type(TokenType::Identifier),
+            "Excepted a variable identifier",
+        )?;
+        self.cursor.advance(blanks());
+        self.cursor.force(
+            of_type(TokenType::In),
+            "expected 'in' after receiver in range for",
+        )?;
+        self.cursor.advance(blanks());
+        let iterable = self.value()?;
+
+        Ok(RangeFor {
+            receiver: receiver.value,
+            iterable,
+        })
+    }
+
+    /// Parses a "traditional" conditional for, with a initializer, a condition and an increment.
+    fn parse_conditional_for(&mut self) -> ParseResult<ConditionalFor<'a>> {
+        let start = self
+            .cursor
+            .collect(times(2, of_type(TokenType::RoundedLeftBracket)));
+        if start.is_empty() {
+            return self.expected(
+                "Expected '((' at start of conditional for",
+                ParseErrorKind::Unexpected,
+            );
+        }
+        self.delimiter_stack.extend(start.clone());
+
+        let initializer = self.statement()?;
+        self.cursor.force(
+            blanks().then(of_type(TokenType::SemiColon)),
+            "expected ';' after initializer in conditional for",
+        )?;
+        let condition = self.value()?;
+        self.cursor.force(
+            blanks().then(of_type(TokenType::SemiColon)),
+            "expected ';' after condition in conditional for",
+        )?;
+        let increment = self.statement()?;
+
+        for _ in 0..2 {
+            if self.cursor.lookahead(eod()).is_some() {
+                self.expect_delimiter(TokenType::RoundedRightBracket)?;
+            } else {
+                self.expected(
+                    "Expected '))' at end of conditional for",
+                    ParseErrorKind::Unpaired(self.cursor.relative_pos_ctx(&start[..])),
+                )?;
+            }
+        }
+
+        Ok(ConditionalFor {
+            initializer,
+            condition,
+            increment,
+        })
+    }
+
+    /// Parse a file pattern.
+    ///
+    /// For now, this is just a single wildcard star.
+    fn parse_files_pattern(&mut self) -> ParseResult<FilePattern<'a>> {
+        let lexme = self
+            .cursor
+            .force(of_type(TokenType::Star), "expected '*'")?;
+        Ok(FilePattern {
+            lexeme: lexme.value,
+            pattern: lexme.value.to_owned(),
+        })
+    }
 }
 
 #[cfg(test)]
@@ -50,16 +184,19 @@ mod tests {
     use crate::err::ParseErrorKind::Unexpected;
     use crate::parse;
     use crate::parser::ParseResult;
-    use ast::call::Call;
-    use ast::control_flow::{Loop, While};
-    use ast::group::Block;
-    use ast::operation::BinaryOperation;
+
+    use ast::control_flow::{ConditionalFor, For, ForKind, Loop, RangeFor, While};
+    use ast::group::{Block, Parenthesis};
     use ast::operation::BinaryOperator::And;
-    use ast::variable::VarReference;
+    use ast::operation::{BinaryOperation, BinaryOperator};
+    use ast::range::{FilePattern, Iterable, NumericRange};
+    use ast::value::Literal;
+    use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference};
     use ast::Expr;
     use ast::Expr::{Break, Continue};
     use context::source::Source;
     use pretty_assertions::assert_eq;
+    use ast::call::Call;
 
     #[test]
     fn loop_with_break_and_continues() {
@@ -144,6 +281,196 @@ mod tests {
                 })),
             })]
         )
+    }
+
+    #[test]
+    fn for_in_int_range() {
+        let source = Source::unknown("for i in 1..10 {\n\techo $i\n}");
+        let expr = parse(source).expect("Failed to parse");
+        assert_eq!(
+            expr,
+            vec![Expr::For(For {
+                kind: Box::new(ForKind::Range(RangeFor {
+                    receiver: "i",
+                    iterable: Expr::Range(Iterable::Range(NumericRange {
+                        start: Box::new(Expr::Literal(Literal {
+                            lexeme: "1",
+                            parsed: 1.into(),
+                        })),
+                        end: Box::new(Expr::Literal(Literal {
+                            lexeme: "10",
+                            parsed: 10.into(),
+                        })),
+                        step: None,
+                        upper_inclusive: false,
+                    })),
+                })),
+                body: Box::new(Expr::Block(Block {
+                    expressions: vec![Expr::Call(Call {
+                        arguments: vec![
+                            Expr::Literal("echo".into()),
+                            Expr::VarReference(VarReference { name: "i" }),
+                        ],
+                        type_parameters: vec![],
+                    })]
+                })),
+            })]
+        );
+    }
+
+    #[test]
+    fn for_in_variable_range() {
+        let source = Source::unknown("for n in $a..$b; cat");
+        let expr = parse(source).expect("Failed to parse");
+        assert_eq!(
+            expr,
+            vec![Expr::For(For {
+                kind: Box::new(ForKind::Range(RangeFor {
+                    receiver: "n",
+                    iterable: Expr::Range(Iterable::Range(NumericRange {
+                        start: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                        end: Box::new(Expr::VarReference(VarReference { name: "b" })),
+                        step: None,
+                        upper_inclusive: false,
+                    })),
+                })),
+                body: Box::new(Expr::Call(Call {
+                    arguments: vec![Expr::Literal("cat".into())],
+                    type_parameters: vec![],
+                })),
+            })]
+        );
+    }
+
+    #[test]
+    fn for_in_calculated_range() {
+        let source = Source::unknown("for i in (1 + 1)..5; ls");
+        let expr = parse(source).expect("Failed to parse");
+        assert_eq!(
+            expr,
+            vec![Expr::For(For {
+                kind: Box::new(ForKind::Range(RangeFor {
+                    receiver: "i",
+                    iterable: Expr::Range(Iterable::Range(NumericRange {
+                        start: Box::new(Expr::Parenthesis(Parenthesis {
+                            expression: Box::new(Expr::Binary(BinaryOperation {
+                                left: Box::new(Expr::Literal(Literal {
+                                    lexeme: "1",
+                                    parsed: 1.into(),
+                                })),
+                                op: BinaryOperator::Plus,
+                                right: Box::new(Expr::Literal(Literal {
+                                    lexeme: "1",
+                                    parsed: 1.into(),
+                                })),
+                            }))
+                        })),
+                        end: Box::new(Expr::Literal(Literal {
+                            lexeme: "5",
+                            parsed: 5.into(),
+                        })),
+                        step: None,
+                        upper_inclusive: false,
+                    })),
+                })),
+                body: Box::new(Expr::Call(Call {
+                    arguments: vec![Expr::Literal("ls".into())],
+                    type_parameters: vec![],
+                })),
+            })]
+        );
+    }
+
+    #[test]
+    fn for_in_files_range() {
+        let source = Source::unknown("for f in * {\n\tfile $f\n}");
+        let expr = parse(source).expect("Failed to parse");
+        assert_eq!(
+            expr,
+            vec![Expr::For(For {
+                kind: Box::new(ForKind::Range(RangeFor {
+                    receiver: "f",
+                    iterable: Expr::Range(Iterable::Files(FilePattern {
+                        lexeme: "*",
+                        pattern: "*".to_owned(),
+                    })),
+                })),
+                body: Box::new(Expr::Block(Block {
+                    expressions: vec![Expr::Call(Call {
+                        arguments: vec![
+                            Expr::Literal("file".into()),
+                            Expr::VarReference(VarReference { name: "f" }),
+                        ],
+                        type_parameters: vec![],
+                    })]
+                })),
+            })]
+        );
+    }
+
+    #[test]
+    fn classical_for() {
+        let source = Source::unknown("for (( var i=0; $i<10; i=$i + 1 ))\necho $i");
+        let expr = parse(source).expect("Failed to parse");
+        assert_eq!(
+            expr,
+            vec![Expr::For(For {
+                kind: Box::new(ForKind::Conditional(ConditionalFor {
+                    initializer: Expr::VarDeclaration(VarDeclaration {
+                        kind: VarKind::Var,
+                        var: TypedVariable {
+                            name: "i",
+                            ty: None,
+                        },
+                        initializer: Some(Box::new(Expr::Literal(Literal {
+                            lexeme: "0",
+                            parsed: 0.into(),
+                        }))),
+                    }),
+                    condition: Expr::Binary(BinaryOperation {
+                        left: Box::new(Expr::VarReference(VarReference { name: "i" })),
+                        op: BinaryOperator::Less,
+                        right: Box::new(Expr::Literal(Literal {
+                            lexeme: "10",
+                            parsed: 10.into(),
+                        })),
+                    }),
+                    increment: Expr::Assign(Assign {
+                        name: "i",
+                        value: Box::new(Expr::Binary(BinaryOperation {
+                            left: Box::new(Expr::VarReference(VarReference { name: "i" })),
+                            op: BinaryOperator::Plus,
+                            right: Box::new(Expr::Literal(Literal {
+                                lexeme: "1",
+                                parsed: 1.into(),
+                            })),
+                        })),
+                    }),
+                })),
+                body: Box::new(Expr::Call(Call {
+                    arguments: vec![
+                        Expr::Literal("echo".into()),
+                        Expr::VarReference(VarReference { name: "i" }),
+                    ],
+                    type_parameters: vec![],
+                })),
+            })]
+        );
+    }
+
+    #[test]
+    fn for_into_nothing() {
+        let content = "for in 1..5";
+        let source = Source::unknown(content);
+        let expr: ParseResult<_> = parse(source).into();
+        assert_eq!(
+            expr,
+            Err(ParseError {
+                message: "Expected variable name before 'in'".to_string(),
+                position: content.find("in").map(|p| p..p + 2).unwrap(),
+                kind: Unexpected,
+            })
+        );
     }
 
     #[test]
