@@ -124,6 +124,9 @@ pub enum TokenType {
     #[token(".")]
     #[assoc(str = ".")]
     Dot,
+    #[token("...")]
+    #[assoc(str = "...")]
+    Vararg,
     #[token("..")]
     #[assoc(str = "..")]
     DotDot,
@@ -169,10 +172,10 @@ pub enum TokenType {
     MinusEqual,
     #[token("*=")]
     #[assoc(str = "*=")]
-    TimesEqual,
+    StarEqual,
     #[token("/=")]
     #[assoc(str = "/=")]
-    DivideEqual,
+    SlashEqual,
     #[token("%=")]
     #[assoc(str = "%=")]
     ModuloEqual,
@@ -227,6 +230,10 @@ pub enum TokenType {
 }
 
 impl TokenType {
+    pub fn is_valid_function_name(self) -> bool {
+        self == Identifier
+    }
+
     ///is this lexeme a keyword of the language ?
     pub fn is_keyword(self) -> bool {
         matches!(
@@ -239,7 +246,7 @@ impl TokenType {
     pub fn is_valid_var_ref_name(self) -> bool {
         matches!(
             self,
-            Identifier | Dollar | Ampersand | At | Not | IntLiteral
+            Identifier | Ampersand | At | Not | IntLiteral
         )
     }
 
@@ -309,7 +316,7 @@ impl TokenType {
     pub fn is_closing_ponctuation(self) -> bool {
         matches!(
             self,
-            |TokenType::SquaredRightBracket| TokenType::RoundedRightBracket
+            | TokenType::SquaredRightBracket | TokenType::RoundedRightBracket
                 | TokenType::CurlyRightBracket
         )
     }

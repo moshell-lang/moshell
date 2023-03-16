@@ -329,12 +329,35 @@ pub(crate) struct OrMove<A: Move + Copy, B: Move + Copy> {
 
 impl<A: Move + Copy, B: Move + Copy> Move for OrMove<A, B> {
     fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-    where
-        F: Fn(usize) -> Token<'a>,
+        where
+            F: Fn(usize) -> Token<'a>,
     {
         self.left
             .apply(&at, pos)
             .or_else(|| self.right.apply(at, pos))
+    }
+}
+
+///A move that will succeed if underlying succeeds but the returned position is the starting pos of this move.
+/// This move is useful for mutable movement procedure that wants to make a _partial_ lookahead.
+#[derive(Copy, Clone)]
+pub(crate) struct LookaheadMove<A: Move + Copy> {
+    underlying: A,
+}
+
+impl<A: Move + Copy> Move for LookaheadMove<A> {
+    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
+        where
+            F: Fn(usize) -> Token<'a>,
+    {
+        self.underlying.apply(&at, pos)
+            .map(|_| pos)
+    }
+}
+
+pub(crate) fn lookahead<M: Move + Copy>(m: M) -> LookaheadMove<M> {
+    LookaheadMove {
+        underlying: m
     }
 }
 
@@ -343,12 +366,12 @@ impl<A: Move + Copy, B: Move + Copy> Move for OrMove<A, B> {
 ///End of _group_ Delimiter, any closing punctuation as long as they are unescaped
 pub(crate) fn eod() -> OrMove<
     AndThenMove<
-        PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
+        PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
         PredicateMove<for<'a> fn(Token<'a>) -> bool>,
     >,
-    PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
+    PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
 > {
-    unescaped(predicate(|t| t.token_type.is_closing_ponctuation()))
+    unescaped(like(TokenType::is_closing_ponctuation))
 }
 
 ///a move to consume default eox tokens as long as they are not escaped.

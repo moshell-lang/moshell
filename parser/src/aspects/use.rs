@@ -30,7 +30,7 @@ impl<'a> UseAspect<'a> for Parser<'a> {
         //then parse others if any
         let mut tail: Vec<_> = self
             .cursor
-            .select(repeat(
+            .collect(repeat(
                 word_seps()
                     .then(of_type(Comma))
                     .then(word_seps().then(of_type(Identifier))),
@@ -76,7 +76,7 @@ mod tests {
     }
 
     #[test]
-    fn test_uses() {
+    fn uses() {
         let source = Source::unknown("use TOKEN,    A \\\n , B \\\n , C");
         let result = parse(source).expect("parser failed");
         assert_eq!(
@@ -88,7 +88,7 @@ mod tests {
     }
 
     #[test]
-    fn test_use_trailing_comma() {
+    fn use_trailing_comma() {
         let content = "use TOKEN, A, B, ";
         let source = Source::unknown(content);
         let result: ParseResult<_> = parse(source).into();
@@ -103,7 +103,7 @@ mod tests {
     }
 
     #[test]
-    fn test_use_empty() {
+    fn use_empty() {
         let content = "use";
         let source = Source::unknown(content);
         let result: ParseResult<_> = parse(source).into();

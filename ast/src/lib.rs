@@ -1,5 +1,8 @@
-use crate::callable::{Call, Detached, Pipeline, Redirected};
+use dbg_pls::DebugPls;
+
+use crate::call::{Call, Detached, Pipeline, Redirected};
 use crate::control_flow::{For, If, Loop, While};
+use crate::function::FunctionDeclaration;
 use crate::group::{Block, Parenthesis, Subshell};
 use crate::operation::BinaryOperation;
 use crate::r#match::Match;
@@ -10,10 +13,10 @@ use crate::substitution::Substitution;
 use crate::test::{Not, Test};
 use crate::value::{Literal, TemplateString};
 use crate::variable::{Assign, VarDeclaration, VarReference};
-use dbg_pls::DebugPls;
 
-pub mod callable;
+pub mod call;
 pub mod control_flow;
+pub mod function;
 pub mod group;
 pub mod r#match;
 pub mod operation;
@@ -21,6 +24,7 @@ pub mod range;
 pub mod structure;
 pub mod substitution;
 pub mod test;
+pub mod r#type;
 pub mod r#use;
 pub mod value;
 pub mod variable;
@@ -60,6 +64,8 @@ pub enum Expr<'a> {
     VarReference(VarReference<'a>),
     VarDeclaration(VarDeclaration<'a>),
     Range(Iterable<'a>),
+
+    FunctionDeclaration(FunctionDeclaration<'a>),
 
     //Grouping expressions
     /// a parenthesis expression `( ... )` that contains one value expression

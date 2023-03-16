@@ -132,7 +132,7 @@ impl<'a> Parser<'a> {
 mod tests {
     use crate::aspects::group::GroupAspect;
     use crate::parser::Parser;
-    use ast::callable::Call;
+    use ast::call::Call;
     use ast::group::{Block, Subshell};
     use ast::value::Literal;
     use ast::value::LiteralValue::{Float, Int};
@@ -140,6 +140,7 @@ mod tests {
     use ast::Expr;
     use context::source::Source;
     use pretty_assertions::assert_eq;
+    use ast::r#type::Type;
 
     //noinspection DuplicatedCode
     #[test]
@@ -276,7 +277,7 @@ mod tests {
                                     Expr::Literal("command".into()),
                                     Expr::Literal("call".into()),
                                 ],
-                                tparams: vec![],
+                                type_parameters: vec![],
                             }),
                             Expr::Literal(Literal {
                                 lexeme: "7",
@@ -310,7 +311,10 @@ mod tests {
                         kind: VarKind::Var,
                         var: TypedVariable {
                             name: "test",
-                            ty: Some("int"),
+                            ty: Some(Type {
+                                name: "int",
+                                params: Vec::new()
+                            }),
                         },
                         initializer: Some(Box::new(Expr::Literal(Literal {
                             lexeme: "7.0",

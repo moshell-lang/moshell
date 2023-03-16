@@ -157,7 +157,7 @@ mod tests {
     use crate::aspects::binary_operation::BinaryOperationsAspect;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parser::Parser;
-    use ast::callable::Call;
+    use ast::call::Call;
     use ast::group::{Parenthesis, Subshell};
     use ast::operation::BinaryOperation;
     use ast::operation::BinaryOperator::*;
@@ -414,7 +414,7 @@ mod tests {
                                 Expr::Literal("echo".into()),
                                 Expr::Literal("hello".into()),
                             ],
-                            tparams: vec![],
+                            type_parameters: vec![],
                         })),
                         op: And,
                         right: Box::new(Expr::Call(Call {
@@ -422,14 +422,14 @@ mod tests {
                                 Expr::Literal("echo".into()),
                                 Expr::Literal("world".into()),
                             ],
-                            tparams: vec![],
+                            type_parameters: vec![],
                         })),
                     })]
                 })),
                 op: Or,
                 right: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal("echo".into()), Expr::Literal("damn".into())],
-                    tparams: vec![],
+                    type_parameters: vec![],
                 })),
             })
         )
@@ -460,7 +460,7 @@ mod tests {
                                 parsed: ")".into(),
                             }),
                         ],
-                        tparams: vec![],
+                        type_parameters: vec![],
                     })]
                 })),
                 op: Or,
@@ -475,7 +475,7 @@ mod tests {
                             parsed: "damn".into(),
                         }),
                     ],
-                    tparams: vec![],
+                    type_parameters: vec![],
                 })),
             })
         )

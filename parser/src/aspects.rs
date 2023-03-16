@@ -15,3 +15,5 @@ pub(super) mod test;
 pub(super) mod r#use;
 pub(super) mod var_declaration;
 pub(super) mod var_reference;
+pub(super) mod function_declaration;
+pub(super) mod r#type;

@@ -27,6 +27,7 @@ use crate::moves::{
 };
 use ast::range::Iterable;
 use ast::Expr;
+use crate::aspects::function_declaration::FunctionDeclarationAspect;
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
 
@@ -133,6 +134,7 @@ impl<'a> Parser<'a> {
         match pivot {
             Var | Val => self.var_declaration(),
             Use => self.parse_use(),
+            Fun => self.parse_function_declaration().map(Expr::FunctionDeclaration),
 
             While => self.parse_while().map(Expr::While),
             Loop => self.parse_loop().map(Expr::Loop),

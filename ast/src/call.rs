@@ -1,5 +1,6 @@
 use crate::Expr;
 use dbg_pls::DebugPls;
+use crate::r#type::Type;
 
 /// A call to a function or a command.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
@@ -10,7 +11,7 @@ pub struct Call<'a> {
     pub arguments: Vec<Expr<'a>>,
 
     /// type parameters of the call.
-    pub tparams: Vec<&'a str>,
+    pub type_parameters: Vec<Type<'a>>,
 }
 
 /// A call to a function or a command.

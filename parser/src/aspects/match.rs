@@ -207,7 +207,7 @@ mod tests {
     use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
     use crate::parse;
-    use ast::callable::Call;
+    use ast::call::Call;
     use ast::group::Subshell;
     use ast::operation::{BinaryOperation, BinaryOperator};
     use ast::r#match::{Match, MatchArm, MatchPattern};
@@ -363,7 +363,7 @@ mod tests {
                                 Expr::Literal("echo".into()),
                                 Expr::VarReference(VarReference { name: "it" }),
                             ],
-                            tparams: vec![],
+                            type_parameters: vec![],
                         }),
                     },
                 ],
@@ -387,7 +387,7 @@ mod tests {
             vec![Expr::Match(Match {
                 operand: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal("nginx".into())],
-                    tparams: vec![],
+                    type_parameters: vec![],
                 })),
                 arms: vec![MatchArm {
                     val_name: None,
@@ -398,7 +398,7 @@ mod tests {
                             Expr::Literal("echo".into()),
                             Expr::VarReference(VarReference { name: "it" }),
                         ],
-                        tparams: vec![],
+                        type_parameters: vec![],
                     }),
                 },],
             })]
@@ -479,7 +479,7 @@ mod tests {
                                 Expr::Literal("echo".into()),
                                 Expr::VarReference(VarReference { name: "it" }),
                             ],
-                            tparams: vec![],
+                            type_parameters: vec![],
                         }),
                     },
                 ],

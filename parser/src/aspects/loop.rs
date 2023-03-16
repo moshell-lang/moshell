@@ -125,7 +125,7 @@ impl<'a> Parser<'a> {
     fn parse_conditional_for(&mut self) -> ParseResult<ConditionalFor<'a>> {
         let start = self
             .cursor
-            .select(times(2, of_type(TokenType::RoundedLeftBracket)));
+            .collect(times(2, of_type(TokenType::RoundedLeftBracket)));
         if start.is_empty() {
             return self.expected(
                 "Expected '((' at start of conditional for",
@@ -184,7 +184,7 @@ mod tests {
     use crate::err::ParseErrorKind::Unexpected;
     use crate::parse;
     use crate::parser::ParseResult;
-    use ast::callable::Call;
+
     use ast::control_flow::{ConditionalFor, For, ForKind, Loop, RangeFor, While};
     use ast::group::{Block, Parenthesis};
     use ast::operation::BinaryOperator::And;
@@ -196,6 +196,7 @@ mod tests {
     use ast::Expr::{Break, Continue};
     use context::source::Source;
     use pretty_assertions::assert_eq;
+    use ast::call::Call;
 
     #[test]
     fn loop_with_break_and_continues() {
@@ -227,7 +228,7 @@ mod tests {
                             Expr::Literal("ssh".into()),
                             Expr::Literal("mabatista1@iut".into())
                         ],
-                        tparams: vec![],
+                        type_parameters: vec![],
                     })),
                     op: And,
                     right: Box::new(Break)
@@ -244,7 +245,7 @@ mod tests {
             vec![Expr::Loop(Loop {
                 body: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal("date".into())],
-                    tparams: vec![],
+                    type_parameters: vec![],
                 }))
             })]
         )
@@ -275,7 +276,7 @@ mod tests {
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
                         arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
-                        tparams: vec![],
+                        type_parameters: vec![],
                     })]
                 })),
             })]
@@ -302,17 +303,17 @@ mod tests {
                         })),
                         step: None,
                         upper_inclusive: false,
-                    }))
+                    })),
                 })),
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
                         arguments: vec![
                             Expr::Literal("echo".into()),
-                            Expr::VarReference(VarReference { name: "i" })
+                            Expr::VarReference(VarReference { name: "i" }),
                         ],
-                        tparams: vec![],
+                        type_parameters: vec![],
                     })]
-                }))
+                })),
             })]
         );
     }
@@ -331,12 +332,12 @@ mod tests {
                         end: Box::new(Expr::VarReference(VarReference { name: "b" })),
                         step: None,
                         upper_inclusive: false,
-                    }))
+                    })),
                 })),
                 body: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal("cat".into())],
-                    tparams: vec![],
-                }))
+                    type_parameters: vec![],
+                })),
             })]
         );
     }
@@ -370,12 +371,12 @@ mod tests {
                         })),
                         step: None,
                         upper_inclusive: false,
-                    }))
+                    })),
                 })),
                 body: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal("ls".into())],
-                    tparams: vec![],
-                }))
+                    type_parameters: vec![],
+                })),
             })]
         );
     }
@@ -392,17 +393,17 @@ mod tests {
                     iterable: Expr::Range(Iterable::Files(FilePattern {
                         lexeme: "*",
                         pattern: "*".to_owned(),
-                    }))
+                    })),
                 })),
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
                         arguments: vec![
                             Expr::Literal("file".into()),
-                            Expr::VarReference(VarReference { name: "f" })
+                            Expr::VarReference(VarReference { name: "f" }),
                         ],
-                        tparams: vec![],
+                        type_parameters: vec![],
                     })]
-                }))
+                })),
             })]
         );
     }
@@ -432,7 +433,7 @@ mod tests {
                         right: Box::new(Expr::Literal(Literal {
                             lexeme: "10",
                             parsed: 10.into(),
-                        }))
+                        })),
                     }),
                     increment: Expr::Assign(Assign {
                         name: "i",
@@ -442,17 +443,17 @@ mod tests {
                             right: Box::new(Expr::Literal(Literal {
                                 lexeme: "1",
                                 parsed: 1.into(),
-                            }))
+                            })),
                         })),
-                    })
+                    }),
                 })),
                 body: Box::new(Expr::Call(Call {
                     arguments: vec![
                         Expr::Literal("echo".into()),
-                        Expr::VarReference(VarReference { name: "i" })
+                        Expr::VarReference(VarReference { name: "i" }),
                     ],
-                    tparams: vec![],
-                }))
+                    type_parameters: vec![],
+                })),
             })]
         );
     }

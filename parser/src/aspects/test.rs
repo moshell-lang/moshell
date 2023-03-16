@@ -40,7 +40,7 @@ impl<'a> TestAspect<'a> for Parser<'a> {
 
         //if first bracket is followed by a second, then this expression is a direct call to the `test` command.
         if self.cursor.advance(of_type(SquaredLeftBracket)).is_some() {
-            return self.parse_test_call(start);
+            return self.parse_call(start);
         }
 
         if let Some(end) = self.cursor.lookahead(of_type(SquaredRightBracket)) {
@@ -65,7 +65,7 @@ impl<'a> TestAspect<'a> for Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn parse_test_call(&mut self, start: Token) -> ParseResult<Expr<'a>> {
+    fn parse_call(&mut self, start: Token) -> ParseResult<Expr<'a>> {
         let call = self.call_arguments(Literal("test".into()), Vec::new());
 
         self.cursor.force_with(
@@ -83,7 +83,7 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
-    use ast::callable::Call;
+    use ast::call::Call;
     use ast::group::{Parenthesis, Subshell};
     use ast::operation::{BinaryOperation, BinaryOperator};
     use ast::test::{Not, Test};
@@ -131,7 +131,7 @@ mod tests {
             result,
             vec![Expr::Call(Call {
                 arguments: vec![Expr::Literal("test".into())],
-                tparams: vec![],
+                type_parameters: vec![],
             })]
         )
     }
@@ -155,13 +155,13 @@ mod tests {
                         parsed: LiteralValue::Int(100),
                     }),
                 ],
-                tparams: vec![],
+                type_parameters: vec![],
             })]
         )
     }
 
     #[test]
-    fn test_integration() {
+    fn integration() {
         let source = Source::unknown("echo && [ ($a == $b) ] || [[ $1 ]]");
         let result = parse(source).expect("parse error");
         assert_eq!(
@@ -170,7 +170,7 @@ mod tests {
                 left: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Call(Call {
                         arguments: vec![Expr::Literal("echo".into())],
-                        tparams: vec![],
+                        type_parameters: vec![],
                     })),
                     op: BinaryOperator::And,
                     right: Box::new(Expr::Test(Test {
@@ -189,14 +189,14 @@ mod tests {
                         Expr::Literal("test".into()),
                         Expr::VarReference(VarReference { name: "1" }),
                     ],
-                    tparams: vec![],
+                    type_parameters: vec![],
                 })),
             })]
         )
     }
 
     #[test]
-    fn test_in_test() {
+    fn in_test() {
         let content = "[ test == [] ]";
         let source = Source::unknown(content);
         let result: ParseResult<_> = parse(source).into();
@@ -226,7 +226,7 @@ mod tests {
     }
 
     #[test]
-    fn unclosed_test_call() {
+    fn unclosed_call() {
         let content = "[[ test == $USER ";
         let source = Source::unknown(content);
         let result: ParseResult<_> = parse(source).into();
@@ -256,7 +256,7 @@ mod tests {
                             parsed: LiteralValue::String("^[0-9]+$".to_string()),
                         }),
                     ],
-                    tparams: vec![],
+                    type_parameters: vec![],
                 }))
             })]
         )

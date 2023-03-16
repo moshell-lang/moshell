@@ -6,6 +6,7 @@ use crate::moves::{like, of_type, repeat, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::variable::VarReference;
 use ast::Expr;
+use lexer::token::TokenType;
 
 pub trait VarReferenceAspect<'a> {
     /// Parses a variable reference.
@@ -19,9 +20,9 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
 
         let tokens = self
             .cursor
-            .select(
+            .collect(
                 of_type(Dollar) //only allow one occurrence of $
-                    .or(repeat(like(|t| t != Dollar && t.is_valid_var_ref_name()))),
+                    .or(repeat(like(TokenType::is_valid_var_ref_name))),
             )
             .leak();
 
@@ -107,7 +108,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ref_in_ref() {
+    fn ref_in_ref() {
         let content = "${V${A}R}";
         let source = Source::unknown(content);
         let result: ParseResult<_> = parse(source).into();
@@ -122,7 +123,7 @@ mod tests {
     }
 
     #[test]
-    fn test_multiple_wrapped_ref() {
+    fn multiple_wrapped_ref() {
         let source = Source::unknown("${VAR}IABLE${LONG}${VERY_LONG}");
         let ast = parse(source).expect("failed to parse");
         assert_eq!(

@@ -1,4 +1,4 @@
-use ast::callable::{Call, Redir, RedirFd, RedirOp, Redirected};
+
 use ast::control_flow::{For, ForKind, RangeFor};
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::range::{Iterable, NumericRange};
@@ -9,6 +9,8 @@ use ast::Expr;
 use context::source::Source;
 use parser::parse;
 use pretty_assertions::assert_eq;
+use ast::call::{Call, Redir, Redirected, RedirFd, RedirOp};
+use ast::r#type::Type;
 
 #[test]
 fn empty() {
@@ -26,7 +28,10 @@ fn variable_type_and_initializer() {
         kind: VarKind::Var,
         var: TypedVariable {
             name: "a",
-            ty: Some("int"),
+            ty: Some(Type {
+                name: "int",
+                params: Vec::new()
+            }),
         },
         initializer: Some(Box::new(Expr::Literal(Literal {
             lexeme: "1",
@@ -43,7 +48,7 @@ fn command_echo() {
 
     let expected = vec![Expr::Call(Call {
         arguments: vec![Expr::Literal("echo".into()), Expr::Literal("hello".into())],
-        tparams: Vec::new(),
+        type_parameters: Vec::new(),
     })];
     assert_eq!(parsed, expected);
 }
@@ -56,7 +61,7 @@ fn command_starting_with_arg() {
         parsed,
         vec![Expr::Call(Call {
             arguments: vec![Expr::Literal("-".into()), Expr::Literal("W".into())],
-            tparams: Vec::new()
+            type_parameters: Vec::new()
         })]
     );
 }
@@ -79,7 +84,7 @@ fn constructor_in_call() {
                     parsed: "Bar()".into(),
                 }),
             ],
-            tparams: Vec::new()
+            type_parameters: Vec::new()
         })]
     );
 }
@@ -126,7 +131,7 @@ fn wildcard_redirect_or() {
                         Expr::Literal("inspect".into()),
                         Expr::Literal("moshell:0.1".into()),
                     ],
-                    tparams: Vec::new()
+                    type_parameters: Vec::new()
                 })),
                 redirections: vec![Redir {
                     fd: RedirFd::Wildcard,
@@ -143,7 +148,7 @@ fn wildcard_redirect_or() {
                         parsed: "Unknown image!".into(),
                     }),
                 ],
-                tparams: Vec::new()
+                type_parameters: Vec::new()
             })),
         })]
     );
@@ -221,7 +226,7 @@ fn call_not_assign() {
                     parsed: 5.into(),
                 }),
             ],
-            tparams: Vec::new()
+            type_parameters: Vec::new()
         })]
     );
 }

@@ -2,7 +2,7 @@ use crate::aspects::call::CallAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{eox, like, next, of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use ast::callable::{Pipeline, Redir, RedirFd, RedirOp, Redirected};
+use ast::call::{Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use ast::Expr;
 use lexer::token::TokenType;
 use lexer::token::TokenType::{BackSlash, DoubleQuote, Quote};
@@ -179,7 +179,7 @@ mod test {
     use crate::aspects::call::CallAspect;
     use crate::parse;
     use crate::parser::Parser;
-    use ast::callable::{Call, Redir, RedirFd, RedirOp, Redirected};
+    use ast::call::{Call, Redir, RedirFd, RedirOp, Redirected};
     use ast::group::Block;
     use ast::value::Literal;
     use ast::Expr;
@@ -195,11 +195,11 @@ mod test {
                     expressions: vec![
                         Expr::Call(Call {
                             arguments: vec![Expr::Literal("ls".into())],
-                            tparams: vec![],
+                            type_parameters: vec![],
                         }),
                         Expr::Call(Call {
                             arguments: vec![Expr::Literal("cd".into())],
-                            tparams: vec![],
+                            type_parameters: vec![],
                         }),
                     ]
                 })),
@@ -221,7 +221,7 @@ mod test {
             Expr::Redirected(Redirected {
                 expr: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal("ls".into())],
-                    tparams: vec![],
+                    type_parameters: vec![],
                 })),
                 redirections: vec![Redir {
                     fd: RedirFd::Default,
@@ -241,7 +241,7 @@ mod test {
             Expr::Redirected(Redirected {
                 expr: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal("ls".into())],
-                    tparams: vec![],
+                    type_parameters: vec![],
                 })),
                 redirections: vec![Redir {
                     fd: RedirFd::Default,
@@ -268,11 +268,11 @@ mod test {
                         Expr::Literal("-E".into()),
                         Expr::Literal("regex".into()),
                     ],
-                    tparams: vec![],
+                    type_parameters: vec![],
                 }),
                 Expr::Call(Call {
                     arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
-                    tparams: vec![],
+                    type_parameters: vec![],
                 }),
             ]
         )
@@ -296,7 +296,7 @@ mod test {
                     Expr::Literal("echo".into()),
                     Expr::Literal("test".into()),
                 ],
-                tparams: vec![],
+                type_parameters: vec![],
             }),]
         )
     }

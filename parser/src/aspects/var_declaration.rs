@@ -1,15 +1,18 @@
+use ast::Expr;
+use ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use lexer::token::TokenType;
+use crate::aspects::r#type::TypeAspect;
 
 use crate::err::ParseErrorKind;
-use ast::variable::{TypedVariable, VarDeclaration, VarKind};
-use ast::Expr;
-
-use crate::moves::{of_type, of_types, spaces, MoveOperations};
-use crate::parser::{ParseResult, Parser};
+use crate::moves::{blanks, eod, eox, lookahead, MoveOperations, of_type, spaces};
+use crate::parser::{Parser, ParseResult};
 
 pub trait VarDeclarationAspect<'a> {
     /// Parses a variable declaration.
     fn var_declaration(&mut self) -> ParseResult<Expr<'a>>;
+
+    /// Parses a typed var,
+    fn parse_typed_var(&mut self) -> ParseResult<TypedVariable<'a>>;
 }
 
 impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
@@ -25,64 +28,66 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
                 )
             }
         };
-        let name = self
-            .cursor
-            .force(
-                spaces().and_then(of_type(TokenType::Identifier)),
-                "Expected variable name.",
-            )?
-            .value;
 
-        let ty = match self
-            .cursor
-            .advance(spaces().then(of_type(TokenType::Colon)))
-        {
-            None => None,
-            Some(_) => Some(
-                self.cursor
-                    .force(
-                        spaces().then(of_type(TokenType::Identifier)),
-                        "Expected identifier for variable type",
-                    )?
-                    .value,
-            ),
-        };
+        let var = self.parse_typed_var()?;
+
         let initializer = match self
             .cursor
             .advance(spaces().then(of_type(TokenType::Equal)))
         {
             None => {
                 self.cursor.force(
-                    of_types(&[TokenType::NewLine, TokenType::EndOfFile]),
-                    "Expected newline after variable declaration",
+                    spaces().then(eox().or(lookahead(eod()))),
+                    "Expected initializer after declaration or newline.",
                 )?;
                 None
             }
 
             Some(_) => Some(self.value()?),
-        };
+        }.map(Box::new);
 
         Ok(Expr::VarDeclaration(VarDeclaration {
             kind,
-            var: TypedVariable { name, ty },
-            initializer: initializer.map(Box::new),
+            var,
+            initializer,
         }))
+    }
+
+    fn parse_typed_var(&mut self) -> ParseResult<TypedVariable<'a>> {
+        let name = self
+            .cursor
+            .force(
+                blanks().then(of_type(TokenType::Identifier)),
+                "Expected variable name.",
+            )?
+            .value;
+
+        let ty = self
+            .cursor
+            .advance(blanks().then(of_type(TokenType::Colon)))
+            .map(|_| self.parse_type())
+            .transpose()?;
+        Ok(TypedVariable { name, ty })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::err::ParseError;
-    use crate::parser::Parser;
-    use ast::callable::Call;
+    use pretty_assertions::assert_eq;
+
+    use ast::call::Call;
+    use ast::Expr;
     use ast::group::Block;
     use ast::operation::BinaryOperation;
     use ast::operation::BinaryOperator::Plus;
+    use ast::r#type::Type;
     use ast::value::{Literal, LiteralValue};
-    use ast::Expr;
     use context::source::Source;
-    use pretty_assertions::assert_eq;
+
+    use crate::err::ParseError;
+    use crate::parser::Parser;
+
+    use super::*;
 
     #[test]
     fn val_declaration() {
@@ -96,7 +101,7 @@ mod tests {
                 kind: VarKind::Val,
                 var: TypedVariable {
                     name: "variable",
-                    ty: None
+                    ty: None,
                 },
                 initializer: None,
             })
@@ -105,7 +110,7 @@ mod tests {
 
     #[test]
     fn val_declaration_with_type() {
-        let source = Source::unknown("val variable: Array");
+        let source = Source::unknown("val variable: int");
         let ast = Parser::new(source)
             .var_declaration()
             .expect("failed to parse");
@@ -115,7 +120,10 @@ mod tests {
                 kind: VarKind::Val,
                 var: TypedVariable {
                     name: "variable",
-                    ty: Some("Array"),
+                    ty: Some(Type {
+                        name: "int",
+                        params: Vec::new(),
+                    }),
                 },
                 initializer: None,
             })
@@ -191,7 +199,7 @@ mod tests {
                                 parsed: "a".into(),
                             }),
                         ],
-                        tparams: vec![],
+                        type_parameters: vec![],
                     })]
                 }))),
             })
