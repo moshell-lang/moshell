@@ -40,7 +40,7 @@ impl<'a> TestAspect<'a> for Parser<'a> {
 
         //if first bracket is followed by a second, then this expression is a direct call to the `test` command.
         if self.cursor.advance(of_type(SquaredLeftBracket)).is_some() {
-            return self.parse_test_call(start);
+            return self.parse_call(start);
         }
 
         if let Some(end) = self.cursor.lookahead(of_type(SquaredRightBracket)) {
@@ -65,7 +65,7 @@ impl<'a> TestAspect<'a> for Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn parse_test_call(&mut self, start: Token) -> ParseResult<Expr<'a>> {
+    fn parse_call(&mut self, start: Token) -> ParseResult<Expr<'a>> {
         let call = self.call_arguments(Literal("test".into()), Vec::new());
 
         self.cursor.force_with(
@@ -161,7 +161,7 @@ mod tests {
     }
 
     #[test]
-    fn test_integration() {
+    fn integration() {
         let source = Source::unknown("echo && [ ($a == $b) ] || [[ $1 ]]");
         let result = parse(source).expect("parse error");
         assert_eq!(
@@ -196,7 +196,7 @@ mod tests {
     }
 
     #[test]
-    fn test_in_test() {
+    fn in_test() {
         let content = "[ test == [] ]";
         let source = Source::unknown(content);
         let result: ParseResult<_> = parse(source).into();
@@ -226,7 +226,7 @@ mod tests {
     }
 
     #[test]
-    fn unclosed_test_call() {
+    fn unclosed_call() {
         let content = "[[ test == $USER ";
         let source = Source::unknown(content);
         let result: ParseResult<_> = parse(source).into();

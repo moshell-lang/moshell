@@ -108,7 +108,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ref_in_ref() {
+    fn ref_in_ref() {
         let content = "${V${A}R}";
         let source = Source::unknown(content);
         let result: ParseResult<_> = parse(source).into();
@@ -123,7 +123,7 @@ mod tests {
     }
 
     #[test]
-    fn test_multiple_wrapped_ref() {
+    fn multiple_wrapped_ref() {
         let source = Source::unknown("${VAR}IABLE${LONG}${VERY_LONG}");
         let ast = parse(source).expect("failed to parse");
         assert_eq!(

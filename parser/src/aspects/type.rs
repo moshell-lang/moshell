@@ -77,7 +77,7 @@ mod tests {
     use crate::parser::{Parser};
 
     #[test]
-    fn test_simple_type() {
+    fn simple_type() {
         let content = "MyType";
         let source = Source::unknown(content);
         assert_eq!(
@@ -90,7 +90,7 @@ mod tests {
     }
 
     #[test]
-    fn test_empty_param_list() {
+    fn empty_param_list() {
         let content = "Complex[    ]";
         let source = Source::unknown(content);
         assert_eq!(
@@ -107,7 +107,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parametrized_types() {
+    fn parametrized_types() {
         let content = "MyType[A[X, Y[_], Z], B[C[D]]]";
         let source = Source::unknown(content);
         assert_eq!(
@@ -151,7 +151,7 @@ mod tests {
     }
 
     #[test]
-    fn test_type_params_missing_comma() {
+    fn type_params_missing_comma() {
         let content = "MyType[X Y]";
         let source = Source::unknown(content);
         assert_eq!(
@@ -166,7 +166,7 @@ mod tests {
 
 
     #[test]
-    fn test_type_invalid_name() {
+    fn type_invalid_name() {
         let content = "Complex[  @  ]";
         let source = Source::unknown(content);
         let res = Parser::new(source).parse_type();
@@ -181,7 +181,7 @@ mod tests {
     }
 
     #[test]
-    fn test_type_invalid_eod() {
+    fn type_invalid_eod() {
         let content = "Complex[  x  }";
         let source = Source::unknown(content);
         assert_eq!(
