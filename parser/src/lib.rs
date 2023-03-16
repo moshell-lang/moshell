@@ -1,8 +1,6 @@
 #![allow(dead_code)]
 #![deny(warnings)]
 
-extern crate core;
-
 use crate::err::ParseReport;
 use context::source::Source;
 
