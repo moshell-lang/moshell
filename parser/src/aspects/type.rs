@@ -14,19 +14,16 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
     fn parse_type(&mut self) -> ParseResult<Type<'a>> {
         self.cursor.advance(word_seps()); //consume word seps
 
-        let name = self
-            .cursor
-            .force(
-                of_type(Identifier),
-                &format!(
-                    "'{}' is not a valid type identifier.",
-                    self.cursor.peek().value
-                ),
-            )?
-            .value;
+        let name_token = self.cursor.next()?;
+        if name_token.token_type != Identifier {
+            return Err(self.mk_parse_error(format!(
+                "'{}' is not a valid type identifier.",
+                name_token.value
+            ), name_token, ParseErrorKind::Unexpected));
+        }
 
         Ok(Type {
-            name,
+            name: name_token.value,
             params: self.parse_type_parameter_list()?,
         })
     }
@@ -161,8 +158,8 @@ mod tests {
             Parser::new(source).parse_type(),
             Err(ParseError {
                 message: "A comma or a closing bracket was expected here".to_string(),
-                position: "MyType[X".len().."MyType[X".len() + 1,
-                kind: Excepted("',' or ']'")
+                position: "MyType[X ".len().."MyType[X ".len() + 1,
+                kind: Excepted("',' or ']'"),
             })
         );
     }
@@ -172,12 +169,13 @@ mod tests {
     fn test_type_invalid_name() {
         let content = "Complex[  @  ]";
         let source = Source::unknown(content);
+        let res = Parser::new(source).parse_type();
         assert_eq!(
-            Parser::new(source).parse_type(),
+            res,
             Err(ParseError {
                 message: "'@' is not a valid type identifier.".to_string(),
                 kind: ParseErrorKind::Unexpected,
-                position: content.find('@').map(|i| i..i + 1).unwrap()
+                position: content.find('@').map(|i| i..i + 1).unwrap(),
             })
         );
     }

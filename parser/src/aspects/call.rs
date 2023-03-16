@@ -89,7 +89,7 @@ mod tests {
             Parser::new(source).parse_next(),
             Err(ParseError {
                 message: "expected end of expression or file".to_string(),
-                position: content.len()-1..content.len(),
+                position: content.len()..content.len(),
                 kind: ParseErrorKind::Unexpected,
             })
         );

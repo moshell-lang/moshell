@@ -116,7 +116,7 @@ mod tests {
             result,
             Err(ParseError {
                 message: "Expected closing curly bracket.".to_string(),
-                position: 3..4,
+                position: 4..5,
                 kind: ParseErrorKind::Unpaired(content.find('{').map(|p| p..p + 1).unwrap()),
             })
         )

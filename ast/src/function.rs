@@ -1,7 +1,8 @@
 use dbg_pls::DebugPls;
-use crate::variable::{TypedVariable, VarDeclaration};
+use crate::variable::{TypedVariable};
 use crate::Expr;
 use crate::r#type::Type;
+
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct FunctionDeclaration<'a> {
     pub name: &'a str,

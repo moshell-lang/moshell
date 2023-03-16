@@ -4,7 +4,7 @@ use lexer::token::TokenType;
 use crate::aspects::r#type::TypeAspect;
 
 use crate::err::ParseErrorKind;
-use crate::moves::{blanks, MoveOperations, of_type, of_types, spaces};
+use crate::moves::{blanks, eod, eox, lookahead, MoveOperations, of_type, spaces};
 use crate::parser::{Parser, ParseResult};
 
 pub trait VarDeclarationAspect<'a> {
@@ -37,8 +37,8 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
         {
             None => {
                 self.cursor.force(
-                    of_types(&[TokenType::NewLine, TokenType::EndOfFile]),
-                    "Expected newline after variable declaration",
+                    spaces().then(eox().or(lookahead(eod()))),
+                    "Expected initializer after declaration or newline.",
                 )?;
                 None
             }

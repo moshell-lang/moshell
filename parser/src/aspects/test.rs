@@ -219,7 +219,7 @@ mod tests {
             result,
             Err(ParseError {
                 message: "missing ']'".to_string(),
-                position: content.len()-1..content.len(),
+                position: content.len()..content.len(),
                 kind: ParseErrorKind::Unpaired(0..1),
             })
         )
