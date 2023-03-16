@@ -20,7 +20,7 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
 
         let tokens = self
             .cursor
-            .select(
+            .collect(
                 of_type(Dollar) //only allow one occurrence of $
                     .or(repeat(like(TokenType::is_valid_var_ref_name))),
             )

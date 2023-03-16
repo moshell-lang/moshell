@@ -6,7 +6,7 @@ use lexer::token::TokenType::*;
 use crate::aspects::r#type::TypeAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::err::ParseErrorKind;
-use crate::moves::{blank, blanks, eod, like, lookahead, MoveOperations, next, not, of_type, of_types, repeat};
+use crate::moves::{blank, blanks, eod, eox, like, lookahead, MoveOperations, next, not, of_type, of_types, repeat};
 use crate::parser::{Parser, ParseResult};
 
 pub trait FunctionDeclarationAspect<'a> {
@@ -97,7 +97,13 @@ impl<'a> Parser<'a> {
         self.cursor
             .advance(like(TokenType::is_valid_function_name))
             .ok_or_else(|| {
-                let wrong_name_slice = self.cursor.select(repeat(not(blank().or(like(TokenType::is_ponctuation))).and_then(next()))).to_owned();
+                //collect all tokens that could compose the function's name
+                let wrong_name_slice = self.cursor.collect(
+                    repeat(
+                        not(blank().or(eod()).or(eox()).or(of_types(&[CurlyLeftBracket, SquaredLeftBracket, RoundedLeftBracket])))
+                            .and_then(next())
+                    )
+                ).to_owned();
                 if wrong_name_slice.is_empty() {
                     self.mk_parse_error("function name expected",
                                         self.cursor.peek(),

@@ -30,7 +30,7 @@ impl<'a> UseAspect<'a> for Parser<'a> {
         //then parse others if any
         let mut tail: Vec<_> = self
             .cursor
-            .select(repeat(
+            .collect(repeat(
                 word_seps()
                     .then(of_type(Comma))
                     .then(word_seps().then(of_type(Identifier))),
