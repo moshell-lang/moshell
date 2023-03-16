@@ -9,7 +9,9 @@ use crate::err::ParseErrorKind;
 use crate::moves::{blank, blanks, eod, eox, like, lookahead, MoveOperations, next, not, of_type, of_types, repeat};
 use crate::parser::{Parser, ParseResult};
 
+///A parser aspect for function declarations
 pub trait FunctionDeclarationAspect<'a> {
+    ///Parse a function declaration
     fn parse_function_declaration(&mut self) -> ParseResult<FunctionDeclaration<'a>>;
 }
 

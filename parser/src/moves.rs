@@ -339,7 +339,7 @@ impl<A: Move + Copy, B: Move + Copy> Move for OrMove<A, B> {
 }
 
 ///A move that will succeed if underlying succeeds but the returned position is the starting pos of this move.
-/// This move is usefully for mutable movement procedures that wants to make a _partial_ lookahead.
+/// This move is useful for mutable movement procedure that wants to make a _partial_ lookahead.
 #[derive(Copy, Clone)]
 pub(crate) struct LookaheadMove<A: Move + Copy> {
     underlying: A,
