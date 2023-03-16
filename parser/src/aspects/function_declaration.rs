@@ -75,7 +75,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_fn_parameter_list(&mut self) -> ParseResult<Vec<FunctionParameter<'a>>> {
-        self.cursor.force(of_type(RoundedLeftBracket), "expected start of parameter list ('(')")?;
+        self.cursor.force_with(of_type(RoundedLeftBracket), "expected start of parameter list", ParseErrorKind::Excepted("("))?;
 
         let mut params = Vec::new();
         while self.cursor.lookahead(blanks().then(eod())).is_none() {
@@ -150,6 +150,7 @@ mod tests {
         }
     }
 
+
     #[test]
     fn function_nugget() {
         let errs = parse(Source::unknown("fun")).errors;
@@ -159,6 +160,20 @@ mod tests {
                 message: "function name expected".to_string(),
                 position: 3..3,
                 kind: ParseErrorKind::Excepted("<function name>"),
+            }]
+        );
+    }
+
+    #[test]
+    fn function_no_params() {
+        let src = "fun x = y";
+        let errs = parse(Source::unknown(src)).errors;
+        assert_eq!(
+            errs,
+            vec![ParseError {
+                message: "expected start of parameter list".to_string(),
+                position: src.find('=').map(|i| i..i + 1).unwrap(),
+                kind: ParseErrorKind::Excepted("("),
             }]
         );
     }
