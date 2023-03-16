@@ -1,12 +1,12 @@
 use ast::function::{FunctionDeclaration, FunctionParameter};
 use ast::r#type::Type;
 use lexer::token::TokenType;
-use lexer::token::TokenType::{Arrow, Comma, Equal, Fun, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket, Space, SquaredLeftBracket, SquaredRightBracket, Vararg};
+use lexer::token::TokenType::*;
 
 use crate::aspects::r#type::TypeAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::err::ParseErrorKind;
-use crate::moves::{blank, blanks, eod, like, lookahead, MoveOperations, not, of_type, of_types, repeat};
+use crate::moves::{blank, blanks, eod, like, lookahead, MoveOperations, next, not, of_type, of_types, repeat};
 use crate::parser::{Parser, ParseResult};
 
 pub trait FunctionDeclarationAspect<'a> {
@@ -94,12 +94,18 @@ impl<'a> Parser<'a> {
         self.cursor
             .advance(like(TokenType::is_valid_function_name))
             .ok_or_else(|| {
-                let wrong_name_slice = self.cursor.select(not(blank().or(like(TokenType::is_ponctuation)))).to_owned();
-                self.mk_parse_error(
-                    "function name is invalid.",
-                    wrong_name_slice.as_slice(),
-                    ParseErrorKind::Unexpected,
-                )
+                let wrong_name_slice = self.cursor.select(repeat(not(blank().or(like(TokenType::is_ponctuation))).and_then(next()))).to_owned();
+                if wrong_name_slice.is_empty() {
+                    self.mk_parse_error("function name expected",
+                                        self.cursor.peek(),
+                                        ParseErrorKind::Excepted("<function name>"))
+                } else {
+                    self.mk_parse_error(
+                        "function name is invalid.",
+                        wrong_name_slice.as_slice(),
+                        ParseErrorKind::InvalidFormat,
+                    )
+                }
             }).map(|t| t.value)
     }
 }
@@ -114,8 +120,54 @@ mod tests {
     use ast::r#type::Type;
     use ast::variable::{TypedVariable, VarReference};
     use context::source::Source;
+    use crate::err::{ParseError, ParseErrorKind};
 
     use crate::parse;
+
+    #[test]
+    fn function_no_name() {
+        let errs2 = parse(Source::unknown("fun () -> x = ()")).errors;
+        let errs3 = parse(Source::unknown("fun () = ()")).errors;
+        let errs4 = parse(Source::unknown("fun [X]() = ()")).errors;
+        for errs in [errs2, errs3, errs4] {
+            assert_eq!(
+                errs,
+                vec![ParseError {
+                    message: "function name expected".to_string(),
+                    position: 4..5,
+                    kind: ParseErrorKind::Excepted("<function name>"),
+                }]
+            );
+        }
+    }
+
+    #[test]
+    fn function_nugget() {
+        let errs = parse(Source::unknown("fun")).errors;
+        assert_eq!(
+            errs,
+            vec![ParseError {
+                message: "function name expected".to_string(),
+                position: 3..3,
+                kind: ParseErrorKind::Excepted("<function name>"),
+            }]
+        );
+    }
+
+
+    #[test]
+    fn function_invalid_name() {
+        let src = "fun 78() = ()";
+        let errs = parse(Source::unknown(src)).errors;
+        assert_eq!(
+            errs,
+            vec![ParseError {
+                message: "function name is invalid.".to_string(),
+                position: src.find("78").map(|i| i..i + 2).unwrap(),
+                kind: ParseErrorKind::InvalidFormat,
+            }]
+        );
+    }
 
     #[test]
     fn function_declaration() {
