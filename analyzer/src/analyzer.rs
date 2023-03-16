@@ -50,13 +50,13 @@ impl<'a> Analyzer<'a> {
                         .clone()
                         .expect("Not initialized declarations are not supported yet"),
                 )?;
-                if let Some(type_hint_str) = decl.var.ty {
-                    let type_hint = Type::try_from(type_hint_str);
-                    match type_hint {
-                        Ok(type_hint) => {
-                            if TypeScheme::from(type_hint) != actual_type {
+                if let Some(type_hint) = decl.var.ty.as_ref() {
+                    let ty = Type::try_from(type_hint.name);
+                    match ty {
+                        Ok(ty) => {
+                            if TypeScheme::from(ty) != actual_type {
                                 self.diagnostics.push(Diagnostic {
-                                    message: format!("Type mismatch: expected {type_hint_str}"),
+                                    message: format!("Type mismatch: expected {}", type_hint.name),
                                 });
                             }
                         }
