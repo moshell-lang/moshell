@@ -185,6 +185,7 @@ mod tests {
     use crate::parse;
     use crate::parser::ParseResult;
 
+    use ast::call::Call;
     use ast::control_flow::{ConditionalFor, For, ForKind, Loop, RangeFor, While};
     use ast::group::{Block, Parenthesis};
     use ast::operation::BinaryOperator::And;
@@ -196,7 +197,6 @@ mod tests {
     use ast::Expr::{Break, Continue};
     use context::source::Source;
     use pretty_assertions::assert_eq;
-    use ast::call::Call;
 
     #[test]
     fn loop_with_break_and_continues() {

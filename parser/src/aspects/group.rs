@@ -134,13 +134,13 @@ mod tests {
     use crate::parser::Parser;
     use ast::call::Call;
     use ast::group::{Block, Subshell};
+    use ast::r#type::Type;
     use ast::value::Literal;
     use ast::value::LiteralValue::{Float, Int};
     use ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use ast::Expr;
     use context::source::Source;
     use pretty_assertions::assert_eq;
-    use ast::r#type::Type;
 
     //noinspection DuplicatedCode
     #[test]

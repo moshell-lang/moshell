@@ -1,6 +1,7 @@
-
+use ast::call::{Call, Redir, RedirFd, RedirOp, Redirected};
 use ast::control_flow::{For, ForKind, RangeFor};
 use ast::operation::{BinaryOperation, BinaryOperator};
+use ast::r#type::Type;
 use ast::range::{Iterable, NumericRange};
 use ast::structure::Construct;
 use ast::value::{Literal, LiteralValue};
@@ -9,8 +10,6 @@ use ast::Expr;
 use context::source::Source;
 use parser::parse;
 use pretty_assertions::assert_eq;
-use ast::call::{Call, Redir, Redirected, RedirFd, RedirOp};
-use ast::r#type::Type;
 
 #[test]
 fn empty() {
@@ -30,7 +29,7 @@ fn variable_type_and_initializer() {
             name: "a",
             ty: Some(Type {
                 name: "int",
-                params: Vec::new()
+                params: Vec::new(),
             }),
         },
         initializer: Some(Box::new(Expr::Literal(Literal {

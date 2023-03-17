@@ -1,9 +1,9 @@
 use crate::err::ParseErrorKind;
-use crate::moves::{of_type, MoveOperations, eod, word_seps, lookahead};
+use crate::err::ParseErrorKind::Excepted;
+use crate::moves::{eod, lookahead, of_type, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::r#type::Type;
 use lexer::token::TokenType::{Comma, Identifier, SquaredLeftBracket, SquaredRightBracket};
-use crate::err::ParseErrorKind::Excepted;
 
 pub trait TypeAspect<'a> {
     fn parse_type(&mut self) -> ParseResult<Type<'a>>;
@@ -16,10 +16,11 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
 
         let name_token = self.cursor.next()?;
         if name_token.token_type != Identifier {
-            return Err(self.mk_parse_error(format!(
-                "'{}' is not a valid type identifier.",
-                name_token.value
-            ), name_token, ParseErrorKind::Unexpected));
+            return Err(self.mk_parse_error(
+                format!("'{}' is not a valid type identifier.", name_token.value),
+                name_token,
+                ParseErrorKind::Unexpected,
+            ));
         }
 
         Ok(Type {
@@ -36,16 +37,12 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
 
         let mut tparams = vec![];
 
-        while self
-            .cursor
-            .lookahead(word_seps().then(eod()))
-            .is_none()
-        {
+        while self.cursor.lookahead(word_seps().then(eod())).is_none() {
             tparams.push(self.parse_type()?);
             self.cursor.force_with(
                 word_seps().then(of_type(Comma).or(lookahead(eod()))),
                 "A comma or a closing bracket was expected here",
-                Excepted("',' or ']'")
+                Excepted("',' or ']'"),
             )?;
         }
         self.cursor.advance(word_seps());
@@ -68,13 +65,13 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
+    use crate::aspects::r#type::TypeAspect;
+    use crate::err::ParseErrorKind::Excepted;
+    use crate::err::{ParseError, ParseErrorKind};
+    use crate::parser::Parser;
     use ast::r#type::Type;
     use context::source::Source;
-    use crate::aspects::r#type::TypeAspect;
-    use crate::err::{ParseError, ParseErrorKind};
-    use crate::err::ParseErrorKind::Excepted;
-    use crate::parser::{Parser};
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn simple_type() {
@@ -164,7 +161,6 @@ mod tests {
         );
     }
 
-
     #[test]
     fn type_invalid_name() {
         let content = "Complex[  @  ]";
@@ -193,5 +189,4 @@ mod tests {
             })
         );
     }
-
 }
