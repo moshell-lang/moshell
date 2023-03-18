@@ -99,6 +99,9 @@ impl<'a> Parser<'a> {
 
         let mut params = Vec::new();
         while self.cursor.lookahead(blanks().then(eod())).is_none() {
+            if self.cursor.lookahead(of_type(Comma)).is_some() {
+                self.expected("Expected parameter.", ParseErrorKind::Unexpected)?;
+            }
             let param = self.parse_fn_parameter()?;
             params.push(param);
             self.cursor.force(

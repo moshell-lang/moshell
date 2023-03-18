@@ -153,3 +153,22 @@ fn double_comma_parentheses() {
         }
     );
 }
+
+#[test]
+fn double_comma_function() {
+    let content = "fun foo(a: Int,, b: Int) = a + b";
+    let source = Source::unknown(content);
+    let report = parse(source);
+    assert_eq!(
+        report,
+        ParseReport {
+            expr: vec![],
+            errors: vec![ParseError {
+                message: "Expected parameter.".to_string(),
+                position: content.rfind(',').map(|p| p..p + 1).unwrap(),
+                kind: ParseErrorKind::Unexpected
+            }],
+            stack_ended: true,
+        }
+    );
+}
