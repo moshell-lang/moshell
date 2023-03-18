@@ -1,9 +1,9 @@
-use regex::Regex;
+
 use crate::err::ParseErrorKind;
 use crate::moves::{of_type, MoveOperations, eod, word_seps, lookahead, any};
 use crate::parser::{ParseResult, Parser};
 use ast::r#type::{Monotype, Polytype, Type};
-use lexer::token::{Token, TokenType};
+use lexer::token::{TokenType};
 use lexer::token::TokenType::{Comma, FatArrow, Identifier, RoundedLeftBracket,
                               RoundedRightBracket, SquaredLeftBracket, SquaredRightBracket};
 use crate::err::ParseErrorKind::Excepted;
@@ -18,35 +18,41 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         self.cursor.advance(word_seps()); //consume word seps
 
 
-        let parenthesis = self.cursor.lookahead(of_type(RoundedLeftBracket)).is_some();
+        let first_token = self.cursor.peek();
         //if there's a parenthesis then the type is necessarily a polytype
-        if parenthesis {
-            return self.parse_polytype().map(Type::Polytype)
-        }
+        let mut tpe = if first_token.token_type == RoundedLeftBracket {
+            self.parse_polytype().map(Type::Polytype)?
+        } else {
+            Type::Monotype(self.parse_monotype()?)
+        };
 
-        let start = self.cursor.lookahead(word_seps().then(any())).unwrap();
-        let tpe = Type::Monotype(self.parse_monotype()?);
 
         //check if there's an arrow, if some, we are maybe in a case where the type is "A => ..."
         // (a lambda with one parameter and no parenthesis for the input, which is valid)
-        if self.cursor.lookahead(word_seps().then(of_type(FatArrow))).is_none() {
+        if !self.cursor.advance(word_seps().then(of_type(FatArrow))).is_some() {
             return Ok(tpe)
         }
 
-        let poly = self.parse_polytype_with_inputs(vec![tpe])
-            .map(Type::Polytype)?;
+        if matches!(tpe, Type::Monotype(..)) {
+            tpe = Type::Polytype(Polytype {
+                inputs: vec![tpe],
+                output: Box::new(Type::Monotype(self.parse_monotype()?)),
+            })
+        }
 
-        //lookahead for another lambda, if some,
-        //we are in a case where there is a lambda as input of another, such as "A => B => ...",
-        //which is invalid, so we fail here
-        if self.cursor.lookahead(word_seps().then(of_type(FatArrow))).is_some() {
+        //check if there's an arrow, if some, we are maybe in a case where the type is "A => ..."
+        // (a lambda with one parameter and no parenthesis for the input, which is valid)
+        if self.cursor.advance(word_seps().then(of_type(FatArrow))).is_some() {
+            //parse second lambda output in order to advance on the full invalid lambda expression
+            let second_rt = self.parse_monotype()?;
             return self.expected_with("Lambda type as input of another lambda must be surrounded with parenthesis",
-                                      start.clone()..self.cursor.peek(),
-                                      ParseErrorKind::UnexpectedInContext(self.unparenthesised_lambda_input_tip(start)),
+                                      first_token..self.cursor.peek(),
+                                      ParseErrorKind::UnexpectedInContext(self.unparenthesised_lambda_input_tip(tpe, second_rt)),
             )
         }
 
-        Ok(poly)
+
+        Ok(tpe)
     }
 
     fn parse_type_parameter_list(&mut self) -> ParseResult<Vec<Type<'a>>> {
@@ -56,17 +62,8 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
 
 
 impl<'a> Parser<'a> {
-    fn unparenthesised_lambda_input_tip(&self, from: Token<'a>) -> String {
-        let to = self.cursor.peek();
-
-        let source = self.source.source;
-        let from_idx = from.value.as_ptr() as usize - source.as_ptr() as usize;
-        let to_idx = to.value.as_ptr() as usize - source.as_ptr() as usize;
-
-        let source_code = self.source.source[from_idx..to_idx].to_string();
-        let regex = Regex::new("(\\w+.*=>.*\\w)+.=>").expect("unable to compile regex");
-
-        regex.replace(&source_code, "(\\1)").into_owned()
+    fn unparenthesised_lambda_input_tip(&self, left_lambda: Type<'a>, lambda_out: Monotype<'a>) -> String {
+        "(".to_string() + &left_lambda.to_string() + ") => " + &lambda_out.to_string()
     }
 
     fn parse_polytype(&mut self) -> ParseResult<Polytype<'a>> {
@@ -87,7 +84,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_monotype(&mut self) -> ParseResult<Monotype<'a>> {
-        let name_token = self.cursor.next()?;
+        let name_token = self.cursor.advance(word_seps().then(any())).unwrap();
         if name_token.token_type != Identifier {
             return Err(self.mk_parse_error(format!(
                 "'{}' is not a valid type identifier.",
@@ -320,7 +317,7 @@ mod tests {
 
     #[test]
     fn chained_lambdas() {
-        let content = "A => B => C => D";
+        let content = "((A => B) => C) => D";
         let source = Source::unknown(content);
         let ast = Parser::new(source).parse_type();
         assert_eq!(
