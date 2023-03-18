@@ -1,8 +1,8 @@
 use crate::err::ParseErrorKind;
-use crate::moves::{of_type, MoveOperations, eod, word_seps, lookahead};
+use crate::moves::{of_type, MoveOperations, eod, word_seps, lookahead, repeat, of_types};
 use crate::parser::{ParseResult, Parser};
 use ast::r#type::Type;
-use lexer::token::TokenType::{Comma, Identifier, SquaredLeftBracket, SquaredRightBracket};
+use lexer::token::TokenType::{Comma, Identifier, RoundedLeftBracket, SquaredLeftBracket, SquaredRightBracket};
 use crate::err::ParseErrorKind::Excepted;
 
 pub trait TypeAspect<'a> {
@@ -13,6 +13,10 @@ pub trait TypeAspect<'a> {
 impl<'a> TypeAspect<'a> for Parser<'a> {
     fn parse_type(&mut self) -> ParseResult<Type<'a>> {
         self.cursor.advance(word_seps()); //consume word seps
+
+
+        //a variable that determines if the parsed type is a polytype
+        let mut is_polytype = false;
 
         let name_token = self.cursor.next()?;
         if name_token.token_type != Identifier {
