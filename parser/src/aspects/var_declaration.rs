@@ -80,7 +80,7 @@ mod tests {
     use ast::group::Block;
     use ast::operation::BinaryOperation;
     use ast::operation::BinaryOperator::Plus;
-    use ast::r#type::Type;
+    use ast::r#type::{Monotype, Type};
     use ast::value::{Literal, LiteralValue};
     use context::source::Source;
 
@@ -120,10 +120,10 @@ mod tests {
                 kind: VarKind::Val,
                 var: TypedVariable {
                     name: "variable",
-                    ty: Some(Type {
+                    ty: Some(Type::Monotype(Monotype {
                         name: "int",
                         params: Vec::new(),
-                    }),
+                    })),
                 },
                 initializer: None,
             })

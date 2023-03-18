@@ -10,7 +10,7 @@ use context::source::Source;
 use parser::parse;
 use pretty_assertions::assert_eq;
 use ast::call::{Call, Redir, Redirected, RedirFd, RedirOp};
-use ast::r#type::Type;
+use ast::r#type::{Monotype, Type};
 
 #[test]
 fn empty() {
@@ -28,10 +28,10 @@ fn variable_type_and_initializer() {
         kind: VarKind::Var,
         var: TypedVariable {
             name: "a",
-            ty: Some(Type {
+            ty: Some(Type::Monotype(Monotype {
                 name: "int",
                 params: Vec::new()
-            }),
+            })),
         },
         initializer: Some(Box::new(Expr::Literal(Literal {
             lexeme: "1",

@@ -79,7 +79,7 @@ mod tests {
     use ast::call::Call;
     use ast::value::Literal;
     use ast::Expr;
-    use ast::r#type::Type;
+    use ast::r#type::{Monotype, Type};
 
     #[test]
     fn wrong_group_end() {
@@ -107,10 +107,10 @@ mod tests {
                     Expr::Literal("x".into()),
                     Expr::Literal("y".into())
                 ],
-                type_parameters: vec![Type {
+                type_parameters: vec![Type::Monotype(Monotype {
                     name: "int",
                     params: Vec::new()
-                }]
+                })]
             }))
         );
     }
