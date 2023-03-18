@@ -162,7 +162,7 @@ impl<'a> Parser<'a> {
         match pivot {
             If => self.parse_if(Parser::statement).map(Expr::If),
             Match => self.parse_match(Parser::statement).map(Expr::Match),
-            Identifier if self.is_at_constructor_start() => self.constructor(),
+            Identifier if self.is_at_constructor_start() => self.programmatic_call(),
             Identifier | Quote | DoubleQuote => self.call(),
 
             _ if pivot.is_bin_operator() => self.call(),

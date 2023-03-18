@@ -1,4 +1,4 @@
-use ast::call::{Call, Redir, RedirFd, RedirOp, Redirected};
+use ast::call::{Call, ProgrammaticCall, Redir, RedirFd, RedirOp, Redirected};
 use ast::control_flow::{For, ForKind, RangeFor};
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::r#type::Type;
@@ -223,6 +223,50 @@ fn call_not_assign() {
                 Expr::Literal(Literal {
                     lexeme: "5",
                     parsed: 5.into(),
+                }),
+            ],
+            type_parameters: Vec::new()
+        })]
+    );
+}
+
+#[test]
+fn programmatic_call() {
+    let source = Source::unknown("ssh(localhost, 'ls -l')");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::ProgrammaticCall(ProgrammaticCall {
+            name: "ssh",
+            arguments: vec![
+                Expr::Literal(Literal {
+                    lexeme: "localhost",
+                    parsed: "localhost".into(),
+                }),
+                Expr::Literal(Literal {
+                    lexeme: "'ls -l'",
+                    parsed: "ls -l".into(),
+                }),
+            ],
+            type_parameters: Vec::new()
+        })]
+    );
+}
+
+#[test]
+fn classic_call() {
+    let source = Source::unknown("ssh localhost , 'ls -l'");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Call(Call {
+            arguments: vec![
+                Expr::Literal("ssh".into()),
+                Expr::Literal("localhost".into()),
+                Expr::Literal(",".into()),
+                Expr::Literal(Literal {
+                    lexeme: "'ls -l'",
+                    parsed: "ls -l".into(),
                 }),
             ],
             type_parameters: Vec::new()

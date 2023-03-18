@@ -1,6 +1,6 @@
 use dbg_pls::DebugPls;
 
-use crate::call::{Call, Detached, Pipeline, Redirected};
+use crate::call::{Call, Detached, Pipeline, ProgrammaticCall, Redirected};
 use crate::control_flow::{For, If, Loop, While};
 use crate::function::FunctionDeclaration;
 use crate::group::{Block, Parenthesis, Subshell};
@@ -39,6 +39,7 @@ pub enum Expr<'a> {
     Match(Match<'a>),
 
     Call(Call<'a>),
+    ProgrammaticCall(ProgrammaticCall<'a>),
     Pipeline(Pipeline<'a>),
     Redirected(Redirected<'a>),
     Construct(Construct<'a>),

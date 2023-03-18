@@ -2,7 +2,10 @@ use crate::r#type::Type;
 use crate::Expr;
 use dbg_pls::DebugPls;
 
-/// A call to a function or a command.
+/// A raw call to a function or a command.
+///
+/// This call is highly permissive since it allows for any expression as the
+/// command name.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Call<'a> {
     /// The arguments of the command.
@@ -11,6 +14,13 @@ pub struct Call<'a> {
     pub arguments: Vec<Expr<'a>>,
 
     /// type parameters of the call.
+    pub type_parameters: Vec<Type<'a>>,
+}
+
+#[derive(Debug, Clone, PartialEq, DebugPls)]
+pub struct ProgrammaticCall<'a> {
+    pub name: &'a str,
+    pub arguments: Vec<Expr<'a>>,
     pub type_parameters: Vec<Type<'a>>,
 }
 

@@ -1,20 +1,24 @@
 use crate::aspects::group::GroupAspect;
 use crate::aspects::literal::LiteralAspect;
-use lexer::token::TokenType;
+use lexer::token::{Token, TokenType};
 
 use crate::aspects::r#type::TypeAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::aspects::structure::StructureAspect;
-use crate::moves::{eox, like, word_seps, MoveOperations};
+use crate::err::ParseErrorKind;
+use crate::moves::{eod, eox, like, lookahead, of_type, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use ast::call::Call;
+use ast::call::{Call, ProgrammaticCall};
 use ast::r#type::Type;
 use ast::Expr;
 
 /// A parse aspect for command and function calls
 pub trait CallAspect<'a> {
-    /// Attempts to parse the next call expression
+    /// Attempts to parse the next raw call expression
     fn call(&mut self) -> ParseResult<Expr<'a>>;
+
+    /// Parses a programmatic call.
+    fn programmatic_call(&mut self) -> ParseResult<Expr<'a>>;
 
     /// Continues to parse a call expression from a known command name expression
     fn call_arguments(
@@ -29,6 +33,24 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         let callee = self.next_value()?;
         let tparams = self.parse_type_parameter_list()?;
         self.call_arguments(callee, tparams)
+    }
+
+    fn programmatic_call(&mut self) -> ParseResult<Expr<'a>> {
+        let name = self
+            .cursor
+            .force(of_type(TokenType::Identifier), "Excepted structure name.")?;
+        let type_parameters = self.parse_type_parameter_list()?;
+        let open_parenthesis = self.cursor.force(
+            of_type(TokenType::RoundedLeftBracket),
+            "Expected opening parenthesis.",
+        )?;
+        self.delimiter_stack.push_back(open_parenthesis.clone());
+        let arguments = self.parse_args_list(open_parenthesis)?;
+        Ok(Expr::ProgrammaticCall(ProgrammaticCall {
+            name: name.value,
+            arguments,
+            type_parameters,
+        }))
     }
 
     fn call_arguments(
@@ -77,6 +99,41 @@ impl<'a> Parser<'a> {
             _ => self.literal(),
         }
     }
+
+    fn parse_args_list(&mut self, open_parenthesis: Token<'a>) -> ParseResult<Vec<Expr<'a>>> {
+        // Read the args until a closing delimiter or a new non-escaped line is found.
+        let mut args = Vec::new();
+        loop {
+            if self
+                .cursor
+                .advance(word_seps().then(of_type(TokenType::RoundedRightBracket)))
+                .is_some()
+            {
+                self.delimiter_stack.pop_back();
+                return Ok(args);
+            }
+            args.push(self.next_value()?);
+            self.cursor.advance(word_seps());
+
+            // Check if the constructor is abnormally terminated.
+            if self.cursor.lookahead(eox()).is_some() {
+                self.expected(
+                    "Expected closing parenthesis.",
+                    ParseErrorKind::Unpaired(self.cursor.relative_pos(open_parenthesis.clone())),
+                )?;
+            }
+            if self.cursor.lookahead(eod()).is_some() {
+                self.expect_delimiter(TokenType::RoundedRightBracket)?;
+                break;
+            }
+            self.cursor.force(
+                word_seps().then(of_type(TokenType::Comma).or(lookahead(eod()))),
+                "expected ','",
+            )?;
+        }
+
+        Ok(args)
+    }
 }
 
 #[cfg(test)]
@@ -86,8 +143,8 @@ mod tests {
 
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
-    use crate::parser::Parser;
-    use ast::call::Call;
+    use crate::parser::{ParseResult, Parser};
+    use ast::call::{Call, ProgrammaticCall};
     use ast::r#type::Type;
     use ast::value::Literal;
     use ast::Expr;
@@ -209,6 +266,110 @@ mod tests {
                 ],
                 type_parameters: vec![]
             }),]
+        )
+    }
+
+    #[test]
+    fn empty_constructor() {
+        let source = Source::unknown("Foo()");
+        let source2 = Source::unknown("Foo( )");
+        let expr = parse(source).expect("Failed to parse");
+        let expr2 = parse(source2).expect("Failed to parse");
+        let expected = vec![Expr::ProgrammaticCall(ProgrammaticCall {
+            name: "Foo",
+            arguments: vec![],
+            type_parameters: vec![],
+        })];
+        assert_eq!(expr, expected);
+        assert_eq!(expr2, expected);
+    }
+
+    #[test]
+    fn parse_constructor() {
+        let source = Source::unknown("Foo(a, 2, c)");
+        let expr = parse(source).expect("Failed to parse");
+        assert_eq!(
+            expr,
+            vec![Expr::ProgrammaticCall(ProgrammaticCall {
+                name: "Foo",
+                arguments: vec![
+                    Expr::Literal("a".into()),
+                    Expr::Literal(Literal {
+                        lexeme: "2",
+                        parsed: 2.into(),
+                    }),
+                    Expr::Literal("c".into()),
+                ],
+                type_parameters: vec![],
+            })],
+        );
+    }
+
+    #[test]
+    fn constructor_with_newlines_and_space() {
+        let source = Source::unknown("Foo( \\\nthis,  \\\n  is,\\\nfine)");
+        let expr = parse(source).expect("Failed to parse");
+        assert_eq!(
+            expr,
+            vec![Expr::ProgrammaticCall(ProgrammaticCall {
+                name: "Foo",
+                arguments: vec![
+                    Expr::Literal("this".into()),
+                    Expr::Literal("is".into()),
+                    Expr::Literal("fine".into()),
+                ],
+                type_parameters: vec![],
+            })],
+        );
+    }
+
+    #[test]
+    fn constructor_accept_string_literals() {
+        let source = Source::unknown("Foo('===\ntesting something\n===', c)");
+        let expr = parse(source).expect("Failed to parse");
+        assert_eq!(
+            expr,
+            vec![Expr::ProgrammaticCall(ProgrammaticCall {
+                name: "Foo",
+                arguments: vec![
+                    Expr::Literal(Literal {
+                        lexeme: "'===\ntesting something\n==='",
+                        parsed: "===\ntesting something\n===".into(),
+                    }),
+                    Expr::Literal("c".into())
+                ],
+                type_parameters: vec![],
+            }),]
+        );
+    }
+
+    #[test]
+    fn constructor_with_unpaired_parenthesis() {
+        let content = "Foo(a, 2, c\n)";
+        let source = Source::unknown(content);
+        let expr: ParseResult<_> = parse(source).into();
+        assert_eq!(
+            expr,
+            Err(ParseError {
+                message: "Expected closing parenthesis.".into(),
+                position: content.find('\n').map(|p| p..p + 1).unwrap(),
+                kind: ParseErrorKind::Unpaired(content.find('(').map(|p| p..p + 1).unwrap())
+            })
+        )
+    }
+
+    #[test]
+    fn constructor_exit_when_mismatched_bracket() {
+        let content = "Foo(41 ]";
+        let source = Source::unknown(content);
+        let expr: ParseResult<_> = parse(source).into();
+        assert_eq!(
+            expr,
+            Err(ParseError {
+                message: "Mismatched closing delimiter.".into(),
+                position: content.len() - 1..content.len(),
+                kind: ParseErrorKind::Unpaired(content.find('(').map(|p| p..p + 1).unwrap())
+            })
         )
     }
 }
