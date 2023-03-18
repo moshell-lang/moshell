@@ -116,13 +116,17 @@ impl<'a> Parser<'a> {
         // Read the args until a closing delimiter or a new non-escaped line is found.
         let mut args = Vec::new();
         loop {
+            self.cursor.advance(word_seps());
             if self
                 .cursor
-                .advance(word_seps().then(of_type(TokenType::RoundedRightBracket)))
+                .advance(of_type(TokenType::RoundedRightBracket))
                 .is_some()
             {
                 self.delimiter_stack.pop_back();
                 return Ok(args);
+            }
+            if self.cursor.lookahead(of_type(TokenType::Comma)).is_some() {
+                self.expected("Expected argument.", ParseErrorKind::Unexpected)?;
             }
             args.push(self.value()?);
             self.cursor.advance(word_seps());

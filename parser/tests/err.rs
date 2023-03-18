@@ -134,3 +134,22 @@ fn expected_double_delimiter_for() {
         }
     );
 }
+
+#[test]
+fn double_comma_parentheses() {
+    let content = "Bar(4 , ,)";
+    let source = Source::unknown(content);
+    let report = parse(source);
+    assert_eq!(
+        report,
+        ParseReport {
+            expr: vec![],
+            errors: vec![ParseError {
+                message: "Expected argument.".to_string(),
+                position: content.rfind(',').map(|p| p..p + 1).unwrap(),
+                kind: ParseErrorKind::Unexpected
+            }],
+            stack_ended: true,
+        }
+    );
+}
