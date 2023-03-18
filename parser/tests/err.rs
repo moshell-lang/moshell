@@ -156,7 +156,7 @@ fn double_comma_parentheses() {
 
 #[test]
 fn double_comma_function() {
-    let content = "fun foo(a: Int,, b: Int) = a + b";
+    let content = "fun foo(a: Int, , b: Int) = a + b";
     let source = Source::unknown(content);
     let report = parse(source);
     assert_eq!(

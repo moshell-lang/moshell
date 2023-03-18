@@ -98,7 +98,15 @@ impl<'a> Parser<'a> {
         )?;
 
         let mut params = Vec::new();
-        while self.cursor.lookahead(blanks().then(eod())).is_none() {
+        loop {
+            self.cursor.advance(blanks());
+            if self
+                .cursor
+                .lookahead(of_type(RoundedRightBracket))
+                .is_some()
+            {
+                break;
+            }
             if self.cursor.lookahead(of_type(Comma)).is_some() {
                 self.expected("Expected parameter.", ParseErrorKind::Unexpected)?;
             }
@@ -110,7 +118,6 @@ impl<'a> Parser<'a> {
             )?;
         }
 
-        self.cursor.advance(blanks()); //consume blanks
         self.expect_delimiter(RoundedRightBracket)?;
 
         Ok(params)
