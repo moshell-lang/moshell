@@ -4,7 +4,6 @@ use lexer::token::{Token, TokenType};
 
 use crate::aspects::r#type::TypeAspect;
 use crate::aspects::redirection::RedirectionAspect;
-use crate::aspects::structure::StructureAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{eod, eox, like, lookahead, of_type, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
@@ -26,6 +25,9 @@ pub trait CallAspect<'a> {
         command: Expr<'a>,
         tparams: Vec<Type<'a>>,
     ) -> ParseResult<Expr<'a>>;
+
+    /// Checks if the cursor is at the start of a programmatic call.
+    fn is_at_programmatic_call_start(&self) -> bool;
 }
 
 impl<'a> CallAspect<'a> for Parser<'a> {
@@ -84,6 +86,14 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             type_parameters: tparams,
         }))
     }
+
+    fn is_at_programmatic_call_start(&self) -> bool {
+        self.cursor
+            .lookahead(
+                of_type(TokenType::Identifier).and_then(of_type(TokenType::RoundedLeftBracket)),
+            )
+            .is_some()
+    }
 }
 
 impl<'a> Parser<'a> {
@@ -95,7 +105,9 @@ impl<'a> Parser<'a> {
         match pivot {
             TokenType::RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
             TokenType::CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
-            TokenType::Identifier if self.is_at_constructor_start() => self.constructor(),
+            TokenType::Identifier if self.is_at_programmatic_call_start() => {
+                self.programmatic_call()
+            }
             _ => self.literal(),
         }
     }

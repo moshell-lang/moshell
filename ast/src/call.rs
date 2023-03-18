@@ -17,10 +17,18 @@ pub struct Call<'a> {
     pub type_parameters: Vec<Type<'a>>,
 }
 
+/// A programmatic call.
+///
+/// Theses always have a constant name and are always called with parentheses.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ProgrammaticCall<'a> {
+    /// The name of the function to call.
     pub name: &'a str,
+
+    /// The arguments to pass to the function.
     pub arguments: Vec<Expr<'a>>,
+
+    /// The type parameters of the call.
     pub type_parameters: Vec<Type<'a>>,
 }
 

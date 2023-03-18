@@ -17,7 +17,6 @@ use crate::aspects::r#match::MatchAspect;
 use crate::aspects::r#use::UseAspect;
 use crate::aspects::range::RangeAspect;
 use crate::aspects::redirection::RedirectionAspect;
-use crate::aspects::structure::StructureAspect;
 use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::cursor::ParserCursor;
@@ -162,7 +161,7 @@ impl<'a> Parser<'a> {
         match pivot {
             If => self.parse_if(Parser::statement).map(Expr::If),
             Match => self.parse_match(Parser::statement).map(Expr::Match),
-            Identifier if self.is_at_constructor_start() => self.programmatic_call(),
+            Identifier if self.is_at_programmatic_call_start() => self.programmatic_call(),
             Identifier | Quote | DoubleQuote => self.call(),
 
             _ if pivot.is_bin_operator() => self.call(),
@@ -209,7 +208,7 @@ impl<'a> Parser<'a> {
             //expression that can also be used as values
             If => self.parse_if(Parser::value).map(Expr::If),
             Match => self.parse_match(Parser::value).map(Expr::Match),
-            Identifier if self.is_at_constructor_start() => self.constructor(),
+            Identifier if self.is_at_programmatic_call_start() => self.programmatic_call(),
 
             //test expressions has nothing to do in a value expression.
             SquaredLeftBracket => self.expected("Unexpected start of test expression", Unexpected),

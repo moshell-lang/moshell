@@ -3,7 +3,6 @@ use ast::control_flow::{For, ForKind, RangeFor};
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::r#type::Type;
 use ast::range::{Iterable, NumericRange};
-use ast::structure::Construct;
 use ast::value::{Literal, LiteralValue};
 use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind};
 use ast::Expr;
@@ -74,9 +73,10 @@ fn constructor_in_call() {
         vec![Expr::Call(Call {
             arguments: vec![
                 Expr::Literal("echo".into()),
-                Expr::Construct(Construct {
+                Expr::ProgrammaticCall(ProgrammaticCall {
                     name: "Foo",
-                    args: vec![],
+                    arguments: vec![],
+                    type_parameters: vec![],
                 }),
                 Expr::Literal(Literal {
                     lexeme: "Bar\\(\\)",
@@ -226,6 +226,26 @@ fn call_not_assign() {
                 }),
             ],
             type_parameters: Vec::new()
+        })]
+    );
+}
+
+#[test]
+fn constructor_assign() {
+    let source = Source::unknown("a = Foo(5)");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Assign(Assign {
+            name: "a",
+            value: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
+                name: "Foo",
+                arguments: vec![Expr::Literal(Literal {
+                    lexeme: "5",
+                    parsed: 5.into(),
+                })],
+                type_parameters: vec![],
+            })),
         })]
     );
 }

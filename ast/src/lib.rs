@@ -8,7 +8,6 @@ use crate::operation::BinaryOperation;
 use crate::r#match::Match;
 use crate::r#use::Use;
 use crate::range::Iterable;
-use crate::structure::Construct;
 use crate::substitution::Substitution;
 use crate::test::{Not, Test};
 use crate::value::{Literal, TemplateString};
@@ -21,7 +20,6 @@ pub mod group;
 pub mod r#match;
 pub mod operation;
 pub mod range;
-pub mod structure;
 pub mod substitution;
 pub mod test;
 pub mod r#type;
@@ -42,7 +40,6 @@ pub enum Expr<'a> {
     ProgrammaticCall(ProgrammaticCall<'a>),
     Pipeline(Pipeline<'a>),
     Redirected(Redirected<'a>),
-    Construct(Construct<'a>),
     Detached(Detached<'a>),
 
     Substitution(Substitution<'a>),
