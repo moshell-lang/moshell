@@ -252,7 +252,7 @@ fn constructor_assign() {
 
 #[test]
 fn programmatic_call() {
-    let source = Source::unknown("ssh(localhost, 'ls -l')");
+    let source = Source::unknown("ssh(localhost, 'ls -l', 8 / 2)");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
@@ -267,6 +267,17 @@ fn programmatic_call() {
                     lexeme: "'ls -l'",
                     parsed: "ls -l".into(),
                 }),
+                Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::Literal(Literal {
+                        lexeme: "8",
+                        parsed: 8.into(),
+                    })),
+                    op: BinaryOperator::Divide,
+                    right: Box::new(Expr::Literal(Literal {
+                        lexeme: "2",
+                        parsed: 2.into(),
+                    })),
+                }),
             ],
             type_parameters: Vec::new()
         })]
@@ -275,7 +286,7 @@ fn programmatic_call() {
 
 #[test]
 fn classic_call() {
-    let source = Source::unknown("ssh localhost , 'ls -l'");
+    let source = Source::unknown("ssh localhost , 'ls -l' 8 / 2");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
@@ -287,6 +298,15 @@ fn classic_call() {
                 Expr::Literal(Literal {
                     lexeme: "'ls -l'",
                     parsed: "ls -l".into(),
+                }),
+                Expr::Literal(Literal {
+                    lexeme: "8",
+                    parsed: 8.into(),
+                }),
+                Expr::Literal("/".into()),
+                Expr::Literal(Literal {
+                    lexeme: "2",
+                    parsed: 2.into(),
                 }),
             ],
             type_parameters: Vec::new()

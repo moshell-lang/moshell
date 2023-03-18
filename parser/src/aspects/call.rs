@@ -124,7 +124,7 @@ impl<'a> Parser<'a> {
                 self.delimiter_stack.pop_back();
                 return Ok(args);
             }
-            args.push(self.next_value()?);
+            args.push(self.value()?);
             self.cursor.advance(word_seps());
 
             // Check if the constructor is abnormally terminated.
@@ -319,7 +319,7 @@ mod tests {
 
     #[test]
     fn constructor_with_newlines_and_space() {
-        let source = Source::unknown("Foo( \\\nthis,  \\\n  is,\\\nfine)");
+        let source = Source::unknown("Foo( \\\nthis , \\\n  is,\\\nfine)");
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
