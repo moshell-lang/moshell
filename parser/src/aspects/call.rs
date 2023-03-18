@@ -88,7 +88,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
     fn programmatic_call(&mut self) -> ParseResult<Expr<'a>> {
         let name = self
             .cursor
-            .force(of_type(TokenType::Identifier), "Excepted function name.")?;
+            .force(of_type(TokenType::Identifier), "Expected function name.")?;
         let type_parameters = self.parse_type_parameter_list()?;
         let open_parenthesis = self.cursor.force(
             of_type(TokenType::RoundedLeftBracket),

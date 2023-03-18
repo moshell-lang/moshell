@@ -105,7 +105,7 @@ impl<'a> Parser<'a> {
     fn parse_range_for(&mut self) -> ParseResult<RangeFor<'a>> {
         let receiver = self.cursor.force(
             of_type(TokenType::Identifier),
-            "Excepted a variable identifier",
+            "Expected a variable identifier",
         )?;
         self.cursor.advance(blanks());
         self.cursor.force(
