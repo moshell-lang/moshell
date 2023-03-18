@@ -1,8 +1,9 @@
+use regex::Regex;
 use crate::err::ParseErrorKind;
-use crate::moves::{of_type, MoveOperations, eod, word_seps, lookahead};
+use crate::moves::{of_type, MoveOperations, eod, word_seps, lookahead, any};
 use crate::parser::{ParseResult, Parser};
 use ast::r#type::{Monotype, Polytype, Type};
-use lexer::token::TokenType;
+use lexer::token::{Token, TokenType};
 use lexer::token::TokenType::{Comma, FatArrow, Identifier, RoundedLeftBracket,
                               RoundedRightBracket, SquaredLeftBracket, SquaredRightBracket};
 use crate::err::ParseErrorKind::Excepted;
@@ -23,6 +24,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             return self.parse_polytype().map(Type::Polytype)
         }
 
+        let start = self.cursor.lookahead(word_seps().then(any())).unwrap();
         let tpe = Type::Monotype(self.parse_monotype()?);
 
         //check if there's an arrow, if some, we are maybe in a case where the type is "A => ..."
@@ -31,17 +33,20 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             return Ok(tpe)
         }
 
-        let first = self.parse_polytype_with_inputs(vec![tpe])
+        let poly = self.parse_polytype_with_inputs(vec![tpe])
             .map(Type::Polytype)?;
 
         //lookahead for another lambda, if some,
         //we are in a case where there is a lambda as input of another, such as "A => B => ...",
-        //let's pass the first lambda as input of the next one
+        //which is invalid, so we fail here
         if self.cursor.lookahead(word_seps().then(of_type(FatArrow))).is_some() {
-            return self.parse_polytype_with_inputs(vec![first]).map(Type::Polytype)
+            return self.expected_with("Lambda type as input of another lambda must be surrounded with parenthesis",
+                                      start.clone()..self.cursor.peek(),
+                                      ParseErrorKind::UnexpectedInContext(self.unparenthesised_lambda_input_tip(start)),
+            )
         }
 
-        Ok(first)
+        Ok(poly)
     }
 
     fn parse_type_parameter_list(&mut self) -> ParseResult<Vec<Type<'a>>> {
@@ -49,7 +54,21 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
     }
 }
 
+
 impl<'a> Parser<'a> {
+    fn unparenthesised_lambda_input_tip(&self, from: Token<'a>) -> String {
+        let to = self.cursor.peek();
+
+        let source = self.source.source;
+        let from_idx = from.value.as_ptr() as usize - source.as_ptr() as usize;
+        let to_idx = to.value.as_ptr() as usize - source.as_ptr() as usize;
+
+        let source_code = self.source.source[from_idx..to_idx].to_string();
+        let regex = Regex::new("(\\w+.*=>.*\\w)+.=>").expect("unable to compile regex");
+
+        regex.replace(&source_code, "(\\1)").into_owned()
+    }
+
     fn parse_polytype(&mut self) -> ParseResult<Polytype<'a>> {
         let inputs = self.parse_type_list(RoundedLeftBracket, RoundedRightBracket)?;
         self.parse_polytype_with_inputs(inputs)
