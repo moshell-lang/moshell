@@ -5,14 +5,18 @@ use lexer::token::{Token, TokenType};
 use crate::aspects::r#type::TypeAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::err::ParseErrorKind;
-use crate::moves::{eod, eox, like, lookahead, of_type, word_seps, MoveOperations};
+use crate::moves::{eod, eox, like, lookahead, next, of_type, of_types, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::call::{Call, ProgrammaticCall};
 use ast::r#type::Type;
+use ast::value::Literal;
 use ast::Expr;
 
 /// A parse aspect for command and function calls
 pub trait CallAspect<'a> {
+    /// Parses a raw call or a programmatic call.
+    fn any_call(&mut self) -> ParseResult<Expr<'a>>;
+
     /// Attempts to parse the next raw call expression
     fn call(&mut self) -> ParseResult<Expr<'a>>;
 
@@ -31,6 +35,50 @@ pub trait CallAspect<'a> {
 }
 
 impl<'a> CallAspect<'a> for Parser<'a> {
+    fn any_call(&mut self) -> ParseResult<Expr<'a>> {
+        if let Some(identifier) = self.cursor.lookahead(of_type(TokenType::Identifier)) {
+            if self
+                .cursor
+                .lookahead(
+                    of_type(TokenType::Identifier).and_then(of_type(TokenType::SquaredLeftBracket)),
+                )
+                .is_some()
+            {
+                // We don't known if this is a programmatic call or a raw call yet.
+                self.cursor.advance(next());
+                let callee = Expr::Literal(Literal::from(identifier.value));
+                let type_parameters = self.parse_type_parameter_list()?;
+                if let Some(open_parenthesis) =
+                    self.cursor.advance(of_type(TokenType::RoundedLeftBracket))
+                {
+                    self.delimiter_stack.push_back(open_parenthesis.clone());
+                    let arguments = self.parse_args_list(open_parenthesis)?;
+                    Ok(Expr::ProgrammaticCall(ProgrammaticCall {
+                        name: identifier.value,
+                        arguments,
+                        type_parameters,
+                    }))
+                } else {
+                    self.call_arguments(callee, type_parameters)
+                }
+            } else if let Some(open_parenthesis) = self.cursor.advance(
+                of_type(TokenType::Identifier).and_then(of_type(TokenType::RoundedLeftBracket)),
+            ) {
+                self.delimiter_stack.push_back(open_parenthesis.clone());
+                let arguments = self.parse_args_list(open_parenthesis)?;
+                Ok(Expr::ProgrammaticCall(ProgrammaticCall {
+                    name: identifier.value,
+                    arguments,
+                    type_parameters: Vec::new(),
+                }))
+            } else {
+                self.call()
+            }
+        } else {
+            self.call()
+        }
+    }
+
     fn call(&mut self) -> ParseResult<Expr<'a>> {
         let callee = self.next_value()?;
         let tparams = self.parse_type_parameter_list()?;
@@ -40,7 +88,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
     fn programmatic_call(&mut self) -> ParseResult<Expr<'a>> {
         let name = self
             .cursor
-            .force(of_type(TokenType::Identifier), "Excepted structure name.")?;
+            .force(of_type(TokenType::Identifier), "Excepted function name.")?;
         let type_parameters = self.parse_type_parameter_list()?;
         let open_parenthesis = self.cursor.force(
             of_type(TokenType::RoundedLeftBracket),
@@ -89,9 +137,10 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
     fn is_at_programmatic_call_start(&self) -> bool {
         self.cursor
-            .lookahead(
-                of_type(TokenType::Identifier).and_then(of_type(TokenType::RoundedLeftBracket)),
-            )
+            .lookahead(of_type(TokenType::Identifier).and_then(of_types(&[
+                TokenType::RoundedLeftBracket,
+                TokenType::SquaredLeftBracket,
+            ])))
             .is_some()
     }
 }
@@ -356,6 +405,26 @@ mod tests {
                 ],
                 type_parameters: vec![],
             }),]
+        );
+    }
+
+    #[test]
+    fn generic_constructor() {
+        let source = Source::unknown("List[Str]('hi')");
+        let expr = parse(source).expect("Failed to parse");
+        assert_eq!(
+            expr,
+            vec![Expr::ProgrammaticCall(ProgrammaticCall {
+                name: "List",
+                arguments: vec![Expr::Literal(Literal {
+                    lexeme: "'hi'",
+                    parsed: "hi".into(),
+                })],
+                type_parameters: vec![Type {
+                    name: "Str",
+                    params: vec![],
+                }],
+            })],
         );
     }
 
