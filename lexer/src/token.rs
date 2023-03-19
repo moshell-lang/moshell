@@ -259,9 +259,7 @@ impl TokenType {
     ///is this lexeme a lexeme that cannot fusion with other glued tokens
     pub fn is_identifier_bound(self) -> bool {
         match self {
-            NewLine | SemiColon | Less | Bar | Greater | DotDot | Comma | And | Or | FatArrow => {
-                true
-            }
+            NewLine | SemiColon | Less | Bar | Greater | And | Or => true,
             _ => false,
         }
     }
@@ -298,8 +296,6 @@ impl TokenType {
                 | TokenType::And
                 | TokenType::Or
                 | TokenType::Bar
-                | TokenType::Arrow
-                | TokenType::FatArrow
                 | TokenType::SquaredLeftBracket
                 | TokenType::SquaredRightBracket
                 | TokenType::RoundedLeftBracket
@@ -308,6 +304,16 @@ impl TokenType {
                 | TokenType::CurlyRightBracket
                 | TokenType::SemiColon
                 | TokenType::Error
+        )
+    }
+
+    /// Tests if the token is a punctuation in a programming context.
+    ///
+    /// See [`TokenType::is_ponctuation()`] for a more general definition.
+    pub fn is_extended_ponctuation(self) -> bool {
+        matches!(
+            self,
+            TokenType::Comma | TokenType::DotDot | TokenType::Arrow | TokenType::FatArrow
         )
     }
 

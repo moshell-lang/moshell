@@ -11,10 +11,26 @@ use ast::range::{FilePattern, Iterable};
 use ast::value::{Literal, LiteralValue, TemplateString};
 use ast::*;
 
+/// Describes if a literal should be parsed strictly or leniently.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LiteralLeniency {
+    /// Stops parsing in more cases.
+    ///
+    /// For instance, a raw argument will stop parsing if it encounters a
+    /// programming token, such as `,` or `..`.
+    Strict,
+
+    /// Parses more things.
+    ///
+    /// It should only be used when parsing a literal in a context where
+    /// classic shell syntax is allowed.
+    Lenient,
+}
+
 /// A trait that contains all the methods for parsing literals.
 pub(crate) trait LiteralAspect<'a> {
     /// Parses any literal, number, argument, string, string template
-    fn literal(&mut self) -> ParseResult<Expr<'a>>;
+    fn literal(&mut self, leniency: LiteralLeniency) -> ParseResult<Expr<'a>>;
 
     /// Parses a number-like literal expression.
     fn number_literal(&mut self) -> ParseResult<Literal<'a>>;
@@ -32,11 +48,11 @@ pub(crate) trait LiteralAspect<'a> {
     /// Parse a raw argument.
     ///
     /// Arguments are not quoted and are separated by spaces.
-    fn argument(&mut self) -> ParseResult<Expr<'a>>;
+    fn argument(&mut self, leniency: LiteralLeniency) -> ParseResult<Expr<'a>>;
 }
 
 impl<'a> LiteralAspect<'a> for Parser<'a> {
-    fn literal(&mut self) -> ParseResult<Expr<'a>> {
+    fn literal(&mut self, leniency: LiteralLeniency) -> ParseResult<Expr<'a>> {
         let token = self.cursor.peek();
         let pivot = token.token_type;
         match pivot {
@@ -48,12 +64,16 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 &format!("Unexpected keyword '{}'", token.value),
                 ParseErrorKind::Unexpected,
             ),
-            _ if pivot.is_ponctuation() => self.expected(
-                &format!("Unexpected token '{}'.", token.value),
-                ParseErrorKind::Unexpected,
-            ),
+            _ if pivot.is_ponctuation()
+                || (leniency == LiteralLeniency::Strict && pivot.is_extended_ponctuation()) =>
+            {
+                self.expected(
+                    &format!("Unexpected token '{}'.", token.value),
+                    ParseErrorKind::Unexpected,
+                )
+            }
 
-            _ => self.argument(),
+            _ => self.argument(leniency),
         }
     }
 
@@ -180,7 +200,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
     ///
     /// An argument is usually a single identifier, but can also be
     /// composed of multiple tokens if not separated with a space.
-    fn argument(&mut self) -> ParseResult<Expr<'a>> {
+    fn argument(&mut self, leniency: LiteralLeniency) -> ParseResult<Expr<'a>> {
         let current = self.cursor.peek();
         let mut parts = Vec::new();
         let mut builder = String::new();
@@ -241,6 +261,9 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                         builder.clear();
                     }
                     parts.push(self.substitution()?);
+                }
+                _ if leniency == LiteralLeniency::Strict && pivot.is_extended_ponctuation() => {
+                    break
                 }
                 _ if pivot.is_ponctuation() | pivot.is_identifier_bound() => break,
                 _ => {

@@ -11,7 +11,7 @@ use crate::aspects::detached::DetachedAspect;
 use crate::aspects::function_declaration::FunctionDeclarationAspect;
 use crate::aspects::group::GroupAspect;
 use crate::aspects::if_else::IfElseAspect;
-use crate::aspects::literal::LiteralAspect;
+use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
 use crate::aspects::r#loop::LoopAspect;
 use crate::aspects::r#match::MatchAspect;
 use crate::aspects::r#use::UseAspect;
@@ -212,7 +212,7 @@ impl<'a> Parser<'a> {
 
             //test expressions has nothing to do in a value expression.
             SquaredLeftBracket => self.expected("Unexpected start of test expression", Unexpected),
-            _ => self.literal(),
+            _ => self.literal(LiteralLeniency::Strict),
         }
     }
 

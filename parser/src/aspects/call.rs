@@ -1,5 +1,5 @@
 use crate::aspects::group::GroupAspect;
-use crate::aspects::literal::LiteralAspect;
+use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
 use lexer::token::{Token, TokenType};
 
 use crate::aspects::r#type::TypeAspect;
@@ -157,7 +157,7 @@ impl<'a> Parser<'a> {
             TokenType::Identifier if self.is_at_programmatic_call_start() => {
                 self.programmatic_call()
             }
-            _ => self.literal(),
+            _ => self.literal(LiteralLeniency::Lenient),
         }
     }
 
