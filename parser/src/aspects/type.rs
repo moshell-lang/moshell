@@ -1,7 +1,7 @@
 use crate::err::ParseErrorKind::{Expected, Unexpected};
-use crate::moves::{any, eod, lookahead, of_type, word_seps, MoveOperations};
+use crate::moves::{any, eod, lookahead, of_type, word_seps, MoveOperations, not};
 use crate::parser::{ParseResult, Parser};
-use ast::r#type::{CallableType, SimpleType, Type};
+use ast::r#type::{ByName, CallableType, SimpleType, Type};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{
     Comma, FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket,
@@ -24,12 +24,11 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
 
         let first_token = self.cursor.peek();
         //if there's a parenthesis then the type is necessarily a lambda type
-        let mut tpe = if first_token.token_type == RoundedLeftBracket {
-            self.parse_lambda_or_unit()?
-        } else {
-            self.parse_simple_or_unit()?
+        let mut tpe = match first_token.token_type {
+            RoundedLeftBracket => self.parse_parentheses()?,
+            FatArrow => self.parse_by_name().map(Type::ByName)?,
+            _ => self.parse_simple_or_unit()?
         };
-
         //check if there's an arrow, if some, we are maybe in a case where the type is "A => ..."
         // (a lambda with one parameter and no parenthesis for the input, which is valid)
         if self
@@ -72,6 +71,17 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
+    fn parse_by_name(&mut self) -> ParseResult<ByName<'a>> {
+        self.cursor.force(of_type(FatArrow), "'=>' expected here.")?;
+
+        //control case of => => A which is invalid
+        self.cursor.force(word_seps().then(not(of_type(FatArrow))), "unexpected '=>'")?;
+
+        Ok(ByName {
+            name: self.parse_type().map(Box::new)?
+        })
+    }
+
     fn unparenthesised_lambda_input_tip(
         &self,
         left_lambda: Type<'a>,
@@ -80,37 +90,45 @@ impl<'a> Parser<'a> {
         "(".to_string() + &left_lambda.to_string() + ") => " + &lambda_out.to_string()
     }
 
-    fn parse_lambda_or_unit(&mut self) -> ParseResult<Type<'a>> {
+    fn parse_parentheses(&mut self) -> ParseResult<Type<'a>> {
         let inputs = self.parse_type_list(RoundedLeftBracket, RoundedRightBracket, false)?;
 
+        //if there is an arrow then it is a lambda
         if self
             .cursor
             .advance(word_seps().then(of_type(FatArrow)))
-            .is_none()
+            .is_some()
         {
-            //there is no inputs (`()`) and no `=>` after, this is a Unit type
-            if inputs.is_empty() {
-                return Ok(Type::Unit);
-            }
-
-            let mut rendered_tuple = String::new();
-            rendered_tuple += "(";
-
-            if let Some((first, rest)) = inputs.split_first() {
-                write!(rendered_tuple, "{}", first).unwrap();
-                for tpe in rest {
-                    write!(rendered_tuple, ", {}", tpe).unwrap();
-                }
-            }
-
-            rendered_tuple += ") => <type>";
-            return self.expected(
-                "Tuples are not yet supported. A lambda declaration was expected here",
-                Expected(rendered_tuple),
-            );
+            return self.parse_lambda_with_inputs(inputs).map(Type::Callable)
         }
 
-        self.parse_lambda_with_inputs(inputs).map(Type::Callable)
+        //there is no inputs (`()`) and no `=>` after, this is a Unit type
+        if inputs.is_empty() {
+            return Ok(Type::Unit);
+        }
+
+        //its a type of form `(A)`
+        if let Some(ty) = inputs.first() {
+            if inputs.len() == 1 {
+                return Ok(ty.clone())
+            }
+        }
+
+        let mut rendered_tuple = String::new();
+        rendered_tuple += "(";
+
+        if let Some((first, rest)) = inputs.split_first() {
+            write!(rendered_tuple, "{}", first).unwrap();
+            for tpe in rest {
+                write!(rendered_tuple, ", {}", tpe).unwrap();
+            }
+        }
+
+        rendered_tuple += ") => <type>";
+        self.expected(
+            "Tuples are not yet supported. A lambda declaration was expected here",
+            Expected(rendered_tuple),
+        )
     }
 
     fn parse_lambda_with_inputs(&mut self, inputs: Vec<Type<'a>>) -> ParseResult<CallableType<'a>> {
@@ -198,10 +216,10 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::aspects::r#type::TypeAspect;
-    use crate::err::ParseErrorKind::{Expected, Unpaired};
+    use crate::err::ParseErrorKind::{Expected, Unexpected, Unpaired};
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parser::Parser;
-    use ast::r#type::{CallableType, SimpleType, Type};
+    use ast::r#type::{ByName, CallableType, SimpleType, Type};
     use context::source::Source;
     use pretty_assertions::assert_eq;
 
@@ -337,6 +355,65 @@ mod tests {
                     name: "B",
                     params: Vec::new(),
                 })),
+            }))
+        );
+    }
+
+    #[test]
+    fn by_name_declaration() {
+        let content = " => B";
+        let source = Source::unknown(content);
+        assert_eq!(
+            Parser::new(source).parse_type(),
+            Ok(Type::ByName(ByName {
+                name: Box::new(Type::Simple(SimpleType {
+                    name: "B",
+                    params: Vec::new(),
+                })),
+            }))
+        );
+    }
+
+    #[test]
+    fn nested_by_name_declaration() {
+        let content = "=> => B";
+        let source = Source::unknown(content);
+        assert_eq!(
+            Parser::new(source).parse_type(),
+            Err(ParseError {
+                message: "unexpected '=>'".to_string(),
+                position: 3..5,
+                kind: Unexpected,
+            })
+        );
+    }
+
+    #[test]
+    fn nested_by_name_declaration_parenthesised() {
+        let content = "=> (=> B)";
+        let source = Source::unknown(content);
+        assert_eq!(
+            Parser::new(source).parse_type(),
+            Ok(Type::ByName(ByName {
+                name: Box::new(Type::ByName(ByName {
+                    name: Box::new(Type::Simple(SimpleType {
+                        name: "B",
+                        params: Vec::new(),
+                    }))
+                }))
+            }))
+        );
+    }
+
+    #[test]
+    fn parentheses() {
+        let content = "((((A))))";
+        let source = Source::unknown(content);
+        assert_eq!(
+            Parser::new(source).parse_type(),
+            Ok(Type::Simple(SimpleType {
+                name: "A",
+                params: Vec::new(),
             }))
         );
     }

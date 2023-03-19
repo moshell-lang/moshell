@@ -6,8 +6,13 @@ use std::ops::Deref;
 pub enum Type<'a> {
     ///A Simple type with optional parameters (`A`, `A[V]`)
     Simple(SimpleType<'a>),
-    ///A callable declaration with of form `(A, B, ...) => Out`, `=> X` is also valid
+
+    ///A callable declaration with of form `(A, B, ...) => Out`
     Callable(CallableType<'a>),
+
+    ///A By name declaration (`=> X`)
+    ByName(ByName<'a>),
+
     ///Either `()` or `Unit`, representing a void type
     Unit,
 }
@@ -16,6 +21,11 @@ pub enum Type<'a> {
 pub struct SimpleType<'a> {
     pub name: &'a str,
     pub params: Vec<Type<'a>>,
+}
+
+#[derive(Debug, Clone, PartialEq, DebugPls)]
+pub struct ByName<'a> {
+    pub name: Box<Type<'a>>,
 }
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
@@ -29,6 +39,7 @@ impl<'a> Display for Type<'a> {
         match self {
             Type::Simple(m) => Display::fmt(m, f),
             Type::Callable(p) => Display::fmt(p, f),
+            Type::ByName(n) => Display::fmt(n, f),
             Type::Unit => write!(f, "Unit"),
         }
     }
@@ -72,5 +83,12 @@ impl<'a> Display for SimpleType<'a> {
         }
 
         display_type_list('[', ']', &self.params, f)
+    }
+}
+
+impl<'a> Display for ByName<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("=> ")?;
+        Display::fmt(&self.name, f)
     }
 }
