@@ -36,43 +36,24 @@ pub trait CallAspect<'a> {
 
 impl<'a> CallAspect<'a> for Parser<'a> {
     fn any_call(&mut self) -> ParseResult<Expr<'a>> {
-        if let Some(identifier) = self.cursor.lookahead(of_type(TokenType::Identifier)) {
-            if self
-                .cursor
-                .lookahead(
-                    of_type(TokenType::Identifier).and_then(of_type(TokenType::SquaredLeftBracket)),
-                )
-                .is_some()
+        let identifier = self.cursor.peek();
+        if self.is_at_programmatic_call_start() {
+            // We don't known if this is a programmatic call or a raw call yet.
+            self.cursor.advance(next());
+            let callee = Expr::Literal(Literal::from(identifier.value));
+            let type_parameters = self.parse_type_parameter_list()?;
+            if let Some(open_parenthesis) =
+                self.cursor.advance(of_type(TokenType::RoundedLeftBracket))
             {
-                // We don't known if this is a programmatic call or a raw call yet.
-                self.cursor.advance(next());
-                let callee = Expr::Literal(Literal::from(identifier.value));
-                let type_parameters = self.parse_type_parameter_list()?;
-                if let Some(open_parenthesis) =
-                    self.cursor.advance(of_type(TokenType::RoundedLeftBracket))
-                {
-                    self.delimiter_stack.push_back(open_parenthesis.clone());
-                    let arguments = self.parse_args_list(open_parenthesis)?;
-                    Ok(Expr::ProgrammaticCall(ProgrammaticCall {
-                        name: identifier.value,
-                        arguments,
-                        type_parameters,
-                    }))
-                } else {
-                    self.call_arguments(callee, type_parameters)
-                }
-            } else if let Some(open_parenthesis) = self.cursor.advance(
-                of_type(TokenType::Identifier).and_then(of_type(TokenType::RoundedLeftBracket)),
-            ) {
                 self.delimiter_stack.push_back(open_parenthesis.clone());
                 let arguments = self.parse_args_list(open_parenthesis)?;
                 Ok(Expr::ProgrammaticCall(ProgrammaticCall {
                     name: identifier.value,
                     arguments,
-                    type_parameters: Vec::new(),
+                    type_parameters,
                 }))
             } else {
-                self.call()
+                self.call_arguments(callee, type_parameters)
             }
         } else {
             self.call()
