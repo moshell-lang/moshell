@@ -2,7 +2,7 @@ use dbg_pls::DebugPls;
 
 use crate::call::{Call, Detached, Pipeline, Redirected};
 use crate::control_flow::{For, If, Loop, While};
-use crate::function::FunctionDeclaration;
+use crate::function::{FunctionDeclaration, Return};
 use crate::group::{Block, Parenthesis, Subshell};
 use crate::operation::BinaryOperation;
 use crate::r#match::Match;
@@ -59,6 +59,7 @@ pub enum Expr<'a> {
 
     Continue,
     Break,
+    Return(Return<'a>),
 
     //var / val handling expressions
     VarReference(VarReference<'a>),
