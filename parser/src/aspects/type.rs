@@ -56,7 +56,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
     }
 
     fn parse_type_parameter_list(&mut self) -> ParseResult<Vec<Type<'a>>> {
-        self.parse_type_list(SquaredLeftBracket, SquaredRightBracket)
+        self.parse_type_list(SquaredLeftBracket, SquaredRightBracket, true)
     }
 }
 
@@ -67,7 +67,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_polytype(&mut self) -> ParseResult<Polytype<'a>> {
-        let inputs = self.parse_type_list(RoundedLeftBracket, RoundedRightBracket)?;
+        let inputs = self.parse_type_list(RoundedLeftBracket, RoundedRightBracket, false)?;
         if self.cursor.advance(word_seps().then(of_type(FatArrow))).is_none() {
             let mut rendered_tuple = String::new();
             rendered_tuple += "(";
@@ -107,7 +107,7 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_type_list(&mut self, start: TokenType, end: TokenType) -> ParseResult<Vec<Type<'a>>> {
+    fn parse_type_list(&mut self, start: TokenType, end: TokenType, non_empty: bool) -> ParseResult<Vec<Type<'a>>> {
         let start = match self.cursor.advance(of_type(start)) {
             Some(start) => {
                 self.delimiter_stack.push_back(start.clone());
@@ -128,7 +128,7 @@ impl<'a> Parser<'a> {
         }
         self.cursor.advance(word_seps());
 
-        if tparams.is_empty() {
+        if tparams.is_empty() && non_empty {
             self.expect_delimiter(end)?;
             return self.expected_with(
                 "unexpected empty type parameter list",
@@ -283,6 +283,22 @@ mod tests {
                     name: "A",
                     params: Vec::new(),
                 })],
+                output: Box::new(Type::Monotype(Monotype {
+                    name: "B",
+                    params: Vec::new(),
+                })),
+            }))
+        );
+    }
+
+    #[test]
+    fn lambda_declaration_no_input() {
+        let content = "() => B";
+        let source = Source::unknown(content);
+        assert_eq!(
+            Parser::new(source).parse_type(),
+            Ok(Type::Polytype(Polytype {
+                inputs: vec![],
                 output: Box::new(Type::Monotype(Monotype {
                     name: "B",
                     params: Vec::new(),
