@@ -1,11 +1,9 @@
-use crate::err::ParseErrorKind;
 use crate::moves::{of_type, MoveOperations, eod, word_seps, lookahead, any};
 use crate::parser::{ParseResult, Parser};
 use ast::r#type::{Monotype, Polytype, Type};
 use lexer::token::{TokenType};
-use lexer::token::TokenType::{Comma, FatArrow, Identifier, RoundedLeftBracket,
-                              RoundedRightBracket, SquaredLeftBracket, SquaredRightBracket};
-use crate::err::ParseErrorKind::{Expected};
+use lexer::token::TokenType::{Comma, FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket, Space, SquaredLeftBracket, SquaredRightBracket};
+use crate::err::ParseErrorKind::{Expected, Unexpected};
 
 
 pub trait TypeAspect<'a> {
@@ -68,13 +66,21 @@ impl<'a> Parser<'a> {
 
     fn parse_polytype(&mut self) -> ParseResult<Polytype<'a>> {
         let inputs = self.parse_type_list(RoundedLeftBracket, RoundedRightBracket, false)?;
+
         if self.cursor.advance(word_seps().then(of_type(FatArrow))).is_none() {
             let mut rendered_tuple = String::new();
             rendered_tuple += "(";
-            rendered_tuple += &format!("{}", inputs.first().unwrap());
-            for tpe in &inputs[1..] {
-                rendered_tuple += &format!(", {}", tpe);
+
+            if !inputs.is_empty() {
+                rendered_tuple += &format!("{}", inputs.first().unwrap());
             }
+
+            if inputs.len() > 1 {
+                for tpe in &inputs[1..] {
+                    rendered_tuple += &format!(", {}", tpe);
+                }
+            }
+
             rendered_tuple += ") => <type>";
             return Err(self.mk_parse_error("Tuples are not yet supported. A lambda declaration was expected here",
                                            self.cursor.peek(),
@@ -93,12 +99,21 @@ impl<'a> Parser<'a> {
 
     fn parse_monotype(&mut self) -> ParseResult<Monotype<'a>> {
         let name_token = self.cursor.advance(word_seps().then(any())).unwrap();
+
         if name_token.token_type != Identifier {
-            return Err(self.mk_parse_error(
-                format!("'{}' is not a valid type identifier.", name_token.value),
-                name_token,
-                ParseErrorKind::Unexpected,
-            ));
+            return if matches!(name_token.token_type, NewLine | Space) || name_token.token_type.is_closing_ponctuation() {
+                Err(self.mk_parse_error(
+                    format!("expected type"),
+                    name_token,
+                    Expected("<type>".to_string()),
+                ))
+            } else {
+                Err(self.mk_parse_error(
+                    format!("'{}' is not a valid type identifier.", name_token.value),
+                    name_token,
+                    Unexpected,
+                ))
+            }
         }
 
         Ok(Monotype {
@@ -133,7 +148,7 @@ impl<'a> Parser<'a> {
             return self.expected_with(
                 "unexpected empty type parameter list",
                 start..self.cursor.peek(),
-                ParseErrorKind::Unexpected,
+                Unexpected,
             );
         }
 
@@ -387,6 +402,14 @@ mod tests {
                 kind: Expected("(A, B, C) => <type>".to_string()),
             })
         );
+    }
+
+    #[test]
+    fn lambda_void_type() {
+        // let content = "() => ()";
+        // let source = Source::unknown(content);
+        // let ast = Parser::new(source).parse_type();
+        //todo!()
     }
 
     #[test]
