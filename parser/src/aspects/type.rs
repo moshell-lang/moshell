@@ -367,9 +367,9 @@ mod tests {
         assert_eq!(
             ast,
             Err(ParseError {
-                message: "".to_string(),
-                position: 0..1,
-                kind: ParseErrorKind::Unexpected,
+                message: "Tuples are not yet supported. A lambda declaration was expected here".to_string(),
+                position: content.len()..content.len(),
+                kind: ParseErrorKind::Expected("(A, B, C) => <type>".to_string()),
             })
         );
     }

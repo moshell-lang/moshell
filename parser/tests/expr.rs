@@ -1,7 +1,7 @@
 use ast::call::{Call, Redir, RedirFd, RedirOp, Redirected};
 use ast::control_flow::{For, ForKind, RangeFor};
 use ast::operation::{BinaryOperation, BinaryOperator};
-use ast::r#type::Type;
+use ast::r#type::{Monotype, Type};
 use ast::range::{Iterable, NumericRange};
 use ast::structure::Construct;
 use ast::value::{Literal, LiteralValue};
@@ -10,11 +10,7 @@ use ast::Expr;
 use context::source::Source;
 use parser::parse;
 use pretty_assertions::assert_eq;
-<<<<<<< HEAD
-use ast::call::{Call, Redir, Redirected, RedirFd, RedirOp};
-use ast::r#type::{Monotype, Type};
-=======
->>>>>>> db8132d229a9a7abfbb39b0e2962f9144bcb20ea
+
 
 #[test]
 fn empty() {
@@ -34,13 +30,8 @@ fn variable_type_and_initializer() {
             name: "a",
             ty: Some(Type::Monotype(Monotype {
                 name: "int",
-<<<<<<< HEAD
-                params: Vec::new()
-            })),
-=======
                 params: Vec::new(),
-            }),
->>>>>>> db8132d229a9a7abfbb39b0e2962f9144bcb20ea
+            }))
         },
         initializer: Some(Box::new(Expr::Literal(Literal {
             lexeme: "1",
