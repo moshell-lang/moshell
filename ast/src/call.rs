@@ -1,6 +1,6 @@
+use crate::r#type::Type;
 use crate::Expr;
 use dbg_pls::DebugPls;
-use crate::r#type::Type;
 
 /// A call to a function or a command.
 #[derive(Debug, Clone, PartialEq, DebugPls)]

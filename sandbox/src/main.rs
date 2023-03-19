@@ -48,7 +48,7 @@ fn this_fails() -> Result<()> {
             },
             message: err.message,
             help: match &err.kind {
-                ParseErrorKind::Excepted(excepted) => Some(format!("Excepted: {:?}", excepted)),
+                ParseErrorKind::Expected(excepted) => Some(format!("Expected: {:?}", excepted)),
                 _ => None,
             },
         })

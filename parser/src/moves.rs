@@ -329,8 +329,8 @@ pub(crate) struct OrMove<A: Move + Copy, B: Move + Copy> {
 
 impl<A: Move + Copy, B: Move + Copy> Move for OrMove<A, B> {
     fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-        where
-            F: Fn(usize) -> Token<'a>,
+    where
+        F: Fn(usize) -> Token<'a>,
     {
         self.left
             .apply(&at, pos)
@@ -347,18 +347,15 @@ pub(crate) struct LookaheadMove<A: Move + Copy> {
 
 impl<A: Move + Copy> Move for LookaheadMove<A> {
     fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-        where
-            F: Fn(usize) -> Token<'a>,
+    where
+        F: Fn(usize) -> Token<'a>,
     {
-        self.underlying.apply(&at, pos)
-            .map(|_| pos)
+        self.underlying.apply(&at, pos).map(|_| pos)
     }
 }
 
 pub(crate) fn lookahead<M: Move + Copy>(m: M) -> LookaheadMove<M> {
-    LookaheadMove {
-        underlying: m
-    }
+    LookaheadMove { underlying: m }
 }
 
 //////////////////// STANDARD MOVES ////////////////////
@@ -366,10 +363,10 @@ pub(crate) fn lookahead<M: Move + Copy>(m: M) -> LookaheadMove<M> {
 ///End of _group_ Delimiter, any closing punctuation as long as they are unescaped
 pub(crate) fn eod() -> OrMove<
     AndThenMove<
-        PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
+        PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
         PredicateMove<for<'a> fn(Token<'a>) -> bool>,
     >,
-    PredicateMove<impl ( for<'a> Fn(Token<'a>) -> bool) + Copy>,
+    PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
 > {
     unescaped(like(TokenType::is_closing_ponctuation))
 }

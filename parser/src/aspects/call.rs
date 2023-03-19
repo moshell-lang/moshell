@@ -2,14 +2,14 @@ use crate::aspects::group::GroupAspect;
 use crate::aspects::literal::LiteralAspect;
 use lexer::token::TokenType;
 
+use crate::aspects::r#type::TypeAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::aspects::structure::StructureAspect;
 use crate::moves::{eox, like, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::call::Call;
-use ast::Expr;
 use ast::r#type::Type;
-use crate::aspects::r#type::TypeAspect;
+use ast::Expr;
 
 /// A parse aspect for command and function calls
 pub trait CallAspect<'a> {
@@ -17,8 +17,11 @@ pub trait CallAspect<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>>;
 
     /// Continues to parse a call expression from a known command name expression
-    fn call_arguments(&mut self, command: Expr<'a>, tparams: Vec<Type<'a>>)
-        -> ParseResult<Expr<'a>>;
+    fn call_arguments(
+        &mut self,
+        command: Expr<'a>,
+        tparams: Vec<Type<'a>>,
+    ) -> ParseResult<Expr<'a>>;
 }
 
 impl<'a> CallAspect<'a> for Parser<'a> {
@@ -28,7 +31,11 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         self.call_arguments(callee, tparams)
     }
 
-    fn call_arguments(&mut self, callee: Expr<'a>, tparams: Vec<Type<'a>>) -> ParseResult<Expr<'a>> {
+    fn call_arguments(
+        &mut self,
+        callee: Expr<'a>,
+        tparams: Vec<Type<'a>>,
+    ) -> ParseResult<Expr<'a>> {
         let mut arguments = vec![callee];
 
         self.cursor.advance(word_seps()); //consume word separations
@@ -44,10 +51,16 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         }
 
         if self.is_at_redirection_sign() {
-            return self.redirectable(Expr::Call(Call { arguments, type_parameters: tparams }));
+            return self.redirectable(Expr::Call(Call {
+                arguments,
+                type_parameters: tparams,
+            }));
         }
 
-        Ok(Expr::Call(Call { arguments, type_parameters: tparams }))
+        Ok(Expr::Call(Call {
+            arguments,
+            type_parameters: tparams,
+        }))
     }
 }
 
@@ -64,8 +77,6 @@ impl<'a> Parser<'a> {
             _ => self.literal(),
         }
     }
-
-
 }
 
 #[cfg(test)]
@@ -77,9 +88,9 @@ mod tests {
     use crate::parse;
     use crate::parser::Parser;
     use ast::call::Call;
+    use ast::r#type::{Monotype, Type};
     use ast::value::Literal;
     use ast::Expr;
-    use ast::r#type::{Monotype, Type};
 
     #[test]
     fn wrong_group_end() {

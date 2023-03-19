@@ -8,6 +8,7 @@ use crate::aspects::assign::AssignAspect;
 use crate::aspects::binary_operation::BinaryOperationsAspect;
 use crate::aspects::call::CallAspect;
 use crate::aspects::detached::DetachedAspect;
+use crate::aspects::function_declaration::FunctionDeclarationAspect;
 use crate::aspects::group::GroupAspect;
 use crate::aspects::if_else::IfElseAspect;
 use crate::aspects::literal::LiteralAspect;
@@ -27,7 +28,6 @@ use crate::moves::{
 };
 use ast::range::Iterable;
 use ast::Expr;
-use crate::aspects::function_declaration::FunctionDeclarationAspect;
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
 
@@ -134,7 +134,9 @@ impl<'a> Parser<'a> {
         match pivot {
             Var | Val => self.var_declaration(),
             Use => self.parse_use(),
-            Fun => self.parse_function_declaration().map(Expr::FunctionDeclaration),
+            Fun => self
+                .parse_function_declaration()
+                .map(Expr::FunctionDeclaration),
 
             While => self.parse_while().map(Expr::While),
             Loop => self.parse_loop().map(Expr::Loop),
@@ -265,7 +267,7 @@ impl<'a> Parser<'a> {
         } else {
             self.expected(
                 "Unexpected closing delimiter.",
-                ParseErrorKind::Excepted(eog.str().unwrap_or("specific token")),
+                ParseErrorKind::Expected(eog.str().unwrap_or("specific token").to_string()),
             )
         }
     }

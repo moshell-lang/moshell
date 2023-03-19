@@ -6,8 +6,10 @@ use lexer::token::TokenType::*;
 use crate::aspects::r#type::TypeAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::err::ParseErrorKind;
-use crate::moves::{blank, blanks, eod, eox, like, lookahead, MoveOperations, next, not, of_type, of_types, repeat};
-use crate::parser::{Parser, ParseResult};
+use crate::moves::{
+    blank, blanks, eod, eox, like, lookahead, next, not, of_type, of_types, repeat, MoveOperations,
+};
+use crate::parser::{ParseResult, Parser};
 
 ///A parser aspect for function declarations
 pub trait FunctionDeclarationAspect<'a> {
@@ -17,17 +19,20 @@ pub trait FunctionDeclarationAspect<'a> {
 
 impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
     fn parse_function_declaration(&mut self) -> ParseResult<FunctionDeclaration<'a>> {
-        self.cursor.force(of_type(Fun), "expected 'fun' keyword at start of function declaration.")?;
+        self.cursor.force(
+            of_type(Fun),
+            "expected 'fun' keyword at start of function declaration.",
+        )?;
 
         //consume blanks
         self.cursor.advance(blanks());
-
 
         let name = self.parse_fn_declaration_name()?;
         let tparams = self.parse_type_parameter_list()?;
         let params = self.parse_fn_parameter_list()?;
         let rtype = self.parse_fn_return_type()?;
-        let body = self.cursor
+        let body = self
+            .cursor
             .force(blanks().then(of_type(Equal)), "expected '='")
             .and_then(|_| self.statement())
             .map(Box::new)?;
@@ -45,7 +50,7 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
 impl<'a> Parser<'a> {
     fn parse_fn_return_type(&mut self) -> ParseResult<Option<Type<'a>>> {
         if self.cursor.advance(blanks().then(of_type(Arrow))).is_none() {
-            return Ok(None)
+            return Ok(None);
         }
         self.cursor.advance(blanks()); // consume blanks
         self.parse_type().map(Some)
@@ -54,30 +59,43 @@ impl<'a> Parser<'a> {
     fn parse_fn_parameter(&mut self) -> ParseResult<FunctionParameter<'a>> {
         self.cursor.advance(blanks()); //consume blanks
 
-        let is_vararg = self.cursor.lookahead(
-            of_type(Vararg).or(
-                repeat(//                           skip everything that could compose a type expression
-                       of_types(&[Space, NewLine, Identifier, SquaredLeftBracket, SquaredRightBracket])
-                ).then(of_type(Vararg))
+        let is_vararg = self
+            .cursor
+            .lookahead(
+                of_type(Vararg).or(repeat(
+                    //                           skip everything that could compose a type expression
+                    of_types(&[
+                        Space,
+                        NewLine,
+                        Identifier,
+                        SquaredLeftBracket,
+                        SquaredRightBracket,
+                    ]),
+                )
+                .then(of_type(Vararg))),
             )
-        ).is_some();
-
+            .is_some();
 
         if is_vararg {
-            let param = self.cursor.lookahead(not(of_type(Vararg)))
+            let param = self
+                .cursor
+                .lookahead(not(of_type(Vararg)))
                 .map(|_| self.parse_type())
                 .transpose()
                 .map(FunctionParameter::Variadic)?;
             self.cursor.force(of_type(Vararg), "expected '...'")?;
-            return Ok(param)
+            return Ok(param);
         }
 
-        self.parse_typed_var()
-            .map(FunctionParameter::Named)
+        self.parse_typed_var().map(FunctionParameter::Named)
     }
 
     fn parse_fn_parameter_list(&mut self) -> ParseResult<Vec<FunctionParameter<'a>>> {
-        self.cursor.force_with(of_type(RoundedLeftBracket), "expected start of parameter list", ParseErrorKind::Excepted("("))?;
+        self.cursor.force_with(
+            of_type(RoundedLeftBracket),
+            "expected start of parameter list",
+            ParseErrorKind::Expected("(".to_string()),
+        )?;
 
         let mut params = Vec::new();
         while self.cursor.lookahead(blanks().then(eod())).is_none() {
@@ -100,16 +118,23 @@ impl<'a> Parser<'a> {
             .advance(like(TokenType::is_valid_function_name))
             .ok_or_else(|| {
                 //collect all tokens that could compose the function's name
-                let wrong_name_slice = self.cursor.collect(
-                    repeat(
-                        not(blank().or(eod()).or(eox()).or(of_types(&[CurlyLeftBracket, SquaredLeftBracket, RoundedLeftBracket])))
-                            .and_then(next())
-                    )
-                ).to_owned();
+                let wrong_name_slice = self
+                    .cursor
+                    .collect(repeat(
+                        not(blank().or(eod()).or(eox()).or(of_types(&[
+                            CurlyLeftBracket,
+                            SquaredLeftBracket,
+                            RoundedLeftBracket,
+                        ])))
+                        .and_then(next()),
+                    ))
+                    .to_owned();
                 if wrong_name_slice.is_empty() {
-                    self.mk_parse_error("function name expected",
-                                        self.cursor.peek(),
-                                        ParseErrorKind::Excepted("<function name>"))
+                    self.mk_parse_error(
+                        "function name expected",
+                        self.cursor.peek(),
+                        ParseErrorKind::Expected("<function name>".to_string()),
+                    )
                 } else {
                     self.mk_parse_error(
                         "function name is invalid.",
@@ -117,7 +142,8 @@ impl<'a> Parser<'a> {
                         ParseErrorKind::InvalidFormat,
                     )
                 }
-            }).map(|t| t.value)
+            })
+            .map(|t| t.value)
     }
 }
 
@@ -125,13 +151,13 @@ impl<'a> Parser<'a> {
 mod tests {
     use pretty_assertions::assert_eq;
 
+    use crate::err::{ParseError, ParseErrorKind};
     use ast::call::Call;
-    use ast::Expr;
     use ast::function::{FunctionDeclaration, FunctionParameter};
     use ast::r#type::{Monotype, Type};
     use ast::variable::{TypedVariable, VarReference};
+    use ast::Expr;
     use context::source::Source;
-    use crate::err::{ParseError, ParseErrorKind};
 
     use crate::parse;
 
@@ -146,12 +172,11 @@ mod tests {
                 vec![ParseError {
                     message: "function name expected".to_string(),
                     position: 4..5,
-                    kind: ParseErrorKind::Excepted("<function name>"),
+                    kind: ParseErrorKind::Expected("<function name>".to_string()),
                 }]
             );
         }
     }
-
 
     #[test]
     fn function_nugget() {
@@ -161,7 +186,7 @@ mod tests {
             vec![ParseError {
                 message: "function name expected".to_string(),
                 position: 3..3,
-                kind: ParseErrorKind::Excepted("<function name>"),
+                kind: ParseErrorKind::Expected("<function name>".to_string()),
             }]
         );
     }
@@ -175,11 +200,10 @@ mod tests {
             vec![ParseError {
                 message: "expected start of parameter list".to_string(),
                 position: src.find('=').map(|i| i..i + 1).unwrap(),
-                kind: ParseErrorKind::Excepted("("),
+                kind: ParseErrorKind::Expected("(".to_string()),
             }]
         );
     }
-
 
     #[test]
     fn function_invalid_name() {
@@ -211,9 +235,11 @@ mod tests {
 
     #[test]
     fn function_declaration() {
-        let source = Source::unknown("\
+        let source = Source::unknown(
+            "\
         fun test() = x
-        ");
+        ",
+        );
         let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
@@ -232,9 +258,11 @@ mod tests {
 
     #[test]
     fn function_declaration_param() {
-        let source = Source::unknown("\
+        let source = Source::unknown(
+            "\
         fun test(x) = $x
-        ");
+        ",
+        );
         let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
@@ -246,18 +274,18 @@ mod tests {
                     ty: None,
                 })],
                 return_type: None,
-                body: Box::new(Expr::VarReference(VarReference {
-                    name: "x"
-                })),
+                body: Box::new(Expr::VarReference(VarReference { name: "x" })),
             })]
         )
     }
 
     #[test]
     fn function_declaration_params() {
-        let source = Source::unknown("\
+        let source = Source::unknown(
+            "\
         fun test(  x : String  ,  y : Test   ) = x
-        ");
+        ",
+        );
         let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
@@ -291,9 +319,11 @@ mod tests {
 
     #[test]
     fn function_declaration_tparams() {
-        let source = Source::unknown("\
+        let source = Source::unknown(
+            "\
         fun test[X, Y](  x : X  ,  y : Y   ) = x
-        ");
+        ",
+        );
         let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
@@ -336,9 +366,11 @@ mod tests {
 
     #[test]
     fn function_declaration_vararg() {
-        let source = Source::unknown("\
+        let source = Source::unknown(
+            "\
         fun test(X...) = $x
-        ");
+        ",
+        );
         let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
@@ -350,25 +382,25 @@ mod tests {
                     params: Vec::new(),
                 })))],
                 return_type: None,
-                body: Box::new(Expr::VarReference(VarReference {
-                    name: "x"
-                })),
+                body: Box::new(Expr::VarReference(VarReference { name: "x" })),
             })]
         )
     }
 
-
     #[test]
     fn function_declaration_vararg_notype() {
-        let source = Source::unknown("\
+        let source = Source::unknown(
+            "\
         fun test(x: int, ...) = $x
-        ");
+        ",
+        );
         let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "test",
                 type_parameters: vec![],
+
                 parameters: vec![FunctionParameter::Named(TypedVariable {
                     name: "x",
                     ty: Some(Type::Monotype(Monotype {
@@ -376,19 +408,20 @@ mod tests {
                         params: Vec::new(),
                     })),
                 }), FunctionParameter::Variadic(None)],
+
                 return_type: None,
-                body: Box::new(Expr::VarReference(VarReference {
-                    name: "x"
-                })),
+                body: Box::new(Expr::VarReference(VarReference { name: "x" })),
             })]
         )
     }
 
     #[test]
     fn function_declaration_complete() {
-        let source = Source::unknown("\
+        let source = Source::unknown(
+            "\
         fun test[X, Y](  x : X  ,  y : Y   ) -> X = x
-        ");
+        ",
+        );
         let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,

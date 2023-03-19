@@ -17,7 +17,7 @@ impl<'a> StructureAspect<'a> for Parser<'a> {
     fn constructor(&mut self) -> ParseResult<Expr<'a>> {
         let name = self
             .cursor
-            .force(of_type(TokenType::Identifier), "Excepted structure name.")?;
+            .force(of_type(TokenType::Identifier), "Expected structure name.")?;
         let open_parenthesis = self.cursor.force(
             of_type(TokenType::RoundedLeftBracket),
             "Expected opening parenthesis.",

@@ -5,7 +5,8 @@ use ast::r#type::{Monotype, Polytype, Type};
 use lexer::token::{TokenType};
 use lexer::token::TokenType::{Comma, FatArrow, Identifier, RoundedLeftBracket,
                               RoundedRightBracket, SquaredLeftBracket, SquaredRightBracket};
-use crate::err::ParseErrorKind::Excepted;
+use crate::err::ParseErrorKind::{Expected};
+
 
 pub trait TypeAspect<'a> {
     fn parse_type(&mut self) -> ParseResult<Type<'a>>;
@@ -78,12 +79,12 @@ impl<'a> Parser<'a> {
             rendered_tuple += "(";
             rendered_tuple += &format!("{}", inputs.first().unwrap());
             for tpe in &inputs[1..] {
-                rendered_tuple += &format!("{}, ", tpe);
+                rendered_tuple += &format!(", {}", tpe);
             }
-            rendered_tuple += ")";
+            rendered_tuple += ") => <type>";
             return Err(self.mk_parse_error("Tuples are not yet supported. A lambda declaration was expected here",
                                            self.cursor.peek(),
-                                           Excepted(&rendered_tuple)))
+                                           Expected(rendered_tuple)))
         }
         Ok(Polytype {
             inputs,
@@ -94,10 +95,11 @@ impl<'a> Parser<'a> {
     fn parse_monotype(&mut self) -> ParseResult<Monotype<'a>> {
         let name_token = self.cursor.advance(word_seps().then(any())).unwrap();
         if name_token.token_type != Identifier {
-            return Err(self.mk_parse_error(format!(
-                "'{}' is not a valid type identifier.",
-                name_token.value
-            ), name_token, ParseErrorKind::Unexpected));
+            return Err(self.mk_parse_error(
+                format!("'{}' is not a valid type identifier.", name_token.value),
+                name_token,
+                ParseErrorKind::Unexpected,
+            ));
         }
 
         Ok(Monotype {
@@ -117,16 +119,12 @@ impl<'a> Parser<'a> {
 
         let mut tparams = vec![];
 
-        while self
-            .cursor
-            .lookahead(word_seps().then(eod()))
-            .is_none()
-        {
+        while self.cursor.lookahead(word_seps().then(eod())).is_none() {
             tparams.push(self.parse_type()?);
             self.cursor.force_with(
                 word_seps().then(of_type(Comma).or(lookahead(eod()))),
                 "A comma or a closing bracket was expected here",
-                Excepted("',' or ']'"),
+                Expected("',' or ']'".to_string()),
             )?;
         }
         self.cursor.advance(word_seps());
@@ -154,8 +152,9 @@ mod tests {
     use context::source::Source;
     use crate::aspects::r#type::TypeAspect;
     use crate::err::{ParseError, ParseErrorKind};
-    use crate::err::ParseErrorKind::{Excepted, Unpaired};
+    use crate::err::ParseErrorKind::{Expected, Unpaired};
     use crate::parser::{Parser};
+
 
     #[test]
     fn simple_type() {
@@ -240,11 +239,10 @@ mod tests {
             Err(ParseError {
                 message: "A comma or a closing bracket was expected here".to_string(),
                 position: "MyType[X ".len().."MyType[X ".len() + 1,
-                kind: Excepted("',' or ']'"),
+                kind: Expected("',' or ']'".to_string()),
             })
         );
     }
-
 
     #[test]
     fn type_invalid_name() {
