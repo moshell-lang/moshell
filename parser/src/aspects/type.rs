@@ -47,7 +47,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             let second_rt = self.parse_monotype()?;
             return self.expected_with("Lambda type as input of another lambda must be surrounded with parenthesis",
                                       first_token..self.cursor.peek(),
-                                      ParseErrorKind::UnexpectedInContext(self.unparenthesised_lambda_input_tip(tpe, second_rt)),
+                                      Expected(self.unparenthesised_lambda_input_tip(tpe, second_rt)),
             )
         }
 
@@ -68,12 +68,6 @@ impl<'a> Parser<'a> {
 
     fn parse_polytype(&mut self) -> ParseResult<Polytype<'a>> {
         let inputs = self.parse_type_list(RoundedLeftBracket, RoundedRightBracket)?;
-        self.parse_polytype_with_inputs(inputs)
-    }
-
-    fn parse_polytype_with_inputs(&mut self, inputs: Vec<Type<'a>>) -> ParseResult<Polytype<'a>> {
-
-
         if self.cursor.advance(word_seps().then(of_type(FatArrow))).is_none() {
             let mut rendered_tuple = String::new();
             rendered_tuple += "(";
@@ -86,6 +80,11 @@ impl<'a> Parser<'a> {
                                            self.cursor.peek(),
                                            Expected(rendered_tuple)))
         }
+
+        self.parse_polytype_with_inputs(inputs)
+    }
+
+    fn parse_polytype_with_inputs(&mut self, inputs: Vec<Type<'a>>) -> ParseResult<Polytype<'a>> {
         Ok(Polytype {
             inputs,
             output: Box::new(self.parse_type()?),
@@ -369,8 +368,62 @@ mod tests {
             Err(ParseError {
                 message: "Tuples are not yet supported. A lambda declaration was expected here".to_string(),
                 position: content.len()..content.len(),
-                kind: ParseErrorKind::Expected("(A, B, C) => <type>".to_string()),
+                kind: Expected("(A, B, C) => <type>".to_string()),
             })
         );
+    }
+
+    #[test]
+    fn parenthesised_lambda_input() {
+        let content = "(A, B, C) => D => E";
+        let source = Source::unknown(content);
+        let ast = Parser::new(source).parse_type();
+        assert_eq!(
+            ast,
+            Ok(Type::Polytype(Polytype {
+                inputs: vec![
+                    Type::Monotype(Monotype {
+                        name: "A",
+                        params: Vec::new(),
+                    }),
+                    Type::Monotype(Monotype {
+                        name: "B",
+                        params: Vec::new(),
+                    }),
+                    Type::Monotype(Monotype {
+                        name: "C",
+                        params: Vec::new(),
+                    }),
+                ],
+                output: Box::new(Type::Polytype(Polytype {
+                    inputs: vec![Type::Monotype(Monotype {
+                        name: "D",
+                        params: Vec::new()
+                    })],
+                    output: Box::new(Type::Monotype(Monotype {
+                        name: "E",
+                        params: Vec::new()
+                    })),
+                })),
+            }))
+        );
+    }
+
+    #[test]
+    fn unparenthesised_lambda_input() {
+        let ast1 = Parser::new(Source::unknown("(A, B, C) => D => E => F")).parse_type();
+        let ast2 = Parser::new(Source::unknown("A => B => C")).parse_type();
+        let expected1 = Err(ParseError {
+            message: "Lambda type as input of another lambda must be surrounded with parenthesis".to_string(),
+            kind: Expected("(D => E) => F".to_string()),
+            position: 13..24
+        });
+        let expected2 = Err(ParseError {
+            message: "Lambda type as input of another lambda must be surrounded with parenthesis".to_string(),
+            kind: Expected("(A => B) => C".to_string()),
+            position: 0..11
+        });
+        assert_eq!(ast1, expected1);
+        assert_eq!(ast2, expected2);
     }
 }
