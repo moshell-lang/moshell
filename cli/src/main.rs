@@ -74,7 +74,7 @@ fn main() -> io::Result<()> {
                 },
                 message: err.message,
                 help: match &err.kind {
-                    ParseErrorKind::Excepted(excepted) => Some(format!("Excepted: {:?}", excepted)),
+                    ParseErrorKind::Expected(excepted) => Some(format!("Expected: {:?}", excepted)),
                     ParseErrorKind::UnexpectedInContext(help) => Some(help.clone()),
                     _ => None,
                 },

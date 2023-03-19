@@ -1,5 +1,5 @@
 use crate::err::ParseErrorKind;
-use crate::err::ParseErrorKind::Excepted;
+use crate::err::ParseErrorKind::Expected;
 use crate::moves::{eod, lookahead, of_type, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::r#type::Type;
@@ -42,7 +42,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             self.cursor.force_with(
                 word_seps().then(of_type(Comma).or(lookahead(eod()))),
                 "A comma or a closing bracket was expected here",
-                Excepted("',' or ']'"),
+                Expected("',' or ']'"),
             )?;
         }
         self.cursor.advance(word_seps());
@@ -66,7 +66,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::aspects::r#type::TypeAspect;
-    use crate::err::ParseErrorKind::Excepted;
+    use crate::err::ParseErrorKind::Expected;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parser::Parser;
     use ast::r#type::Type;
@@ -156,7 +156,7 @@ mod tests {
             Err(ParseError {
                 message: "A comma or a closing bracket was expected here".to_string(),
                 position: "MyType[X ".len().."MyType[X ".len() + 1,
-                kind: Excepted("',' or ']'"),
+                kind: Expected("',' or ']'"),
             })
         );
     }
@@ -184,7 +184,7 @@ mod tests {
             Parser::new(source).parse_type(),
             Err(ParseError {
                 message: "Unexpected closing delimiter.".to_string(),
-                kind: Excepted("]"),
+                kind: Expected("]"),
                 position: content.find('}').map(|i| i..i + 1).unwrap()
             })
         );

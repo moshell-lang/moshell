@@ -94,7 +94,7 @@ impl<'a> Parser<'a> {
         self.cursor.force_with(
             of_type(RoundedLeftBracket),
             "expected start of parameter list",
-            ParseErrorKind::Excepted("("),
+            ParseErrorKind::Expected("("),
         )?;
 
         let mut params = Vec::new();
@@ -133,7 +133,7 @@ impl<'a> Parser<'a> {
                     self.mk_parse_error(
                         "function name expected",
                         self.cursor.peek(),
-                        ParseErrorKind::Excepted("<function name>"),
+                        ParseErrorKind::Expected("<function name>"),
                     )
                 } else {
                     self.mk_parse_error(
@@ -172,7 +172,7 @@ mod tests {
                 vec![ParseError {
                     message: "function name expected".to_string(),
                     position: 4..5,
-                    kind: ParseErrorKind::Excepted("<function name>"),
+                    kind: ParseErrorKind::Expected("<function name>"),
                 }]
             );
         }
@@ -186,7 +186,7 @@ mod tests {
             vec![ParseError {
                 message: "function name expected".to_string(),
                 position: 3..3,
-                kind: ParseErrorKind::Excepted("<function name>"),
+                kind: ParseErrorKind::Expected("<function name>"),
             }]
         );
     }
@@ -200,7 +200,7 @@ mod tests {
             vec![ParseError {
                 message: "expected start of parameter list".to_string(),
                 position: src.find('=').map(|i| i..i + 1).unwrap(),
-                kind: ParseErrorKind::Excepted("("),
+                kind: ParseErrorKind::Expected("("),
             }]
         );
     }

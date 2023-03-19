@@ -58,7 +58,7 @@ impl<'a> From<&'a str> for ErrorContext<'a> {
 #[derive(Debug, PartialEq, Clone)]
 pub enum ParseErrorKind {
     /// A specific token was expected, but another token was found.
-    Excepted(&'static str),
+    Expected(&'static str),
 
     /// A unexpected token was found in the current context.
     Unexpected,

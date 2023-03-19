@@ -267,7 +267,7 @@ impl<'a> Parser<'a> {
         } else {
             self.expected(
                 "Unexpected closing delimiter.",
-                ParseErrorKind::Excepted(eog.str().unwrap_or("specific token")),
+                ParseErrorKind::Expected(eog.str().unwrap_or("specific token")),
             )
         }
     }

@@ -65,7 +65,7 @@ impl<'a> Parser<'a> {
         let token = self.cursor.force_with(
             of_type(start),
             "Unexpected start of group expression",
-            ParseErrorKind::Excepted(start.str().unwrap_or("specific token")),
+            ParseErrorKind::Expected(start.str().unwrap_or("specific token")),
         )?; //consume group start token
         self.delimiter_stack.push_back(token.clone());
         Ok(token)
