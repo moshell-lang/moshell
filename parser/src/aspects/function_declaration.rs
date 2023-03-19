@@ -74,7 +74,7 @@ impl<'a> Parser<'a> {
             .cursor
             .lookahead(
                 of_type(Vararg).or(repeat(
-                    //                           skip everything that could compose a type expression
+                    // skip everything that could compose a type expression
                     of_types(&[
                         Space,
                         NewLine,
@@ -105,7 +105,7 @@ impl<'a> Parser<'a> {
         self.cursor.force_with(
             of_type(RoundedLeftBracket),
             "expected start of parameter list",
-            ParseErrorKind::Expected("("),
+            ParseErrorKind::Expected("(".to_string()),
         )?;
 
         let mut params = Vec::new();
@@ -154,7 +154,7 @@ impl<'a> Parser<'a> {
                     self.mk_parse_error(
                         "function name expected",
                         self.cursor.peek(),
-                        ParseErrorKind::Expected("<function name>"),
+                        ParseErrorKind::Expected("<function name>".to_string()),
                     )
                 } else {
                     self.mk_parse_error(
@@ -176,7 +176,7 @@ mod tests {
     use ast::call::Call;
     use ast::function::{FunctionDeclaration, FunctionParameter, Return};
     use ast::operation::{BinaryOperation, BinaryOperator};
-    use ast::r#type::Type;
+    use ast::r#type::{SimpleType, Type};
     use ast::value::Literal;
     use ast::variable::{TypedVariable, VarReference};
     use ast::Expr;
@@ -195,7 +195,7 @@ mod tests {
                 vec![ParseError {
                     message: "function name expected".to_string(),
                     position: 4..5,
-                    kind: ParseErrorKind::Expected("<function name>"),
+                    kind: ParseErrorKind::Expected("<function name>".to_string()),
                 }]
             );
         }
@@ -209,7 +209,7 @@ mod tests {
             vec![ParseError {
                 message: "function name expected".to_string(),
                 position: 3..3,
-                kind: ParseErrorKind::Expected("<function name>"),
+                kind: ParseErrorKind::Expected("<function name>".to_string()),
             }]
         );
     }
@@ -250,7 +250,7 @@ mod tests {
             vec![ParseError {
                 message: "expected start of parameter list".to_string(),
                 position: src.find('=').map(|i| i..i + 1).unwrap(),
-                kind: ParseErrorKind::Expected("("),
+                kind: ParseErrorKind::Expected("(".to_string()),
             }]
         );
     }
@@ -345,17 +345,17 @@ mod tests {
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
-                        ty: Some(Type {
+                        ty: Some(Type::Simple(SimpleType {
                             name: "String",
                             params: vec![],
-                        }),
+                        })),
                     }),
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
-                        ty: Some(Type {
+                        ty: Some(Type::Simple(SimpleType {
                             name: "Test",
                             params: vec![],
-                        }),
+                        })),
                     }),
                 ],
                 return_type: None,
@@ -380,29 +380,29 @@ mod tests {
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "test",
                 type_parameters: vec![
-                    Type {
+                    Type::Simple(SimpleType {
                         name: "X",
                         params: Vec::new(),
-                    },
-                    Type {
+                    }),
+                    Type::Simple(SimpleType {
                         name: "Y",
                         params: Vec::new(),
-                    },
+                    }),
                 ],
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
-                        ty: Some(Type {
+                        ty: Some(Type::Simple(SimpleType {
                             name: "X",
                             params: vec![],
-                        }),
+                        })),
                     }),
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
-                        ty: Some(Type {
+                        ty: Some(Type::Simple(SimpleType {
                             name: "Y",
                             params: vec![],
-                        }),
+                        })),
                     }),
                 ],
                 return_type: None,
@@ -427,10 +427,12 @@ mod tests {
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "test",
                 type_parameters: vec![],
-                parameters: vec![FunctionParameter::Variadic(Some(Type {
-                    name: "X",
-                    params: Vec::new(),
-                }))],
+                parameters: vec![FunctionParameter::Variadic(Some(Type::Simple(
+                    SimpleType {
+                        name: "X",
+                        params: Vec::new(),
+                    }
+                )))],
                 return_type: None,
                 body: Box::new(Expr::VarReference(VarReference { name: "x" })),
             })]
@@ -450,16 +452,18 @@ mod tests {
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "test",
                 type_parameters: vec![],
+
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
-                        ty: Some(Type {
+                        ty: Some(Type::Simple(SimpleType {
                             name: "int",
                             params: Vec::new(),
-                        }),
+                        })),
                     }),
                     FunctionParameter::Variadic(None)
                 ],
+
                 return_type: None,
                 body: Box::new(Expr::VarReference(VarReference { name: "x" })),
             })]
@@ -479,35 +483,35 @@ mod tests {
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "test",
                 type_parameters: vec![
-                    Type {
+                    Type::Simple(SimpleType {
                         name: "X",
                         params: Vec::new(),
-                    },
-                    Type {
+                    }),
+                    Type::Simple(SimpleType {
                         name: "Y",
                         params: Vec::new(),
-                    },
+                    }),
                 ],
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
-                        ty: Some(Type {
+                        ty: Some(Type::Simple(SimpleType {
                             name: "X",
                             params: vec![],
-                        }),
+                        })),
                     }),
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
-                        ty: Some(Type {
+                        ty: Some(Type::Simple(SimpleType {
                             name: "Y",
                             params: vec![],
-                        }),
+                        })),
                     }),
                 ],
-                return_type: Some(Type {
+                return_type: Some(Type::Simple(SimpleType {
                     name: "X",
                     params: Vec::new(),
-                }),
+                })),
                 body: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal("x".into())],
                     type_parameters: vec![],

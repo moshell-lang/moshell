@@ -24,7 +24,7 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
             _ => {
                 return self.expected(
                     "expected var or val keywords",
-                    ParseErrorKind::Expected("var or val"),
+                    ParseErrorKind::Expected("var or val".to_string()),
                 )
             }
         };
@@ -80,7 +80,7 @@ mod tests {
     use ast::group::Block;
     use ast::operation::BinaryOperation;
     use ast::operation::BinaryOperator::Plus;
-    use ast::r#type::Type;
+    use ast::r#type::{SimpleType, Type};
     use ast::value::{Literal, LiteralValue};
     use ast::Expr;
     use context::source::Source;
@@ -121,10 +121,10 @@ mod tests {
                 kind: VarKind::Val,
                 var: TypedVariable {
                     name: "variable",
-                    ty: Some(Type {
+                    ty: Some(Type::Simple(SimpleType {
                         name: "int",
                         params: Vec::new(),
-                    }),
+                    })),
                 },
                 initializer: None,
             })

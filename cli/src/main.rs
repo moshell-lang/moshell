@@ -86,6 +86,7 @@ fn main() -> io::Result<()> {
             content.clear();
             continue;
         }
+
         let mut msg = String::new();
         for err in &errors {
             if let Err(fmt_err) = handler.render_report(&mut msg, err) {
