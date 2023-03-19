@@ -4,18 +4,18 @@ use dbg_pls::DebugPls;
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub enum Type<'a> {
-    Monotype(Monotype<'a>),
-    Polytype(Polytype<'a>),
+    Simple(SimpleType<'a>),
+    Lambda(LambdaType<'a>),
 }
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
-pub struct Monotype<'a> {
+pub struct SimpleType<'a> {
     pub name: &'a str,
     pub params: Vec<Type<'a>>,
 }
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
-pub struct Polytype<'a> {
+pub struct LambdaType<'a> {
     pub inputs: Vec<Type<'a>>,
     pub output: Box<Type<'a>>,
 }
@@ -23,8 +23,8 @@ pub struct Polytype<'a> {
 impl<'a> Display for Type<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Type::Monotype(m) => Display::fmt(m, f),
-            Type::Polytype(p) => Display::fmt(p, f)
+            Type::Simple(m) => Display::fmt(m, f),
+            Type::Lambda(p) => Display::fmt(p, f)
         }
     }
 }
@@ -41,10 +41,10 @@ fn display_type_list<'a>(start: char, end: char, types: &Vec<Type<'a>>, f: &mut 
     f.write_char(end)
 }
 
-impl<'a> Display for Polytype<'a> {
+impl<'a> Display for LambdaType<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let inputs = &self.inputs;
-        if let Some(Type::Monotype(first_in)) = inputs.first() {
+        if let Some(Type::Simple(first_in)) = inputs.first() {
             Display::fmt(first_in, f)?;
         } else {
             display_type_list('(', ')', inputs, f)?;
@@ -55,7 +55,7 @@ impl<'a> Display for Polytype<'a> {
 }
 
 
-impl<'a> Display for Monotype<'a> {
+impl<'a> Display for SimpleType<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.name)?;
         if self.params.is_empty() {

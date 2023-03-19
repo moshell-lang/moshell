@@ -141,7 +141,7 @@ mod tests {
     use ast::Expr;
     use context::source::Source;
     use pretty_assertions::assert_eq;
-    use ast::r#type::Monotype;
+    use ast::r#type::SimpleType;
 
 
     //noinspection DuplicatedCode
@@ -313,7 +313,7 @@ mod tests {
                         kind: VarKind::Var,
                         var: TypedVariable {
                             name: "test",
-                            ty: Some(Type::Monotype(Monotype {
+                            ty: Some(Type::Simple(SimpleType {
                                 name: "int",
                                 params: Vec::new()
                             })),

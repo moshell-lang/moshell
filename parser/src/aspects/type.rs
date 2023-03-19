@@ -1,10 +1,10 @@
 use crate::moves::{of_type, MoveOperations, eod, word_seps, lookahead, any};
 use crate::parser::{ParseResult, Parser};
-use ast::r#type::{Monotype, Polytype, Type};
+use ast::r#type::{SimpleType, LambdaType, Type};
 use lexer::token::{TokenType};
 use lexer::token::TokenType::{Comma, FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket, Space, SquaredLeftBracket, SquaredRightBracket};
 use crate::err::ParseErrorKind::{Expected, Unexpected};
-
+use std::fmt::Write;
 
 pub trait TypeAspect<'a> {
     fn parse_type(&mut self) -> ParseResult<Type<'a>>;
@@ -17,11 +17,11 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
 
 
         let first_token = self.cursor.peek();
-        //if there's a parenthesis then the type is necessarily a polytype
+        //if there's a parenthesis then the type is necessarily a lambda type
         let mut tpe = if first_token.token_type == RoundedLeftBracket {
-            self.parse_polytype().map(Type::Polytype)?
+            self.parse_lambda().map(Type::Lambda)?
         } else {
-            Type::Monotype(self.parse_monotype()?)
+            Type::Simple(self.parse_simple()?)
         };
 
 
@@ -35,10 +35,10 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             return Ok(tpe);
         }
 
-        if matches!(tpe, Type::Monotype(..)) {
-            tpe = Type::Polytype(Polytype {
+        if matches!(tpe, Type::Simple(..)) {
+            tpe = Type::Lambda(LambdaType {
                 inputs: vec![tpe],
-                output: Box::new(Type::Monotype(self.parse_monotype()?)),
+                output: Box::new(Type::Simple(self.parse_simple()?)),
             })
         }
 
@@ -46,7 +46,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         // (a lambda with one parameter and no parenthesis for the input, which is valid)
         if self.cursor.advance(word_seps().then(of_type(FatArrow))).is_some() {
             //parse second lambda output in order to advance on the full invalid lambda expression
-            let second_rt = self.parse_monotype()?;
+            let second_rt = self.parse_simple()?;
             return self.expected_with("Lambda type as input of another lambda must be surrounded with parenthesis",
                                       first_token..self.cursor.peek(),
                                       Expected(self.unparenthesised_lambda_input_tip(tpe, second_rt)),
@@ -64,11 +64,11 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
 
 
 impl<'a> Parser<'a> {
-    fn unparenthesised_lambda_input_tip(&self, left_lambda: Type<'a>, lambda_out: Monotype<'a>) -> String {
+    fn unparenthesised_lambda_input_tip(&self, left_lambda: Type<'a>, lambda_out: SimpleType<'a>) -> String {
         "(".to_string() + &left_lambda.to_string() + ") => " + &lambda_out.to_string()
     }
 
-    fn parse_polytype(&mut self) -> ParseResult<Polytype<'a>> {
+    fn parse_lambda(&mut self) -> ParseResult<LambdaType<'a>> {
         let inputs = self.parse_type_list(RoundedLeftBracket, RoundedRightBracket, false)?;
 
         if self.cursor.advance(word_seps().then(of_type(FatArrow))).is_none() {
@@ -89,17 +89,17 @@ impl<'a> Parser<'a> {
             );
         }
 
-        self.parse_polytype_with_inputs(inputs)
+        self.parse_lambda_with_inputs(inputs)
     }
 
-    fn parse_polytype_with_inputs(&mut self, inputs: Vec<Type<'a>>) -> ParseResult<Polytype<'a>> {
-        Ok(Polytype {
+    fn parse_lambda_with_inputs(&mut self, inputs: Vec<Type<'a>>) -> ParseResult<LambdaType<'a>> {
+        Ok(LambdaType {
             inputs,
             output: Box::new(self.parse_type()?),
         })
     }
 
-    fn parse_monotype(&mut self) -> ParseResult<Monotype<'a>> {
+    fn parse_simple(&mut self) -> ParseResult<SimpleType<'a>> {
         let name_token = self.cursor.advance(word_seps().then(any())).unwrap();
 
         if name_token.token_type != Identifier {
@@ -118,7 +118,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        Ok(Monotype {
+        Ok(SimpleType {
             name: name_token.value,
             params: self.parse_type_parameter_list()?,
         })
@@ -164,7 +164,7 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
-    use ast::r#type::{Monotype, Polytype, Type};
+    use ast::r#type::{SimpleType, LambdaType, Type};
     use context::source::Source;
     use crate::aspects::r#type::TypeAspect;
     use crate::err::{ParseError, ParseErrorKind};
@@ -178,7 +178,7 @@ mod tests {
         let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source).parse_type(),
-            Ok(Type::Monotype(Monotype {
+            Ok(Type::Simple(SimpleType {
                 name: "MyType",
                 params: Vec::new(),
             }))
@@ -208,34 +208,34 @@ mod tests {
         let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source).parse_type(),
-            Ok(Type::Monotype(Monotype {
+            Ok(Type::Simple(SimpleType {
                 name: "MyType",
                 params: vec![
-                    Type::Monotype(Monotype {
+                    Type::Simple(SimpleType {
                         name: "A",
                         params: vec![
-                            Type::Monotype(Monotype {
+                            Type::Simple(SimpleType {
                                 name: "X",
                                 params: Vec::new(),
                             }),
-                            Type::Monotype(Monotype {
+                            Type::Simple(SimpleType {
                                 name: "Y",
-                                params: vec![Type::Monotype(Monotype {
+                                params: vec![Type::Simple(SimpleType {
                                     name: "_",
                                     params: Vec::new(),
                                 })],
                             }),
-                            Type::Monotype(Monotype {
+                            Type::Simple(SimpleType {
                                 name: "Z",
                                 params: Vec::new(),
                             }),
                         ],
                     }),
-                    Type::Monotype(Monotype {
+                    Type::Simple(SimpleType {
                         name: "B",
-                        params: vec![Type::Monotype(Monotype {
+                        params: vec![Type::Simple(SimpleType {
                             name: "C",
-                            params: vec![Type::Monotype(Monotype {
+                            params: vec![Type::Simple(SimpleType {
                                 name: "D",
                                 params: Vec::new(),
                             })],
@@ -295,12 +295,12 @@ mod tests {
         let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source).parse_type(),
-            Ok(Type::Polytype(Polytype {
-                inputs: vec![Type::Monotype(Monotype {
+            Ok(Type::Lambda(LambdaType {
+                inputs: vec![Type::Simple(SimpleType {
                     name: "A",
                     params: Vec::new(),
                 })],
-                output: Box::new(Type::Monotype(Monotype {
+                output: Box::new(Type::Simple(SimpleType {
                     name: "B",
                     params: Vec::new(),
                 })),
@@ -314,9 +314,9 @@ mod tests {
         let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source).parse_type(),
-            Ok(Type::Polytype(Polytype {
+            Ok(Type::Lambda(LambdaType {
                 inputs: vec![],
-                output: Box::new(Type::Monotype(Monotype {
+                output: Box::new(Type::Simple(SimpleType {
                     name: "B",
                     params: Vec::new(),
                 })),
@@ -330,22 +330,22 @@ mod tests {
         let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source).parse_type(),
-            Ok(Type::Polytype(Polytype {
+            Ok(Type::Lambda(LambdaType {
                 inputs: vec![
-                    Type::Monotype(Monotype {
+                    Type::Simple(SimpleType {
                         name: "A",
                         params: Vec::new(),
                     }),
-                    Type::Monotype(Monotype {
+                    Type::Simple(SimpleType {
                         name: "B",
                         params: Vec::new(),
                     }),
-                    Type::Monotype(Monotype {
+                    Type::Simple(SimpleType {
                         name: "C",
                         params: Vec::new(),
                     }),
                 ],
-                output: Box::new(Type::Monotype(Monotype {
+                output: Box::new(Type::Simple(SimpleType {
                     name: "D",
                     params: Vec::new(),
                 })),
@@ -360,30 +360,30 @@ mod tests {
         let ast = Parser::new(source).parse_type();
         assert_eq!(
             ast,
-            Ok(Type::Polytype(Polytype {
+            Ok(Type::Lambda(LambdaType {
                 inputs: vec![
-                    Type::Polytype(Polytype {
+                    Type::Lambda(LambdaType {
                         inputs: vec![
-                            Type::Polytype(Polytype {
+                            Type::Lambda(LambdaType {
                                 inputs: vec![
-                                    Type::Monotype(Monotype {
+                                    Type::Simple(SimpleType {
                                         name: "A",
                                         params: Vec::new(),
                                     }),
                                 ],
-                                output: Box::new(Type::Monotype(Monotype {
+                                output: Box::new(Type::Simple(SimpleType {
                                     name: "B",
                                     params: Vec::new(),
                                 })),
                             })
                         ],
-                        output: Box::new(Type::Monotype(Monotype {
+                        output: Box::new(Type::Simple(SimpleType {
                             name: "C",
                             params: Vec::new(),
                         })),
                     })
                 ],
-                output: Box::new(Type::Monotype(Monotype {
+                output: Box::new(Type::Simple(SimpleType {
                     name: "D",
                     params: Vec::new(),
                 })),
@@ -421,27 +421,27 @@ mod tests {
         let ast = Parser::new(source).parse_type();
         assert_eq!(
             ast,
-            Ok(Type::Polytype(Polytype {
+            Ok(Type::Lambda(LambdaType {
                 inputs: vec![
-                    Type::Monotype(Monotype {
+                    Type::Simple(SimpleType {
                         name: "A",
                         params: Vec::new(),
                     }),
-                    Type::Monotype(Monotype {
+                    Type::Simple(SimpleType {
                         name: "B",
                         params: Vec::new(),
                     }),
-                    Type::Monotype(Monotype {
+                    Type::Simple(SimpleType {
                         name: "C",
                         params: Vec::new(),
                     }),
                 ],
-                output: Box::new(Type::Polytype(Polytype {
-                    inputs: vec![Type::Monotype(Monotype {
+                output: Box::new(Type::Lambda(LambdaType {
+                    inputs: vec![Type::Simple(SimpleType {
                         name: "D",
                         params: Vec::new()
                     })],
-                    output: Box::new(Type::Monotype(Monotype {
+                    output: Box::new(Type::Simple(SimpleType {
                         name: "E",
                         params: Vec::new()
                     })),

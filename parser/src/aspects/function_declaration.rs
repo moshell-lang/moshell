@@ -154,7 +154,7 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use ast::call::Call;
     use ast::function::{FunctionDeclaration, FunctionParameter};
-    use ast::r#type::{Monotype, Type};
+    use ast::r#type::{SimpleType, Type};
     use ast::variable::{TypedVariable, VarReference};
     use ast::Expr;
     use context::source::Source;
@@ -295,14 +295,14 @@ mod tests {
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
-                        ty: Some(Type::Monotype(Monotype {
+                        ty: Some(Type::Simple(SimpleType {
                             name: "String",
                             params: vec![],
                         })),
                     }),
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
-                        ty: Some(Type::Monotype(Monotype {
+                        ty: Some(Type::Simple(SimpleType {
                             name: "Test",
                             params: vec![],
                         })),
@@ -330,11 +330,11 @@ mod tests {
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "test",
                 type_parameters: vec![
-                    Type::Monotype(Monotype {
+                    Type::Simple(SimpleType {
                         name: "X",
                         params: Vec::new(),
                     }),
-                    Type::Monotype(Monotype {
+                    Type::Simple(SimpleType {
                         name: "Y",
                         params: Vec::new(),
                     }),
@@ -342,14 +342,14 @@ mod tests {
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
-                        ty: Some(Type::Monotype(Monotype {
+                        ty: Some(Type::Simple(SimpleType {
                             name: "X",
                             params: vec![],
                         })),
                     }),
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
-                        ty: Some(Type::Monotype(Monotype {
+                        ty: Some(Type::Simple(SimpleType {
                             name: "Y",
                             params: vec![],
                         })),
@@ -377,7 +377,7 @@ mod tests {
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "test",
                 type_parameters: vec![],
-                parameters: vec![FunctionParameter::Variadic(Some(Type::Monotype(Monotype {
+                parameters: vec![FunctionParameter::Variadic(Some(Type::Simple(SimpleType {
                     name: "X",
                     params: Vec::new(),
                 })))],
@@ -403,7 +403,7 @@ mod tests {
 
                 parameters: vec![FunctionParameter::Named(TypedVariable {
                     name: "x",
-                    ty: Some(Type::Monotype(Monotype {
+                    ty: Some(Type::Simple(SimpleType {
                         name: "int",
                         params: Vec::new(),
                     })),
@@ -428,11 +428,11 @@ mod tests {
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "test",
                 type_parameters: vec![
-                    Type::Monotype(Monotype {
+                    Type::Simple(SimpleType {
                         name: "X",
                         params: Vec::new(),
                     }),
-                    Type::Monotype(Monotype {
+                    Type::Simple(SimpleType {
                         name: "Y",
                         params: Vec::new(),
                     }),
@@ -440,20 +440,20 @@ mod tests {
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
-                        ty: Some(Type::Monotype(Monotype {
+                        ty: Some(Type::Simple(SimpleType {
                             name: "X",
                             params: vec![],
                         })),
                     }),
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
-                        ty: Some(Type::Monotype(Monotype {
+                        ty: Some(Type::Simple(SimpleType {
                             name: "Y",
                             params: vec![],
                         })),
                     }),
                 ],
-                return_type: Some(Type::Monotype(Monotype {
+                return_type: Some(Type::Simple(SimpleType {
                     name: "X",
                     params: Vec::new(),
                 })),

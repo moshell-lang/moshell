@@ -88,7 +88,7 @@ mod tests {
     use crate::parse;
     use crate::parser::Parser;
     use ast::call::Call;
-    use ast::r#type::{Monotype, Type};
+    use ast::r#type::{SimpleType, Type};
     use ast::value::Literal;
     use ast::Expr;
 
@@ -118,7 +118,7 @@ mod tests {
                     Expr::Literal("x".into()),
                     Expr::Literal("y".into())
                 ],
-                type_parameters: vec![Type::Monotype(Monotype {
+                type_parameters: vec![Type::Simple(SimpleType {
                     name: "int",
                     params: Vec::new()
                 })]
