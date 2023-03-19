@@ -27,8 +27,12 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
 
         //check if there's an arrow, if some, we are maybe in a case where the type is "A => ..."
         // (a lambda with one parameter and no parenthesis for the input, which is valid)
-        if !self.cursor.advance(word_seps().then(of_type(FatArrow))).is_some() {
-            return Ok(tpe)
+        if self
+            .cursor
+            .advance(word_seps().then(of_type(FatArrow)))
+            .is_none()
+        {
+            return Ok(tpe);
         }
 
         if matches!(tpe, Type::Monotype(..)) {
@@ -71,20 +75,18 @@ impl<'a> Parser<'a> {
             let mut rendered_tuple = String::new();
             rendered_tuple += "(";
 
-            if !inputs.is_empty() {
-                rendered_tuple += &format!("{}", inputs.first().unwrap());
-            }
-
-            if inputs.len() > 1 {
-                for tpe in &inputs[1..] {
-                    rendered_tuple += &format!(", {}", tpe);
+            if let Some((first, rest)) = inputs.split_first() {
+                write!(rendered_tuple, "{}", first).unwrap();
+                for tpe in rest {
+                    write!(rendered_tuple, ", {}", tpe).unwrap();
                 }
             }
 
             rendered_tuple += ") => <type>";
-            return Err(self.mk_parse_error("Tuples are not yet supported. A lambda declaration was expected here",
-                                           self.cursor.peek(),
-                                           Expected(rendered_tuple)))
+            return self.expected(
+                "Tuples are not yet supported. A lambda declaration was expected here",
+                Expected(rendered_tuple),
+            );
         }
 
         self.parse_polytype_with_inputs(inputs)
@@ -102,17 +104,17 @@ impl<'a> Parser<'a> {
 
         if name_token.token_type != Identifier {
             return if matches!(name_token.token_type, NewLine | Space) || name_token.token_type.is_closing_ponctuation() {
-                Err(self.mk_parse_error(
-                    format!("expected type"),
+                self.expected_with(
+                    "expected type",
                     name_token,
                     Expected("<type>".to_string()),
-                ))
+                )
             } else {
-                Err(self.mk_parse_error(
-                    format!("'{}' is not a valid type identifier.", name_token.value),
+                self.expected_with(
+                    &format!("'{}' is not a valid type identifier.", name_token.value),
                     name_token,
                     Unexpected,
-                ))
+                )
             }
         }
 
