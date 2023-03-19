@@ -1,7 +1,7 @@
 use crate::err::ParseErrorKind::{Expected, Unexpected};
 use crate::moves::{any, eod, lookahead, of_type, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use ast::r#type::{LambdaType, SimpleType, Type};
+use ast::r#type::{CallableType, SimpleType, Type};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{
     Comma, FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket,
@@ -41,8 +41,8 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         }
 
         if matches!(tpe, Type::Simple(..)) {
-            tpe = Type::Lambda(LambdaType {
-                inputs: vec![tpe],
+            tpe = Type::Callable(CallableType {
+                params: vec![tpe],
                 output: Box::new(self.parse_simple_or_unit()?),
             })
         }
@@ -110,12 +110,12 @@ impl<'a> Parser<'a> {
             );
         }
 
-        self.parse_lambda_with_inputs(inputs).map(Type::Lambda)
+        self.parse_lambda_with_inputs(inputs).map(Type::Callable)
     }
 
-    fn parse_lambda_with_inputs(&mut self, inputs: Vec<Type<'a>>) -> ParseResult<LambdaType<'a>> {
-        Ok(LambdaType {
-            inputs,
+    fn parse_lambda_with_inputs(&mut self, inputs: Vec<Type<'a>>) -> ParseResult<CallableType<'a>> {
+        Ok(CallableType {
+            params: inputs,
             output: Box::new(self.parse_type()?),
         })
     }
@@ -201,7 +201,7 @@ mod tests {
     use crate::err::ParseErrorKind::{Expected, Unpaired};
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parser::Parser;
-    use ast::r#type::{LambdaType, SimpleType, Type};
+    use ast::r#type::{CallableType, SimpleType, Type};
     use context::source::Source;
     use pretty_assertions::assert_eq;
 
@@ -328,8 +328,8 @@ mod tests {
         let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source).parse_type(),
-            Ok(Type::Lambda(LambdaType {
-                inputs: vec![Type::Simple(SimpleType {
+            Ok(Type::Callable(CallableType {
+                params: vec![Type::Simple(SimpleType {
                     name: "A",
                     params: Vec::new(),
                 })],
@@ -347,8 +347,8 @@ mod tests {
         let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source).parse_type(),
-            Ok(Type::Lambda(LambdaType {
-                inputs: vec![],
+            Ok(Type::Callable(CallableType {
+                params: vec![],
                 output: Box::new(Type::Simple(SimpleType {
                     name: "B",
                     params: Vec::new(),
@@ -373,8 +373,8 @@ mod tests {
         let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source).parse_type(),
-            Ok(Type::Lambda(LambdaType {
-                inputs: vec![Type::Simple(SimpleType {
+            Ok(Type::Callable(CallableType {
+                params: vec![Type::Simple(SimpleType {
                     name: "A",
                     params: Vec::new(),
                 })],
@@ -389,8 +389,8 @@ mod tests {
         let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source).parse_type(),
-            Ok(Type::Lambda(LambdaType {
-                inputs: vec![
+            Ok(Type::Callable(CallableType {
+                params: vec![
                     Type::Simple(SimpleType {
                         name: "A",
                         params: Vec::new(),
@@ -419,10 +419,10 @@ mod tests {
         let ast = Parser::new(source).parse_type();
         assert_eq!(
             ast,
-            Ok(Type::Lambda(LambdaType {
-                inputs: vec![Type::Lambda(LambdaType {
-                    inputs: vec![Type::Lambda(LambdaType {
-                        inputs: vec![Type::Simple(SimpleType {
+            Ok(Type::Callable(CallableType {
+                params: vec![Type::Callable(CallableType {
+                    params: vec![Type::Callable(CallableType {
+                        params: vec![Type::Simple(SimpleType {
                             name: "A",
                             params: Vec::new(),
                         }),],
@@ -460,13 +460,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn lambda_void_type() {
-        // let content = "() => ()";
-        // let source = Source::unknown(content);
-        // let ast = Parser::new(source).parse_type();
-        //todo!()
-    }
 
     #[test]
     fn parenthesised_lambda_input() {
@@ -475,8 +468,8 @@ mod tests {
         let ast = Parser::new(source).parse_type();
         assert_eq!(
             ast,
-            Ok(Type::Lambda(LambdaType {
-                inputs: vec![
+            Ok(Type::Callable(CallableType {
+                params: vec![
                     Type::Simple(SimpleType {
                         name: "A",
                         params: Vec::new(),
@@ -490,8 +483,8 @@ mod tests {
                         params: Vec::new(),
                     }),
                 ],
-                output: Box::new(Type::Lambda(LambdaType {
-                    inputs: vec![Type::Simple(SimpleType {
+                output: Box::new(Type::Callable(CallableType {
+                    params: vec![Type::Simple(SimpleType {
                         name: "D",
                         params: Vec::new()
                     })],

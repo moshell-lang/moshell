@@ -6,8 +6,8 @@ use std::ops::Deref;
 pub enum Type<'a> {
     ///A Simple type with optional parameters (`A`, `A[V]`)
     Simple(SimpleType<'a>),
-    ///A Lambda declaration with of form `(A, B, ...) => Out`
-    Lambda(LambdaType<'a>),
+    ///A callable declaration with of form `(A, B, ...) => Out`, `=> X` is also valid
+    Callable(CallableType<'a>),
     ///Either `()` or `Unit`, representing a void type
     Unit,
 }
@@ -19,8 +19,8 @@ pub struct SimpleType<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
-pub struct LambdaType<'a> {
-    pub inputs: Vec<Type<'a>>,
+pub struct CallableType<'a> {
+    pub params: Vec<Type<'a>>,
     pub output: Box<Type<'a>>,
 }
 
@@ -28,7 +28,7 @@ impl<'a> Display for Type<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Type::Simple(m) => Display::fmt(m, f),
-            Type::Lambda(p) => Display::fmt(p, f),
+            Type::Callable(p) => Display::fmt(p, f),
             Type::Unit => write!(f, "Unit"),
         }
     }
@@ -51,9 +51,9 @@ fn display_type_list<'a>(
     f.write_char(end)
 }
 
-impl<'a> Display for LambdaType<'a> {
+impl<'a> Display for CallableType<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let inputs = &self.inputs;
+        let inputs = &self.params;
         if let Some(Type::Simple(first_in)) = inputs.first() {
             Display::fmt(first_in, f)?;
         } else {
