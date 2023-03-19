@@ -5,11 +5,12 @@ use crate::aspects::substitution::SubstitutionAspect;
 use lexer::token::TokenType::*;
 
 use crate::err::ParseErrorKind;
-use crate::moves::{next, of_type, word_seps};
+use crate::moves::{eod, eox, like, next, of_type, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::range::{FilePattern, Iterable};
 use ast::value::{Literal, LiteralValue, TemplateString};
 use ast::*;
+use lexer::token::TokenType;
 
 /// Describes if a literal should be parsed strictly or leniently.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,8 +56,20 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
     fn literal(&mut self, leniency: LiteralLeniency) -> ParseResult<Expr<'a>> {
         let token = self.cursor.peek();
         let pivot = token.token_type;
+        let is_alone = leniency == LiteralLeniency::Strict
+            || self
+                .cursor
+                .lookahead(
+                    next().and_then(
+                        eox()
+                            .or(eod())
+                            .or(word_seps())
+                            .or(like(TokenType::is_call_bound)),
+                    ),
+                )
+                .is_some();
         match pivot {
-            IntLiteral | FloatLiteral => self.number_literal().map(Expr::Literal),
+            IntLiteral | FloatLiteral if is_alone => self.number_literal().map(Expr::Literal),
             Quote => self.string_literal().map(Expr::Literal),
             DoubleQuote => self.templated_string_literal().map(Expr::TemplateString),
 

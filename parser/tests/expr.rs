@@ -316,7 +316,7 @@ fn classic_call() {
 
 #[test]
 fn classic_call_no_regression() {
-    let source = Source::unknown("test => ,,here, ->..3");
+    let source = Source::unknown("test => ,,here, ->..3 54a2 1..=9");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
@@ -326,6 +326,8 @@ fn classic_call_no_regression() {
                 Expr::Literal("=>".into()),
                 Expr::Literal(",,here,".into()),
                 Expr::Literal("->..3".into()),
+                Expr::Literal("54a2".into()),
+                Expr::Literal("1..=9".into()),
             ],
             type_parameters: Vec::new()
         })]
