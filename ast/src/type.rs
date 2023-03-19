@@ -29,7 +29,8 @@ impl<'a> Display for Type<'a> {
     }
 }
 
-fn display_list<'a>(start: char, end: char, types: &Vec<Type<'a>>, f: &mut Formatter<'_>) -> std::fmt::Result {
+///helper function to write a type list format in a given formatter
+fn display_type_list<'a>(start: char, end: char, types: &Vec<Type<'a>>, f: &mut Formatter<'_>) -> std::fmt::Result {
     f.write_char(start)?;
     Display::fmt(types.first().unwrap(), f)?;
     for tpe in &types[1..] {
@@ -46,7 +47,7 @@ impl<'a> Display for Polytype<'a> {
         if inputs.is_empty() || matches!(first_in, Some(Type::Monotype(..))) {
             Display::fmt(first_in.unwrap(), f)?;
         } else {
-            display_list('(', ')', inputs, f)?;
+            display_type_list('(', ')', inputs, f)?;
         }
         f.write_str(" => ")?;
         Display::fmt(self.output.deref(), f)
@@ -61,6 +62,6 @@ impl<'a> Display for Monotype<'a> {
             return Ok(())
         }
 
-        display_list('[', ']', &self.params, f)
+        display_type_list('[', ']', &self.params, f)
     }
 }

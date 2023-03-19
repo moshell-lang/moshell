@@ -1,4 +1,3 @@
-
 use crate::err::ParseErrorKind;
 use crate::moves::{of_type, MoveOperations, eod, word_seps, lookahead, any};
 use crate::parser::{ParseResult, Parser};
@@ -72,11 +71,20 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_polytype_with_inputs(&mut self, inputs: Vec<Type<'a>>) -> ParseResult<Polytype<'a>> {
-        self.cursor.force_with(
-            word_seps().then(of_type(FatArrow)),
-            "Tuples are not yet supported. A lambda declaration was expected here",
-            Excepted("=> <output_type>"),
-        )?;
+
+
+        if self.cursor.advance(word_seps().then(of_type(FatArrow))).is_none() {
+            let mut rendered_tuple = String::new();
+            rendered_tuple += "(";
+            rendered_tuple += &format!("{}", inputs.first().unwrap());
+            for tpe in &inputs[1..] {
+                rendered_tuple += &format!("{}, ", tpe);
+            }
+            rendered_tuple += ")";
+            return Err(self.mk_parse_error("Tuples are not yet supported. A lambda declaration was expected here",
+                                           self.cursor.peek(),
+                                           Excepted(&rendered_tuple)))
+        }
         Ok(Polytype {
             inputs,
             output: Box::new(self.parse_type()?),
@@ -350,6 +358,21 @@ mod tests {
                     params: Vec::new(),
                 })),
             }))
+        );
+    }
+
+    #[test]
+    fn tuple_declaration() {
+        let content = "(A, B, C)";
+        let source = Source::unknown(content);
+        let ast = Parser::new(source).parse_type();
+        assert_eq!(
+            ast,
+            Err(ParseError {
+                message: "".to_string(),
+                position: 0..1,
+                kind: ParseErrorKind::Unexpected,
+            })
         );
     }
 }
