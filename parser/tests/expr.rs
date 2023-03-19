@@ -1,7 +1,7 @@
 use ast::call::{Call, Redir, RedirFd, RedirOp, Redirected};
 use ast::control_flow::{For, ForKind, RangeFor};
 use ast::operation::{BinaryOperation, BinaryOperator};
-use ast::r#type::Type;
+use ast::r#type::{SimpleType, Type};
 use ast::range::{Iterable, NumericRange};
 use ast::structure::Construct;
 use ast::value::{Literal, LiteralValue};
@@ -27,10 +27,10 @@ fn variable_type_and_initializer() {
         kind: VarKind::Var,
         var: TypedVariable {
             name: "a",
-            ty: Some(Type {
+            ty: Some(Type::Simple(SimpleType {
                 name: "int",
                 params: Vec::new(),
-            }),
+            })),
         },
         initializer: Some(Box::new(Expr::Literal(Literal {
             lexeme: "1",

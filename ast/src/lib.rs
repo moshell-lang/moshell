@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![deny(warnings)]
+
 use dbg_pls::DebugPls;
 
 use crate::call::{Call, Detached, Pipeline, Redirected};
