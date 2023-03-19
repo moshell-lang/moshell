@@ -58,7 +58,7 @@ impl<'a> From<&'a str> for ErrorContext<'a> {
 #[derive(Debug, PartialEq, Clone)]
 pub enum ParseErrorKind {
     /// A specific token was expected, but another token was found.
-    Excepted(&'static str),
+    Expected(&'static str),
 
     /// A unexpected token was found in the current context.
     Unexpected,
@@ -121,7 +121,7 @@ impl<'a> ParseReport<'a> {
         } else if !self.errors.is_empty() {
             panic!("{msg} {:?}", self.errors)
         } else {
-            panic!("{msg}: The stack was excepted to be ended")
+            panic!("{msg}: The stack was expected to be ended")
         }
     }
 
@@ -131,7 +131,7 @@ impl<'a> ParseReport<'a> {
         } else if !self.errors.is_empty() {
             panic!("ParseReport contains errors: {:?}", self.errors)
         } else {
-            panic!("The stack was excepted to be ended")
+            panic!("The stack was expected to be ended")
         }
     }
 }

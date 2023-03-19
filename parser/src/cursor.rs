@@ -134,7 +134,7 @@ impl<'a> ParserCursor<'a> {
 
     /// Create a new parse error with the given message and context.
     ///
-    /// The [`excepted`](Parser::expected_with) method wraps the error in a [`Err`].
+    /// The [`expected`](Parser#expected_with) method wraps the error in a [`Err`].
     pub fn mk_parse_error(
         &self,
         message: impl Into<String>,

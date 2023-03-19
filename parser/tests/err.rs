@@ -39,7 +39,7 @@ fn repos_delimiter_stack() {
 }
 
 #[test]
-fn excepted_value_found_eof() {
+fn expected_value_found_eof() {
     let content = "val i =\n";
     let source = Source::unknown(content);
     let report = parse(source);
@@ -58,7 +58,7 @@ fn excepted_value_found_eof() {
 }
 
 #[test]
-fn excepted_value_found_semicolon() {
+fn expected_value_found_semicolon() {
     let content = "val j =;";
     let source = Source::unknown(content);
     let report = parse(source);

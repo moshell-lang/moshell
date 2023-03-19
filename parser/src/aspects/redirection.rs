@@ -79,7 +79,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
             },
             _ => self.expected(
                 "Expected redirection operator.",
-                ParseErrorKind::Excepted("< >"),
+                ParseErrorKind::Expected("< >"),
             )?,
         };
 
@@ -90,7 +90,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
                 RedirOp::Write => RedirOp::FdOut,
                 _ => self.expected(
                     "Invalid redirection operator.",
-                    ParseErrorKind::Excepted("< or >"),
+                    ParseErrorKind::Expected("< or >"),
                 )?,
             };
         }

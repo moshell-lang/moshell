@@ -47,7 +47,7 @@ impl<'a> Parser<'a> {
         let opening_bracket = self.cursor.force_with(
             blanks().then(of_type(CurlyLeftBracket)),
             "expected match start",
-            ParseErrorKind::Excepted("{"),
+            ParseErrorKind::Expected("{"),
         )?;
         self.delimiter_stack.push_back(opening_bracket.clone());
 

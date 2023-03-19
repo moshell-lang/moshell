@@ -4,6 +4,11 @@ use crate::Expr;
 use dbg_pls::DebugPls;
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
+pub struct Return<'a> {
+    pub expr: Box<Expr<'a>>,
+}
+
+#[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct FunctionDeclaration<'a> {
     pub name: &'a str,
     pub type_parameters: Vec<Type<'a>>,
@@ -11,6 +16,7 @@ pub struct FunctionDeclaration<'a> {
     pub return_type: Option<Type<'a>>,
     pub body: Box<Expr<'a>>,
 }
+
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub enum FunctionParameter<'a> {
     Named(TypedVariable<'a>),

@@ -24,7 +24,7 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
             _ => {
                 return self.expected(
                     "expected var or val keywords",
-                    ParseErrorKind::Excepted("var or val"),
+                    ParseErrorKind::Expected("var or val"),
                 )
             }
         };

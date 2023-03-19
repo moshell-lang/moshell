@@ -188,6 +188,7 @@ impl<'a> Parser<'a> {
                 self.cursor.next()?;
                 Ok(Expr::Break)
             }
+            Return => self.parse_return().map(Expr::Return),
 
             Not => self.not(Parser::next_expression_statement),
 
@@ -266,7 +267,7 @@ impl<'a> Parser<'a> {
         } else {
             self.expected(
                 "Unexpected closing delimiter.",
-                ParseErrorKind::Excepted(eog.str().unwrap_or("specific token")),
+                ParseErrorKind::Expected(eog.str().unwrap_or("specific token")),
             )
         }
     }
