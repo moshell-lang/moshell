@@ -460,13 +460,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn lambda_void_type() {
-        // let content = "() => ()";
-        // let source = Source::unknown(content);
-        // let ast = Parser::new(source).parse_type();
-        //todo!()
-    }
 
     #[test]
     fn parenthesised_lambda_input() {
