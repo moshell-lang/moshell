@@ -180,7 +180,7 @@ impl<'a> Parser<'a> {
             args.push(self.value()?);
             self.cursor.advance(word_seps());
 
-            // Check if the constructor is abnormally terminated.
+            // Check if the arg list is abnormally terminated.
             if self.cursor.lookahead(eox()).is_some() {
                 self.expected(
                     "Expected closing parenthesis.",
