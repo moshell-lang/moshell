@@ -377,10 +377,12 @@ mod tests {
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "test",
                 type_parameters: vec![],
-                parameters: vec![FunctionParameter::Variadic(Some(Type::Simple(SimpleType {
-                    name: "X",
-                    params: Vec::new(),
-                })))],
+                parameters: vec![FunctionParameter::Variadic(Some(Type::Simple(
+                    SimpleType {
+                        name: "X",
+                        params: Vec::new(),
+                    }
+                )))],
                 return_type: None,
                 body: Box::new(Expr::VarReference(VarReference { name: "x" })),
             })]
@@ -401,13 +403,16 @@ mod tests {
                 name: "test",
                 type_parameters: vec![],
 
-                parameters: vec![FunctionParameter::Named(TypedVariable {
-                    name: "x",
-                    ty: Some(Type::Simple(SimpleType {
-                        name: "int",
-                        params: Vec::new(),
-                    })),
-                }), FunctionParameter::Variadic(None)],
+                parameters: vec![
+                    FunctionParameter::Named(TypedVariable {
+                        name: "x",
+                        ty: Some(Type::Simple(SimpleType {
+                            name: "int",
+                            params: Vec::new(),
+                        })),
+                    }),
+                    FunctionParameter::Variadic(None)
+                ],
 
                 return_type: None,
                 body: Box::new(Expr::VarReference(VarReference { name: "x" })),

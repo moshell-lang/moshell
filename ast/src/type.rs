@@ -1,6 +1,6 @@
+use dbg_pls::DebugPls;
 use std::fmt::{Debug, Display, Formatter, Write};
 use std::ops::Deref;
-use dbg_pls::DebugPls;
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub enum Type<'a> {
@@ -29,13 +29,18 @@ impl<'a> Display for Type<'a> {
         match self {
             Type::Simple(m) => Display::fmt(m, f),
             Type::Lambda(p) => Display::fmt(p, f),
-            Type::Unit => write!(f, "Unit")
+            Type::Unit => write!(f, "Unit"),
         }
     }
 }
 
 ///helper function to write a type list format in a given formatter
-fn display_type_list<'a>(start: char, end: char, types: &Vec<Type<'a>>, f: &mut Formatter<'_>) -> std::fmt::Result {
+fn display_type_list<'a>(
+    start: char,
+    end: char,
+    types: &Vec<Type<'a>>,
+    f: &mut Formatter<'_>,
+) -> std::fmt::Result {
     f.write_char(start)?;
     if let Some((first, rest)) = types.split_first() {
         write!(f, "{first}")?;
@@ -59,12 +64,11 @@ impl<'a> Display for LambdaType<'a> {
     }
 }
 
-
 impl<'a> Display for SimpleType<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.name)?;
         if self.params.is_empty() {
-            return Ok(())
+            return Ok(());
         }
 
         display_type_list('[', ']', &self.params, f)

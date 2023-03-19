@@ -11,7 +11,6 @@ use context::source::Source;
 use parser::parse;
 use pretty_assertions::assert_eq;
 
-
 #[test]
 fn empty() {
     let source = Source::unknown("");
@@ -31,7 +30,7 @@ fn variable_type_and_initializer() {
             ty: Some(Type::Simple(SimpleType {
                 name: "int",
                 params: Vec::new(),
-            }))
+            })),
         },
         initializer: Some(Box::new(Expr::Literal(Literal {
             lexeme: "1",
