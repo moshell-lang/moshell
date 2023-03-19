@@ -189,6 +189,7 @@ impl<'a> Parser<'a> {
                 self.cursor.next()?;
                 Ok(Expr::Break)
             }
+            Return => self.parse_return().map(Expr::Return),
 
             Not => self.not(Parser::next_expression_statement),
 

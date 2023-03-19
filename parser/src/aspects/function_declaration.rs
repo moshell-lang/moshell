@@ -1,4 +1,5 @@
-use ast::function::{FunctionDeclaration, FunctionParameter};
+
+use ast::function::{FunctionDeclaration, FunctionParameter, Return};
 use ast::r#type::Type;
 use lexer::token::TokenType;
 use lexer::token::TokenType::*;
@@ -15,6 +16,9 @@ use crate::parser::{ParseResult, Parser};
 pub trait FunctionDeclarationAspect<'a> {
     ///Parse a function declaration
     fn parse_function_declaration(&mut self) -> ParseResult<FunctionDeclaration<'a>>;
+
+    ///Parse a return expression
+    fn parse_return(&mut self) -> ParseResult<Return<'a>>;
 }
 
 impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
@@ -43,6 +47,13 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
             parameters: params,
             return_type: rtype,
             body,
+        })
+    }
+
+    fn parse_return(&mut self) -> ParseResult<Return<'a>> {
+        self.cursor.force(of_type(Return), "'return' keyword expected here")?;
+        Ok(Return {
+            expr: Box::new(self.value()?)
         })
     }
 }
@@ -153,8 +164,10 @@ mod tests {
 
     use crate::err::{ParseError, ParseErrorKind};
     use ast::call::Call;
-    use ast::function::{FunctionDeclaration, FunctionParameter};
     use ast::r#type::{SimpleType, Type};
+    use ast::function::{FunctionDeclaration, FunctionParameter, Return};
+    use ast::operation::{BinaryOperation, BinaryOperator};
+    use ast::value::{Literal};
     use ast::variable::{TypedVariable, VarReference};
     use ast::Expr;
     use context::source::Source;
@@ -188,6 +201,33 @@ mod tests {
                 position: 3..3,
                 kind: ParseErrorKind::Expected("<function name>".to_string()),
             }]
+        );
+    }
+
+    #[test]
+    fn function_with_return() {
+        let errs = parse(Source::unknown("fun foo() = return 4 + 5")).expect("parse fail");
+        assert_eq!(
+            errs,
+            vec![Expr::FunctionDeclaration(FunctionDeclaration {
+                name: "foo",
+                type_parameters: vec![],
+                parameters: vec![],
+                return_type: None,
+                body: Box::new(Expr::Return(Return {
+                    expr: Box::new(Expr::Binary(BinaryOperation {
+                        left: Box::new(Expr::Literal(Literal {
+                            lexeme: "4",
+                            parsed: 4.into(),
+                        })),
+                        op: BinaryOperator::Plus,
+                        right: Box::new(Expr::Literal(Literal {
+                            lexeme: "5",
+                            parsed: 5.into(),
+                        }),),
+                    }))
+                })),
+            })]
         );
     }
 
