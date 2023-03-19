@@ -141,7 +141,7 @@ mod tests {
     use ast::Expr;
     use context::source::Source;
     use pretty_assertions::assert_eq;
-    use ast::r#type::{Monotype};
+    use ast::r#type::Monotype;
 
 
     //noinspection DuplicatedCode

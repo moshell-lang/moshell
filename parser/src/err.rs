@@ -59,7 +59,6 @@ impl<'a> From<&'a str> for ErrorContext<'a> {
 pub enum ParseErrorKind {
     /// A specific token was expected, but another token was found.
     Expected(String),
-    /// A specific token was expected, but another token was found.
 
     /// A unexpected token was found in the current context.
     Unexpected,
