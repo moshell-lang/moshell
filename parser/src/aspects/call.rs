@@ -31,32 +31,30 @@ pub trait CallAspect<'a> {
     ) -> ParseResult<Expr<'a>>;
 
     /// Checks if the cursor is at the start of a programmatic call.
-    fn is_at_programmatic_call_start(&self) -> bool;
+    fn may_be_at_programmatic_call_start(&self) -> bool;
 }
 
 impl<'a> CallAspect<'a> for Parser<'a> {
     fn any_call(&mut self) -> ParseResult<Expr<'a>> {
+        if !self.may_be_at_programmatic_call_start() {
+            return self.call();
+        }
+        // We don't known if this is a programmatic call or a raw call yet.
         let identifier = self.cursor.peek();
-        if self.is_at_programmatic_call_start() {
-            // We don't known if this is a programmatic call or a raw call yet.
-            self.cursor.advance(next());
-            let callee = Expr::Literal(Literal::from(identifier.value));
-            let type_parameters = self.parse_type_parameter_list()?;
-            if let Some(open_parenthesis) =
-                self.cursor.advance(of_type(TokenType::RoundedLeftBracket))
-            {
-                self.delimiter_stack.push_back(open_parenthesis.clone());
-                let arguments = self.parse_args_list(open_parenthesis)?;
-                Ok(Expr::ProgrammaticCall(ProgrammaticCall {
-                    name: identifier.value,
-                    arguments,
-                    type_parameters,
-                }))
-            } else {
-                self.call_arguments(callee, type_parameters)
-            }
+        self.cursor.advance(next());
+        let callee = Expr::Literal(Literal::from(identifier.value));
+        let type_parameters = self.parse_type_parameter_list()?;
+        if let Some(open_parenthesis) = self.cursor.advance(of_type(TokenType::RoundedLeftBracket))
+        {
+            self.delimiter_stack.push_back(open_parenthesis.clone());
+            let arguments = self.parse_comma_separated_arguments(open_parenthesis)?;
+            Ok(Expr::ProgrammaticCall(ProgrammaticCall {
+                name: identifier.value,
+                arguments,
+                type_parameters,
+            }))
         } else {
-            self.call()
+            self.call_arguments(callee, type_parameters)
         }
     }
 
@@ -76,7 +74,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             "Expected opening parenthesis.",
         )?;
         self.delimiter_stack.push_back(open_parenthesis.clone());
-        let arguments = self.parse_args_list(open_parenthesis)?;
+        let arguments = self.parse_comma_separated_arguments(open_parenthesis)?;
         Ok(Expr::ProgrammaticCall(ProgrammaticCall {
             name: name.value,
             arguments,
@@ -116,7 +114,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         }))
     }
 
-    fn is_at_programmatic_call_start(&self) -> bool {
+    fn may_be_at_programmatic_call_start(&self) -> bool {
         self.cursor
             .lookahead(of_type(TokenType::Identifier).and_then(of_types(&[
                 TokenType::RoundedLeftBracket,
@@ -135,14 +133,17 @@ impl<'a> Parser<'a> {
         match pivot {
             TokenType::RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
             TokenType::CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
-            TokenType::Identifier if self.is_at_programmatic_call_start() => {
+            TokenType::Identifier if self.may_be_at_programmatic_call_start() => {
                 self.programmatic_call()
             }
             _ => self.literal(LiteralLeniency::Lenient),
         }
     }
 
-    fn parse_args_list(&mut self, open_parenthesis: Token<'a>) -> ParseResult<Vec<Expr<'a>>> {
+    fn parse_comma_separated_arguments(
+        &mut self,
+        open_parenthesis: Token<'a>,
+    ) -> ParseResult<Vec<Expr<'a>>> {
         // Read the args until a closing delimiter or a new non-escaped line is found.
         let mut args = Vec::new();
         loop {

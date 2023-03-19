@@ -208,7 +208,7 @@ impl<'a> Parser<'a> {
             //expression that can also be used as values
             If => self.parse_if(Parser::value).map(Expr::If),
             Match => self.parse_match(Parser::value).map(Expr::Match),
-            Identifier if self.is_at_programmatic_call_start() => self.programmatic_call(),
+            Identifier if self.may_be_at_programmatic_call_start() => self.programmatic_call(),
 
             //test expressions has nothing to do in a value expression.
             SquaredLeftBracket => self.expected("Unexpected start of test expression", Unexpected),
