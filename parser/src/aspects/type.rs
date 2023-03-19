@@ -1,8 +1,9 @@
-use crate::moves::{of_type, MoveOperations, eod, word_seps, lookahead, any};
+use crate::moves::{of_type, MoveOperations, eod, word_seps, lookahead, any, next};
 use crate::parser::{ParseResult, Parser};
 use ast::r#type::{SimpleType, LambdaType, Type};
 use lexer::token::{TokenType};
-use lexer::token::TokenType::{Comma, FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket, Space, SquaredLeftBracket, SquaredRightBracket};
+use lexer::token::TokenType::{Comma, FatArrow, Identifier, NewLine, RoundedLeftBracket, Unit,
+                              RoundedRightBracket, SquaredLeftBracket, SquaredRightBracket};
 use crate::err::ParseErrorKind::{Expected, Unexpected};
 use std::fmt::Write;
 
@@ -19,9 +20,14 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         let first_token = self.cursor.peek();
         //if there's a parenthesis then the type is necessarily a lambda type
         let mut tpe = if first_token.token_type == RoundedLeftBracket {
-            self.parse_lambda().map(Type::Lambda)?
+            //look for a closing parenthesis after opening parenthesis to parse type as a Unit
+            if self.cursor.advance(next().then(word_seps().then(of_type(RoundedRightBracket)))).is_some() {
+                Type::Unit
+            } else {
+                self.parse_lambda().map(Type::Lambda)?
+            }
         } else {
-            Type::Simple(self.parse_simple()?)
+            self.parse_simple_or_unit()?
         };
 
 
@@ -38,7 +44,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         if matches!(tpe, Type::Simple(..)) {
             tpe = Type::Lambda(LambdaType {
                 inputs: vec![tpe],
-                output: Box::new(Type::Simple(self.parse_simple()?)),
+                output: Box::new(self.parse_simple_or_unit()?),
             })
         }
 
@@ -46,7 +52,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         // (a lambda with one parameter and no parenthesis for the input, which is valid)
         if self.cursor.advance(word_seps().then(of_type(FatArrow))).is_some() {
             //parse second lambda output in order to advance on the full invalid lambda expression
-            let second_rt = self.parse_simple()?;
+            let second_rt = self.parse_simple_or_unit()?;
             return self.expected_with("Lambda type as input of another lambda must be surrounded with parenthesis",
                                       first_token..self.cursor.peek(),
                                       Expected(self.unparenthesised_lambda_input_tip(tpe, second_rt)),
@@ -64,7 +70,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
 
 
 impl<'a> Parser<'a> {
-    fn unparenthesised_lambda_input_tip(&self, left_lambda: Type<'a>, lambda_out: SimpleType<'a>) -> String {
+    fn unparenthesised_lambda_input_tip(&self, left_lambda: Type<'a>, lambda_out: Type<'a>) -> String {
         "(".to_string() + &left_lambda.to_string() + ") => " + &lambda_out.to_string()
     }
 
@@ -99,29 +105,39 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_simple(&mut self) -> ParseResult<SimpleType<'a>> {
+    fn parse_simple_or_unit(&mut self) -> ParseResult<Type<'a>> {
         let name_token = self.cursor.advance(word_seps().then(any())).unwrap();
 
-        if name_token.token_type != Identifier {
-            return if matches!(name_token.token_type, NewLine | Space) || name_token.token_type.is_closing_ponctuation() {
-                self.expected_with(
-                    "expected type",
-                    name_token,
-                    Expected("<type>".to_string()),
-                )
-            } else {
-                self.expected_with(
-                    &format!("'{}' is not a valid type identifier.", name_token.value),
-                    name_token,
-                    Unexpected,
-                )
-            }
+        let ttype = name_token.token_type;
+        if ttype == Identifier {
+            return Ok(Type::Simple(SimpleType {
+                name: name_token.value,
+                params: self.parse_type_parameter_list()?,
+            }))
         }
 
-        Ok(SimpleType {
-            name: name_token.value,
-            params: self.parse_type_parameter_list()?,
-        })
+        //Unit type can either be `Unit` or `()`
+        if ttype == Unit || (ttype == RoundedLeftBracket && self.cursor
+            .advance(word_seps().then(of_type(RoundedRightBracket)))
+            .is_some())
+        {
+            return Ok(Type::Unit)
+        }
+
+
+        if ttype == NewLine || ttype.is_closing_ponctuation() {
+            return self.expected_with(
+                "expected type",
+                name_token,
+                Expected("<type>".to_string()),
+            )
+        }
+
+        self.expected_with(
+            &format!("'{}' is not a valid type identifier.", &name_token.value),
+            name_token.value,
+            Unexpected,
+        )
     }
 
     fn parse_type_list(&mut self, start: TokenType, end: TokenType, non_empty: bool) -> ParseResult<Vec<Type<'a>>> {
@@ -320,6 +336,32 @@ mod tests {
                     name: "B",
                     params: Vec::new(),
                 })),
+            }))
+        );
+    }
+
+    #[test]
+    fn unit_type() {
+        let res1 = Parser::new(Source::unknown("()")).parse_type();
+        let res2 = Parser::new(Source::unknown("Unit")).parse_type();
+        let res3 = Parser::new(Source::unknown("(\\\n   \\\n)")).parse_type();
+        assert_eq!(res1, Ok(Type::Unit));
+        assert_eq!(res2, Ok(Type::Unit));
+        assert_eq!(res3, Ok(Type::Unit));
+    }
+
+    #[test]
+    fn lambda_declaration_void_output() {
+        let content = "A => ()";
+        let source = Source::unknown(content);
+        assert_eq!(
+            Parser::new(source).parse_type(),
+            Ok(Type::Lambda(LambdaType {
+                inputs: vec![Type::Simple(SimpleType {
+                    name: "A",
+                    params: Vec::new()
+                })],
+                output: Box::new(Type::Unit),
             }))
         );
     }

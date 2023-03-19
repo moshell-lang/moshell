@@ -4,8 +4,12 @@ use dbg_pls::DebugPls;
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub enum Type<'a> {
+    ///A Simple type with optional parameters (`A`, `A[V]`)
     Simple(SimpleType<'a>),
+    ///A Lambda declaration with of form `(A, B, ...) => Out`
     Lambda(LambdaType<'a>),
+    ///Either `()` or `Unit`, representing a void type
+    Unit,
 }
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
@@ -24,7 +28,8 @@ impl<'a> Display for Type<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Type::Simple(m) => Display::fmt(m, f),
-            Type::Lambda(p) => Display::fmt(p, f)
+            Type::Lambda(p) => Display::fmt(p, f),
+            Type::Unit => write!(f, "Unit")
         }
     }
 }
