@@ -144,7 +144,7 @@ impl<'p> Parser<'p> {
             })
         };
 
-        return Ok(result);
+        Ok(result)
     }
 }
 

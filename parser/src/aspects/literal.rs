@@ -139,7 +139,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             if self.cursor.is_at_end() {
                 return self.expected(
                     "Unterminated string literal.",
-                    ParseErrorKind::Unpaired(self.cursor.relative_pos(&start)),
+                    ParseErrorKind::Unpaired(self.cursor.relative_pos(start)),
                 );
             }
 

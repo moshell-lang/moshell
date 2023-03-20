@@ -81,7 +81,7 @@ impl<'a> Parser<'a> {
             TokenType::Dollar => {
                 self.cursor.next_opt();
                 if self.parse_range_for().is_ok() {
-                    let end_pos = self.cursor.relative_pos(&self.cursor.peek()).end;
+                    let end_pos = self.cursor.relative_pos(self.cursor.peek()).end;
                     let slice = &self.source.source[start_pos + 1..end_pos];
                     return self.expected_with(
                         "Receiver variables do not start with '$'.",

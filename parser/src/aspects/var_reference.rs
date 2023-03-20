@@ -26,7 +26,7 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
             )
             .leak();
 
-        if tokens.len() == 0 {
+        if tokens.is_empty() {
             return self.expected(
                 "variable reference with empty name",
                 ParseErrorKind::Unexpected,
@@ -35,7 +35,7 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
 
         let first = tokens[0].value;
         let name = tokens
-            .into_iter()
+            .iter()
             .skip(1)
             .fold(first, |acc, t| try_join_str(acc, t.value).unwrap());
 
@@ -43,7 +43,7 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
             self.cursor.force_with(
                 of_type(CurlyRightBracket),
                 "Expected closing curly bracket.",
-                ParseErrorKind::Unpaired(self.cursor.relative_pos(&bracket)),
+                ParseErrorKind::Unpaired(self.cursor.relative_pos(bracket)),
             )?;
         }
         Ok(Expr::VarReference(VarReference { name }))

@@ -310,7 +310,7 @@ impl<'a> Parser<'a> {
                     .binary_operation_right(expr, Parser::next_value)
                     .is_ok()
                 {
-                    let end_pos = self.cursor.relative_pos(&self.cursor.peek()).end;
+                    let end_pos = self.cursor.relative_pos(self.cursor.peek()).end;
                     let slice = &self.source.source[start_pos..end_pos];
                     return self.expected_with(
                         "Binary operations must be enclosed in a value expression.",

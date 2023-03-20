@@ -72,7 +72,7 @@ impl<'a> Parser<'a> {
             //expect trailing ']]'
             spaces().then(times(2, of_type(SquaredRightBracket))),
             "missing ']]'",
-            ParseErrorKind::Unpaired(self.cursor.relative_pos(&start)),
+            ParseErrorKind::Unpaired(self.cursor.relative_pos(start)),
         )?;
         call
     }

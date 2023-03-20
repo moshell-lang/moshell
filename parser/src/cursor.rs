@@ -170,7 +170,7 @@ impl<'a> ParserCursor<'a> {
         let start = (context.from.as_ptr() as usize)
             .checked_sub(self.source.as_ptr() as usize)
             .expect("Context start is not contained in the source code.");
-        let end = context.to.as_ptr() as usize + context.to.len() as usize
+        let end = context.to.as_ptr() as usize + context.to.len()
             - self.source.as_ptr() as usize;
         start..end
     }
