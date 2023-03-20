@@ -39,7 +39,7 @@ fn repos_delimiter_stack() {
 }
 
 #[test]
-fn excepted_value_found_eof() {
+fn expected_value_found_eof() {
     let content = "val i =\n";
     let source = Source::unknown(content);
     let report = parse(source);
@@ -58,7 +58,7 @@ fn excepted_value_found_eof() {
 }
 
 #[test]
-fn excepted_value_found_semicolon() {
+fn expected_value_found_semicolon() {
     let content = "val j =;";
     let source = Source::unknown(content);
     let report = parse(source);
@@ -131,6 +131,44 @@ fn expected_double_delimiter_for() {
                 kind: ParseErrorKind::Unpaired(content.find('(').map(|p| p..p + 2).unwrap())
             }],
             stack_ended: false,
+        }
+    );
+}
+
+#[test]
+fn double_comma_parentheses() {
+    let content = "Bar(4 , ,)";
+    let source = Source::unknown(content);
+    let report = parse(source);
+    assert_eq!(
+        report,
+        ParseReport {
+            expr: vec![],
+            errors: vec![ParseError {
+                message: "Expected argument.".to_string(),
+                position: content.rfind(',').map(|p| p..p + 1).unwrap(),
+                kind: ParseErrorKind::Unexpected
+            }],
+            stack_ended: true,
+        }
+    );
+}
+
+#[test]
+fn double_comma_function() {
+    let content = "fun foo(a: Int, , b: Int) = a + b";
+    let source = Source::unknown(content);
+    let report = parse(source);
+    assert_eq!(
+        report,
+        ParseReport {
+            expr: vec![],
+            errors: vec![ParseError {
+                message: "Expected parameter.".to_string(),
+                position: content.rfind(',').map(|p| p..p + 1).unwrap(),
+                kind: ParseErrorKind::Unexpected
+            }],
+            stack_ended: true,
         }
     );
 }

@@ -1,5 +1,5 @@
 use crate::err::ParseErrorKind::{Expected, Unexpected};
-use crate::moves::{any, eod, lookahead, of_type, word_seps, MoveOperations, not};
+use crate::moves::{any, eod, lookahead, not, of_type, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::r#type::{ByName, CallableType, SimpleType, Type};
 use lexer::token::TokenType;
@@ -27,7 +27,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         let mut tpe = match first_token.token_type {
             RoundedLeftBracket => self.parse_parentheses()?,
             FatArrow => self.parse_by_name().map(Type::ByName)?,
-            _ => self.parse_simple_or_unit()?
+            _ => self.parse_simple_or_unit()?,
         };
         //check if there's an arrow, if some, we are maybe in a case where the type is "A => ..."
         // (a lambda with one parameter and no parenthesis for the input, which is valid)
@@ -72,13 +72,15 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn parse_by_name(&mut self) -> ParseResult<ByName<'a>> {
-        self.cursor.force(of_type(FatArrow), "'=>' expected here.")?;
+        self.cursor
+            .force(of_type(FatArrow), "'=>' expected here.")?;
 
         //control case of => => A which is invalid
-        self.cursor.force(word_seps().then(not(of_type(FatArrow))), "unexpected '=>'")?;
+        self.cursor
+            .force(word_seps().then(not(of_type(FatArrow))), "unexpected '=>'")?;
 
         Ok(ByName {
-            name: self.parse_type().map(Box::new)?
+            name: self.parse_type().map(Box::new)?,
         })
     }
 
@@ -99,7 +101,7 @@ impl<'a> Parser<'a> {
             .advance(word_seps().then(of_type(FatArrow)))
             .is_some()
         {
-            return self.parse_lambda_with_inputs(inputs).map(Type::Callable)
+            return self.parse_lambda_with_inputs(inputs).map(Type::Callable);
         }
 
         //there is no inputs (`()`) and no `=>` after, this is a Unit type
@@ -110,7 +112,7 @@ impl<'a> Parser<'a> {
         //its a type of form `(A)`
         if let Some(ty) = inputs.first() {
             if inputs.len() == 1 {
-                return Ok(ty.clone())
+                return Ok(ty.clone());
             }
         }
 
@@ -536,7 +538,6 @@ mod tests {
             })
         );
     }
-
 
     #[test]
     fn parenthesised_lambda_input() {

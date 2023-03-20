@@ -10,7 +10,6 @@ pub(super) mod r#loop;
 pub(super) mod r#match;
 pub(super) mod range;
 pub(super) mod redirection;
-pub(super) mod structure;
 pub(super) mod substitution;
 pub(super) mod test;
 pub(super) mod r#type;

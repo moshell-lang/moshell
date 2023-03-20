@@ -1,9 +1,8 @@
-use ast::call::{Call, Redir, RedirFd, RedirOp, Redirected};
+use ast::call::{Call, ProgrammaticCall, Redir, RedirFd, RedirOp, Redirected};
 use ast::control_flow::{For, ForKind, RangeFor};
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::r#type::{SimpleType, Type};
 use ast::range::{Iterable, NumericRange};
-use ast::structure::Construct;
 use ast::value::{Literal, LiteralValue};
 use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind};
 use ast::Expr;
@@ -74,9 +73,10 @@ fn constructor_in_call() {
         vec![Expr::Call(Call {
             arguments: vec![
                 Expr::Literal("echo".into()),
-                Expr::Construct(Construct {
+                Expr::ProgrammaticCall(ProgrammaticCall {
                     name: "Foo",
-                    args: vec![],
+                    arguments: vec![],
+                    type_parameters: vec![],
                 }),
                 Expr::Literal(Literal {
                     lexeme: "Bar\\(\\)",
@@ -224,6 +224,110 @@ fn call_not_assign() {
                     lexeme: "5",
                     parsed: 5.into(),
                 }),
+            ],
+            type_parameters: Vec::new()
+        })]
+    );
+}
+
+#[test]
+fn constructor_assign() {
+    let source = Source::unknown("a = Foo(5)");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Assign(Assign {
+            name: "a",
+            value: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
+                name: "Foo",
+                arguments: vec![Expr::Literal(Literal {
+                    lexeme: "5",
+                    parsed: 5.into(),
+                })],
+                type_parameters: vec![],
+            })),
+        })]
+    );
+}
+
+#[test]
+fn programmatic_call() {
+    let source = Source::unknown("ssh(localhost, 'ls -l', 8 / 2)");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::ProgrammaticCall(ProgrammaticCall {
+            name: "ssh",
+            arguments: vec![
+                Expr::Literal(Literal {
+                    lexeme: "localhost",
+                    parsed: "localhost".into(),
+                }),
+                Expr::Literal(Literal {
+                    lexeme: "'ls -l'",
+                    parsed: "ls -l".into(),
+                }),
+                Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::Literal(Literal {
+                        lexeme: "8",
+                        parsed: 8.into(),
+                    })),
+                    op: BinaryOperator::Divide,
+                    right: Box::new(Expr::Literal(Literal {
+                        lexeme: "2",
+                        parsed: 2.into(),
+                    })),
+                }),
+            ],
+            type_parameters: Vec::new()
+        })]
+    );
+}
+
+#[test]
+fn classic_call() {
+    let source = Source::unknown("ssh localhost , 'ls -l' 8 / 2");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Call(Call {
+            arguments: vec![
+                Expr::Literal("ssh".into()),
+                Expr::Literal("localhost".into()),
+                Expr::Literal(",".into()),
+                Expr::Literal(Literal {
+                    lexeme: "'ls -l'",
+                    parsed: "ls -l".into(),
+                }),
+                Expr::Literal(Literal {
+                    lexeme: "8",
+                    parsed: 8.into(),
+                }),
+                Expr::Literal("/".into()),
+                Expr::Literal(Literal {
+                    lexeme: "2",
+                    parsed: 2.into(),
+                }),
+            ],
+            type_parameters: Vec::new()
+        })]
+    );
+}
+
+#[test]
+fn classic_call_no_regression() {
+    let source = Source::unknown("test => ,,here, ->..3 54a2 1..=9");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Call(Call {
+            arguments: vec![
+                Expr::Literal("test".into()),
+                Expr::Literal("=>".into()),
+                Expr::Literal(",,here,".into()),
+                Expr::Literal("->..3".into()),
+                Expr::Literal("54a2".into()),
+                Expr::Literal("1..=9".into()),
             ],
             type_parameters: Vec::new()
         })]

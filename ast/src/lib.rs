@@ -3,7 +3,7 @@
 
 use dbg_pls::DebugPls;
 
-use crate::call::{Call, Detached, Pipeline, Redirected};
+use crate::call::{Call, Detached, Pipeline, ProgrammaticCall, Redirected};
 use crate::control_flow::{For, If, Loop, While};
 use crate::function::{FunctionDeclaration, Return};
 use crate::group::{Block, Parenthesis, Subshell};
@@ -11,7 +11,6 @@ use crate::operation::BinaryOperation;
 use crate::r#match::Match;
 use crate::r#use::Use;
 use crate::range::Iterable;
-use crate::structure::Construct;
 use crate::substitution::Substitution;
 use crate::test::{Not, Test};
 use crate::value::{Literal, TemplateString};
@@ -24,7 +23,6 @@ pub mod group;
 pub mod r#match;
 pub mod operation;
 pub mod range;
-pub mod structure;
 pub mod substitution;
 pub mod test;
 pub mod r#type;
@@ -42,9 +40,9 @@ pub enum Expr<'a> {
     Match(Match<'a>),
 
     Call(Call<'a>),
+    ProgrammaticCall(ProgrammaticCall<'a>),
     Pipeline(Pipeline<'a>),
     Redirected(Redirected<'a>),
-    Construct(Construct<'a>),
     Detached(Detached<'a>),
 
     Substitution(Substitution<'a>),

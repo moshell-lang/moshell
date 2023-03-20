@@ -1,4 +1,3 @@
-
 use ast::function::{FunctionDeclaration, FunctionParameter, Return};
 use ast::r#type::Type;
 use lexer::token::TokenType;
@@ -51,9 +50,10 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
     }
 
     fn parse_return(&mut self) -> ParseResult<Return<'a>> {
-        self.cursor.force(of_type(Return), "'return' keyword expected here")?;
+        self.cursor
+            .force(of_type(Return), "'return' keyword expected here")?;
         Ok(Return {
-            expr: Box::new(self.value()?)
+            expr: Box::new(self.value()?),
         })
     }
 }
@@ -109,7 +109,18 @@ impl<'a> Parser<'a> {
         )?;
 
         let mut params = Vec::new();
-        while self.cursor.lookahead(blanks().then(eod())).is_none() {
+        loop {
+            self.cursor.advance(blanks());
+            if self
+                .cursor
+                .lookahead(of_type(RoundedRightBracket))
+                .is_some()
+            {
+                break;
+            }
+            if self.cursor.lookahead(of_type(Comma)).is_some() {
+                self.expected("Expected parameter.", ParseErrorKind::Unexpected)?;
+            }
             let param = self.parse_fn_parameter()?;
             params.push(param);
             self.cursor.force(
@@ -118,7 +129,6 @@ impl<'a> Parser<'a> {
             )?;
         }
 
-        self.cursor.advance(blanks()); //consume blanks
         self.expect_delimiter(RoundedRightBracket)?;
 
         Ok(params)
@@ -164,10 +174,10 @@ mod tests {
 
     use crate::err::{ParseError, ParseErrorKind};
     use ast::call::Call;
-    use ast::r#type::{SimpleType, Type};
     use ast::function::{FunctionDeclaration, FunctionParameter, Return};
     use ast::operation::{BinaryOperation, BinaryOperator};
-    use ast::value::{Literal};
+    use ast::r#type::{SimpleType, Type};
+    use ast::value::Literal;
     use ast::variable::{TypedVariable, VarReference};
     use ast::Expr;
     use context::source::Source;

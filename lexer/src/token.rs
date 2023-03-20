@@ -253,40 +253,47 @@ impl TokenType {
 
     ///is this lexeme a binary operator ?
     pub fn is_bin_operator(self) -> bool {
-        match self {
-            And | Or | Plus | Minus | Star | Slash | Percent | EqualEqual | NotEqual | Less
-            | LessEqual | Greater | GreaterEqual => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            And | Or
+                | Plus
+                | Minus
+                | Star
+                | Slash
+                | Percent
+                | EqualEqual
+                | NotEqual
+                | Less
+                | LessEqual
+                | Greater
+                | GreaterEqual
+        )
     }
 
     ///is this lexeme a lexeme that cannot fusion with other glued tokens
     pub fn is_identifier_bound(self) -> bool {
-        match self {
-            NewLine | SemiColon | Less | Bar | Greater | DotDot | And | Or | FatArrow => true,
-            _ => false,
-        }
+        matches!(self, NewLine | SemiColon | Less | Bar | Greater | And | Or)
     }
 
     /// Tests if this token marks the end of a call statement's arguments.
     pub fn is_call_bound(self) -> bool {
         matches!(
             self,
-            TokenType::Ampersand
-                | TokenType::Less
-                | TokenType::Greater
-                | TokenType::Bar
-                | TokenType::And
-                | TokenType::Or
-                | TokenType::SquaredLeftBracket
-                | TokenType::SquaredRightBracket
-                | TokenType::RoundedLeftBracket
-                | TokenType::RoundedRightBracket
-                | TokenType::CurlyLeftBracket
-                | TokenType::CurlyRightBracket
-                | TokenType::SemiColon
-                | TokenType::Error
-                | TokenType::EndOfFile
+            Ampersand
+                | Less
+                | Greater
+                | Bar
+                | And
+                | Or
+                | SquaredLeftBracket
+                | SquaredRightBracket
+                | RoundedLeftBracket
+                | RoundedRightBracket
+                | CurlyLeftBracket
+                | CurlyRightBracket
+                | SemiColon
+                | Error
+                | EndOfFile
         )
     }
 
@@ -294,32 +301,34 @@ impl TokenType {
     pub fn is_ponctuation(self) -> bool {
         matches!(
             self,
-            TokenType::Ampersand
-                | TokenType::Less
-                | TokenType::Greater
-                | TokenType::And
-                | TokenType::Or
-                | TokenType::Bar
-                | TokenType::Arrow
-                | TokenType::FatArrow
-                | TokenType::SquaredLeftBracket
-                | TokenType::SquaredRightBracket
-                | TokenType::RoundedLeftBracket
-                | TokenType::RoundedRightBracket
-                | TokenType::CurlyLeftBracket
-                | TokenType::CurlyRightBracket
-                | TokenType::SemiColon
-                | TokenType::Error
+            Ampersand
+                | Less
+                | Greater
+                | And
+                | Or
+                | Bar
+                | SquaredLeftBracket
+                | SquaredRightBracket
+                | RoundedLeftBracket
+                | RoundedRightBracket
+                | CurlyLeftBracket
+                | CurlyRightBracket
+                | SemiColon
+                | Error
         )
+    }
+
+    /// Tests if the token is a punctuation in a programming context.
+    ///
+    /// See [`TokenType::is_ponctuation()`] for a more general definition.
+    pub fn is_extended_ponctuation(self) -> bool {
+        matches!(self, Comma | DotDot | Arrow | FatArrow | Not)
     }
 
     ///is this lexeme a closing punctuation
     pub fn is_closing_ponctuation(self) -> bool {
-        matches!(
-            self,
-            |TokenType::SquaredRightBracket| TokenType::RoundedRightBracket
-                | TokenType::CurlyRightBracket
-        )
+        matches!(self, |SquaredRightBracket| RoundedRightBracket
+            | CurlyRightBracket)
     }
 
     pub fn closing_pair(self) -> Option<TokenType> {
