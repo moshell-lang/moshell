@@ -118,6 +118,7 @@ pub enum Opcode {
     ConvertIntToStr,
     ConvertFloatToStr,
     ConvertIntToByte,
+    Concat,
 
     BXor,
     IntAdd,

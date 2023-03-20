@@ -45,6 +45,17 @@ pub(crate) fn emit_primitive_op(
             // Float -> String
             emitter.emit_code(Opcode::ConvertFloatToStr);
         }
+        17 => {
+            // String + String -> String
+            emit(
+                args.get(0)
+                    .expect("Cannot concatenate a string without a second string"),
+                emitter,
+                cp,
+                state,
+            );
+            emitter.emit_code(Opcode::Concat);
+        }
         id => todo!("Native function with id {id}"),
     }
 }
