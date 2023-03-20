@@ -322,7 +322,7 @@ impl TokenType {
     ///
     /// See [`TokenType::is_ponctuation()`] for a more general definition.
     pub fn is_extended_ponctuation(self) -> bool {
-        matches!(self, Comma | DotDot | Arrow | FatArrow)
+        matches!(self, Comma | DotDot | Arrow | FatArrow | Not)
     }
 
     ///is this lexeme a closing punctuation

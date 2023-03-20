@@ -5,12 +5,12 @@ use crate::aspects::substitution::SubstitutionAspect;
 use lexer::token::TokenType::*;
 
 use crate::err::ParseErrorKind;
-use crate::moves::{eod, eox, like, next, of_type, word_seps, MoveOperations};
+use crate::moves::{next, of_type, word_seps};
 use crate::parser::{ParseResult, Parser};
 use ast::range::{FilePattern, Iterable};
 use ast::value::{Literal, LiteralValue, TemplateString};
 use ast::*;
-use lexer::token::TokenType;
+use lexer::token::Token;
 
 /// Describes if a literal should be parsed strictly or leniently.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,7 +34,7 @@ pub(crate) trait LiteralAspect<'a> {
     fn literal(&mut self, leniency: LiteralLeniency) -> ParseResult<Expr<'a>>;
 
     /// Parses a number-like literal expression.
-    fn number_literal(&mut self) -> ParseResult<Literal<'a>>;
+    fn number_literal(&self) -> ParseResult<Literal<'a>>;
 
     /// Parses a string literal expression.
     ///
@@ -56,20 +56,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
     fn literal(&mut self, leniency: LiteralLeniency) -> ParseResult<Expr<'a>> {
         let token = self.cursor.peek();
         let pivot = token.token_type;
-        let is_alone = leniency == LiteralLeniency::Strict
-            || self
-                .cursor
-                .lookahead(
-                    next().and_then(
-                        eox()
-                            .or(eod())
-                            .or(word_seps())
-                            .or(like(TokenType::is_call_bound)),
-                    ),
-                )
-                .is_some();
         match pivot {
-            IntLiteral | FloatLiteral if is_alone => self.number_literal().map(Expr::Literal),
             Quote => self.string_literal().map(Expr::Literal),
             DoubleQuote => self.templated_string_literal().map(Expr::TemplateString),
 
@@ -90,10 +77,11 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         }
     }
 
-    fn number_literal(&mut self) -> ParseResult<Literal<'a>> {
+    fn number_literal(&self) -> ParseResult<Literal<'a>> {
+        let start = self.cursor.peek();
         Ok(Literal {
-            lexeme: self.cursor.peek().value,
-            parsed: self.parse_number_value()?,
+            lexeme: start.value,
+            parsed: self.parse_number_value(start)?,
         })
     }
 
@@ -218,11 +206,16 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         let mut parts = Vec::new();
         let mut builder = String::new();
         let mut lexeme = current.value;
+        let mut numeric: Option<Token> = None;
 
         //pushes current token then advance
         macro_rules! append_current {
             () => {
-                let value = self.cursor.next()?.value;
+                let token = self.cursor.next()?;
+                let value = token.value;
+                if matches!(token.token_type, IntLiteral | FloatLiteral) {
+                    numeric = Some(token);
+                }
                 builder.push_str(value);
                 if let Some(joined) = try_join_str(lexeme, value) {
                     lexeme = joined;
@@ -270,7 +263,11 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
 
                 Dollar => {
                     if !builder.is_empty() {
-                        parts.push(Self::literal_or_wildcard(builder.clone(), lexeme));
+                        parts.push(self.literal_or_wildcard(
+                            builder.clone(),
+                            lexeme,
+                            numeric.take(),
+                        )?);
                         builder.clear();
                     }
                     parts.push(self.substitution()?);
@@ -286,7 +283,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         }
 
         if !builder.is_empty() {
-            parts.push(Self::literal_or_wildcard(builder.clone(), lexeme));
+            parts.push(self.literal_or_wildcard(builder.clone(), lexeme, numeric)?);
         }
         if parts.len() == 1 {
             return Ok(parts.pop().unwrap());
@@ -297,8 +294,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn parse_number_value(&mut self) -> ParseResult<LiteralValue> {
-        let token = self.cursor.next()?;
+    fn parse_number_value(&self, token: Token<'a>) -> ParseResult<LiteralValue> {
         match token.token_type {
             IntLiteral => Ok(LiteralValue::Int(token.value.parse::<i64>().map_err(
                 |e| match e.kind() {
@@ -317,8 +313,21 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn literal_or_wildcard(read: String, lexeme: &'a str) -> Expr<'a> {
-        if read.contains('*') {
+    fn literal_or_wildcard(
+        &self,
+        read: String,
+        lexeme: &'a str,
+        numeric: Option<Token>,
+    ) -> ParseResult<Expr<'a>> {
+        if let Some(token) = numeric {
+            if token.value == read {
+                return Ok(Expr::Literal(Literal {
+                    lexeme,
+                    parsed: self.parse_number_value(token)?,
+                }));
+            }
+        }
+        Ok(if read.contains('*') {
             Expr::Range(Iterable::Files(FilePattern {
                 lexeme,
                 pattern: read,
@@ -328,7 +337,7 @@ impl<'a> Parser<'a> {
                 lexeme,
                 parsed: LiteralValue::String(read),
             })
-        }
+        })
     }
 }
 
@@ -352,6 +361,19 @@ mod tests {
                 message: "Integer constant is too large.".to_string(),
                 position: 0..30,
                 kind: InvalidFormat,
+            })
+        );
+    }
+
+    #[test]
+    fn int_but_str() {
+        let source = Source::unknown("5@5");
+        let parsed = Parser::new(source).expression().expect("Failed to parse.");
+        assert_eq!(
+            parsed,
+            Expr::Literal(Literal {
+                lexeme: "5@5",
+                parsed: LiteralValue::String("5@5".into()),
             })
         );
     }
