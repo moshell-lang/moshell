@@ -74,7 +74,7 @@ fn constructor_in_call() {
             arguments: vec![
                 Expr::Literal("echo".into()),
                 Expr::ProgrammaticCall(ProgrammaticCall {
-                    name: "Foo",
+                    expr: Box::new(Expr::Literal("Foo".into())),
                     arguments: vec![],
                     type_parameters: vec![],
                 }),
@@ -239,7 +239,7 @@ fn constructor_assign() {
         vec![Expr::Assign(Assign {
             name: "a",
             value: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
-                name: "Foo",
+                expr: Box::new(Expr::Literal("Foo".into())),
                 arguments: vec![Expr::Literal(Literal {
                     lexeme: "5",
                     parsed: 5.into(),
@@ -257,7 +257,7 @@ fn programmatic_call() {
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
-            name: "ssh",
+            expr: Box::new(Expr::Literal("ssh".into())),
             arguments: vec![
                 Expr::Literal(Literal {
                     lexeme: "localhost",

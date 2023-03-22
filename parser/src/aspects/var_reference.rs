@@ -1,6 +1,7 @@
 use context::source::try_join_str;
 use lexer::token::TokenType::*;
 
+use crate::aspects::call::CallAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{like, of_type, repeat, MoveOperations};
 use crate::parser::{ParseResult, Parser};
@@ -39,6 +40,10 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
             .skip(1)
             .fold(first, |acc, t| try_join_str(acc, t.value).unwrap());
 
+        if self.cursor.lookahead(of_type(RoundedLeftBracket)).is_some() {
+            return self.programmatic_call_on(Expr::VarReference(VarReference { name }));
+        }
+
         if let Some(bracket) = bracket {
             self.cursor.force_with(
                 of_type(CurlyRightBracket),
@@ -56,6 +61,7 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
+    use ast::call::ProgrammaticCall;
     use ast::value::TemplateString;
     use ast::variable::VarReference;
     use ast::Expr;
@@ -135,6 +141,24 @@ mod tests {
                     Expr::VarReference(VarReference { name: "LONG" }),
                     Expr::VarReference(VarReference { name: "VERY_LONG" }),
                 ]
+            })]
+        )
+    }
+
+    #[test]
+    fn call_ref() {
+        let source = Source::unknown("$callable(a, b, c)");
+        let ast = parse(source).expect("failed to parse");
+        assert_eq!(
+            ast,
+            vec![Expr::ProgrammaticCall(ProgrammaticCall {
+                expr: Box::new(Expr::VarReference(VarReference { name: "callable" })),
+                arguments: vec![
+                    Expr::Literal("a".into()),
+                    Expr::Literal("b".into()),
+                    Expr::Literal("c".into()),
+                ],
+                type_parameters: vec![],
             })]
         )
     }

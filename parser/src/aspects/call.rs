@@ -23,6 +23,9 @@ pub trait CallAspect<'a> {
     /// Parses a programmatic call.
     fn programmatic_call(&mut self) -> ParseResult<Expr<'a>>;
 
+    /// Parses a programmatic call with a known command name expression.
+    fn programmatic_call_on(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
+
     /// Continues to parse a call expression from a known command name expression
     fn call_arguments(
         &mut self,
@@ -49,7 +52,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             self.delimiter_stack.push_back(open_parenthesis.clone());
             let arguments = self.parse_comma_separated_arguments(open_parenthesis)?;
             Ok(Expr::ProgrammaticCall(ProgrammaticCall {
-                name: identifier.value,
+                expr: Box::new(callee),
                 arguments,
                 type_parameters,
             }))
@@ -68,6 +71,10 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         let name = self
             .cursor
             .force(of_type(TokenType::Identifier), "Expected function name.")?;
+        self.programmatic_call_on(Expr::Literal(Literal::from(name.value)))
+    }
+
+    fn programmatic_call_on(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
         let type_parameters = self.parse_type_parameter_list()?;
         let open_parenthesis = self.cursor.force(
             of_type(TokenType::RoundedLeftBracket),
@@ -76,7 +83,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         self.delimiter_stack.push_back(open_parenthesis.clone());
         let arguments = self.parse_comma_separated_arguments(open_parenthesis)?;
         Ok(Expr::ProgrammaticCall(ProgrammaticCall {
-            name: name.value,
+            expr: Box::new(expr),
             arguments,
             type_parameters,
         }))
@@ -323,7 +330,7 @@ mod tests {
         let expr = parse(source).expect("Failed to parse");
         let expr2 = parse(source2).expect("Failed to parse");
         let expected = vec![Expr::ProgrammaticCall(ProgrammaticCall {
-            name: "Foo",
+            expr: Box::new(Expr::Literal("Foo".into())),
             arguments: vec![],
             type_parameters: vec![],
         })];
@@ -338,7 +345,7 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                name: "Foo",
+                expr: Box::new(Expr::Literal("Foo".into())),
                 arguments: vec![
                     Expr::Literal("a".into()),
                     Expr::Literal(Literal {
@@ -359,7 +366,7 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                name: "Foo",
+                expr: Box::new(Expr::Literal("Foo".into())),
                 arguments: vec![
                     Expr::Literal("this".into()),
                     Expr::Literal("is".into()),
@@ -377,7 +384,7 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                name: "Foo",
+                expr: Box::new(Expr::Literal("Foo".into())),
                 arguments: vec![
                     Expr::Literal(Literal {
                         lexeme: "'===\ntesting something\n==='",
@@ -397,7 +404,7 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                name: "List",
+                expr: Box::new(Expr::Literal("List".into())),
                 arguments: vec![Expr::Literal(Literal {
                     lexeme: "'hi'",
                     parsed: "hi".into(),

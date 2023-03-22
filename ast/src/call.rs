@@ -23,7 +23,7 @@ pub struct Call<'a> {
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ProgrammaticCall<'a> {
     /// The name of the function to call.
-    pub name: &'a str,
+    pub expr: Box<Expr<'a>>,
 
     /// The arguments to pass to the function.
     pub arguments: Vec<Expr<'a>>,
