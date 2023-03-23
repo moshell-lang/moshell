@@ -9,3 +9,4 @@ edition = "2021"
 context = { path = "../context" }
 parser = { path = "../parser" }
 ast = { path = "../ast" }
+indexmap = "1.9.2"

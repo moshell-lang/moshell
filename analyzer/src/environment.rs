@@ -18,7 +18,7 @@
 ///!     echo $n;
 ///! }
 ///! ```
-use crate::type_scheme::TypeScheme;
+use crate::types::Type;
 
 /// A variable environment.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -37,7 +37,7 @@ struct Local {
     name: String,
 
     /// The type of the variable.
-    ty: TypeScheme,
+    ty: Type,
 
     /// The depth of the scope in which the variable was declared.
     depth: usize,
@@ -47,7 +47,7 @@ impl Environment {
     /// Resolve a variable name, starting from the current scope and going up.
     ///
     /// If the variable is not in scope, `None` is returned.
-    pub fn lookup(&self, key: &str) -> Option<TypeScheme> {
+    pub fn lookup(&self, key: &str) -> Option<Type> {
         self.locals
             .iter()
             .rev()
@@ -63,7 +63,7 @@ impl Environment {
     /// Add a new local variable to the environment.
     ///
     /// The variable will be added to the current scope.
-    pub(crate) fn add_local(&mut self, name: &str, hint: TypeScheme) {
+    pub(crate) fn add_local(&mut self, name: &str, hint: Type) {
         self.locals.push(Local {
             name: name.to_owned(),
             ty: hint,

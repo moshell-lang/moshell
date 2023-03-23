@@ -1,5 +1,6 @@
+use crate::builtin_types::{float_type, int_type, nothing_type, string_type};
 use crate::environment::Environment;
-use crate::type_scheme::{Type, TypeScheme};
+use crate::types::Type;
 use ast::value::LiteralValue;
 use ast::Expr;
 use context::source::Source;
@@ -22,17 +23,17 @@ impl<'a> Analyzer<'a> {
         }
     }
 
-    pub fn analyze_all(&mut self, expr: &Expr) -> Option<TypeScheme> {
+    pub fn analyze_all(&mut self, expr: &Expr) -> Option<Type> {
         self.analyze(&mut Environment::default(), expr)
     }
 
-    fn analyze(&mut self, environment: &mut Environment, expr: &Expr) -> Option<TypeScheme> {
+    fn analyze(&mut self, environment: &mut Environment, expr: &Expr) -> Option<Type> {
         match expr {
             Expr::Literal(lit) => Some(
                 (match lit.parsed {
-                    LiteralValue::String(_) => Type::Any,
-                    LiteralValue::Int(_) => Type::Int,
-                    LiteralValue::Float(_) => Type::Float,
+                    LiteralValue::String(_) => string_type(),
+                    LiteralValue::Int(_) => int_type(),
+                    LiteralValue::Float(_) => float_type(),
                 })
                 .into(),
             ),
@@ -40,7 +41,7 @@ impl<'a> Analyzer<'a> {
                 for part in &template.parts {
                     self.analyze(environment, part);
                 }
-                Some(Type::Any.into())
+                Some(string_type())
             }
             Expr::VarDeclaration(decl) => {
                 let actual_type = self.analyze(
@@ -50,25 +51,13 @@ impl<'a> Analyzer<'a> {
                         .clone()
                         .expect("Not initialized declarations are not supported yet"),
                 )?;
-                if let Some(type_hint) = decl.var.ty.as_ref() {
-                    let ty = Type::try_from(type_hint.name);
-                    match ty {
-                        Ok(ty) => {
-                            if TypeScheme::from(ty) != actual_type {
-                                self.diagnostics.push(Diagnostic {
-                                    message: format!("Type mismatch: expected {}", type_hint.name),
-                                });
-                            }
-                        }
-                        Err(err) => {
-                            self.diagnostics.push(Diagnostic { message: err });
-                        }
-                    }
+                if let Some(_type_hint) = decl.var.ty.as_ref() {
+                    todo!("Type hinting is not supported yet")
                 }
                 environment.add_local(decl.var.name, actual_type);
 
                 // Var declaration doesn't return a value
-                Some(Type::Nil.into())
+                Some(nothing_type())
             }
             Expr::VarReference(var) => {
                 let hint = environment.lookup(var.name);
@@ -81,10 +70,10 @@ impl<'a> Analyzer<'a> {
             }
             Expr::Block(block) => {
                 if block.expressions.is_empty() {
-                    return Some(Type::Nil.into());
+                    return Some(nothing_type());
                 }
 
-                let mut last: Option<TypeScheme> = None;
+                let mut last: Option<Type> = None;
                 environment.begin_scope();
                 for stmt in &block.expressions {
                     last = self.analyze(environment, stmt);
@@ -120,13 +109,13 @@ impl<'a> Analyzer<'a> {
             }
             Expr::Parenthesis(paren) => self.analyze(environment, &paren.expression),
             Expr::Call(call) => {
-                let mut last: Option<TypeScheme> = None;
+                let mut last: Option<Type> = None;
                 for arg in &call.arguments {
                     last = self.analyze(environment, arg);
                 }
                 last
             }
-            _ => Some(Type::Any.into()),
+            _ => Some(nothing_type()),
         }
     }
 }
@@ -135,35 +124,35 @@ impl<'a> Analyzer<'a> {
 mod tests {
     use crate::analyze;
     use crate::analyzer::Diagnostic;
-    use crate::type_scheme::Type;
+    use crate::builtin_types::{int_type, nothing_type};
     use context::source::Source;
 
     #[test]
     fn int_literals_are_const() {
         let source = Source::unknown("1");
         let result = analyze(source).expect("Failed to analyze");
-        assert_eq!(result, Type::Int.into(),);
+        assert_eq!(result, int_type());
     }
 
     #[test]
     fn const_plus_const_is_const() {
         let source = Source::unknown("$(( 1 + 2 ))");
         let result = analyze(source).expect("Failed to analyze");
-        assert_eq!(result, Type::Int.into(),);
+        assert_eq!(result, int_type());
     }
 
     #[test]
     fn template_of_const() {
         let source = Source::unknown("val n = 9; val str = \"n = $n\"");
         let result = analyze(source).expect("Failed to analyze");
-        assert_eq!(result, Type::Nil.into(),);
+        assert_eq!(result, nothing_type());
     }
 
     #[test]
     fn empty_is_const() {
         let source = Source::unknown("{}");
         let result = analyze(source).expect("Failed to analyze");
-        assert_eq!(result, Type::Nil.into(),);
+        assert_eq!(result, nothing_type());
     }
 
     #[test]
