@@ -1,13 +1,13 @@
 use crate::err::ParseErrorKind::{Expected, Unexpected};
-use crate::moves::{any, eod, lookahead, not, of_type, word_seps, MoveOperations};
+use crate::moves::{any, not, of_type, word_seps, MoveOperations, blanks};
 use crate::parser::{ParseResult, Parser};
 use ast::r#type::{ByName, CallableType, SimpleType, Type};
-use lexer::token::TokenType;
 use lexer::token::TokenType::{
-    Comma, FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket,
+    FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket,
     SquaredLeftBracket, SquaredRightBracket, Unit,
 };
 use std::fmt::Write;
+use crate::aspects::expr_list::ExpressionListAspect;
 
 ///A parser aspect to parse all type declarations, such as lambdas, constant types, parametrized types and Unit
 pub trait TypeAspect<'a> {
@@ -20,7 +20,7 @@ pub trait TypeAspect<'a> {
 
 impl<'a> TypeAspect<'a> for Parser<'a> {
     fn parse_type(&mut self) -> ParseResult<Type<'a>> {
-        self.cursor.advance(word_seps()); //consume word seps
+        self.cursor.advance(blanks());
 
         let first_token = self.cursor.peek();
         //if there's a parenthesis then the type is necessarily a lambda type
@@ -33,7 +33,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         // (a lambda with one parameter and no parenthesis for the input, which is valid)
         if self
             .cursor
-            .advance(word_seps().then(of_type(FatArrow)))
+            .advance(blanks().then(of_type(FatArrow)))
             .is_none()
         {
             return Ok(tpe);
@@ -50,7 +50,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         // (a lambda with one parameter and no parenthesis for the input, which is valid)
         if self
             .cursor
-            .advance(word_seps().then(of_type(FatArrow)))
+            .advance(blanks().then(of_type(FatArrow)))
             .is_some()
         {
             //parse second lambda output in order to advance on the full invalid lambda expression
@@ -66,7 +66,11 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
     }
 
     fn parse_type_parameter_list(&mut self) -> ParseResult<Vec<Type<'a>>> {
-        self.parse_type_list(SquaredLeftBracket, SquaredRightBracket, true)
+        if self.cursor.lookahead(blanks().then(of_type(SquaredLeftBracket))).is_none() {
+            return Ok(Vec::new())
+        }
+        self.parse_explicit_list(SquaredLeftBracket, SquaredRightBracket,
+                                 true, Self::parse_type)
     }
 }
 
@@ -93,7 +97,10 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_parentheses(&mut self) -> ParseResult<Type<'a>> {
-        let inputs = self.parse_type_list(RoundedLeftBracket, RoundedRightBracket, false)?;
+        let inputs = self.parse_implicit_list(
+            RoundedLeftBracket, RoundedRightBracket,
+            false, Self::parse_type
+        )?;
 
         //if there is an arrow then it is a lambda
         if self
@@ -173,46 +180,7 @@ impl<'a> Parser<'a> {
         )
     }
 
-    fn parse_type_list(
-        &mut self,
-        start: TokenType,
-        end: TokenType,
-        non_empty: bool,
-    ) -> ParseResult<Vec<Type<'a>>> {
-        let start = match self.cursor.advance(of_type(start)) {
-            Some(start) => {
-                self.delimiter_stack.push_back(start.clone());
-                start
-            }
-            None => return Ok(Vec::new()),
-        };
 
-        let mut tparams = vec![];
-
-        while self.cursor.lookahead(word_seps().then(eod())).is_none() {
-            tparams.push(self.parse_type()?);
-            self.cursor.force_with(
-                word_seps().then(of_type(Comma).or(lookahead(eod()))),
-                "A comma or a closing bracket was expected here",
-                Expected("',' or ']'".to_string()),
-            )?;
-        }
-        self.cursor.advance(word_seps());
-
-        if tparams.is_empty() && non_empty {
-            self.expect_delimiter(end)?;
-            return self.expected_with(
-                "unexpected empty type parameter list",
-                start..self.cursor.peek(),
-                Unexpected,
-            );
-        }
-
-        self.cursor.advance(word_seps());
-        self.expect_delimiter(end)?;
-
-        Ok(tparams)
-    }
 }
 
 #[cfg(test)]
@@ -246,7 +214,7 @@ mod tests {
             Parser::new(source).parse_type(),
             Err(ParseError {
                 message: "unexpected empty type parameter list".to_string(),
-                kind: ParseErrorKind::Unexpected,
+                kind: Unexpected,
                 position: content
                     .find("[    ]")
                     .map(|i| i..i + "[    ]".len())
@@ -440,7 +408,7 @@ mod tests {
     fn unit_type() {
         let res1 = Parser::new(Source::unknown("()")).parse_type();
         let res2 = Parser::new(Source::unknown("Unit")).parse_type();
-        let res3 = Parser::new(Source::unknown("(\\\n   \\\n)")).parse_type();
+        let res3 = Parser::new(Source::unknown("(\n   \n)")).parse_type();
         assert_eq!(res1, Ok(Type::Unit));
         assert_eq!(res2, Ok(Type::Unit));
         assert_eq!(res3, Ok(Type::Unit));

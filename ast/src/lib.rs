@@ -20,6 +20,7 @@ pub mod call;
 pub mod control_flow;
 pub mod function;
 pub mod group;
+pub mod lambda;
 pub mod r#match;
 pub mod operation;
 pub mod range;

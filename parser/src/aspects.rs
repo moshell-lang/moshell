@@ -16,3 +16,5 @@ pub(super) mod r#type;
 pub(super) mod r#use;
 pub(super) mod var_declaration;
 pub(super) mod var_reference;
+pub(super) mod lambda_def;
+mod expr_list;
