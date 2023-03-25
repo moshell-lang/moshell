@@ -1,13 +1,13 @@
+use crate::aspects::expr_list::ExpressionListAspect;
 use crate::err::ParseErrorKind::{Expected, Unexpected};
-use crate::moves::{any, not, of_type, word_seps, MoveOperations, blanks};
+use crate::moves::{any, blanks, not, of_type, word_seps, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::r#type::{ByName, CallableType, SimpleType, Type};
 use lexer::token::TokenType::{
-    FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket,
-    SquaredLeftBracket, SquaredRightBracket, Unit,
+    FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket, SquaredLeftBracket,
+    SquaredRightBracket, Unit,
 };
 use std::fmt::Write;
-use crate::aspects::expr_list::ExpressionListAspect;
 
 ///A parser aspect to parse all type declarations, such as lambdas, constant types, parametrized types and Unit
 pub trait TypeAspect<'a> {
@@ -66,11 +66,19 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
     }
 
     fn parse_type_parameter_list(&mut self) -> ParseResult<Vec<Type<'a>>> {
-        if self.cursor.lookahead(blanks().then(of_type(SquaredLeftBracket))).is_none() {
-            return Ok(Vec::new())
+        if self
+            .cursor
+            .lookahead(blanks().then(of_type(SquaredLeftBracket)))
+            .is_none()
+        {
+            return Ok(Vec::new());
         }
-        self.parse_explicit_list(SquaredLeftBracket, SquaredRightBracket,
-                                 true, Self::parse_type)
+        self.parse_explicit_list(
+            SquaredLeftBracket,
+            SquaredRightBracket,
+            true,
+            Self::parse_type,
+        )
     }
 }
 
@@ -98,8 +106,10 @@ impl<'a> Parser<'a> {
 
     fn parse_parentheses(&mut self) -> ParseResult<Type<'a>> {
         let inputs = self.parse_implicit_list(
-            RoundedLeftBracket, RoundedRightBracket,
-            false, Self::parse_type
+            RoundedLeftBracket,
+            RoundedRightBracket,
+            false,
+            Self::parse_type,
         )?;
 
         //if there is an arrow then it is a lambda
@@ -179,15 +189,13 @@ impl<'a> Parser<'a> {
             Unexpected,
         )
     }
-
-
 }
 
 #[cfg(test)]
 mod tests {
     use crate::aspects::r#type::TypeAspect;
+    use crate::err::ParseError;
     use crate::err::ParseErrorKind::{Expected, Unexpected, Unpaired};
-    use crate::err::{ParseError};
     use crate::parser::Parser;
     use ast::r#type::{ByName, CallableType, SimpleType, Type};
     use context::source::Source;

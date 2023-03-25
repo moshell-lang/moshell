@@ -11,6 +11,7 @@ use crate::aspects::detached::DetachedAspect;
 use crate::aspects::function_declaration::FunctionDeclarationAspect;
 use crate::aspects::group::GroupAspect;
 use crate::aspects::if_else::IfElseAspect;
+use crate::aspects::lambda_def::LambdaDefinitionAspect;
 use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
 use crate::aspects::r#loop::LoopAspect;
 use crate::aspects::r#match::MatchAspect;
@@ -22,10 +23,12 @@ use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::cursor::ParserCursor;
 use crate::err::ParseErrorKind::Unexpected;
 use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
-use crate::moves::{bin_op, eod, eox, like, next, of_type, of_types, repeat, spaces, word_seps, MoveOperations, any, blanks};
+use crate::moves::{
+    any, bin_op, blanks, eod, eox, like, next, of_type, of_types, repeat, spaces, word_seps,
+    MoveOperations,
+};
 use ast::range::Iterable;
 use ast::Expr;
-use crate::aspects::lambda_def::LambdaDefinitionAspect;
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
 
@@ -209,7 +212,14 @@ impl<'a> Parser<'a> {
             If => self.parse_if(Parser::value).map(Expr::If),
             Match => self.parse_match(Parser::value).map(Expr::Match),
             Identifier if self.may_be_at_programmatic_call_start() => self.programmatic_call(),
-            Identifier if self.cursor.lookahead(any().then(blanks().then(of_type(FatArrow)))).is_some() => self.parse_lambda_definition().map(Expr::LambdaDef),
+            Identifier
+                if self
+                    .cursor
+                    .lookahead(any().then(blanks().then(of_type(FatArrow))))
+                    .is_some() =>
+            {
+                self.parse_lambda_definition().map(Expr::LambdaDef)
+            }
 
             //test expressions has nothing to do in a value expression.
             SquaredLeftBracket => self.expected("Unexpected start of test expression", Unexpected),

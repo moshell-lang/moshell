@@ -1,5 +1,6 @@
 use ast::call::{Call, ProgrammaticCall, Redir, RedirFd, RedirOp, Redirected};
 use ast::control_flow::{For, ForKind, RangeFor};
+use ast::lambda::LambdaDef;
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::r#type::{SimpleType, Type};
 use ast::range::{Iterable, NumericRange};
@@ -9,7 +10,6 @@ use ast::Expr;
 use context::source::Source;
 use parser::parse;
 use pretty_assertions::assert_eq;
-use ast::lambda::LambdaDef;
 
 #[test]
 fn empty() {
@@ -53,20 +53,14 @@ fn lambda_in_val() {
                 ty: None,
             },
             initializer: Some(Box::new(Expr::LambdaDef(LambdaDef {
-                args: vec![
-                    TypedVariable {
-                        name: "a",
-                        ty: None,
-                    },
-                ],
+                args: vec![TypedVariable {
+                    name: "a",
+                    ty: None,
+                },],
                 body: Box::new(Expr::Binary(BinaryOperation {
-                    left: Box::new(Expr::VarReference(VarReference {
-                        name: "a"
-                    })),
+                    left: Box::new(Expr::VarReference(VarReference { name: "a" })),
                     op: BinaryOperator::Plus,
-                    right: Box::new(Expr::VarReference(VarReference {
-                        name: "b"
-                    })),
+                    right: Box::new(Expr::VarReference(VarReference { name: "b" })),
                 })),
             }))),
         })]
@@ -85,14 +79,27 @@ fn lambda_in_classic_call() {
                 Expr::Literal("echo".into()),
                 Expr::Literal("a".into()),
                 Expr::Literal("=>".into()),
-                Expr::VarReference(VarReference {
-                    name: "a"
-                }),
+                Expr::VarReference(VarReference { name: "a" }),
                 Expr::Literal("+".into()),
-                Expr::VarReference(VarReference {
-                    name: "b"
-                }),
+                Expr::VarReference(VarReference { name: "b" }),
             ]
+        })]
+    );
+}
+
+#[test]
+fn lambda() {
+    let source = Source::unknown("() => $a + $b");
+    let parsed = parse(source).expect("Failed to parse.");
+    assert_eq!(
+        parsed,
+        vec![Expr::LambdaDef(LambdaDef {
+            args: vec![],
+            body: Box::new(Expr::Binary(BinaryOperation {
+                left: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                op: BinaryOperator::Plus,
+                right: Box::new(Expr::VarReference(VarReference { name: "b" })),
+            })),
         })]
     );
 }

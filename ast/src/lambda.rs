@@ -1,6 +1,6 @@
-use dbg_pls::DebugPls;
 use crate::variable::TypedVariable;
 use crate::Expr;
+use dbg_pls::DebugPls;
 
 ///A Lambda definition structure
 #[derive(Debug, Clone, PartialEq, DebugPls)]

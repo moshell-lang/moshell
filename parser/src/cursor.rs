@@ -35,11 +35,11 @@ impl<'a> ParserCursor<'a> {
             source,
         }
     }
-    
+
     pub fn get_pos(&self) -> usize {
         self.pos
     }
-    
+
     pub fn repos(&mut self, pos: usize) {
         self.pos = pos;
     }

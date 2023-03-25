@@ -1,5 +1,5 @@
 use crate::err::ParseErrorKind::{Expected, Unexpected};
-use crate::moves::{eod, lookahead, of_type, MoveOperations, blanks};
+use crate::moves::{blanks, eod, lookahead, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
 use lexer::token::TokenType::Comma;
@@ -15,8 +15,8 @@ pub(super) trait ExpressionListAspect<'a> {
         non_empty: bool,
         parse_element: F,
     ) -> ParseResult<Vec<E>>
-        where
-            F: FnMut(&mut Self) -> ParseResult<E>;
+    where
+        F: FnMut(&mut Self) -> ParseResult<E>;
 
     ///Explicits lists are whether (A), (A, B, ...) or () (if it can be empty)
     /// according that `(` and `)` are the start/end of the list expression.
@@ -29,8 +29,8 @@ pub(super) trait ExpressionListAspect<'a> {
         non_empty: bool,
         parse_element: F,
     ) -> ParseResult<Vec<E>>
-        where
-            F: FnMut(&mut Self) -> ParseResult<E>;
+    where
+        F: FnMut(&mut Self) -> ParseResult<E>;
 }
 
 impl<'a> ExpressionListAspect<'a> for Parser<'a> {
@@ -41,8 +41,8 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         non_empty: bool,
         mut parse_element: F,
     ) -> ParseResult<Vec<E>>
-        where
-            F: FnMut(&mut Self) -> ParseResult<E>,
+    where
+        F: FnMut(&mut Self) -> ParseResult<E>,
     {
         if self.cursor.lookahead(of_type(start)).is_some() {
             self.parse_explicit_list(start, end, non_empty, parse_element)
@@ -58,13 +58,13 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         non_empty: bool,
         mut parse_element: F,
     ) -> ParseResult<Vec<E>>
-        where
-            F: FnMut(&mut Self) -> ParseResult<E>,
+    where
+        F: FnMut(&mut Self) -> ParseResult<E>,
     {
         let start = self.cursor.force_with(
             of_type(start),
             "expected start of list expression",
-            Expected(start.str().unwrap_or("<undefined>").to_string())
+            Expected(start.str().unwrap_or("<undefined>").to_string()),
         )?;
         self.delimiter_stack.push_back(start.clone());
         let mut elements = vec![];
@@ -73,9 +73,9 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
             elements.push(match parse_element(self) {
                 Err(err) => {
                     self.delimiter_stack.pop_back();
-                    return Err(err)
+                    return Err(err);
                 }
-                Ok(val) => val
+                Ok(val) => val,
             });
             self.cursor.force_with(
                 blanks().then(of_type(Comma).or(lookahead(eod()))),
