@@ -4,11 +4,12 @@ use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::r#type::{SimpleType, Type};
 use ast::range::{Iterable, NumericRange};
 use ast::value::{Literal, LiteralValue};
-use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind};
+use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
 use context::source::Source;
 use parser::parse;
 use pretty_assertions::assert_eq;
+use ast::lambda::LambdaDef;
 
 #[test]
 fn empty() {
@@ -37,6 +38,39 @@ fn variable_type_and_initializer() {
         }))),
     })];
     assert_eq!(parsed, expected);
+}
+
+#[test]
+fn lambda_in_val() {
+    let source = Source::unknown("val x = (a) => $a + $b");
+    let parsed = parse(source).expect("Failed to parse.");
+    assert_eq!(
+        parsed,
+        vec![Expr::VarDeclaration(VarDeclaration {
+            kind: VarKind::Val,
+            var: TypedVariable {
+                name: "x",
+                ty: None,
+            },
+            initializer: Some(Box::new(Expr::LambdaDef(LambdaDef {
+                args: vec![
+                    TypedVariable {
+                        name: "a",
+                        ty: None,
+                    },
+                ],
+                body: Box::new(Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::VarReference(VarReference {
+                        name: "a"
+                    })),
+                    op: BinaryOperator::Plus,
+                    right: Box::new(Expr::VarReference(VarReference {
+                        name: "b"
+                    })),
+                })),
+            }))),
+        })]
+    );
 }
 
 #[test]
@@ -316,17 +350,21 @@ fn classic_call() {
 
 #[test]
 fn classic_call_no_regression() {
-    let source = Source::unknown("test => ,,here, ->..3 54a2 1..=9");
+    let source = Source::unknown("test '=>' ,,here, ->..3 54a2 => 1..=9");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
             arguments: vec![
                 Expr::Literal("test".into()),
-                Expr::Literal("=>".into()),
+                Expr::Literal(Literal {
+                    lexeme: "'=>'",
+                    parsed: "=>".into()
+                }),
                 Expr::Literal(",,here,".into()),
                 Expr::Literal("->..3".into()),
                 Expr::Literal("54a2".into()),
+                Expr::Literal("=>".into()),
                 Expr::Literal("1..=9".into()),
             ],
             type_parameters: Vec::new()

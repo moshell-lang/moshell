@@ -22,11 +22,10 @@ use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::cursor::ParserCursor;
 use crate::err::ParseErrorKind::Unexpected;
 use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
-use crate::moves::{
-    bin_op, eod, eox, like, next, of_type, of_types, repeat, spaces, word_seps, MoveOperations,
-};
+use crate::moves::{bin_op, eod, eox, like, next, of_type, of_types, repeat, spaces, word_seps, MoveOperations, any, blanks};
 use ast::range::Iterable;
 use ast::Expr;
+use crate::aspects::lambda_def::LambdaDefinitionAspect;
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
 
@@ -202,7 +201,7 @@ impl<'a> Parser<'a> {
 
         let pivot = self.cursor.peek().token_type;
         match pivot {
-            RoundedLeftBracket => self.parenthesis().map(Expr::Parenthesis),
+            RoundedLeftBracket => self.lambda_or_parentheses(),
             CurlyLeftBracket => self.block().map(Expr::Block),
             Not => self.not(Parser::next_value),
 
@@ -210,6 +209,7 @@ impl<'a> Parser<'a> {
             If => self.parse_if(Parser::value).map(Expr::If),
             Match => self.parse_match(Parser::value).map(Expr::Match),
             Identifier if self.may_be_at_programmatic_call_start() => self.programmatic_call(),
+            Identifier if self.cursor.lookahead(any().then(blanks().then(of_type(FatArrow)))).is_some() => self.parse_lambda_definition().map(Expr::LambdaDef),
 
             //test expressions has nothing to do in a value expression.
             SquaredLeftBracket => self.expected("Unexpected start of test expression", Unexpected),
@@ -225,6 +225,18 @@ impl<'a> Parser<'a> {
                 .force(eox(), "expected end of expression or file")?;
         };
         statement
+    }
+
+    ///handle tricky case of lambda `(e) => x` and parentheses `(e)`
+    fn lambda_or_parentheses(&mut self) -> ParseResult<Expr<'a>> {
+        let initial = self.cursor.get_pos();
+        match self.parse_lambda_definition() {
+            Ok(def) => Ok(Expr::LambdaDef(def)),
+            Err(_) => {
+                self.cursor.repos(initial);
+                self.parenthesis().map(Expr::Parenthesis)
+            }
+        }
     }
 
     /// Raise an error on the current token.

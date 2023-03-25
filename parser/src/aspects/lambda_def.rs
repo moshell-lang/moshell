@@ -1,36 +1,18 @@
 use ast::lambda::LambdaDef;
-use lexer::token::TokenType::{Colon, FatArrow, Identifier, RoundedLeftBracket, RoundedRightBracket};
+use lexer::token::TokenType::{FatArrow, RoundedLeftBracket, RoundedRightBracket};
 use crate::aspects::expr_list::ExpressionListAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::err::ParseErrorKind::Expected;
-use crate::moves::{any, blanks, eox, MoveOperations, not, of_type, repeat};
+use crate::moves::{blanks, MoveOperations, of_type};
 use crate::parser::{Parser, ParseResult};
 
 pub trait LambdaDefinitionAspect<'a> {
     fn parse_lambda_definition(&mut self) -> ParseResult<LambdaDef<'a>>;
 
-    ///Tries to determine if the parser is at a lambda definition.
-    /// THIS METHOD HAS LIMITATIONS as it cannot determine at 100% that this parser is facing a lambda definition.
-    fn is_at_lambda_def(&self) -> bool;
 }
 
 impl<'a> LambdaDefinitionAspect<'a> for Parser<'a> {
     fn parse_lambda_definition(&mut self) -> ParseResult<LambdaDef<'a>> {
-        //lookahead if the lambda's definition contains only one typed argument which is not surrounded by parentheses.
-        if self.cursor
-            .advance(
-                blanks()
-                    .then(not(of_type(RoundedRightBracket)))
-                    .then(blanks().then(of_type(Identifier)))
-                    .then(blanks()).then(of_type(Colon))
-            )
-            .is_some() {
-            return self.expected(
-                "Please surround typed argument with parentheses",
-                Expected("Surround expression with parenthesis".to_owned()),
-            )
-        }
-
         let args = self.parse_implicit_list(
             RoundedLeftBracket, RoundedRightBracket,
             false, Self::parse_typed_var,
@@ -47,13 +29,10 @@ impl<'a> LambdaDefinitionAspect<'a> for Parser<'a> {
         })
     }
 
-    fn is_at_lambda_def(&self) -> bool {
-        self.cursor.lookahead(
-            //is it like "... =>" ?
-            repeat(not(of_type(FatArrow).or(eox())).and_then(any()))
-                .and_then(of_type(FatArrow))
-        ).is_some()
-    }
+}
+
+impl<'a> Parser<'a> {
+
 }
 
 #[cfg(test)]
@@ -69,17 +48,8 @@ mod tests {
     use ast::call::Call;
     use ast::group::Block;
     use ast::r#type::{SimpleType, Type};
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::err::{ParseError};
     use crate::err::ParseErrorKind::Unexpected;
-
-    #[test]
-    fn lambda_detection() {
-        assert!(Parser::new(Source::unknown("(a) => $a + $b")).is_at_lambda_def());
-        assert!(Parser::new(Source::unknown("a => $a + $b")).is_at_lambda_def());
-        assert!(Parser::new(Source::unknown("() => $a + $b")).is_at_lambda_def());
-        assert!(Parser::new(Source::unknown("(a, b) => $a + $b")).is_at_lambda_def());
-        assert!(Parser::new(Source::unknown("(a, b: Int[A => B, B[_, C]]) => $a + $b")).is_at_lambda_def());
-    }
 
     #[test]
     fn simple_lambda_definition() {
@@ -137,21 +107,6 @@ mod tests {
                         name: "b"
                     })),
                 })),
-            }
-        );
-    }
-
-    #[test]
-    fn simple_lambda_definition_one_arg_typed() {
-        let src = "a: Int => $a + $b";
-        let source = Source::unknown(src);
-        let parsed = Parser::new(source).parse_lambda_definition().expect_err("parse did not fail");
-        assert_eq!(
-            parsed,
-            ParseError {
-                message: "Please surround typed argument with parentheses".to_string(),
-                kind: ParseErrorKind::Expected("Surround expression with parenthesis".to_string()),
-                position: src.find(':').map(|i| i + 1..i + 2).unwrap(),
             }
         );
     }
