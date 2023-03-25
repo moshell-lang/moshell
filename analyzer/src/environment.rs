@@ -18,11 +18,15 @@
 ///!     echo $n;
 ///! }
 ///! ```
-use crate::types::Type;
+use crate::context::Context;
+use crate::types::{Type, Variable};
 
 /// A variable environment.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Environment {
+    /// The type context.
+    types: Context,
+
     /// The local variables.
     locals: Vec<Local>,
 
@@ -37,7 +41,10 @@ struct Local {
     name: String,
 
     /// The type of the variable.
-    ty: Type,
+    ty: Variable,
+
+    /// Whether the variable has been initialized.
+    is_initialized: bool,
 
     /// The depth of the scope in which the variable was declared.
     depth: usize,
@@ -47,12 +54,16 @@ impl Environment {
     /// Resolve a variable name, starting from the current scope and going up.
     ///
     /// If the variable is not in scope, `None` is returned.
-    pub fn lookup(&self, key: &str) -> Option<Type> {
+    pub fn lookup(&self, key: &str) -> Option<Variable> {
         self.locals
             .iter()
             .rev()
             .find(|local| local.name == key && local.depth <= self.scope_depth)
-            .map(|local| local.ty.clone())
+            .map(|local| local.ty)
+    }
+
+    pub fn lookup_type(&self, key: &str) -> Option<Type> {
+        self.lookup(key).map(|v| self.types.lookup(v)).flatten()
     }
 
     /// Start a new scope.
@@ -63,17 +74,62 @@ impl Environment {
     /// Add a new local variable to the environment.
     ///
     /// The variable will be added to the current scope.
-    pub(crate) fn add_local(&mut self, name: &str, hint: Type) {
+    pub(crate) fn add_local(&mut self, name: &str, is_initialized: bool) -> Variable {
+        let ty = self.types.new_variable();
         self.locals.push(Local {
             name: name.to_owned(),
-            ty: hint,
+            ty,
+            is_initialized,
             depth: self.scope_depth,
         });
+        ty
+    }
+
+    pub(crate) fn add_reference(&mut self, ty: &Type) -> Variable {
+        let var = self.types.new_variable();
+        self.types.extend(var, ty.clone());
+        var
+    }
+
+    pub(crate) fn emit_string(&mut self) -> Type {
+        self.types
+            .lookup_class_name("Str")
+            .expect("Str class not found")
+            .clone()
+    }
+
+    pub(crate) fn emit_int(&mut self) -> Type {
+        self.types
+            .lookup_class_name("Int")
+            .expect("Int class not found")
+            .clone()
+    }
+
+    pub(crate) fn emit_float(&mut self) -> Type {
+        self.types
+            .lookup_class_name("Float")
+            .expect("Float class not found")
+            .clone()
+    }
+
+    pub(crate) fn emit_nil(&mut self) -> Type {
+        self.types
+            .lookup_class_name("Nil")
+            .expect("Nil class not found")
+            .clone()
     }
 
     /// End the current scope.
     pub(crate) fn end_scope(&mut self) {
         self.scope_depth -= 1;
         self.locals.retain(|local| local.depth <= self.scope_depth);
+    }
+
+    pub(crate) fn context(&self) -> &Context {
+        &self.types
+    }
+
+    pub(crate) fn context_mut(&mut self) -> &mut Context {
+        &mut self.types
     }
 }

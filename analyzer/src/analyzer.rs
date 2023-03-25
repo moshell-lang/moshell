@@ -1,4 +1,3 @@
-use crate::builtin_types::{float_type, int_type, nothing_type, string_type};
 use crate::environment::Environment;
 use crate::types::Type;
 use ast::value::LiteralValue;
@@ -24,43 +23,59 @@ impl<'a> Analyzer<'a> {
     }
 
     pub fn analyze_all(&mut self, expr: &Expr) -> Option<Type> {
-        self.analyze(&mut Environment::default(), expr)
+        let mut environment = Environment::default();
+        environment.context_mut().fill_with_builtins();
+        self.analyze(&mut environment, expr)
     }
 
     fn analyze(&mut self, environment: &mut Environment, expr: &Expr) -> Option<Type> {
         match expr {
-            Expr::Literal(lit) => Some(
-                (match lit.parsed {
-                    LiteralValue::String(_) => string_type(),
-                    LiteralValue::Int(_) => int_type(),
-                    LiteralValue::Float(_) => float_type(),
-                })
-                .into(),
-            ),
+            Expr::Literal(lit) => {
+                let ty = match lit.parsed {
+                    LiteralValue::String(_) => environment.emit_string(),
+                    LiteralValue::Int(_) => environment.emit_int(),
+                    LiteralValue::Float(_) => environment.emit_float(),
+                };
+                Some(ty.clone())
+            }
             Expr::TemplateString(template) => {
                 for part in &template.parts {
                     self.analyze(environment, part);
                 }
-                Some(string_type())
+                Some(environment.emit_string())
             }
             Expr::VarDeclaration(decl) => {
-                let actual_type = self.analyze(
-                    environment,
-                    &decl
-                        .initializer
-                        .clone()
-                        .expect("Not initialized declarations are not supported yet"),
-                )?;
-                if let Some(_type_hint) = decl.var.ty.as_ref() {
-                    todo!("Type hinting is not supported yet")
+                let initializer_type = decl
+                    .initializer
+                    .as_ref()
+                    .map(|init| self.analyze(environment, init))
+                    .flatten();
+                if let Some(type_hint) = decl.var.ty.as_ref() {
+                    if let Some(actual_type) =
+                        environment.context().lookup_class_name(&type_hint.name)
+                    {
+                        if let Some(initializer_type) = initializer_type.as_ref() {
+                            match environment.context().unify(initializer_type, actual_type) {
+                                Ok(_) => {}
+                                Err(message) => self.diagnostics.push(Diagnostic { message }),
+                            }
+                        }
+                    } else {
+                        self.diagnostics.push(Diagnostic {
+                            message: format!("Unknown type: {}", type_hint.name),
+                        });
+                    }
                 }
-                environment.add_local(decl.var.name, actual_type);
-
-                // Var declaration doesn't return a value
-                Some(nothing_type())
+                let var = environment.add_local(decl.var.name, initializer_type.is_some());
+                if let Some(initializer_type) = initializer_type.as_ref() {
+                    environment
+                        .context_mut()
+                        .extend(var, initializer_type.clone());
+                }
+                Some(environment.emit_nil())
             }
             Expr::VarReference(var) => {
-                let hint = environment.lookup(var.name);
+                let hint = environment.lookup_type(var.name);
                 if hint.is_none() {
                     self.diagnostics.push(Diagnostic {
                         message: format!("Unknown variable: {}", var.name),
@@ -70,7 +85,7 @@ impl<'a> Analyzer<'a> {
             }
             Expr::Block(block) => {
                 if block.expressions.is_empty() {
-                    return Some(nothing_type());
+                    return Some(environment.emit_nil());
                 }
 
                 let mut last: Option<Type> = None;
@@ -98,14 +113,15 @@ impl<'a> Analyzer<'a> {
             Expr::Binary(bin) => {
                 let left = self.analyze(environment, &bin.left)?;
                 let right = self.analyze(environment, &bin.right)?;
-                if left != right {
+                if let Ok(unified) = environment.context_mut().unify(&left, &right) {
+                    Some(unified)
+                } else {
                     self.diagnostics.push(Diagnostic {
                         message: "Binary operation must have the same type on both sides"
                             .to_string(),
                     });
-                    return None;
+                    None
                 }
-                Some(left)
             }
             Expr::Parenthesis(paren) => self.analyze(environment, &paren.expression),
             Expr::Call(call) => {
@@ -115,7 +131,7 @@ impl<'a> Analyzer<'a> {
                 }
                 last
             }
-            _ => Some(nothing_type()),
+            _ => Some(environment.emit_nil()),
         }
     }
 }
@@ -124,7 +140,7 @@ impl<'a> Analyzer<'a> {
 mod tests {
     use crate::analyze;
     use crate::analyzer::Diagnostic;
-    use crate::builtin_types::{int_type, nothing_type};
+    use crate::builtin_types::{float_type, int_type, nil_type};
     use context::source::Source;
 
     #[test]
@@ -145,14 +161,14 @@ mod tests {
     fn template_of_const() {
         let source = Source::unknown("val n = 9; val str = \"n = $n\"");
         let result = analyze(source).expect("Failed to analyze");
-        assert_eq!(result, nothing_type());
+        assert_eq!(result, nil_type());
     }
 
     #[test]
     fn empty_is_const() {
         let source = Source::unknown("{}");
         let result = analyze(source).expect("Failed to analyze");
-        assert_eq!(result, nothing_type());
+        assert_eq!(result, nil_type());
     }
 
     #[test]
@@ -165,6 +181,14 @@ mod tests {
                 message: "Binary operation must have the same type on both sides".to_string(),
             }])
         );
+    }
+
+    #[test]
+    #[ignore]
+    fn int_to_float() {
+        let source = Source::unknown("val n = 5; $(( n + 6.0 ))");
+        let result = analyze(source).expect("Failed to analyze");
+        assert_eq!(result, float_type());
     }
 
     #[test]

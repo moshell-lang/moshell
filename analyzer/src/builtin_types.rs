@@ -12,6 +12,9 @@ pub fn float_type() -> Type {
 pub fn string_type() -> Type {
     Type::Constructed("Str".to_owned(), vec![])
 }
+pub fn nil_type() -> Type {
+    Type::Constructed("Nil".to_owned(), vec![])
+}
 pub fn nothing_type() -> Type {
     Type::Constructed("Nothing".to_owned(), vec![])
 }

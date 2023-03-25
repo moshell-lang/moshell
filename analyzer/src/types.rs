@@ -3,7 +3,8 @@ use std::fmt;
 /// Represents a [type variable][1] (an unknown type).
 ///
 /// [1]: https://en.wikipedia.org/wiki/Hindley–Milner_type_system#Free_type_variables
-pub type Variable = usize;
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub struct Variable(pub usize);
 
 /// Represents [monotypes][1] (fully instantiated, unquantified types).
 ///
@@ -14,13 +15,6 @@ pub enum Type {
     Constructed(String, Vec<Type>),
     /// Type variables.
     Variable(Variable),
-}
-
-impl Type {
-    /// Construct a function type (i.e. `alpha` → `beta`).
-    pub fn arrow(alpha: Type, beta: Type) -> Type {
-        Type::Constructed("→".to_owned(), vec![alpha, beta])
-    }
 }
 
 impl fmt::Display for Type {
@@ -59,6 +53,12 @@ pub enum TypeScheme {
         /// The type in which `variable` is bound
         body: Box<TypeScheme>,
     },
+}
+
+impl fmt::Display for Variable {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "{}", self.0)
+    }
 }
 
 impl fmt::Display for TypeScheme {
