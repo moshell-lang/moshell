@@ -74,6 +74,30 @@ fn lambda_in_val() {
 }
 
 #[test]
+fn lambda_in_classic_call() {
+    let source = Source::unknown("echo a => $a + $b");
+    let parsed = parse(source).expect("Failed to parse.");
+    assert_eq!(
+        parsed,
+        vec![Expr::Call(Call {
+            type_parameters: Vec::new(),
+            arguments: vec![
+                Expr::Literal("echo".into()),
+                Expr::Literal("a".into()),
+                Expr::Literal("=>".into()),
+                Expr::VarReference(VarReference {
+                    name: "a"
+                }),
+                Expr::Literal("+".into()),
+                Expr::VarReference(VarReference {
+                    name: "b"
+                }),
+            ]
+        })]
+    );
+}
+
+#[test]
 fn command_echo() {
     let source = Source::unknown("echo hello");
     let parsed = parse(source).expect("Failed to parse");
