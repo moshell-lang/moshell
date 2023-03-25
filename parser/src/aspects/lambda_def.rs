@@ -1,16 +1,16 @@
 use ast::lambda::LambdaDef;
-use lexer::token::TokenType::{Colon, Comma, FatArrow, Identifier, RoundedLeftBracket, RoundedRightBracket};
+use lexer::token::TokenType::{Colon, FatArrow, Identifier, RoundedLeftBracket, RoundedRightBracket};
 use crate::aspects::expr_list::ExpressionListAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::err::ParseErrorKind::Expected;
-use crate::moves::{any, blanks, eod, eox, lookahead, MoveOperations, not, of_type, repeat};
+use crate::moves::{any, blanks, eox, MoveOperations, not, of_type, repeat};
 use crate::parser::{Parser, ParseResult};
 
 pub trait LambdaDefinitionAspect<'a> {
     fn parse_lambda_definition(&mut self) -> ParseResult<LambdaDef<'a>>;
 
     ///Tries to determine if the parser is at a lambda definition.
-    /// THIS METHOD IS LIMITED
+    /// THIS METHOD HAS LIMITATIONS as it cannot determine at 100% that this parser is facing a lambda definition.
     fn is_at_lambda_def(&self) -> bool;
 }
 
@@ -49,22 +49,9 @@ impl<'a> LambdaDefinitionAspect<'a> for Parser<'a> {
 
     fn is_at_lambda_def(&self) -> bool {
         self.cursor.lookahead(
-            //is it like "<identifier> =>" ?
-            blanks()
-                .then(of_type(Identifier))
-                //or is it like "(<identifier>, <identifier>, ...) =>" ?
-                .or(
-                    blanks().then(of_type(RoundedLeftBracket))
-                        .and_then(
-                            repeat(
-                                blanks().then(any())
-                                    .then(blanks())
-                                    .then(of_type(Comma)
-                                        .or(lookahead(eod().or(eox()))))
-                            ).and_then(eod())
-                        )
-                )
-                .and_then(blanks().then(of_type(FatArrow)))
+            //is it like "... =>" ?
+            repeat(not(of_type(FatArrow).or(eox())).and_then(any()))
+                .and_then(of_type(FatArrow))
         ).is_some()
     }
 }
@@ -91,6 +78,7 @@ mod tests {
         assert!(Parser::new(Source::unknown("a => $a + $b")).is_at_lambda_def());
         assert!(Parser::new(Source::unknown("() => $a + $b")).is_at_lambda_def());
         assert!(Parser::new(Source::unknown("(a, b) => $a + $b")).is_at_lambda_def());
+        assert!(Parser::new(Source::unknown("(a, b: Int[A => B, B[_, C]]) => $a + $b")).is_at_lambda_def());
     }
 
     #[test]
