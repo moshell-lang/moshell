@@ -7,6 +7,7 @@ use crate::call::{Call, Detached, Pipeline, ProgrammaticCall, Redirected};
 use crate::control_flow::{For, If, Loop, While};
 use crate::function::{FunctionDeclaration, Return};
 use crate::group::{Block, Parenthesis, Subshell};
+use crate::lambda::LambdaDef;
 use crate::operation::BinaryOperation;
 use crate::r#match::Match;
 use crate::r#use::Use;
@@ -45,6 +46,8 @@ pub enum Expr<'a> {
     Pipeline(Pipeline<'a>),
     Redirected(Redirected<'a>),
     Detached(Detached<'a>),
+
+    LambdaDef(LambdaDef<'a>),
 
     Substitution(Substitution<'a>),
     TemplateString(TemplateString<'a>),

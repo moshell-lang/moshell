@@ -39,7 +39,7 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         start: TokenType,
         end: TokenType,
         non_empty: bool,
-        parse_element: F,
+        mut parse_element: F,
     ) -> ParseResult<Vec<E>>
         where
             F: FnMut(&mut Self) -> ParseResult<E>,
@@ -47,7 +47,7 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         if self.cursor.lookahead(of_type(start)).is_some() {
             self.parse_explicit_list(start, end, non_empty, parse_element)
         } else {
-            Ok(Vec::new())
+            Ok(vec![parse_element(self)?])
         }
     }
 

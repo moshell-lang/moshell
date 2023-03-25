@@ -187,7 +187,7 @@ impl<'a> Parser<'a> {
 mod tests {
     use crate::aspects::r#type::TypeAspect;
     use crate::err::ParseErrorKind::{Expected, Unexpected, Unpaired};
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::err::{ParseError};
     use crate::parser::Parser;
     use ast::r#type::{ByName, CallableType, SimpleType, Type};
     use context::source::Source;
@@ -290,7 +290,7 @@ mod tests {
             res,
             Err(ParseError {
                 message: "'@' is not a valid type identifier.".to_string(),
-                kind: ParseErrorKind::Unexpected,
+                kind: Unexpected,
                 position: content.find('@').map(|i| i..i + 1).unwrap(),
             })
         );
