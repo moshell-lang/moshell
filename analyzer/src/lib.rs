@@ -1,14 +1,14 @@
 #![allow(dead_code)]
 
 mod analyzer;
-pub mod builtin_types;
 mod classes;
 pub mod context;
 pub mod environment;
 pub mod types;
+pub mod builtin_types;
 
 use crate::analyzer::Analyzer;
-use crate::types::{Type, TypeScheme};
+use crate::types::{Type};
 use ::context::source::Source;
 use ast::group::Block;
 use ast::Expr;
@@ -26,10 +26,7 @@ pub fn analyze(source: Source) -> Result<Type, Vec<Diagnostic>> {
         expressions: parsed,
     }));
     if analyzer.diagnostics.is_empty() {
-        Ok(match result.expect("No result") {
-            TypeScheme::Monotype(ty) => ty,
-            _ => panic!("Unexpected type scheme"),
-        })
+        Ok(result.expect("No result"))
     } else {
         Err(analyzer.diagnostics)
     }

@@ -20,8 +20,9 @@
 ///! ```
 use crate::classes::ClassType;
 use crate::context::Context;
-use crate::types::{Type, TypeScheme, Variable};
+use crate::types::Type;
 use std::default::Default;
+use crate::types::Type::Unknown;
 
 /// A variable environment.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -32,118 +33,62 @@ pub struct Environment<'a> {
     /// The local variables.
     locals: Vec<Local>,
 
-    /// The current scope depth.
-    scope_depth: usize,
-
     parent: Option<&'a Environment<'a>>,
 }
 
 /// A local variable.
 #[derive(Debug, Clone, PartialEq)]
-struct Local {
+pub struct Local {
     /// The name of the variable.
-    name: String,
+    pub name: String,
 
     /// The type of the variable.
-    ty: Variable,
+    pub ty: Type,
 
     /// Whether the variable has been initialized.
-    is_initialized: bool,
-
-    /// The depth of the scope in which the variable was declared.
-    depth: usize,
+    pub is_initialized: bool,
 }
 
 impl<'a> Environment<'a> {
-    pub fn top_level() -> Self {
-        let mut env = Self::default();
-        env.types.fill_with_builtins();
-        env
+    pub fn lang() -> Self {
+        Self {
+            types: Context::lang(),
+            locals: Vec::new(),
+            parent: None
+        }
     }
 
     /// Resolve a variable name, starting from the current scope and going up.
     ///
     /// If the variable is not in scope, `None` is returned.
-    pub fn lookup(&self, key: &str) -> Option<Variable> {
+    pub fn lookup_local(&self, key: &str) -> Option<&Local> {
         self.locals
             .iter()
             .rev()
-            .find(|local| local.name == key && local.depth <= self.scope_depth)
-            .map(|local| local.ty)
-            .or_else(|| self.parent.and_then(|p| p.lookup(key)))
+            .find(|local| local.name == key)
+            .or_else(|| self.parent.and_then(|p| p.lookup_local(key)))
     }
 
-    pub fn lookup_type(&self, key: &str) -> Option<Type> {
-        self.types.lookup_class_name_type(key)
-    }
-
-    pub fn lookup_type_scheme(&self, key: &str) -> Option<TypeScheme> {
-        self.lookup(key).and_then(|v| self.types.extract(v))
-    }
-
-    pub fn lookup_definition(&self, key: &str) -> Option<&ClassType> {
-        self.lookup(key)
-            .and_then(|v| self.types.lookup_definition(v))
-    }
-
-    /// Start a new scope.
-    pub(crate) fn begin_scope(&mut self) {
-        self.scope_depth += 1;
-    }
 
     /// Add a new local variable to the environment.
     ///
     /// The variable will be added to the current scope.
-    pub(crate) fn add_local(&mut self, name: &str) -> Variable {
-        let ty = self.types.new_variable();
+    pub(crate) fn set_local(&mut self, name: &str) {
         self.locals.push(Local {
             name: name.to_owned(),
-            ty,
+            ty: Unknown,
             is_initialized: false,
-            depth: self.scope_depth,
-        });
-        ty
+        })
     }
 
-    pub(crate) fn define_local(&mut self, name: &str, class: ClassType) {
-        let ty = self.types.define(name.to_owned(), class);
+    pub(crate) fn define_local(&mut self, name: &str, tpe: Type) {
         self.locals.push(Local {
             name: name.to_owned(),
-            ty,
+            ty: tpe,
             is_initialized: true,
-            depth: self.scope_depth,
         });
     }
 
-    pub(crate) fn add_reference(&mut self, ty: &Type) -> Variable {
-        let var = self.types.new_variable();
-        self.types.extend(var, ty.clone());
-        var
-    }
-
-    pub(crate) fn emit_string(&self) -> Variable {
-        self.lookup_class_name("Str").expect("Str class not found")
-    }
-
-    pub(crate) fn emit_int(&self) -> Variable {
-        self.lookup_class_name("Int").expect("Int class not found")
-    }
-
-    pub(crate) fn emit_float(&self) -> Variable {
-        self.lookup_class_name("Float")
-            .expect("Float class not found")
-    }
-
-    pub(crate) fn emit_nil(&self) -> Variable {
-        self.lookup_class_name("Nothing")
-            .expect("Nothing class not found")
-    }
-
-    /// End the current scope.
-    pub(crate) fn end_scope(&mut self) {
-        self.scope_depth -= 1;
-        self.locals.retain(|local| local.depth <= self.scope_depth);
-    }
 
     pub(crate) fn context(&self) -> &Context {
         &self.types
@@ -157,10 +102,4 @@ impl<'a> Environment<'a> {
         }
     }
 
-    pub(crate) fn lookup_class_name(&self, name: &str) -> Option<Variable> {
-        match self.types.lookup_class_name(name) {
-            Some(var) => Some(var),
-            None => self.parent.and_then(|p| p.lookup_class_name(name)),
-        }
-    }
 }

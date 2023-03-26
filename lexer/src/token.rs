@@ -91,6 +91,10 @@ pub enum TokenType {
     #[assoc(str = "Unit")]
     Unit,
 
+    #[token("Nothing")]
+    #[assoc(str = "Nothing")]
+    Nothing,
+
     #[token("->")]
     #[assoc(str = "->")]
     Arrow,

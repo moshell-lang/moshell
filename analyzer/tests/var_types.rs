@@ -1,48 +1,46 @@
 use compiler::environment::Environment;
 use compiler::{analyze, Diagnostic};
+use compiler::builtin_types::{float, int};
+use compiler::types::Type;
 use context::source::Source;
 
 #[test]
 fn int_literals_are_const() {
     let source = Source::unknown("1");
-    let env = Environment::top_level();
     let result = analyze(source).expect("Failed to analyze");
     assert_eq!(
         result,
-        env.lookup_type("Int").expect("Failed to lookup type")
+        Type::Defined(int())
     );
 }
 
 #[test]
 fn const_plus_const_is_const() {
     let source = Source::unknown("$(( 1 + 2 ))");
-    let env = Environment::top_level();
     let result = analyze(source).expect("Failed to analyze");
     assert_eq!(
         result,
-        env.lookup_type("Int").expect("Failed to lookup type")
+        Type::Defined(int())
     );
 }
 
 #[test]
 fn template_of_const() {
     let source = Source::unknown("val n = 9; val str = \"n = $n\"");
-    let env = Environment::top_level();
     let result = analyze(source).expect("Failed to analyze");
     assert_eq!(
         result,
-        env.lookup_type("Nothing").expect("Failed to lookup type")
+        Type::Nothing
     );
 }
 
 #[test]
 fn empty_is_const() {
     let source = Source::unknown("{}");
-    let env = Environment::top_level();
     let result = analyze(source).expect("Failed to analyze");
     assert_eq!(
         result,
-        env.lookup_type("Nothing").expect("Failed to lookup type")
+        Type::Nothing
     );
 }
 
@@ -62,11 +60,10 @@ fn incompatible_types() {
 #[ignore]
 fn int_to_float() {
     let source = Source::unknown("val n = 5; $(( n + 6.0 ))");
-    let env = Environment::top_level();
     let result = analyze(source).expect("Failed to analyze");
     assert_eq!(
         result,
-        env.lookup_type("Float").expect("Failed to lookup type")
+        Type::Defined(float())
     );
 }
 

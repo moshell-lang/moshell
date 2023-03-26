@@ -1,7 +1,7 @@
-use crate::builtin_types::{bool_type, float_type, int_type, nothing_type, string_type};
+use std::collections::HashMap;
 use crate::classes::ClassType;
-use crate::types::{Type, TypeScheme, Variable};
-use indexmap::IndexMap;
+use crate::types::{DefinedType, Type};
+use crate::builtin_types::*;
 
 /// A type environment.
 ///
@@ -9,172 +9,130 @@ use indexmap::IndexMap;
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Context<'a> {
     /// Records the type of each class by name.
-    classes: IndexMap<String, Variable>,
+    classes: HashMap<DefinedType, ClassType>,
 
-    /// Definitions of each class by id.
-    definitions: IndexMap<Variable, ClassType>,
-
-    /// A set of constraints mapping from variables to types.
-    substitution: IndexMap<Variable, TypeScheme>,
-
-    /// A counter used to generate fresh variables.
-    next: usize,
-
-    /// The parent context.
     parent: Option<&'a Context<'a>>,
 }
 
-impl Context<'_> {
-    pub fn fill_with_builtins(&mut self) {
-        self.define("Bool".to_owned(), bool_type());
-        self.define("Int".to_owned(), int_type());
-        self.define("Float".to_owned(), float_type());
-        self.define("Str".to_owned(), string_type());
-        self.define("Nothing".to_owned(), nothing_type());
+impl<'a> Context<'a> {
+    pub fn lang() -> Self {
+        let mut ctx = Context::default();
+
+        ctx.classes.insert(float(), ClassType::cons(float()));
+        ctx.classes.insert(bool(), ClassType::cons(bool()));
+        ctx.classes.insert(str(), ClassType::cons(str()));
+        ctx.classes.insert(unit(), ClassType::cons(unit()));
+
+        ctx.register_specialized(float(), int()).expect("lang type registration");
+        ctx.register_specialized(int(), exitcode()).expect("lang type registration");
+
+        ctx
     }
 
-    /// Creates a new variable from the next unused number.
-    pub fn new_variable(&mut self) -> Variable {
-        self.next += 1;
-        Variable(self.next - 1)
-    }
 
-    /// Creates a new substitution for variable number `v` to the given type `t`.
-    pub fn extend(&mut self, v: Variable, t: Type) {
-        if v.0 >= self.next {
-            self.next = v.0 + 1;
+    /// Creates and registers a new ClassType for given type, the given type must be subtype of given type
+    pub fn register_specialized(&mut self, super_type: DefinedType, registered: DefinedType) -> Result<(), String> {
+        if self.classes.contains_key(&registered) {
+            return Err(format!("type already contained in context {}", registered.name).to_owned())
         }
-        self.substitution.insert(v, TypeScheme::Monotype(t));
-    }
 
-    /// Creates a new substitution for variable number `v` to the given type `t`.
-    pub fn define(&mut self, name: String, class: ClassType) -> Variable {
-        let var = self.new_variable();
-        self.definitions.insert(var, class.clone());
-        self.substitution.insert(
-            var,
-            TypeScheme::Monotype(Type::Constructed(name.clone(), vec![])),
+        self.classes.insert(
+            registered.clone(),
+            ClassType {
+                base: registered.clone(),
+                constraint_type: Some(super_type),
+
+                callable: None,
+                params: registered.params,
+            },
         );
-        self.classes.insert(name, var);
-        var
+        Ok(())
     }
 
-    pub fn apply(&self, var: Variable) -> &Type {
-        match self.substitution.get(&var) {
-            Some(TypeScheme::Monotype(t)) => t,
-            Some(TypeScheme::Polytype { .. }) => todo!("apply polytype"),
-            None => match self.parent {
-                Some(parent) => parent.apply(var),
-                None => panic!("unbound variable: {}", var.0),
-            },
-        }
-    }
-
-    pub fn extract(&self, v: Variable) -> Option<TypeScheme> {
-        self.substitution.get(&v).cloned()
-    }
-
-    pub fn lookup_class_name(&self, name: &str) -> Option<Variable> {
-        self.classes.get(name).cloned()
-    }
-
-    pub fn lookup_class_name_type(&self, name: &str) -> Option<Type> {
-        self.lookup_class_name(name).map(|v| self.apply(v).clone())
-    }
-
-    pub fn lookup_definition(&self, var: Variable) -> Option<&ClassType> {
-        match self.definitions.get(&var) {
-            Some(class) => Some(class),
-            None => match self.substitution.get(&var) {
-                Some(TypeScheme::Monotype(Type::Variable(var))) => self.lookup_definition(*var),
-                _ => self.parent.and_then(|parent| parent.lookup_definition(var)),
-            },
-        }
-    }
-
-    pub fn resolve(&self, declared_type: &TypeScheme) -> Result<Variable, String> {
-        match declared_type {
-            TypeScheme::Monotype(t) => self.resolve_monotype(t),
-            TypeScheme::Polytype { .. } => todo!("resolve polytype"),
-        }
-    }
-
-    pub fn resolve_monotype(&self, declared_type: &Type) -> Result<Variable, String> {
-        match declared_type {
-            Type::Variable(v) => self
-                .substitution
-                .get(v)
-                .map(|t| self.resolve(t))
-                .unwrap_or(Ok(*v)),
-            Type::Constructed(name, args) => {
-                let var = self
-                    .classes
-                    .get(name)
-                    .ok_or_else(|| format!("Unknown class {}", name))?;
-                let class = self
-                    .definitions
-                    .get(var)
-                    .ok_or_else(|| format!("Unknown class {}", name))?;
-                assert_eq!(class.args.len(), args.len());
-                assert_eq!(class.args.len(), 0);
-                Ok(*var)
+    ///perform a class type lookup based on the defined type.
+    /// If the type is not directly found in this context, then the context
+    /// will lookup in parent's context.
+    pub fn lookup_definition(&'a self, tpe: &DefinedType) -> Result<&'a ClassType, String> {
+        match self.classes.get(&tpe) {
+            Some(v) => Ok(v),
+            None => {
+                if let Some(parent) = self.parent {
+                    return parent.lookup_definition(tpe)
+                }
+                Err("Unknown type".to_owned())
             }
         }
     }
-
-    pub fn unify(&mut self, t1: Variable, t2: Variable) -> Result<Variable, String> {
-        let var = self.new_variable();
-        let t = self.unify_internal(self.apply(t1), self.apply(t2))?;
-        self.extend(var, t);
-        Ok(var)
+    /*
+        pub fn resolve(&self, declared_type: &TypeScheme) -> Result<Variable, String> {
+            match declared_type {
+                TypeScheme::Monotype(t) => self.resolve_monotype(t),
+                TypeScheme::Polytype { .. } => todo!("resolve polytype"),
+            }
+        }
+        */
+    /*
+        pub fn resolve_monotype(&self, declared_type: &Type) -> Result<Variable, String> {
+            match declared_type {
+                Type::Variable(v) => self
+                    .substitution
+                    .get(v)
+                    .map(|t| self.resolve(t))
+                    .unwrap_or(Ok(*v)),
+                Type::Defined(name, args) => {
+                    let var = self
+                        .classes
+                        .get(name)
+                        .ok_or_else(|| format!("Unknown class {}", name))?;
+                    let class = self
+                        .definitions
+                        .get(var)
+                        .ok_or_else(|| format!("Unknown class {}", name))?;
+                    assert_eq!(class.type_args.len(), args.len());
+                    assert_eq!(class.type_args.len(), 0);
+                    Ok(*var)
+                }
+            }
+        }
+    */
+    pub fn unify(&mut self, t1: &Type, t2: &Type) -> Result<Type, String> {
+        self.unify_internal(t1, t2)
     }
 
     pub(crate) fn fork(&self) -> Context {
         Context {
-            next: self.next + 32,
             parent: Some(self),
             ..Default::default()
         }
     }
 
+    ///Find largest possible type between two class types
     fn unify_internal(&self, t1: &Type, t2: &Type) -> Result<Type, String> {
-        let t1 = self.follow(t1);
-        let t2 = self.follow(t2);
-        match (&t1, &t2) {
-            (Type::Variable(v1), Type::Variable(v2)) => {
-                if v1 == v2 {
-                    Ok(t1.clone())
-                } else {
-                    Ok(t2.clone())
-                }
+        match (t1, t2) {
+            (any, Type::Nothing) => Ok(any.clone()),
+            (Type::Nothing, any) => Ok(any.clone()),
+
+            (Type::Unknown, _) => Ok(Type::Unknown),
+            (_, Type::Unknown) => Ok(Type::Unknown),
+
+            (Type::Defined(def1), Type::Defined(def2)) => {
+                let cl1 = self.lookup_definition(def1)?;
+
+                cl1.unify_base(self, def2)
+                    .and_then(|opt|
+                        opt.map(Type::Defined)
+                            .ok_or("Type 1 and Type 2 are not inferable".to_owned())
+                    )
+
             }
-            (Type::Variable(_), _) => Ok(t2.clone()),
-            (_, Type::Variable(_)) => Ok(t1.clone()),
-            (Type::Constructed(c1, ts1), Type::Constructed(c2, ts2)) => {
-                if c1 == c2 && ts1.len() == ts2.len() {
-                    let mut ts = vec![];
-                    for (t1, t2) in ts1.iter().zip(ts2.iter()) {
-                        ts.push(self.unify_internal(t1, t2)?);
-                    }
-                    Ok(Type::Constructed(c1.clone(), ts))
-                } else {
-                    Err(format!("Cannot unify {} and {}", t1, t2))
-                }
+            (Type::Callable(_), _) => {
+                Err("Cannot handle callables yet".to_owned())
             }
+            (_, Type::Callable(_)) => {
+                Err("Cannot handle callables yet".to_owned())
+            }
+            (_, _) => Err(format!("Incompatible types {:?} and {:?}", t1, t2))
         }
     }
 
-    fn follow(&self, t: &Type) -> Type {
-        match t {
-            Type::Variable(v) => self
-                .substitution
-                .get(v)
-                .map(|t| match t {
-                    TypeScheme::Monotype(t) => self.follow(t),
-                    TypeScheme::Polytype { .. } => todo!("follow polytype"),
-                })
-                .unwrap_or_else(|| t.clone()),
-            _ => t.clone(),
-        }
-    }
 }

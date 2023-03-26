@@ -15,6 +15,9 @@ pub enum Type<'a> {
 
     ///Either `()` or `Unit`, representing a void type
     Unit,
+
+    ///The Nothing type
+    Nothing,
 }
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
@@ -41,6 +44,7 @@ impl<'a> Display for Type<'a> {
             Type::Callable(p) => Display::fmt(p, f),
             Type::ByName(n) => Display::fmt(n, f),
             Type::Unit => write!(f, "Unit"),
+            Type::Nothing => write!(f, "Nothing"),
         }
     }
 }

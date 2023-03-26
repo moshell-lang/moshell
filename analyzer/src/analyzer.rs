@@ -1,11 +1,12 @@
-use crate::classes::{CallableType, ClassType};
+
 use crate::environment::Environment;
-use crate::types::{Type, TypeScheme, Variable};
+use crate::types::{Type};
 use crate::Diagnostic;
 use ast::function::FunctionParameter;
 use ast::value::LiteralValue;
 use ast::Expr;
 use context::source::Source;
+use crate::builtin_types::{float, int, str, unit};
 
 pub struct Analyzer<'a> {
     pub source: Source<'a>,
@@ -20,28 +21,26 @@ impl<'a> Analyzer<'a> {
         }
     }
 
-    pub fn analyze_all(&mut self, expr: &Expr) -> Option<TypeScheme> {
-        let mut environment = Environment::default();
-        environment.types.fill_with_builtins();
-        let ret = self.analyze(&mut environment, expr);
-        ret.map(|ty| environment.context().extract(ty)).flatten()
+    pub fn analyze_all(&mut self, expr: &Expr) -> Option<Type> {
+        let mut environment = Environment::lang();
+        self.analyze(&mut environment, expr)
     }
 
-    fn analyze(&mut self, environment: &mut Environment, expr: &Expr) -> Option<Variable> {
+    fn analyze(&mut self, environment: &mut Environment, expr: &Expr) -> Option<Type> {
         match expr {
             Expr::Literal(lit) => {
                 let ty = match lit.parsed {
-                    LiteralValue::String(_) => environment.emit_string(),
-                    LiteralValue::Int(_) => environment.emit_int(),
-                    LiteralValue::Float(_) => environment.emit_float(),
+                    LiteralValue::String(_) => str(),
+                    LiteralValue::Int(_) => int(),
+                    LiteralValue::Float(_) => float(),
                 };
-                Some(ty)
+                Some(Type::Defined(ty))
             }
             Expr::TemplateString(template) => {
                 for part in &template.parts {
                     self.analyze(environment, part);
                 }
-                Some(environment.emit_string())
+                Some(Type::Defined(str()))
             }
             Expr::VarDeclaration(decl) => {
                 let initializer_type = decl
@@ -49,48 +48,38 @@ impl<'a> Analyzer<'a> {
                     .as_ref()
                     .map(|init| self.analyze(environment, init))
                     .flatten();
-                if let Some(type_hint) = decl.var.ty.as_ref() {
-                    if let Ok(actual_type) = environment.context().resolve(&(type_hint.into())) {
-                        if let Some(initializer_type) = initializer_type {
-                            match environment.types.unify(initializer_type, actual_type) {
-                                Ok(_) => {}
-                                Err(message) => self.diagnostics.push(Diagnostic { message }),
-                            }
+                if let Some(type_hint) = decl.var.ty.as_ref().cloned() {
+                    if let Some(initializer_type) = initializer_type.clone() {
+                        match environment.types.unify(&initializer_type, &(type_hint.into())) {
+                            Ok(_) => {}
+                            Err(message) => self.diagnostics.push(Diagnostic { message }),
                         }
-                    } else {
-                        self.diagnostics.push(Diagnostic {
-                            message: format!("Unknown type: {}", type_hint),
-                        });
                     }
                 }
-                let var = environment.add_local(decl.var.name);
-                if let Some(initializer_type) = initializer_type {
-                    environment
-                        .types
-                        .extend(var, Type::Variable(initializer_type));
-                }
-                Some(environment.emit_nil())
+
+                //environment.define_local(decl.var.name, environment.context().);
+
+                Some(Type::Defined(unit()))
             }
             Expr::VarReference(var) => {
-                let hint = environment.lookup(var.name);
+                let hint = environment.lookup_local(var.name);
                 if hint.is_none() {
                     self.diagnostics.push(Diagnostic {
                         message: format!("Unknown variable: {}", var.name),
                     });
                 }
-                hint
+                hint.map(|l| l.ty.clone())
             }
             Expr::Block(block) => {
                 if block.expressions.is_empty() {
-                    return Some(environment.emit_nil().into());
+                    return Some(Type::Defined(unit()));
                 }
 
-                let mut last: Option<Variable> = None;
-                environment.begin_scope();
+                let mut last: Option<_> = None;
+                let block_environment = &mut environment.fork();
                 for stmt in &block.expressions {
-                    last = self.analyze(environment, stmt);
+                    last = self.analyze(block_environment, stmt);
                 }
-                environment.end_scope();
                 last
             }
             Expr::If(if_expr) => {
@@ -110,7 +99,7 @@ impl<'a> Analyzer<'a> {
             Expr::Binary(bin) => {
                 let left = self.analyze(environment, &bin.left)?;
                 let right = self.analyze(environment, &bin.right)?;
-                if let Ok(unified) = environment.types.unify(left, right) {
+                if let Ok(unified) = environment.types.unify(&left, &right) {
                     Some(unified)
                 } else {
                     self.diagnostics.push(Diagnostic {
@@ -122,7 +111,7 @@ impl<'a> Analyzer<'a> {
             }
             Expr::Parenthesis(paren) => self.analyze(environment, &paren.expression),
             Expr::Call(call) => {
-                let mut last: Option<Variable> = None;
+                let mut last: Option<_> = None;
                 for arg in &call.arguments {
                     last = self.analyze(environment, arg);
                 }
@@ -136,43 +125,45 @@ impl<'a> Analyzer<'a> {
                         FunctionParameter::Named(param) => param,
                         _ => todo!("FunctionParameter::Variadic"),
                     };
-                    let arg_type = nested_environment.add_local(param.name);
+                    let arg_type = nested_environment.set_local(param.name);
                     arg_types.push(arg_type);
                 }
                 let ret_type = self.analyze(&mut nested_environment, &fun.body)?;
-                environment.define_local(
+                /*environment.define_local(
                     fun.name,
                     ClassType {
-                        args: vec![],
-                        callable: Some(CallableType {
-                            args: arg_types
+                        params: vec![],
+                        callable: Some(CallableAspect {
+                            inputs: arg_types
                                 .iter()
                                 .map(|arg| Type::Variable(*arg).into())
                                 .collect(),
-                            return_type: Type::Variable(ret_type).into(),
+                            output: Type::Variable(ret_type).into(),
                         }),
                     },
-                );
-                Some(environment.emit_nil())
+                );*/
+                todo!("function");
+                Some(Type::Defined(unit()))
             }
             Expr::ProgrammaticCall(call) => {
-                if let Some(ty) = environment.lookup_definition(call.name) {
-                    if let Some(callable) = ty.callable.as_ref() {
-                        environment.context().resolve(&callable.return_type).ok()
-                    } else {
-                        self.diagnostics.push(Diagnostic {
-                            message: format!("{} is not callable", call.name),
-                        });
-                        None
-                    }
-                } else {
-                    self.diagnostics.push(Diagnostic {
-                        message: format!("Unknown function: {}", call.name),
-                    });
-                    None
-                }
+                // if let Some(ty) = environment.context().lookup_definition(call.name) {
+                //     if let Some(callable) = ty.callable.as_ref() {
+                //         todo!("PFC")
+                //     } else {
+                //         self.diagnostics.push(Diagnostic {
+                //             message: format!("{} is not callable", call.name),
+                //         });
+                //         None
+                //     }
+                // } else {
+                //     self.diagnostics.push(Diagnostic {
+                //         message: format!("Unknown function: {}", call.name),
+                //     });
+                //     None
+                // }
+                todo!("PFC")
             }
-            _ => Some(environment.emit_nil()),
+            _ => Some(Type::Defined(unit())),
         }
     }
 }

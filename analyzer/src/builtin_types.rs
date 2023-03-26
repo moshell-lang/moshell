@@ -1,17 +1,30 @@
-use crate::classes::ClassType;
+use crate::types::{DefinedType};
 
-pub fn bool_type() -> ClassType {
-    ClassType::default()
+pub fn unit() -> DefinedType {
+    DefinedType::cons("Unit")
 }
-pub fn int_type() -> ClassType {
-    ClassType::default()
+
+pub fn int() -> DefinedType {
+    DefinedType::cons("Int")
 }
-pub fn float_type() -> ClassType {
-    ClassType::default()
+
+pub fn float() -> DefinedType {
+    DefinedType::cons("Float")
 }
-pub fn string_type() -> ClassType {
-    ClassType::default()
+
+pub fn exitcode() -> DefinedType {
+    DefinedType::cons("Exitcode")
 }
-pub fn nothing_type() -> ClassType {
-    ClassType::default()
+
+pub fn str() -> DefinedType {
+    DefinedType::cons("Str")
 }
+
+pub fn bool() -> DefinedType {
+    DefinedType::cons("Bool")
+}
+
+
+
+
+

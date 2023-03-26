@@ -5,7 +5,7 @@ use ast::r#type::{ByName, CallableType, SimpleType, Type};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{
     Comma, FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket,
-    SquaredLeftBracket, SquaredRightBracket, Unit,
+    SquaredLeftBracket, SquaredRightBracket, Unit, Nothing,
 };
 use std::fmt::Write;
 
@@ -143,34 +143,30 @@ impl<'a> Parser<'a> {
     fn parse_simple_or_unit(&mut self) -> ParseResult<Type<'a>> {
         let name_token = self.cursor.advance(word_seps().then(any())).unwrap();
 
-        let ttype = name_token.token_type;
-        if ttype == Identifier {
-            return Ok(Type::Simple(SimpleType {
+        return match name_token.token_type {
+            Identifier => Ok(Type::Simple(SimpleType {
                 name: name_token.value,
                 params: self.parse_type_parameter_list()?,
-            }));
-        }
+            })),
+            Unit => Ok(Type::Unit),
+            Nothing => Ok(Type::Nothing),
 
-        //Unit type can either be `Unit` or `()`
-        if ttype == Unit
-            || (ttype == RoundedLeftBracket
+            NewLine => self.expected_with("expected type", name_token, Expected("<type>".to_string())),
+
+            x if x.is_closing_ponctuation() => self.expected_with("expected type", name_token, Expected("<type>".to_string())),
+            x if (x == RoundedLeftBracket
                 && self
-                    .cursor
-                    .advance(word_seps().then(of_type(RoundedRightBracket)))
-                    .is_some())
-        {
-            return Ok(Type::Unit);
-        }
+                .cursor
+                .advance(word_seps().then(of_type(RoundedRightBracket)))
+                .is_some())
+            => Ok(Type::Unit),
 
-        if ttype == NewLine || ttype.is_closing_ponctuation() {
-            return self.expected_with("expected type", name_token, Expected("<type>".to_string()));
-        }
-
-        self.expected_with(
-            &format!("'{}' is not a valid type identifier.", &name_token.value),
-            name_token.value,
-            Unexpected,
-        )
+            _ => self.expected_with(
+                &format!("'{}' is not a valid type identifier.", &name_token.value),
+                name_token.value,
+                Unexpected,
+            )
+        };
     }
 
     fn parse_type_list(
