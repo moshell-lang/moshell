@@ -76,6 +76,16 @@ impl Context {
         self.lookup_class_name(name).map(|v| self.apply(v).clone())
     }
 
+    pub fn lookup_definition(&self, var: Variable) -> Option<&ClassType> {
+        match self.definitions.get(&var) {
+            Some(class) => Some(class),
+            None => match self.substitution.get(&var) {
+                Some(TypeScheme::Monotype(Type::Variable(var))) => self.lookup_definition(*var),
+                _ => None,
+            },
+        }
+    }
+
     pub fn resolve(&self, declared_type: &TypeScheme) -> Result<Variable, String> {
         match declared_type {
             TypeScheme::Monotype(t) => self.resolve_monotype(t),
@@ -140,7 +150,7 @@ impl Context {
         }
     }
 
-    fn follow<'a>(&self, t: &'a Type) -> Type {
+    fn follow(&self, t: &Type) -> Type {
         match t {
             Type::Variable(v) => self
                 .substitution

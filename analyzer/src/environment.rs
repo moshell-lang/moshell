@@ -18,6 +18,7 @@
 ///!     echo $n;
 ///! }
 ///! ```
+use crate::classes::ClassType;
 use crate::context::Context;
 use crate::types::{Type, TypeScheme, Variable};
 
@@ -73,7 +74,12 @@ impl Environment {
     }
 
     pub fn lookup_type_scheme(&self, key: &str) -> Option<TypeScheme> {
-        self.lookup(key).map(|v| self.types.extract(v)).flatten()
+        self.lookup(key).and_then(|v| self.types.extract(v))
+    }
+
+    pub fn lookup_definition(&self, key: &str) -> Option<&ClassType> {
+        self.lookup(key)
+            .and_then(|v| self.types.lookup_definition(v))
     }
 
     /// Start a new scope.
@@ -84,15 +90,25 @@ impl Environment {
     /// Add a new local variable to the environment.
     ///
     /// The variable will be added to the current scope.
-    pub(crate) fn add_local(&mut self, name: &str, is_initialized: bool) -> Variable {
+    pub(crate) fn add_local(&mut self, name: &str) -> Variable {
         let ty = self.types.new_variable();
         self.locals.push(Local {
             name: name.to_owned(),
             ty,
-            is_initialized,
+            is_initialized: false,
             depth: self.scope_depth,
         });
         ty
+    }
+
+    pub(crate) fn define_local(&mut self, name: &str, class: ClassType) {
+        let ty = self.types.define(name.to_owned(), class);
+        self.locals.push(Local {
+            name: name.to_owned(),
+            ty,
+            is_initialized: true,
+            depth: self.scope_depth,
+        });
     }
 
     pub(crate) fn add_reference(&mut self, ty: &Type) -> Variable {
@@ -101,25 +117,25 @@ impl Environment {
         var
     }
 
-    pub(crate) fn emit_string(&mut self) -> Variable {
+    pub(crate) fn emit_string(&self) -> Variable {
         self.types
             .lookup_class_name("Str")
             .expect("Str class not found")
     }
 
-    pub(crate) fn emit_int(&mut self) -> Variable {
+    pub(crate) fn emit_int(&self) -> Variable {
         self.types
             .lookup_class_name("Int")
             .expect("Int class not found")
     }
 
-    pub(crate) fn emit_float(&mut self) -> Variable {
+    pub(crate) fn emit_float(&self) -> Variable {
         self.types
             .lookup_class_name("Float")
             .expect("Float class not found")
     }
 
-    pub(crate) fn emit_nil(&mut self) -> Variable {
+    pub(crate) fn emit_nil(&self) -> Variable {
         self.types
             .lookup_class_name("Nothing")
             .expect("Nothing class not found")

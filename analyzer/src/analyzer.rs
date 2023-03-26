@@ -1,6 +1,8 @@
+use crate::classes::{CallableType, ClassType};
 use crate::environment::Environment;
 use crate::types::{Type, TypeScheme, Variable};
 use crate::Diagnostic;
+use ast::function::FunctionParameter;
 use ast::value::LiteralValue;
 use ast::Expr;
 use context::source::Source;
@@ -64,13 +66,13 @@ impl<'a> Analyzer<'a> {
                         });
                     }
                 }
-                let var = environment.add_local(decl.var.name, initializer_type.is_some());
+                let var = environment.add_local(decl.var.name);
                 if let Some(initializer_type) = initializer_type {
                     environment
                         .context_mut()
                         .extend(var, Type::Variable(initializer_type));
                 }
-                Some(environment.emit_nil().into())
+                Some(environment.emit_nil())
             }
             Expr::VarReference(var) => {
                 let hint = environment.lookup(var.name);
@@ -129,7 +131,51 @@ impl<'a> Analyzer<'a> {
                 }
                 last
             }
-            _ => Some(environment.emit_nil().into()),
+            Expr::FunctionDeclaration(fun) => {
+                let mut nested_environment = environment.clone();
+                let mut arg_types = Vec::new();
+                for param in &fun.parameters {
+                    let param = match param {
+                        FunctionParameter::Named(param) => param,
+                        _ => todo!("FunctionParameter::Variadic"),
+                    };
+                    let arg_type = environment.add_local(param.name);
+                    arg_types.push(arg_type);
+                }
+                let ret_type = self.analyze(&mut nested_environment, &fun.body)?;
+                environment.define_local(
+                    fun.name,
+                    ClassType {
+                        args: vec![],
+                        callable: Some(CallableType {
+                            args: arg_types
+                                .iter()
+                                .map(|arg| Type::Variable(*arg).into())
+                                .collect(),
+                            return_type: Type::Variable(ret_type).into(),
+                        }),
+                    },
+                );
+                Some(environment.emit_nil())
+            }
+            Expr::ProgrammaticCall(call) => {
+                if let Some(ty) = environment.lookup_definition(call.name) {
+                    if let Some(callable) = ty.callable.as_ref() {
+                        environment.context().resolve(&callable.return_type).ok()
+                    } else {
+                        self.diagnostics.push(Diagnostic {
+                            message: format!("{} is not callable", call.name),
+                        });
+                        None
+                    }
+                } else {
+                    self.diagnostics.push(Diagnostic {
+                        message: format!("Unknown function: {}", call.name),
+                    });
+                    None
+                }
+            }
+            _ => Some(environment.emit_nil()),
         }
     }
 }
