@@ -6,12 +6,17 @@ pub mod context;
 mod environment;
 pub mod types;
 
-use crate::analyzer::{Analyzer, Diagnostic};
+use crate::analyzer::Analyzer;
 use crate::types::Type;
 use ::context::source::Source;
 use ast::group::Block;
 use ast::Expr;
 use parser::parse;
+
+#[derive(Debug, PartialEq)]
+pub struct Diagnostic {
+    pub message: String,
+}
 
 pub fn analyze(source: Source) -> Result<Type, Vec<Diagnostic>> {
     let parsed = parse(source.clone()).expect("Failed to parse");
