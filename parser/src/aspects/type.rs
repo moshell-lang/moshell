@@ -73,12 +73,20 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         {
             return Ok(Vec::new());
         }
-        self.parse_explicit_list(
+        let start = self.cursor.peek();
+        let tparams = self.parse_explicit_list(
             SquaredLeftBracket,
             SquaredRightBracket,
-            true,
             Self::parse_type,
-        )
+        )?;
+        if tparams.is_empty() {
+            return self.expected_with(
+                "unexpected empty type parameter list",
+                start..self.cursor.peek(),
+                Unexpected,
+            );
+        }
+        Ok(tparams)
     }
 }
 
@@ -108,7 +116,6 @@ impl<'a> Parser<'a> {
         let inputs = self.parse_implicit_list(
             RoundedLeftBracket,
             RoundedRightBracket,
-            false,
             Self::parse_type,
         )?;
 

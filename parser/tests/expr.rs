@@ -88,18 +88,46 @@ fn lambda_in_classic_call() {
 }
 
 #[test]
-fn lambda() {
-    let source = Source::unknown("() => $a + $b");
+fn lambda_one_arg() {
+    let source = Source::unknown("calc(n => $n * $n)");
     let parsed = parse(source).expect("Failed to parse.");
     assert_eq!(
         parsed,
-        vec![Expr::LambdaDef(LambdaDef {
-            args: vec![],
-            body: Box::new(Expr::Binary(BinaryOperation {
-                left: Box::new(Expr::VarReference(VarReference { name: "a" })),
-                op: BinaryOperator::Plus,
-                right: Box::new(Expr::VarReference(VarReference { name: "b" })),
-            })),
+        vec![Expr::ProgrammaticCall(ProgrammaticCall {
+            name: "calc",
+            arguments: vec![Expr::LambdaDef(LambdaDef {
+                args: vec![TypedVariable {
+                    name: "n",
+                    ty: None,
+                }],
+                body: Box::new(Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::VarReference(VarReference { name: "n" })),
+                    op: BinaryOperator::Times,
+                    right: Box::new(Expr::VarReference(VarReference { name: "n" })),
+                })),
+            })],
+            type_parameters: vec![],
+        })]
+    );
+}
+
+#[test]
+fn lambda_in_pfc() {
+    let source = Source::unknown("calc(() => $a + $b)");
+    let parsed = parse(source).expect("Failed to parse.");
+    assert_eq!(
+        parsed,
+        vec![Expr::ProgrammaticCall(ProgrammaticCall {
+            name: "calc",
+            arguments: vec![Expr::LambdaDef(LambdaDef {
+                args: vec![],
+                body: Box::new(Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                    op: BinaryOperator::Plus,
+                    right: Box::new(Expr::VarReference(VarReference { name: "b" })),
+                })),
+            })],
+            type_parameters: vec![],
         })]
     );
 }

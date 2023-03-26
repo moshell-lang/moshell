@@ -17,7 +17,6 @@ impl<'a> LambdaDefinitionAspect<'a> for Parser<'a> {
         let args = self.parse_implicit_list(
             RoundedLeftBracket,
             RoundedRightBracket,
-            false,
             Self::parse_typed_var,
         )?;
         self.cursor.force_with(

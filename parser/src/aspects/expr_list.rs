@@ -1,4 +1,4 @@
-use crate::err::ParseErrorKind::{Expected, Unexpected};
+use crate::err::ParseErrorKind::{Expected};
 use crate::moves::{blanks, eod, lookahead, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;
@@ -12,7 +12,6 @@ pub(super) trait ExpressionListAspect<'a> {
         &mut self,
         start: TokenType,
         end: TokenType,
-        non_empty: bool,
         parse_element: F,
     ) -> ParseResult<Vec<E>>
     where
@@ -26,7 +25,6 @@ pub(super) trait ExpressionListAspect<'a> {
         &mut self,
         start: TokenType,
         end: TokenType,
-        non_empty: bool,
         parse_element: F,
     ) -> ParseResult<Vec<E>>
     where
@@ -38,14 +36,13 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         &mut self,
         start: TokenType,
         end: TokenType,
-        non_empty: bool,
         mut parse_element: F,
     ) -> ParseResult<Vec<E>>
     where
         F: FnMut(&mut Self) -> ParseResult<E>,
     {
         if self.cursor.lookahead(of_type(start)).is_some() {
-            self.parse_explicit_list(start, end, non_empty, parse_element)
+            self.parse_explicit_list(start, end, parse_element)
         } else {
             Ok(vec![parse_element(self)?])
         }
@@ -55,7 +52,6 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         &mut self,
         start: TokenType,
         end: TokenType,
-        non_empty: bool,
         mut parse_element: F,
     ) -> ParseResult<Vec<E>>
     where
@@ -85,16 +81,6 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         }
         self.cursor.advance(blanks());
 
-        if elements.is_empty() && non_empty {
-            self.expect_delimiter(end)?;
-            return self.expected_with(
-                "unexpected empty type parameter list",
-                start..self.cursor.peek(),
-                Unexpected,
-            );
-        }
-
-        self.cursor.advance(blanks());
         self.expect_delimiter(end)?;
 
         Ok(elements)
