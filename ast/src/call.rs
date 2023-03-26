@@ -1,8 +1,11 @@
+use crate::r#type::Type;
 use crate::Expr;
 use dbg_pls::DebugPls;
-use crate::r#type::Type;
 
-/// A call to a function or a command.
+/// A raw call to a function or a command.
+///
+/// This call is highly permissive since it allows for any expression as the
+/// command name.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Call<'a> {
     /// The arguments of the command.
@@ -11,6 +14,21 @@ pub struct Call<'a> {
     pub arguments: Vec<Expr<'a>>,
 
     /// type parameters of the call.
+    pub type_parameters: Vec<Type<'a>>,
+}
+
+/// A programmatic call.
+///
+/// Theses always have a constant name and are always called with parentheses.
+#[derive(Debug, Clone, PartialEq, DebugPls)]
+pub struct ProgrammaticCall<'a> {
+    /// The name of the function to call.
+    pub name: &'a str,
+
+    /// The arguments to pass to the function.
+    pub arguments: Vec<Expr<'a>>,
+
+    /// The type parameters of the call.
     pub type_parameters: Vec<Type<'a>>,
 }
 

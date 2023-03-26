@@ -19,7 +19,7 @@
 ///! }
 ///! ```
 use crate::context::Context;
-use crate::types::{Type, Variable};
+use crate::types::{Type, TypeScheme, Variable};
 
 /// A variable environment.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -51,6 +51,12 @@ struct Local {
 }
 
 impl Environment {
+    pub fn top_level() -> Self {
+        let mut env = Self::default();
+        env.types.fill_with_builtins();
+        env
+    }
+
     /// Resolve a variable name, starting from the current scope and going up.
     ///
     /// If the variable is not in scope, `None` is returned.
@@ -63,7 +69,11 @@ impl Environment {
     }
 
     pub fn lookup_type(&self, key: &str) -> Option<Type> {
-        self.lookup(key).map(|v| self.types.lookup(v)).flatten()
+        self.types.lookup_class_name_type(key)
+    }
+
+    pub fn lookup_type_scheme(&self, key: &str) -> Option<TypeScheme> {
+        self.lookup(key).map(|v| self.types.extract(v)).flatten()
     }
 
     /// Start a new scope.
@@ -91,32 +101,28 @@ impl Environment {
         var
     }
 
-    pub(crate) fn emit_string(&mut self) -> Type {
+    pub(crate) fn emit_string(&mut self) -> Variable {
         self.types
             .lookup_class_name("Str")
             .expect("Str class not found")
-            .clone()
     }
 
-    pub(crate) fn emit_int(&mut self) -> Type {
+    pub(crate) fn emit_int(&mut self) -> Variable {
         self.types
             .lookup_class_name("Int")
             .expect("Int class not found")
-            .clone()
     }
 
-    pub(crate) fn emit_float(&mut self) -> Type {
+    pub(crate) fn emit_float(&mut self) -> Variable {
         self.types
             .lookup_class_name("Float")
             .expect("Float class not found")
-            .clone()
     }
 
-    pub(crate) fn emit_nil(&mut self) -> Type {
+    pub(crate) fn emit_nil(&mut self) -> Variable {
         self.types
-            .lookup_class_name("Nil")
-            .expect("Nil class not found")
-            .clone()
+            .lookup_class_name("Nothing")
+            .expect("Nothing class not found")
     }
 
     /// End the current scope.

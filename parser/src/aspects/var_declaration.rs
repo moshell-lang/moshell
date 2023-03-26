@@ -1,11 +1,11 @@
-use ast::Expr;
-use ast::variable::{TypedVariable, VarDeclaration, VarKind};
-use lexer::token::TokenType;
 use crate::aspects::r#type::TypeAspect;
+use ast::variable::{TypedVariable, VarDeclaration, VarKind};
+use ast::Expr;
+use lexer::token::TokenType;
 
 use crate::err::ParseErrorKind;
-use crate::moves::{blanks, eod, eox, lookahead, MoveOperations, of_type, spaces};
-use crate::parser::{Parser, ParseResult};
+use crate::moves::{blanks, eod, eox, lookahead, of_type, spaces, MoveOperations};
+use crate::parser::{ParseResult, Parser};
 
 pub trait VarDeclarationAspect<'a> {
     /// Parses a variable declaration.
@@ -24,7 +24,7 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
             _ => {
                 return self.expected(
                     "expected var or val keywords",
-                    ParseErrorKind::Excepted("var or val"),
+                    ParseErrorKind::Expected("var or val".to_string()),
                 )
             }
         };
@@ -44,7 +44,8 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
             }
 
             Some(_) => Some(self.value()?),
-        }.map(Box::new);
+        }
+        .map(Box::new);
 
         Ok(Expr::VarDeclaration(VarDeclaration {
             kind,
@@ -76,12 +77,12 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use ast::call::Call;
-    use ast::Expr;
     use ast::group::Block;
     use ast::operation::BinaryOperation;
     use ast::operation::BinaryOperator::Plus;
-    use ast::r#type::Type;
+    use ast::r#type::{SimpleType, Type};
     use ast::value::{Literal, LiteralValue};
+    use ast::Expr;
     use context::source::Source;
 
     use crate::err::ParseError;
@@ -120,10 +121,10 @@ mod tests {
                 kind: VarKind::Val,
                 var: TypedVariable {
                     name: "variable",
-                    ty: Some(Type {
+                    ty: Some(Type::Simple(SimpleType {
                         name: "int",
                         params: Vec::new(),
-                    }),
+                    })),
                 },
                 initializer: None,
             })

@@ -74,7 +74,7 @@ fn main() -> io::Result<()> {
                 },
                 message: err.message,
                 help: match &err.kind {
-                    ParseErrorKind::Excepted(excepted) => Some(format!("Excepted: {:?}", excepted)),
+                    ParseErrorKind::Expected(expected) => Some(format!("Expected: {:?}", expected)),
                     ParseErrorKind::UnexpectedInContext(help) => Some(help.clone()),
                     _ => None,
                 },
@@ -86,6 +86,7 @@ fn main() -> io::Result<()> {
             content.clear();
             continue;
         }
+
         let mut msg = String::new();
         for err in &errors {
             if let Err(fmt_err) = handler.render_report(&mut msg, err) {

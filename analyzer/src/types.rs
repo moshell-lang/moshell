@@ -69,3 +69,30 @@ impl fmt::Display for TypeScheme {
         }
     }
 }
+
+impl From<&ast::r#type::Type<'_>> for TypeScheme {
+    fn from(declared_type: &ast::r#type::Type) -> Self {
+        use ast::r#type::Type::*;
+        match declared_type {
+            Simple(ty) => TypeScheme::Monotype(Type::Constructed(
+                ty.name.to_owned(),
+                ty.params
+                    .iter()
+                    .map(|t| match TypeScheme::from(t) {
+                        TypeScheme::Monotype(ty) => ty,
+                        TypeScheme::Polytype { .. } => todo!("nested type parameters"),
+                    })
+                    .collect(),
+            )),
+            Callable(_) => TypeScheme::Monotype(Type::Constructed("→".to_owned(), Vec::new())),
+            ByName(_) => TypeScheme::Monotype(Type::Constructed("→".to_owned(), Vec::new())),
+            Unit => TypeScheme::Monotype(Type::Constructed("Unit".to_owned(), Vec::new())),
+        }
+    }
+}
+
+impl From<Type> for TypeScheme {
+    fn from(ty: Type) -> Self {
+        TypeScheme::Monotype(ty)
+    }
+}

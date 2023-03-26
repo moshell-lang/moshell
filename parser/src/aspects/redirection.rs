@@ -79,7 +79,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
             },
             _ => self.expected(
                 "Expected redirection operator.",
-                ParseErrorKind::Excepted("< >"),
+                ParseErrorKind::Expected("< >".to_string()),
             )?,
         };
 
@@ -90,7 +90,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
                 RedirOp::Write => RedirOp::FdOut,
                 _ => self.expected(
                     "Invalid redirection operator.",
-                    ParseErrorKind::Excepted("< or >"),
+                    ParseErrorKind::Expected("< or >".to_string()),
                 )?,
             };
         }
@@ -253,51 +253,5 @@ mod test {
                 }],
             })
         );
-    }
-
-    #[test]
-    fn multiple_calls() {
-        let source = Source::unknown("grep -E regex; echo test");
-        let parsed = parse(source).expect("parsing error");
-        assert_eq!(
-            parsed,
-            vec![
-                Expr::Call(Call {
-                    arguments: vec![
-                        Expr::Literal("grep".into()),
-                        Expr::Literal("-E".into()),
-                        Expr::Literal("regex".into()),
-                    ],
-                    type_parameters: vec![],
-                }),
-                Expr::Call(Call {
-                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
-                    type_parameters: vec![],
-                }),
-            ]
-        )
-    }
-
-    #[test]
-    fn escaped_call() {
-        let source = Source::unknown("grep -E regex \\; echo test");
-        let parsed = parse(source).expect("parsing error");
-        assert_eq!(
-            parsed,
-            vec![Expr::Call(Call {
-                arguments: vec![
-                    Expr::Literal("grep".into()),
-                    Expr::Literal("-E".into()),
-                    Expr::Literal("regex".into()),
-                    Expr::Literal(Literal {
-                        lexeme: "\\;",
-                        parsed: ";".into(),
-                    }),
-                    Expr::Literal("echo".into()),
-                    Expr::Literal("test".into()),
-                ],
-                type_parameters: vec![],
-            }),]
-        )
     }
 }

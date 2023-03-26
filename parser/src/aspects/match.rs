@@ -3,7 +3,7 @@ use lexer::token::TokenType::{
     At, Bar, CurlyLeftBracket, CurlyRightBracket, FatArrow, Identifier, If,
 };
 
-use crate::aspects::literal::LiteralAspect;
+use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
 use crate::err::ParseErrorKind;
 use crate::moves::{
     aerated, any, blanks, eod, eox, not, of_type, of_types, repeat, MoveOperations,
@@ -47,7 +47,7 @@ impl<'a> Parser<'a> {
         let opening_bracket = self.cursor.force_with(
             blanks().then(of_type(CurlyLeftBracket)),
             "expected match start",
-            ParseErrorKind::Excepted("{"),
+            ParseErrorKind::Expected("{".to_string()),
         )?;
         self.delimiter_stack.push_back(opening_bracket.clone());
 
@@ -170,7 +170,7 @@ impl<'a> Parser<'a> {
                 self.cursor.next()?;
                 Ok(Wildcard)
             }
-            _ => match self.literal()? {
+            _ => match self.literal(LiteralLeniency::Strict)? {
                 Expr::Literal(literal) => Ok(Literal(literal)),
                 Expr::TemplateString(template) => Ok(Template(template)),
                 Expr::VarReference(var_ref) => Ok(VarRef(var_ref)),

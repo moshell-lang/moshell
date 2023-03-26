@@ -65,7 +65,7 @@ impl<'a> Parser<'a> {
         let token = self.cursor.force_with(
             of_type(start),
             "Unexpected start of group expression",
-            ParseErrorKind::Excepted(start.str().unwrap_or("specific token")),
+            ParseErrorKind::Expected(start.str().unwrap_or("specific token").to_string()),
         )?; //consume group start token
         self.delimiter_stack.push_back(token.clone());
         Ok(token)
@@ -134,13 +134,14 @@ mod tests {
     use crate::parser::Parser;
     use ast::call::Call;
     use ast::group::{Block, Subshell};
+    use ast::r#type::SimpleType;
+    use ast::r#type::Type;
     use ast::value::Literal;
     use ast::value::LiteralValue::{Float, Int};
     use ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use ast::Expr;
     use context::source::Source;
     use pretty_assertions::assert_eq;
-    use ast::r#type::Type;
 
     //noinspection DuplicatedCode
     #[test]
@@ -311,10 +312,10 @@ mod tests {
                         kind: VarKind::Var,
                         var: TypedVariable {
                             name: "test",
-                            ty: Some(Type {
+                            ty: Some(Type::Simple(SimpleType {
                                 name: "int",
                                 params: Vec::new()
-                            }),
+                            })),
                         },
                         initializer: Some(Box::new(Expr::Literal(Literal {
                             lexeme: "7.0",

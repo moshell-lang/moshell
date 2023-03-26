@@ -81,7 +81,7 @@ impl<'a> Parser<'a> {
             TokenType::Dollar => {
                 self.cursor.next_opt();
                 if self.parse_range_for().is_ok() {
-                    let end_pos = self.cursor.relative_pos(&self.cursor.peek()).end;
+                    let end_pos = self.cursor.relative_pos(self.cursor.peek()).end;
                     let slice = &self.source.source[start_pos + 1..end_pos];
                     return self.expected_with(
                         "Receiver variables do not start with '$'.",
@@ -105,7 +105,7 @@ impl<'a> Parser<'a> {
     fn parse_range_for(&mut self) -> ParseResult<RangeFor<'a>> {
         let receiver = self.cursor.force(
             of_type(TokenType::Identifier),
-            "Excepted a variable identifier",
+            "Expected a variable identifier",
         )?;
         self.cursor.advance(blanks());
         self.cursor.force(
@@ -185,6 +185,7 @@ mod tests {
     use crate::parse;
     use crate::parser::ParseResult;
 
+    use ast::call::Call;
     use ast::control_flow::{ConditionalFor, For, ForKind, Loop, RangeFor, While};
     use ast::group::{Block, Parenthesis};
     use ast::operation::BinaryOperator::And;
@@ -196,7 +197,6 @@ mod tests {
     use ast::Expr::{Break, Continue};
     use context::source::Source;
     use pretty_assertions::assert_eq;
-    use ast::call::Call;
 
     #[test]
     fn loop_with_break_and_continues() {

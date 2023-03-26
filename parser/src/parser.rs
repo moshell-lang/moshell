@@ -8,15 +8,15 @@ use crate::aspects::assign::AssignAspect;
 use crate::aspects::binary_operation::BinaryOperationsAspect;
 use crate::aspects::call::CallAspect;
 use crate::aspects::detached::DetachedAspect;
+use crate::aspects::function_declaration::FunctionDeclarationAspect;
 use crate::aspects::group::GroupAspect;
 use crate::aspects::if_else::IfElseAspect;
-use crate::aspects::literal::LiteralAspect;
+use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
 use crate::aspects::r#loop::LoopAspect;
 use crate::aspects::r#match::MatchAspect;
 use crate::aspects::r#use::UseAspect;
 use crate::aspects::range::RangeAspect;
 use crate::aspects::redirection::RedirectionAspect;
-use crate::aspects::structure::StructureAspect;
 use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::cursor::ParserCursor;
@@ -27,7 +27,6 @@ use crate::moves::{
 };
 use ast::range::Iterable;
 use ast::Expr;
-use crate::aspects::function_declaration::FunctionDeclarationAspect;
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
 
@@ -49,6 +48,7 @@ macro_rules! non_infix {
                 CurlyLeftBracket,
                 SquaredLeftBracket,
                 Bar,
+                Comma,
                 FatArrow,
             ]))
     };
@@ -134,7 +134,9 @@ impl<'a> Parser<'a> {
         match pivot {
             Var | Val => self.var_declaration(),
             Use => self.parse_use(),
-            Fun => self.parse_function_declaration().map(Expr::FunctionDeclaration),
+            Fun => self
+                .parse_function_declaration()
+                .map(Expr::FunctionDeclaration),
 
             While => self.parse_while().map(Expr::While),
             Loop => self.parse_loop().map(Expr::Loop),
@@ -160,8 +162,7 @@ impl<'a> Parser<'a> {
         match pivot {
             If => self.parse_if(Parser::statement).map(Expr::If),
             Match => self.parse_match(Parser::statement).map(Expr::Match),
-            Identifier if self.is_at_constructor_start() => self.constructor(),
-            Identifier | Quote | DoubleQuote => self.call(),
+            Identifier | Quote | DoubleQuote => self.any_call(),
 
             _ if pivot.is_bin_operator() => self.call(),
 
@@ -187,6 +188,7 @@ impl<'a> Parser<'a> {
                 self.cursor.next()?;
                 Ok(Expr::Break)
             }
+            Return => self.parse_return().map(Expr::Return),
 
             Not => self.not(Parser::next_expression_statement),
 
@@ -207,11 +209,11 @@ impl<'a> Parser<'a> {
             //expression that can also be used as values
             If => self.parse_if(Parser::value).map(Expr::If),
             Match => self.parse_match(Parser::value).map(Expr::Match),
-            Identifier if self.is_at_constructor_start() => self.constructor(),
+            Identifier if self.may_be_at_programmatic_call_start() => self.programmatic_call(),
 
             //test expressions has nothing to do in a value expression.
             SquaredLeftBracket => self.expected("Unexpected start of test expression", Unexpected),
-            _ => self.literal(),
+            _ => self.literal(LiteralLeniency::Strict),
         }
     }
 
@@ -265,7 +267,7 @@ impl<'a> Parser<'a> {
         } else {
             self.expected(
                 "Unexpected closing delimiter.",
-                ParseErrorKind::Excepted(eog.str().unwrap_or("specific token")),
+                ParseErrorKind::Expected(eog.str().unwrap_or("specific token").to_string()),
             )
         }
     }
@@ -308,7 +310,7 @@ impl<'a> Parser<'a> {
                     .binary_operation_right(expr, Parser::next_value)
                     .is_ok()
                 {
-                    let end_pos = self.cursor.relative_pos(&self.cursor.peek()).end;
+                    let end_pos = self.cursor.relative_pos(self.cursor.peek()).end;
                     let slice = &self.source.source[start_pos..end_pos];
                     return self.expected_with(
                         "Binary operations must be enclosed in a value expression.",

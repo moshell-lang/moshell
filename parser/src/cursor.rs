@@ -134,7 +134,7 @@ impl<'a> ParserCursor<'a> {
 
     /// Create a new parse error with the given message and context.
     ///
-    /// The [`excepted`](Parser::expected_with) method wraps the error in a [`Err`].
+    /// The [`expected`](Parser#expected_with) method wraps the error in a [`Err`].
     pub fn mk_parse_error(
         &self,
         message: impl Into<String>,
@@ -170,8 +170,7 @@ impl<'a> ParserCursor<'a> {
         let start = (context.from.as_ptr() as usize)
             .checked_sub(self.source.as_ptr() as usize)
             .expect("Context start is not contained in the source code.");
-        let end = context.to.as_ptr() as usize + context.to.len() as usize
-            - self.source.as_ptr() as usize;
+        let end = context.to.as_ptr() as usize + context.to.len() - self.source.as_ptr() as usize;
         start..end
     }
 }

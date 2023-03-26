@@ -173,7 +173,7 @@ mod tests {
             ast,
             Expr::Parenthesis(Parenthesis {
                 expression: Box::new(Expr::Binary(BinaryOperation {
-                    left: Box::new(Expr::VarReference(VarReference { name: "a".into() })),
+                    left: Box::new(Expr::VarReference(VarReference { name: "a" })),
                     op: BinaryOperator::Plus,
                     right: Box::new(Expr::Literal(Literal {
                         lexeme: "1",
