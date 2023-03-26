@@ -22,7 +22,7 @@ impl<'a> Analyzer<'a> {
 
     pub fn analyze_all(&mut self, expr: &Expr) -> Option<TypeScheme> {
         let mut environment = Environment::default();
-        environment.context_mut().fill_with_builtins();
+        environment.types.fill_with_builtins();
         let ret = self.analyze(&mut environment, expr);
         ret.map(|ty| environment.context().extract(ty)).flatten()
     }
@@ -52,10 +52,7 @@ impl<'a> Analyzer<'a> {
                 if let Some(type_hint) = decl.var.ty.as_ref() {
                     if let Ok(actual_type) = environment.context().resolve(&(type_hint.into())) {
                         if let Some(initializer_type) = initializer_type {
-                            match environment
-                                .context_mut()
-                                .unify(initializer_type, actual_type)
-                            {
+                            match environment.types.unify(initializer_type, actual_type) {
                                 Ok(_) => {}
                                 Err(message) => self.diagnostics.push(Diagnostic { message }),
                             }
@@ -69,7 +66,7 @@ impl<'a> Analyzer<'a> {
                 let var = environment.add_local(decl.var.name);
                 if let Some(initializer_type) = initializer_type {
                     environment
-                        .context_mut()
+                        .types
                         .extend(var, Type::Variable(initializer_type));
                 }
                 Some(environment.emit_nil())
@@ -113,7 +110,7 @@ impl<'a> Analyzer<'a> {
             Expr::Binary(bin) => {
                 let left = self.analyze(environment, &bin.left)?;
                 let right = self.analyze(environment, &bin.right)?;
-                if let Ok(unified) = environment.context_mut().unify(left, right) {
+                if let Ok(unified) = environment.types.unify(left, right) {
                     Some(unified)
                 } else {
                     self.diagnostics.push(Diagnostic {
@@ -132,14 +129,14 @@ impl<'a> Analyzer<'a> {
                 last
             }
             Expr::FunctionDeclaration(fun) => {
-                let mut nested_environment = environment.clone();
+                let mut nested_environment = environment.fork();
                 let mut arg_types = Vec::new();
                 for param in &fun.parameters {
                     let param = match param {
                         FunctionParameter::Named(param) => param,
                         _ => todo!("FunctionParameter::Variadic"),
                     };
-                    let arg_type = environment.add_local(param.name);
+                    let arg_type = nested_environment.add_local(param.name);
                     arg_types.push(arg_type);
                 }
                 let ret_type = self.analyze(&mut nested_environment, &fun.body)?;

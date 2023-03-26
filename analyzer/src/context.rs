@@ -7,7 +7,7 @@ use indexmap::IndexMap;
 ///
 /// Contexts track substitutions and generate fresh type variables.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct Context {
+pub struct Context<'a> {
     /// Records the type of each class by name.
     classes: IndexMap<String, Variable>,
 
@@ -19,9 +19,12 @@ pub struct Context {
 
     /// A counter used to generate fresh variables.
     next: usize,
+
+    /// The parent context.
+    parent: Option<&'a Context<'a>>,
 }
 
-impl Context {
+impl Context<'_> {
     pub fn fill_with_builtins(&mut self) {
         self.define("Bool".to_owned(), bool_type());
         self.define("Int".to_owned(), int_type());
@@ -60,7 +63,10 @@ impl Context {
         match self.substitution.get(&var) {
             Some(TypeScheme::Monotype(t)) => t,
             Some(TypeScheme::Polytype { .. }) => todo!("apply polytype"),
-            None => panic!("Unknown variable {var}"),
+            None => match self.parent {
+                Some(parent) => parent.apply(var),
+                None => panic!("unbound variable: {}", var.0),
+            },
         }
     }
 
@@ -81,7 +87,7 @@ impl Context {
             Some(class) => Some(class),
             None => match self.substitution.get(&var) {
                 Some(TypeScheme::Monotype(Type::Variable(var))) => self.lookup_definition(*var),
-                _ => None,
+                _ => self.parent.and_then(|parent| parent.lookup_definition(var)),
             },
         }
     }
@@ -121,6 +127,14 @@ impl Context {
         let t = self.unify_internal(self.apply(t1), self.apply(t2))?;
         self.extend(var, t);
         Ok(var)
+    }
+
+    pub(crate) fn fork(&self) -> Context {
+        Context {
+            next: self.next + 32,
+            parent: Some(self),
+            ..Default::default()
+        }
     }
 
     fn unify_internal(&self, t1: &Type, t2: &Type) -> Result<Type, String> {

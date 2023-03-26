@@ -21,18 +21,21 @@
 use crate::classes::ClassType;
 use crate::context::Context;
 use crate::types::{Type, TypeScheme, Variable};
+use std::default::Default;
 
 /// A variable environment.
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct Environment {
+pub struct Environment<'a> {
     /// The type context.
-    types: Context,
+    pub(crate) types: Context<'a>,
 
     /// The local variables.
     locals: Vec<Local>,
 
     /// The current scope depth.
     scope_depth: usize,
+
+    parent: Option<&'a Environment<'a>>,
 }
 
 /// A local variable.
@@ -51,7 +54,7 @@ struct Local {
     depth: usize,
 }
 
-impl Environment {
+impl<'a> Environment<'a> {
     pub fn top_level() -> Self {
         let mut env = Self::default();
         env.types.fill_with_builtins();
@@ -67,6 +70,7 @@ impl Environment {
             .rev()
             .find(|local| local.name == key && local.depth <= self.scope_depth)
             .map(|local| local.ty)
+            .or_else(|| self.parent.and_then(|p| p.lookup(key)))
     }
 
     pub fn lookup_type(&self, key: &str) -> Option<Type> {
@@ -118,26 +122,20 @@ impl Environment {
     }
 
     pub(crate) fn emit_string(&self) -> Variable {
-        self.types
-            .lookup_class_name("Str")
-            .expect("Str class not found")
+        self.lookup_class_name("Str").expect("Str class not found")
     }
 
     pub(crate) fn emit_int(&self) -> Variable {
-        self.types
-            .lookup_class_name("Int")
-            .expect("Int class not found")
+        self.lookup_class_name("Int").expect("Int class not found")
     }
 
     pub(crate) fn emit_float(&self) -> Variable {
-        self.types
-            .lookup_class_name("Float")
+        self.lookup_class_name("Float")
             .expect("Float class not found")
     }
 
     pub(crate) fn emit_nil(&self) -> Variable {
-        self.types
-            .lookup_class_name("Nothing")
+        self.lookup_class_name("Nothing")
             .expect("Nothing class not found")
     }
 
@@ -151,7 +149,18 @@ impl Environment {
         &self.types
     }
 
-    pub(crate) fn context_mut(&mut self) -> &mut Context {
-        &mut self.types
+    pub(crate) fn fork(&'a self) -> Environment<'a> {
+        Self {
+            types: self.types.fork(),
+            parent: Some(self),
+            ..Self::default()
+        }
+    }
+
+    pub(crate) fn lookup_class_name(&self, name: &str) -> Option<Variable> {
+        match self.types.lookup_class_name(name) {
+            Some(var) => Some(var),
+            None => self.parent.and_then(|p| p.lookup_class_name(name)),
+        }
     }
 }
