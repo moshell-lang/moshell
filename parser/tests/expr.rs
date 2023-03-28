@@ -56,7 +56,7 @@ fn lambda_in_val() {
                 args: vec![TypedVariable {
                     name: "a",
                     ty: None,
-                },],
+                }, ],
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::VarReference(VarReference { name: "a" })),
                     op: BinaryOperator::Plus,
@@ -66,6 +66,24 @@ fn lambda_in_val() {
         })]
     );
 }
+
+#[test]
+fn lambda_empty_params() {
+    let source = Source::unknown("() => $a + $b");
+    let parsed = parse(source).expect("Failed to parse.");
+    assert_eq!(
+        parsed,
+        vec![Expr::LambdaDef(LambdaDef {
+            args: vec![],
+            body: Box::new(Expr::Binary(BinaryOperation {
+                left: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                op: BinaryOperator::Plus,
+                right: Box::new(Expr::VarReference(VarReference { name: "b" })),
+            })),
+        })]
+    );
+}
+
 
 #[test]
 fn lambda_in_classic_call() {

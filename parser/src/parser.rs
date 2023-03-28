@@ -179,7 +179,7 @@ impl<'a> Parser<'a> {
         let pivot = self.cursor.peek().token_type;
         match pivot {
             //if we are parsing an expression, then we want to see a parenthesised expr as a subshell expression
-            RoundedLeftBracket => self.subshell().map(Expr::Subshell),
+            RoundedLeftBracket => self.subshell_or_parentheses(),
             SquaredLeftBracket => self.parse_test(),
 
             Continue => {
@@ -245,6 +245,18 @@ impl<'a> Parser<'a> {
             Err(_) => {
                 self.cursor.repos(initial);
                 self.parenthesis().map(Expr::Parenthesis)
+            }
+        }
+    }
+
+    ///handle tricky case of lambda `(e) => x` and subshell `(e)`
+    fn subshell_or_parentheses(&mut self) -> ParseResult<Expr<'a>> {
+        let initial = self.cursor.get_pos();
+        match self.parse_lambda_definition() {
+            Ok(def) => Ok(Expr::LambdaDef(def)),
+            Err(_) => {
+                self.cursor.repos(initial);
+                self.subshell().map(Expr::Subshell)
             }
         }
     }
