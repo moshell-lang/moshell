@@ -1,30 +1,32 @@
-use crate::types::{DefinedType};
+use crate::types::{DefinedType, ParametrizedType};
 
+//LANG TYPES
 pub fn unit() -> DefinedType {
-    DefinedType::cons("Unit")
+    DefinedType::Parametrized(ParametrizedType::cons("Unit"))
 }
 
 pub fn int() -> DefinedType {
-    DefinedType::cons("Int")
+    DefinedType::Parametrized(ParametrizedType::cons("Int"))
 }
 
 pub fn float() -> DefinedType {
-    DefinedType::cons("Float")
+    DefinedType::Parametrized(ParametrizedType::cons("Float"))
 }
 
 pub fn exitcode() -> DefinedType {
-    DefinedType::cons("Exitcode")
+    DefinedType::Parametrized(ParametrizedType::cons("Exitcode"))
 }
 
 pub fn str() -> DefinedType {
-    DefinedType::cons("Str")
+    DefinedType::Parametrized(ParametrizedType::cons("Str"))
 }
 
 pub fn bool() -> DefinedType {
-    DefinedType::cons("Bool")
+    DefinedType::Parametrized(ParametrizedType::cons("Bool"))
 }
 
-
+//STD TYPES
+//TODO: Option, List, Iterable, Try, Ok, Err, None, Some
 
 
 

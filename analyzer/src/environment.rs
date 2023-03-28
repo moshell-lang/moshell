@@ -22,6 +22,7 @@ use crate::classes::ClassType;
 use crate::context::Context;
 use crate::types::Type;
 use std::default::Default;
+use std::rc::Rc;
 use crate::types::Type::Unknown;
 
 /// A variable environment.

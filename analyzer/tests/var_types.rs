@@ -10,7 +10,7 @@ fn int_literals_are_const() {
     let result = analyze(source).expect("Failed to analyze");
     assert_eq!(
         result,
-        Type::Defined(int())
+        Type::Parametrized(int())
     );
 }
 
@@ -20,7 +20,7 @@ fn const_plus_const_is_const() {
     let result = analyze(source).expect("Failed to analyze");
     assert_eq!(
         result,
-        Type::Defined(int())
+        Type::Parametrized(int())
     );
 }
 
@@ -63,7 +63,7 @@ fn int_to_float() {
     let result = analyze(source).expect("Failed to analyze");
     assert_eq!(
         result,
-        Type::Defined(float())
+        Type::Parametrized(float())
     );
 }
 

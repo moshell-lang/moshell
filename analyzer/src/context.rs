@@ -1,6 +1,8 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use crate::classes::ClassType;
-use crate::types::{DefinedType, Type};
+use crate::types::{DefinedType, ParametrizedType, Type};
 use crate::builtin_types::*;
 
 /// A type environment.
@@ -9,42 +11,61 @@ use crate::builtin_types::*;
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Context<'a> {
     /// Records the type of each class by name.
-    classes: HashMap<DefinedType, ClassType>,
+    classes: HashMap<DefinedType, Rc<ClassType>>,
 
     parent: Option<&'a Context<'a>>,
 }
+
+
 
 impl<'a> Context<'a> {
     pub fn lang() -> Self {
         let mut ctx = Context::default();
 
-        ctx.classes.insert(float(), ClassType::cons(float()));
-        ctx.classes.insert(bool(), ClassType::cons(bool()));
-        ctx.classes.insert(str(), ClassType::cons(str()));
-        ctx.classes.insert(unit(), ClassType::cons(unit()));
+        const MSG: &str = "lang type registration";
 
-        ctx.register_specialized(float(), int()).expect("lang type registration");
-        ctx.register_specialized(int(), exitcode()).expect("lang type registration");
+        ctx.define_root(float()).expect(MSG);
+        ctx.define_root(bool()).expect(MSG);
+        ctx.define_root(str()).expect(MSG);
+        ctx.define_root(unit()).expect(MSG);
+
+        ctx.define_specialized(float(), int()).expect(MSG);
+        ctx.define_specialized(int(), exitcode()).expect(MSG);
 
         ctx
     }
 
 
     /// Creates and registers a new ClassType for given type, the given type must be subtype of given type
-    pub fn register_specialized(&mut self, super_type: DefinedType, registered: DefinedType) -> Result<(), String> {
+    pub fn define_specialized(&mut self, super_type: DefinedType, registered: DefinedType) -> Result<(), String> {
         if self.classes.contains_key(&registered) {
-            return Err(format!("type already contained in context {}", registered.name).to_owned())
+            return Err(format!("type already contained in context {}", registered).to_owned())
         }
+
+        let sup = self.lookup_definition(&super_type)?;
 
         self.classes.insert(
             registered.clone(),
-            ClassType {
-                base: registered.clone(),
-                constraint_type: Some(super_type),
+            Rc::new(ClassType {
+                base: registered,
+                super_type: Some(sup.clone()),
+            }),
+        );
+        Ok(())
+    }
 
-                callable: None,
-                params: registered.params,
-            },
+    /// Creates and registers a new ClassType for given type, the given type must be subtype of given type
+    fn define_root(&mut self, root: DefinedType) -> Result<(), String> {
+        if self.classes.contains_key(&root) {
+            return Err(format!("type already contained in context {}", root).to_owned())
+        }
+
+        self.classes.insert(
+            root.clone(),
+            Rc::new(ClassType {
+                base: root,
+                super_type: None,
+            }),
         );
         Ok(())
     }
@@ -52,7 +73,7 @@ impl<'a> Context<'a> {
     ///perform a class type lookup based on the defined type.
     /// If the type is not directly found in this context, then the context
     /// will lookup in parent's context.
-    pub fn lookup_definition(&'a self, tpe: &DefinedType) -> Result<&'a ClassType, String> {
+    pub fn lookup_definition(&self, tpe: &DefinedType) -> Result<&Rc<ClassType>, String> {
         match self.classes.get(&tpe) {
             Some(v) => Ok(v),
             None => {
@@ -115,20 +136,21 @@ impl<'a> Context<'a> {
             (Type::Unknown, _) => Ok(Type::Unknown),
             (_, Type::Unknown) => Ok(Type::Unknown),
 
-            (Type::Defined(def1), Type::Defined(def2)) => {
-                let cl1 = self.lookup_definition(def1)?;
+            (Type::Defined(def1 @ DefinedType::Parametrized(_)),
+                Type::Defined(def2 @ DefinedType::Parametrized(_))) => {
+                let cl1 = self.lookup_definition(&def1)?;
 
                 cl1.unify_base(self, def2)
                     .and_then(|opt|
                         opt.map(Type::Defined)
                             .ok_or("Type 1 and Type 2 are not inferable".to_owned())
                     )
-
             }
-            (Type::Callable(_), _) => {
+
+            (Type::Defined(DefinedType::Callable(_)), _) => {
                 Err("Cannot handle callables yet".to_owned())
             }
-            (_, Type::Callable(_)) => {
+            (_, Type::Defined(DefinedType::Callable(_))) => {
                 Err("Cannot handle callables yet".to_owned())
             }
             (_, _) => Err(format!("Incompatible types {:?} and {:?}", t1, t2))
