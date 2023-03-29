@@ -18,7 +18,6 @@
 ///!     echo $n;
 ///! }
 ///! ```
-use crate::classes::ClassType;
 use crate::context::Context;
 use crate::types::Type;
 use std::default::Default;
@@ -29,7 +28,7 @@ use crate::types::Type::Unknown;
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Environment<'a> {
     /// The type context.
-    pub(crate) types: Context<'a>,
+    pub(crate) types: Rc<Context<'a>>,
 
     /// The local variables.
     locals: Vec<Local>,
@@ -97,7 +96,7 @@ impl<'a> Environment<'a> {
 
     pub(crate) fn fork(&'a self) -> Environment<'a> {
         Self {
-            types: self.types.fork(),
+            types: Rc::new(self.types.fork()),
             parent: Some(self),
             ..Self::default()
         }

@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use crate::classes::ClassType;
-use crate::types::{DefinedType, ParametrizedType, Type};
+use crate::types::{DefinedType, ParameterizedType, Type};
 use crate::builtin_types::*;
 
 /// A type environment.
@@ -11,7 +11,7 @@ use crate::builtin_types::*;
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Context<'a> {
     /// Records the type of each class by name.
-    classes: HashMap<DefinedType, Rc<ClassType>>,
+    classes: HashMap<DefinedType, Rc<ClassType<'a>>>,
 
     parent: Option<&'a Context<'a>>,
 }
@@ -19,8 +19,8 @@ pub struct Context<'a> {
 
 
 impl<'a> Context<'a> {
-    pub fn lang() -> Self {
-        let mut ctx = Context::default();
+    pub fn lang() -> Rc<Self> {
+        let mut ctx = Rc::new(Context::default());
 
         const MSG: &str = "lang type registration";
 
@@ -37,7 +37,7 @@ impl<'a> Context<'a> {
 
 
     /// Creates and registers a new ClassType for given type, the given type must be subtype of given type
-    pub fn define_specialized(&mut self, super_type: DefinedType, registered: DefinedType) -> Result<(), String> {
+    pub fn define_specialized(self: &Rc<Self>, super_type: DefinedType, registered: DefinedType) -> Result<(), String> {
         if self.classes.contains_key(&registered) {
             return Err(format!("type already contained in context {}", registered).to_owned())
         }
@@ -49,13 +49,14 @@ impl<'a> Context<'a> {
             Rc::new(ClassType {
                 base: registered,
                 super_type: Some(sup.clone()),
+                ctx: self.clone(),
             }),
         );
         Ok(())
     }
 
     /// Creates and registers a new ClassType for given type, the given type must be subtype of given type
-    fn define_root(&mut self, root: DefinedType) -> Result<(), String> {
+    fn define_root(self: &Rc<Self>, root: DefinedType) -> Result<(), String> {
         if self.classes.contains_key(&root) {
             return Err(format!("type already contained in context {}", root).to_owned())
         }
@@ -65,6 +66,7 @@ impl<'a> Context<'a> {
             Rc::new(ClassType {
                 base: root,
                 super_type: None,
+                ctx: self.clone(),
             }),
         );
         Ok(())
@@ -136,8 +138,8 @@ impl<'a> Context<'a> {
             (Type::Unknown, _) => Ok(Type::Unknown),
             (_, Type::Unknown) => Ok(Type::Unknown),
 
-            (Type::Defined(def1 @ DefinedType::Parametrized(_)),
-                Type::Defined(def2 @ DefinedType::Parametrized(_))) => {
+            (Type::Defined(def1 @ DefinedType::Parameterized(_)),
+                Type::Defined(def2 @ DefinedType::Parameterized(_))) => {
                 let cl1 = self.lookup_definition(&def1)?;
 
                 cl1.unify_base(self, def2)

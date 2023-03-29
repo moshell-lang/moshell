@@ -3,12 +3,12 @@ use crate::builtin_types::unit;
 use std::fmt::{Debug, Display, Formatter, Pointer, Write, write};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct ParametrizedType {
+pub struct ParameterizedType {
     pub name: String,
     pub params: Vec<Type>,
 }
 
-impl ParametrizedType {
+impl ParameterizedType {
     pub fn cons(name: &str) -> Self {
         Self::parametrized(name, Vec::new())
     }
@@ -21,7 +21,7 @@ impl ParametrizedType {
     }
 }
 
-impl Display for ParametrizedType {
+impl Display for ParameterizedType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.name)?;
         if !self.params.is_empty() {
@@ -62,7 +62,7 @@ pub enum Type {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum DefinedType {
     /// parametrized or constant types (`List[A]`, `List[Str]`, `Int`).
-    Parametrized(ParametrizedType),
+    Parameterized(ParameterizedType),
 
     ///Type for callables, functions or lambdas, with inputs and output
     Callable(CallableType)
@@ -81,7 +81,7 @@ impl Display for Type {
 impl Display for DefinedType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            DefinedType::Parametrized(p) => write!(f, "{}", p),
+            DefinedType::Parameterized(p) => write!(f, "{}", p),
             DefinedType::Callable(c) => write!(f, "{}", c)
         }
     }
@@ -90,8 +90,8 @@ impl Display for DefinedType {
 impl<'a> From<ast::r#type::Type<'a>> for Type {
     fn from(value: ast::r#type::Type<'a>) -> Self {
         match value {
-            ast::r#type::Type::Simple(s) => Type::Defined(DefinedType::Parametrized(
-                ParametrizedType::parametrized(
+            ast::r#type::Type::Simple(s) => Type::Defined(DefinedType::Parameterized(
+                ParameterizedType::parametrized(
                     s.name,
                     s.params.into_iter().map(|t| t.into()).collect(),
                 )

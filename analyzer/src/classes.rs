@@ -3,15 +3,18 @@ use crate::context::Context;
 use crate::types::{DefinedType};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ClassType {
+pub struct ClassType<'a> {
     ///The super type of this class
-    pub super_type: Option<Rc<ClassType>>,
+    pub super_type: Option<Rc<ClassType<'a>>>,
 
     /// The class type's base definition
     pub base: DefinedType,
+
+    /// The initial context of the class type
+    pub ctx: Rc<Context<'a>>,
 }
 
-impl ClassType {
+impl<'a> ClassType<'a> {
     ///Finds largest base type possible with given class (if possible)
     pub fn unify_base(self: &Rc<Self>, ctx: &Context, other: &DefinedType) -> Result<Option<DefinedType>, String> {
         let mut self_lineage = Some(self);
