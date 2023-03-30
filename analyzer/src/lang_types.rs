@@ -25,8 +25,5 @@ pub fn bool() -> DefinedType {
     DefinedType::Parameterized(ParameterizedType::cons("Bool"))
 }
 
-//STD TYPES
-//TODO: Option, List, Iterable, Try, Ok, Err, None, Some
-
 
 

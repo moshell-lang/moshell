@@ -1,5 +1,5 @@
 use std::rc::Rc;
-use crate::context::Context;
+use crate::context::TypeContext;
 use crate::types::{DefinedType};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -15,7 +15,7 @@ pub struct ClassType {
 
 impl ClassType {
     ///Finds largest base type possible with given class (if possible)
-    pub fn unify_base(self: Rc<Self>, ctx: &Context, other: &DefinedType) -> Result<Option<DefinedType>, String> {
+    pub fn unify_base(self: Rc<Self>, ctx: &TypeContext, other: &DefinedType) -> Result<Option<DefinedType>, String> {
         let mut self_lineage = Some(self.clone());
 
         let other_class = ctx.lookup_definition(other)?;

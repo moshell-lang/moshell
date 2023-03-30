@@ -1,6 +1,6 @@
 use compiler::environment::Environment;
 use compiler::{analyze, Diagnostic};
-use compiler::builtin_types::{float, int};
+use compiler::lang_types::{float, int};
 use compiler::types::Type;
 use context::source::Source;
 

@@ -18,22 +18,27 @@
 ///!     echo $n;
 ///! }
 ///! ```
-use crate::context::Context;
+use crate::context::TypeContext;
 use crate::types::Type;
 use std::default::Default;
 use std::rc::Rc;
 use crate::types::Type::Unknown;
 
-/// A variable environment.
+/// An environment.
+/// The Environment contains the defined types, variables, structure and function definitions of a certain scope.
+/// It can have dependencies over other dependences.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Environment<'a> {
+    identity: usize,
+
     /// The type context.
-    pub(crate) types: Context<'a>,
+    pub(crate) types: TypeContext<'a>,
 
     /// The local variables.
     locals: Vec<Local>,
 
-    parent: Option<&'a Environment<'a>>,
+    ///All the direct dependencies of the environment.
+    dependencies: Vec<&'a Environment<'a>>
 }
 
 /// A local variable.
@@ -52,21 +57,27 @@ pub struct Local {
 impl<'a> Environment<'a> {
     pub fn lang() -> Self {
         Self {
-            types: Context::lang(),
-            locals: Vec::new(),
-            parent: None
+            types: TypeContext::lang(),
+            ..Self::default()
         }
     }
 
     /// Resolve a variable name, starting from the current scope and going up.
     ///
     /// If the variable is not in scope, `None` is returned.
-    pub fn lookup_local(&self, key: &str) -> Option<&Local> {
+    pub fn lookup_local(&self, name: &str) -> Option<&Local> {
         self.locals
             .iter()
-            .rev()
-            .find(|local| local.name == key)
-            .or_else(|| self.parent.and_then(|p| p.lookup_local(key)))
+            .find(|local| local.name == name)
+            .or_else(|| {
+                let iter = self.dependencies.iter();
+                for dep in iter {
+                    if let Some(local) = dep.lookup_local(name) {
+                        return Some(local)
+                    }
+                }
+                None
+            })
     }
 
 
@@ -90,14 +101,14 @@ impl<'a> Environment<'a> {
     }
 
 
-    pub(crate) fn context(&self) -> &Context {
+    pub(crate) fn context(&self) -> &TypeContext {
         &self.types
     }
 
     pub(crate) fn fork(&'a self) -> Environment<'a> {
         Self {
             types: self.types.fork(),
-            parent: Some(self),
+            dependencies: vec!(self),
             ..Self::default()
         }
     }

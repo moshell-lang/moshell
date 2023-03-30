@@ -5,7 +5,7 @@ mod classes;
 pub mod context;
 pub mod environment;
 pub mod types;
-pub mod builtin_types;
+pub mod lang_types;
 
 use crate::analyzer::Analyzer;
 use crate::types::{Type};

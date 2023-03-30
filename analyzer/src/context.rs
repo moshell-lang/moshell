@@ -1,25 +1,33 @@
 
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Arc;
 use crate::classes::ClassType;
 use crate::types::{DefinedType, Type};
-use crate::builtin_types::*;
+use crate::lang_types::*;
 
 /// A type environment.
 ///
 /// Contexts track substitutions and generate fresh type variables.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct Context<'a> {
+pub struct TypeContext<'a> {
     /// Records the type of each class by name.
     classes: HashMap<DefinedType, Rc<ClassType>>,
 
-    parent: Option<&'a Context<'a>>,
+    dependencies: Vec<&'a TypeContext<'a>>,
 }
 
 
-impl<'a> Context<'a> {
+//as current structures does not handle random accesses, we cannot share type contexts between threads
+//then, we create
+thread_local! {
+    pub static LANG: TypeContext<'static> = TypeContext::lang();
+}
+
+impl<'a> TypeContext<'a> {
+    ///Definitions of the lang type context.
     pub fn lang() -> Self {
-        let mut ctx = Context::default();
+        let mut ctx = TypeContext::default();
 
         const MSG: &str = "lang type registration";
 
@@ -33,7 +41,6 @@ impl<'a> Context<'a> {
 
         ctx
     }
-
 
     /// Creates and registers a new ClassType for given type, the given type must be subtype of given type
     pub fn define_specialized(&mut self, super_type: &DefinedType, registered: DefinedType) -> Result<(), String> {
@@ -79,8 +86,11 @@ impl<'a> Context<'a> {
         match self.classes.get(&tpe) {
             Some(v) => Ok(v.clone()),
             None => {
-                if let Some(parent) = self.parent {
-                    return parent.lookup_definition(tpe)
+                let iter = self.dependencies.iter();
+                for dep in iter {
+                    if let Some(found) = dep.lookup_definition(tpe).ok() {
+                        return Ok(found)
+                    }
                 }
                 Err("Unknown type".to_owned())
             }
@@ -122,9 +132,9 @@ impl<'a> Context<'a> {
         self.unify_internal(t1, t2)
     }
 
-    pub(crate) fn fork(&self) -> Context {
-        Context {
-            parent: Some(self),
+    pub(crate) fn fork(&self) -> TypeContext {
+        TypeContext {
+            dependencies: vec!(self),
             ..Default::default()
         }
     }

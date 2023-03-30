@@ -6,7 +6,7 @@ use ast::function::FunctionParameter;
 use ast::value::LiteralValue;
 use ast::Expr;
 use context::source::Source;
-use crate::builtin_types::{float, int, str, unit};
+use crate::lang_types::{float, int, str, unit};
 
 pub struct Analyzer<'a> {
     pub source: Source<'a>,
