@@ -1,6 +1,11 @@
 use crate::types::{DefinedType, ParameterizedType};
 
 //LANG TYPES
+
+pub fn any() -> DefinedType {
+    DefinedType::Parameterized(ParameterizedType::cons("Any"))
+}
+
 pub fn unit() -> DefinedType {
     DefinedType::Parameterized(ParameterizedType::cons("Unit"))
 }

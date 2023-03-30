@@ -18,10 +18,11 @@
 ///!     echo $n;
 ///! }
 ///! ```
-use crate::context::TypeContext;
+use crate::type_context::TypeContext;
 use crate::types::Type;
 use std::default::Default;
 use std::rc::Rc;
+use crate::local::Local;
 use crate::types::Type::Unknown;
 
 /// An environment.
@@ -29,10 +30,8 @@ use crate::types::Type::Unknown;
 /// It can have dependencies over other dependences.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Environment<'a> {
-    identity: usize,
-
     /// The type context.
-    pub(crate) types: TypeContext<'a>,
+    pub types: TypeContext<'a>,
 
     /// The local variables.
     locals: Vec<Local>,
@@ -41,18 +40,6 @@ pub struct Environment<'a> {
     dependencies: Vec<&'a Environment<'a>>
 }
 
-/// A local variable.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Local {
-    /// The name of the variable.
-    pub name: String,
-
-    /// The type of the variable.
-    pub ty: Type,
-
-    /// Whether the variable has been initialized.
-    pub is_initialized: bool,
-}
 
 impl<'a> Environment<'a> {
     pub fn lang() -> Self {
@@ -61,6 +48,7 @@ impl<'a> Environment<'a> {
             ..Self::default()
         }
     }
+
 
     /// Resolve a variable name, starting from the current scope and going up.
     ///
@@ -101,9 +89,6 @@ impl<'a> Environment<'a> {
     }
 
 
-    pub(crate) fn context(&self) -> &TypeContext {
-        &self.types
-    }
 
     pub(crate) fn fork(&'a self) -> Environment<'a> {
         Self {

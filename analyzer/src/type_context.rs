@@ -1,8 +1,9 @@
-
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::hash::Hash;
 use std::rc::Rc;
 use std::sync::Arc;
-use crate::classes::ClassType;
+use crate::class::ClassType;
 use crate::types::{DefinedType, Type};
 use crate::lang_types::*;
 
@@ -31,50 +32,30 @@ impl<'a> TypeContext<'a> {
 
         const MSG: &str = "lang type registration";
 
-        ctx.define_root(float()).expect(MSG);
-        ctx.define_root(bool()).expect(MSG);
-        ctx.define_root(str()).expect(MSG);
-        ctx.define_root(unit()).expect(MSG);
+        ctx.classes.insert(any(), Rc::new(ClassType::new(None, any())));
+        ctx.define_class(&any(), float()).expect(MSG);
+        ctx.define_class(&any(), bool()).expect(MSG);
+        ctx.define_class(&any(), str()).expect(MSG);
+        ctx.define_class(&any(), unit()).expect(MSG);
 
-        ctx.define_specialized(&float(), int()).expect(MSG);
-        ctx.define_specialized(&int(), exitcode()).expect(MSG);
+        ctx.define_class(&float(), int()).expect(MSG);
+        ctx.define_class(&int(), exitcode()).expect(MSG);
 
         ctx
     }
 
     /// Creates and registers a new ClassType for given type, the given type must be subtype of given type
-    pub fn define_specialized(&mut self, super_type: &DefinedType, registered: DefinedType) -> Result<(), String> {
+    pub fn define_class(&mut self, super_type: &DefinedType, registered: DefinedType) -> Result<(), String> {
         if self.classes.contains_key(&registered) {
             return Err(format!("type already contained in context {}", registered).to_owned())
         }
 
         let sup = self.lookup_definition(super_type)?;
 
+
         self.classes.insert(
             registered.clone(),
-            Rc::new(ClassType {
-                base: registered,
-                super_type: Some(sup.clone()),
-                identity: 0,
-            }),
-        );
-        Ok(())
-    }
-
-
-    /// Creates and registers a new ClassType for given type, the given type must be subtype of given type
-    fn define_root(&mut self, root: DefinedType) -> Result<(), String> {
-        if self.classes.contains_key(&root) {
-            return Err(format!("type already contained in context {}", root).to_owned())
-        }
-
-        self.classes.insert(
-            root.clone(),
-            Rc::new(ClassType {
-                base: root,
-                super_type: None,
-                identity: 0,
-            }),
+            Rc::new(ClassType::new(Some(sup), registered)),
         );
         Ok(())
     }

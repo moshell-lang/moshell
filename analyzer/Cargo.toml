@@ -10,3 +10,6 @@ context = { path = "../context" }
 parser = { path = "../parser" }
 ast = { path = "../ast" }
 indexmap = "1.9.2"
+
+[dev-dependencies]
+pretty_assertions = "1.3.0"
