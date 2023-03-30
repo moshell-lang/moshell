@@ -3,36 +3,32 @@ use crate::context::Context;
 use crate::types::{DefinedType};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ClassType<'a> {
+pub struct ClassType {
     ///The super type of this class
-    pub super_type: Option<Rc<ClassType<'a>>>,
+    pub super_type: Option<Rc<ClassType>>,
 
     /// The class type's base definition
     pub base: DefinedType,
 
-    /// The initial context of the class type
-    pub ctx: Rc<Context<'a>>,
+    pub identity: usize
 }
 
-impl<'a> ClassType<'a> {
+impl ClassType {
     ///Finds largest base type possible with given class (if possible)
-    pub fn unify_base(self: &Rc<Self>, ctx: &Context, other: &DefinedType) -> Result<Option<DefinedType>, String> {
-        let mut self_lineage = Some(self);
+    pub fn unify_base(self: Rc<Self>, ctx: &Context, other: &DefinedType) -> Result<Option<DefinedType>, String> {
+        let mut self_lineage = Some(self.clone());
 
-        let other = ctx.lookup_definition(other)?;
+        let other_class = ctx.lookup_definition(other)?;
 
         while let Some(self_lng) = self_lineage {
-            if (&self_lng.base).eq(&other.base) {
-                return Ok(Some((&other.base).clone()));
-            }
             self_lineage = if let Some(st) = &self_lng.super_type {
-                ctx.lookup_definition(&st.base).ok()
+                Some(ctx.lookup_definition(&st.base)?)
             } else {
                 None
             }
         }
 
-        if let Some(other_super) = &other.super_type {
+        if let Some(other_super) = &other_class.super_type {
             return self.unify_base(ctx, &other_super.base);
         }
         Ok(None)

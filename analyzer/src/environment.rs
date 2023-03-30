@@ -28,7 +28,7 @@ use crate::types::Type::Unknown;
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Environment<'a> {
     /// The type context.
-    pub(crate) types: Rc<Context<'a>>,
+    pub(crate) types: Context<'a>,
 
     /// The local variables.
     locals: Vec<Local>,
@@ -96,7 +96,7 @@ impl<'a> Environment<'a> {
 
     pub(crate) fn fork(&'a self) -> Environment<'a> {
         Self {
-            types: Rc::new(self.types.fork()),
+            types: self.types.fork(),
             parent: Some(self),
             ..Self::default()
         }

@@ -1,8 +1,8 @@
-use std::cell::RefCell;
+
 use std::collections::HashMap;
 use std::rc::Rc;
 use crate::classes::ClassType;
-use crate::types::{DefinedType, ParameterizedType, Type};
+use crate::types::{DefinedType, Type};
 use crate::builtin_types::*;
 
 /// A type environment.
@@ -11,16 +11,15 @@ use crate::builtin_types::*;
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Context<'a> {
     /// Records the type of each class by name.
-    classes: HashMap<DefinedType, Rc<ClassType<'a>>>,
+    classes: HashMap<DefinedType, Rc<ClassType>>,
 
     parent: Option<&'a Context<'a>>,
 }
 
 
-
 impl<'a> Context<'a> {
-    pub fn lang() -> Rc<Self> {
-        let mut ctx = Rc::new(Context::default());
+    pub fn lang() -> Self {
+        let mut ctx = Context::default();
 
         const MSG: &str = "lang type registration";
 
@@ -29,34 +28,35 @@ impl<'a> Context<'a> {
         ctx.define_root(str()).expect(MSG);
         ctx.define_root(unit()).expect(MSG);
 
-        ctx.define_specialized(float(), int()).expect(MSG);
-        ctx.define_specialized(int(), exitcode()).expect(MSG);
+        ctx.define_specialized(&float(), int()).expect(MSG);
+        ctx.define_specialized(&int(), exitcode()).expect(MSG);
 
         ctx
     }
 
 
     /// Creates and registers a new ClassType for given type, the given type must be subtype of given type
-    pub fn define_specialized(self: &Rc<Self>, super_type: DefinedType, registered: DefinedType) -> Result<(), String> {
+    pub fn define_specialized(&mut self, super_type: &DefinedType, registered: DefinedType) -> Result<(), String> {
         if self.classes.contains_key(&registered) {
             return Err(format!("type already contained in context {}", registered).to_owned())
         }
 
-        let sup = self.lookup_definition(&super_type)?;
+        let sup = self.lookup_definition(super_type)?;
 
         self.classes.insert(
             registered.clone(),
             Rc::new(ClassType {
                 base: registered,
                 super_type: Some(sup.clone()),
-                ctx: self.clone(),
+                identity: 0,
             }),
         );
         Ok(())
     }
 
+
     /// Creates and registers a new ClassType for given type, the given type must be subtype of given type
-    fn define_root(self: &Rc<Self>, root: DefinedType) -> Result<(), String> {
+    fn define_root(&mut self, root: DefinedType) -> Result<(), String> {
         if self.classes.contains_key(&root) {
             return Err(format!("type already contained in context {}", root).to_owned())
         }
@@ -66,7 +66,7 @@ impl<'a> Context<'a> {
             Rc::new(ClassType {
                 base: root,
                 super_type: None,
-                ctx: self.clone(),
+                identity: 0,
             }),
         );
         Ok(())
@@ -75,9 +75,9 @@ impl<'a> Context<'a> {
     ///perform a class type lookup based on the defined type.
     /// If the type is not directly found in this context, then the context
     /// will lookup in parent's context.
-    pub fn lookup_definition(&self, tpe: &DefinedType) -> Result<&Rc<ClassType>, String> {
+    pub fn lookup_definition(&self, tpe: &DefinedType) -> Result<Rc<ClassType>, String> {
         match self.classes.get(&tpe) {
-            Some(v) => Ok(v),
+            Some(v) => Ok(v.clone()),
             None => {
                 if let Some(parent) = self.parent {
                     return parent.lookup_definition(tpe)
@@ -118,7 +118,7 @@ impl<'a> Context<'a> {
             }
         }
     */
-    pub fn unify(&mut self, t1: &Type, t2: &Type) -> Result<Type, String> {
+    pub fn unify(&self, t1: &Type, t2: &Type) -> Result<Type, String> {
         self.unify_internal(t1, t2)
     }
 
@@ -140,7 +140,7 @@ impl<'a> Context<'a> {
 
             (Type::Defined(def1 @ DefinedType::Parameterized(_)),
                 Type::Defined(def2 @ DefinedType::Parameterized(_))) => {
-                let cl1 = self.lookup_definition(&def1)?;
+                let cl1 = self.lookup_definition(def1)?;
 
                 cl1.unify_base(self, def2)
                     .and_then(|opt|
