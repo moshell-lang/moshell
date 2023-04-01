@@ -25,6 +25,7 @@ impl<'a> Lexer<'a> {
             'v' => self
                 .emit_keyword("ar", TokenType::Var)
                 .or_else(|| self.emit_keyword("al", TokenType::Val)),
+            'w' => self.emit_keyword("hile", TokenType::While),
             _ => None,
         }
     }

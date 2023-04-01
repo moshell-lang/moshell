@@ -74,6 +74,7 @@ impl<'a> Lexer<'a> {
             ')' => TokenType::RoundedRightBracket,
             '{' => TokenType::CurlyLeftBracket,
             '}' => TokenType::CurlyRightBracket,
+            '@' => TokenType::At,
             '$' => TokenType::Dollar,
             ',' => TokenType::Comma,
             '.' => {

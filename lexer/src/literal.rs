@@ -58,7 +58,6 @@ impl<'a> Lexer<'a> {
                 && it.peek().map(|(_, c)| c.is_ascii_digit()).unwrap_or(false)
             {
                 pos = p + 1;
-                it.next();
                 is_float = true;
             } else {
                 break;
@@ -77,7 +76,7 @@ impl<'a> Lexer<'a> {
     pub(crate) fn next_space(&mut self, start_pos: usize, start_char: char) -> Token<'a> {
         let mut pos = start_pos + start_char.len_utf8();
         while let Some((p, c)) = self.iter.peek() {
-            if !c.is_whitespace() {
+            if *c != ' ' && *c != '\t' {
                 break;
             }
             pos = p + c.len_utf8();

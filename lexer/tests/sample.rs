@@ -46,7 +46,7 @@ fn utf8_compatible() {
 
 #[test]
 fn variable_and_initializer() {
-    let tokens = lex("var x = 1+2");
+    let tokens = lex("var x = 1.0+2");
     assert_eq!(
         tokens,
         vec![
@@ -56,7 +56,7 @@ fn variable_and_initializer() {
             Token::new(TokenType::Space, " "),
             Token::new(TokenType::Equal, "="),
             Token::new(TokenType::Space, " "),
-            Token::new(TokenType::IntLiteral, "1"),
+            Token::new(TokenType::FloatLiteral, "1.0"),
             Token::new(TokenType::Plus, "+"),
             Token::new(TokenType::IntLiteral, "2"),
         ]
