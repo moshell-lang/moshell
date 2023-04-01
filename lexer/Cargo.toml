@@ -7,8 +7,7 @@ edition = "2021"
 
 [dependencies]
 dbg-pls = { version = "0.3.5", features = ["derive"] }
-enum-assoc = "0.4.0"
-logos = "0.12.1"
+enum-assoc = "1.0.0"
 
 [dev-dependencies]
 pretty_assertions = "1.3.0"

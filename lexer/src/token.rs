@@ -1,7 +1,6 @@
 use crate::token::TokenType::*;
 use dbg_pls::DebugPls;
 use enum_assoc::Assoc;
-use logos::Logos;
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Token<'a> {
@@ -27,206 +26,144 @@ impl<'a> From<&Token<'a>> for &'a str {
     }
 }
 
-#[derive(Assoc, Logos, Debug, PartialEq, Clone, Copy, DebugPls)]
+#[derive(Assoc, Debug, PartialEq, Clone, Copy, DebugPls)]
 #[func(pub fn str(&self) -> Option<&'static str>)]
 pub enum TokenType {
-    #[token("var")]
     #[assoc(str = "var")]
     Var,
-    #[token("val")]
     #[assoc(str = "val")]
     Val,
 
-    #[regex("[^;:<>|&\\s'\\[\\]\"$\\\\)(*+-/=!;:}{,@}]+")]
     Identifier,
 
-    #[regex("-?[0-9]+", priority = 2)]
     IntLiteral,
-    #[regex("-?[0-9]+\\.[0-9]+")]
     FloatLiteral,
+    StringLiteral,
 
-    #[token("\n")]
     #[assoc(str = "\\n")]
     NewLine,
 
-    #[token("fun")]
     #[assoc(str = "fun")]
     Fun,
-    #[token("use")]
     #[assoc(str = "use")]
     Use,
-    #[token("if")]
     #[assoc(str = "if")]
     If,
-    #[token("else")]
     #[assoc(str = "else")]
     Else,
-    #[token("for")]
     #[assoc(str = "for")]
     For,
-    #[token("in")]
     #[assoc(str = "in")]
     In,
-    #[token("while")]
     #[assoc(str = "while")]
     While,
-    #[token("loop")]
     #[assoc(str = "loop")]
     Loop,
-    #[token("match")]
     #[assoc(str = "match")]
     Match,
 
-    #[token("continue")]
     #[assoc(str = "continue")]
     Continue,
-    #[token("break")]
     #[assoc(str = "break")]
     Break,
-    #[token("return")]
     #[assoc(str = "return")]
     Return,
 
-    #[token("Unit")]
     #[assoc(str = "Unit")]
     Unit,
 
-    #[token("->")]
     #[assoc(str = "->")]
     Arrow,
-    #[token("=>")]
     #[assoc(str = "=>")]
     FatArrow,
 
-    #[token(":")]
     #[assoc(str = ":")]
     Colon,
-    #[token(";")]
     #[assoc(str = ";")]
     SemiColon,
-    #[token("=")]
     #[assoc(str = "=")]
     Equal,
-    #[token("'")]
     #[assoc(str = "'")]
     Quote,
-    #[token("\"")]
     #[assoc(str = "\"")]
     DoubleQuote,
-    #[token("$")]
     #[assoc(str = "$")]
     Dollar,
-    #[token("&")]
     #[assoc(str = "&")]
     Ampersand,
-    #[token("@")]
     #[assoc(str = "@")]
     At,
-    #[token(",")]
     #[assoc(str = ",")]
     Comma,
-    #[token(".")]
     #[assoc(str = ".")]
     Dot,
-    #[token("...")]
     #[assoc(str = "...")]
     Vararg,
-    #[token("..")]
     #[assoc(str = "..")]
     DotDot,
 
-    #[token("|")]
     #[assoc(str = "|")]
     Bar,
 
-    #[token("&&")]
     #[assoc(str = "&&")]
     And,
-    #[token("||")]
     #[assoc(str = "||")]
     Or,
-    #[token("!")]
     #[assoc(str = "!")]
     Not,
 
-    #[token("==")]
     #[assoc(str = "==")]
     EqualEqual,
-    #[token("!=")]
     #[assoc(str = "!=")]
     NotEqual,
-    #[token("<")]
     #[assoc(str = "<")]
     Less,
-    #[token("<=")]
     #[assoc(str = "<=")]
     LessEqual,
-    #[token(">")]
     #[assoc(str = ">")]
     Greater,
-    #[token(">=")]
     #[assoc(str = ">=")]
     GreaterEqual,
 
-    #[token("+=")]
     #[assoc(str = "+=")]
     PlusEqual,
-    #[token("-=")]
     #[assoc(str = "-=")]
     MinusEqual,
-    #[token("*=")]
     #[assoc(str = "*=")]
     StarEqual,
-    #[token("/=")]
     #[assoc(str = "/=")]
     SlashEqual,
-    #[token("%=")]
     #[assoc(str = "%=")]
     ModuloEqual,
 
-    #[token("+")]
     #[assoc(str = "+")]
     Plus,
-    #[token("-")]
     #[assoc(str = "-")]
     Minus,
-    #[token("*")]
     #[assoc(str = "*")]
     Star,
-    #[token("/")]
     #[assoc(str = "/")]
     Slash,
-    #[token("\\")]
     #[assoc(str = "\\")]
     BackSlash,
-    #[token("%")]
     #[assoc(str = "%")]
     Percent,
 
-    #[token("[")]
     #[assoc(str = "[")]
     SquaredLeftBracket,
-    #[token("]")]
     #[assoc(str = "]")]
     SquaredRightBracket,
-    #[token("(")]
     #[assoc(str = "(")]
     RoundedLeftBracket,
-    #[token(")")]
     #[assoc(str = ")")]
     RoundedRightBracket,
-    #[token("{")]
     #[assoc(str = "{")]
     CurlyLeftBracket,
-    #[token("}")]
     #[assoc(str = "}")]
     CurlyRightBracket,
 
-    #[regex(r"[ \t\f]+")]
     Space,
 
-    #[regex("//.*", logos::skip)]
-    #[error]
     Error,
 
     #[assoc(str = "<end of input>")]
