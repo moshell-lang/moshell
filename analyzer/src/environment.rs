@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 ///! The types environment of the compiler.
 ///!
 ///! A environment maps local variable names to their types and keep tracks of scopes.
@@ -19,10 +20,10 @@
 ///! }
 ///! ```
 use std::default::Default;
+use std::rc::Rc;
 use crate::local::Local;
 use crate::types::context::TypeContext;
 use crate::types::types::Type;
-use crate::types::types::Type::Unknown;
 
 /// An environment.
 /// The Environment contains the defined types, variables, structure and function definitions of a certain scope.
@@ -30,7 +31,7 @@ use crate::types::types::Type::Unknown;
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Environment<'a> {
     /// The types context.
-    pub type_context: TypeContext<'a>,
+    pub type_context: Rc<RefCell<TypeContext>>,
 
     /// The local variables.
     locals: Vec<Local>,
@@ -81,7 +82,7 @@ impl<'a> Environment<'a> {
 
     pub(crate) fn fork(&'a self) -> Environment<'a> {
         Self {
-            type_context: self.type_context.fork(),
+            type_context: Rc::new(RefCell::new(TypeContext::fork(self.type_context.clone()))),
             dependencies: vec!(self),
             ..Self::default()
         }

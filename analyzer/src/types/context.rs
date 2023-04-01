@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -9,16 +10,11 @@ use crate::types::types::{DefinedType, ParameterizedType, Type};
 ///
 /// Contexts track substitutions and generate fresh types variables.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct TypeContext<'a> {
+pub struct TypeContext {
     /// Records the types of each class by their identity.
     classes: HashMap<u64, Rc<TypeClass>>,
 
-    dependencies: Vec<&'a TypeContext<'a>>,
-}
-
-//as current structures does not handle random accesses, we cannot share types contexts between threads
-thread_local! {
-    pub static LANG: TypeContext<'static> = TypeContext::lang();
+    dependencies: Vec<Rc<RefCell<TypeContext>>>,
 }
 
 fn hash_of<H: Hash>(hashable: &H) -> u64 {
@@ -27,10 +23,11 @@ fn hash_of<H: Hash>(hashable: &H) -> u64 {
     hasher.finish()
 }
 
-impl<'a> TypeContext<'a> {
+impl TypeContext {
     ///Definitions of the lang types context.
-    pub fn lang() -> Self {
-        let mut ctx = TypeContext::default();
+    pub fn lang() -> Rc<RefCell<Self>> {
+        let mut ctx_rc = Rc::new(RefCell::new(TypeContext::default()));
+        let mut ctx = ctx_rc.borrow_mut();
 
         const MSG: &str = "lang types registration";
 
@@ -40,45 +37,47 @@ impl<'a> TypeContext<'a> {
             generic_parameters: vec![],
             super_params_associations: vec![],
             identity: hash_of(&"Any"),
+            context: Rc::new(RefCell::new(Self::fork(ctx_rc.clone()))),
         });
         ctx.classes.insert(any_cl.identity, any_cl.clone());
 
-        let float = ctx.define_class(ctx.mk_definition("Float")).expect(MSG);
+        let float = Self::define_class(&ctx_rc, ClassTypeDefinition::new("Float")).expect(MSG);
 
-        ctx.define_class(ctx.mk_definition("Bool")).expect(MSG);
-        ctx.define_class(ctx.mk_definition("Str")).expect(MSG);
-        ctx.define_class(ctx.mk_definition("Unit")).expect(MSG);
+        Self::define_class(&ctx_rc, ClassTypeDefinition::new("Bool")).expect(MSG);
+        Self::define_class(&ctx_rc, ClassTypeDefinition::new("Str")).expect(MSG);
+        Self::define_class(&ctx_rc, ClassTypeDefinition::new("Unit")).expect(MSG);
 
-        let int = ctx.define_class(
-            ctx.mk_definition("Int")
-                .with_parent(float)
+        let int = Self::define_class(&ctx_rc,
+                                     ClassTypeDefinition::new("Int")
+                                         .with_parent(float),
         ).expect(MSG);
 
-        ctx.define_class(
-            ctx.mk_definition("Exitcode")
-                .with_parent(int)
+        Self::define_class(&ctx_rc,
+                           ClassTypeDefinition::new("Exitcode")
+                               .with_parent(int),
         ).expect(MSG);
 
-        ctx
-    }
-
-    pub fn mk_definition(&self, name: &str) -> ClassTypeDefinition {
-        ClassTypeDefinition::new(name.to_owned(), hash_of(&name))
+        ctx_rc.clone()
     }
 
     /// Creates and registers a new ClassType for given types, the given types must be subtype of given types
-    pub fn define_class(&mut self, def: ClassTypeDefinition) -> Result<Rc<TypeClass>, String> {
-        let defined = Rc::new(def.build(self)?);
-        if self.classes.contains_key(&defined.identity) {
+    pub fn define_class(mut ctx: &Rc<RefCell<Self>>, def: ClassTypeDefinition) -> Result<Rc<TypeClass>, String> {
+        let id = hash_of(&def.name);
+
+        let defined = def.with_identity(id).build(ctx.clone())?;
+        let defined = Rc::new(defined);
+
+        if ctx.borrow().classes.contains_key(&defined.identity) {
             return Err(format!("types already contained in context {}", defined.name).to_owned())
         }
 
-        self.classes.insert(
+        ctx.borrow_mut().classes.insert(
             defined.identity,
             defined.clone(),
         );
         Ok(defined)
     }
+
 
     ///perform a class types lookup based on the defined types.
     /// If the types is not directly found in this context, then the context
@@ -89,7 +88,7 @@ impl<'a> TypeContext<'a> {
             None => {
                 let iter = self.dependencies.iter();
                 for dep in iter {
-                    if let Some(found) = dep.lookup_id(id).ok() {
+                    if let Some(found) = dep.borrow().lookup_id(id).ok() {
                         return Ok(found)
                     }
                 }
@@ -108,9 +107,9 @@ impl<'a> TypeContext<'a> {
         self.unify_internal(t1, t2)
     }
 
-    pub(crate) fn fork(&self) -> TypeContext {
+    pub(crate) fn fork(ctx: Rc<RefCell<Self>>) -> TypeContext {
         TypeContext {
-            dependencies: vec!(self),
+            dependencies: vec!(ctx),
             ..Default::default()
         }
     }
