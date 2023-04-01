@@ -304,10 +304,7 @@ mod tests {
                     Expr::Literal("grep".into()),
                     Expr::Literal("-E".into()),
                     Expr::Literal("regex".into()),
-                    Expr::Literal(Literal {
-                        lexeme: "\\;",
-                        parsed: ";".into(),
-                    }),
+                    Expr::Literal(";".into()),
                     Expr::Literal("echo".into()),
                     Expr::Literal("test".into()),
                 ],

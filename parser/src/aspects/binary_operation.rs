@@ -437,7 +437,7 @@ mod tests {
 
     #[test]
     fn escaped_operators() {
-        let source = Source::unknown("(echo hello \\&& world \\);) || echo damn");
+        let source = Source::unknown("(echo hello \\& world \\);) || echo damn");
         let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_statement)
@@ -450,15 +450,9 @@ mod tests {
                         arguments: vec![
                             Expr::Literal("echo".into()),
                             Expr::Literal("hello".into()),
-                            Expr::Literal(Literal {
-                                lexeme: "\\&&",
-                                parsed: "&&".into(),
-                            }),
+                            Expr::Literal("&".into()),
                             Expr::Literal("world".into()),
-                            Expr::Literal(Literal {
-                                lexeme: "\\)",
-                                parsed: ")".into(),
-                            }),
+                            Expr::Literal(")".into()),
                         ],
                         type_parameters: vec![],
                     })]
