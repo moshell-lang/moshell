@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 use crate::types::class::{ClassTypeDefinition, TypeClass};
@@ -9,15 +10,22 @@ use crate::types::types::{DefinedType, ParameterizedType, Type};
 /// A type environment.
 ///
 /// Contexts track substitutions and generate fresh types variables.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Eq, Default)]
 pub struct TypeContext {
     /// Records the types of each class by their identity.
-    classes: HashMap<u64, Rc<TypeClass>>,
+    pub(crate) classes: HashMap<u64, Rc<TypeClass>>,
 
-    dependencies: Vec<Rc<RefCell<TypeContext>>>,
+    pub(crate) dependencies: Vec<Rc<RefCell<TypeContext>>>,
 }
 
-fn hash_of<H: Hash>(hashable: &H) -> u64 {
+impl PartialEq for TypeContext {
+    fn eq(&self, other: &Self) -> bool {
+        self.classes == other.classes
+    }
+}
+
+//temporary function until an identification system is implemented
+pub(crate) fn hash_of<H: Hash>(hashable: &H) -> u64 {
     let mut hasher = DefaultHasher::new();
     hashable.hash(&mut hasher);
     hasher.finish()
@@ -50,12 +58,12 @@ impl TypeContext {
 
         let int = Self::define_class(&ctx_rc,
                                      ClassTypeDefinition::new("Int")
-                                         .with_parent(float),
+                                         .with_super(float),
         ).expect(MSG);
 
         Self::define_class(&ctx_rc,
                            ClassTypeDefinition::new("Exitcode")
-                               .with_parent(int),
+                               .with_super(int),
         ).expect(MSG);
 
         ctx_rc.clone()
