@@ -38,7 +38,6 @@ pub enum TokenType {
 
     IntLiteral,
     FloatLiteral,
-    StringLiteral,
 
     #[assoc(str = "\\n")]
     NewLine,

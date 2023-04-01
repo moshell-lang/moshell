@@ -352,6 +352,7 @@ mod tests {
     use super::*;
     use crate::err::ParseErrorKind::InvalidFormat;
     use crate::err::{ParseError, ParseErrorKind};
+    use ast::variable::VarReference;
     use context::source::Source;
     use pretty_assertions::assert_eq;
 
@@ -447,6 +448,24 @@ mod tests {
                 message: "Unterminated string literal.".to_string(),
                 position: content.len()..content.len(),
                 kind: ParseErrorKind::Unpaired(0..1),
+            })
+        );
+    }
+
+    #[test]
+    fn url_placeholder() {
+        let source = Source::unknown("\"http://localhost:$NGINX_PORT\"");
+        let parsed = Parser::new(source).expression().expect("Failed to parse.");
+        assert_eq!(
+            parsed,
+            Expr::TemplateString(TemplateString {
+                parts: vec![
+                    Expr::Literal(Literal {
+                        lexeme: "http://localhost:",
+                        parsed: "http://localhost:".into(),
+                    }),
+                    Expr::VarReference(VarReference { name: "NGINX_PORT" }),
+                ]
             })
         );
     }
