@@ -247,7 +247,7 @@ impl<'a> Parser<'a> {
         Err(self.mk_parse_error(message, context, kind))
     }
 
-    /// Expect a specific delimiter token type and pop it from the delimiter stack.
+    /// Expect a specific delimiter token types and pop it from the delimiter stack.
     pub(crate) fn expect_delimiter(&mut self, eog: TokenType) -> ParseResult<()> {
         if self.cursor.advance(of_type(eog)).is_some() {
             self.delimiter_stack.pop_back();

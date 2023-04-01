@@ -1,4 +1,4 @@
-use crate::types::{DefinedType, ParameterizedType};
+use crate::types::types::{DefinedType, ParameterizedType};
 
 //LANG TYPES
 

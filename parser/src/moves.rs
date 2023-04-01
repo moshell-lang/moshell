@@ -98,7 +98,7 @@ where
     PredicateMove { predicate }
 }
 
-/// a predicate move on the type of the token rather than it's integrity
+/// a predicate move on the types of the token rather than it's integrity
 pub(crate) fn like<P>(predicate: P) -> PredicateMove<impl Fn(Token) -> bool + Copy>
 where
     P: Fn(TokenType) -> bool + Copy,
@@ -108,13 +108,13 @@ where
     }
 }
 
-///Move to next token if its type is in the given set
+///Move to next token if its types is in the given set
 /// * `set` - the set of TokenType to satisfy
 pub(crate) fn of_types(set: &[TokenType]) -> PredicateMove<impl Fn(Token) -> bool + '_ + Copy> {
     predicate(move |token| set.contains(&token.token_type))
 }
 
-///Move to next token if its type match the given tpe param
+///Move to next token if its types match the given tpe param
 pub(crate) fn of_type(tpe: TokenType) -> PredicateMove<impl Fn(Token) -> bool + Copy> {
     predicate(move |token| tpe == token.token_type)
 }

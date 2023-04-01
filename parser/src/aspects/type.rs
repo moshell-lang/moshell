@@ -9,12 +9,12 @@ use lexer::token::TokenType::{
 };
 use std::fmt::Write;
 
-///A parser aspect to parse all type declarations, such as lambdas, constant types, parametrized types and Unit
+///A parser aspect to parse all types declarations, such as lambdas, constant types, parametrized types and Unit
 pub trait TypeAspect<'a> {
-    ///parse a lambda type signature, a constant or parametrized type or Unit.
+    ///parse a lambda types signature, a constant or parametrized types or Unit.
     fn parse_type(&mut self) -> ParseResult<Type<'a>>;
 
-    ///parse a type parameter list (`[...]`)
+    ///parse a types parameter list (`[...]`)
     fn parse_type_parameter_list(&mut self) -> ParseResult<Vec<Type<'a>>>;
 }
 
@@ -23,13 +23,13 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         self.cursor.advance(word_seps()); //consume word seps
 
         let first_token = self.cursor.peek();
-        //if there's a parenthesis then the type is necessarily a lambda type
+        //if there's a parenthesis then the types is necessarily a lambda types
         let mut tpe = match first_token.token_type {
             RoundedLeftBracket => self.parse_parentheses()?,
             FatArrow => self.parse_by_name().map(Type::ByName)?,
             _ => self.parse_simple_or_unit()?,
         };
-        //check if there's an arrow, if some, we are maybe in a case where the type is "A => ..."
+        //check if there's an arrow, if some, we are maybe in a case where the types is "A => ..."
         // (a lambda with one parameter and no parenthesis for the input, which is valid)
         if self
             .cursor
@@ -46,7 +46,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             })
         }
 
-        //check if there's an arrow, if some, we are maybe in a case where the type is "A => ..."
+        //check if there's an arrow, if some, we are maybe in a case where the types is "A => ..."
         // (a lambda with one parameter and no parenthesis for the input, which is valid)
         if self
             .cursor
@@ -56,7 +56,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             //parse second lambda output in order to advance on the full invalid lambda expression
             let second_rt = self.parse_simple_or_unit()?;
             return self.expected_with(
-                "Lambda type as input of another lambda must be surrounded with parenthesis",
+                "Lambda types as input of another lambda must be surrounded with parenthesis",
                 first_token..self.cursor.peek(),
                 Expected(self.unparenthesised_lambda_input_tip(tpe, second_rt)),
             );
@@ -104,12 +104,12 @@ impl<'a> Parser<'a> {
             return self.parse_lambda_with_inputs(inputs).map(Type::Callable);
         }
 
-        //there is no inputs (`()`) and no `=>` after, this is a Unit type
+        //there is no inputs (`()`) and no `=>` after, this is a Unit types
         if inputs.is_empty() {
             return Ok(Type::Unit);
         }
 
-        //its a type of form `(A)`
+        //its a types of form `(A)`
         if let Some(ty) = inputs.first() {
             if inputs.len() == 1 {
                 return Ok(ty.clone());
@@ -126,7 +126,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        rendered_tuple += ") => <type>";
+        rendered_tuple += ") => <types>";
         self.expected(
             "Tuples are not yet supported. A lambda declaration was expected here",
             Expected(rendered_tuple),
@@ -151,9 +151,9 @@ impl<'a> Parser<'a> {
             Unit => Ok(Type::Unit),
             Nothing => Ok(Type::Nothing),
 
-            NewLine => self.expected_with("expected type", name_token, Expected("<type>".to_string())),
+            NewLine => self.expected_with("expected types", name_token, Expected("<types>".to_string())),
 
-            x if x.is_closing_ponctuation() => self.expected_with("expected type", name_token, Expected("<type>".to_string())),
+            x if x.is_closing_ponctuation() => self.expected_with("expected types", name_token, Expected("<types>".to_string())),
             x if (x == RoundedLeftBracket
                 && self
                 .cursor
@@ -162,7 +162,7 @@ impl<'a> Parser<'a> {
             => Ok(Type::Unit),
 
             _ => self.expected_with(
-                &format!("'{}' is not a valid type identifier.", &name_token.value),
+                &format!("'{}' is not a valid types identifier.", &name_token.value),
                 name_token.value,
                 Unexpected,
             )
@@ -198,7 +198,7 @@ impl<'a> Parser<'a> {
         if tparams.is_empty() && non_empty {
             self.expect_delimiter(end)?;
             return self.expected_with(
-                "unexpected empty type parameter list",
+                "unexpected empty types parameter list",
                 start..self.cursor.peek(),
                 Unexpected,
             );
@@ -241,7 +241,7 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_type(),
             Err(ParseError {
-                message: "unexpected empty type parameter list".to_string(),
+                message: "unexpected empty types parameter list".to_string(),
                 kind: ParseErrorKind::Unexpected,
                 position: content
                     .find("[    ]")
@@ -317,7 +317,7 @@ mod tests {
         assert_eq!(
             res,
             Err(ParseError {
-                message: "'@' is not a valid type identifier.".to_string(),
+                message: "'@' is not a valid types identifier.".to_string(),
                 kind: ParseErrorKind::Unexpected,
                 position: content.find('@').map(|i| i..i + 1).unwrap(),
             })
@@ -530,7 +530,7 @@ mod tests {
                 message: "Tuples are not yet supported. A lambda declaration was expected here"
                     .to_string(),
                 position: content.len()..content.len(),
-                kind: Expected("(A, B, C) => <type>".to_string()),
+                kind: Expected("(A, B, C) => <types>".to_string()),
             })
         );
     }
@@ -576,13 +576,13 @@ mod tests {
         let ast1 = Parser::new(Source::unknown("(A, B, C) => D => E => F")).parse_type();
         let ast2 = Parser::new(Source::unknown("A => B => C")).parse_type();
         let expected1 = Err(ParseError {
-            message: "Lambda type as input of another lambda must be surrounded with parenthesis"
+            message: "Lambda types as input of another lambda must be surrounded with parenthesis"
                 .to_string(),
             kind: Expected("(D => E) => F".to_string()),
             position: 13..24,
         });
         let expected2 = Err(ParseError {
-            message: "Lambda type as input of another lambda must be surrounded with parenthesis"
+            message: "Lambda types as input of another lambda must be surrounded with parenthesis"
                 .to_string(),
             kind: Expected("(A => B) => C".to_string()),
             position: 0..11,

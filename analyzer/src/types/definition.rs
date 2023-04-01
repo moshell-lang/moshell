@@ -1,28 +1,27 @@
 
 use std::rc::Rc;
 use crate::lang_types::any;
-use crate::type_context::TypeContext;
-use crate::types::{DefinedType};
+use crate::types::context::TypeContext;
+use crate::types::types::DefinedType;
 
-
-///This structures hosts the definition of a type,
+///This structures hosts the definition of a types,
 ///
 #[derive(Debug, Clone, Eq)]
-pub struct ClassTypeDef {
-    ///The super type of this class
-    pub super_type: Option<Rc<ClassTypeDef>>,
+pub struct TypeDef {
+    ///The super types of this types
+    pub super_type: Option<Rc<TypeDef>>,
 
-    /// The class type's name
+    /// The class types's name
     pub name: String,
 
     ///The class's generic parameters bounds.
     pub generic_parameters: Vec<GenericParam>,
 
-    ///This Class's identity.
+    ///This Type's identity.
     pub(crate) identity: u64,
 }
 
-impl PartialEq for ClassTypeDef {
+impl PartialEq for TypeDef {
     fn eq(&self, other: &Self) -> bool {
         self.identity == other.identity
     }
@@ -31,7 +30,7 @@ impl PartialEq for ClassTypeDef {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenericParam {
     pub name: String,
-    pub erased_type: Rc<ClassTypeDef>,
+    pub erased_type: Rc<TypeDef>,
 
     ///The parent's generic parameter indexes of the hosting ClassType.
     /// Examples:
@@ -43,7 +42,7 @@ pub struct GenericParam {
 }
 
 pub struct ClassTypeDefinition {
-    super_type: Option<Rc<ClassTypeDef>>,
+    super_type: Option<Rc<TypeDef>>,
     name: String,
     generic_parameters: Vec<GenericParam>,
     identity: u64,
@@ -60,14 +59,14 @@ impl ClassTypeDefinition {
         }
     }
 
-    pub fn with_parent(self, parent: Rc<ClassTypeDef>) -> Self {
+    pub fn with_parent(self, parent: Rc<TypeDef>) -> Self {
         Self {
             super_type: Some(parent),
             ..self
         }
     }
 
-    pub fn with_parameter(mut self, name: &str, bound: Rc<ClassTypeDef>, parent_ordinals: &[usize]) -> Self {
+    pub fn with_parameter(mut self, name: &str, bound: Rc<TypeDef>, parent_ordinals: &[usize]) -> Self {
         self.generic_parameters.push(GenericParam {
             name: name.to_string(),
             erased_type: bound,
@@ -76,21 +75,21 @@ impl ClassTypeDefinition {
         self
     }
 
-    pub fn build(self, ctx: &TypeContext) -> Result<ClassTypeDef, String> {
-        ClassTypeDef::from_builder(self, ctx)
+    pub fn build(self, ctx: &TypeContext) -> Result<TypeDef, String> {
+        TypeDef::from_builder(self, ctx)
     }
 }
 
 
-impl ClassTypeDef {
+impl TypeDef {
 
     pub(crate) fn from_builder(definition: ClassTypeDefinition, ctx: &TypeContext) -> Result<Self, String> {
         let parent = definition.super_type;
         //Ensure that all generic parameters are covariant with their linked parent's generics
         for gparam in &definition.generic_parameters {
             for parent_index in &gparam.parent_indexes {
-                let parent = parent.clone().ok_or("wrong type definition: this class type has linked parameter with a parent that does not exists.")?;
-                let gparam_parent = parent.generic_parameters.get(parent_index.clone()).ok_or(format!("parent type parameter has no parameter at index {parent_index}"))?;
+                let parent = parent.clone().ok_or("wrong types definition: this class types has linked parameter with a parent that does not exists.")?;
+                let gparam_parent = parent.generic_parameters.get(parent_index.clone()).ok_or(format!("parent types parameter has no parameter at index {parent_index}"))?;
 
                 if !gparam.clone().erased_type.is_subtype_of(gparam_parent.erased_type.clone()) {
                     return Err(format!("{} is incompatible with {}'s generic parameter {}", gparam.name, parent.name, gparam_parent.name))
@@ -110,10 +109,10 @@ impl ClassTypeDef {
         })
     }
 
-    fn is_subtype_of(self: Rc<Self>, other: Rc<ClassTypeDef>) -> bool {
+    fn is_subtype_of(self: Rc<Self>, other: Rc<TypeDef>) -> bool {
         let mut self_lineage = Some(self.clone());
 
-        //figure if self type is a subtype of other
+        //figure if self types is a subtype of other
         while let Some(self_lng) = self_lineage {
             if self_lng == other {
                 return true;
@@ -125,8 +124,7 @@ impl ClassTypeDef {
         false
     }
 
-
-    ///Finds largest base type with given class (Any in worst cases.)
+    ///Finds largest base types with given class (Any in worst cases.)
     pub fn unify_with(self: Rc<Self>, ctx: &TypeContext, other: &DefinedType) -> DefinedType {
         any()
     }
@@ -137,7 +135,7 @@ mod tests {
     use crate::environment::Environment;
     use crate::lang_types::{any, float, int};
     use pretty_assertions::assert_eq;
-    use crate::types::{DefinedType, ParameterizedType, Type};
+    use crate::types::types::{DefinedType, ParameterizedType, Type};
 
     #[test]
     fn int_and_float_union() {
@@ -154,9 +152,9 @@ mod tests {
         let lang = Environment::lang();
         let env = lang.fork();
 
-        //equivalent to a "Iterable[Any]" type
+        //equivalent to a "Iterable[Any]" types
         let iterable = DefinedType::Parameterized(ParameterizedType::parametrized("Iterable", vec![Type::Defined(any())]));
-        //equivalent to a "List[Any]" type
+        //equivalent to a "List[Any]" types
         let list = DefinedType::Parameterized(ParameterizedType::parametrized("List", vec![Type::Defined(any())]));
 
         let mut ctx = env.type_context;
@@ -168,13 +166,13 @@ mod tests {
             ctx.define_class(
                 ctx.mk_definition("Iterable")
                     .with_parameter("A", any_def.clone(), &[])
-            ).expect("type registration");
+            ).expect("types registration");
         //equivalent to a "class List[A]: Iterable[A] {}" statement.
         ctx.define_class(
             ctx.mk_definition("List")
                 .with_parent(iterable_cl)
                 .with_parameter("A", any_def, &[0])
-        ).expect("type registration");
+        ).expect("types registration");
 
         let res1 = ctx.unify(&Type::Defined(iterable.clone()), &Type::Defined(list.clone())).expect("union error");
         let res2 = ctx.unify(&Type::Defined(list), &Type::Defined(iterable.clone())).expect("union error");

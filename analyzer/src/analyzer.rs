@@ -1,9 +1,6 @@
-
 use crate::environment::Environment;
-use crate::types::{Type};
+use crate::types::types::{Type};
 use crate::Diagnostic;
-use ast::function::FunctionParameter;
-use ast::value::LiteralValue;
 use ast::Expr;
 use context::source::Source;
 use crate::lang_types::{float, int, str, unit};

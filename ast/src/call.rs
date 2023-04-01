@@ -13,7 +13,7 @@ pub struct Call<'a> {
     /// A valid command must have at least one argument that is the command name.
     pub arguments: Vec<Expr<'a>>,
 
-    /// type parameters of the call.
+    /// types parameters of the call.
     pub type_parameters: Vec<Type<'a>>,
 }
 
@@ -28,7 +28,7 @@ pub struct ProgrammaticCall<'a> {
     /// The arguments to pass to the function.
     pub arguments: Vec<Expr<'a>>,
 
-    /// The type parameters of the call.
+    /// The types parameters of the call.
     pub type_parameters: Vec<Type<'a>>,
 }
 

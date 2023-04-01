@@ -1,15 +1,13 @@
 #![allow(dead_code)]
 
 mod analyzer;
-mod class;
-pub mod type_context;
 pub mod environment;
-pub mod types;
 pub mod lang_types;
 pub mod local;
+pub mod types;
 
 use crate::analyzer::Analyzer;
-use crate::types::{Type};
+use crate::types::types::{Type};
 use ::context::source::Source;
 use ast::group::Block;
 use ast::Expr;

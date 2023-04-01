@@ -1,25 +1,23 @@
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
-use std::f32::consts::E;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
-use crate::class::{ClassTypeDef, ClassTypeDefinition};
-use crate::types::{DefinedType, ParameterizedType, Type};
-use crate::lang_types::*;
+use crate::types::definition::{ClassTypeDefinition, TypeDef};
+use crate::types::types::{DefinedType, Type};
 
-/// A type environment.
+/// A types environment.
 ///
-/// Contexts track substitutions and generate fresh type variables.
+/// Contexts track substitutions and generate fresh types variables.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TypeContext<'a> {
-    /// Records the type of each class by their identity.
-    classes: HashMap<u64, Rc<ClassTypeDef>>,
+    /// Records the types of each class by their identity.
+    classes: HashMap<u64, Rc<TypeDef>>,
 
     dependencies: Vec<&'a TypeContext<'a>>,
 }
 
 
-//as current structures does not handle random accesses, we cannot share type contexts between threads
+//as current structures does not handle random accesses, we cannot share types contexts between threads
 thread_local! {
     pub static LANG: TypeContext<'static> = TypeContext::lang();
 }
@@ -34,13 +32,13 @@ fn hash_of<H: Hash>(hashable: &H) -> u64 {
 }
 
 impl<'a> TypeContext<'a> {
-    ///Definitions of the lang type context.
+    ///Definitions of the lang types context.
     pub fn lang() -> Self {
         let mut ctx = TypeContext::default();
 
-        const MSG: &str = "lang type registration";
+        const MSG: &str = "lang types registration";
 
-        let any_cl = &Rc::new(ClassTypeDef {
+        let any_cl = &Rc::new(TypeDef {
             super_type: None,
             name: "Any".to_owned(),
             generic_parameters: vec![],
@@ -71,11 +69,11 @@ impl<'a> TypeContext<'a> {
         ClassTypeDefinition::new(name.to_owned(), hash_of(&name))
     }
 
-    /// Creates and registers a new ClassType for given type, the given type must be subtype of given type
-    pub fn define_class(&mut self, def: ClassTypeDefinition) -> Result<Rc<ClassTypeDef>, String> {
+    /// Creates and registers a new ClassType for given types, the given types must be subtype of given types
+    pub fn define_class(&mut self, def: ClassTypeDefinition) -> Result<Rc<TypeDef>, String> {
         let defined = Rc::new(def.build(self)?);
         if self.classes.contains_key(&defined.identity) {
-            return Err(format!("type already contained in context {}", defined.name).to_owned())
+            return Err(format!("types already contained in context {}", defined.name).to_owned())
         }
 
         self.classes.insert(
@@ -85,10 +83,10 @@ impl<'a> TypeContext<'a> {
         Ok(defined)
     }
 
-    ///perform a class type lookup based on the defined type.
-    /// If the type is not directly found in this context, then the context
+    ///perform a class types lookup based on the defined types.
+    /// If the types is not directly found in this context, then the context
     /// will lookup in parent's context.
-    pub fn lookup_id(&self, id: u64) -> Result<Rc<ClassTypeDef>, String> {
+    pub fn lookup_id(&self, id: u64) -> Result<Rc<TypeDef>, String> {
         match self.classes.get(&id) {
             Some(v) => Ok(v.clone()),
             None => {
@@ -98,12 +96,12 @@ impl<'a> TypeContext<'a> {
                         return Ok(found)
                     }
                 }
-                Err("Unknown type".to_owned())
+                Err("Unknown types".to_owned())
             }
         }
     }
 
-    pub fn lookup_defined(&self, def: DefinedType) -> Result<Rc<ClassTypeDef>, String> {
+    pub fn lookup_defined(&self, def: DefinedType) -> Result<Rc<TypeDef>, String> {
         match def {
             DefinedType::Parameterized(p) => self.lookup_id(hash_of(&p.name)),
             DefinedType::Callable(_) => todo!("implement Callable identity")
@@ -121,7 +119,7 @@ impl<'a> TypeContext<'a> {
         }
     }
 
-    ///Find largest possible type between two class types
+    ///Find largest possible types between two class types
     fn unify_internal(&self, t1: &Type, t2: &Type) -> Result<Type, String> {
         match (t1, t2) {
             (any, Type::Nothing) => Ok(any.clone()),
@@ -143,7 +141,6 @@ impl<'a> TypeContext<'a> {
             (_, Type::Defined(DefinedType::Callable(_))) => {
                 Err("Cannot handle callables yet".to_owned())
             }
-            (_, _) => Err(format!("Incompatible types {:?} and {:?}", t1, t2))
         }
     }
 

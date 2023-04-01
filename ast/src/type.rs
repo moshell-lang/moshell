@@ -4,7 +4,7 @@ use std::ops::Deref;
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub enum Type<'a> {
-    ///A Simple type with optional parameters (`A`, `A[V]`)
+    ///A Simple types with optional parameters (`A`, `A[V]`)
     Simple(SimpleType<'a>),
 
     ///A callable declaration with of form `(A, B, ...) => Out`
@@ -13,10 +13,10 @@ pub enum Type<'a> {
     ///A By name declaration (`=> X`)
     ByName(ByName<'a>),
 
-    ///Either `()` or `Unit`, representing a void type
+    ///Either `()` or `Unit`, representing a void types
     Unit,
 
-    ///The Nothing type
+    ///The Nothing types
     Nothing,
 }
 
@@ -49,7 +49,7 @@ impl<'a> Display for Type<'a> {
     }
 }
 
-///helper function to write a type list format in a given formatter
+///helper function to write a types list format in a given formatter
 fn display_type_list<'a>(
     start: char,
     end: char,

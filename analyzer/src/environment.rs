@@ -1,4 +1,4 @@
-///! The type environment of the compiler.
+///! The types environment of the compiler.
 ///!
 ///! A environment maps local variable names to their types and keep tracks of scopes.
 ///! The same variable name can be accessed in different scopes, and can have different types in
@@ -6,31 +6,30 @@
 ///! ```text
 ///! {
 ///!     // The variable `n` doesn't exist yet.
-///!     val n = 9; // Create a new variable `n` with type `int`.
-///!     // In this frame, the variable `n` of type `int` is in scope.
+///!     val n = 9; // Create a new variable `n` with types `int`.
+///!     // In this frame, the variable `n` of types `int` is in scope.
 ///!     {
 ///!         // The variable `n` exists, and refers to the variable in the outer scope.
-///!         val n = "9"; // Create a new variable `n` with type `any` that shadows the outer `n`.
+///!         val n = "9"; // Create a new variable `n` with types `any` that shadows the outer `n`.
 ///!         echo $n;
-///!         // In this frame, the variable `n` of type `any` is in scope.
+///!         // In this frame, the variable `n` of types `any` is in scope.
 ///!     }
-///!     // In this frame, the variable `n` of type `int` is in scope.
+///!     // In this frame, the variable `n` of types `int` is in scope.
 ///!     echo $n;
 ///! }
 ///! ```
-use crate::type_context::TypeContext;
-use crate::types::Type;
 use std::default::Default;
-use std::rc::Rc;
 use crate::local::Local;
-use crate::types::Type::Unknown;
+use crate::types::context::TypeContext;
+use crate::types::types::Type;
+use crate::types::types::Type::Unknown;
 
 /// An environment.
 /// The Environment contains the defined types, variables, structure and function definitions of a certain scope.
 /// It can have dependencies over other dependences.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Environment<'a> {
-    /// The type context.
+    /// The types context.
     pub type_context: TypeContext<'a>,
 
     /// The local variables.

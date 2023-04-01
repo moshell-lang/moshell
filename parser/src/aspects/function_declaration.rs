@@ -74,7 +74,7 @@ impl<'a> Parser<'a> {
             .cursor
             .lookahead(
                 of_type(Vararg).or(repeat(
-                    // skip everything that could compose a type expression
+                    // skip everything that could compose a types expression
                     of_types(&[
                         Space,
                         NewLine,
