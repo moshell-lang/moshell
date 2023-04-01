@@ -32,7 +32,7 @@ impl<'a> TypeContext<'a> {
 
         const MSG: &str = "lang type registration";
 
-        ctx.classes.insert(any(), Rc::new(ClassType::new(None, any())));
+        ctx.classes.insert(any(), Rc::new(ClassType::new(None, any(), Vec::new())));
         ctx.define_class(&any(), float()).expect(MSG);
         ctx.define_class(&any(), bool()).expect(MSG);
         ctx.define_class(&any(), str()).expect(MSG);
@@ -77,38 +77,7 @@ impl<'a> TypeContext<'a> {
             }
         }
     }
-    /*
-        pub fn resolve(&self, declared_type: &TypeScheme) -> Result<Variable, String> {
-            match declared_type {
-                TypeScheme::Monotype(t) => self.resolve_monotype(t),
-                TypeScheme::Polytype { .. } => todo!("resolve polytype"),
-            }
-        }
-        */
-    /*
-        pub fn resolve_monotype(&self, declared_type: &Type) -> Result<Variable, String> {
-            match declared_type {
-                Type::Variable(v) => self
-                    .substitution
-                    .get(v)
-                    .map(|t| self.resolve(t))
-                    .unwrap_or(Ok(*v)),
-                Type::Defined(name, args) => {
-                    let var = self
-                        .classes
-                        .get(name)
-                        .ok_or_else(|| format!("Unknown class {}", name))?;
-                    let class = self
-                        .definitions
-                        .get(var)
-                        .ok_or_else(|| format!("Unknown class {}", name))?;
-                    assert_eq!(class.type_args.len(), args.len());
-                    assert_eq!(class.type_args.len(), 0);
-                    Ok(*var)
-                }
-            }
-        }
-    */
+
     pub fn unify(&self, t1: &Type, t2: &Type) -> Result<Type, String> {
         self.unify_internal(t1, t2)
     }
@@ -133,7 +102,7 @@ impl<'a> TypeContext<'a> {
                 Type::Defined(def2 @ DefinedType::Parameterized(_))) => {
                 let cl1 = self.lookup_definition(def1)?;
 
-                cl1.unify_base(self, def2)
+                cl1.unify_with(self, def2)
                     .and_then(|opt|
                         opt.map(Type::Defined)
                             .ok_or("Type 1 and Type 2 are not inferable".to_owned())
