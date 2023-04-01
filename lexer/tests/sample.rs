@@ -26,6 +26,50 @@ fn string_literal() {
 }
 
 #[test]
+fn string_literal_unterminated_due_to_comment() {
+    let tokens = lex("echo \"$(//)\"");
+    assert_eq!(
+        tokens,
+        vec![
+            Token::new(TokenType::Identifier, "echo"),
+            Token::new(TokenType::Space, " "),
+            Token::new(TokenType::DoubleQuote, "\""),
+            Token::new(TokenType::Dollar, "$"),
+            Token::new(TokenType::RoundedLeftBracket, "("),
+        ]
+    );
+}
+
+#[test]
+fn string_literal_comment_after_arithmetic() {
+    let tokens = lex("echo \"$(\"$((1+1))//\")//\"// comment");
+    assert_eq!(
+        tokens,
+        vec![
+            Token::new(TokenType::Identifier, "echo"),
+            Token::new(TokenType::Space, " "),
+            Token::new(TokenType::DoubleQuote, "\""),
+            Token::new(TokenType::Dollar, "$"),
+            Token::new(TokenType::RoundedLeftBracket, "("),
+            Token::new(TokenType::DoubleQuote, "\""),
+            Token::new(TokenType::Dollar, "$"),
+            Token::new(TokenType::RoundedLeftBracket, "("),
+            Token::new(TokenType::RoundedLeftBracket, "("),
+            Token::new(TokenType::IntLiteral, "1"),
+            Token::new(TokenType::Plus, "+"),
+            Token::new(TokenType::IntLiteral, "1"),
+            Token::new(TokenType::RoundedRightBracket, ")"),
+            Token::new(TokenType::RoundedRightBracket, ")"),
+            Token::new(TokenType::Identifier, "//"),
+            Token::new(TokenType::DoubleQuote, "\""),
+            Token::new(TokenType::RoundedRightBracket, ")"),
+            Token::new(TokenType::Identifier, "//"),
+            Token::new(TokenType::DoubleQuote, "\""),
+        ]
+    );
+}
+
+#[test]
 fn utf8_compatible() {
     let tokens = lex("val 🦀 = \"épique\"");
     assert_eq!(

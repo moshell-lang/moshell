@@ -1,5 +1,5 @@
 use crate::lexer::Lexer;
-use crate::literal::is_identifier_part;
+use crate::literal::is_not_identifier_part;
 use crate::token::{Token, TokenType};
 
 impl<'a> Lexer<'a> {
@@ -58,7 +58,7 @@ impl<'a> Lexer<'a> {
             }
         }
         if let Some((_, ch)) = it.peek() {
-            if is_identifier_part(*ch) {
+            if is_not_identifier_part(*ch) {
                 self.iter = it;
                 Some(pos)
             } else {

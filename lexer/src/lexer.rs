@@ -8,9 +8,21 @@ pub fn lex(input: &str) -> Vec<Token> {
     Lexer::new(input).collect()
 }
 
+/// A lexer that iterates over the input string and produces tokens.
 pub(crate) struct Lexer<'a> {
+    /// The iterator over the input string.
     pub(crate) iter: Peekable<CharIndices<'a>>,
+
+    /// The input string.
     pub(crate) input: &'a str,
+
+    /// The current string depth.
+    ///
+    /// This is mostly used to determine `//` is the start of a comment or not.
+    /// Any even number means we are not in a string and any odd number means we are in a string.
+    /// This is stored as an number because a shell allows strings to be nested.
+    ///
+    /// Use [`Lexer::is_in_string()`] to check if the lexer is in a string.
     pub(crate) string_depth: usize,
 }
 
@@ -27,6 +39,7 @@ impl<'a> Iterator for Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
+    /// Creates a new lexer.
     fn new(input: &'a str) -> Self {
         Self {
             iter: input.char_indices().peekable(),
@@ -43,18 +56,19 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Creates the next token, given that the first character is already known.
     fn next_token_char(&mut self, pos: usize, ch: char) -> Token<'a> {
         let mut size = ch.len_utf8();
         let token_type = match ch {
             '\'' => {
-                self.string_depth += 1;
+                self.toggle_in_string_state();
                 TokenType::Quote
             }
             '"' => {
-                self.string_depth += 1;
+                self.toggle_in_string_state();
                 TokenType::DoubleQuote
             }
-            '/' if self.is_in_string() => {
+            '/' if !self.is_in_string() => {
                 if self.matches_next('/', &mut size) {
                     self.skip_line();
                     return self.next_token();
@@ -70,8 +84,18 @@ impl<'a> Lexer<'a> {
             '%' => TokenType::Percent,
             '[' => TokenType::SquaredLeftBracket,
             ']' => TokenType::SquaredRightBracket,
-            '(' => TokenType::RoundedLeftBracket,
-            ')' => TokenType::RoundedRightBracket,
+            '(' => {
+                if self.is_in_string() {
+                    self.string_depth += 1;
+                }
+                TokenType::RoundedLeftBracket
+            }
+            ')' => {
+                if !self.is_in_string() && self.string_depth != 0 {
+                    self.string_depth -= 1;
+                }
+                TokenType::RoundedRightBracket
+            }
             '{' => TokenType::CurlyLeftBracket,
             '}' => TokenType::CurlyRightBracket,
             '@' => TokenType::At,
@@ -159,6 +183,7 @@ impl<'a> Lexer<'a> {
         Token::new(token_type, &self.input[pos..pos + size])
     }
 
+    /// Yields a token for a escape character.
     fn next_escape(&mut self, mut start_pos: usize) -> Token<'a> {
         if let Some((_, c)) = self.iter.next() {
             start_pos += 1;
@@ -174,6 +199,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Tests the next character.
     fn matches_next(&mut self, expected: char, size: &mut usize) -> bool {
         if let Some((_, c)) = self.iter.peek() {
             if *c == expected {
@@ -185,6 +211,7 @@ impl<'a> Lexer<'a> {
         false
     }
 
+    /// Skip the remaining characters of the current line.
     fn skip_line(&mut self) {
         for (_, c) in self.iter.by_ref() {
             if c == '\n' {

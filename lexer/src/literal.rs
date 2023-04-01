@@ -1,7 +1,7 @@
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
 
-pub(crate) fn is_identifier_part(c: char) -> bool {
+pub(crate) fn is_not_identifier_part(c: char) -> bool {
     matches!(
         c,
         ';' | ':'
@@ -34,7 +34,7 @@ impl<'a> Lexer<'a> {
     pub(crate) fn next_identifier(&mut self, start_pos: usize, start_char: char) -> Token<'a> {
         let mut pos = start_pos + start_char.len_utf8();
         while let Some((p, c)) = self.iter.peek() {
-            if is_identifier_part(*c) {
+            if is_not_identifier_part(*c) {
                 break;
             }
             pos = p + c.len_utf8();
@@ -97,7 +97,17 @@ impl<'a> Lexer<'a> {
         Token::new(TokenType::Space, &self.input[start_pos..pos])
     }
 
+    /// Returns `true` if the lexer is currently in a string.
     pub(crate) fn is_in_string(&self) -> bool {
-        self.string_depth & 1 == 0
+        self.string_depth & 1 == 1
+    }
+
+    /// Toggles the string state.
+    pub(crate) fn toggle_in_string_state(&mut self) {
+        if self.is_in_string() {
+            self.string_depth -= 1;
+        } else {
+            self.string_depth += 1;
+        }
     }
 }
