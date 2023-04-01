@@ -71,14 +71,6 @@ impl<'a> Environment<'a> {
     /// Add a new local variable to the environment.
     ///
     /// The variable will be added to the current scope.
-    pub(crate) fn set_local(&mut self, name: &str) {
-        self.locals.push(Local {
-            name: name.to_owned(),
-            ty: Unknown,
-            is_initialized: false,
-        })
-    }
-
     pub(crate) fn define_local(&mut self, name: &str, tpe: Type) {
         self.locals.push(Local {
             name: name.to_owned(),
@@ -86,8 +78,6 @@ impl<'a> Environment<'a> {
             is_initialized: true,
         });
     }
-
-
 
     pub(crate) fn fork(&'a self) -> Environment<'a> {
         Self {

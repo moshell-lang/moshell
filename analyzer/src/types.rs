@@ -1,4 +1,4 @@
 pub mod context;
-mod definition;
+mod class;
 pub mod types;
 

@@ -1,5 +1,3 @@
-use std::ops::Deref;
-use crate::lang_types::unit;
 use std::fmt::{Debug, Display, Formatter, Write};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -32,18 +30,25 @@ impl Display for ParameterizedType {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct CallableType {
-    pub inputs: Vec<Type>,
-    pub output: Box<Type>,
+pub enum DefinedType {
+    /// parametrized or constant types (`List[A]`, `Map[Str, List[B]]`, `Int`).
+    Parameterized(ParameterizedType),
+
+    //Callable ?
 }
 
-impl Display for CallableType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        display_type_list('(', ')', &self.inputs, f)?;
-        write!(f, "=>")?;
-        write!(f, "{}", self.output.as_ref())
+impl DefinedType {
+    pub fn cons(name: &str) -> Self {
+        Self::parametrized(name, Vec::new())
+    }
+
+    pub fn parametrized(name: &str, params: Vec<Type>) -> Self {
+        DefinedType::Parameterized(
+            ParameterizedType::parametrized(name, params)
+        )
     }
 }
+
 
 /// Represents [monotypes][1] (fully instantiated, unquantified types).
 ///
@@ -58,27 +63,6 @@ pub enum Type {
 
     ///The types isn't known yet
     Unknown,
-}
-
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum DefinedType {
-    /// parametrized or constant types (`List[A]`, `List[Str]`, `Int`).
-    Parameterized(ParameterizedType),
-
-    ///Type for callables, functions or lambdas, with inputs and output
-    Callable(CallableType),
-}
-
-impl DefinedType {
-    pub fn cons(name: &str) -> Self {
-        Self::parametrized(name, Vec::new())
-    }
-
-    pub fn parametrized(name: &str, params: Vec<Type>) -> Self {
-        DefinedType::Parameterized(
-            ParameterizedType::parametrized(name, params)
-        )
-    }
 }
 
 impl Type {
@@ -106,30 +90,6 @@ impl Display for DefinedType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             DefinedType::Parameterized(p) => write!(f, "{}", p),
-            DefinedType::Callable(c) => write!(f, "{}", c),
-        }
-    }
-}
-
-impl<'a> From<ast::r#type::Type<'a>> for Type {
-    fn from(value: ast::r#type::Type<'a>) -> Self {
-        match value {
-            ast::r#type::Type::Simple(s) => Type::Defined(DefinedType::Parameterized(
-                ParameterizedType::parametrized(
-                    s.name,
-                    s.params.into_iter().map(|t| t.into()).collect(),
-                )
-            )),
-            ast::r#type::Type::Callable(c) => Type::Defined(DefinedType::Callable(CallableType {
-                inputs: c.params.into_iter().map(|t| t.into()).collect(),
-                output: Box::new(c.output.deref().clone().into()),
-            })),
-            ast::r#type::Type::ByName(b) => Type::Defined(DefinedType::Callable(CallableType {
-                inputs: Vec::new(),
-                output: Box::new(b.name.deref().clone().into()),
-            })),
-            ast::r#type::Type::Unit => Type::Defined(unit()),
-            ast::r#type::Type::Nothing => Type::Nothing
         }
     }
 }

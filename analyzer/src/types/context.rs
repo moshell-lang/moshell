@@ -2,28 +2,24 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
-use crate::types::definition::{ClassTypeDefinition, TypeDef};
-use crate::types::types::{DefinedType, Type};
+use crate::types::class::{ClassTypeDefinition, TypeClass};
+use crate::types::types::{DefinedType, ParameterizedType, Type};
 
-/// A types environment.
+/// A type environment.
 ///
 /// Contexts track substitutions and generate fresh types variables.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TypeContext<'a> {
     /// Records the types of each class by their identity.
-    classes: HashMap<u64, Rc<TypeDef>>,
+    classes: HashMap<u64, Rc<TypeClass>>,
 
     dependencies: Vec<&'a TypeContext<'a>>,
 }
-
 
 //as current structures does not handle random accesses, we cannot share types contexts between threads
 thread_local! {
     pub static LANG: TypeContext<'static> = TypeContext::lang();
 }
-
-
-
 
 fn hash_of<H: Hash>(hashable: &H) -> u64 {
     let mut hasher = DefaultHasher::new();
@@ -38,10 +34,11 @@ impl<'a> TypeContext<'a> {
 
         const MSG: &str = "lang types registration";
 
-        let any_cl = &Rc::new(TypeDef {
+        let any_cl = &Rc::new(TypeClass {
             super_type: None,
             name: "Any".to_owned(),
             generic_parameters: vec![],
+            super_params_associations: vec![],
             identity: hash_of(&"Any"),
         });
         ctx.classes.insert(any_cl.identity, any_cl.clone());
@@ -70,7 +67,7 @@ impl<'a> TypeContext<'a> {
     }
 
     /// Creates and registers a new ClassType for given types, the given types must be subtype of given types
-    pub fn define_class(&mut self, def: ClassTypeDefinition) -> Result<Rc<TypeDef>, String> {
+    pub fn define_class(&mut self, def: ClassTypeDefinition) -> Result<Rc<TypeClass>, String> {
         let defined = Rc::new(def.build(self)?);
         if self.classes.contains_key(&defined.identity) {
             return Err(format!("types already contained in context {}", defined.name).to_owned())
@@ -86,7 +83,7 @@ impl<'a> TypeContext<'a> {
     ///perform a class types lookup based on the defined types.
     /// If the types is not directly found in this context, then the context
     /// will lookup in parent's context.
-    pub fn lookup_id(&self, id: u64) -> Result<Rc<TypeDef>, String> {
+    pub fn lookup_id(&self, id: u64) -> Result<Rc<TypeClass>, String> {
         match self.classes.get(&id) {
             Some(v) => Ok(v.clone()),
             None => {
@@ -101,10 +98,9 @@ impl<'a> TypeContext<'a> {
         }
     }
 
-    pub fn lookup_defined(&self, def: DefinedType) -> Result<Rc<TypeDef>, String> {
+    pub fn lookup_defined(&self, def: DefinedType) -> Result<Rc<TypeClass>, String> {
         match def {
             DefinedType::Parameterized(p) => self.lookup_id(hash_of(&p.name)),
-            DefinedType::Callable(_) => todo!("implement Callable identity")
         }
     }
 
@@ -128,20 +124,23 @@ impl<'a> TypeContext<'a> {
             (Type::Unknown, _) => Ok(Type::Unknown),
             (_, Type::Unknown) => Ok(Type::Unknown),
 
-            (Type::Defined(DefinedType::Parameterized(def1)),
-                Type::Defined(def2 @ DefinedType::Parameterized(_))) => {
-                let cl1 = self.lookup_id(hash_of(&def1.name))?;
-
-                Ok(Type::Defined(cl1.unify_with(self, def2)))
+            (Type::Defined(DefinedType::Parameterized(p1)),
+                Type::Defined(DefinedType::Parameterized(p2))) => {
+                self.unify_parameterized(p1, p2)
+                    .map(DefinedType::Parameterized)
+                    .map(Type::Defined)
             }
 
-            (Type::Defined(DefinedType::Callable(_)), _) => {
-                Err("Cannot handle callables yet".to_owned())
-            }
-            (_, Type::Defined(DefinedType::Callable(_))) => {
-                Err("Cannot handle callables yet".to_owned())
-            }
         }
+    }
+
+    fn unify_parameterized(&self, p1: &ParameterizedType, p2: &ParameterizedType) -> Result<ParameterizedType, String> {
+        let cl1 = self.lookup_defined(DefinedType::Parameterized(p1.clone()))?;
+        let cl2 = self.lookup_defined(DefinedType::Parameterized(p2.clone()))?;
+
+        let common = cl1.get_common_parent(cl2);
+
+        todo!()
     }
 
 }

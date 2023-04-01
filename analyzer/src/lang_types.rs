@@ -3,31 +3,31 @@ use crate::types::types::{DefinedType, ParameterizedType};
 //LANG TYPES
 
 pub fn any() -> DefinedType {
-    DefinedType::Parameterized(ParameterizedType::cons("Any"))
+    DefinedType::cons("Any")
 }
 
 pub fn unit() -> DefinedType {
-    DefinedType::Parameterized(ParameterizedType::cons("Unit"))
+    DefinedType::cons("Unit")
 }
 
 pub fn int() -> DefinedType {
-    DefinedType::Parameterized(ParameterizedType::cons("Int"))
+    DefinedType::cons("Int")
 }
 
 pub fn float() -> DefinedType {
-    DefinedType::Parameterized(ParameterizedType::cons("Float"))
+    DefinedType::cons("Float")
 }
 
 pub fn exitcode() -> DefinedType {
-    DefinedType::Parameterized(ParameterizedType::cons("Exitcode"))
+    DefinedType::cons("Exitcode")
 }
 
 pub fn str() -> DefinedType {
-    DefinedType::Parameterized(ParameterizedType::cons("Str"))
+    DefinedType::cons("Str")
 }
 
 pub fn bool() -> DefinedType {
-    DefinedType::Parameterized(ParameterizedType::cons("Bool"))
+    DefinedType::cons("Bool")
 }
 
 
