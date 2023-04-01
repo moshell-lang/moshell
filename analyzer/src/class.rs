@@ -4,10 +4,13 @@ use crate::lang_types::any;
 use crate::type_context::TypeContext;
 use crate::types::{DefinedType};
 
+
+///This structures hosts the definition of a type,
+///
 #[derive(Debug, Clone, Eq)]
-pub struct ClassType {
+pub struct ClassTypeDef {
     ///The super type of this class
-    pub super_type: Option<Rc<ClassType>>,
+    pub super_type: Option<Rc<ClassTypeDef>>,
 
     /// The class type's name
     pub name: String,
@@ -19,7 +22,7 @@ pub struct ClassType {
     pub(crate) identity: u64,
 }
 
-impl PartialEq for ClassType {
+impl PartialEq for ClassTypeDef {
     fn eq(&self, other: &Self) -> bool {
         self.identity == other.identity
     }
@@ -28,9 +31,7 @@ impl PartialEq for ClassType {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenericParam {
     pub name: String,
-    pub erased_type: Rc<ClassType>,
-
-    pub index: usize,
+    pub erased_type: Rc<ClassTypeDef>,
 
     ///The parent's generic parameter indexes of the hosting ClassType.
     /// Examples:
@@ -38,16 +39,15 @@ pub struct GenericParam {
     /// - `class WeirdMap[A]: Map[A, A]` the A generic is put in parent's 0 and 1 generics
     /// - `class Map[A, B]: Iterable[A]` this defines a map that is iterable only on keys, the first map's generic parameter `A`
     ///                                  is then bound on parent's generic at index 0, and the generic param `B` has no links with the parent.
-    pub parents_index: Vec<usize>,
+    pub parent_indexes: Vec<usize>,
 }
 
 pub struct ClassTypeDefinition {
-    super_type: Option<Rc<ClassType>>,
+    super_type: Option<Rc<ClassTypeDef>>,
     name: String,
     generic_parameters: Vec<GenericParam>,
     identity: u64,
 
-    next_index: usize,
 }
 
 impl ClassTypeDefinition {
@@ -57,41 +57,38 @@ impl ClassTypeDefinition {
             identity,
             generic_parameters: Vec::new(),
             super_type: None,
-            next_index: 0,
         }
     }
 
-    pub fn with_parent(self, parent: Rc<ClassType>) -> Self {
+    pub fn with_parent(self, parent: Rc<ClassTypeDef>) -> Self {
         Self {
             super_type: Some(parent),
             ..self
         }
     }
 
-    pub fn with_parameter(mut self, name: &str, bound: Rc<ClassType>, parent_ordinals: &[usize]) -> Self {
-        self.next_index += 1;
+    pub fn with_parameter(mut self, name: &str, bound: Rc<ClassTypeDef>, parent_ordinals: &[usize]) -> Self {
         self.generic_parameters.push(GenericParam {
             name: name.to_string(),
             erased_type: bound,
-            index: self.next_index,
-            parents_index: parent_ordinals.to_vec(),
+            parent_indexes: parent_ordinals.to_vec(),
         });
         self
     }
 
-    pub fn build(self, ctx: &TypeContext) -> Result<ClassType, String> {
-        ClassType::from_builder(self, ctx)
+    pub fn build(self, ctx: &TypeContext) -> Result<ClassTypeDef, String> {
+        ClassTypeDef::from_builder(self, ctx)
     }
 }
 
 
-impl ClassType {
+impl ClassTypeDef {
 
     pub(crate) fn from_builder(definition: ClassTypeDefinition, ctx: &TypeContext) -> Result<Self, String> {
         let parent = definition.super_type;
         //Ensure that all generic parameters are covariant with their linked parent's generics
         for gparam in &definition.generic_parameters {
-            for parent_index in &gparam.parents_index {
+            for parent_index in &gparam.parent_indexes {
                 let parent = parent.clone().ok_or("wrong type definition: this class type has linked parameter with a parent that does not exists.")?;
                 let gparam_parent = parent.generic_parameters.get(parent_index.clone()).ok_or(format!("parent type parameter has no parameter at index {parent_index}"))?;
 
@@ -113,7 +110,7 @@ impl ClassType {
         })
     }
 
-    fn is_subtype_of(self: Rc<Self>, other: Rc<ClassType>) -> bool {
+    fn is_subtype_of(self: Rc<Self>, other: Rc<ClassTypeDef>) -> bool {
         let mut self_lineage = Some(self.clone());
 
         //figure if self type is a subtype of other
@@ -156,6 +153,7 @@ mod tests {
     fn list_and_iterable_union() {
         let lang = Environment::lang();
         let env = lang.fork();
+
         //equivalent to a "Iterable[Any]" type
         let iterable = DefinedType::Parameterized(ParameterizedType::parametrized("Iterable", vec![Type::Defined(any())]));
         //equivalent to a "List[Any]" type
@@ -166,10 +164,11 @@ mod tests {
         let any_def = ctx.lookup_defined(any()).expect("could not get any");
 
         //equivalent to a "class Iterable[A] {}" statement.
-        let iterable_cl = ctx.define_class(
-            ctx.mk_definition("Iterable")
-                .with_parameter("A", any_def.clone(), &[])
-        ).expect("type registration");
+        let iterable_cl =
+            ctx.define_class(
+                ctx.mk_definition("Iterable")
+                    .with_parameter("A", any_def.clone(), &[])
+            ).expect("type registration");
         //equivalent to a "class List[A]: Iterable[A] {}" statement.
         ctx.define_class(
             ctx.mk_definition("List")

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::f32::consts::E;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
-use crate::class::{ClassType, ClassTypeDefinition};
+use crate::class::{ClassTypeDef, ClassTypeDefinition};
 use crate::types::{DefinedType, ParameterizedType, Type};
 use crate::lang_types::*;
 
@@ -13,7 +13,7 @@ use crate::lang_types::*;
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TypeContext<'a> {
     /// Records the type of each class by their identity.
-    classes: HashMap<u64, Rc<ClassType>>,
+    classes: HashMap<u64, Rc<ClassTypeDef>>,
 
     dependencies: Vec<&'a TypeContext<'a>>,
 }
@@ -40,7 +40,7 @@ impl<'a> TypeContext<'a> {
 
         const MSG: &str = "lang type registration";
 
-        let any_cl = &Rc::new(ClassType {
+        let any_cl = &Rc::new(ClassTypeDef {
             super_type: None,
             name: "Any".to_owned(),
             generic_parameters: vec![],
@@ -72,7 +72,7 @@ impl<'a> TypeContext<'a> {
     }
 
     /// Creates and registers a new ClassType for given type, the given type must be subtype of given type
-    pub fn define_class(&mut self, def: ClassTypeDefinition) -> Result<Rc<ClassType>, String> {
+    pub fn define_class(&mut self, def: ClassTypeDefinition) -> Result<Rc<ClassTypeDef>, String> {
         let defined = Rc::new(def.build(self)?);
         if self.classes.contains_key(&defined.identity) {
             return Err(format!("type already contained in context {}", defined.name).to_owned())
@@ -88,7 +88,7 @@ impl<'a> TypeContext<'a> {
     ///perform a class type lookup based on the defined type.
     /// If the type is not directly found in this context, then the context
     /// will lookup in parent's context.
-    pub fn lookup_id(&self, id: u64) -> Result<Rc<ClassType>, String> {
+    pub fn lookup_id(&self, id: u64) -> Result<Rc<ClassTypeDef>, String> {
         match self.classes.get(&id) {
             Some(v) => Ok(v.clone()),
             None => {
@@ -103,7 +103,7 @@ impl<'a> TypeContext<'a> {
         }
     }
 
-    pub fn lookup_defined(&self, def: DefinedType) -> Result<Rc<ClassType>, String> {
+    pub fn lookup_defined(&self, def: DefinedType) -> Result<Rc<ClassTypeDef>, String> {
         match def {
             DefinedType::Parameterized(p) => self.lookup_id(hash_of(&p.name)),
             DefinedType::Callable(_) => todo!("implement Callable identity")
