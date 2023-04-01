@@ -31,7 +31,7 @@ use crate::types::Type::Unknown;
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Environment<'a> {
     /// The type context.
-    pub types: TypeContext<'a>,
+    pub type_context: TypeContext<'a>,
 
     /// The local variables.
     locals: Vec<Local>,
@@ -44,7 +44,7 @@ pub struct Environment<'a> {
 impl<'a> Environment<'a> {
     pub fn lang() -> Self {
         Self {
-            types: TypeContext::lang(),
+            type_context: TypeContext::lang(),
             ..Self::default()
         }
     }
@@ -92,7 +92,7 @@ impl<'a> Environment<'a> {
 
     pub(crate) fn fork(&'a self) -> Environment<'a> {
         Self {
-            types: self.types.fork(),
+            type_context: self.type_context.fork(),
             dependencies: vec!(self),
             ..Self::default()
         }

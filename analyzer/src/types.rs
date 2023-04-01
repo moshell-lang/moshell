@@ -1,8 +1,6 @@
 use std::ops::Deref;
 use crate::lang_types::unit;
-use std::fmt::{Debug, Display, Formatter, Pointer, Write, write};
-use std::rc::Rc;
-use crate::class::ClassType;
+use std::fmt::{Debug, Display, Formatter, Write};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct ParameterizedType {
@@ -55,6 +53,9 @@ pub enum Type {
     ///A Defined, structured type
     Defined(DefinedType),
 
+    ///Special handling for nothing types
+    Nothing,
+
     ///The type isn't known yet
     Unknown,
 }
@@ -67,8 +68,6 @@ pub enum DefinedType {
     ///Type for callables, functions or lambdas, with inputs and output
     Callable(CallableType),
 
-    ///Special handling for nothing types
-    Nothing,
 }
 
 
@@ -77,6 +76,7 @@ impl Display for Type {
         match self {
             Type::Defined(d) => write!(f, "{}", d),
             Type::Unknown => write!(f, "<unknown>"),
+            Type::Nothing => write!(f, "Nothing"),
         }
     }
 }
@@ -86,7 +86,6 @@ impl Display for DefinedType {
         match self {
             DefinedType::Parameterized(p) => write!(f, "{}", p),
             DefinedType::Callable(c) => write!(f, "{}", c),
-            DefinedType::Nothing => write!(f, "Nothing"),
         }
     }
 }
@@ -109,7 +108,7 @@ impl<'a> From<ast::r#type::Type<'a>> for Type {
                 output: Box::new(b.name.deref().clone().into()),
             })),
             ast::r#type::Type::Unit => Type::Defined(unit()),
-            ast::r#type::Type::Nothing => Type::Defined(DefinedType::Nothing)
+            ast::r#type::Type::Nothing => Type::Nothing
         }
     }
 }

@@ -1,10 +1,10 @@
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
-use std::hash::Hash;
+use std::f32::consts::E;
+use std::hash::{Hash, Hasher};
 use std::rc::Rc;
-use std::sync::Arc;
-use crate::class::ClassType;
-use crate::types::{DefinedType, Type};
+use crate::class::{ClassType, ClassTypeDefinition};
+use crate::types::{DefinedType, ParameterizedType, Type};
 use crate::lang_types::*;
 
 /// A type environment.
@@ -12,17 +12,25 @@ use crate::lang_types::*;
 /// Contexts track substitutions and generate fresh type variables.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TypeContext<'a> {
-    /// Records the type of each class by name.
-    classes: HashMap<DefinedType, Rc<ClassType>>,
+    /// Records the type of each class by their identity.
+    classes: HashMap<u64, Rc<ClassType>>,
 
     dependencies: Vec<&'a TypeContext<'a>>,
 }
 
 
 //as current structures does not handle random accesses, we cannot share type contexts between threads
-//then, we create
 thread_local! {
     pub static LANG: TypeContext<'static> = TypeContext::lang();
+}
+
+
+
+
+fn hash_of<H: Hash>(hashable: &H) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    hashable.hash(&mut hasher);
+    hasher.finish()
 }
 
 impl<'a> TypeContext<'a> {
@@ -32,49 +40,73 @@ impl<'a> TypeContext<'a> {
 
         const MSG: &str = "lang type registration";
 
-        ctx.classes.insert(any(), Rc::new(ClassType::new(None, any(), Vec::new())));
-        ctx.define_class(&any(), float()).expect(MSG);
-        ctx.define_class(&any(), bool()).expect(MSG);
-        ctx.define_class(&any(), str()).expect(MSG);
-        ctx.define_class(&any(), unit()).expect(MSG);
+        let any_cl = &Rc::new(ClassType {
+            super_type: None,
+            name: "Any".to_owned(),
+            generic_parameters: vec![],
+            identity: hash_of(&"Any"),
+        });
+        ctx.classes.insert(any_cl.identity, any_cl.clone());
 
-        ctx.define_class(&float(), int()).expect(MSG);
-        ctx.define_class(&int(), exitcode()).expect(MSG);
+        let float = ctx.define_class(ctx.mk_definition("Float")).expect(MSG);
+
+        ctx.define_class(ctx.mk_definition("Bool")).expect(MSG);
+        ctx.define_class(ctx.mk_definition("Str")).expect(MSG);
+        ctx.define_class(ctx.mk_definition("Unit")).expect(MSG);
+
+        let int = ctx.define_class(
+            ctx.mk_definition("Int")
+                .with_parent(float)
+        ).expect(MSG);
+
+        ctx.define_class(
+            ctx.mk_definition("Exitcode")
+                .with_parent(int)
+        ).expect(MSG);
 
         ctx
     }
 
+    pub fn mk_definition(&self, name: &str) -> ClassTypeDefinition {
+        ClassTypeDefinition::new(name.to_owned(), hash_of(&name))
+    }
+
     /// Creates and registers a new ClassType for given type, the given type must be subtype of given type
-    pub fn define_class(&mut self, super_type: &DefinedType, registered: DefinedType) -> Result<(), String> {
-        if self.classes.contains_key(&registered) {
-            return Err(format!("type already contained in context {}", registered).to_owned())
+    pub fn define_class(&mut self, def: ClassTypeDefinition) -> Result<Rc<ClassType>, String> {
+        let defined = Rc::new(def.build(self)?);
+        if self.classes.contains_key(&defined.identity) {
+            return Err(format!("type already contained in context {}", defined.name).to_owned())
         }
 
-        let sup = self.lookup_definition(super_type)?;
-
-
         self.classes.insert(
-            registered.clone(),
-            Rc::new(ClassType::new(Some(sup), registered)),
+            defined.identity,
+            defined.clone(),
         );
-        Ok(())
+        Ok(defined)
     }
 
     ///perform a class type lookup based on the defined type.
     /// If the type is not directly found in this context, then the context
     /// will lookup in parent's context.
-    pub fn lookup_definition(&self, tpe: &DefinedType) -> Result<Rc<ClassType>, String> {
-        match self.classes.get(&tpe) {
+    pub fn lookup_id(&self, id: u64) -> Result<Rc<ClassType>, String> {
+        match self.classes.get(&id) {
             Some(v) => Ok(v.clone()),
             None => {
                 let iter = self.dependencies.iter();
                 for dep in iter {
-                    if let Some(found) = dep.lookup_definition(tpe).ok() {
+                    if let Some(found) = dep.lookup_id(id).ok() {
                         return Ok(found)
                     }
                 }
                 Err("Unknown type".to_owned())
             }
+        }
+    }
+
+    pub fn lookup_defined(&self, def: DefinedType) -> Result<Rc<ClassType>, String> {
+        match def {
+            DefinedType::Parameterized(p) => self.lookup_id(hash_of(&p.name)),
+            DefinedType::Callable(_) => todo!("implement Callable identity")
         }
     }
 
@@ -98,15 +130,11 @@ impl<'a> TypeContext<'a> {
             (Type::Unknown, _) => Ok(Type::Unknown),
             (_, Type::Unknown) => Ok(Type::Unknown),
 
-            (Type::Defined(def1 @ DefinedType::Parameterized(_)),
+            (Type::Defined(DefinedType::Parameterized(def1)),
                 Type::Defined(def2 @ DefinedType::Parameterized(_))) => {
-                let cl1 = self.lookup_definition(def1)?;
+                let cl1 = self.lookup_id(hash_of(&def1.name))?;
 
-                cl1.unify_with(self, def2)
-                    .and_then(|opt|
-                        opt.map(Type::Defined)
-                            .ok_or("Type 1 and Type 2 are not inferable".to_owned())
-                    )
+                Ok(Type::Defined(cl1.unify_with(self, def2)))
             }
 
             (Type::Defined(DefinedType::Callable(_)), _) => {
