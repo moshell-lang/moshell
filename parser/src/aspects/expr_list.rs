@@ -1,4 +1,4 @@
-use crate::err::ParseErrorKind::{Expected};
+use crate::err::ParseErrorKind::Expected;
 use crate::moves::{blanks, eod, lookahead, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use lexer::token::TokenType;

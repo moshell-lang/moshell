@@ -56,7 +56,7 @@ fn lambda_in_val() {
                 args: vec![TypedVariable {
                     name: "a",
                     ty: None,
-                }, ],
+                },],
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::VarReference(VarReference { name: "a" })),
                     op: BinaryOperator::Plus,
@@ -83,7 +83,6 @@ fn lambda_empty_params() {
         })]
     );
 }
-
 
 #[test]
 fn lambda_in_classic_call() {
@@ -146,6 +145,22 @@ fn lambda_in_pfc() {
                 })),
             })],
             type_parameters: vec![],
+        })]
+    );
+}
+
+#[test]
+fn identity_lambda() {
+    let source = Source::unknown("a => $a");
+    let parsed = parse(source).expect("Failed to parse.");
+    assert_eq!(
+        parsed,
+        vec![Expr::LambdaDef(LambdaDef {
+            args: vec![TypedVariable {
+                name: "a",
+                ty: None,
+            }],
+            body: Box::new(Expr::VarReference(VarReference { name: "a" })),
         })]
     );
 }

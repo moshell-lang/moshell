@@ -29,8 +29,6 @@ impl<'a> LambdaDefinitionAspect<'a> for Parser<'a> {
     }
 }
 
-impl<'a> Parser<'a> {}
-
 #[cfg(test)]
 mod tests {
     use crate::aspects::lambda_def::LambdaDefinitionAspect;

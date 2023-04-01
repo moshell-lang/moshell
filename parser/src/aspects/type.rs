@@ -74,11 +74,8 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             return Ok(Vec::new());
         }
         let start = self.cursor.peek();
-        let tparams = self.parse_explicit_list(
-            SquaredLeftBracket,
-            SquaredRightBracket,
-            Self::parse_type,
-        )?;
+        let tparams =
+            self.parse_explicit_list(SquaredLeftBracket, SquaredRightBracket, Self::parse_type)?;
         if tparams.is_empty() {
             return self.expected_with(
                 "unexpected empty type parameter list",
@@ -113,11 +110,8 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_parentheses(&mut self) -> ParseResult<Type<'a>> {
-        let inputs = self.parse_implicit_list(
-            RoundedLeftBracket,
-            RoundedRightBracket,
-            Self::parse_type,
-        )?;
+        let inputs =
+            self.parse_implicit_list(RoundedLeftBracket, RoundedRightBracket, Self::parse_type)?;
 
         //if there is an arrow then it is a lambda
         if self
