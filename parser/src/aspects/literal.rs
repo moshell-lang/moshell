@@ -5,7 +5,7 @@ use crate::aspects::substitution::SubstitutionAspect;
 use lexer::token::TokenType::*;
 
 use crate::err::ParseErrorKind;
-use crate::moves::{next, of_type, word_seps};
+use crate::moves::{next, of_type};
 use crate::parser::{ParseResult, Parser};
 use ast::range::{FilePattern, Iterable};
 use ast::value::{Literal, LiteralValue, TemplateString};
@@ -255,10 +255,6 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 Space | NewLine => break,
 
                 BackSlash => {
-                    if self.cursor.advance(word_seps()).is_some() {
-                        break;
-                    }
-
                     if let Some(joined) = try_join_str(self.source.source, lexeme, token.value) {
                         lexeme = joined;
                     }

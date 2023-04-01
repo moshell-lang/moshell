@@ -1,5 +1,5 @@
 use crate::err::ParseErrorKind::{Expected, Unexpected};
-use crate::moves::{any, eod, lookahead, not, of_type, word_seps, MoveOperations};
+use crate::moves::{any, eod, lookahead, not, of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::r#type::{ByName, CallableType, SimpleType, Type};
 use lexer::token::TokenType;
@@ -20,7 +20,7 @@ pub trait TypeAspect<'a> {
 
 impl<'a> TypeAspect<'a> for Parser<'a> {
     fn parse_type(&mut self) -> ParseResult<Type<'a>> {
-        self.cursor.advance(word_seps()); //consume word seps
+        self.cursor.advance(spaces()); //consume word seps
 
         let first_token = self.cursor.peek();
         //if there's a parenthesis then the type is necessarily a lambda type
@@ -33,7 +33,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         // (a lambda with one parameter and no parenthesis for the input, which is valid)
         if self
             .cursor
-            .advance(word_seps().then(of_type(FatArrow)))
+            .advance(spaces().then(of_type(FatArrow)))
             .is_none()
         {
             return Ok(tpe);
@@ -50,7 +50,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         // (a lambda with one parameter and no parenthesis for the input, which is valid)
         if self
             .cursor
-            .advance(word_seps().then(of_type(FatArrow)))
+            .advance(spaces().then(of_type(FatArrow)))
             .is_some()
         {
             //parse second lambda output in order to advance on the full invalid lambda expression
@@ -77,7 +77,7 @@ impl<'a> Parser<'a> {
 
         //control case of => => A which is invalid
         self.cursor
-            .force(word_seps().then(not(of_type(FatArrow))), "unexpected '=>'")?;
+            .force(spaces().then(not(of_type(FatArrow))), "unexpected '=>'")?;
 
         Ok(ByName {
             name: self.parse_type().map(Box::new)?,
@@ -98,7 +98,7 @@ impl<'a> Parser<'a> {
         //if there is an arrow then it is a lambda
         if self
             .cursor
-            .advance(word_seps().then(of_type(FatArrow)))
+            .advance(spaces().then(of_type(FatArrow)))
             .is_some()
         {
             return self.parse_lambda_with_inputs(inputs).map(Type::Callable);
@@ -141,7 +141,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_simple_or_unit(&mut self) -> ParseResult<Type<'a>> {
-        let name_token = self.cursor.advance(word_seps().then(any())).unwrap();
+        let name_token = self.cursor.advance(spaces().then(any())).unwrap();
 
         let ttype = name_token.token_type;
         if ttype == Identifier {
@@ -156,7 +156,7 @@ impl<'a> Parser<'a> {
             || (ttype == RoundedLeftBracket
                 && self
                     .cursor
-                    .advance(word_seps().then(of_type(RoundedRightBracket)))
+                    .advance(spaces().then(of_type(RoundedRightBracket)))
                     .is_some())
         {
             return Ok(Type::Unit);
@@ -189,15 +189,15 @@ impl<'a> Parser<'a> {
 
         let mut tparams = vec![];
 
-        while self.cursor.lookahead(word_seps().then(eod())).is_none() {
+        while self.cursor.lookahead(spaces().then(eod())).is_none() {
             tparams.push(self.parse_type()?);
             self.cursor.force_with(
-                word_seps().then(of_type(Comma).or(lookahead(eod()))),
+                spaces().then(of_type(Comma).or(lookahead(eod()))),
                 "A comma or a closing bracket was expected here",
                 Expected("',' or ']'".to_string()),
             )?;
         }
-        self.cursor.advance(word_seps());
+        self.cursor.advance(spaces());
 
         if tparams.is_empty() && non_empty {
             self.expect_delimiter(end)?;
@@ -208,7 +208,7 @@ impl<'a> Parser<'a> {
             );
         }
 
-        self.cursor.advance(word_seps());
+        self.cursor.advance(spaces());
         self.expect_delimiter(end)?;
 
         Ok(tparams)

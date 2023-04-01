@@ -23,7 +23,7 @@ use crate::cursor::ParserCursor;
 use crate::err::ParseErrorKind::Unexpected;
 use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
 use crate::moves::{
-    bin_op, eod, eox, like, next, of_type, of_types, repeat, spaces, word_seps, MoveOperations,
+    bin_op, eod, eox, like, next, of_type, of_types, repeat, spaces, MoveOperations,
 };
 use ast::range::Iterable;
 use ast::Expr;
@@ -144,7 +144,7 @@ impl<'a> Parser<'a> {
             Identifier
                 if self
                     .cursor
-                    .lookahead(next().then(word_seps().then(of_type(Equal))))
+                    .lookahead(next().then(spaces().then(of_type(Equal))))
                     .is_some() =>
             {
                 self.parse_assign().map(Expr::Assign)
@@ -329,7 +329,7 @@ impl<'a> Parser<'a> {
     //as the left arm of the expression.
     //if given expression is directly followed by an eox delimiter, then return it as is
     fn parse_binary_value_expr(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
-        self.cursor.advance(word_seps()); //consume word separators
+        self.cursor.advance(spaces()); //consume word separators
 
         if self.cursor.advance(of_type(DotDot)).is_some() {
             return self
@@ -356,7 +356,7 @@ impl<'a> Parser<'a> {
     ///Skips spaces and verify that this parser is not parsing the end of an expression
     /// (unescaped newline or semicolon)
     pub(crate) fn repos(&mut self, message: &str) -> ParseResult<()> {
-        self.cursor.advance(word_seps()); //skip word separators
+        self.cursor.advance(spaces()); //skip word separators
         if self.cursor.lookahead(eox()).is_some() {
             return self.expected(message, Unexpected);
         }

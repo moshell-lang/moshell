@@ -144,11 +144,6 @@ pub(crate) fn spaces() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + C
     of_type(Space)
 }
 
-///A move to consume all spaces and escaped newlines
-pub(crate) fn word_seps() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
-    spaces()
-}
-
 ///a move to consume any space or any newline
 pub(crate) fn blank() -> PredicateMove<impl Fn(Token) -> bool + Copy> {
     of_types(&[Space, NewLine])
