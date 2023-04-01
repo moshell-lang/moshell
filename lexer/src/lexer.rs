@@ -5,7 +5,7 @@ use std::iter::Peekable;
 use std::str::CharIndices;
 
 pub fn lex(input: &str) -> Vec<Token> {
-    Lexer::new(&input).collect()
+    Lexer::new(input).collect()
 }
 
 pub(crate) struct Lexer<'a> {
@@ -189,7 +189,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn skip_line(&mut self) {
-        while let Some((_, c)) = self.iter.next() {
+        for (_, c) in self.iter.by_ref() {
             if c == '\n' {
                 break;
             }
