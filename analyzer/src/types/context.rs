@@ -40,6 +40,7 @@ impl TypeContext {
             context: Rc::new(RefCell::new(Self::fork(ctx_rc.clone()))),
         });
         ctx.classes.insert(any_cl.identity, any_cl.clone());
+        drop(ctx);
 
         let float = Self::define_class(&ctx_rc, ClassTypeDefinition::new("Float")).expect(MSG);
 
