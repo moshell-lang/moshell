@@ -72,6 +72,9 @@ impl<'a> Lexer<'a> {
                 if self.matches_next('/', &mut size) {
                     self.skip_line();
                     return self.next_token();
+                } else if self.matches_next('*', &mut size) {
+                    self.skip_multiline_comment();
+                    return self.next_token();
                 } else {
                     TokenType::Slash
                 }
@@ -215,6 +218,15 @@ impl<'a> Lexer<'a> {
     fn skip_line(&mut self) {
         for (_, c) in self.iter.by_ref() {
             if c == '\n' {
+                break;
+            }
+        }
+    }
+
+    /// Skip the remaining characters of the current multiline comment.
+    fn skip_multiline_comment(&mut self) {
+        while let Some((_, c)) = self.iter.next() {
+            if c == '*' && self.iter.next_if(|(_, c)| *c == '/').is_some() {
                 break;
             }
         }

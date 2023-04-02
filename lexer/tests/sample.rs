@@ -15,9 +15,11 @@ fn string_literal() {
             Token::new(TokenType::Space, " "),
             Token::new(TokenType::Identifier, "http"),
             Token::new(TokenType::Colon, ":"),
-            Token::new(TokenType::Identifier, "//localhost"),
+            Token::new(TokenType::Identifier, "/"),
+            Token::new(TokenType::Identifier, "/localhost"),
             Token::new(TokenType::Space, "  "),
-            Token::new(TokenType::Identifier, "//true"),
+            Token::new(TokenType::Identifier, "/"),
+            Token::new(TokenType::Identifier, "/true"),
             Token::new(TokenType::Quote, "'"),
             Token::new(TokenType::Space, " "),
             Token::new(TokenType::Identifier, "yes"),
@@ -60,10 +62,12 @@ fn string_literal_comment_after_arithmetic() {
             Token::new(TokenType::IntLiteral, "1"),
             Token::new(TokenType::RoundedRightBracket, ")"),
             Token::new(TokenType::RoundedRightBracket, ")"),
-            Token::new(TokenType::Identifier, "//"),
+            Token::new(TokenType::Identifier, "/"),
+            Token::new(TokenType::Identifier, "/"),
             Token::new(TokenType::DoubleQuote, "\""),
             Token::new(TokenType::RoundedRightBracket, ")"),
-            Token::new(TokenType::Identifier, "//"),
+            Token::new(TokenType::Identifier, "/"),
+            Token::new(TokenType::Identifier, "/"),
             Token::new(TokenType::DoubleQuote, "\""),
         ]
     );
@@ -117,7 +121,9 @@ fn relative_path() {
             Token::new(TokenType::Space, " "),
             Token::new(TokenType::Dot, "."),
             Token::new(TokenType::Slash, "/"),
-            Token::new(TokenType::Identifier, "some/path"),
+            Token::new(TokenType::Identifier, "some"),
+            Token::new(TokenType::Slash, "/"),
+            Token::new(TokenType::Identifier, "path"),
         ]
     );
 }
@@ -212,6 +218,38 @@ fn numbers() {
             Token::new(TokenType::IntLiteral, "10"),
             Token::new(TokenType::DotDot, ".."),
             Token::new(TokenType::IntLiteral, "15"),
+        ]
+    );
+}
+
+#[test]
+fn multiline_comments() {
+    let tokens = lex("ls/*\n * This is a comment\n*/exit");
+    assert_eq!(
+        tokens,
+        vec![
+            Token::new(TokenType::Identifier, "ls"),
+            Token::new(TokenType::Identifier, "exit"),
+        ]
+    );
+}
+
+#[test]
+fn short_divide() {
+    let tokens = lex("$(($a/$b))");
+    assert_eq!(
+        tokens,
+        vec![
+            Token::new(TokenType::Dollar, "$"),
+            Token::new(TokenType::RoundedLeftBracket, "("),
+            Token::new(TokenType::RoundedLeftBracket, "("),
+            Token::new(TokenType::Dollar, "$"),
+            Token::new(TokenType::Identifier, "a"),
+            Token::new(TokenType::Slash, "/"),
+            Token::new(TokenType::Dollar, "$"),
+            Token::new(TokenType::Identifier, "b"),
+            Token::new(TokenType::RoundedRightBracket, ")"),
+            Token::new(TokenType::RoundedRightBracket, ")"),
         ]
     );
 }
