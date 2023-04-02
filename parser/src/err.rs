@@ -1,13 +1,13 @@
 use crate::parser::ParseResult;
 use ast::Expr;
-use context::source::Location;
+use context::source::SourceSegment;
 use lexer::token::Token;
 
 /// An error that occurs during parsing.
 #[derive(Debug, PartialEq)]
 pub struct ParseError {
     pub message: String,
-    pub position: Location,
+    pub position: SourceSegment,
     pub kind: ParseErrorKind,
 }
 
@@ -51,18 +51,18 @@ impl<'a> From<&'a str> for ErrorContext<'a> {
     }
 }
 
-pub(crate) fn find_in<'a>(source: &'a str, needle: &'a str) -> Location {
+pub(crate) fn find_in<'a>(source: &'a str, needle: &'a str) -> SourceSegment {
     let start = source.find(needle).expect("String not found.");
     start..start + needle.len()
 }
 
-pub(crate) fn find_between<'a>(source: &'a str, start: &'a str, end: &'a str) -> Location {
+pub(crate) fn find_between<'a>(source: &'a str, start: &'a str, end: &'a str) -> SourceSegment {
     let start = source.find(start).expect("Start not found.");
     let end = source[start..].find(end).expect("End not found.") + 1;
     start..start + end
 }
 
-pub(crate) fn rfind_between<'a>(source: &'a str, start: &'a str, end: &'a str) -> Location {
+pub(crate) fn rfind_between<'a>(source: &'a str, start: &'a str, end: &'a str) -> SourceSegment {
     let end = source.rfind(end).expect("End not found.");
     let start = source[..end].rfind(start).expect("Start not found.");
     start..end + 1
@@ -89,7 +89,7 @@ pub enum ParseErrorKind {
     /// A group has been opened, but not closed.
     ///
     /// This reports the location of the opening token.
-    Unpaired(Location),
+    Unpaired(SourceSegment),
 
     /// An incorrectly formatted value.
     InvalidFormat,

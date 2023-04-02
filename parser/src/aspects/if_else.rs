@@ -82,7 +82,7 @@ mod tests {
             vec![Expr::If(If {
                 condition: Box::new(Expr::Test(Test {
                     expression: Box::new(Expr::VarReference(VarReference { name: "1" })),
-                    location: find_between(content, "[", "]"),
+                    segment: find_between(content, "[", "]"),
                 })),
                 success_branch: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
@@ -124,7 +124,7 @@ mod tests {
                 fail_branch: Some(Box::new(Expr::If(If {
                     condition: Box::new(Expr::Test(Test {
                         expression: Box::new(Expr::VarReference(VarReference { name: "a" })),
-                        location: rfind_between(content, "[", "]"),
+                        segment: rfind_between(content, "[", "]"),
                     })),
                     success_branch: Box::new(Expr::Block(Block {
                         expressions: vec![Expr::VarReference(VarReference { name: "7" })]
@@ -145,7 +145,7 @@ mod tests {
             vec![Expr::If(If {
                 condition: Box::new(Expr::Test(Test {
                     expression: Box::new(Expr::VarReference(VarReference { name: "1" })),
-                    location: find_between(content, "[", "]"),
+                    segment: find_between(content, "[", "]"),
                 })),
                 success_branch: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
@@ -154,7 +154,7 @@ mod tests {
                 fail_branch: Some(Box::new(Expr::If(If {
                     condition: Box::new(Expr::Test(Test {
                         expression: Box::new(Expr::VarReference(VarReference { name: "a" })),
-                        location: rfind_between(content, "[", "]")
+                        segment: rfind_between(content, "[", "]")
                     })),
                     success_branch: Box::new(Expr::VarReference(VarReference { name: "7" })),
                     fail_branch: Some(Box::new(Expr::VarReference(VarReference { name: "5" }))),
@@ -212,7 +212,7 @@ mod tests {
                                 parsed: 2023.into()
                             }))
                         })),
-                        location: find_between(content, "[", "]"),
+                        segment: find_between(content, "[", "]"),
                     })),
                     success_branch: Box::new(Expr::TemplateString(TemplateString {
                         parts: vec![Expr::Literal("bash".into())]

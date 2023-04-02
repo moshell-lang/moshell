@@ -347,7 +347,7 @@ mod tests {
                                     parsed: 1.into(),
                                 })),
                             })),
-                            location: find_in(content, "[ $a == 1 ]"),
+                            segment: find_in(content, "[ $a == 1 ]"),
                         })),
                         body: Expr::Subshell(Subshell {
                             expressions: Vec::new()
@@ -465,7 +465,7 @@ mod tests {
                                     parsed: 1.into(),
                                 })),
                             })),
-                            location: find_in(content, "[ $a == 1 ]"),
+                            segment: find_in(content, "[ $a == 1 ]"),
                         })),
                         body: Expr::Subshell(Subshell {
                             expressions: Vec::new()

@@ -1,7 +1,11 @@
 use miette::{MietteError, MietteSpanContents, SourceCode, SourceSpan, SpanContents};
 use std::fmt::Debug;
 
-pub type Location = std::ops::Range<usize>;
+pub type SourceSegment = std::ops::Range<usize>;
+
+pub trait SourceSegmentHolder {
+    fn segment(&self) -> &SourceSegment;
+}
 
 /// Defines a named source code from which tokens can be produced.
 #[derive(Clone)]

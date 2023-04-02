@@ -1,13 +1,14 @@
 use crate::Expr;
-use context::source::Location;
+use context::source::SourceSegment;
 use dbg_pls::DebugPls;
+use src_macros::SourceSegmentHolder;
 
 /// a test (`[ ... ]`) expression
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq, DebugPls, SourceSegmentHolder)]
 pub struct Test<'a> {
     ///expression present between brackets
     pub expression: Box<Expr<'a>>,
-    pub location: Location,
+    pub segment: SourceSegment,
 }
 
 ///a not (`! ..`) expression

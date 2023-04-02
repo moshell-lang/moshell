@@ -60,7 +60,7 @@ impl<'a> TestAspect<'a> for Parser<'a> {
         )?;
         Ok(Expr::Test(Test {
             expression: underlying,
-            location: self.cursor.relative_pos_ctx(start..end),
+            segment: self.cursor.relative_pos_ctx(start..end),
         }))
     }
 }
@@ -183,7 +183,7 @@ mod tests {
                                 right: Box::new(Expr::VarReference(VarReference { name: "b" })),
                             }))
                         })),
-                        location: find_between(content, "[", "]"),
+                        segment: find_between(content, "[", "]"),
                     }))
                 })),
                 op: BinaryOperator::Or,
