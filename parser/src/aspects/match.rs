@@ -204,8 +204,8 @@ mod tests {
     use context::source::Source;
     use pretty_assertions::assert_eq;
 
-    use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
+    use crate::err::{find_in, ParseError};
     use crate::parse;
     use ast::call::Call;
     use ast::group::Subshell;
@@ -288,17 +288,15 @@ mod tests {
 
     #[test]
     fn parse_complete_match() {
-        let ast = parse(Source::unknown(
-            "\
+        let content = "\
         match $1 {\
            -e => ();;;;;\n;;\n;;;;;\
            y@\"test $2\" | 2 | $USER | 't x' => ()
            x@* if [ $a == 1 ] => ();\
            * => echo $it
         }\
-        ",
-        ))
-        .expect("parse fail");
+        ";
+        let ast = parse(Source::unknown(content)).expect("parse fail");
 
         assert_eq!(
             ast,
@@ -348,7 +346,8 @@ mod tests {
                                     lexeme: "1",
                                     parsed: 1.into(),
                                 })),
-                            }))
+                            })),
+                            location: find_in(content, "[ $a == 1 ]"),
                         })),
                         body: Expr::Subshell(Subshell {
                             expressions: Vec::new()
@@ -407,14 +406,15 @@ mod tests {
 
     #[test]
     fn parse_complete_match_blanks() {
-        let ast = parse(Source::unknown("\
+        let content = "\
         match \n\n $1 \n\n {\n\n\
            \n\n -e \n\n => \n\n () \n\n\
            \n\n y \n\n @ \n\n \"test $2\" \n\n | 2 \n\n | \n\n $USER \n\n | \n\n 't x' \n\n =>\n\n  () \n\n\
            \n\n x@* \n\n if \n\n [ $a == 1 ]\n\n  =>\n\n  () \n\n\
            \n\n * \n\n => \n\n echo $it \n\n\
         \n\n }\
-        ")).expect("parse fail");
+        ";
+        let ast = parse(Source::unknown(content)).expect("parse fail");
 
         assert_eq!(
             ast,
@@ -464,7 +464,8 @@ mod tests {
                                     lexeme: "1",
                                     parsed: 1.into(),
                                 })),
-                            }))
+                            })),
+                            location: find_in(content, "[ $a == 1 ]"),
                         })),
                         body: Expr::Subshell(Subshell {
                             expressions: Vec::new()

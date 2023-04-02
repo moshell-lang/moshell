@@ -57,7 +57,7 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::err::{find_between, rfind_between, ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
     use ast::call::Call;
@@ -74,13 +74,15 @@ mod tests {
 
     #[test]
     fn simple_if() {
-        let source = Source::unknown("if [ $1 ]; echo test");
+        let content = "if [ $1 ]; echo test";
+        let source = Source::unknown(content);
         let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::If(If {
                 condition: Box::new(Expr::Test(Test {
-                    expression: Box::new(Expr::VarReference(VarReference { name: "1" }))
+                    expression: Box::new(Expr::VarReference(VarReference { name: "1" })),
+                    location: find_between(content, "[", "]"),
                 })),
                 success_branch: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
@@ -93,9 +95,9 @@ mod tests {
 
     #[test]
     fn if_else_if() {
-        let source = Source::unknown(
-            "if echo a && [[ -f /file/exe ]]; echo test\n\n\nelse if [ $a ] \n;\n { $7 }; else $5",
-        );
+        let content =
+            "if echo a && [[ -f /file/exe ]]; echo test\n\n\nelse if [ $a ] \n;\n { $7 }; else $5";
+        let source = Source::unknown(content);
         let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
@@ -121,7 +123,8 @@ mod tests {
                 })),
                 fail_branch: Some(Box::new(Expr::If(If {
                     condition: Box::new(Expr::Test(Test {
-                        expression: Box::new(Expr::VarReference(VarReference { name: "a" }))
+                        expression: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                        location: rfind_between(content, "[", "]"),
                     })),
                     success_branch: Box::new(Expr::Block(Block {
                         expressions: vec![Expr::VarReference(VarReference { name: "7" })]
@@ -134,13 +137,15 @@ mod tests {
 
     #[test]
     fn if_else_if_separations() {
-        let source = Source::unknown("if [ $1 ]; echo test; else if [ $a ]; $7 else $5");
+        let content = "if [ $1 ]; echo test; else if [ $a ]; $7 else $5";
+        let source = Source::unknown(content);
         let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::If(If {
                 condition: Box::new(Expr::Test(Test {
-                    expression: Box::new(Expr::VarReference(VarReference { name: "1" }))
+                    expression: Box::new(Expr::VarReference(VarReference { name: "1" })),
+                    location: find_between(content, "[", "]"),
                 })),
                 success_branch: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
@@ -148,7 +153,8 @@ mod tests {
                 })),
                 fail_branch: Some(Box::new(Expr::If(If {
                     condition: Box::new(Expr::Test(Test {
-                        expression: Box::new(Expr::VarReference(VarReference { name: "a" }))
+                        expression: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                        location: rfind_between(content, "[", "]")
                     })),
                     success_branch: Box::new(Expr::VarReference(VarReference { name: "7" })),
                     fail_branch: Some(Box::new(Expr::VarReference(VarReference { name: "5" }))),
@@ -177,8 +183,8 @@ mod tests {
 
     #[test]
     fn if_else_as_value() {
-        let source =
-            Source::unknown("val x = if [ {date +\"%Y\"} < 2023 ]; \"bash\" else \"moshell\"");
+        let content = "val x = if [ {date +\"%Y\"} < 2023 ]; \"bash\" else \"moshell\"";
+        let source = Source::unknown(content);
         let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
@@ -205,7 +211,8 @@ mod tests {
                                 lexeme: "2023",
                                 parsed: 2023.into()
                             }))
-                        }))
+                        })),
+                        location: find_between(content, "[", "]"),
                     })),
                     success_branch: Box::new(Expr::TemplateString(TemplateString {
                         parts: vec![Expr::Literal("bash".into())]

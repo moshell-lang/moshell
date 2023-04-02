@@ -52,7 +52,7 @@ impl<'a> TestAspect<'a> for Parser<'a> {
         }
 
         let underlying = Box::new(self.value()?);
-        self.cursor.force_with(
+        let end = self.cursor.force_with(
             //expect trailing ']'
             spaces().then(of_type(SquaredRightBracket)),
             "missing ']'",
@@ -60,6 +60,7 @@ impl<'a> TestAspect<'a> for Parser<'a> {
         )?;
         Ok(Expr::Test(Test {
             expression: underlying,
+            location: self.cursor.relative_pos_ctx(start..end),
         }))
     }
 }
@@ -80,7 +81,7 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::err::{find_between, ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
     use ast::call::Call;
@@ -162,7 +163,8 @@ mod tests {
 
     #[test]
     fn integration() {
-        let source = Source::unknown("echo && [ ($a == $b) ] || [[ $1 ]]");
+        let content = "echo && [ ($a == $b) ] || [[ $1 ]]";
+        let source = Source::unknown(content);
         let result = parse(source).expect("parse error");
         assert_eq!(
             result,
@@ -181,6 +183,7 @@ mod tests {
                                 right: Box::new(Expr::VarReference(VarReference { name: "b" })),
                             }))
                         })),
+                        location: find_between(content, "[", "]"),
                     }))
                 })),
                 op: BinaryOperator::Or,
