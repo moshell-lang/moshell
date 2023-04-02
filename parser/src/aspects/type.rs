@@ -4,8 +4,8 @@ use crate::parser::{ParseResult, Parser};
 use ast::r#type::{ByName, CallableType, SimpleType, Type};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{
-    Comma, FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket,
-    SquaredLeftBracket, SquaredRightBracket, Unit, Nothing,
+    Comma, FatArrow, Identifier, NewLine, Nothing, RoundedLeftBracket, RoundedRightBracket,
+    SquaredLeftBracket, SquaredRightBracket, Unit,
 };
 use std::fmt::Write;
 
@@ -151,21 +151,31 @@ impl<'a> Parser<'a> {
             Unit => Ok(Type::Unit),
             Nothing => Ok(Type::Nothing),
 
-            NewLine => self.expected_with("expected types", name_token, Expected("<types>".to_string())),
+            NewLine => self.expected_with(
+                "expected types",
+                name_token,
+                Expected("<types>".to_string()),
+            ),
 
-            x if x.is_closing_ponctuation() => self.expected_with("expected types", name_token, Expected("<types>".to_string())),
+            x if x.is_closing_ponctuation() => self.expected_with(
+                "expected types",
+                name_token,
+                Expected("<types>".to_string()),
+            ),
             x if (x == RoundedLeftBracket
                 && self
-                .cursor
-                .advance(word_seps().then(of_type(RoundedRightBracket)))
-                .is_some())
-            => Ok(Type::Unit),
+                    .cursor
+                    .advance(word_seps().then(of_type(RoundedRightBracket)))
+                    .is_some()) =>
+            {
+                Ok(Type::Unit)
+            }
 
             _ => self.expected_with(
                 &format!("'{}' is not a valid types identifier.", &name_token.value),
                 name_token.value,
                 Unexpected,
-            )
+            ),
         };
     }
 

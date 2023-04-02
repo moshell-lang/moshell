@@ -33,7 +33,6 @@ impl Display for ParameterizedType {
 pub enum DefinedType {
     /// parametrized or constant types (`List[A]`, `Map[Str, List[B]]`, `Int`).
     Parameterized(ParameterizedType),
-
     //Callable ?
 }
 
@@ -43,12 +42,9 @@ impl DefinedType {
     }
 
     pub fn parametrized(name: &str, params: &[Type]) -> Self {
-        DefinedType::Parameterized(
-            ParameterizedType::parametrized(name, params)
-        )
+        DefinedType::Parameterized(ParameterizedType::parametrized(name, params))
     }
 }
-
 
 /// Represents [monotypes][1] (fully instantiated, unquantified types).
 ///
@@ -74,7 +70,6 @@ impl Type {
         Type::Defined(DefinedType::parametrized(name, params))
     }
 }
-
 
 impl Display for Type {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

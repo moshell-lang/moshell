@@ -7,7 +7,7 @@ pub mod local;
 pub mod types;
 
 use crate::analyzer::Analyzer;
-use crate::types::types::{Type};
+use crate::types::types::Type;
 use ::context::source::Source;
 use ast::group::Block;
 use ast::Expr;

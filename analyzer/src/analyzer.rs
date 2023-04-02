@@ -1,9 +1,9 @@
 use crate::environment::Environment;
-use crate::types::types::{Type};
+use crate::lang_types::{float, int, str, unit};
+use crate::types::types::Type;
 use crate::Diagnostic;
 use ast::Expr;
 use context::source::Source;
-use crate::lang_types::{float, int, str, unit};
 
 pub struct Analyzer<'a> {
     pub source: Source<'a>,

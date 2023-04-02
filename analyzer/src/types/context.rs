@@ -1,11 +1,11 @@
+use crate::types::class::{ClassTypeDefinition, TypeClass};
+use crate::types::types::{DefinedType, ParameterizedType, Type};
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
-use crate::types::class::{ClassTypeDefinition, TypeClass};
-use crate::types::types::{DefinedType, ParameterizedType, Type};
 
 /// A type environment.
 ///
@@ -50,43 +50,47 @@ impl TypeContext {
         ctx.classes.insert(any_cl.identity, any_cl.clone());
         drop(ctx);
 
-        let float = Self::define_class(ctx_rc.clone(), ClassTypeDefinition::new("Float")).expect(MSG);
+        let float =
+            Self::define_class(ctx_rc.clone(), ClassTypeDefinition::new("Float")).expect(MSG);
 
         Self::define_class(ctx_rc.clone(), ClassTypeDefinition::new("Bool")).expect(MSG);
         Self::define_class(ctx_rc.clone(), ClassTypeDefinition::new("Str")).expect(MSG);
         Self::define_class(ctx_rc.clone(), ClassTypeDefinition::new("Unit")).expect(MSG);
 
-        let int = Self::define_class(ctx_rc.clone(),
-                                     ClassTypeDefinition::new("Int")
-                                         .with_super(float),
-        ).expect(MSG);
+        let int = Self::define_class(
+            ctx_rc.clone(),
+            ClassTypeDefinition::new("Int").with_super(float),
+        )
+        .expect(MSG);
 
-        Self::define_class(ctx_rc.clone(),
-                           ClassTypeDefinition::new("Exitcode")
-                               .with_super(int),
-        ).expect(MSG);
+        Self::define_class(
+            ctx_rc.clone(),
+            ClassTypeDefinition::new("Exitcode").with_super(int),
+        )
+        .expect(MSG);
 
         ctx_rc
     }
 
     /// Creates and registers a new ClassType for given types, the given types must be subtype of given types
-    pub fn define_class(ctx: Rc<RefCell<Self>>, def: ClassTypeDefinition) -> Result<Rc<TypeClass>, String> {
+    pub fn define_class(
+        ctx: Rc<RefCell<Self>>,
+        def: ClassTypeDefinition,
+    ) -> Result<Rc<TypeClass>, String> {
         let id = hash_of(&def.name);
 
         let defined = def.with_identity(id).build(ctx.clone())?;
         let defined = Rc::new(defined);
 
         if ctx.borrow().classes.contains_key(&defined.identity) {
-            return Err(format!("types already contained in context {}", defined.name).to_owned())
+            return Err(format!("types already contained in context {}", defined.name).to_owned());
         }
 
-        ctx.borrow_mut().classes.insert(
-            defined.identity,
-            defined.clone(),
-        );
+        ctx.borrow_mut()
+            .classes
+            .insert(defined.identity, defined.clone());
         Ok(defined)
     }
-
 
     ///perform a class types lookup based on the defined types.
     /// If the types is not directly found in this context, then the context
@@ -98,7 +102,7 @@ impl TypeContext {
                 let iter = self.dependencies.iter();
                 for dep in iter {
                     if let Some(found) = dep.borrow().lookup_id(id).ok() {
-                        return Ok(found)
+                        return Ok(found);
                     }
                 }
                 Err("Unknown types".to_owned())
@@ -118,7 +122,7 @@ impl TypeContext {
 
     pub(crate) fn fork(ctx: Rc<RefCell<Self>>) -> TypeContext {
         TypeContext {
-            dependencies: vec!(ctx),
+            dependencies: vec![ctx],
             ..Default::default()
         }
     }
@@ -132,17 +136,21 @@ impl TypeContext {
             (Type::Unknown, _) => Ok(Type::Unknown),
             (_, Type::Unknown) => Ok(Type::Unknown),
 
-            (Type::Defined(DefinedType::Parameterized(p1)),
-                Type::Defined(DefinedType::Parameterized(p2))) => {
-                self.unify_parameterized(p1, p2)
-                    .map(DefinedType::Parameterized)
-                    .map(Type::Defined)
-            }
-
+            (
+                Type::Defined(DefinedType::Parameterized(p1)),
+                Type::Defined(DefinedType::Parameterized(p2)),
+            ) => self
+                .unify_parameterized(p1, p2)
+                .map(DefinedType::Parameterized)
+                .map(Type::Defined),
         }
     }
 
-    fn unify_parameterized(&self, p1: &ParameterizedType, p2: &ParameterizedType) -> Result<ParameterizedType, String> {
+    fn unify_parameterized(
+        &self,
+        p1: &ParameterizedType,
+        p2: &ParameterizedType,
+    ) -> Result<ParameterizedType, String> {
         let cl1 = self.lookup_defined(&DefinedType::Parameterized(p1.clone()))?;
         let cl2 = self.lookup_defined(&DefinedType::Parameterized(p2.clone()))?;
 
@@ -150,5 +158,4 @@ impl TypeContext {
 
         todo!()
     }
-
 }

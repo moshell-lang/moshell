@@ -1,3 +1,6 @@
+use crate::local::Local;
+use crate::types::context::TypeContext;
+use crate::types::types::Type;
 use std::cell::RefCell;
 ///! The types environment of the compiler.
 ///!
@@ -21,9 +24,6 @@ use std::cell::RefCell;
 ///! ```
 use std::default::Default;
 use std::rc::Rc;
-use crate::local::Local;
-use crate::types::context::TypeContext;
-use crate::types::types::Type;
 
 /// An environment.
 /// The Environment contains the defined types, variables, structure and function definitions of a certain scope.
@@ -37,9 +37,8 @@ pub struct Environment<'a> {
     locals: Vec<Local>,
 
     ///All the direct dependencies of the environment.
-    dependencies: Vec<&'a Environment<'a>>
+    dependencies: Vec<&'a Environment<'a>>,
 }
-
 
 impl<'a> Environment<'a> {
     pub fn lang() -> Self {
@@ -48,7 +47,6 @@ impl<'a> Environment<'a> {
             ..Self::default()
         }
     }
-
 
     /// Resolve a variable name, starting from the current scope and going up.
     ///
@@ -61,13 +59,12 @@ impl<'a> Environment<'a> {
                 let iter = self.dependencies.iter();
                 for dep in iter {
                     if let Some(local) = dep.lookup_local(name) {
-                        return Some(local)
+                        return Some(local);
                     }
                 }
                 None
             })
     }
-
 
     /// Add a new local variable to the environment.
     ///
@@ -83,9 +80,8 @@ impl<'a> Environment<'a> {
     pub(crate) fn fork(&'a self) -> Environment<'a> {
         Self {
             type_context: Rc::new(RefCell::new(TypeContext::fork(self.type_context.clone()))),
-            dependencies: vec!(self),
+            dependencies: vec![self],
             ..Self::default()
         }
     }
-
 }

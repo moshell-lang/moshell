@@ -29,6 +29,3 @@ pub fn str() -> DefinedType {
 pub fn bool() -> DefinedType {
     DefinedType::cons("Bool")
 }
-
-
-
