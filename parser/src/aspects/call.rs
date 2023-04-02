@@ -8,13 +8,15 @@ use crate::err::ParseErrorKind;
 use crate::moves::{eod, eox, like, lookahead, next, of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::call::{Call, ProgrammaticCall};
+use ast::lambda::LambdaDef;
 use ast::r#type::Type;
 use ast::value::Literal;
+use ast::variable::TypedVariable;
 use ast::Expr;
 
 /// A parse aspect for command and function calls
 pub trait CallAspect<'a> {
-    /// Parses a raw call or a programmatic call.
+    /// Parses a raw call, a programmatic call or a lambda definition.
     fn any_call(&mut self) -> ParseResult<Expr<'a>>;
 
     /// Attempts to parse the next raw call expression
@@ -36,10 +38,20 @@ pub trait CallAspect<'a> {
 
 impl<'a> CallAspect<'a> for Parser<'a> {
     fn any_call(&mut self) -> ParseResult<Expr<'a>> {
-        if !self.may_be_at_programmatic_call_start() {
+        // Equivalent to #may_be_at_programmatic_call_start, with an additional check for lambda definitions.
+        if self
+            .cursor
+            .lookahead(
+                of_type(TokenType::Identifier).and_then(
+                    of_types(&[TokenType::RoundedLeftBracket, TokenType::SquaredLeftBracket])
+                        .or(spaces().then(of_type(TokenType::FatArrow))),
+                ),
+            )
+            .is_none()
+        {
             return self.call();
         }
-        // We don't known if this is a programmatic call or a raw call yet.
+        // We don't known if this is a programmatic call, a raw call or a lambda definition yet.
         let identifier = self.cursor.peek();
         self.cursor.advance(next());
         let callee = Expr::Literal(Literal::from(identifier.value));
@@ -52,6 +64,19 @@ impl<'a> CallAspect<'a> for Parser<'a> {
                 name: identifier.value,
                 arguments,
                 type_parameters,
+            }))
+        } else if self
+            .cursor
+            .advance(spaces().then(of_type(TokenType::FatArrow)))
+            .is_some()
+        {
+            let body = Box::new(self.value()?);
+            Ok(Expr::LambdaDef(LambdaDef {
+                args: vec![TypedVariable {
+                    name: identifier.value,
+                    ty: None,
+                }],
+                body,
             }))
         } else {
             self.call_arguments(callee, type_parameters)
