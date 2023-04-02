@@ -1,6 +1,6 @@
 use crate::aspects::expr_list::ExpressionListAspect;
 use crate::err::ParseErrorKind::{Expected, Unexpected};
-use crate::moves::{any, blanks, not, of_type, word_seps, MoveOperations};
+use crate::moves::{any, blanks, not, of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::r#type::{ByName, CallableType, SimpleType, Type};
 use lexer::token::TokenType::{
@@ -94,7 +94,7 @@ impl<'a> Parser<'a> {
 
         //control case of => => A which is invalid
         self.cursor
-            .force(word_seps().then(not(of_type(FatArrow))), "unexpected '=>'")?;
+            .force(spaces().then(not(of_type(FatArrow))), "unexpected '=>'")?;
 
         Ok(ByName {
             name: self.parse_type().map(Box::new)?,
@@ -116,7 +116,7 @@ impl<'a> Parser<'a> {
         //if there is an arrow then it is a lambda
         if self
             .cursor
-            .advance(word_seps().then(of_type(FatArrow)))
+            .advance(spaces().then(of_type(FatArrow)))
             .is_some()
         {
             return self.parse_lambda_with_inputs(inputs).map(Type::Callable);
@@ -159,7 +159,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_simple_or_unit(&mut self) -> ParseResult<Type<'a>> {
-        let name_token = self.cursor.advance(word_seps().then(any())).unwrap();
+        let name_token = self.cursor.advance(spaces().then(any())).unwrap();
 
         let ttype = name_token.token_type;
         if ttype == Identifier {
@@ -174,7 +174,7 @@ impl<'a> Parser<'a> {
             || (ttype == RoundedLeftBracket
                 && self
                     .cursor
-                    .advance(word_seps().then(of_type(RoundedRightBracket)))
+                    .advance(spaces().then(of_type(RoundedRightBracket)))
                     .is_some())
         {
             return Ok(Type::Unit);

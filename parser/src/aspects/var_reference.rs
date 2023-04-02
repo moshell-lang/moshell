@@ -34,10 +34,9 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
         }
 
         let first = tokens[0].value;
-        let name = tokens
-            .iter()
-            .skip(1)
-            .fold(first, |acc, t| try_join_str(acc, t.value).unwrap());
+        let name = tokens.iter().skip(1).fold(first, |acc, t| {
+            try_join_str(self.source.source, acc, t.value).unwrap()
+        });
 
         if let Some(bracket) = bracket {
             self.cursor.force_with(

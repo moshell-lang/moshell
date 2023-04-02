@@ -1,4 +1,4 @@
-use crate::moves::{bin_op, eox, spaces, word_seps, MoveOperations};
+use crate::moves::{bin_op, eox, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::Expr;
@@ -65,7 +65,7 @@ impl<'p> Parser<'p> {
     //does current operator priority has priority over next binary operator ?
     fn has_priority(&self, current_priority: i8) -> bool {
         self.cursor
-            .lookahead(word_seps().then(bin_op()))
+            .lookahead(spaces().then(bin_op()))
             .map(|t| {
                 BinaryOperator::try_from(t.token_type)
                     .expect("conception error") //cannot fail
@@ -85,7 +85,7 @@ impl<'p> Parser<'p> {
         P: FnMut(&mut Self) -> ParseResult<Expr<'p>>,
     {
         //current expressions' infix operator
-        let operator = self.cursor.advance(word_seps().then(bin_op())).map(|t| {
+        let operator = self.cursor.advance(spaces().then(bin_op())).map(|t| {
             BinaryOperator::try_from(t.token_type) //cannot fail
                 .expect("conception error")
         });
@@ -107,7 +107,7 @@ impl<'p> Parser<'p> {
         //is > 0 if current operator's priority is smaller
         let priority_comparison = self
             .cursor
-            .lookahead(word_seps().then(bin_op()))
+            .lookahead(spaces().then(bin_op()))
             .map(|t| {
                 operator_priority
                     - BinaryOperator::try_from(t.token_type)
@@ -437,7 +437,7 @@ mod tests {
 
     #[test]
     fn escaped_operators() {
-        let source = Source::unknown("(echo hello \\&& world \\);) || echo damn");
+        let source = Source::unknown("(echo hello \\& world \\);) || echo damn");
         let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_statement)
@@ -450,15 +450,9 @@ mod tests {
                         arguments: vec![
                             Expr::Literal("echo".into()),
                             Expr::Literal("hello".into()),
-                            Expr::Literal(Literal {
-                                lexeme: "\\&&",
-                                parsed: "&&".into(),
-                            }),
+                            Expr::Literal("&".into()),
                             Expr::Literal("world".into()),
-                            Expr::Literal(Literal {
-                                lexeme: "\\)",
-                                parsed: ")".into(),
-                            }),
+                            Expr::Literal(")".into()),
                         ],
                         type_parameters: vec![],
                     })]

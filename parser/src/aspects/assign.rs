@@ -1,4 +1,4 @@
-use crate::moves::{of_type, word_seps};
+use crate::moves::{of_type, spaces};
 use crate::parser::{ParseResult, Parser};
 use ast::variable::Assign;
 use lexer::token::TokenType;
@@ -14,7 +14,7 @@ impl<'a> AssignAspect<'a> for Parser<'a> {
             .cursor
             .force(of_type(TokenType::Identifier), "Expected variable name.")?
             .value;
-        self.cursor.advance(word_seps());
+        self.cursor.advance(spaces());
         self.cursor.force(
             of_type(TokenType::Equal),
             "Expected '=' at start of assignment",

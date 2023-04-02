@@ -5,7 +5,7 @@ use lexer::token::{Token, TokenType};
 use crate::aspects::r#type::TypeAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::err::ParseErrorKind;
-use crate::moves::{eod, eox, like, lookahead, next, of_type, of_types, word_seps, MoveOperations};
+use crate::moves::{eod, eox, like, lookahead, next, of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::call::{Call, ProgrammaticCall};
 use ast::lambda::LambdaDef;
@@ -44,7 +44,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             .lookahead(
                 of_type(TokenType::Identifier).and_then(
                     of_types(&[TokenType::RoundedLeftBracket, TokenType::SquaredLeftBracket])
-                        .or(word_seps().then(of_type(TokenType::FatArrow))),
+                        .or(spaces().then(of_type(TokenType::FatArrow))),
                 ),
             )
             .is_none()
@@ -67,7 +67,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             }))
         } else if self
             .cursor
-            .advance(word_seps().then(of_type(TokenType::FatArrow)))
+            .advance(spaces().then(of_type(TokenType::FatArrow)))
             .is_some()
         {
             let body = Box::new(self.value()?);
@@ -114,16 +114,16 @@ impl<'a> CallAspect<'a> for Parser<'a> {
     ) -> ParseResult<Expr<'a>> {
         let mut arguments = vec![callee];
 
-        self.cursor.advance(word_seps()); //consume word separations
-                                          // Continue reading arguments until we reach the end of the input or a closing punctuation
+        self.cursor.advance(spaces()); //consume word separations
+                                       // Continue reading arguments until we reach the end of the input or a closing punctuation
         while !self.cursor.is_at_end()
             && self
                 .cursor
-                .lookahead(word_seps().then(eox().or(like(TokenType::is_call_bound))))
+                .lookahead(spaces().then(eox().or(like(TokenType::is_call_bound))))
                 .is_none()
         {
             arguments.push(self.call_argument()?);
-            self.cursor.advance(word_seps()); //consume word separations
+            self.cursor.advance(spaces()); //consume word separations
         }
 
         if self.is_at_redirection_sign() {
@@ -172,7 +172,7 @@ impl<'a> Parser<'a> {
         // Read the args until a closing delimiter or a new non-escaped line is found.
         let mut args = Vec::new();
         loop {
-            self.cursor.advance(word_seps());
+            self.cursor.advance(spaces());
             if self
                 .cursor
                 .advance(of_type(TokenType::RoundedRightBracket))
@@ -185,7 +185,7 @@ impl<'a> Parser<'a> {
                 self.expected("Expected argument.", ParseErrorKind::Unexpected)?;
             }
             args.push(self.value()?);
-            self.cursor.advance(word_seps());
+            self.cursor.advance(spaces());
 
             // Check if the arg list is abnormally terminated.
             if self.cursor.lookahead(eox()).is_some() {
@@ -199,7 +199,7 @@ impl<'a> Parser<'a> {
                 break;
             }
             self.cursor.force(
-                word_seps().then(of_type(TokenType::Comma).or(lookahead(eod()))),
+                spaces().then(of_type(TokenType::Comma).or(lookahead(eod()))),
                 "expected ','",
             )?;
         }
@@ -329,10 +329,7 @@ mod tests {
                     Expr::Literal("grep".into()),
                     Expr::Literal("-E".into()),
                     Expr::Literal("regex".into()),
-                    Expr::Literal(Literal {
-                        lexeme: "\\;",
-                        parsed: ";".into(),
-                    }),
+                    Expr::Literal(";".into()),
                     Expr::Literal("echo".into()),
                     Expr::Literal("test".into()),
                 ],

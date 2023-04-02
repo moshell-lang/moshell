@@ -1,5 +1,5 @@
 use crate::err::ParseErrorKind;
-use crate::moves::{eox, of_type, repeat, spaces, word_seps, MoveOperations};
+use crate::moves::{eox, of_type, repeat, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::r#use::Use;
 use ast::Expr;
@@ -31,9 +31,9 @@ impl<'a> UseAspect<'a> for Parser<'a> {
         let mut tail: Vec<_> = self
             .cursor
             .collect(repeat(
-                word_seps()
+                spaces()
                     .then(of_type(Comma))
-                    .then(word_seps().then(of_type(Identifier))),
+                    .then(spaces().then(of_type(Identifier))),
             ))
             .into_iter()
             .filter(|t| t.token_type == Identifier)
