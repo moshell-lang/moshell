@@ -2,10 +2,10 @@ use crate::local::Local;
 use crate::types::context::TypeContext;
 use crate::types::types::Type;
 use std::cell::RefCell;
-///! The types environment of the compiler.
+///! The type environment of the interpreter.
 ///!
-///! A environment maps local variable names to their types and keep tracks of scopes.
-///! The same variable name can be accessed in different scopes, and can have different types in
+///! A environment maps local variable names to their type and keep tracks of scopes.
+///! The same variable name can be accessed in different scopes, and can have different type in
 ///! different stack frames. For example:
 ///! ```text
 ///! {

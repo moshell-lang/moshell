@@ -31,7 +31,7 @@ pub struct Loop<'a> {
 /// A for loop.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct For<'a> {
-    /// The types of the for loop.
+    /// The type of the for loop.
     pub kind: Box<ForKind<'a>>,
     /// The body of the for loop.
     pub body: Box<Expr<'a>>,

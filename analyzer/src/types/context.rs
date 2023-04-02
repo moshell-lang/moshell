@@ -12,7 +12,7 @@ use std::rc::Rc;
 /// Contexts track substitutions and generate fresh types variables.
 #[derive(Debug, Clone, Eq, Default)]
 pub struct TypeContext {
-    /// Records the types of each class by their identity.
+    /// Records the type of each class by their identity.
     pub(crate) classes: HashMap<u64, Rc<TypeClass>>,
 
     pub(crate) dependencies: Vec<Rc<RefCell<TypeContext>>>,
@@ -93,7 +93,7 @@ impl TypeContext {
     }
 
     ///perform a class types lookup based on the defined types.
-    /// If the types is not directly found in this context, then the context
+    /// If the type is not directly found in this context, then the context
     /// will lookup in parent's context.
     pub fn lookup_id(&self, id: u64) -> Result<Rc<TypeClass>, String> {
         match self.classes.get(&id) {

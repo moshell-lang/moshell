@@ -3,6 +3,7 @@ use ast::Expr;
 use context::source::Source;
 use parser::err::{ParseError, ParseErrorKind, ParseReport};
 use parser::parse;
+use pretty_assertions::assert_eq;
 
 #[test]
 fn repos_delimiter_stack() {

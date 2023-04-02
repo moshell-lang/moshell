@@ -98,7 +98,7 @@ where
     PredicateMove { predicate }
 }
 
-/// a predicate move on the types of the token rather than it's integrity
+/// a predicate move on the type of the token rather than it's integrity
 pub(crate) fn like<P>(predicate: P) -> PredicateMove<impl Fn(Token) -> bool + Copy>
 where
     P: Fn(TokenType) -> bool + Copy,

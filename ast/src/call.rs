@@ -82,7 +82,7 @@ pub struct Pipeline<'a> {
 
 /// Redirection operators.
 ///
-/// This enum defines the redirection operator types except here-document and
+/// This enum defines the redirection operator type except here-document and
 /// process redirection.
 #[derive(Clone, Copy, Debug, PartialEq, DebugPls)]
 pub enum RedirOp {

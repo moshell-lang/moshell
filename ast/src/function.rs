@@ -20,6 +20,6 @@ pub struct FunctionDeclaration<'a> {
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub enum FunctionParameter<'a> {
     Named(TypedVariable<'a>),
-    ///argument is the types of the variable (if any).
+    ///argument is the type of the variable (if any).
     Variadic(Option<Type<'a>>),
 }

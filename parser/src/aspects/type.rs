@@ -1,13 +1,11 @@
+use crate::aspects::expr_list::ExpressionListAspect;
 use crate::err::ParseErrorKind::{Expected, Unexpected};
-use crate::moves::{any, eod, lookahead, not, of_type, word_seps, MoveOperations};
+use crate::moves::{any, blanks, not, of_type, word_seps, MoveOperations, eod, lookahead};
 use crate::parser::{ParseResult, Parser};
 use ast::r#type::{ByName, CallableType, SimpleType, Type};
-use lexer::token::TokenType;
-use lexer::token::TokenType::{
-    Comma, FatArrow, Identifier, NewLine, Nothing, RoundedLeftBracket, RoundedRightBracket,
-    SquaredLeftBracket, SquaredRightBracket, Unit,
-};
+use lexer::token::TokenType::*;
 use std::fmt::Write;
+use lexer::token::TokenType;
 
 ///A parser aspect to parse all types declarations, such as lambdas, constant types, parametrized types and Unit
 pub trait TypeAspect<'a> {
@@ -20,20 +18,20 @@ pub trait TypeAspect<'a> {
 
 impl<'a> TypeAspect<'a> for Parser<'a> {
     fn parse_type(&mut self) -> ParseResult<Type<'a>> {
-        self.cursor.advance(word_seps()); //consume word seps
+        self.cursor.advance(blanks());
 
         let first_token = self.cursor.peek();
-        //if there's a parenthesis then the types is necessarily a lambda types
+        //if there's a parenthesis then the type is necessarily a lambda types
         let mut tpe = match first_token.token_type {
             RoundedLeftBracket => self.parse_parentheses()?,
             FatArrow => self.parse_by_name().map(Type::ByName)?,
             _ => self.parse_simple_or_unit()?,
         };
-        //check if there's an arrow, if some, we are maybe in a case where the types is "A => ..."
+        //check if there's an arrow, if some, we are maybe in a case where the type is "A => ..."
         // (a lambda with one parameter and no parenthesis for the input, which is valid)
         if self
             .cursor
-            .advance(word_seps().then(of_type(FatArrow)))
+            .advance(blanks().then(of_type(FatArrow)))
             .is_none()
         {
             return Ok(tpe);
@@ -46,11 +44,11 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             })
         }
 
-        //check if there's an arrow, if some, we are maybe in a case where the types is "A => ..."
+        //check if there's an arrow, if some, we are maybe in a case where the type is "A => ..."
         // (a lambda with one parameter and no parenthesis for the input, which is valid)
         if self
             .cursor
-            .advance(word_seps().then(of_type(FatArrow)))
+            .advance(blanks().then(of_type(FatArrow)))
             .is_some()
         {
             //parse second lambda output in order to advance on the full invalid lambda expression
@@ -66,7 +64,24 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
     }
 
     fn parse_type_parameter_list(&mut self) -> ParseResult<Vec<Type<'a>>> {
-        self.parse_type_list(SquaredLeftBracket, SquaredRightBracket, true)
+        if self
+            .cursor
+            .lookahead(blanks().then(of_type(SquaredLeftBracket)))
+            .is_none()
+        {
+            return Ok(Vec::new());
+        }
+        let start = self.cursor.peek();
+        let tparams =
+            self.parse_explicit_list(SquaredLeftBracket, SquaredRightBracket, Self::parse_type)?;
+        if tparams.is_empty() {
+            return self.expected_with(
+                "unexpected empty type parameter list",
+                start..self.cursor.peek(),
+                Unexpected,
+            );
+        }
+        Ok(tparams)
     }
 }
 
@@ -93,7 +108,8 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_parentheses(&mut self) -> ParseResult<Type<'a>> {
-        let inputs = self.parse_type_list(RoundedLeftBracket, RoundedRightBracket, false)?;
+        let inputs =
+            self.parse_implicit_list(RoundedLeftBracket, RoundedRightBracket, Self::parse_type)?;
 
         //if there is an arrow then it is a lambda
         if self
@@ -172,7 +188,7 @@ impl<'a> Parser<'a> {
             }
 
             _ => self.expected_with(
-                &format!("'{}' is not a valid types identifier.", &name_token.value),
+                &format!("'{}' is not a valid type identifier.", &name_token.value),
                 name_token.value,
                 Unexpected,
             ),
@@ -219,13 +235,14 @@ impl<'a> Parser<'a> {
 
         Ok(tparams)
     }
+
 }
 
 #[cfg(test)]
 mod tests {
     use crate::aspects::r#type::TypeAspect;
+    use crate::err::ParseError;
     use crate::err::ParseErrorKind::{Expected, Unexpected, Unpaired};
-    use crate::err::{ParseError, ParseErrorKind};
     use crate::parser::Parser;
     use ast::r#type::{ByName, CallableType, SimpleType, Type};
     use context::source::Source;
@@ -251,8 +268,8 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_type(),
             Err(ParseError {
-                message: "unexpected empty types parameter list".to_string(),
-                kind: ParseErrorKind::Unexpected,
+                message: "unexpected empty type parameter list".to_string(),
+                kind: Unexpected,
                 position: content
                     .find("[    ]")
                     .map(|i| i..i + "[    ]".len())
@@ -327,8 +344,8 @@ mod tests {
         assert_eq!(
             res,
             Err(ParseError {
-                message: "'@' is not a valid types identifier.".to_string(),
-                kind: ParseErrorKind::Unexpected,
+                message: "'@' is not a valid type identifier.".to_string(),
+                kind: Unexpected,
                 position: content.find('@').map(|i| i..i + 1).unwrap(),
             })
         );
@@ -446,7 +463,7 @@ mod tests {
     fn unit_type() {
         let res1 = Parser::new(Source::unknown("()")).parse_type();
         let res2 = Parser::new(Source::unknown("Unit")).parse_type();
-        let res3 = Parser::new(Source::unknown("(\\\n   \\\n)")).parse_type();
+        let res3 = Parser::new(Source::unknown("(\n   \n)")).parse_type();
         assert_eq!(res1, Ok(Type::Unit));
         assert_eq!(res2, Ok(Type::Unit));
         assert_eq!(res3, Ok(Type::Unit));

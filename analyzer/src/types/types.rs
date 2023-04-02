@@ -57,7 +57,7 @@ pub enum Type {
     ///Special handling for nothing types
     Nothing,
 
-    ///The types isn't known yet
+    ///The type isn't known yet
     Unknown,
 }
 
