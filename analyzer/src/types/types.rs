@@ -8,13 +8,13 @@ pub struct ParameterizedType {
 
 impl ParameterizedType {
     pub fn cons(name: &str) -> Self {
-        Self::parametrized(name, Vec::new())
+        Self::parametrized(name, &[])
     }
 
-    pub fn parametrized(name: &str, params: Vec<Type>) -> Self {
+    pub fn parametrized(name: &str, params: &[Type]) -> Self {
         Self {
             name: name.to_owned(),
-            params,
+            params: params.to_vec(),
         }
     }
 }
@@ -39,10 +39,10 @@ pub enum DefinedType {
 
 impl DefinedType {
     pub fn cons(name: &str) -> Self {
-        Self::parametrized(name, Vec::new())
+        Self::parametrized(name, &[])
     }
 
-    pub fn parametrized(name: &str, params: Vec<Type>) -> Self {
+    pub fn parametrized(name: &str, params: &[Type]) -> Self {
         DefinedType::Parameterized(
             ParameterizedType::parametrized(name, params)
         )
@@ -67,10 +67,10 @@ pub enum Type {
 
 impl Type {
     pub fn cons(name: &str) -> Self {
-        Self::parametrized(name, Vec::new())
+        Self::parametrized(name, &[])
     }
 
-    pub fn parametrized(name: &str, params: Vec<Type>) -> Self {
+    pub fn parametrized(name: &str, params: &[Type]) -> Self {
         Type::Defined(DefinedType::parametrized(name, params))
     }
 }

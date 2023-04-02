@@ -34,7 +34,7 @@ pub(crate) fn hash_of<H: Hash>(hashable: &H) -> u64 {
 impl TypeContext {
     ///Definitions of the lang types context.
     pub fn lang() -> Rc<RefCell<Self>> {
-        let mut ctx_rc = Rc::new(RefCell::new(TypeContext::default()));
+        let ctx_rc = Rc::new(RefCell::new(TypeContext::default()));
         let mut ctx = ctx_rc.borrow_mut();
 
         const MSG: &str = "lang types registration";
@@ -50,27 +50,27 @@ impl TypeContext {
         ctx.classes.insert(any_cl.identity, any_cl.clone());
         drop(ctx);
 
-        let float = Self::define_class(&ctx_rc, ClassTypeDefinition::new("Float")).expect(MSG);
+        let float = Self::define_class(ctx_rc.clone(), ClassTypeDefinition::new("Float")).expect(MSG);
 
-        Self::define_class(&ctx_rc, ClassTypeDefinition::new("Bool")).expect(MSG);
-        Self::define_class(&ctx_rc, ClassTypeDefinition::new("Str")).expect(MSG);
-        Self::define_class(&ctx_rc, ClassTypeDefinition::new("Unit")).expect(MSG);
+        Self::define_class(ctx_rc.clone(), ClassTypeDefinition::new("Bool")).expect(MSG);
+        Self::define_class(ctx_rc.clone(), ClassTypeDefinition::new("Str")).expect(MSG);
+        Self::define_class(ctx_rc.clone(), ClassTypeDefinition::new("Unit")).expect(MSG);
 
-        let int = Self::define_class(&ctx_rc,
+        let int = Self::define_class(ctx_rc.clone(),
                                      ClassTypeDefinition::new("Int")
                                          .with_super(float),
         ).expect(MSG);
 
-        Self::define_class(&ctx_rc,
+        Self::define_class(ctx_rc.clone(),
                            ClassTypeDefinition::new("Exitcode")
                                .with_super(int),
         ).expect(MSG);
 
-        ctx_rc.clone()
+        ctx_rc
     }
 
     /// Creates and registers a new ClassType for given types, the given types must be subtype of given types
-    pub fn define_class(mut ctx: &Rc<RefCell<Self>>, def: ClassTypeDefinition) -> Result<Rc<TypeClass>, String> {
+    pub fn define_class(ctx: Rc<RefCell<Self>>, def: ClassTypeDefinition) -> Result<Rc<TypeClass>, String> {
         let id = hash_of(&def.name);
 
         let defined = def.with_identity(id).build(ctx.clone())?;
@@ -106,7 +106,7 @@ impl TypeContext {
         }
     }
 
-    pub fn lookup_defined(&self, def: DefinedType) -> Result<Rc<TypeClass>, String> {
+    pub fn lookup_defined(&self, def: &DefinedType) -> Result<Rc<TypeClass>, String> {
         match def {
             DefinedType::Parameterized(p) => self.lookup_id(hash_of(&p.name)),
         }
@@ -143,8 +143,8 @@ impl TypeContext {
     }
 
     fn unify_parameterized(&self, p1: &ParameterizedType, p2: &ParameterizedType) -> Result<ParameterizedType, String> {
-        let cl1 = self.lookup_defined(DefinedType::Parameterized(p1.clone()))?;
-        let cl2 = self.lookup_defined(DefinedType::Parameterized(p2.clone()))?;
+        let cl1 = self.lookup_defined(&DefinedType::Parameterized(p1.clone()))?;
+        let cl2 = self.lookup_defined(&DefinedType::Parameterized(p2.clone()))?;
 
         let common = cl1.get_common_parent(cl2);
 
