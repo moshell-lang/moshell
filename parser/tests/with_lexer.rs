@@ -5,13 +5,14 @@ use ast::value::{Literal, TemplateString};
 use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
 use context::source::Source;
+use parser::err::find_in;
 use parser::parse;
 use pretty_assertions::assert_eq;
 
 #[test]
 fn with_lexer_variable() {
     let source = Source::unknown("var a = 'hello world!'");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
 
     assert_eq!(
         parsed,
@@ -25,6 +26,7 @@ fn with_lexer_variable() {
                 lexeme: "'hello world!'",
                 parsed: "hello world!".into(),
             }))),
+            segment: 0..source.source.len(),
         })]
     );
 }
@@ -109,7 +111,7 @@ fn with_lexer_var_reference_three() {
 #[test]
 fn with_lexer_redirection() {
     let source = Source::unknown("test &> /dev/null");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Redirected(Redirected {
@@ -121,6 +123,7 @@ fn with_lexer_redirection() {
                 fd: RedirFd::Wildcard,
                 operator: RedirOp::Write,
                 operand: Expr::Literal("/dev/null".into()),
+                segment: find_in(source.source, "&> /dev/null")
             }],
         })]
     );
@@ -129,7 +132,7 @@ fn with_lexer_redirection() {
 #[test]
 fn with_lexer_redirections() {
     let source = Source::unknown("command < /tmp/input 2> /tmp/output");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Redirected(Redirected {
@@ -142,11 +145,13 @@ fn with_lexer_redirections() {
                     fd: RedirFd::Default,
                     operator: RedirOp::Read,
                     operand: Expr::Literal("/tmp/input".into()),
+                    segment: find_in(source.source, "< /tmp/input")
                 },
                 Redir {
                     fd: RedirFd::Fd(2),
                     operator: RedirOp::Write,
                     operand: Expr::Literal("/tmp/output".into()),
+                    segment: find_in(source.source, "2> /tmp/output")
                 },
             ],
         })]
@@ -156,7 +161,7 @@ fn with_lexer_redirections() {
 #[test]
 fn with_lexer_pipe_and_redirection() {
     let source = Source::unknown("ls -l | grep 'hello' > out.txt");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Pipeline(Pipeline {
@@ -180,6 +185,7 @@ fn with_lexer_pipe_and_redirection() {
                         fd: RedirFd::Default,
                         operator: RedirOp::Write,
                         operand: Expr::Literal("out.txt".into()),
+                        segment: find_in(source.source, "out.txt"),
                     }],
                 }),
             ],
@@ -221,6 +227,7 @@ fn with_lexer_pipe_and_pipe() {
 
 #[test]
 fn with_lexer_here_string() {
+    let content = "grep e <<< 'hello'";
     let source = Source::unknown("grep e <<< 'hello'");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
@@ -237,6 +244,7 @@ fn with_lexer_here_string() {
                     lexeme: "'hello'",
                     parsed: "hello".into(),
                 }),
+                segment: find_in(content, "<<< 'hello'"),
             }],
         })]
     );

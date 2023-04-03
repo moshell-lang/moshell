@@ -51,18 +51,18 @@ impl<'a> From<&'a str> for ErrorContext<'a> {
     }
 }
 
-pub(crate) fn find_in<'a>(source: &'a str, needle: &'a str) -> SourceSegment {
+pub fn find_in<'a>(source: &'a str, needle: &'a str) -> SourceSegment {
     let start = source.find(needle).expect("String not found.");
     start..start + needle.len()
 }
 
-pub(crate) fn find_between<'a>(source: &'a str, start: &'a str, end: &'a str) -> SourceSegment {
+pub fn find_between<'a>(source: &'a str, start: &'a str, end: &'a str) -> SourceSegment {
     let start = source.find(start).expect("Start not found.");
     let end = source[start..].find(end).expect("End not found.") + 1;
     start..start + end
 }
 
-pub(crate) fn rfind_between<'a>(source: &'a str, start: &'a str, end: &'a str) -> SourceSegment {
+pub fn rfind_between<'a>(source: &'a str, start: &'a str, end: &'a str) -> SourceSegment {
     let end = source.rfind(end).expect("End not found.");
     let start = source[..end].rfind(start).expect("Start not found.");
     start..end + 1

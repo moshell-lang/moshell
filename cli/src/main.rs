@@ -1,7 +1,7 @@
 mod report;
 
 use crate::report::print_flush;
-use context::source::{SourceSegment, Source};
+use context::source::{Source, SourceSegment};
 use dbg_pls::color;
 use miette::{Diagnostic, GraphicalReportHandler, SourceSpan};
 use parser::err::ParseErrorKind;

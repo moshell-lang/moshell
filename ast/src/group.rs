@@ -1,4 +1,5 @@
 use crate::Expr;
+use context::source::SourceSegment;
 use dbg_pls::DebugPls;
 
 /// A block expression `{ ... }`
@@ -6,6 +7,8 @@ use dbg_pls::DebugPls;
 pub struct Block<'a> {
     //underlying expressions
     pub expressions: Vec<Expr<'a>>,
+
+    pub segment: SourceSegment,
 }
 
 /// A parenthesis expression `( ... )`
@@ -13,6 +16,8 @@ pub struct Block<'a> {
 pub struct Parenthesis<'a> {
     //underlying expression
     pub expression: Box<Expr<'a>>,
+
+    pub segment: SourceSegment,
 }
 
 /// A subshell expression `( ... )`
@@ -20,4 +25,6 @@ pub struct Parenthesis<'a> {
 pub struct Subshell<'a> {
     //underlying expressions
     pub expressions: Vec<Expr<'a>>,
+
+    pub segment: SourceSegment,
 }

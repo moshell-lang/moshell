@@ -1,3 +1,4 @@
+use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
 use enum_assoc::Assoc;
 use lexer::token::TokenType;
@@ -14,6 +15,12 @@ pub struct BinaryOperation<'a> {
     pub op: BinaryOperator,
     /// The right-hand side of the operation.
     pub right: Box<Expr<'a>>,
+}
+
+impl SourceSegmentHolder for BinaryOperation<'_> {
+    fn segment(&self) -> SourceSegment {
+        self.left.segment().start..self.right.segment().end
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Assoc, DebugPls)]

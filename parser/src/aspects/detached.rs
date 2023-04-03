@@ -5,6 +5,7 @@ use crate::moves::{of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::call::Detached;
 use ast::Expr;
+use context::source::SourceSegmentHolder;
 
 ///parses a detached expression (<expr> &)
 pub trait DetachedAspect<'a> {
@@ -17,7 +18,7 @@ impl<'a> DetachedAspect<'a> for Parser<'a> {
     fn parse_detached(&mut self, underlying: Expr<'a>) -> ParseResult<Expr<'a>> {
         let ampersand = spaces().then(of_type(Ampersand));
         //there is a trailing '&'
-        if self.cursor.advance(ampersand).is_some() {
+        if let Some(first) = self.cursor.advance(ampersand) {
             if let Some(another) = self.cursor.advance(ampersand) {
                 return self.expected_with(
                     "'&' not allowed here",
@@ -25,8 +26,10 @@ impl<'a> DetachedAspect<'a> for Parser<'a> {
                     ParseErrorKind::Unexpected,
                 );
             }
+            let underlying = Box::new(underlying);
             return Ok(Expr::Detached(Detached {
-                underlying: Box::new(underlying),
+                underlying,
+                segment: self.cursor.relative_pos(first).start..underlying.segment().end,
             }));
         }
         Ok(underlying)

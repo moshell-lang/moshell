@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #![deny(warnings)]
 
+use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
 
 use crate::call::{Call, Detached, Pipeline, ProgrammaticCall, Redirected};
@@ -80,4 +81,40 @@ pub enum Expr<'a> {
     Subshell(Subshell<'a>),
     /// a block expression `{ ... }` that contains several expressions
     Block(Block<'a>),
+}
+
+impl SourceSegmentHolder for Expr<'_> {
+    fn segment(&self) -> SourceSegment {
+        match self {
+            Expr::Assign(assign) => assign.segment.clone(),
+            Expr::Binary(binary) => binary.segment(),
+            Expr::Literal(literal) => literal.segment.clone(),
+            Expr::Match(m) => m.segment.clone(),
+            Expr::Call(call) => call.segment(),
+            Expr::ProgrammaticCall(call) => call.segment.clone(),
+            Expr::Pipeline(pipeline) => pipeline.segment(),
+            Expr::Redirected(redirected) => redirected.segment(),
+            Expr::Detached(detached) => detached.segment.clone(),
+            Expr::LambdaDef(lambda) => lambda.segment(),
+            Expr::Substitution(substitution) => substitution.segment(),
+            Expr::TemplateString(template_string) => template_string.segment(),
+            Expr::Use(use_) => use_.segment.clone(),
+            Expr::Test(test) => test.segment.clone(),
+            Expr::Not(not) => not.segment.clone(),
+            Expr::If(if_) => if_.segment.clone(),
+            Expr::While(while_) => while_.segment.clone(),
+            Expr::Loop(loop_) => loop_.segment.clone(),
+            Expr::For(for_) => for_.segment.clone(),
+            Expr::Continue => SourceSegment::default(),
+            Expr::Break => SourceSegment::default(),
+            Expr::Return(return_) => return_.segment.clone(),
+            Expr::VarReference(var_reference) => var_reference.segment.clone(),
+            Expr::VarDeclaration(var_declaration) => var_declaration.segment.clone(),
+            Expr::Range(range) => range.segment(),
+            Expr::FunctionDeclaration(function_declaration) => function_declaration.segment.clone(),
+            Expr::Parenthesis(parenthesis) => parenthesis.segment.clone(),
+            Expr::Subshell(subshell) => subshell.segment.clone(),
+            Expr::Block(block) => block.segment.clone(),
+        }
+    }
 }

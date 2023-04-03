@@ -5,6 +5,7 @@ use crate::parser::{ParseResult, Parser};
 use ast::test::{Not, Test};
 use ast::Expr;
 use ast::Expr::Literal;
+use context::source::SourceSegmentHolder;
 use lexer::token::TokenType::{SquaredLeftBracket, SquaredRightBracket};
 use lexer::token::{Token, TokenType};
 
@@ -23,10 +24,15 @@ impl<'a> TestAspect<'a> for Parser<'a> {
     where
         P: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
     {
-        self.cursor.force(of_type(TokenType::Not), "expected '!'")?;
+        let lexeme = self
+            .cursor
+            .force(of_type(TokenType::Not), "expected '!'")?
+            .value;
+        let underlying = Box::new(parse_next(self)?);
 
         Ok(Expr::Not(Not {
-            underlying: Box::new(parse_next(self)?),
+            underlying,
+            segment: self.cursor.relative_pos(lexeme).start..underlying.segment().end,
         }))
     }
 

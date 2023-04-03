@@ -40,6 +40,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
     fn redirection(&mut self) -> ParseResult<Redir<'a>> {
         self.cursor.advance(spaces());
         let mut token = self.cursor.next()?;
+        println!("token: {:?}", token);
         // Parse if present the redirected file descriptor
         let fd = match token.token_type {
             TokenType::Ampersand => {
@@ -96,10 +97,12 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
         }
 
         let operand = self.next_value()?;
+        println!("peek: {:?}", self.cursor.peek());
         Ok(Redir {
             fd,
             operator,
             operand,
+            segment: self.cursor.relative_pos_ctx(token..self.cursor.peek()),
         })
     }
 
@@ -177,6 +180,7 @@ mod test {
     use pretty_assertions::assert_eq;
 
     use crate::aspects::call::CallAspect;
+    use crate::err::find_in;
     use crate::parse;
     use crate::parser::Parser;
     use ast::call::{Call, Redir, RedirFd, RedirOp, Redirected};
@@ -186,7 +190,8 @@ mod test {
 
     #[test]
     fn expr_redirection() {
-        let source = Source::unknown("{ls; cd;} > /tmp/out");
+        let content = "{ls; cd;} > /tmp/out";
+        let source = Source::unknown(content);
         let parsed = parse(source).expect("Failed to parse");
         assert_eq!(
             parsed,
@@ -207,6 +212,7 @@ mod test {
                     operator: RedirOp::Write,
                     fd: RedirFd::Default,
                     operand: Expr::Literal("/tmp/out".into()),
+                    segment: find_in(content, "> /tmp/out"),
                 }],
             }),]
         );
@@ -214,7 +220,8 @@ mod test {
 
     #[test]
     fn call_redirection() {
-        let source = Source::unknown("ls> /tmp/out");
+        let content = "ls> /tmp/out";
+        let source = Source::unknown(content);
         let parsed = Parser::new(source).call().expect("Failed to parse");
         assert_eq!(
             parsed,
@@ -227,6 +234,7 @@ mod test {
                     fd: RedirFd::Default,
                     operator: RedirOp::Write,
                     operand: Expr::Literal("/tmp/out".into()),
+                    segment: find_in(content, "> /tmp/out"),
                 }],
             })
         );
@@ -234,7 +242,8 @@ mod test {
 
     #[test]
     fn dupe_fd() {
-        let source = Source::unknown("ls>&2");
+        let content = "ls>&2";
+        let source = Source::unknown(content);
         let parsed = Parser::new(source).call().expect("Failed to parse");
         assert_eq!(
             parsed,
@@ -250,6 +259,7 @@ mod test {
                         lexeme: "2",
                         parsed: 2.into(),
                     }),
+                    segment: find_in(content, ">&2"),
                 }],
             })
         );

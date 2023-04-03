@@ -1,6 +1,7 @@
 use crate::value::{Literal, TemplateString};
 use crate::variable::VarReference;
 use crate::Expr;
+use context::source::SourceSegment;
 use dbg_pls::DebugPls;
 
 /// structure of a `match` expression.
@@ -8,6 +9,7 @@ use dbg_pls::DebugPls;
 pub struct Match<'a> {
     pub operand: Box<Expr<'a>>,
     pub arms: Vec<MatchArm<'a>>,
+    pub segment: SourceSegment,
 }
 
 ///the arm (a@ b | c if d => ..) of a match expression

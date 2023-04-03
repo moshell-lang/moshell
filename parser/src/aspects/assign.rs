@@ -1,6 +1,7 @@
 use crate::moves::{of_type, spaces};
 use crate::parser::{ParseResult, Parser};
 use ast::variable::Assign;
+use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
 
 pub trait AssignAspect<'a> {
@@ -20,7 +21,11 @@ impl<'a> AssignAspect<'a> for Parser<'a> {
             "Expected '=' at start of assignment",
         )?;
         let value = Box::new(self.value()?);
-        Ok(Assign { name, value })
+        Ok(Assign {
+            name,
+            value,
+            segment: self.cursor.relative_pos(name).start..value.segment().end,
+        })
     }
 }
 

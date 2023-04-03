@@ -1,4 +1,5 @@
 use crate::Expr;
+use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
 
 /// A literal value that can be used directly.
@@ -6,6 +7,7 @@ use dbg_pls::DebugPls;
 pub struct Literal<'a> {
     pub lexeme: &'a str,
     pub parsed: LiteralValue,
+    pub segment: SourceSegment,
 }
 
 /// A literal value that can be used directly.
@@ -20,6 +22,12 @@ pub enum LiteralValue {
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct TemplateString<'a> {
     pub parts: Vec<Expr<'a>>,
+}
+
+impl SourceSegmentHolder for TemplateString<'_> {
+    fn segment(&self) -> SourceSegment {
+        self.parts.first().unwrap().segment().start..self.parts.last().unwrap().segment().end
+    }
 }
 
 impl From<&str> for LiteralValue {
@@ -39,6 +47,7 @@ impl<'a> From<&'a str> for Literal<'a> {
         Self {
             lexeme: s,
             parsed: LiteralValue::from(s),
+            segment: Default::default(),
         }
     }
 }

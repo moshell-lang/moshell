@@ -1,5 +1,6 @@
 use crate::r#type::Type;
 use crate::Expr;
+use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
 
 /// A raw call to a function or a command.
@@ -17,6 +18,13 @@ pub struct Call<'a> {
     pub type_parameters: Vec<Type<'a>>,
 }
 
+impl SourceSegmentHolder for Call<'_> {
+    fn segment(&self) -> SourceSegment {
+        self.arguments.first().unwrap().segment().start
+            ..self.arguments.last().unwrap().segment().end
+    }
+}
+
 /// A programmatic call.
 ///
 /// Theses always have a constant name and are always called with parentheses.
@@ -30,6 +38,8 @@ pub struct ProgrammaticCall<'a> {
 
     /// The type parameters of the call.
     pub type_parameters: Vec<Type<'a>>,
+
+    pub segment: SourceSegment,
 }
 
 /// A call to a function or a command.
@@ -39,12 +49,20 @@ pub struct Detached<'a> {
     ///
     /// A valid command must have at least one argument that is the command name.
     pub underlying: Box<Expr<'a>>,
+
+    pub segment: SourceSegment,
 }
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Redirected<'a> {
     pub expr: Box<Expr<'a>>,
     pub redirections: Vec<Redir<'a>>,
+}
+
+impl SourceSegmentHolder for Redirected<'_> {
+    fn segment(&self) -> SourceSegment {
+        self.expr.segment().start..self.redirections.last().unwrap().operand.segment().end
+    }
 }
 
 /// A redirection.
@@ -56,6 +74,8 @@ pub struct Redir<'a> {
     pub operator: RedirOp,
     /// The file name or file descriptor to redirect to.
     pub operand: Expr<'a>,
+
+    pub segment: SourceSegment,
 }
 
 /// A file descriptor that is redirected.
@@ -78,6 +98,12 @@ pub struct Pipeline<'a> {
     ///
     /// A valid pipeline must have at least one command.
     pub commands: Vec<Expr<'a>>,
+}
+
+impl SourceSegmentHolder for Pipeline<'_> {
+    fn segment(&self) -> SourceSegment {
+        self.commands.first().unwrap().segment().start..self.commands.last().unwrap().segment().end
+    }
 }
 
 /// Redirection operators.

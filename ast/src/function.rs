@@ -1,11 +1,13 @@
 use crate::r#type::Type;
 use crate::variable::TypedVariable;
 use crate::Expr;
+use context::source::SourceSegment;
 use dbg_pls::DebugPls;
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Return<'a> {
     pub expr: Box<Expr<'a>>,
+    pub segment: SourceSegment,
 }
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
@@ -15,6 +17,7 @@ pub struct FunctionDeclaration<'a> {
     pub parameters: Vec<FunctionParameter<'a>>,
     pub return_type: Option<Type<'a>>,
     pub body: Box<Expr<'a>>,
+    pub segment: SourceSegment,
 }
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]

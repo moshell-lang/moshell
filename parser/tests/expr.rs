@@ -8,6 +8,7 @@ use ast::value::{Literal, LiteralValue};
 use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
 use context::source::Source;
+use parser::err::find_in;
 use parser::parse;
 use pretty_assertions::assert_eq;
 
@@ -21,7 +22,7 @@ fn empty() {
 #[test]
 fn variable_type_and_initializer() {
     let source = Source::unknown("var a:int=1");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
 
     let expected = vec![Expr::VarDeclaration(VarDeclaration {
         kind: VarKind::Var,
@@ -36,6 +37,7 @@ fn variable_type_and_initializer() {
             lexeme: "1",
             parsed: LiteralValue::Int(1),
         }))),
+        segment: 0..source.source.len(),
     })];
     assert_eq!(parsed, expected);
 }
@@ -43,7 +45,7 @@ fn variable_type_and_initializer() {
 #[test]
 fn lambda_in_val() {
     let source = Source::unknown("val x = (a) => $a + $b");
-    let parsed = parse(source).expect("Failed to parse.");
+    let parsed = parse(source.clone()).expect("Failed to parse.");
     assert_eq!(
         parsed,
         vec![Expr::VarDeclaration(VarDeclaration {
@@ -63,6 +65,7 @@ fn lambda_in_val() {
                     right: Box::new(Expr::VarReference(VarReference { name: "b" })),
                 })),
             }))),
+            segment: 0..source.source.len(),
         })]
     );
 }
@@ -216,7 +219,8 @@ fn constructor_in_call() {
 
 #[test]
 fn arithmetic_multiple_lines() {
-    let parsed = parse(Source::unknown("val n = 1\\\n + 2")).expect("Failed to parse");
+    let source = Source::unknown("val n = 1\\\n + 2");
+    let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::VarDeclaration(VarDeclaration {
@@ -236,14 +240,15 @@ fn arithmetic_multiple_lines() {
                     parsed: 2.into(),
                 })),
             }))),
+            segment: 0..source.source.len(),
         })],
     );
 }
 
 #[test]
 fn wildcard_redirect_or() {
-    let source =
-        Source::unknown("docker image inspect moshell:0.1 &> /dev/null || echo 'Unknown image!'");
+    let content = "docker image inspect moshell:0.1 &> /dev/null || echo 'Unknown image!'";
+    let source = Source::unknown(content);
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
@@ -262,7 +267,8 @@ fn wildcard_redirect_or() {
                     fd: RedirFd::Wildcard,
                     operator: RedirOp::Write,
                     operand: Expr::Literal("/dev/null".into()),
-                },],
+                    segment: find_in(content, "&> /dev/null"),
+                }],
             })),
             op: BinaryOperator::Or,
             right: Box::new(Expr::Call(Call {

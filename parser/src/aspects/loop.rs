@@ -180,8 +180,8 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
+    use crate::err::{find_in, ParseError};
     use crate::parse;
     use crate::parser::ParseResult;
 
@@ -411,7 +411,7 @@ mod tests {
     #[test]
     fn classical_for() {
         let source = Source::unknown("for (( var i=0; $i<10; i=$i + 1 ))\necho $i");
-        let expr = parse(source).expect("Failed to parse");
+        let expr = parse(source.clone()).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::For(For {
@@ -426,6 +426,7 @@ mod tests {
                             lexeme: "0",
                             parsed: 0.into(),
                         }))),
+                        segment: find_in(source.source, "var i=0")
                     }),
                     condition: Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::VarReference(VarReference { name: "i" })),

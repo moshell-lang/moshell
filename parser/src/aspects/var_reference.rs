@@ -45,7 +45,10 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
                 ParseErrorKind::Unpaired(self.cursor.relative_pos(bracket)),
             )?;
         }
-        Ok(Expr::VarReference(VarReference { name }))
+        Ok(Expr::VarReference(VarReference {
+            name,
+            segment: self.cursor.relative_pos_ctx(tokens).end,
+        }))
     }
 }
 

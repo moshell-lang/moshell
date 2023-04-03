@@ -4,7 +4,7 @@ use std::fmt::Debug;
 pub type SourceSegment = std::ops::Range<usize>;
 
 pub trait SourceSegmentHolder {
-    fn segment(&self) -> &SourceSegment;
+    fn segment(&self) -> SourceSegment;
 }
 
 /// Defines a named source code from which tokens can be produced.

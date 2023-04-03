@@ -14,7 +14,8 @@ pub trait UseAspect<'a> {
 
 impl<'a> UseAspect<'a> for Parser<'a> {
     fn parse_use(&mut self) -> ParseResult<Expr<'a>> {
-        self.cursor
+        let start = self
+            .cursor
             .force(of_type(TokenType::Use), "expected 'use'")?;
 
         //first identifier
@@ -49,7 +50,12 @@ impl<'a> UseAspect<'a> for Parser<'a> {
 
         uses.append(&mut tail);
 
-        Ok(Expr::Use(Use { uses }))
+        Ok(Expr::Use(Use {
+            uses,
+            segment: self
+                .cursor
+                .relative_pos_ctx(start.value..uses.last().unwrap()),
+        }))
     }
 }
 

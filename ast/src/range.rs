@@ -1,4 +1,5 @@
 use crate::Expr;
+use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
 
 /// A range of values that can be iterated over.
@@ -6,6 +7,15 @@ use dbg_pls::DebugPls;
 pub enum Iterable<'a> {
     Range(NumericRange<'a>),
     Files(FilePattern<'a>),
+}
+
+impl SourceSegmentHolder for Iterable<'_> {
+    fn segment(&self) -> SourceSegment {
+        match self {
+            Iterable::Range(range) => range.segment(),
+            Iterable::Files(pattern) => pattern.segment.clone(),
+        }
+    }
 }
 
 /// A range of numeric values.
@@ -26,6 +36,12 @@ pub struct NumericRange<'a> {
     pub upper_inclusive: bool,
 }
 
+impl SourceSegmentHolder for NumericRange<'_> {
+    fn segment(&self) -> SourceSegment {
+        self.start.segment().start..self.step.as_ref().unwrap_or(&self.end).segment().end
+    }
+}
+
 /// A pattern that can be used to match files.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct FilePattern<'a> {
@@ -36,4 +52,7 @@ pub struct FilePattern<'a> {
     ///
     /// For now, this is just a string that is passed to the libc.
     pub pattern: String,
+
+    /// The segment of the source code that this pattern was created from.
+    pub segment: SourceSegment,
 }

@@ -226,7 +226,7 @@ mod tests {
         }
         ",
         );
-        let ast = parse(source).expect("parser failed");
+        let ast = parse(source.clone()).expect("parser failed");
 
         assert_eq!(
             ast,
@@ -282,6 +282,7 @@ mod tests {
                         },
                     ],
                 }))),
+                segment: 0..source.source.len(),
             }),]
         )
     }

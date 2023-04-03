@@ -1,4 +1,5 @@
 use crate::Expr;
+use context::source::SourceSegment;
 use dbg_pls::DebugPls;
 
 ///An if statement
@@ -10,6 +11,8 @@ pub struct If<'a> {
     pub success_branch: Box<Expr<'a>>,
     ///The 'else' branch if the condition fails
     pub fail_branch: Option<Box<Expr<'a>>>,
+
+    pub segment: SourceSegment,
 }
 
 ///A while loop statement
@@ -19,6 +22,8 @@ pub struct While<'a> {
     pub condition: Box<Expr<'a>>,
     ///The loop's body expression
     pub body: Box<Expr<'a>>,
+
+    pub segment: SourceSegment,
 }
 
 ///A loop statement
@@ -26,6 +31,8 @@ pub struct While<'a> {
 pub struct Loop<'a> {
     ///The loop's body expression
     pub body: Box<Expr<'a>>,
+
+    pub segment: SourceSegment,
 }
 
 /// A for loop.
@@ -35,6 +42,8 @@ pub struct For<'a> {
     pub kind: Box<ForKind<'a>>,
     /// The body of the for loop.
     pub body: Box<Expr<'a>>,
+
+    pub segment: SourceSegment,
 }
 
 /// A for loop can be either a range loop or a conditional loop.

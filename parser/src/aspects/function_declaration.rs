@@ -1,5 +1,6 @@
 use ast::function::{FunctionDeclaration, FunctionParameter, Return};
 use ast::r#type::Type;
+use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
 use lexer::token::TokenType::*;
 
@@ -22,10 +23,13 @@ pub trait FunctionDeclarationAspect<'a> {
 
 impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
     fn parse_function_declaration(&mut self) -> ParseResult<FunctionDeclaration<'a>> {
-        self.cursor.force(
-            of_type(Fun),
-            "expected 'fun' keyword at start of function declaration.",
-        )?;
+        let fun = self
+            .cursor
+            .force(
+                of_type(Fun),
+                "expected 'fun' keyword at start of function declaration.",
+            )?
+            .value;
 
         //consume blanks
         self.cursor.advance(blanks());
@@ -46,14 +50,18 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
             parameters: params,
             return_type: rtype,
             body,
+            segment: self.cursor.relative_pos(fun).start..body.segment().end,
         })
     }
 
     fn parse_return(&mut self) -> ParseResult<Return<'a>> {
-        self.cursor
+        let start = self
+            .cursor
             .force(of_type(Return), "'return' keyword expected here")?;
+        let expr = Box::new(self.value()?);
         Ok(Return {
-            expr: Box::new(self.value()?),
+            expr,
+            segment: self.cursor.relative_pos(start).start..expr.segment().end,
         })
     }
 }

@@ -2,6 +2,7 @@ use crate::moves::{aerated, blanks, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::control_flow::If;
 use ast::Expr;
+use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
 use lexer::token::TokenType::{Else, SemiColon};
 
@@ -19,7 +20,7 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
     where
         F: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
     {
-        self.cursor.force(
+        let start = self.cursor.force(
             of_type(TokenType::If),
             "expected 'if' at start of if expression",
         )?;
@@ -47,10 +48,17 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
             None
         };
 
+        let segment = self.cursor.relative_pos(start.value).start
+            ..fail_branch
+                .map(|b| b.as_ref())
+                .unwrap_or(&success_branch)
+                .segment()
+                .end;
         Ok(If {
             condition: Box::new(condition),
             success_branch: Box::new(success_branch),
             fail_branch,
+            segment,
         })
     }
 }
@@ -184,7 +192,7 @@ mod tests {
     #[test]
     fn if_else_as_value() {
         let content = "val x = if [ {date +\"%Y\"} < 2023 ]; \"bash\" else \"moshell\"";
-        let source = Source::unknown(content);
+        let source = Source::unknown(content.clone());
         let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
@@ -221,6 +229,7 @@ mod tests {
                         parts: vec![Expr::Literal("moshell".into())]
                     }))),
                 }))),
+                segment: 0..content.len(),
             }),]
         )
     }

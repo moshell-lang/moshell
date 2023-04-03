@@ -18,7 +18,8 @@ pub trait VarDeclarationAspect<'a> {
 impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
     /// Parses a variable declaration.
     fn var_declaration(&mut self) -> ParseResult<Expr<'a>> {
-        let kind = match self.cursor.next()?.token_type {
+        let start = self.cursor.next()?;
+        let kind = match start.token_type {
             TokenType::Var => VarKind::Var,
             TokenType::Val => VarKind::Val,
             _ => {
@@ -51,6 +52,7 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
             kind,
             var,
             initializer,
+            segment: self.cursor.relative_pos_ctx(start..self.cursor.peek()),
         }))
     }
 
@@ -68,7 +70,11 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
             .advance(blanks().then(of_type(TokenType::Colon)))
             .map(|_| self.parse_type())
             .transpose()?;
-        Ok(TypedVariable { name, ty })
+        Ok(TypedVariable {
+            name,
+            ty,
+            segment: name,
+        })
     }
 }
 
@@ -93,7 +99,7 @@ mod tests {
     #[test]
     fn val_declaration() {
         let source = Source::unknown("val variable");
-        let ast = Parser::new(source)
+        let ast = Parser::new(source.clone())
             .var_declaration()
             .expect("failed to parse");
         assert_eq!(
@@ -105,6 +111,7 @@ mod tests {
                     ty: None,
                 },
                 initializer: None,
+                segment: 0..source.source.len(),
             })
         )
     }
@@ -112,7 +119,7 @@ mod tests {
     #[test]
     fn val_declaration_with_type() {
         let source = Source::unknown("val variable: int");
-        let ast = Parser::new(source)
+        let ast = Parser::new(source.clone())
             .var_declaration()
             .expect("failed to parse");
         assert_eq!(
@@ -127,6 +134,7 @@ mod tests {
                     })),
                 },
                 initializer: None,
+                segment: 0..source.source.len(),
             })
         )
     }
@@ -142,7 +150,7 @@ mod tests {
     #[test]
     fn val_declaration_inferred() {
         let source = Source::unknown("val variable = 'hello $test'");
-        let ast = Parser::new(source)
+        let ast = Parser::new(source.clone())
             .var_declaration()
             .expect("failed to parse");
         assert_eq!(
@@ -157,6 +165,7 @@ mod tests {
                     lexeme: "'hello $test'",
                     parsed: "hello $test".into(),
                 }))),
+                segment: 0..source.source.len(),
             })
         )
     }
@@ -179,7 +188,9 @@ mod tests {
     #[test]
     fn val_declaration_block_command() {
         let source = Source::unknown("val x = {echo a}");
-        let result = Parser::new(source).var_declaration().expect("parse fail");
+        let result = Parser::new(source.clone())
+            .var_declaration()
+            .expect("parse fail");
         assert_eq!(
             result,
             Expr::VarDeclaration(VarDeclaration {
@@ -203,6 +214,7 @@ mod tests {
                         type_parameters: vec![],
                     })]
                 }))),
+                segment: 0..source.source.len(),
             })
         )
     }
@@ -210,7 +222,7 @@ mod tests {
     #[test]
     fn val_declaration_arithmetic_expr() {
         let source = Source::unknown("val variable = 7 + 2");
-        let ast = Parser::new(source)
+        let ast = Parser::new(source.clone())
             .var_declaration()
             .expect("failed to parse");
         assert_eq!(
@@ -232,6 +244,7 @@ mod tests {
                         parsed: LiteralValue::Int(2)
                     }))
                 }))),
+                segment: 0..source.source.len(),
             })
         )
     }
