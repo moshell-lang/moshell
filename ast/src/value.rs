@@ -4,8 +4,7 @@ use dbg_pls::DebugPls;
 
 /// A literal value that can be used directly.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
-pub struct Literal<'a> {
-    pub lexeme: &'a str,
+pub struct Literal {
     pub parsed: LiteralValue,
     pub segment: SourceSegment,
 }
@@ -42,12 +41,8 @@ impl From<i64> for LiteralValue {
     }
 }
 
-impl<'a> From<&'a str> for Literal<'a> {
-    fn from(s: &'a str) -> Self {
-        Self {
-            lexeme: s,
-            parsed: LiteralValue::from(s),
-            segment: Default::default(),
-        }
+impl From<f64> for LiteralValue {
+    fn from(s: f64) -> Self {
+        Self::Float(s)
     }
 }

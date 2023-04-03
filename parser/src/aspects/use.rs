@@ -61,7 +61,7 @@ impl<'a> UseAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::err::{find_between, find_in, ParseError, ParseErrorKind, rfind_between};
     use crate::parse;
     use crate::parser::ParseResult;
     use ast::r#use::Use;
@@ -76,7 +76,8 @@ mod tests {
         assert_eq!(
             result,
             vec![Expr::Use(Use {
-                uses: vec!["TOKEN"]
+                uses: vec!["TOKEN"],
+                segment: find_in(&source.source, "TOKEN")
             })]
         )
     }
@@ -88,7 +89,8 @@ mod tests {
         assert_eq!(
             result,
             vec![Expr::Use(Use {
-                uses: vec!["TOKEN", "A", "B", "C"]
+                uses: vec!["TOKEN", "A", "B", "C"],
+                segment: find_between(&source.source, "TOKEN", "C")
             })]
         )
     }

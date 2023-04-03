@@ -55,7 +55,7 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::aspects::substitution::SubstitutionAspect;
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::err::{find_in, ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
     use ast::value::TemplateString;
@@ -67,8 +67,11 @@ mod tests {
     #[test]
     fn simple_ref() {
         let source = Source::unknown("$VARIABLE");
-        let ast = Parser::new(source).substitution().expect("failed to parse");
-        assert_eq!(ast, Expr::VarReference(VarReference { name: "VARIABLE" }));
+        let ast = Parser::new(source.clone()).substitution().expect("failed to parse");
+        assert_eq!(ast, Expr::VarReference(VarReference {
+            name: "VARIABLE",
+            segment: find_in(&source.source, "VARIABLE"),
+        }));
     }
 
     #[test]
@@ -85,11 +88,26 @@ mod tests {
         assert_eq!(
             ast,
             vec![
-                Expr::VarReference(VarReference { name: "@" }),
-                Expr::VarReference(VarReference { name: "^" }),
-                Expr::VarReference(VarReference { name: "!" }),
-                Expr::VarReference(VarReference { name: "!!" }),
-                Expr::VarReference(VarReference { name: "$" }),
+                Expr::VarReference(VarReference {
+                    name: "@",
+                    segment: find_in(&source.source, "@"),
+                }),
+                Expr::VarReference(VarReference {
+                    name: "^",
+                    segment: find_in(&source.source, "^"),
+                }),
+                Expr::VarReference(VarReference {
+                    name: "!",
+                    segment: find_in(&source.source, "!"),
+                }),
+                Expr::VarReference(VarReference {
+                    name: "!!",
+                    segment: find_in(&source.source, "!!"),
+                }),
+                Expr::VarReference(VarReference {
+                    name: "$",
+                    segment: find_in(&source.source, "$"),
+                }),
             ]
         )
     }
@@ -102,7 +120,10 @@ mod tests {
             ast,
             vec![Expr::TemplateString(TemplateString {
                 parts: vec![
-                    Expr::VarReference(VarReference { name: "VAR" }),
+                    Expr::VarReference(VarReference {
+                        name: "VAR",
+                        segment: find_in(&source.source, "VAR")
+                    }),
                     Expr::Literal("IABLE".into()),
                 ]
             })]
@@ -132,10 +153,20 @@ mod tests {
             ast,
             vec![Expr::TemplateString(TemplateString {
                 parts: vec![
-                    Expr::VarReference(VarReference { name: "VAR" }),
+                    Expr::VarReference(VarReference {
+                        name: "VAR",
+                        segment: find_in(&source.source, "VAR")
+                    }),
                     Expr::Literal("IABLE".into()),
-                    Expr::VarReference(VarReference { name: "LONG" }),
-                    Expr::VarReference(VarReference { name: "VERY_LONG" }),
+                    Expr::VarReference(VarReference {
+                        name: "LONG",
+                        segment: find_in(&source.source, "LONG")
+
+                    }),
+                    Expr::VarReference(VarReference {
+                        name: "VERY_LONG",
+                        segment: find_in(&source.source, "VERY_LONG")
+                    }),
                 ]
             })]
         )

@@ -66,6 +66,8 @@ impl<'s> SourceCode for &'s Source<'_> {
     }
 }
 
+
+
 /// Joins two slices that are adjacent in memory into one slice.
 ///
 /// Returns None in the case the slices aren't adjacent.

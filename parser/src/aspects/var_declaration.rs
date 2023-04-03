@@ -62,8 +62,7 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
             .force(
                 blanks().then(of_type(TokenType::Identifier)),
                 "Expected name.",
-            )?
-            .value;
+            )?;
 
         let ty = self
             .cursor
@@ -71,9 +70,9 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
             .map(|_| self.parse_type())
             .transpose()?;
         Ok(TypedVariable {
-            name,
+            name: name.value,
             ty,
-            segment: name,
+            segment: self.cursor.relative_pos_ctx(name..self.cursor.peek()),
         })
     }
 }
@@ -91,7 +90,7 @@ mod tests {
     use ast::Expr;
     use context::source::Source;
 
-    use crate::err::ParseError;
+    use crate::err::{find_between, find_in, ParseError};
     use crate::parser::Parser;
 
     use super::*;
@@ -109,6 +108,7 @@ mod tests {
                 var: TypedVariable {
                     name: "variable",
                     ty: None,
+                    segment: find_in(&source.source, "variable")
                 },
                 initializer: None,
                 segment: 0..source.source.len(),
@@ -132,6 +132,7 @@ mod tests {
                         name: "int",
                         params: Vec::new(),
                     })),
+                    segment: find_in(&source.source, "variable")
                 },
                 initializer: None,
                 segment: 0..source.source.len(),
@@ -160,10 +161,11 @@ mod tests {
                 var: TypedVariable {
                     name: "variable",
                     ty: None,
+                    segment: find_in(&source.source, "variable")
                 },
                 initializer: Some(Box::from(Expr::Literal(Literal {
-                    lexeme: "'hello $test'",
                     parsed: "hello $test".into(),
+                    segment: find_in(&source.source, "variable")
                 }))),
                 segment: 0..source.source.len(),
             })
@@ -198,21 +200,23 @@ mod tests {
                 var: TypedVariable {
                     name: "x",
                     ty: None,
+                    segment: find_in(&source.source, "x")
                 },
                 initializer: Some(Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
                         arguments: vec![
                             Expr::Literal(Literal {
-                                lexeme: "echo",
                                 parsed: "echo".into(),
+                                segment: find_in(&source.source, "echo")
                             }),
                             Expr::Literal(Literal {
-                                lexeme: "a",
                                 parsed: "a".into(),
+                                segment: find_in(&source.source, "a"),
                             }),
                         ],
                         type_parameters: vec![],
-                    })]
+                    })],
+                    segment: find_in(&source.source, "{echo a}")
                 }))),
                 segment: 0..source.source.len(),
             })
@@ -232,16 +236,17 @@ mod tests {
                 var: TypedVariable {
                     name: "variable",
                     ty: None,
+                    segment: find_in(&source.source, "variable")
                 },
                 initializer: Some(Box::from(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Literal(Literal {
-                        lexeme: "7",
-                        parsed: LiteralValue::Int(7)
+                        parsed: LiteralValue::Int(7),
+                        segment: find_in(&source.source, "7")
                     })),
                     op: Plus,
                     right: Box::new(Expr::Literal(Literal {
-                        lexeme: "2",
-                        parsed: LiteralValue::Int(2)
+                        parsed: LiteralValue::Int(2),
+                        segment: find_in(&source.source, "2")
                     }))
                 }))),
                 segment: 0..source.source.len(),
