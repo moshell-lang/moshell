@@ -246,7 +246,7 @@ impl TypeClass {
 
         //figure if self type is a subtype of other
         while let Some(self_lng) = self_lineage {
-            let mut other_lineage = Some(self.clone());
+            let mut other_lineage = Some(other.clone());
 
             while let Some(other_lng) = other_lineage {
                 if self_lng.identity == other_lng.identity {
@@ -259,7 +259,7 @@ impl TypeClass {
         }
 
         panic!(
-            "cannot find command parent (does {} or {} extends Any ?)",
+            "cannot find common parent (does {} or {} extends Any ?)",
             self.name, other.name
         )
     }
@@ -613,9 +613,6 @@ mod tests {
     fn define_incompatible_subtype() -> Result<(), String> {
         let lang = TypeContext::lang();
         let ctx = Rc::new(RefCell::new(TypeContext::fork(lang.clone())));
-
-        let str_cl = ctx.borrow().lookup_defined(&str())?;
-        let any_cl = ctx.borrow().lookup_defined(&any())?;
 
         let str_iterable_cl = TypeContext::define_class(
             ctx.clone(),

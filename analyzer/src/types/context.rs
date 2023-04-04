@@ -1,9 +1,9 @@
 use crate::types::class::{ClassTypeDefinition, TypeClass};
-use crate::types::types::{DefinedType, ParameterizedType, Type};
+use crate::types::types::{DefinedType, Type};
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
@@ -116,15 +116,15 @@ impl TypeContext {
         }
     }
 
-    pub fn unify(&self, t1: &Type, t2: &Type) -> Result<Type, String> {
-        self.unify_internal(t1, t2)
-    }
-
     pub(crate) fn fork(ctx: Rc<RefCell<Self>>) -> TypeContext {
         TypeContext {
             dependencies: vec![ctx],
             ..Default::default()
         }
+    }
+
+    pub fn unify(&self, t1: &Type, t2: &Type) -> Result<Type, String> {
+        self.unify_internal(t1, t2)
     }
 
     ///Find largest possible type between two class types
@@ -139,23 +139,81 @@ impl TypeContext {
             (
                 Type::Defined(DefinedType::Parameterized(p1)),
                 Type::Defined(DefinedType::Parameterized(p2)),
-            ) => self
-                .unify_parameterized(p1, p2)
-                .map(DefinedType::Parameterized)
-                .map(Type::Defined),
+            ) => {
+                let cl1 = self.lookup_defined(&DefinedType::Parameterized(p1.clone()))?;
+                let cl2 = self.lookup_defined(&DefinedType::Parameterized(p2.clone()))?;
+
+                let common = cl1.get_common_parent(cl2);
+
+                let vec: Vec<_> = common.generic_parameters
+                    .clone()
+                    .into_iter()
+                    .map(|_| Type::Unknown)
+                    .collect();
+
+                Ok(Type::parametrized(
+                    &common.name,
+                    vec.as_slice()
+                ))
+            }
         }
     }
+}
 
-    fn unify_parameterized(
-        &self,
-        p1: &ParameterizedType,
-        p2: &ParameterizedType,
-    ) -> Result<ParameterizedType, String> {
-        let cl1 = self.lookup_defined(&DefinedType::Parameterized(p1.clone()))?;
-        let cl2 = self.lookup_defined(&DefinedType::Parameterized(p2.clone()))?;
+#[cfg(test)]
+mod tests {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    use crate::lang_types::{any};
+    use crate::types::class::ClassTypeDefinition;
+    use crate::types::context::TypeContext;
+    use crate::types::types::{Type};
+    use pretty_assertions::assert_eq;
+    #[test]
+    fn simple_union() -> Result<(), String> {
 
-        let common = cl1.get_common_parent(cl2);
+        let lang = TypeContext::lang();
+        let ctx = Rc::new(RefCell::new(TypeContext::fork(lang.clone())));
 
-        todo!()
+        //Iterable[A]
+        let iterable_cl = TypeContext::define_class(
+            ctx.clone(),
+            ClassTypeDefinition::new("Iterable")
+                .with_generic("A", any()),
+        )?;
+
+        //Map[K, V]: Iterable[K]
+        TypeContext::define_class(
+            ctx.clone(),
+            ClassTypeDefinition::new("Map")
+                .with_super(iterable_cl.clone())
+                .with_generic("K", any())
+                .with_generic("V", any())
+                .with_association(0, Type::cons("K")),
+        )?;
+
+        //List[A]: Iterable[A]
+        TypeContext::define_class(
+            ctx.clone(),
+            ClassTypeDefinition::new("List")
+                .with_super(iterable_cl.clone())
+                .with_generic("A", any())
+                .with_association(0, Type::cons("A")),
+        )?;
+
+        let res1 = ctx.borrow().unify(
+            &Type::parametrized("List", &[Type::cons("Str")]),
+            &Type::parametrized("Map", &[Type::cons("Str"), Type::cons("Int")]),
+        )?;
+
+        let res2 = ctx.borrow().unify(
+            &Type::parametrized("Map", &[Type::cons("Str"), Type::cons("Int")]),
+            &Type::parametrized("List", &[Type::cons("Str")]),
+        )?;
+
+        assert_eq!(res1, Type::parametrized("Iterable", &[Type::Unknown]));
+        assert_eq!(res2, Type::parametrized("Iterable", &[Type::Unknown]));
+
+        Ok(())
     }
 }
