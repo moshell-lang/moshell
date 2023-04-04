@@ -1,21 +1,23 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput};
+use syn::parse::Parser;
+use syn::{parse, parse_macro_input, ItemStruct};
 
-#[proc_macro_derive(SourceSegmentHolder)]
-pub fn derive_src_segment_holder(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
+#[proc_macro_attribute]
+pub fn segment_holder(args: TokenStream, input: TokenStream) -> TokenStream {
+    let mut item_struct = parse_macro_input!(input as ItemStruct);
+    let _ = parse_macro_input!(args as parse::Nothing);
 
-    let generics = &input.generics;
-    let type_name = &input.ident;
-    let where_clause = &input.generics.where_clause;
+    if let syn::Fields::Named(ref mut fields) = item_struct.fields {
+        fields.named.push(
+            syn::Field::parse_named
+                .parse2(quote! { pub segment: context::source::SourceSegment })
+                .unwrap(),
+        );
+    }
 
-    let expanded = quote! {
-        impl #generics context::source::SourceSegmentHolder for #type_name #generics #where_clause {
-            fn segment(&self) -> context::source::SourceSegment {
-                self.segment.clone()
-            }
-        }
-    };
-    TokenStream::from(expanded)
+    return quote! {
+        #item_struct
+    }
+    .into();
 }

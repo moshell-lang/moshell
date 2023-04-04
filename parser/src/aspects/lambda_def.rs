@@ -48,7 +48,7 @@ mod tests {
     #[test]
     fn simple_lambda_definition() {
         let source = Source::unknown("(a, b: Int) => $a + $b");
-        let parsed = Parser::new(source)
+        let parsed = Parser::new(source.clone())
             .parse_lambda_definition()
             .expect("Failed to parse.");
         assert_eq!(
@@ -68,7 +68,10 @@ mod tests {
                     },
                 ],
                 body: Box::new(Expr::Binary(BinaryOperation {
-                    left: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                    left: Box::new(Expr::VarReference(VarReference {
+                        name: "a",
+                        segment: source
+                    })),
                     op: BinaryOperator::Plus,
                     right: Box::new(Expr::VarReference(VarReference { name: "b" })),
                 })),

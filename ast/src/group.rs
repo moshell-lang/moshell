@@ -1,30 +1,27 @@
 use crate::Expr;
-use context::source::SourceSegment;
 use dbg_pls::DebugPls;
+use src_macros::segment_holder;
 
 /// A block expression `{ ... }`
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Block<'a> {
     //underlying expressions
     pub expressions: Vec<Expr<'a>>,
-
-    pub segment: SourceSegment,
 }
 
 /// A parenthesis expression `( ... )`
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Parenthesis<'a> {
     //underlying expression
     pub expression: Box<Expr<'a>>,
-
-    pub segment: SourceSegment,
 }
 
 /// A subshell expression `( ... )`
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Subshell<'a> {
     //underlying expressions
     pub expressions: Vec<Expr<'a>>,
-
-    pub segment: SourceSegment,
 }

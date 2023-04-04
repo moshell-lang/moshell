@@ -39,10 +39,12 @@ impl<'a> GroupAspect<'a> for Parser<'a> {
         let start = self.ensure_at_group_start(TokenType::RoundedLeftBracket)?;
         Ok(Subshell {
             expressions: self.sub_exprs(
-                start,
+                start.clone(),
                 TokenType::RoundedRightBracket,
                 Parser::statement,
             )?,
+            segment: self.cursor.relative_pos(start.value).start
+                ..self.cursor.relative_pos(start.value).end,
         })
     }
 
@@ -58,7 +60,7 @@ impl<'a> GroupAspect<'a> for Parser<'a> {
 
         Ok(Parenthesis {
             expression: Box::new(expr),
-            segment: self.cursor.relative_pos(start..end),
+            segment: self.cursor.relative_pos_ctx(start..end),
         })
     }
 }

@@ -2,8 +2,10 @@ use crate::r#type::Type;
 use crate::Expr;
 use context::source::SourceSegment;
 use dbg_pls::DebugPls;
+use src_macros::segment_holder;
 
 /// A variable declaration.
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct VarDeclaration<'a> {
     /// The kind of the variable.
@@ -12,8 +14,6 @@ pub struct VarDeclaration<'a> {
     pub var: TypedVariable<'a>,
     /// The value of the variable to be evaluated.
     pub initializer: Option<Box<Expr<'a>>>,
-
-    pub segment: SourceSegment,
 }
 
 /// A named variable declaration.
@@ -34,21 +34,19 @@ pub enum VarKind {
 }
 
 /// A variable reference, prefixed with `$`.
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct VarReference<'a> {
     /// The name of the variable.
     pub name: &'a str,
-
-    pub segment: SourceSegment,
 }
 
 /// A variable assignation.
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Assign<'a> {
     /// The identifier of the variable.
     pub name: &'a str,
     /// The value of the variable to be evaluated.
     pub value: Box<Expr<'a>>,
-
-    pub segment: SourceSegment,
 }
