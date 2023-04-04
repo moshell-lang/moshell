@@ -36,6 +36,14 @@ impl<'a> ParserCursor<'a> {
         }
     }
 
+    pub fn get_pos(&self) -> usize {
+        self.pos
+    }
+
+    pub fn repos(&mut self, pos: usize) {
+        self.pos = pos;
+    }
+
     ///advance if next token satisfy the given move
     /// Returns the token last token covered (=validated) by the move operation.
     ///         The returned value is Some(Token) if the move succeeded, None instead.

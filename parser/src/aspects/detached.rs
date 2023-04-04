@@ -1,7 +1,7 @@
 use lexer::token::TokenType::Ampersand;
 
 use crate::err::ParseErrorKind;
-use crate::moves::{of_type, word_seps, MoveOperations};
+use crate::moves::{of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::call::Detached;
 use ast::Expr;
@@ -15,7 +15,7 @@ pub trait DetachedAspect<'a> {
 
 impl<'a> DetachedAspect<'a> for Parser<'a> {
     fn parse_detached(&mut self, underlying: Expr<'a>) -> ParseResult<Expr<'a>> {
-        let ampersand = word_seps().then(of_type(Ampersand));
+        let ampersand = spaces().then(of_type(Ampersand));
         //there is a trailing '&'
         if self.cursor.advance(ampersand).is_some() {
             if let Some(another) = self.cursor.advance(ampersand) {

@@ -6,7 +6,7 @@ pub struct Local {
     /// The name of the variable.
     pub name: String,
 
-    /// The types of the variable.
+    /// The type of the variable.
     pub ty: Type,
 
     /// Whether the variable has been initialized.

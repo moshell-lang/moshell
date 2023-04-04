@@ -9,10 +9,10 @@ use std::rc::Rc;
 
 /// A type environment.
 ///
-/// Contexts track substitutions and generate fresh types variables.
+/// Contexts track substitutions and generate fresh type variables.
 #[derive(Debug, Clone, Eq, Default)]
 pub struct TypeContext {
-    /// Records the types of each class by their identity.
+    /// Records the type of each class by their identity.
     pub(crate) classes: HashMap<u64, Rc<TypeClass>>,
 
     pub(crate) dependencies: Vec<Rc<RefCell<TypeContext>>>,
@@ -32,12 +32,12 @@ pub(crate) fn hash_of<H: Hash>(hashable: &H) -> u64 {
 }
 
 impl TypeContext {
-    ///Definitions of the lang types context.
+    ///Definitions of the lang type context.
     pub fn lang() -> Rc<RefCell<Self>> {
         let ctx_rc = Rc::new(RefCell::new(TypeContext::default()));
         let mut ctx = ctx_rc.borrow_mut();
 
-        const MSG: &str = "lang types registration";
+        const MSG: &str = "lang type registration";
 
         let any_cl = &Rc::new(TypeClass {
             super_type: None,
@@ -72,7 +72,7 @@ impl TypeContext {
         ctx_rc
     }
 
-    /// Creates and registers a new ClassType for given types, the given types must be subtype of given types
+    /// Creates and registers a new ClassType for given types, the given type must be subtype of given types
     pub fn define_class(
         ctx: Rc<RefCell<Self>>,
         def: ClassTypeDefinition,
@@ -83,7 +83,7 @@ impl TypeContext {
         let defined = Rc::new(defined);
 
         if ctx.borrow().classes.contains_key(&defined.identity) {
-            return Err(format!("types already contained in context {}", defined.name).to_owned());
+            return Err(format!("type already contained in context {}", defined.name).to_owned());
         }
 
         ctx.borrow_mut()
@@ -92,8 +92,8 @@ impl TypeContext {
         Ok(defined)
     }
 
-    ///perform a class types lookup based on the defined types.
-    /// If the types is not directly found in this context, then the context
+    ///perform a class type lookup based on the defined types.
+    /// If the type is not directly found in this context, then the context
     /// will lookup in parent's context.
     pub fn lookup_id(&self, id: u64) -> Result<Rc<TypeClass>, String> {
         match self.classes.get(&id) {
@@ -127,7 +127,7 @@ impl TypeContext {
         }
     }
 
-    ///Find largest possible types between two class types
+    ///Find largest possible type between two class types
     fn unify_internal(&self, t1: &Type, t2: &Type) -> Result<Type, String> {
         match (t1, t2) {
             (any, Type::Nothing) => Ok(any.clone()),

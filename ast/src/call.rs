@@ -13,7 +13,7 @@ pub struct Call<'a> {
     /// A valid command must have at least one argument that is the command name.
     pub arguments: Vec<Expr<'a>>,
 
-    /// types parameters of the call.
+    /// type parameters of the call.
     pub type_parameters: Vec<Type<'a>>,
 }
 
@@ -28,7 +28,7 @@ pub struct ProgrammaticCall<'a> {
     /// The arguments to pass to the function.
     pub arguments: Vec<Expr<'a>>,
 
-    /// The types parameters of the call.
+    /// The type parameters of the call.
     pub type_parameters: Vec<Type<'a>>,
 }
 
@@ -82,7 +82,7 @@ pub struct Pipeline<'a> {
 
 /// Redirection operators.
 ///
-/// This enum defines the redirection operator types except here-document and
+/// This enum defines the redirection operator type except here-document and
 /// process redirection.
 #[derive(Clone, Copy, Debug, PartialEq, DebugPls)]
 pub enum RedirOp {

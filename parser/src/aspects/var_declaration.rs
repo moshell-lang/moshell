@@ -59,7 +59,7 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
             .cursor
             .force(
                 blanks().then(of_type(TokenType::Identifier)),
-                "Expected variable name.",
+                "Expected name.",
             )?
             .value;
 

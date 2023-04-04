@@ -18,7 +18,7 @@ pub struct VarDeclaration<'a> {
 pub struct TypedVariable<'a> {
     /// The name of the variable.
     pub name: &'a str,
-    /// The types of the declared variable.
+    /// The type of the declared variable.
     pub ty: Option<Type<'a>>,
 }
 

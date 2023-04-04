@@ -1,7 +1,7 @@
 use crate::group::Subshell;
 use dbg_pls::DebugPls;
 
-/// A special types of grouping expression that should be substituted
+/// A special type of grouping expression that should be substituted
 /// based on its expression and kind.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Substitution<'a> {

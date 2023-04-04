@@ -31,7 +31,7 @@ impl Display for ParameterizedType {
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum DefinedType {
-    /// parametrized or constant types (`List[A]`, `Map[Str, List[B]]`, `Int`).
+    /// parametrized or constant type (`List[A]`, `Map[Str, List[B]]`, `Int`).
     Parameterized(ParameterizedType),
     //Callable ?
 }
@@ -57,7 +57,7 @@ pub enum Type {
     ///Special handling for nothing types
     Nothing,
 
-    ///The types isn't known yet
+    ///The type isn't known yet
     Unknown,
 }
 

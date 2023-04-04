@@ -98,7 +98,7 @@ where
     PredicateMove { predicate }
 }
 
-/// a predicate move on the types of the token rather than it's integrity
+/// a predicate move on the type of the token rather than it's integrity
 pub(crate) fn like<P>(predicate: P) -> PredicateMove<impl Fn(Token) -> bool + Copy>
 where
     P: Fn(TokenType) -> bool + Copy,
@@ -108,13 +108,13 @@ where
     }
 }
 
-///Move to next token if its types is in the given set
+///Move to next token if its type is in the given set
 /// * `set` - the set of TokenType to satisfy
 pub(crate) fn of_types(set: &[TokenType]) -> PredicateMove<impl Fn(Token) -> bool + '_ + Copy> {
     predicate(move |token| set.contains(&token.token_type))
 }
 
-///Move to next token if its types match the given tpe param
+///Move to next token if its type match the given tpe param
 pub(crate) fn of_type(tpe: TokenType) -> PredicateMove<impl Fn(Token) -> bool + Copy> {
     predicate(move |token| tpe == token.token_type)
 }
@@ -142,22 +142,6 @@ pub(crate) fn none() -> PredicateMove<fn(Token) -> bool> {
 ///repeats until it finds a token that's not a space
 pub(crate) fn spaces() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
     of_type(Space)
-}
-
-///A move to consume all spaces and escaped newlines
-pub(crate) fn word_seps() -> RepeatedMove<
-    OrMove<
-        PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
-        AndThenMove<
-            PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
-            PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
-        >,
-    >,
-> {
-    repeat_n(
-        1,
-        spaces().or(of_type(BackSlash).and_then(of_type(NewLine))),
-    )
 }
 
 ///a move to consume any space or any newline
@@ -361,45 +345,18 @@ pub(crate) fn lookahead<M: Move + Copy>(m: M) -> LookaheadMove<M> {
 //////////////////// STANDARD MOVES ////////////////////
 
 ///End of _group_ Delimiter, any closing punctuation as long as they are unescaped
-pub(crate) fn eod() -> OrMove<
-    AndThenMove<
-        PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
-        PredicateMove<for<'a> fn(Token<'a>) -> bool>,
-    >,
-    PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
-> {
-    unescaped(like(TokenType::is_closing_ponctuation))
+pub(crate) fn eod() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
+    like(TokenType::is_closing_ponctuation)
 }
 
 ///a move to consume default eox tokens as long as they are not escaped.
 /// default eox tokens are semicolon (;) and newline (\n)
-pub(crate) fn eox() -> OrMove<
-    AndThenMove<
-        PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
-        PredicateMove<for<'a> fn(Token<'a>) -> bool>,
-    >,
-    PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
-> {
-    unescaped(of_types(&[NewLine, SemiColon, EndOfFile]))
+pub(crate) fn eox() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
+    of_types(&[NewLine, SemiColon, EndOfFile])
 }
 ///a move that consumes a character if it can be escaped.
 pub(crate) fn escapable() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
-    predicate(|t| t.token_type.is_ponctuation())
-}
-
-pub(crate) fn unescaped<M: Move + Copy>(
-    eox: M,
-) -> OrMove<
-    AndThenMove<
-        PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>,
-        PredicateMove<for<'a> fn(Token<'a>) -> bool>,
-    >,
-    M,
-> {
-    //if it's escaped then it's a fail
-    (of_type(BackSlash).and_then(fail()))
-        //else it must be caller-delimited
-        .or(eox)
+    like(TokenType::is_ponctuation)
 }
 
 ///a move that consumes a binary operation character

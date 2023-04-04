@@ -10,7 +10,7 @@ use std::rc::Rc;
 ///
 #[derive(Clone, PartialEq, Eq)]
 pub struct TypeClass {
-    ///The super types of this types
+    ///The super type of this types
     pub super_type: Option<Rc<TypeClass>>,
 
     /// The class types's name
@@ -200,7 +200,7 @@ impl TypeClass {
         associations: HashMap<usize, Type>,
     ) -> Result<Vec<ParamAssociation>, String> {
         //Ensure that all generic parameters are compatible with their associated parent's generics
-        //This algorithm only look if the generics classes are subtypes of parent's generics.
+        //This algorithm only look if the generics classes are subtype of parent's generics.
 
         let parent_gparam_count = parent.generic_parameters.len();
 
@@ -244,7 +244,7 @@ impl TypeClass {
     pub fn get_common_parent(self: Rc<Self>, other: Rc<TypeClass>) -> Rc<TypeClass> {
         let mut self_lineage = Some(self.clone());
 
-        //figure if self types is a subtype of other
+        //figure if self type is a subtype of other
         while let Some(self_lng) = self_lineage {
             let mut other_lineage = Some(self.clone());
 
@@ -267,7 +267,7 @@ impl TypeClass {
     pub fn is_subtype_of(self: &Rc<Self>, other: Rc<TypeClass>) -> bool {
         let mut self_lineage = Some(self.clone());
 
-        //figure if self types is a subtype of other
+        //figure if self type is a subtype of other
         while let Some(self_lng) = self_lineage {
             if self_lng == other {
                 return true;

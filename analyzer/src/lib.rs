@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![deny(warnings)]
 
 mod analyzer;
 pub mod environment;

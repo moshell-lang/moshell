@@ -5,7 +5,7 @@ use crate::aspects::substitution::SubstitutionAspect;
 use lexer::token::TokenType::*;
 
 use crate::err::ParseErrorKind;
-use crate::moves::{next, of_type, word_seps};
+use crate::moves::{next, of_type};
 use crate::parser::{ParseResult, Parser};
 use ast::range::{FilePattern, Iterable};
 use ast::value::{Literal, LiteralValue, TemplateString};
@@ -102,7 +102,8 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
 
                 Some(token) => {
                     if token.token_type == Quote {
-                        if let Some(joined) = try_join_str(lexeme, token.value) {
+                        if let Some(joined) = try_join_str(self.source.source, lexeme, token.value)
+                        {
                             lexeme = joined;
                         }
                         break;
@@ -110,13 +111,15 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                     if token.token_type != BackSlash {
                         value.push_str(token.value);
                     }
-                    if let Some(joined) = try_join_str(lexeme, token.value) {
+                    if let Some(joined) = try_join_str(self.source.source, lexeme, token.value) {
                         lexeme = joined;
                     }
                     if token.token_type == BackSlash {
                         if let Some(next) = self.cursor.advance(next()) {
                             value.push_str(next.value);
-                            if let Some(joined) = try_join_str(lexeme, next.value) {
+                            if let Some(joined) =
+                                try_join_str(self.source.source, lexeme, next.value)
+                            {
                                 lexeme = joined;
                             }
                         }
@@ -152,12 +155,12 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
 
                 BackSlash => {
                     self.cursor.advance(next());
-                    if let Some(joined) = try_join_str(lexeme, current.value) {
+                    if let Some(joined) = try_join_str(self.source.source, lexeme, current.value) {
                         lexeme = joined;
                     }
                     if let Some(next) = self.cursor.advance(next()) {
                         literal_value.push_str(next.value);
-                        if let Some(joined) = try_join_str(lexeme, next.value) {
+                        if let Some(joined) = try_join_str(self.source.source, lexeme, next.value) {
                             lexeme = joined;
                         }
                     }
@@ -181,7 +184,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                     literal_value.push_str(value);
                     if lexeme.is_empty() {
                         lexeme = value;
-                    } else if let Some(joined) = try_join_str(lexeme, value) {
+                    } else if let Some(joined) = try_join_str(self.source.source, lexeme, value) {
                         lexeme = joined;
                     }
                 }
@@ -217,7 +220,9 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                     numeric = Some(token);
                 }
                 builder.push_str(value);
-                if let Some(joined) = try_join_str(lexeme, value) {
+                if lexeme.is_empty() {
+                    lexeme = value;
+                } else if let Some(joined) = try_join_str(self.source.source, lexeme, value) {
                     lexeme = joined;
                 } else {
                     lexeme = value;
@@ -227,7 +232,10 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         }
 
         match current.token_type {
-            Dollar => parts.push(self.substitution()?),
+            Dollar => {
+                parts.push(self.substitution()?);
+                lexeme = "";
+            }
             BackSlash => {
                 //never retain first backslash
                 self.cursor.next()?;
@@ -247,11 +255,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 Space | NewLine => break,
 
                 BackSlash => {
-                    if self.cursor.advance(word_seps()).is_some() {
-                        break;
-                    }
-
-                    if let Some(joined) = try_join_str(lexeme, token.value) {
+                    if let Some(joined) = try_join_str(self.source.source, lexeme, token.value) {
                         lexeme = joined;
                     }
                     //never retain first backslash
@@ -348,6 +352,7 @@ mod tests {
     use super::*;
     use crate::err::ParseErrorKind::InvalidFormat;
     use crate::err::{ParseError, ParseErrorKind};
+    use ast::variable::VarReference;
     use context::source::Source;
     use pretty_assertions::assert_eq;
 
@@ -443,6 +448,24 @@ mod tests {
                 message: "Unterminated string literal.".to_string(),
                 position: content.len()..content.len(),
                 kind: ParseErrorKind::Unpaired(0..1),
+            })
+        );
+    }
+
+    #[test]
+    fn url_placeholder() {
+        let source = Source::unknown("\"http://localhost:$NGINX_PORT\"");
+        let parsed = Parser::new(source).expression().expect("Failed to parse.");
+        assert_eq!(
+            parsed,
+            Expr::TemplateString(TemplateString {
+                parts: vec![
+                    Expr::Literal(Literal {
+                        lexeme: "http://localhost:",
+                        parsed: "http://localhost:".into(),
+                    }),
+                    Expr::VarReference(VarReference { name: "NGINX_PORT" }),
+                ]
             })
         );
     }

@@ -1,10 +1,11 @@
 use ast::call::{Call, ProgrammaticCall, Redir, RedirFd, RedirOp, Redirected};
 use ast::control_flow::{For, ForKind, RangeFor};
+use ast::lambda::LambdaDef;
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::r#type::{SimpleType, Type};
 use ast::range::{Iterable, NumericRange};
 use ast::value::{Literal, LiteralValue};
-use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind};
+use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
 use context::source::Source;
 use parser::parse;
@@ -37,6 +38,131 @@ fn variable_type_and_initializer() {
         }))),
     })];
     assert_eq!(parsed, expected);
+}
+
+#[test]
+fn lambda_in_val() {
+    let source = Source::unknown("val x = (a) => $a + $b");
+    let parsed = parse(source).expect("Failed to parse.");
+    assert_eq!(
+        parsed,
+        vec![Expr::VarDeclaration(VarDeclaration {
+            kind: VarKind::Val,
+            var: TypedVariable {
+                name: "x",
+                ty: None,
+            },
+            initializer: Some(Box::new(Expr::LambdaDef(LambdaDef {
+                args: vec![TypedVariable {
+                    name: "a",
+                    ty: None,
+                },],
+                body: Box::new(Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                    op: BinaryOperator::Plus,
+                    right: Box::new(Expr::VarReference(VarReference { name: "b" })),
+                })),
+            }))),
+        })]
+    );
+}
+
+#[test]
+fn lambda_empty_params() {
+    let source = Source::unknown("() => $a + $b");
+    let parsed = parse(source).expect("Failed to parse.");
+    assert_eq!(
+        parsed,
+        vec![Expr::LambdaDef(LambdaDef {
+            args: vec![],
+            body: Box::new(Expr::Binary(BinaryOperation {
+                left: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                op: BinaryOperator::Plus,
+                right: Box::new(Expr::VarReference(VarReference { name: "b" })),
+            })),
+        })]
+    );
+}
+
+#[test]
+fn lambda_in_classic_call() {
+    let source = Source::unknown("echo a => $a + $b");
+    let parsed = parse(source).expect("Failed to parse.");
+    assert_eq!(
+        parsed,
+        vec![Expr::Call(Call {
+            type_parameters: Vec::new(),
+            arguments: vec![
+                Expr::Literal("echo".into()),
+                Expr::Literal("a".into()),
+                Expr::Literal("=>".into()),
+                Expr::VarReference(VarReference { name: "a" }),
+                Expr::Literal("+".into()),
+                Expr::VarReference(VarReference { name: "b" }),
+            ]
+        })]
+    );
+}
+
+#[test]
+fn lambda_one_arg() {
+    let source = Source::unknown("calc(n => $n * $n)");
+    let parsed = parse(source).expect("Failed to parse.");
+    assert_eq!(
+        parsed,
+        vec![Expr::ProgrammaticCall(ProgrammaticCall {
+            name: "calc",
+            arguments: vec![Expr::LambdaDef(LambdaDef {
+                args: vec![TypedVariable {
+                    name: "n",
+                    ty: None,
+                }],
+                body: Box::new(Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::VarReference(VarReference { name: "n" })),
+                    op: BinaryOperator::Times,
+                    right: Box::new(Expr::VarReference(VarReference { name: "n" })),
+                })),
+            })],
+            type_parameters: vec![],
+        })]
+    );
+}
+
+#[test]
+fn lambda_in_pfc() {
+    let source = Source::unknown("calc(() => $a + $b)");
+    let parsed = parse(source).expect("Failed to parse.");
+    assert_eq!(
+        parsed,
+        vec![Expr::ProgrammaticCall(ProgrammaticCall {
+            name: "calc",
+            arguments: vec![Expr::LambdaDef(LambdaDef {
+                args: vec![],
+                body: Box::new(Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                    op: BinaryOperator::Plus,
+                    right: Box::new(Expr::VarReference(VarReference { name: "b" })),
+                })),
+            })],
+            type_parameters: vec![],
+        })]
+    );
+}
+
+#[test]
+fn identity_lambda() {
+    let source = Source::unknown("a => $a");
+    let parsed = parse(source).expect("Failed to parse.");
+    assert_eq!(
+        parsed,
+        vec![Expr::LambdaDef(LambdaDef {
+            args: vec![TypedVariable {
+                name: "a",
+                ty: None,
+            }],
+            body: Box::new(Expr::VarReference(VarReference { name: "a" })),
+        })]
+    );
 }
 
 #[test]
@@ -316,17 +442,21 @@ fn classic_call() {
 
 #[test]
 fn classic_call_no_regression() {
-    let source = Source::unknown("test => ,,here, ->..3 54a2 1..=9");
+    let source = Source::unknown("test '=>' ,,here, ->..3 54a2 => 1..=9");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
             arguments: vec![
                 Expr::Literal("test".into()),
-                Expr::Literal("=>".into()),
+                Expr::Literal(Literal {
+                    lexeme: "'=>'",
+                    parsed: "=>".into()
+                }),
                 Expr::Literal(",,here,".into()),
                 Expr::Literal("->..3".into()),
                 Expr::Literal("54a2".into()),
+                Expr::Literal("=>".into()),
                 Expr::Literal("1..=9".into()),
             ],
             type_parameters: Vec::new()
