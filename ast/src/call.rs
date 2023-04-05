@@ -23,7 +23,7 @@ pub struct Call<'a> {
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ProgrammaticCall<'a> {
     ///list of prefixed modules
-    pub location: Vec<&'a str>,
+    pub context: Vec<&'a str>,
     
     /// The name of the function to call.
     pub name: &'a str,

@@ -1,8 +1,9 @@
 use ast::call::{Call, ProgrammaticCall, Redir, RedirFd, RedirOp, Redirected};
 use ast::control_flow::{For, ForKind, RangeFor};
+use ast::group::Parenthesis;
 use ast::lambda::LambdaDef;
 use ast::operation::{BinaryOperation, BinaryOperator};
-use ast::r#type::{ParametrizedType, Type};
+use ast::r#type::{CastedExpr, ParametrizedType, Type};
 use ast::range::{Iterable, NumericRange};
 use ast::value::{Literal, LiteralValue};
 use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference};
@@ -28,6 +29,7 @@ fn variable_type_and_initializer() {
         var: TypedVariable {
             name: "a",
             ty: Some(Type::Parametrized(ParametrizedType {
+                context: vec![],
                 name: "int",
                 params: Vec::new(),
             })),
@@ -38,6 +40,50 @@ fn variable_type_and_initializer() {
         }))),
     })];
     assert_eq!(parsed, expected);
+}
+
+#[test]
+fn expr_cast() {
+    let content = "$((1 as Exitcode + 1 as Int)) as Float";
+    let source = Source::unknown(content);
+    let result = parse(source).expect("parse error");
+    assert_eq!(
+        result,
+        vec![Expr::Casted(CastedExpr {
+            expr: Box::new(Expr::Parenthesis(Parenthesis {
+                expression: Box::new(Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::Casted(CastedExpr {
+                        expr: Box::new(Expr::Literal(Literal {
+                            lexeme: "1",
+                            parsed: 1.into(),
+                        })),
+                        casted_type: Type::Parametrized(ParametrizedType {
+                            context: vec![],
+                            name: "Exitcode",
+                            params: Vec::new(),
+                        }),
+                    })),
+                    op: BinaryOperator::Plus,
+                    right: Box::new(Expr::Casted(CastedExpr {
+                        expr: Box::new(Expr::Literal(Literal {
+                            lexeme: "1",
+                            parsed: 1.into(),
+                        })),
+                        casted_type: Type::Parametrized(ParametrizedType {
+                            context: vec![],
+                            name: "Int",
+                            params: Vec::new(),
+                        }),
+                    })),
+                }))
+            })),
+            casted_type: Type::Parametrized(ParametrizedType {
+                context: vec![],
+                name: "Float",
+                params: Vec::new(),
+            }),
+        })]
+    );
 }
 
 #[test]
@@ -111,6 +157,7 @@ fn lambda_one_arg() {
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
+            context: vec![],
             name: "calc",
             arguments: vec![Expr::LambdaDef(LambdaDef {
                 args: vec![TypedVariable {
@@ -135,6 +182,7 @@ fn lambda_in_pfc() {
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
+            context: vec![],
             name: "calc",
             arguments: vec![Expr::LambdaDef(LambdaDef {
                 args: vec![],
@@ -200,6 +248,7 @@ fn constructor_in_call() {
             arguments: vec![
                 Expr::Literal("echo".into()),
                 Expr::ProgrammaticCall(ProgrammaticCall {
+                    context: vec![],
                     name: "Foo",
                     arguments: vec![],
                     type_parameters: vec![],
@@ -365,6 +414,7 @@ fn constructor_assign() {
         vec![Expr::Assign(Assign {
             name: "a",
             value: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
+                context: vec![],
                 name: "Foo",
                 arguments: vec![Expr::Literal(Literal {
                     lexeme: "5",
@@ -383,6 +433,7 @@ fn programmatic_call() {
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
+            context: vec![],
             name: "ssh",
             arguments: vec![
                 Expr::Literal(Literal {

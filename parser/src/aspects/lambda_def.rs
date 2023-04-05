@@ -62,6 +62,7 @@ mod tests {
                     TypedVariable {
                         name: "b",
                         ty: Some(Type::Parametrized(ParametrizedType {
+                            context: vec![],
                             name: "Int",
                             params: Vec::new(),
                         })),
@@ -111,6 +112,7 @@ mod tests {
                 args: vec![TypedVariable {
                     name: "a",
                     ty: Some(Type::Parametrized(ParametrizedType {
+                        context: vec![],
                         name: "Int",
                         params: Vec::new(),
                     })),

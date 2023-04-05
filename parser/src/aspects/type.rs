@@ -2,9 +2,10 @@ use crate::aspects::expr_list::ExpressionListAspect;
 use crate::err::ParseErrorKind::{Expected, Unexpected};
 use crate::moves::{any, blanks, not, of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use ast::r#type::{ByName, CallableType, ParametrizedType, Type};
+use ast::r#type::{ByName, CallableType, CastedExpr, ParametrizedType, Type};
+use ast::Expr;
 use lexer::token::TokenType::{
-    FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket, SquaredLeftBracket,
+    As, FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket, SquaredLeftBracket,
     SquaredRightBracket, Unit,
 };
 use std::fmt::Write;
@@ -16,6 +17,9 @@ pub trait TypeAspect<'a> {
 
     ///parse a type parameter list (`[...]`)
     fn parse_type_parameter_list(&mut self) -> ParseResult<Vec<Type<'a>>>;
+
+    ///parse a casted expression (ex: {..} as Type)
+    fn parse_cast(&mut self, casted_expr: Expr<'a>) -> ParseResult<CastedExpr<'a>>;
 }
 
 impl<'a> TypeAspect<'a> for Parser<'a> {
@@ -84,6 +88,18 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             );
         }
         Ok(tparams)
+    }
+
+    fn parse_cast(&mut self, casted_expr: Expr<'a>) -> ParseResult<CastedExpr<'a>> {
+        self.cursor.force(
+            blanks().then(of_type(As)),
+            "expected 'as' for cast expression.",
+        )?;
+        let casted_type = self.parse_type()?;
+        Ok(CastedExpr {
+            expr: Box::new(casted_expr),
+            casted_type,
+        })
     }
 }
 
@@ -164,6 +180,7 @@ impl<'a> Parser<'a> {
         let ttype = name_token.token_type;
         if ttype == Identifier {
             return Ok(Type::Parametrized(ParametrizedType {
+                context: vec![],
                 name: name_token.value,
                 params: self.parse_type_parameter_list()?,
             }));
@@ -209,6 +226,7 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_type(),
             Ok(Type::Parametrized(ParametrizedType {
+                context: vec![],
                 name: "MyType",
                 params: Vec::new(),
             }))
@@ -239,33 +257,42 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_type(),
             Ok(Type::Parametrized(ParametrizedType {
+                context: vec![],
                 name: "MyType",
                 params: vec![
                     Type::Parametrized(ParametrizedType {
+                        context: vec![],
                         name: "A",
                         params: vec![
                             Type::Parametrized(ParametrizedType {
+                                context: vec![],
                                 name: "X",
                                 params: Vec::new(),
                             }),
                             Type::Parametrized(ParametrizedType {
+                                context: vec![],
                                 name: "Y",
                                 params: vec![Type::Parametrized(ParametrizedType {
+                                    context: vec![],
                                     name: "_",
                                     params: Vec::new(),
                                 })],
                             }),
                             Type::Parametrized(ParametrizedType {
+                                context: vec![],
                                 name: "Z",
                                 params: Vec::new(),
                             }),
                         ],
                     }),
                     Type::Parametrized(ParametrizedType {
+                        context: vec![],
                         name: "B",
                         params: vec![Type::Parametrized(ParametrizedType {
+                            context: vec![],
                             name: "C",
                             params: vec![Type::Parametrized(ParametrizedType {
+                                context: vec![],
                                 name: "D",
                                 params: Vec::new(),
                             })],
@@ -327,10 +354,12 @@ mod tests {
             Parser::new(source).parse_type(),
             Ok(Type::Callable(CallableType {
                 params: vec![Type::Parametrized(ParametrizedType {
+                    context: vec![],
                     name: "A",
                     params: Vec::new(),
                 })],
                 output: Box::new(Type::Parametrized(ParametrizedType {
+                    context: vec![],
                     name: "B",
                     params: Vec::new(),
                 })),
@@ -346,6 +375,7 @@ mod tests {
             Parser::new(source).parse_type(),
             Ok(Type::ByName(ByName {
                 name: Box::new(Type::Parametrized(ParametrizedType {
+                    context: vec![],
                     name: "B",
                     params: Vec::new(),
                 })),
@@ -376,6 +406,7 @@ mod tests {
             Ok(Type::ByName(ByName {
                 name: Box::new(Type::ByName(ByName {
                     name: Box::new(Type::Parametrized(ParametrizedType {
+                        context: vec![],
                         name: "B",
                         params: Vec::new(),
                     }))
@@ -391,6 +422,7 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_type(),
             Ok(Type::Parametrized(ParametrizedType {
+                context: vec![],
                 name: "A",
                 params: Vec::new(),
             }))
@@ -406,6 +438,7 @@ mod tests {
             Ok(Type::Callable(CallableType {
                 params: vec![],
                 output: Box::new(Type::Parametrized(ParametrizedType {
+                    context: vec![],
                     name: "B",
                     params: Vec::new(),
                 })),
@@ -431,6 +464,7 @@ mod tests {
             Parser::new(source).parse_type(),
             Ok(Type::Callable(CallableType {
                 params: vec![Type::Parametrized(ParametrizedType {
+                    context: vec![],
                     name: "A",
                     params: Vec::new(),
                 })],
@@ -448,19 +482,23 @@ mod tests {
             Ok(Type::Callable(CallableType {
                 params: vec![
                     Type::Parametrized(ParametrizedType {
+                        context: vec![],
                         name: "A",
                         params: Vec::new(),
                     }),
                     Type::Parametrized(ParametrizedType {
+                        context: vec![],
                         name: "B",
                         params: Vec::new(),
                     }),
                     Type::Parametrized(ParametrizedType {
+                        context: vec![],
                         name: "C",
                         params: Vec::new(),
                     }),
                 ],
                 output: Box::new(Type::Parametrized(ParametrizedType {
+                    context: vec![],
                     name: "D",
                     params: Vec::new(),
                 })),
@@ -479,20 +517,24 @@ mod tests {
                 params: vec![Type::Callable(CallableType {
                     params: vec![Type::Callable(CallableType {
                         params: vec![Type::Parametrized(ParametrizedType {
+                            context: vec![],
                             name: "A",
                             params: Vec::new(),
                         }),],
                         output: Box::new(Type::Parametrized(ParametrizedType {
+                            context: vec![],
                             name: "B",
                             params: Vec::new(),
                         })),
                     })],
                     output: Box::new(Type::Parametrized(ParametrizedType {
+                        context: vec![],
                         name: "C",
                         params: Vec::new(),
                     })),
                 })],
                 output: Box::new(Type::Parametrized(ParametrizedType {
+                    context: vec![],
                     name: "D",
                     params: Vec::new(),
                 })),
@@ -526,24 +568,29 @@ mod tests {
             Ok(Type::Callable(CallableType {
                 params: vec![
                     Type::Parametrized(ParametrizedType {
+                        context: vec![],
                         name: "A",
                         params: Vec::new(),
                     }),
                     Type::Parametrized(ParametrizedType {
+                        context: vec![],
                         name: "B",
                         params: Vec::new(),
                     }),
                     Type::Parametrized(ParametrizedType {
+                        context: vec![],
                         name: "C",
                         params: Vec::new(),
                     }),
                 ],
                 output: Box::new(Type::Callable(CallableType {
                     params: vec![Type::Parametrized(ParametrizedType {
+                        context: vec![],
                         name: "D",
                         params: Vec::new()
                     })],
                     output: Box::new(Type::Parametrized(ParametrizedType {
+                        context: vec![],
                         name: "E",
                         params: Vec::new()
                     })),

@@ -346,6 +346,7 @@ mod tests {
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
                         ty: Some(Type::Parametrized(ParametrizedType {
+                            context: vec![],
                             name: "String",
                             params: vec![],
                         })),
@@ -353,6 +354,7 @@ mod tests {
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
                         ty: Some(Type::Parametrized(ParametrizedType {
+                            context: vec![],
                             name: "Test",
                             params: vec![],
                         })),
@@ -381,10 +383,12 @@ mod tests {
                 name: "test",
                 type_parameters: vec![
                     Type::Parametrized(ParametrizedType {
+                        context: vec![],
                         name: "X",
                         params: Vec::new(),
                     }),
                     Type::Parametrized(ParametrizedType {
+                        context: vec![],
                         name: "Y",
                         params: Vec::new(),
                     }),
@@ -393,6 +397,7 @@ mod tests {
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
                         ty: Some(Type::Parametrized(ParametrizedType {
+                            context: vec![],
                             name: "X",
                             params: vec![],
                         })),
@@ -400,6 +405,7 @@ mod tests {
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
                         ty: Some(Type::Parametrized(ParametrizedType {
+                            context: vec![],
                             name: "Y",
                             params: vec![],
                         })),
@@ -429,6 +435,7 @@ mod tests {
                 type_parameters: vec![],
                 parameters: vec![FunctionParameter::Variadic(Some(Type::Parametrized(
                     ParametrizedType {
+                        context: vec![],
                         name: "X",
                         params: Vec::new(),
                     }
@@ -457,6 +464,7 @@ mod tests {
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
                         ty: Some(Type::Parametrized(ParametrizedType {
+                            context: vec![],
                             name: "int",
                             params: Vec::new(),
                         })),
@@ -484,10 +492,12 @@ mod tests {
                 name: "test",
                 type_parameters: vec![
                     Type::Parametrized(ParametrizedType {
+                        context: vec![],
                         name: "X",
                         params: Vec::new(),
                     }),
                     Type::Parametrized(ParametrizedType {
+                        context: vec![],
                         name: "Y",
                         params: Vec::new(),
                     }),
@@ -496,6 +506,7 @@ mod tests {
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
                         ty: Some(Type::Parametrized(ParametrizedType {
+                            context: vec![],
                             name: "X",
                             params: vec![],
                         })),
@@ -503,12 +514,14 @@ mod tests {
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
                         ty: Some(Type::Parametrized(ParametrizedType {
+                            context: vec![],
                             name: "Y",
                             params: vec![],
                         })),
                     }),
                 ],
                 return_type: Some(Type::Parametrized(ParametrizedType {
+                    context: vec![],
                     name: "X",
                     params: Vec::new(),
                 })),
@@ -517,6 +530,6 @@ mod tests {
                     type_parameters: vec![],
                 })),
             })]
-        )
+        );
     }
 }

@@ -61,6 +61,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             self.delimiter_stack.push_back(open_parenthesis.clone());
             let arguments = self.parse_comma_separated_arguments(open_parenthesis)?;
             Ok(Expr::ProgrammaticCall(ProgrammaticCall {
+                context: vec![],
                 name: identifier.value,
                 arguments,
                 type_parameters,
@@ -101,6 +102,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         self.delimiter_stack.push_back(open_parenthesis.clone());
         let arguments = self.parse_comma_separated_arguments(open_parenthesis)?;
         Ok(Expr::ProgrammaticCall(ProgrammaticCall {
+            context: vec![],
             name: name.value,
             arguments,
             type_parameters,
@@ -248,6 +250,7 @@ mod tests {
                     Expr::Literal("y".into())
                 ],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
+                    context: vec![],
                     name: "int",
                     params: Vec::new()
                 })]
@@ -345,6 +348,7 @@ mod tests {
         let expr = parse(source).expect("Failed to parse");
         let expr2 = parse(source2).expect("Failed to parse");
         let expected = vec![Expr::ProgrammaticCall(ProgrammaticCall {
+            context: vec![],
             name: "Foo",
             arguments: vec![],
             type_parameters: vec![],
@@ -360,6 +364,7 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
+                context: vec![],
                 name: "Foo",
                 arguments: vec![
                     Expr::Literal("a".into()),
@@ -381,6 +386,7 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
+                context: vec![],
                 name: "Foo",
                 arguments: vec![
                     Expr::Literal("this".into()),
@@ -399,6 +405,7 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
+                context: vec![],
                 name: "Foo",
                 arguments: vec![
                     Expr::Literal(Literal {
@@ -419,12 +426,14 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
+                context: vec![],
                 name: "List",
                 arguments: vec![Expr::Literal(Literal {
                     lexeme: "'hi'",
                     parsed: "hi".into(),
                 })],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
+                    context: vec![],
                     name: "Str",
                     params: vec![],
                 })],

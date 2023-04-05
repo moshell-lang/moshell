@@ -1,10 +1,9 @@
 use crate::err::ParseErrorKind;
-use crate::moves::{eox, of_type, repeat, spaces, MoveOperations, blanks};
+use crate::moves::{eox, of_type, repeat, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use ast::r#use::{Import, ImportedSymbol, Use};
 use ast::Expr;
 use lexer::token::TokenType;
-use lexer::token::TokenType::{Comma, CurlyLeftBracket, DotDot, Identifier};
+use lexer::token::TokenType::{Comma, Identifier};
 
 
 /// Parser aspect to parse use statements
@@ -50,58 +49,60 @@ impl<'a> UseAspect<'a> for Parser<'a> {
 
         uses.append(&mut tail);
 
-        Ok(Expr::Use(Use {
-            uses
-        }))
+        todo!();
+
+        // Ok(Expr::Use(Use {
+        //     uses
+        // }))
     }
 }
 
 impl<'a> Parser<'a> {
-    fn parse_import(&mut self) -> ParseResult<Import<'a>> {
-        self.cursor.advance(blanks());
+    // fn parse_import(&mut self) -> ParseResult<Import<'a>> {
+    //     self.cursor.advance(blanks());
+    //
+    //     if self.cursor.peek().token_type == TokenType::At {
+    //         return Ok(Import::Environment(self.cursor.next()?.value));
+    //     }
+    //
+    //     let identifiers: Vec<_> = self.cursor
+    //         .collect(repeat(
+    //             (
+    //                 blanks().then(of_type(Identifier))
+    //             ).and_then(
+    //                 blanks().then(of_type(DotDot))
+    //             )
+    //         ))
+    //         .into_iter()
+    //         .filter(|t| t.token_type == Identifier)
+    //         .map(|t| t.value)
+    //         .collect();
+    //
+    //     if identifiers.is_empty() {
+    //         return self.expected(
+    //             "'use' statement needs at least one element.",
+    //             ParseErrorKind::Expected("<symbol>".to_string())
+    //         )
+    //     }
+    //
+    //     if self.cursor.advance(blanks().then(of_type(CurlyLeftBracket))).is_some() {
+    //         return self.parse_symbol_list(identifiers).map(Import::Symbols)
+    //     }
+    //
+    //     let (modules, name) = identifiers.split_last().unwrap();
+    //
+    //     let alias = self.cursor.force(of_type(TokenType::As))
+    //
+    //     Import::Symbols(vec![ImportedSymbol {
+    //         name,
+    //
+    //     }])
+    // }
 
-        if self.cursor.peek().token_type == TokenType::At {
-            return Ok(Import::Environment(self.cursor.next()?.value));
-        }
-
-        let identifiers: Vec<_> = self.cursor
-            .collect(repeat(
-                (
-                    blanks().then(of_type(Identifier))
-                ).and_then(
-                    blanks().then(of_type(DotDot))
-                )
-            ))
-            .into_iter()
-            .filter(|t| t.token_type == Identifier)
-            .map(|t| t.value)
-            .collect();
-
-        if identifiers.is_empty() {
-            return self.expected(
-                "'use' statement needs at least one element.",
-                ParseErrorKind::Expected("<symbol>".to_string())
-            )
-        }
-
-        if self.cursor.advance(blanks().then(of_type(CurlyLeftBracket))).is_some() {
-            return self.parse_symbol_list(identifiers).map(Import::Symbols)
-        }
-
-        let (modules, name) = identifiers.split_last().unwrap();
-
-        let alias = self.cursor.force(of_type(TokenType::As))
-
-        Import::Symbols(vec![ImportedSymbol {
-            name,
-
-        }])
-    }
-
-    //parses a list of symbols ({Type1, foo, bar::*}) assuming that '{' is already parsed
-    fn parse_symbol_list(&mut self, loc: Vec<&str>) -> ParseResult<Vec<ImportedSymbol<'a>>> {
-
-    }
+    // //parses a list of symbols ({Type1, foo, bar::*}) assuming that '{' is already parsed
+    // fn parse_symbol_list(&mut self, loc: Vec<&str>) -> ParseResult<Vec<ImportedSymbol<'a>>> {
+    //
+    // }
 }
 
 #[cfg(test)]
@@ -109,34 +110,32 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
-    use ast::r#use::Use;
-    use ast::Expr;
     use context::source::Source;
     use pretty_assertions::assert_eq;
 
-    #[test]
-    fn test_use() {
-        let source = Source::unknown("use TOKEN");
-        let result = parse(source).expect("parser failed");
-        assert_eq!(
-            result,
-            vec![Expr::Use(Use {
-                uses: vec!["TOKEN"]
-            })]
-        )
-    }
-
-    #[test]
-    fn uses() {
-        let source = Source::unknown("use TOKEN,    A \\\n , B \\\n , C");
-        let result = parse(source).expect("parser failed");
-        assert_eq!(
-            result,
-            vec![Expr::Use(Use {
-                uses: vec!["TOKEN", "A", "B", "C"]
-            })]
-        )
-    }
+    // #[test]
+    // fn test_use() {
+    //     let source = Source::unknown("use TOKEN");
+    //     let result = parse(source).expect("parser failed");
+    //     // assert_eq!(
+    //     //     result,
+    //     //     vec![Expr::Use(Use {
+    //     //         uses: vec!["TOKEN"]
+    //     //     })]
+    //     // )
+    // }
+    //
+    // #[test]
+    // fn uses() {
+    //     let source = Source::unknown("use TOKEN,    A \\\n , B \\\n , C");
+    //     let result = parse(source).expect("parser failed");
+    //     // assert_eq!(
+    //     //     result,
+    //     //     vec![Expr::Use(Use {
+    //     //         uses: vec!["TOKEN", "A", "B", "C"]
+    //     //     })]
+    //     // )
+    // }
 
     #[test]
     fn use_trailing_comma() {
