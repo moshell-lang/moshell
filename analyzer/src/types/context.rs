@@ -3,7 +3,7 @@ use crate::types::types::{DefinedType, Type};
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
-use std::fmt::{Debug};
+use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
@@ -145,16 +145,14 @@ impl TypeContext {
 
                 let common = cl1.get_common_parent(cl2);
 
-                let vec: Vec<_> = common.generic_parameters
+                let vec: Vec<_> = common
+                    .generic_parameters
                     .clone()
                     .into_iter()
                     .map(|_| Type::Unknown)
                     .collect();
 
-                Ok(Type::parametrized(
-                    &common.name,
-                    vec.as_slice()
-                ))
+                Ok(Type::parametrized(&common.name, vec.as_slice()))
             }
         }
     }
@@ -162,24 +160,22 @@ impl TypeContext {
 
 #[cfg(test)]
 mod tests {
-    use std::cell::RefCell;
-    use std::rc::Rc;
-    use crate::lang_types::{any};
+    use crate::lang_types::any;
     use crate::types::class::ClassTypeDefinition;
     use crate::types::context::TypeContext;
-    use crate::types::types::{Type};
+    use crate::types::types::Type;
     use pretty_assertions::assert_eq;
+    use std::cell::RefCell;
+    use std::rc::Rc;
     #[test]
     fn simple_union() -> Result<(), String> {
-
         let lang = TypeContext::lang();
         let ctx = Rc::new(RefCell::new(TypeContext::fork(lang.clone())));
 
         //Iterable[A]
         let iterable_cl = TypeContext::define_class(
             ctx.clone(),
-            ClassTypeDefinition::new("Iterable")
-                .with_generic("A", any()),
+            ClassTypeDefinition::new("Iterable").with_generic("A", any()),
         )?;
 
         //Map[K, V]: Iterable[K]

@@ -1,4 +1,3 @@
-
 use crate::aspects::expr_list::ExpressionListAspect;
 use crate::err::ParseErrorKind::{Expected, Unexpected};
 use crate::moves::{any, blanks, not, of_type, spaces, MoveOperations};
@@ -183,9 +182,9 @@ impl<'a> Parser<'a> {
                     .cursor
                     .advance(spaces().then(of_type(RoundedRightBracket)))
                     .is_some()) =>
-        {
-            return Ok(Type::Unit);
-        }
+            {
+                return Ok(Type::Unit);
+            }
 
             _ => self.expected_with(
                 &format!("'{}' is not a valid type identifier.", &name_token.value),

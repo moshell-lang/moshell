@@ -1,5 +1,3 @@
-use crate::types::context::TypeContext;
-use std::cell::RefCell;
 ///! The type environment of the compiler.
 ///!
 ///! An environment maps local variable names to their type and keep tracks of scopes.
@@ -20,6 +18,8 @@ use std::cell::RefCell;
 ///!     echo $n;
 ///! }
 ///! ```
+use crate::types::context::TypeContext;
+use std::cell::RefCell;
 use std::default::Default;
 use std::rc::Rc;
 
