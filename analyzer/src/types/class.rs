@@ -184,8 +184,8 @@ impl TypeClass {
 
             match &generic.bound {
                 DefinedType::Parameterized(p) => {
-                    for idx in 0..p.params.len() {
-                        builder = builder.with_association(idx, p.params[idx].clone());
+                    for (idx, ty) in p.params.iter().enumerate() {
+                        builder = builder.with_association(idx, ty.clone());
                     }
                 }
             }
