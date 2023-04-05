@@ -65,7 +65,7 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::err::{find_between, rfind_between, ParseError, ParseErrorKind};
+    use crate::err::{find_between, rfind_between, ParseError, ParseErrorKind, find_in};
     use crate::parse;
     use crate::parser::ParseResult;
     use ast::call::Call;
@@ -84,12 +84,12 @@ mod tests {
     fn simple_if() {
         let content = "if [ $1 ]; echo test";
         let source = Source::unknown(content);
-        let ast = parse(source).expect("parse failed");
+        let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::If(If {
                 condition: Box::new(Expr::Test(Test {
-                    expression: Box::new(Expr::VarReference(VarReference { name: "1" })),
+                    expression: Box::new(Expr::VarReference(VarReference { name: "1", segment: find_in(content, "$1") })),
                     segment: find_between(content, "[", "]"),
                 })),
                 success_branch: Box::new(Expr::Call(Call {
@@ -97,6 +97,7 @@ mod tests {
                     type_parameters: vec![],
                 })),
                 fail_branch: None,
+                segment: source.segment(),
             })]
         )
     }
@@ -147,12 +148,12 @@ mod tests {
     fn if_else_if_separations() {
         let content = "if [ $1 ]; echo test; else if [ $a ]; $7 else $5";
         let source = Source::unknown(content);
-        let ast = parse(source).expect("parse failed");
+        let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::If(If {
                 condition: Box::new(Expr::Test(Test {
-                    expression: Box::new(Expr::VarReference(VarReference { name: "1" })),
+                    expression: Box::new(Expr::VarReference(VarReference { name: "1", segment: find_in(content, "$1") })),
                     segment: find_between(content, "[", "]"),
                 })),
                 success_branch: Box::new(Expr::Call(Call {
@@ -167,6 +168,7 @@ mod tests {
                     success_branch: Box::new(Expr::VarReference(VarReference { name: "7" })),
                     fail_branch: Some(Box::new(Expr::VarReference(VarReference { name: "5" }))),
                 }))),
+                segment: source.segment(),
             })]
         )
     }
@@ -174,17 +176,18 @@ mod tests {
     #[test]
     fn no_separation_else() {
         let source = Source::unknown("if $x {} else {}");
-        let ast = parse(source).expect("parse fail");
+        let ast = parse(source.clone()).expect("parse fail");
         assert_eq!(
             ast,
             vec![Expr::If(If {
-                condition: Box::new(Expr::VarReference(VarReference { name: "x" })),
+                condition: Box::new(Expr::VarReference(VarReference { name: "x", segment: find_in(source.source, "$x") })),
                 success_branch: Box::new(Expr::Block(Block {
                     expressions: vec![]
                 })),
                 fail_branch: Some(Box::new(Expr::Block(Block {
                     expressions: vec![]
-                })))
+                }))),
+                segment: source.segment(),
             })]
         )
     }
@@ -201,6 +204,7 @@ mod tests {
                 var: TypedVariable {
                     name: "x",
                     ty: None,
+                    segment: find_in(content, "x")
                 },
                 initializer: Some(Box::new(Expr::If(If {
                     condition: Box::new(Expr::Test(Test {
@@ -216,8 +220,8 @@ mod tests {
                             })),
                             op: BinaryOperator::Less,
                             right: Box::new(Expr::Literal(Literal {
-                                lexeme: "2023",
-                                parsed: 2023.into()
+                                parsed: 2023.into(),
+                                segment: find_in(content, "2023")
                             }))
                         })),
                         segment: find_between(content, "[", "]"),
@@ -228,6 +232,7 @@ mod tests {
                     fail_branch: Some(Box::new(Expr::TemplateString(TemplateString {
                         parts: vec![Expr::Literal("moshell".into())]
                     }))),
+                    segment: Default::default(),
                 }))),
                 segment: source.segment()
             }),]

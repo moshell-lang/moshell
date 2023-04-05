@@ -201,7 +201,7 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
 
     use crate::err::ParseErrorKind::Unexpected;
@@ -243,9 +243,8 @@ mod tests {
                             patterns: vec![MatchPattern::Literal("-e".into())],
                             guard: None,
                             body: Expr::Literal(Literal {
-                                lexeme: "75",
                                 parsed: 75.into(),
-                                segment: Default::default(),
+                                segment: find_in(source.source, "75"),
                             }),
                         },
                         MatchArm {
@@ -258,27 +257,23 @@ mod tests {
                                     ]
                                 }),
                                 MatchPattern::Literal(Literal {
-                                    lexeme: "2",
                                     parsed: 2.into(),
-                                    segment: Default::default(),
+                                    segment: find_in(source.source, "2"),
                                 }),
                                 MatchPattern::VarRef(VarReference { name: "USER", segment: Default::default() }),
                                 MatchPattern::Literal(Literal {
-                                    lexeme: "'t x'",
                                     parsed: "t x".into(),
-                                    segment: Default::default(),
+                                    segment: find_in(source.source, "'t x'"),
                                 }),
                             ],
                             guard: None,
                             body: Expr::Binary(BinaryOperation {
                                 left: Box::new(Expr::Literal(Literal {
-                                    lexeme: "4",
                                     parsed: 4.into(),
                                     segment: Default::default(),
                                 })),
                                 op: BinaryOperator::Minus,
                                 right: Box::new(Expr::Literal(Literal {
-                                    lexeme: "7",
                                     parsed: 7.into(),
                                     segment: Default::default(),
                                 })),
@@ -287,7 +282,7 @@ mod tests {
                     ],
                     segment: Default::default(),
                 }))),
-                segment: 0..source.source.len(),
+                segment: source.segment(),
             }),]
         )
     }
@@ -328,13 +323,11 @@ mod tests {
                                 ]
                             }),
                             MatchPattern::Literal(Literal {
-                                lexeme: "2",
                                 parsed: 2.into(),
                                 segment: Default::default(),
                             }),
                             MatchPattern::VarRef(VarReference { name: "USER", segment: Default::default() }),
                             MatchPattern::Literal(Literal {
-                                lexeme: "'t x'",
                                 parsed: "t x".into(),
                                 segment: Default::default(),
                             }),
@@ -353,7 +346,6 @@ mod tests {
                                 left: Box::new(Expr::VarReference(VarReference { name: "a", segment: Default::default() })),
                                 op: BinaryOperator::EqualEqual,
                                 right: Box::new(Expr::Literal(Literal {
-                                    lexeme: "1",
                                     parsed: 1.into(),
                                     segment: Default::default(),
                                 })),

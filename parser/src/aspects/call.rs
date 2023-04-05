@@ -54,8 +54,12 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         }
         // We don't known if this is a programmatic call, a raw call or a lambda definition yet.
         let identifier = self.cursor.peek();
+        let value = identifier.value;
         self.cursor.advance(next());
-        let callee = Expr::Literal(Literal::from(identifier.value));
+        let callee = Expr::Literal(Literal {
+            parsed: value.into(),
+            segment: self.cursor.relative_pos(identifier),
+        });
         let type_parameters = self.parse_type_parameter_list()?;
         if let Some(open_parenthesis) = self.cursor.advance(of_type(TokenType::RoundedLeftBracket))
         {
@@ -219,7 +223,7 @@ mod tests {
     use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
 
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::err::{find_in, ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
     use ast::call::{Call, ProgrammaticCall};
@@ -243,10 +247,9 @@ mod tests {
 
     #[test]
     fn call_with_type_parameter() {
-        let content = "parse[int] x y";
-        let source = Source::unknown(content);
+        let source = Source::unknown("parse[int] x y");
         assert_eq!(
-            Parser::new(source).parse_next(),
+            Parser::new(source.clone()).parse_next(),
             Ok(Expr::Call(Call {
                 arguments: vec![
                     Expr::Literal("parse".into()),
@@ -255,7 +258,8 @@ mod tests {
                 ],
                 type_parameters: vec![Type::Simple(SimpleType {
                     name: "int",
-                    params: Vec::new()
+                    params: Vec::new(),
+                    segment: find_in(source.source, "int")
                 })]
             }))
         );
@@ -354,6 +358,7 @@ mod tests {
             name: "Foo",
             arguments: vec![],
             type_parameters: vec![],
+            segment: source.segment(),
         })];
         assert_eq!(expr, expected);
         assert_eq!(expr2, expected);
@@ -371,6 +376,7 @@ mod tests {
                     Expr::Literal("a".into()),
                     Expr::Literal(Literal {
                         parsed: 2.into(),
+                        segment: find_in(source.source, "2")
                     }),
                     Expr::Literal("c".into()),
                 ],
@@ -410,6 +416,7 @@ mod tests {
                 arguments: vec![
                     Expr::Literal(Literal {
                         parsed: "===\ntesting something\n===".into(),
+                        segment: source.segment()
                     }),
                     Expr::Literal("c".into())
                 ],
@@ -422,18 +429,21 @@ mod tests {
     #[test]
     fn generic_constructor() {
         let source = Source::unknown("List[Str]('hi')");
-        let expr = parse(source).expect("Failed to parse");
+        let expr = parse(source.clone()).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
                 name: "List",
                 arguments: vec![Expr::Literal(Literal {
                     parsed: "hi".into(),
+                    segment: find_in(source.source, "'hi'")
                 })],
                 type_parameters: vec![Type::Simple(SimpleType {
                     name: "Str",
                     params: vec![],
+                    segment: find_in(source.source, "Str")
                 })],
+                segment: source.segment(),
             })],
         );
     }

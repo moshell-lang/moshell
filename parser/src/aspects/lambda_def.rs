@@ -32,7 +32,7 @@ impl<'a> LambdaDefinitionAspect<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::aspects::lambda_def::LambdaDefinitionAspect;
-    use crate::err::{find_in, ParseError};
+    use crate::err::{find_between, find_in, ParseError};
     use crate::err::ParseErrorKind::Unexpected;
     use crate::parser::Parser;
     use ast::call::Call;
@@ -65,6 +65,7 @@ mod tests {
                         ty: Some(Type::Simple(SimpleType {
                             name: "Int",
                             params: Vec::new(),
+                            segment: find_in(source.source, "Int"),
                         })),
                         segment: Default::default(),
                     },
@@ -84,7 +85,7 @@ mod tests {
     #[test]
     fn simple_lambda_definition_one_arg() {
         let source = Source::unknown("a => $a + $b");
-        let parsed = Parser::new(source)
+        let parsed = Parser::new(source.clone())
             .parse_lambda_definition()
             .expect("Failed to parse.");
         assert_eq!(
@@ -93,11 +94,12 @@ mod tests {
                 args: vec![TypedVariable {
                     name: "a",
                     ty: None,
+                    segment: 0..1,
                 },],
                 body: Box::new(Expr::Binary(BinaryOperation {
-                    left: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                    left: Box::new(Expr::VarReference(VarReference { name: "a", segment: find_in(source.source, "$a") })),
                     op: BinaryOperator::Plus,
-                    right: Box::new(Expr::VarReference(VarReference { name: "b" })),
+                    right: Box::new(Expr::VarReference(VarReference { name: "b", segment: find_in(source.source, "$b") })),
                 })),
             }
         );
@@ -118,12 +120,14 @@ mod tests {
                     ty: Some(Type::Simple(SimpleType {
                         name: "Int",
                         params: Vec::new(),
+                        segment: find_in(src, "Int")
                     })),
+                    segment: 1..2,
                 },],
                 body: Box::new(Expr::Binary(BinaryOperation {
-                    left: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                    left: Box::new(Expr::VarReference(VarReference { name: "a", segment: find_in(src, "$a") })),
                     op: BinaryOperator::Plus,
-                    right: Box::new(Expr::VarReference(VarReference { name: "b" })),
+                    right: Box::new(Expr::VarReference(VarReference { name: "b", segment: find_in(src, "$b") })),
                 })),
             }
         );
@@ -132,7 +136,7 @@ mod tests {
     #[test]
     fn simple_lambda_definition_emptyargs() {
         let source = Source::unknown("() => {echo hey}");
-        let parsed = Parser::new(source)
+        let parsed = Parser::new(source.clone())
             .parse_lambda_definition()
             .expect("Failed to parse.");
         assert_eq!(
@@ -143,7 +147,8 @@ mod tests {
                     expressions: vec![Expr::Call(Call {
                         arguments: vec![Expr::Literal("echo".into()), Expr::Literal("hey".into()),],
                         type_parameters: Vec::new(),
-                    })]
+                    })],
+                    segment: find_between(source.source, "{", "}")
                 })),
             }
         );

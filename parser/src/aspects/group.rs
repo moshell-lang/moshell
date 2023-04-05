@@ -136,7 +136,7 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::aspects::group::GroupAspect;
-    use crate::err::find_in;
+    use crate::err::{find_between, find_in};
     use crate::parser::Parser;
     use ast::call::Call;
     use ast::group::{Block, Subshell};
@@ -146,7 +146,7 @@ mod tests {
     use ast::value::LiteralValue::{Float, Int};
     use ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use ast::Expr;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
 
     //noinspection DuplicatedCode
@@ -181,7 +181,7 @@ mod tests {
     #[test]
     fn empty_blocks_empty_content() {
         let source = Source::unknown("{;;{;;;{;;}; {\n\n};}}");
-        let mut parser = Parser::new(source);
+        let mut parser = Parser::new(source.clone());
         let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
@@ -196,7 +196,8 @@ mod tests {
                             expressions: vec![]
                         }),
                     ]
-                })]
+                })],
+                segment: source.segment()
             }
         );
     }
@@ -259,13 +260,11 @@ mod tests {
                                         ty: None,
                                     },
                                     initializer: Some(Box::from(Expr::Literal(Literal {
-                                        lexeme: "8",
                                         parsed: Int(8),
                                     }))),
                                     segment: find_in(source.source, "val x = 8"),
                                 }),
                                 Expr::Literal(Literal {
-                                    lexeme: "8",
                                     parsed: Int(8),
                                 }),
                             ]
@@ -281,7 +280,6 @@ mod tests {
                                     ty: None,
                                 },
                                 initializer: Some(Box::from(Expr::Literal(Literal {
-                                    lexeme: "89",
                                     parsed: Int(89),
                                 }))),
                                 segment: find_in(source.source, "val x = 89"),
@@ -294,12 +292,13 @@ mod tests {
                                 type_parameters: vec![],
                             }),
                             Expr::Literal(Literal {
-                                lexeme: "7",
                                 parsed: Int(7),
                             })
-                        ]
+                        ],
+                        segment: find_between(source.source, "(", ")"),
                     }),
-                ]
+                ],
+                segment: source.segment()
             }
         )
     }
@@ -329,10 +328,11 @@ mod tests {
                                 name: "int",
                                 params: Vec::new()
                             })),
+                            segment: find_in(source.source, "test")
                         },
                         initializer: Some(Box::new(Expr::Literal(Literal {
-                            lexeme: "7.0",
                             parsed: Float(7.0),
+                            segment: find_in(source.source, "7.0")
                         }))),
                         segment: find_in(source.source, "var test: int = 7.0"),
                     }),
@@ -341,14 +341,16 @@ mod tests {
                         var: TypedVariable {
                             name: "x",
                             ty: None,
+                            segment: find_in(source.source, "x"),
                         },
                         initializer: Some(Box::new(Expr::Literal(Literal {
-                            lexeme: "8",
                             parsed: Int(8),
+                            segment: find_in(source.source, "8"),
                         }))),
                         segment: find_in(source.source, "val x = 8"),
                     }),
-                ]
+                ],
+                segment: source.segment()
             }
         )
     }

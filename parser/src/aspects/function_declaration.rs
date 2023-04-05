@@ -237,6 +237,7 @@ mod tests {
                     expr: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Literal(Literal {
                             parsed: 4.into(),
+                            segment: source.source.find('4').map(|p| p..p + 1).unwrap(),
                         })),
                         op: BinaryOperator::Plus,
                         right: Box::new(Expr::Literal(Literal {

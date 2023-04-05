@@ -213,7 +213,7 @@ mod tests {
             vec![Expr::Loop(Loop {
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Continue, Break],
-                    segment: find_between(source.source, "{", "}").unwrap()
+                    segment: find_between(source.source, "{", "}")
                 })),
                 segment: source.segment()
             })]
@@ -243,14 +243,16 @@ mod tests {
 
     #[test]
     fn test_loop() {
-        let res = parse(Source::unknown("loop \n\n \n \n date")).expect("parse failed");
+        let source = Source::unknown("loop \n\n \n \n date");
+        let res = parse(source.clone()).expect("parse failed");
         assert_eq!(
             res,
             vec![Expr::Loop(Loop {
                 body: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal("date".into())],
                     type_parameters: vec![],
-                }))
+                })),
+                segment: source.segment()
             })]
         )
     }

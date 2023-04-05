@@ -129,7 +129,6 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             };
         }
         Ok(Literal {
-            lexeme,
             parsed: LiteralValue::String(value),
             segment: self.cursor.relative_pos_ctx(start),
         })
@@ -171,7 +170,6 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 Dollar => {
                     if !literal_value.is_empty() {
                         parts.push(Expr::Literal(Literal {
-                            lexeme,
                             parsed: LiteralValue::String(literal_value.clone()),
                             segment: self.cursor.relative_pos(lexeme)
                         }));
@@ -195,7 +193,6 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         }
         if !literal_value.is_empty() {
             parts.push(Expr::Literal(Literal {
-                lexeme,
                 parsed: LiteralValue::String(literal_value),
                 segment: self.cursor.relative_pos(lexeme)
             }));
@@ -331,7 +328,6 @@ impl<'a> Parser<'a> {
         if let Some(token) = numeric {
             if token.value == read {
                 return Ok(Expr::Literal(Literal {
-                    lexeme,
                     parsed: self.parse_number_value(token)?,
                     segment
                 }));
@@ -345,7 +341,6 @@ impl<'a> Parser<'a> {
             }))
         } else {
             Expr::Literal(Literal {
-                lexeme,
                 parsed: LiteralValue::String(read),
                 segment
             })
@@ -359,9 +354,9 @@ mod tests {
 
     use super::*;
     use crate::err::ParseErrorKind::InvalidFormat;
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::err::{find_in, ParseError, ParseErrorKind};
     use ast::variable::VarReference;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -381,12 +376,12 @@ mod tests {
     #[test]
     fn int_but_str() {
         let source = Source::unknown("5@5");
-        let parsed = Parser::new(source).expression().expect("Failed to parse.");
+        let parsed = Parser::new(source.clone()).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
-                lexeme: "5@5",
                 parsed: LiteralValue::String("5@5".into()),
+                segment: source.segment(),
             })
         );
     }
@@ -398,8 +393,8 @@ mod tests {
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
-                lexeme: "'hello $world! $(this is a test) @(of course)'",
                 parsed: "hello $world! $(this is a test) @(of course)".into(),
+                segment: source.segment()
             })
         );
     }
@@ -407,12 +402,12 @@ mod tests {
     #[test]
     fn escaped_literal() {
         let source = Source::unknown("a\\a");
-        let parsed = Parser::new(source).expression().expect("Failed to parse.");
+        let parsed = Parser::new(source.clone()).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
-                lexeme: "a\\a",
                 parsed: "aa".into(),
+                segment: source.segment()
             })
         );
     }
@@ -420,12 +415,12 @@ mod tests {
     #[test]
     fn escaped_string_literal() {
         let source = Source::unknown("'a\\'a'");
-        let parsed = Parser::new(source).expression().expect("Failed to parse.");
+        let parsed = Parser::new(source.clone()).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
-                lexeme: "'a\\'a'",
                 parsed: "a'a".into(),
+                segment: source.segment()
             })
         );
     }
@@ -463,16 +458,16 @@ mod tests {
     #[test]
     fn url_placeholder() {
         let source = Source::unknown("\"http://localhost:$NGINX_PORT\"");
-        let parsed = Parser::new(source).expression().expect("Failed to parse.");
+        let parsed = Parser::new(source.clone()).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::TemplateString(TemplateString {
                 parts: vec![
                     Expr::Literal(Literal {
-                        lexeme: "http://localhost:",
                         parsed: "http://localhost:".into(),
+                        segment: source.segment(),
                     }),
-                    Expr::VarReference(VarReference { name: "NGINX_PORT" }),
+                    Expr::VarReference(VarReference { name: "NGINX_PORT", segment: find_in(source.source, "$NGINX_PORT") }),
                 ]
             })
         );

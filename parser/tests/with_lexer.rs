@@ -4,8 +4,8 @@ use ast::substitution::{Substitution, SubstitutionKind};
 use ast::value::{Literal, TemplateString};
 use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
-use context::source::Source;
-use parser::err::find_in;
+use context::source::{Source, SourceSegmentHolder};
+use parser::err::{find_in, rfind_between};
 use parser::parse;
 use pretty_assertions::assert_eq;
 
@@ -26,7 +26,7 @@ fn with_lexer_variable() {
                 lexeme: "'hello world!'",
                 parsed: "hello world!".into(),
             }))),
-            segment: 0..source.source.len(),
+            segment: source.segment()
         })]
     );
 }
@@ -34,7 +34,7 @@ fn with_lexer_variable() {
 #[test]
 fn with_lexer_var_reference_one() {
     let source = Source::unknown("echo '$var5' $var5");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
 
     assert_eq!(
         parsed,
@@ -42,10 +42,10 @@ fn with_lexer_var_reference_one() {
             arguments: vec![
                 Expr::Literal("echo".into()),
                 Expr::Literal(Literal {
-                    lexeme: "'$var5'",
                     parsed: "$var5".into(),
+                    segment: find_in(source.source, "'$var5'"),
                 }),
-                Expr::VarReference(VarReference { name: "var5" }),
+                Expr::VarReference(VarReference { name: "var5", segment: rfind_between(source.source, "5", "$") }),
             ],
             type_parameters: Vec::new()
         })]

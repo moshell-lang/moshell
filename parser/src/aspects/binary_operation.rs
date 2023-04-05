@@ -155,7 +155,7 @@ mod tests {
     use context::source::Source;
 
     use crate::aspects::binary_operation::BinaryOperationsAspect;
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::err::{find_in, ParseError, ParseErrorKind};
     use crate::parser::Parser;
     use ast::call::Call;
     use ast::group::{Parenthesis, Subshell};
@@ -167,7 +167,7 @@ mod tests {
     #[test]
     fn is_left_associative() {
         let source = Source::unknown("1 && 2 || \\\n 3 || 4 && 5");
-        let mut parser = Parser::new(source);
+        let mut parser = Parser::new(source.clone());
         let ast = parser
             .binary_operation(Parser::next_statement)
             .expect("parsing error");
@@ -178,31 +178,31 @@ mod tests {
                     left: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Literal(Literal {
-                                lexeme: "1",
                                 parsed: 1.into(),
+                                segment: 0..1
                             })),
                             op: And,
                             right: Box::new(Expr::Literal(Literal {
-                                lexeme: "2",
                                 parsed: 2.into(),
+                                segment: find_in(source.source, "2")
                             })),
                         })),
                         op: Or,
                         right: Box::new(Expr::Literal(Literal {
-                            lexeme: "3",
                             parsed: 3.into(),
+                            segment: find_in(source.source, "3")
                         })),
                     })),
                     op: Or,
                     right: Box::new(Expr::Literal(Literal {
-                        lexeme: "4",
                         parsed: 4.into(),
+                        segment: find_in(source.source, "4")
                     })),
                 })),
                 op: And,
                 right: Box::new(Expr::Literal(Literal {
-                    lexeme: "5",
                     parsed: 5.into(),
+                    segment: find_in(source.source, "5")
                 })),
             }),
         )
@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn explicit_priority() {
         let source = Source::unknown("1 \\\n+\\\n (2 + 3)");
-        let mut parser = Parser::new(source);
+        let mut parser = Parser::new(source.clone());
         let ast = parser
             .binary_operation(Parser::next_value)
             .expect("parsing error");
@@ -219,22 +219,21 @@ mod tests {
             ast,
             Expr::Binary(BinaryOperation {
                 left: Box::new(Expr::Literal(Literal {
-                    lexeme: "1",
                     parsed: 1.into(),
+                    segment: find_in(source.source.c, "1")
                 })),
                 op: Plus,
                 right: Box::new(Expr::Parenthesis(Parenthesis {
                     expression: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Literal(Literal {
-                            lexeme: "2",
                             parsed: 2.into(),
                         })),
                         op: Plus,
                         right: Box::new(Expr::Literal(Literal {
-                            lexeme: "3",
                             parsed: 3.into(),
                         })),
                     })),
+                    segment: Default::default(),
                 })),
             })
         )

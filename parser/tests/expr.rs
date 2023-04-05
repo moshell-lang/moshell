@@ -64,7 +64,7 @@ fn lambda_in_val() {
                     right: Box::new(Expr::VarReference(VarReference { name: "b" })),
                 })),
             }))),
-            segment: 0..source.source.len(),
+            segment: source.segment(),
         })]
     );
 }

@@ -51,8 +51,8 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
 
         //finally it's a lonely '$' so we return it as a literal
         return Ok(Expr::Literal(Literal {
-            lexeme: dollar_value,
-            parsed: LiteralValue::String(dollar_value.to_string()),
+            parsed: LiteralValue::String(dollar_value.to_owned()),
+            segment: Default::default(),
         }));
     }
 }

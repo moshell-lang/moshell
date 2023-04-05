@@ -87,7 +87,7 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::err::{find_between, ParseError, ParseErrorKind};
+    use crate::err::{find_between, find_in, ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
     use ast::call::Call;
@@ -145,20 +145,20 @@ mod tests {
     #[test]
     fn call_with_content() {
         let source = Source::unknown("[[48 -gt 100]]");
-        let result = parse(source).expect("parsing failed");
+        let result = parse(source.clone()).expect("parsing failed");
         assert_eq!(
             result,
             vec![Expr::Call(Call {
                 arguments: vec![
                     Expr::Literal("test".into()),
                     Expr::Literal(Literal {
-                        lexeme: "48",
                         parsed: LiteralValue::Int(48),
+                        segment: find_in(source.source, "48"),
                     }),
                     Expr::Literal("-gt".into()),
                     Expr::Literal(Literal {
-                        lexeme: "100",
                         parsed: LiteralValue::Int(100),
+                        segment: find_in(source.source, "100"),
                     }),
                 ],
                 type_parameters: vec![],
@@ -183,10 +183,11 @@ mod tests {
                     right: Box::new(Expr::Test(Test {
                         expression: Box::new(Expr::Parenthesis(Parenthesis {
                             expression: Box::new(Expr::Binary(BinaryOperation {
-                                left: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                                left: Box::new(Expr::VarReference(VarReference { name: "a", segment: find_in(content, "$a") })),
                                 op: BinaryOperator::EqualEqual,
-                                right: Box::new(Expr::VarReference(VarReference { name: "b" })),
-                            }))
+                                right: Box::new(Expr::VarReference(VarReference { name: "b", segment: find_in(content, "$b") })),
+                            })),
+                            segment: find_in(content, "[ ($a == $b) ]"),
                         })),
                         segment: find_between(content, "[", "]"),
                     }))
