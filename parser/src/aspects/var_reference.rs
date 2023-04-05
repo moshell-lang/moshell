@@ -2,7 +2,7 @@ use context::source::try_join_str;
 use lexer::token::TokenType::*;
 
 use crate::err::ParseErrorKind;
-use crate::moves::{like, of_type, repeat, MoveOperations};
+use crate::moves::{like, of_type, repeat, MoveOperations, blanks, any, lookahead};
 use crate::parser::{ParseResult, Parser};
 use ast::variable::VarReference;
 use ast::Expr;
@@ -16,6 +16,7 @@ pub trait VarReferenceAspect<'a> {
 impl<'a> VarReferenceAspect<'a> for Parser<'a> {
     /// Parses a variable reference.
     fn var_reference(&mut self) -> ParseResult<Expr<'a>> {
+        let start = self.cursor.advance(blanks().then(lookahead(any()))).unwrap();
         let bracket = self.cursor.advance(of_type(CurlyLeftBracket));
 
         let tokens = self
@@ -45,9 +46,19 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
                 ParseErrorKind::Unpaired(self.cursor.relative_pos(bracket)),
             )?;
         }
+
+        let end = self.cursor.peek();
+
+        let segment = self.cursor
+            .relative_pos_ctx(start)
+            .start..self
+            .cursor
+            .relative_pos_ctx(end)
+            .end;
+
         Ok(Expr::VarReference(VarReference {
             name,
-            segment: self.cursor.relative_pos_ctx(tokens).end,
+            segment,
         }))
     }
 }
@@ -58,10 +69,10 @@ mod tests {
     use crate::err::{find_in, ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
-    use ast::value::TemplateString;
+    use ast::value::{Literal, TemplateString};
     use ast::variable::VarReference;
     use ast::Expr;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -83,7 +94,10 @@ mod tests {
     fn dollar_is_literal() {
         let source = Source::unknown("$");
         let ast = parse(source).expect("failed to parse");
-        assert_eq!(ast, vec![Expr::Literal("$".into())])
+        assert_eq!(ast, vec![Expr::Literal(Literal {
+            parsed: "$".into(),
+            segment: source.segment()
+        })])
     }
 
     #[test]
@@ -127,9 +141,12 @@ mod tests {
                 parts: vec![
                     Expr::VarReference(VarReference {
                         name: "VAR",
-                        segment: 0..source.source.find('}').unwrap()
+                        segment: find_in(source.source, "${VAR}")
                     }),
-                    Expr::Literal("IABLE".into()),
+                    Expr::Literal(Literal {
+                        parsed: "IABLE".into(),
+                        segment: find_in(source.source, "IABLE")
+                    }),
                 ]
             })]
         )
@@ -153,23 +170,26 @@ mod tests {
     #[test]
     fn multiple_wrapped_ref() {
         let source = Source::unknown("${VAR}IABLE${LONG}${VERY_LONG}");
-        let ast = parse(source).expect("failed to parse");
+        let ast = parse(source.clone()).expect("failed to parse");
         assert_eq!(
             ast,
             vec![Expr::TemplateString(TemplateString {
                 parts: vec![
                     Expr::VarReference(VarReference {
                         name: "VAR",
-                        segment: find_in(&source.source, "VAR")
+                        segment: find_in(source.source, "VAR")
                     }),
-                    Expr::Literal("IABLE".into()),
+                    Expr::Literal(Literal {
+                        parsed: "IABLE".into(),
+                        segment: find_in(source.source, "IABLE")
+                    }),
                     Expr::VarReference(VarReference {
                         name: "LONG",
-                        segment: find_in(&source.source, "LONG")
+                        segment: find_in(source.source, "LONG")
                     }),
                     Expr::VarReference(VarReference {
                         name: "VERY_LONG",
-                        segment: find_in(&source.source, "VERY_LONG")
+                        segment: find_in(source.source, "VERY_LONG")
                     }),
                 ]
             })]

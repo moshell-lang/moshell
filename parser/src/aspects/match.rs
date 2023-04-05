@@ -85,14 +85,14 @@ impl<'a> Parser<'a> {
     {
         self.cursor.advance(blanks()); //consume blanks
 
-        let start = self.cursor.peek();
+        let start = self.cursor.relative_pos_ctx(self.cursor.peek()).start;
 
         let val_name = self.parse_extracted_name()?;
         let patterns = self.parse_patterns()?;
         let guard = self.parse_guard()?;
         let body = self.parse_body(parse_arm)?;
 
-        let end = self.cursor.peek();
+        let end = self.cursor.relative_pos_ctx(self.cursor.peek()).start;
 
         let segment = start..end;
 
@@ -149,13 +149,13 @@ impl<'a> Parser<'a> {
 
         while self.cursor.advance(blanks().then(of_type(Bar))).is_some() {
             let pattern = self.parse_pattern()?;
-            if pattern == Wildcard {
+            if let Wildcard(_) = pattern {
                 return self.expected("unexpected wildcard", ParseErrorKind::Unexpected);
             }
             patterns.push(pattern)
         }
 
-        if first == Wildcard {
+        if let Wildcard(_) = first {
             return if patterns.len() == 1 {
                 Ok(vec![first])
             } else {
@@ -186,8 +186,8 @@ impl<'a> Parser<'a> {
 
         match self.cursor.peek().token_type {
             TokenType::Star => {
-                self.cursor.next()?;
-                Ok(Wildcard)
+                let segment = self.cursor.relative_pos_ctx(self.cursor.next()?);
+                Ok(Wildcard(segment))
             }
             _ => match self.literal(LiteralLeniency::Strict)? {
                 Expr::Literal(literal) => Ok(Literal(literal)),
@@ -388,7 +388,7 @@ mod tests {
                     },
                     MatchArm {
                         val_name: Some("x"),
-                        patterns: vec![MatchPattern::Wildcard],
+                        patterns: vec![MatchPattern::Wildcard(find_in(content, "*"))],
                         guard: Some(Expr::Test(Test {
                             expression: Box::new(Expr::Binary(BinaryOperation {
                                 left: Box::new(Expr::VarReference(VarReference {
@@ -451,7 +451,7 @@ mod tests {
                 })),
                 arms: vec![MatchArm {
                     val_name: None,
-                    patterns: vec![MatchPattern::Wildcard],
+                    patterns: vec![MatchPattern::Wildcard(find_in(source.source, "*"))],
                     guard: None,
                     body: Expr::Call(Call {
                         arguments: vec![
@@ -534,7 +534,7 @@ mod tests {
                     },
                     MatchArm {
                         val_name: Some("x"),
-                        patterns: vec![MatchPattern::Wildcard],
+                        patterns: vec![MatchPattern::Wildcard(find_in(content, "*"))],
                         guard: Some(Expr::Test(Test {
                             expression: Box::new(Expr::Binary(BinaryOperation {
                                 left: Box::new(Expr::VarReference(VarReference {
@@ -557,11 +557,14 @@ mod tests {
                     },
                     MatchArm {
                         val_name: None,
-                        patterns: vec![MatchPattern::Wildcard],
+                        patterns: vec![MatchPattern::Wildcard(find_in_nth(content, "*", 1))],
                         guard: None,
                         body: Expr::Call(Call {
                             arguments: vec![
-                                Expr::Literal("echo".into()),
+                                Expr::Literal(Literal {
+                                    parsed: "echo".into(),
+                                    segment: find_in(content, "echo")
+                                }),
                                 Expr::VarReference(VarReference {
                                     name: "it",
                                     segment: Default::default(),

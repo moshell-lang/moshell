@@ -4,7 +4,7 @@ use crate::moves::{of_type, spaces, times, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::test::{Not, Test};
 use ast::Expr;
-use ast::Expr::Literal;
+use ast::value::Literal;
 use context::source::SourceSegmentHolder;
 use lexer::token::TokenType::{SquaredLeftBracket, SquaredRightBracket};
 use lexer::token::{Token, TokenType};
@@ -46,7 +46,7 @@ impl<'a> TestAspect<'a> for Parser<'a> {
 
         //if first bracket is followed by a second, then this expression is a direct call to the `test` command.
         if self.cursor.advance(of_type(SquaredLeftBracket)).is_some() {
-            return self.parse_call(start);
+            return self.parse_test_call(start);
         }
 
         if let Some(end) = self.cursor.lookahead(of_type(SquaredRightBracket)) {
@@ -72,8 +72,12 @@ impl<'a> TestAspect<'a> for Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn parse_call(&mut self, start: Token) -> ParseResult<Expr<'a>> {
-        let call = self.call_arguments(Literal("test".into()), Vec::new());
+    fn parse_test_call(&mut self, start: Token) -> ParseResult<Expr<'a>> {
+        let call = self.call_arguments(
+            Expr::Literal(Literal {
+                parsed: "test".into(),
+                segment: self.cursor.relative_pos_ctx(start.clone())
+            }), Vec::new());
 
         self.cursor.force_with(
             //expect trailing ']]'
@@ -99,6 +103,7 @@ mod tests {
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
+    use crate::aspects::literal::literal;
 
     #[test]
     fn native_empty() {
@@ -132,11 +137,14 @@ mod tests {
     #[test]
     fn call_empty() {
         let source = Source::unknown("[[]]");
-        let result = parse(source).expect("parsing failed");
+        let result = parse(source.clone()).expect("parsing failed");
         assert_eq!(
             result,
             vec![Expr::Call(Call {
-                arguments: vec![Expr::Literal("test".into())],
+                arguments: vec![Expr::Literal(Literal {
+                    parsed: "test".into(),
+                    segment: find_in(source.source, "[[")
+                })],
                 type_parameters: vec![],
             })]
         )
@@ -150,12 +158,18 @@ mod tests {
             result,
             vec![Expr::Call(Call {
                 arguments: vec![
-                    Expr::Literal("test".into()),
+                    Expr::Literal(Literal {
+                        parsed: "test".into(),
+                        segment: find_in(source.source, "[[")
+                    }),
                     Expr::Literal(Literal {
                         parsed: LiteralValue::Int(48),
                         segment: find_in(source.source, "48"),
                     }),
-                    Expr::Literal("-gt".into()),
+                    Expr::Literal(Literal {
+                        parsed: "-gt".into(),
+                        segment: find_in(source.source, "-gt")
+                    }),
                     Expr::Literal(Literal {
                         parsed: LiteralValue::Int(100),
                         segment: find_in(source.source, "100"),
@@ -176,7 +190,7 @@ mod tests {
             vec![Expr::Binary(BinaryOperation {
                 left: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Call(Call {
-                        arguments: vec![Expr::Literal("echo".into())],
+                        arguments: vec![literal(content, "echo")],
                         type_parameters: vec![],
                     })),
                     op: BinaryOperator::And,
@@ -201,7 +215,10 @@ mod tests {
                 op: BinaryOperator::Or,
                 right: Box::new(Expr::Call(Call {
                     arguments: vec![
-                        Expr::Literal("test".into()),
+                        Expr::Literal(Literal {
+                            parsed: "test".into(),
+                            segment: find_in(content, "[[")
+                        }),
                         Expr::VarReference(VarReference {
                             name: "1",
                             segment: find_in(content, "$1"),
@@ -261,7 +278,7 @@ mod tests {
     #[test]
     fn not_call() {
         let source = Source::unknown("!grep -E '^[0-9]+$'");
-        let result = parse(source).expect("parse fail");
+        let result = parse(source.clone()).expect("parse fail");
         assert_eq!(
             result,
             vec![Expr::Not(Not {
@@ -269,15 +286,15 @@ mod tests {
                     arguments: vec![
                         Expr::Literal(Literal {
                             parsed: LiteralValue::String("grep".to_string()),
-                            segment: find_in(content, "grep'"),
+                            segment: find_in(source.source, "grep'"),
                         }),
                         Expr::Literal(Literal {
                             parsed: LiteralValue::String("-E".to_string()),
-                            segment: find_in(content, "-E"),
+                            segment: find_in(source.source, "-E"),
                         }),
                         Expr::Literal(Literal {
                             parsed: LiteralValue::String("^[0-9]+$".to_string()),
-                            segment: find_in(content, "'^[0-9]+$'"),
+                            segment: find_in(source.source, "'^[0-9]+$'"),
                         }),
                     ],
                     type_parameters: vec![],
@@ -290,7 +307,7 @@ mod tests {
     #[test]
     fn not() {
         let source = Source::unknown("! ($a && $b) || ! $2 == 78");
-        let result = parse(source).expect("parse error");
+        let result = parse(source.clone()).expect("parse error");
         assert_eq!(
             result,
             vec![Expr::Binary(BinaryOperation {
@@ -299,31 +316,31 @@ mod tests {
                         expressions: vec![Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::VarReference(VarReference {
                                 name: "a",
-                                segment: find_in(content, "$a"),
+                                segment: find_in(source.source, "$a"),
                             })),
                             op: BinaryOperator::And,
                             right: Box::new(Expr::VarReference(VarReference {
                                 name: "b",
-                                segment: find_in(content, "$b"),
+                                segment: find_in(source.source, "$b"),
                             })),
                         })],
-                        segment: find_in(content, "($a && $b)"),
+                        segment: find_in(source.source, "($a && $b)"),
                     })),
-                    segment: find_in(content, "! ($a && $b)"),
+                    segment: find_in(source.source, "! ($a && $b)"),
                 })),
                 op: BinaryOperator::Or,
                 right: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Not(Not {
                         underlying: Box::new(Expr::VarReference(VarReference {
                             name: "2",
-                            segment: find_in(content, "$2"),
+                            segment: find_in(source.source, "$2"),
                         })),
-                        segment: find_in(content, "! $2"),
+                        segment: find_in(source.source, "! $2"),
                     })),
                     op: BinaryOperator::EqualEqual,
                     right: Box::new(Expr::Literal(Literal {
                         parsed: 78.into(),
-                        segment: find_in(content, "78"),
+                        segment: find_in(source.source, "78"),
                     })),
                 })),
             })]

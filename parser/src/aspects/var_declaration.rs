@@ -116,7 +116,7 @@ mod tests {
 
     #[test]
     fn val_declaration_with_type() {
-        let source = Source::unknown("val variable: int");
+        let source = Source::unknown("val variable: Int");
         let ast = Parser::new(source.clone())
             .var_declaration()
             .expect("failed to parse");
@@ -127,8 +127,9 @@ mod tests {
                 var: TypedVariable {
                     name: "variable",
                     ty: Some(Type::Simple(SimpleType {
-                        name: "int",
+                        name: "Int",
                         params: Vec::new(),
+                        segment: find_in(&source.source, "Int"),
                     })),
                     segment: find_in(&source.source, "variable")
                 },
