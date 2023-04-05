@@ -18,9 +18,13 @@ pub enum Type<'a> {
     Unit,
 }
 
+///a casted expression
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct CastedExpr<'a> {
+    ///the underlying expression
     pub expr: Box<Expr<'a>>,
+
+    ///the casted type
     pub casted_type: Type<'a>
 }
 
