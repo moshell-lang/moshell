@@ -97,19 +97,18 @@ mod tests {
     use ast::value::{Literal, LiteralValue};
     use ast::variable::VarReference;
     use ast::Expr;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
 
     #[test]
     fn native_empty() {
-        let content = "[]";
-        let source = Source::unknown(content);
-        let result: ParseResult<_> = parse(source).into();
+        let source = Source::unknown("[]");
+        let result: ParseResult<_> = parse(source.clone()).into();
         assert_eq!(
             result,
             Err(ParseError {
                 message: "native test evaluation cannot be empty.".to_string(),
-                position: 0..content.len(),
+                position: source.segment(),
                 kind: ParseErrorKind::Unexpected,
             })
         )

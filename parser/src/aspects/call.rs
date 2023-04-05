@@ -216,7 +216,7 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
 
     use crate::err::{ParseError, ParseErrorKind};
@@ -362,7 +362,7 @@ mod tests {
     #[test]
     fn parse_constructor() {
         let source = Source::unknown("Foo(a, 2, c)");
-        let expr = parse(source).expect("Failed to parse");
+        let expr = parse(source.clone()).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
@@ -370,12 +370,12 @@ mod tests {
                 arguments: vec![
                     Expr::Literal("a".into()),
                     Expr::Literal(Literal {
-                        lexeme: "2",
                         parsed: 2.into(),
                     }),
                     Expr::Literal("c".into()),
                 ],
                 type_parameters: vec![],
+                segment: source.segment(),
             })],
         );
     }
@@ -394,7 +394,7 @@ mod tests {
                     Expr::Literal("fine".into()),
                 ],
                 type_parameters: vec![],
-                segment: 0..source.source.len(),
+                segment: source.segment(),
             })],
         );
     }
@@ -402,19 +402,19 @@ mod tests {
     #[test]
     fn constructor_accept_string_literals() {
         let source = Source::unknown("Foo('===\ntesting something\n===', c)");
-        let expr = parse(source).expect("Failed to parse");
+        let expr = parse(source.clone()).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
                 name: "Foo",
                 arguments: vec![
                     Expr::Literal(Literal {
-                        lexeme: "'===\ntesting something\n==='",
                         parsed: "===\ntesting something\n===".into(),
                     }),
                     Expr::Literal("c".into())
                 ],
                 type_parameters: vec![],
+                segment: source.segment()
             }),]
         );
     }
@@ -428,7 +428,6 @@ mod tests {
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
                 name: "List",
                 arguments: vec![Expr::Literal(Literal {
-                    lexeme: "'hi'",
                     parsed: "hi".into(),
                 })],
                 type_parameters: vec![Type::Simple(SimpleType {

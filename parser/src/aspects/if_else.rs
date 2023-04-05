@@ -77,7 +77,7 @@ mod tests {
     use ast::value::{Literal, TemplateString};
     use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
     use ast::Expr;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -229,7 +229,7 @@ mod tests {
                         parts: vec![Expr::Literal("moshell".into())]
                     }))),
                 }))),
-                segment: 0..content.len(),
+                segment: source.segment()
             }),]
         )
     }

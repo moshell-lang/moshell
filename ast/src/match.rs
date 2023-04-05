@@ -33,6 +33,6 @@ pub enum MatchPattern<'a> {
 
     //refer to wrapped structures documentation
     VarRef(VarReference<'a>),
-    Literal(Literal<'a>),
+    Literal(Literal),
     Template(TemplateString<'a>),
 }

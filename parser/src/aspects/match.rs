@@ -26,7 +26,7 @@ impl<'a> MatchAspect<'a> for Parser<'a> {
     where
         P: FnMut(&mut Self) -> ParseResult<Expr<'a>> + Clone,
     {
-        self.cursor.force(
+        let start = self.cursor.force(
             of_type(TokenType::Match).and_then(blanks()),
             "expected 'match' keyword at start of match expression.",
         )?;
@@ -35,7 +35,7 @@ impl<'a> MatchAspect<'a> for Parser<'a> {
 
         let arms = self.parse_match_arms(parse_arm)?;
 
-        Ok(Match { operand, arms })
+        Ok(Match { operand, arms, segment: self.cursor.relative_pos(start).start..self.cursor.re })
     }
 }
 
@@ -205,7 +205,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use crate::err::ParseErrorKind::Unexpected;
-    use crate::err::{find_in, ParseError};
+    use crate::err::{find_between, find_in, ParseError};
     use crate::parse;
     use ast::call::Call;
     use ast::group::Subshell;
@@ -219,12 +219,10 @@ mod tests {
     #[test]
     fn parse_match_as_value() {
         let source = Source::unknown(
-            "
-        val x = match $1 {
+            "val x = match $1 {
            -e => 75
            y@\"test $2\" | 2 | $USER | 't x' => 4 - 7
-        }
-        ",
+        }",
         );
         let ast = parse(source.clone()).expect("parser failed");
 
@@ -235,9 +233,10 @@ mod tests {
                 var: TypedVariable {
                     name: "x",
                     ty: None,
+                    segment: Default::default(),
                 },
                 initializer: Some(Box::new(Expr::Match(Match {
-                    operand: Box::new(Expr::VarReference(VarReference { name: "1" })),
+                    operand: Box::new(Expr::VarReference(VarReference { name: "1", segment: Default::default() })),
                     arms: vec![
                         MatchArm {
                             val_name: None,
@@ -246,6 +245,7 @@ mod tests {
                             body: Expr::Literal(Literal {
                                 lexeme: "75",
                                 parsed: 75.into(),
+                                segment: Default::default(),
                             }),
                         },
                         MatchArm {
@@ -254,17 +254,19 @@ mod tests {
                                 MatchPattern::Template(TemplateString {
                                     parts: vec![
                                         Expr::Literal("test ".into()),
-                                        Expr::VarReference(VarReference { name: "2" }),
+                                        Expr::VarReference(VarReference { name: "2", segment: Default::default() }),
                                     ]
                                 }),
                                 MatchPattern::Literal(Literal {
                                     lexeme: "2",
                                     parsed: 2.into(),
+                                    segment: Default::default(),
                                 }),
-                                MatchPattern::VarRef(VarReference { name: "USER" }),
+                                MatchPattern::VarRef(VarReference { name: "USER", segment: Default::default() }),
                                 MatchPattern::Literal(Literal {
                                     lexeme: "'t x'",
                                     parsed: "t x".into(),
+                                    segment: Default::default(),
                                 }),
                             ],
                             guard: None,
@@ -272,15 +274,18 @@ mod tests {
                                 left: Box::new(Expr::Literal(Literal {
                                     lexeme: "4",
                                     parsed: 4.into(),
+                                    segment: Default::default(),
                                 })),
                                 op: BinaryOperator::Minus,
                                 right: Box::new(Expr::Literal(Literal {
                                     lexeme: "7",
                                     parsed: 7.into(),
+                                    segment: Default::default(),
                                 })),
                             }),
                         },
                     ],
+                    segment: Default::default(),
                 }))),
                 segment: 0..source.source.len(),
             }),]
@@ -302,14 +307,15 @@ mod tests {
         assert_eq!(
             ast,
             vec![Expr::Match(Match {
-                operand: Box::new(Expr::VarReference(VarReference { name: "1" })),
+                operand: Box::new(Expr::VarReference(VarReference { name: "1", segment: Default::default() })),
                 arms: vec![
                     MatchArm {
                         val_name: None,
                         patterns: vec![MatchPattern::Literal("-e".into())],
                         guard: None,
                         body: Expr::Subshell(Subshell {
-                            expressions: Vec::new()
+                            expressions: Vec::new(),
+                            segment: Default::default(),
                         }),
                     },
                     MatchArm {
@@ -318,22 +324,25 @@ mod tests {
                             MatchPattern::Template(TemplateString {
                                 parts: vec![
                                     Expr::Literal("test ".into()),
-                                    Expr::VarReference(VarReference { name: "2" }),
+                                    Expr::VarReference(VarReference { name: "2", segment: Default::default() }),
                                 ]
                             }),
                             MatchPattern::Literal(Literal {
                                 lexeme: "2",
                                 parsed: 2.into(),
+                                segment: Default::default(),
                             }),
-                            MatchPattern::VarRef(VarReference { name: "USER" }),
+                            MatchPattern::VarRef(VarReference { name: "USER", segment: Default::default() }),
                             MatchPattern::Literal(Literal {
                                 lexeme: "'t x'",
                                 parsed: "t x".into(),
+                                segment: Default::default(),
                             }),
                         ],
                         guard: None,
                         body: Expr::Subshell(Subshell {
-                            expressions: Vec::new()
+                            expressions: Vec::new(),
+                            segment: Default::default(),
                         }),
                     },
                     MatchArm {
@@ -341,17 +350,19 @@ mod tests {
                         patterns: vec![MatchPattern::Wildcard],
                         guard: Some(Expr::Test(Test {
                             expression: Box::new(Expr::Binary(BinaryOperation {
-                                left: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                                left: Box::new(Expr::VarReference(VarReference { name: "a", segment: Default::default() })),
                                 op: BinaryOperator::EqualEqual,
                                 right: Box::new(Expr::Literal(Literal {
                                     lexeme: "1",
                                     parsed: 1.into(),
+                                    segment: Default::default(),
                                 })),
                             })),
                             segment: find_in(content, "[ $a == 1 ]"),
                         })),
                         body: Expr::Subshell(Subshell {
-                            expressions: Vec::new()
+                            expressions: Vec::new(),
+                            segment: Default::default(),
                         }),
                     },
                     MatchArm {
@@ -361,12 +372,13 @@ mod tests {
                         body: Expr::Call(Call {
                             arguments: vec![
                                 Expr::Literal("echo".into()),
-                                Expr::VarReference(VarReference { name: "it" }),
+                                Expr::VarReference(VarReference { name: "it", segment: Default::default() }),
                             ],
                             type_parameters: vec![],
                         }),
                     },
                 ],
+                segment: find_between(content, "match", "}"),
             })]
         )
     }
@@ -396,11 +408,12 @@ mod tests {
                     body: Expr::Call(Call {
                         arguments: vec![
                             Expr::Literal("echo".into()),
-                            Expr::VarReference(VarReference { name: "it" }),
+                            Expr::VarReference(VarReference { name: "it", segment: Default::default() }),
                         ],
                         type_parameters: vec![],
                     }),
                 },],
+                segment: Default::default(),
             })]
         )
     }
@@ -420,14 +433,15 @@ mod tests {
         assert_eq!(
             ast,
             vec![Expr::Match(Match {
-                operand: Box::new(Expr::VarReference(VarReference { name: "1" })),
+                operand: Box::new(Expr::VarReference(VarReference { name: "1", segment: Default::default() })),
                 arms: vec![
                     MatchArm {
                         val_name: None,
                         patterns: vec![MatchPattern::Literal("-e".into())],
                         guard: None,
                         body: Expr::Subshell(Subshell {
-                            expressions: Vec::new()
+                            expressions: Vec::new(),
+                            segment: Default::default(),
                         }),
                     },
                     MatchArm {
@@ -436,22 +450,25 @@ mod tests {
                             MatchPattern::Template(TemplateString {
                                 parts: vec![
                                     Expr::Literal("test ".into()),
-                                    Expr::VarReference(VarReference { name: "2" }),
+                                    Expr::VarReference(VarReference { name: "2", segment: Default::default() }),
                                 ]
                             }),
                             MatchPattern::Literal(Literal {
                                 lexeme: "2",
                                 parsed: 2.into(),
+                                segment: Default::default(),
                             }),
-                            MatchPattern::VarRef(VarReference { name: "USER" }),
+                            MatchPattern::VarRef(VarReference { name: "USER", segment: Default::default() }),
                             MatchPattern::Literal(Literal {
                                 lexeme: "'t x'",
                                 parsed: "t x".into(),
+                                segment: Default::default(),
                             }),
                         ],
                         guard: None,
                         body: Expr::Subshell(Subshell {
-                            expressions: Vec::new()
+                            expressions: Vec::new(),
+                            segment: Default::default(),
                         }),
                     },
                     MatchArm {
@@ -459,17 +476,19 @@ mod tests {
                         patterns: vec![MatchPattern::Wildcard],
                         guard: Some(Expr::Test(Test {
                             expression: Box::new(Expr::Binary(BinaryOperation {
-                                left: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                                left: Box::new(Expr::VarReference(VarReference { name: "a", segment: Default::default() })),
                                 op: BinaryOperator::EqualEqual,
                                 right: Box::new(Expr::Literal(Literal {
                                     lexeme: "1",
                                     parsed: 1.into(),
+                                    segment: Default::default(),
                                 })),
                             })),
                             segment: find_in(content, "[ $a == 1 ]"),
                         })),
                         body: Expr::Subshell(Subshell {
-                            expressions: Vec::new()
+                            expressions: Vec::new(),
+                            segment: Default::default(),
                         }),
                     },
                     MatchArm {
@@ -479,12 +498,13 @@ mod tests {
                         body: Expr::Call(Call {
                             arguments: vec![
                                 Expr::Literal("echo".into()),
-                                Expr::VarReference(VarReference { name: "it" }),
+                                Expr::VarReference(VarReference { name: "it", segment: Default::default() }),
                             ],
                             type_parameters: vec![],
                         }),
                     },
                 ],
+                segment: Default::default(),
             })]
         )
     }

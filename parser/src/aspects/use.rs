@@ -61,23 +61,23 @@ impl<'a> UseAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::err::{find_between, find_in, ParseError, ParseErrorKind, rfind_between};
+    use crate::err::{ ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
     use ast::r#use::Use;
     use ast::Expr;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
 
     #[test]
     fn test_use() {
         let source = Source::unknown("use TOKEN");
-        let result = parse(source).expect("parser failed");
+        let result = parse(source.clone()).expect("parser failed");
         assert_eq!(
             result,
             vec![Expr::Use(Use {
                 uses: vec!["TOKEN"],
-                segment: find_in(&source.source, "TOKEN")
+                segment: 0..source.len(),
             })]
         )
     }
@@ -85,12 +85,12 @@ mod tests {
     #[test]
     fn uses() {
         let source = Source::unknown("use TOKEN,    A \\\n , B \\\n , C");
-        let result = parse(source).expect("parser failed");
+        let result = parse(source.clone()).expect("parser failed");
         assert_eq!(
             result,
             vec![Expr::Use(Use {
                 uses: vec!["TOKEN", "A", "B", "C"],
-                segment: find_between(&source.source, "TOKEN", "C")
+                segment: source.segment()
             })]
         )
     }

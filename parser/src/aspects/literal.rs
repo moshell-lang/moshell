@@ -34,12 +34,12 @@ pub(crate) trait LiteralAspect<'a> {
     fn literal(&mut self, leniency: LiteralLeniency) -> ParseResult<Expr<'a>>;
 
     /// Parses a number-like literal expression.
-    fn number_literal(&self) -> ParseResult<Literal<'a>>;
+    fn number_literal(&self) -> ParseResult<Literal>;
 
     /// Parses a string literal expression.
     ///
     /// This method is only used for single quoted strings.
-    fn string_literal(&mut self) -> ParseResult<Literal<'a>>;
+    fn string_literal(&mut self) -> ParseResult<Literal>;
 
     /// Parses a string template literal expression.
     ///
@@ -77,15 +77,16 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         }
     }
 
-    fn number_literal(&self) -> ParseResult<Literal<'a>> {
+    fn number_literal(&self) -> ParseResult<Literal> {
         let start = self.cursor.peek();
+        let value = start.value;
         Ok(Literal {
-            lexeme: start.value,
             parsed: self.parse_number_value(start)?,
+            segment: self.cursor.relative_pos(value),
         })
     }
 
-    fn string_literal(&mut self) -> ParseResult<Literal<'a>> {
+    fn string_literal(&mut self) -> ParseResult<Literal> {
         let start = self.cursor.force(of_type(Quote), "Expected quote.")?;
         let mut lexeme = start.value;
 
@@ -130,6 +131,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         Ok(Literal {
             lexeme,
             parsed: LiteralValue::String(value),
+            segment: self.cursor.relative_pos_ctx(start),
         })
     }
 
@@ -171,6 +173,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                         parts.push(Expr::Literal(Literal {
                             lexeme,
                             parsed: LiteralValue::String(literal_value.clone()),
+                            segment: self.cursor.relative_pos(lexeme)
                         }));
                         literal_value.clear();
                     }
@@ -194,6 +197,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             parts.push(Expr::Literal(Literal {
                 lexeme,
                 parsed: LiteralValue::String(literal_value),
+                segment: self.cursor.relative_pos(lexeme)
             }));
         }
 
@@ -323,11 +327,13 @@ impl<'a> Parser<'a> {
         lexeme: &'a str,
         numeric: Option<Token>,
     ) -> ParseResult<Expr<'a>> {
+        let segment = self.cursor.relative_pos(lexeme);
         if let Some(token) = numeric {
             if token.value == read {
                 return Ok(Expr::Literal(Literal {
                     lexeme,
                     parsed: self.parse_number_value(token)?,
+                    segment
                 }));
             }
         }
@@ -335,11 +341,13 @@ impl<'a> Parser<'a> {
             Expr::Range(Iterable::Files(FilePattern {
                 lexeme,
                 pattern: read,
+                segment
             }))
         } else {
             Expr::Literal(Literal {
                 lexeme,
                 parsed: LiteralValue::String(read),
+                segment
             })
         })
     }

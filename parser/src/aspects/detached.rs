@@ -44,7 +44,7 @@ mod tests {
     use ast::group::Block;
     use ast::Expr;
     use ast::Expr::Literal;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
 
     use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
@@ -67,7 +67,8 @@ mod tests {
 
     #[test]
     fn twice_derived_workaround() {
-        let res = parse(Source::unknown("{date &}&")).expect("Failed to parse");
+        let source = Source::unknown("{date &}&");
+        let res = parse(source.clone()).expect("Failed to parse");
         assert_eq!(
             res,
             vec![Expr::Detached(Detached {
@@ -78,7 +79,8 @@ mod tests {
                             type_parameters: vec![],
                         }))
                     })]
-                }))
+                })),
+                segment: source.segment()
             })]
         )
     }

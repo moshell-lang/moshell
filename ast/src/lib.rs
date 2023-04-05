@@ -38,7 +38,7 @@ pub mod variable;
 pub enum Expr<'a> {
     Assign(Assign<'a>),
     Binary(BinaryOperation<'a>),
-    Literal(Literal<'a>),
+    Literal(Literal),
 
     Match(Match<'a>),
 

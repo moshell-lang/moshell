@@ -180,7 +180,7 @@ impl<'a> Parser<'a> {
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::err::{find_between, ParseError, ParseErrorKind};
     use ast::call::Call;
     use ast::function::{FunctionDeclaration, FunctionParameter, Return};
     use ast::operation::{BinaryOperation, BinaryOperator};
@@ -188,7 +188,7 @@ mod tests {
     use ast::value::Literal;
     use ast::variable::{TypedVariable, VarReference};
     use ast::Expr;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
 
     use crate::parse;
 
@@ -224,7 +224,8 @@ mod tests {
 
     #[test]
     fn function_with_return() {
-        let errs = parse(Source::unknown("fun foo() = return 4 + 5")).expect("parse fail");
+        let source = Source::unknown("fun foo() = return 4 + 5");
+        let errs = parse(source.clone()).expect("parse fail");
         assert_eq!(
             errs,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
@@ -235,16 +236,17 @@ mod tests {
                 body: Box::new(Expr::Return(Return {
                     expr: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Literal(Literal {
-                            lexeme: "4",
                             parsed: 4.into(),
                         })),
                         op: BinaryOperator::Plus,
                         right: Box::new(Expr::Literal(Literal {
-                            lexeme: "5",
                             parsed: 5.into(),
+                            segment: source.source.find('5').map(|p| p..p + 1).unwrap(),
                         }),),
-                    }))
+                    })),
+                    segment: find_between(source.source, "return", "4 + 5")
                 })),
+                segment: source.segment()
             })]
         );
     }
@@ -293,12 +295,8 @@ mod tests {
 
     #[test]
     fn function_declaration() {
-        let source = Source::unknown(
-            "\
-        fun test() = x
-        ",
-        );
-        let ast = parse(source).expect("parse failed");
+        let source = Source::unknown("fun test() = x");
+        let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
@@ -310,6 +308,7 @@ mod tests {
                     arguments: vec![Expr::Literal("x".into())],
                     type_parameters: vec![],
                 })),
+                segment: source.segment()
             })]
         )
     }

@@ -37,7 +37,7 @@ mod tests {
     use ast::value::Literal;
     use ast::variable::Assign;
     use ast::Expr;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
 
     #[test]
     fn assign_no_value() {
@@ -57,15 +57,16 @@ mod tests {
     #[test]
     fn assign() {
         let source = Source::unknown("a = 1");
-        let ast = parse(source).expect("Failed to parse");
+        let ast = parse(source.clone()).expect("Failed to parse");
         assert_eq!(
             ast,
             vec![Expr::Assign(Assign {
                 name: "a",
                 value: Box::new(Expr::Literal(Literal {
-                    lexeme: "1",
-                    parsed: 1.into()
-                }))
+                    parsed: 1.into(),
+                    segment: 4..5,
+                })),
+                segment: source.segment(),
             })]
         );
     }

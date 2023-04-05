@@ -88,9 +88,9 @@ mod tests {
     use ast::r#type::{SimpleType, Type};
     use ast::value::{Literal, LiteralValue};
     use ast::Expr;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
 
-    use crate::err::{find_between, find_in, ParseError};
+    use crate::err::{find_in, ParseError};
     use crate::parser::Parser;
 
     use super::*;
@@ -111,7 +111,7 @@ mod tests {
                     segment: find_in(&source.source, "variable")
                 },
                 initializer: None,
-                segment: 0..source.source.len(),
+                segment: source.segment(),
             })
         )
     }
@@ -135,7 +135,7 @@ mod tests {
                     segment: find_in(&source.source, "variable")
                 },
                 initializer: None,
-                segment: 0..source.source.len(),
+                segment: source.segment(),
             })
         )
     }
@@ -218,7 +218,7 @@ mod tests {
                     })],
                     segment: find_in(&source.source, "{echo a}")
                 }))),
-                segment: 0..source.source.len(),
+                segment: source.segment(),
             })
         )
     }

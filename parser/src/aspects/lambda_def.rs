@@ -32,7 +32,7 @@ impl<'a> LambdaDefinitionAspect<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::aspects::lambda_def::LambdaDefinitionAspect;
-    use crate::err::ParseError;
+    use crate::err::{find_in, ParseError};
     use crate::err::ParseErrorKind::Unexpected;
     use crate::parser::Parser;
     use ast::call::Call;
@@ -58,6 +58,7 @@ mod tests {
                     TypedVariable {
                         name: "a",
                         ty: None,
+                        segment: Default::default(),
                     },
                     TypedVariable {
                         name: "b",
@@ -65,15 +66,16 @@ mod tests {
                             name: "Int",
                             params: Vec::new(),
                         })),
+                        segment: Default::default(),
                     },
                 ],
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::VarReference(VarReference {
                         name: "a",
-                        segment: source
+                        segment: find_in(source.source, "$a"),
                     })),
                     op: BinaryOperator::Plus,
-                    right: Box::new(Expr::VarReference(VarReference { name: "b" })),
+                    right: Box::new(Expr::VarReference(VarReference { name: "b", segment: find_in(source.source, "$b") })),
                 })),
             }
         );

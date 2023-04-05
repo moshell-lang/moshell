@@ -16,8 +16,18 @@ pub fn segment_holder(args: TokenStream, input: TokenStream) -> TokenStream {
         );
     }
 
+    let generics = &item_struct.generics;
+    let type_name = &item_struct.ident;
+    let where_clause = &item_struct.generics.where_clause;
+
     return quote! {
         #item_struct
+
+        impl #generics context::source::SourceSegmentHolder for #type_name #generics #where_clause {
+            fn segment(&self) -> context::source::SourceSegment {
+                self.segment.clone()
+            }
+        }
     }
     .into();
 }

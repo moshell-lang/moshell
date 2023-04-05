@@ -1,7 +1,7 @@
 use dbg_pls::DebugPls;
 use std::fmt::{Debug, Display, Formatter, Write};
 use std::ops::Deref;
-use src_macros::SourceSegmentHolder;
+use src_macros::segment_holder;
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub enum Type<'a> {
@@ -18,18 +18,21 @@ pub enum Type<'a> {
     Unit,
 }
 
-#[derive(Debug, Clone, PartialEq, DebugPls, SourceSegmentHolder)]
+#[segment_holder]
+#[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct SimpleType<'a> {
     pub name: &'a str,
     pub params: Vec<Type<'a>>,
 }
 
-#[derive(Debug, Clone, PartialEq, DebugPls, SourceSegmentHolder)]
+#[segment_holder]
+#[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ByName<'a> {
     pub name: Box<Type<'a>>,
 }
 
-#[derive(Debug, Clone, PartialEq, DebugPls, SourceSegmentHolder)]
+#[segment_holder]
+#[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct CallableType<'a> {
     pub params: Vec<Type<'a>>,
     pub output: Box<Type<'a>>,

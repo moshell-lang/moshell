@@ -7,7 +7,7 @@ use ast::range::{Iterable, NumericRange};
 use ast::value::{Literal, LiteralValue};
 use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
-use context::source::Source;
+use context::source::{Source, SourceSegmentHolder};
 use parser::err::find_in;
 use parser::parse;
 use pretty_assertions::assert_eq;
@@ -34,10 +34,9 @@ fn variable_type_and_initializer() {
             })),
         },
         initializer: Some(Box::new(Expr::Literal(Literal {
-            lexeme: "1",
             parsed: LiteralValue::Int(1),
         }))),
-        segment: 0..source.source.len(),
+        segment: source.segment(),
     })];
     assert_eq!(parsed, expected);
 }

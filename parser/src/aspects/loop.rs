@@ -5,6 +5,7 @@ use crate::moves::{blanks, eod, eox, of_type, times, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::control_flow::{ConditionalFor, For, ForKind, Loop, RangeFor, While};
 use ast::range::FilePattern;
+use context::source::SourceSegmentHolder;
 
 ///a parser aspect for loops and while expressions
 pub trait LoopAspect<'a> {
@@ -18,7 +19,7 @@ pub trait LoopAspect<'a> {
 
 impl<'a> LoopAspect<'a> for Parser<'a> {
     fn parse_while(&mut self) -> ParseResult<While<'a>> {
-        self.cursor.force(
+        let start = self.cursor.force(
             of_type(TokenType::While),
             "expected 'while' at start of while expression",
         )?;
@@ -33,22 +34,22 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
 
         let body = Box::new(self.expression_statement()?);
 
-        Ok(While { condition, body })
+        Ok(While { condition, body, segment: self.cursor.relative_pos(start).start..body.segment().end })
     }
 
     fn parse_loop(&mut self) -> ParseResult<Loop<'a>> {
-        self.cursor.force(
+        let start = self.cursor.force(
             of_type(TokenType::Loop),
             "expected 'loop' at start of loop expression",
         )?;
         self.cursor.advance(blanks());
         let body = Box::new(self.expression_statement()?);
 
-        Ok(Loop { body })
+        Ok(Loop { body, segment: self.cursor.relative_pos(start).start..body.segment().end })
     }
 
     fn parse_for(&mut self) -> ParseResult<For<'a>> {
-        self.cursor.force(
+        let start = self.cursor.force(
             of_type(TokenType::For),
             "expected 'for' at start of for expression",
         )?;
@@ -57,7 +58,7 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
         self.cursor.advance(eox());
         let body = Box::new(self.expression_statement()?);
 
-        Ok(For { kind, body })
+        Ok(For { kind, body, segment: self.cursor.relative_pos(start).start..body.segment().end  })
     }
 }
 
@@ -174,6 +175,7 @@ impl<'a> Parser<'a> {
         Ok(FilePattern {
             lexeme: lexme.value,
             pattern: lexme.value.to_owned(),
+            segment: self.cursor.relative_pos_ctx(lexme),
         })
     }
 }
@@ -181,7 +183,7 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::err::ParseErrorKind::Unexpected;
-    use crate::err::{find_in, ParseError};
+    use crate::err::{find_between, find_in, ParseError};
     use crate::parse;
     use crate::parser::ParseResult;
 
@@ -195,23 +197,25 @@ mod tests {
     use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference};
     use ast::Expr;
     use ast::Expr::{Break, Continue};
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
 
     #[test]
     fn loop_with_break_and_continues() {
-        let res = parse(Source::unknown(
+        let source = Source::unknown(
             "loop {
             continue; break;
             }",
-        ))
-        .expect("parse failed");
+        );
+        let res = parse(source.clone()).expect("parse failed");
         assert_eq!(
             res,
             vec![Expr::Loop(Loop {
                 body: Box::new(Expr::Block(Block {
-                    expressions: vec![Continue, Break]
-                }))
+                    expressions: vec![Continue, Break],
+                    segment: find_between(source.source, "{", "}").unwrap()
+                })),
+                segment: source.segment()
             })]
         )
     }

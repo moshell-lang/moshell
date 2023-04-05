@@ -115,15 +115,12 @@ mod tests {
     #[test]
     fn wrapped_ref() {
         let source = Source::unknown("${VAR}IABLE");
-        let ast = parse(source).expect("failed to parse");
+        let ast = parse(source.clone()).expect("failed to parse");
         assert_eq!(
             ast,
             vec![Expr::TemplateString(TemplateString {
                 parts: vec![
-                    Expr::VarReference(VarReference {
-                        name: "VAR",
-                        segment: find_in(&source.source, "VAR")
-                    }),
+                    Expr::VarReference(VarReference { name: "VAR", segment: 0..source.source.find('}').unwrap() }),
                     Expr::Literal("IABLE".into()),
                 ]
             })]
