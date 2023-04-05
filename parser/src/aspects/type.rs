@@ -2,12 +2,10 @@ use crate::aspects::expr_list::ExpressionListAspect;
 use crate::err::ParseErrorKind::{Expected, Unexpected};
 use crate::moves::{any, blanks, not, of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use ast::r#type::{ByName, CallableType, SimpleType, Type};
-use lexer::token::TokenType::{
-    FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket, SquaredLeftBracket,
-    SquaredRightBracket, Unit,
-};
+use ast::r#type::{ByName, CallableType, CastedExpr, SimpleType, Type};
+use lexer::token::TokenType::{As, FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket, SquaredLeftBracket, SquaredRightBracket, Unit};
 use std::fmt::Write;
+use ast::Expr;
 
 ///A parser aspect to parse all type declarations, such as lambdas, constant types, parametrized types and Unit
 pub trait TypeAspect<'a> {
@@ -16,6 +14,9 @@ pub trait TypeAspect<'a> {
 
     ///parse a type parameter list (`[...]`)
     fn parse_type_parameter_list(&mut self) -> ParseResult<Vec<Type<'a>>>;
+
+    ///parse a casted expression (ex: {..} as Type)
+    fn parse_cast(&mut self, casted_expr: Expr<'a>) -> ParseResult<CastedExpr<'a>>;
 }
 
 impl<'a> TypeAspect<'a> for Parser<'a> {
@@ -84,6 +85,19 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             );
         }
         Ok(tparams)
+    }
+
+    fn parse_cast(&mut self, casted_expr: Expr<'a>) -> ParseResult<CastedExpr<'a>> {
+        self.cursor
+            .force(
+                blanks().then(of_type(As)),
+                "expected 'as' for cast expression."
+            )?;
+        let casted_type = self.parse_type()?;
+        Ok(CastedExpr {
+            expr: Box::new(casted_expr),
+            casted_type
+        })
     }
 }
 

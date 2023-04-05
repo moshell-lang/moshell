@@ -28,6 +28,7 @@ use crate::moves::{
 };
 use ast::range::Iterable;
 use ast::Expr;
+use crate::aspects::r#type::TypeAspect;
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
 
@@ -132,7 +133,7 @@ impl<'a> Parser<'a> {
         self.repos("Expected statement")?;
 
         let pivot = self.cursor.peek().token_type;
-        match pivot {
+        let expr = match pivot {
             Var | Val => self.var_declaration(),
             Use => self.parse_use(),
             Fun => self
@@ -152,7 +153,9 @@ impl<'a> Parser<'a> {
             }
 
             _ => self.next_expression_statement(),
-        }
+        };
+
+        self.handle_cast(expr?)
     }
 
     ///Parse the next expression
@@ -160,7 +163,7 @@ impl<'a> Parser<'a> {
         self.repos("Expected expression statement")?;
 
         let pivot = self.cursor.peek().token_type;
-        match pivot {
+        let expr = match pivot {
             If => self.parse_if(Parser::statement).map(Expr::If),
             Match => self.parse_match(Parser::statement).map(Expr::Match),
             Identifier | Quote | DoubleQuote => self.any_call(),
@@ -168,7 +171,9 @@ impl<'a> Parser<'a> {
             _ if pivot.is_bin_operator() => self.call(),
 
             _ => self.next_expression(),
-        }
+        };
+
+        self.handle_cast(expr?)
     }
 
     ///Parse the next expression
@@ -176,7 +181,7 @@ impl<'a> Parser<'a> {
         self.repos("Expected expression")?;
 
         let pivot = self.cursor.peek().token_type;
-        match pivot {
+        let expr = match pivot {
             //if we are parsing an expression, then we want to see a parenthesised expr as a subshell expression
             RoundedLeftBracket => self.subshell_or_parentheses(),
             SquaredLeftBracket => self.parse_test(),
@@ -194,7 +199,9 @@ impl<'a> Parser<'a> {
             Not => self.not(Parser::next_expression_statement),
 
             _ => self.next_value(),
-        }
+        };
+
+        self.handle_cast(expr?)
     }
 
     ///Parse the next value expression
@@ -202,7 +209,7 @@ impl<'a> Parser<'a> {
         self.repos("Expected value")?;
 
         let pivot = self.cursor.peek().token_type;
-        match pivot {
+        let expr = match pivot {
             RoundedLeftBracket => self.lambda_or_parentheses(),
             CurlyLeftBracket => self.block().map(Expr::Block),
             Not => self.not(Parser::next_value),
@@ -223,7 +230,9 @@ impl<'a> Parser<'a> {
             //test expressions has nothing to do in a value expression.
             SquaredLeftBracket => self.expected("Unexpected start of test expression", Unexpected),
             _ => self.literal(LiteralLeniency::Strict),
-        }
+        };
+
+        self.handle_cast(expr?)
     }
 
     pub(crate) fn parse_next(&mut self) -> ParseResult<Expr<'a>> {
@@ -234,6 +243,14 @@ impl<'a> Parser<'a> {
                 .force(eox(), "expected end of expression or file")?;
         };
         statement
+    }
+
+    ///handle specific case of casted expressions (<expr> as <type>)
+    fn handle_cast(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
+        if self.cursor.lookahead(blanks().then(of_type(As))).is_some() {
+            return self.parse_cast(expr).map(Expr::Casted);
+        }
+        Ok(expr)
     }
 
     ///handle tricky case of lambda `(e) => x` and parentheses `(e)`
@@ -340,7 +357,7 @@ impl<'a> Parser<'a> {
             if self.cursor.lookahead(bin_op()).is_some() {
                 let start_pos = self.cursor.relative_pos(literal.lexeme).start;
                 if self
-                    .binary_operation_right(expr, Parser::next_value)
+                    .binary_operation_right(expr.clone(), Parser::next_value)
                     .is_ok()
                 {
                     let end_pos = self.cursor.relative_pos(self.cursor.peek()).end;
@@ -352,6 +369,11 @@ impl<'a> Parser<'a> {
                     );
                 }
             }
+        }
+
+        if self.cursor.lookahead(of_type(As)).is_some() {
+            let expr = self.parse_cast(expr).map(Expr::Casted)?;
+            return self.parse_binary_expr(expr);
         }
 
         //else, we hit an invalid binary expression.

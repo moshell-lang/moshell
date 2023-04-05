@@ -10,6 +10,7 @@ use crate::group::{Block, Parenthesis, Subshell};
 use crate::lambda::LambdaDef;
 use crate::operation::BinaryOperation;
 use crate::r#match::Match;
+use crate::r#type::CastedExpr;
 use crate::r#use::Use;
 use crate::range::Iterable;
 use crate::substitution::Substitution;
@@ -54,6 +55,8 @@ pub enum Expr<'a> {
 
     Use(Use<'a>),
 
+    Casted(CastedExpr<'a>),
+    
     Test(Test<'a>),
     Not(Not<'a>),
 
