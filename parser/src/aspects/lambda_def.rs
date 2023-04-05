@@ -32,6 +32,7 @@ impl<'a> LambdaDefinitionAspect<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::aspects::lambda_def::LambdaDefinitionAspect;
+    use crate::aspects::literal::literal;
     use crate::err::ParseErrorKind::Unexpected;
     use crate::err::{find_between, find_in, ParseError};
     use crate::parser::Parser;
@@ -160,7 +161,10 @@ mod tests {
                 args: Vec::new(),
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
-                        arguments: vec![Expr::Literal("echo".into()), Expr::Literal("hey".into()),],
+                        arguments: vec![
+                            literal(source.source, "echo"),
+                            literal(source.source, "hey")
+                        ],
                         type_parameters: Vec::new(),
                     })],
                     segment: find_between(source.source, "{", "}")

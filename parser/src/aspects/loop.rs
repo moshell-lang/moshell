@@ -130,7 +130,7 @@ impl<'a> Parser<'a> {
         Ok(RangeFor {
             receiver: receiver.value,
             iterable,
-            segment: receiver.value..self.cursor.peek(),
+            segment: self.cursor.relative_pos_ctx(receiver..self.cursor.peek()),
         })
     }
 
@@ -170,7 +170,9 @@ impl<'a> Parser<'a> {
             }
         }
 
-        let segment = start.first().unwrap()..self.cursor.peek();
+        let segment = self
+            .cursor
+            .relative_pos_ctx(start.first().unwrap().clone()..self.cursor.peek());
 
         Ok(ConditionalFor {
             initializer,

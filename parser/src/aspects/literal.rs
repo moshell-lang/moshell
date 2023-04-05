@@ -298,6 +298,18 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
     }
 }
 
+pub(crate) fn literal<'a>(source: &'a str, literal: &'_ str) -> Expr<'a> {
+    Expr::Literal(literal_expr(source, literal))
+}
+
+pub(crate) fn literal_expr(source: &str, literal: &str) -> Literal {
+    let idx = source.find(literal).unwrap();
+    Literal {
+        parsed: literal.into(),
+        segment: idx..idx + literal.len(),
+    }
+}
+
 impl<'a> Parser<'a> {
     fn parse_number_value(&self, token: Token<'a>) -> ParseResult<LiteralValue> {
         match token.token_type {
@@ -335,7 +347,6 @@ impl<'a> Parser<'a> {
         }
         Ok(if read.contains('*') {
             Expr::Range(Iterable::Files(FilePattern {
-                lexeme,
                 pattern: read,
                 segment,
             }))
@@ -439,8 +450,8 @@ mod tests {
             parsed,
             Expr::TemplateString(TemplateString {
                 parts: vec![Expr::Literal(Literal {
-                    lexeme: "a\\\"a'",
                     parsed: "a\"a'".into(),
+                    segment: source.segment()
                 }),]
             })
         );

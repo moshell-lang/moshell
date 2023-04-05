@@ -136,6 +136,7 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::aspects::group::GroupAspect;
+    use crate::aspects::literal::literal;
     use crate::err::{find_between, find_in};
     use crate::parser::Parser;
     use ast::call::Call;
@@ -172,7 +173,7 @@ mod tests {
                     ],
                     segment: 1..source.source.len() - 1
                 })],
-                segment: 0..source.source.len()
+                segment: source.segment()
             }
         );
     }
@@ -190,12 +191,15 @@ mod tests {
                 expressions: vec![Expr::Block(Block {
                     expressions: vec![
                         Expr::Block(Block {
-                            expressions: vec![]
+                            expressions: vec![],
+                            segment: 7..9
                         }),
                         Expr::Block(Block {
-                            expressions: vec![]
+                            expressions: vec![],
+                            segment: 12..14
                         }),
-                    ]
+                    ],
+                    segment: 3..source.source.len() - 1
                 })],
                 segment: source.segment()
             }
@@ -250,6 +254,7 @@ mod tests {
                         var: TypedVariable {
                             name: "test",
                             ty: None,
+                            segment: find_in(source.source, "test"),
                         },
                         initializer: Some(Box::from(Expr::Block(Block {
                             expressions: vec![
@@ -258,14 +263,20 @@ mod tests {
                                     var: TypedVariable {
                                         name: "x",
                                         ty: None,
+                                        segment: find_in(source.source, "x"),
                                     },
                                     initializer: Some(Box::from(Expr::Literal(Literal {
                                         parsed: Int(8),
+                                        segment: find_in(source.source, "8"),
                                     }))),
                                     segment: find_in(source.source, "val x = 8"),
                                 }),
-                                Expr::Literal(Literal { parsed: Int(8) }),
-                            ]
+                                Expr::Literal(Literal {
+                                    parsed: Int(8),
+                                    segment: find_in(source.source, "8"),
+                                }),
+                            ],
+                            segment: find_between(source.source, "{", "}"),
                         }))),
                         segment: find_in(source.source, "val test = {"),
                     }),
@@ -276,20 +287,25 @@ mod tests {
                                 var: TypedVariable {
                                     name: "x",
                                     ty: None,
+                                    segment: find_in(source.source, "x"),
                                 },
                                 initializer: Some(Box::from(Expr::Literal(Literal {
                                     parsed: Int(89),
+                                    segment: find_in(source.source, "89")
                                 }))),
                                 segment: find_in(source.source, "val x = 89"),
                             }),
                             Expr::Call(Call {
                                 arguments: vec![
-                                    Expr::Literal("command".into()),
-                                    Expr::Literal("call".into()),
+                                    literal(source.source, "command"),
+                                    literal(source.source, "call")
                                 ],
                                 type_parameters: vec![],
                             }),
-                            Expr::Literal(Literal { parsed: Int(7) })
+                            Expr::Literal(Literal {
+                                parsed: Int(7),
+                                segment: find_in(source.source, "7")
+                            })
                         ],
                         segment: find_between(source.source, "(", ")"),
                     }),
@@ -322,7 +338,8 @@ mod tests {
                             name: "test",
                             ty: Some(Type::Simple(SimpleType {
                                 name: "int",
-                                params: Vec::new()
+                                params: Vec::new(),
+                                segment: find_in(source.source, "int")
                             })),
                             segment: find_in(source.source, "test")
                         },
