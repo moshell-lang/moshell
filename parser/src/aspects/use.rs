@@ -1,11 +1,11 @@
 use crate::err::ParseErrorKind;
-use crate::moves::{eox, of_type, repeat, spaces, MoveOperations};
+use crate::moves::{eox, of_type, repeat, spaces, MoveOperations, blanks};
 use crate::parser::{ParseResult, Parser};
-use ast::r#use::{Import, Use};
+use ast::r#use::{Import, ImportedSymbol, Use};
 use ast::Expr;
 use lexer::token::TokenType;
-use lexer::token::TokenType::{Comma, Identifier};
-use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
+use lexer::token::TokenType::{Comma, CurlyLeftBracket, DotDot, Identifier};
+
 
 /// Parser aspect to parse use statements
 pub trait UseAspect<'a> {
@@ -50,17 +50,57 @@ impl<'a> UseAspect<'a> for Parser<'a> {
 
         uses.append(&mut tail);
 
-        Ok(Expr::Use(Use { uses }))
+        Ok(Expr::Use(Use {
+            uses
+        }))
     }
 }
 
 impl<'a> Parser<'a> {
     fn parse_import(&mut self) -> ParseResult<Import<'a>> {
-        let pivot = self.cursor.peek();
-        match pivot.token_type {
-            TokenType::At => Import::Environment(pivot.value),
-            
+        self.cursor.advance(blanks());
+
+        if self.cursor.peek().token_type == TokenType::At {
+            return Ok(Import::Environment(self.cursor.next()?.value));
         }
+
+        let identifiers: Vec<_> = self.cursor
+            .collect(repeat(
+                (
+                    blanks().then(of_type(Identifier))
+                ).and_then(
+                    blanks().then(of_type(DotDot))
+                )
+            ))
+            .into_iter()
+            .filter(|t| t.token_type == Identifier)
+            .map(|t| t.value)
+            .collect();
+
+        if identifiers.is_empty() {
+            return self.expected(
+                "'use' statement needs at least one element.",
+                ParseErrorKind::Expected("<symbol>".to_string())
+            )
+        }
+
+        if self.cursor.advance(blanks().then(of_type(CurlyLeftBracket))).is_some() {
+            return self.parse_symbol_list(identifiers).map(Import::Symbols)
+        }
+
+        let (modules, name) = identifiers.split_last().unwrap();
+
+        let alias = self.cursor.force(of_type(TokenType::As))
+
+        Import::Symbols(vec![ImportedSymbol {
+            name,
+
+        }])
+    }
+
+    //parses a list of symbols ({Type1, foo, bar::*}) assuming that '{' is already parsed
+    fn parse_symbol_list(&mut self, loc: Vec<&str>) -> ParseResult<Vec<ImportedSymbol<'a>>> {
+
     }
 }
 

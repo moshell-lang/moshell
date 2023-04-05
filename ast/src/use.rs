@@ -9,7 +9,7 @@ pub struct Use<'a> {
 #[derive(Debug, Clone, PartialEq, dbg_pls::DebugPls)]
 pub enum Import<'a> {
     ///A symbol (or list of symbols)
-    Symbols(Vec<ImportedSymbol<'a>>),
+    Symbols(ImportedSymbol<'a>),
     /// all in given module (the vec being the module chain where the last is the used module)
     AllIn(Vec<&'a str>),
     ///An environment variable, command.
