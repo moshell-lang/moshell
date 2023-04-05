@@ -1,10 +1,11 @@
 use crate::err::ParseErrorKind;
 use crate::moves::{eox, of_type, repeat, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use ast::r#use::Use;
+use ast::r#use::{Import, Use};
 use ast::Expr;
 use lexer::token::TokenType;
 use lexer::token::TokenType::{Comma, Identifier};
+use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
 
 /// Parser aspect to parse use statements
 pub trait UseAspect<'a> {
@@ -22,7 +23,7 @@ impl<'a> UseAspect<'a> for Parser<'a> {
             self.cursor
                 .force(
                     spaces().then(of_type(Identifier)),
-                    "expected at least one identifier",
+                    "expected at least one symbol",
                 )?
                 .value,
         ];
@@ -50,6 +51,16 @@ impl<'a> UseAspect<'a> for Parser<'a> {
         uses.append(&mut tail);
 
         Ok(Expr::Use(Use { uses }))
+    }
+}
+
+impl<'a> Parser<'a> {
+    fn parse_import(&mut self) -> ParseResult<Import<'a>> {
+        let pivot = self.cursor.peek();
+        match pivot.token_type {
+            TokenType::At => Import::Environment(pivot.value),
+            
+        }
     }
 }
 
