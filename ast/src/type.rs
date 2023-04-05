@@ -1,3 +1,4 @@
+use crate::Expr;
 use dbg_pls::DebugPls;
 use std::fmt::{Debug, Display, Formatter, Write};
 use std::ops::Deref;
@@ -15,6 +16,16 @@ pub enum Type<'a> {
 
     ///Either `()` or `Unit`, representing a void type
     Unit,
+}
+
+///a casted expression
+#[derive(Debug, Clone, PartialEq, DebugPls)]
+pub struct CastedExpr<'a> {
+    ///the underlying expression
+    pub expr: Box<Expr<'a>>,
+
+    ///the casted type
+    pub casted_type: Type<'a>,
 }
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
