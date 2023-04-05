@@ -202,7 +202,10 @@ mod tests {
                 right: Box::new(Expr::Call(Call {
                     arguments: vec![
                         Expr::Literal("test".into()),
-                        Expr::VarReference(VarReference { name: "1" }),
+                        Expr::VarReference(VarReference {
+                            name: "1",
+                            segment: find_in(content, "$1"),
+                        }),
                     ],
                     type_parameters: vec![],
                 })),
@@ -264,15 +267,22 @@ mod tests {
             vec![Expr::Not(Not {
                 underlying: Box::new(Expr::Call(Call {
                     arguments: vec![
-                        Expr::Literal("grep".into()),
-                        Expr::Literal("-E".into()),
                         Expr::Literal(Literal {
-                            lexeme: "'^[0-9]+$'",
+                            parsed: LiteralValue::String("grep".to_string()),
+                            segment: find_in(content, "grep'"),
+                        }),
+                        Expr::Literal(Literal {
+                            parsed: LiteralValue::String("-E".to_string()),
+                            segment: find_in(content, "-E"),
+                        }),
+                        Expr::Literal(Literal {
                             parsed: LiteralValue::String("^[0-9]+$".to_string()),
+                            segment: find_in(content, "'^[0-9]+$'"),
                         }),
                     ],
                     type_parameters: vec![],
-                }))
+                })),
+                segment: source.segment()
             })]
         )
     }
@@ -287,21 +297,33 @@ mod tests {
                 left: Box::new(Expr::Not(Not {
                     underlying: Box::new(Expr::Subshell(Subshell {
                         expressions: vec![Expr::Binary(BinaryOperation {
-                            left: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                            left: Box::new(Expr::VarReference(VarReference {
+                                name: "a",
+                                segment: find_in(content, "$a"),
+                            })),
                             op: BinaryOperator::And,
-                            right: Box::new(Expr::VarReference(VarReference { name: "b" })),
-                        })]
-                    }))
+                            right: Box::new(Expr::VarReference(VarReference {
+                                name: "b",
+                                segment: find_in(content, "$b"),
+                            })),
+                        })],
+                        segment: find_in(content, "($a && $b)"),
+                    })),
+                    segment: find_in(content, "! ($a && $b)"),
                 })),
                 op: BinaryOperator::Or,
                 right: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Not(Not {
-                        underlying: Box::new(Expr::VarReference(VarReference { name: "2" }))
+                        underlying: Box::new(Expr::VarReference(VarReference {
+                            name: "2",
+                            segment: find_in(content, "$2"),
+                        })),
+                        segment: find_in(content, "! $2"),
                     })),
                     op: BinaryOperator::EqualEqual,
                     right: Box::new(Expr::Literal(Literal {
-                        lexeme: "78",
                         parsed: 78.into(),
+                        segment: find_in(content, "78"),
                     })),
                 })),
             })]

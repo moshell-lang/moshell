@@ -176,7 +176,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod test {
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
 
     use crate::aspects::call::CallAspect;
@@ -199,22 +199,35 @@ mod test {
                 expr: Box::new(Expr::Block(Block {
                     expressions: vec![
                         Expr::Call(Call {
-                            arguments: vec![Expr::Literal("ls".into())],
+                            arguments: vec![Expr::Literal(Literal {
+                                parsed: "ls",
+                                segment: find_in(content, "ls"),
+                            })],
                             type_parameters: vec![],
                         }),
                         Expr::Call(Call {
-                            arguments: vec![Expr::Literal("cd".into())],
+                            arguments: vec![
+                                Expr::Literal(Literal {
+                                    parsed: "cd",
+                                    segment: find_in(content, "cd"),
+                                })
+                            ],
                             type_parameters: vec![],
                         }),
-                    ]
+                    ],
+                    segment: find_in(content, "{ls; cd;}")
                 })),
                 redirections: vec![Redir {
                     operator: RedirOp::Write,
                     fd: RedirFd::Default,
-                    operand: Expr::Literal("/tmp/out".into()),
+                    operand: Expr::Literal(Literal {
+                        parsed: "/tmp/out",
+                        segment: find_in(content, "/tmp/out"),
+                    }),
                     segment: find_in(content, "> /tmp/out"),
                 }],
-            }),]
+            }),
+            ]
         );
     }
 
@@ -249,15 +262,18 @@ mod test {
             parsed,
             Expr::Redirected(Redirected {
                 expr: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("ls".into())],
+                    arguments: vec![Expr::Literal(Literal {
+                        parsed: "ls".into(),
+                        segment: find_in(content, "ls")
+                    })],
                     type_parameters: vec![],
                 })),
                 redirections: vec![Redir {
                     fd: RedirFd::Default,
                     operator: RedirOp::FdOut,
                     operand: Expr::Literal(Literal {
-                        lexeme: "2",
                         parsed: 2.into(),
+                        segment: find_in(content, "2")
                     }),
                     segment: find_in(content, ">&2"),
                 }],
