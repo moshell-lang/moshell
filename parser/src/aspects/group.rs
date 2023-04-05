@@ -264,9 +264,7 @@ mod tests {
                                     }))),
                                     segment: find_in(source.source, "val x = 8"),
                                 }),
-                                Expr::Literal(Literal {
-                                    parsed: Int(8),
-                                }),
+                                Expr::Literal(Literal { parsed: Int(8) }),
                             ]
                         }))),
                         segment: find_in(source.source, "val test = {"),
@@ -291,9 +289,7 @@ mod tests {
                                 ],
                                 type_parameters: vec![],
                             }),
-                            Expr::Literal(Literal {
-                                parsed: Int(7),
-                            })
+                            Expr::Literal(Literal { parsed: Int(7) })
                         ],
                         segment: find_between(source.source, "(", ")"),
                     }),

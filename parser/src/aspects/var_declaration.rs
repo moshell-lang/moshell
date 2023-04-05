@@ -57,12 +57,10 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
     }
 
     fn parse_typed_var(&mut self) -> ParseResult<TypedVariable<'a>> {
-        let name = self
-            .cursor
-            .force(
-                blanks().then(of_type(TokenType::Identifier)),
-                "Expected name.",
-            )?;
+        let name = self.cursor.force(
+            blanks().then(of_type(TokenType::Identifier)),
+            "Expected name.",
+        )?;
 
         let ty = self
             .cursor

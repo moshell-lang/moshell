@@ -61,7 +61,7 @@ impl<'a> UseAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::err::{ ParseError, ParseErrorKind};
+    use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
     use ast::r#use::Use;

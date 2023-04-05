@@ -65,7 +65,7 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::err::{find_between, rfind_between, ParseError, ParseErrorKind, find_in};
+    use crate::err::{find_between, find_in, rfind_between, ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
     use ast::call::Call;
@@ -89,7 +89,10 @@ mod tests {
             ast,
             vec![Expr::If(If {
                 condition: Box::new(Expr::Test(Test {
-                    expression: Box::new(Expr::VarReference(VarReference { name: "1", segment: find_in(content, "$1") })),
+                    expression: Box::new(Expr::VarReference(VarReference {
+                        name: "1",
+                        segment: find_in(content, "$1")
+                    })),
                     segment: find_between(content, "[", "]"),
                 })),
                 success_branch: Box::new(Expr::Call(Call {
@@ -153,7 +156,10 @@ mod tests {
             ast,
             vec![Expr::If(If {
                 condition: Box::new(Expr::Test(Test {
-                    expression: Box::new(Expr::VarReference(VarReference { name: "1", segment: find_in(content, "$1") })),
+                    expression: Box::new(Expr::VarReference(VarReference {
+                        name: "1",
+                        segment: find_in(content, "$1")
+                    })),
                     segment: find_between(content, "[", "]"),
                 })),
                 success_branch: Box::new(Expr::Call(Call {
@@ -180,7 +186,10 @@ mod tests {
         assert_eq!(
             ast,
             vec![Expr::If(If {
-                condition: Box::new(Expr::VarReference(VarReference { name: "x", segment: find_in(source.source, "$x") })),
+                condition: Box::new(Expr::VarReference(VarReference {
+                    name: "x",
+                    segment: find_in(source.source, "$x")
+                })),
                 success_branch: Box::new(Expr::Block(Block {
                     expressions: vec![]
                 })),

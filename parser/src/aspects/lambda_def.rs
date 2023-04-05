@@ -32,8 +32,8 @@ impl<'a> LambdaDefinitionAspect<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::aspects::lambda_def::LambdaDefinitionAspect;
-    use crate::err::{find_between, find_in, ParseError};
     use crate::err::ParseErrorKind::Unexpected;
+    use crate::err::{find_between, find_in, ParseError};
     use crate::parser::Parser;
     use ast::call::Call;
     use ast::group::Block;
@@ -76,7 +76,10 @@ mod tests {
                         segment: find_in(source.source, "$a"),
                     })),
                     op: BinaryOperator::Plus,
-                    right: Box::new(Expr::VarReference(VarReference { name: "b", segment: find_in(source.source, "$b") })),
+                    right: Box::new(Expr::VarReference(VarReference {
+                        name: "b",
+                        segment: find_in(source.source, "$b")
+                    })),
                 })),
             }
         );
@@ -97,9 +100,15 @@ mod tests {
                     segment: 0..1,
                 },],
                 body: Box::new(Expr::Binary(BinaryOperation {
-                    left: Box::new(Expr::VarReference(VarReference { name: "a", segment: find_in(source.source, "$a") })),
+                    left: Box::new(Expr::VarReference(VarReference {
+                        name: "a",
+                        segment: find_in(source.source, "$a")
+                    })),
                     op: BinaryOperator::Plus,
-                    right: Box::new(Expr::VarReference(VarReference { name: "b", segment: find_in(source.source, "$b") })),
+                    right: Box::new(Expr::VarReference(VarReference {
+                        name: "b",
+                        segment: find_in(source.source, "$b")
+                    })),
                 })),
             }
         );
@@ -125,9 +134,15 @@ mod tests {
                     segment: 1..2,
                 },],
                 body: Box::new(Expr::Binary(BinaryOperation {
-                    left: Box::new(Expr::VarReference(VarReference { name: "a", segment: find_in(src, "$a") })),
+                    left: Box::new(Expr::VarReference(VarReference {
+                        name: "a",
+                        segment: find_in(src, "$a")
+                    })),
                     op: BinaryOperator::Plus,
-                    right: Box::new(Expr::VarReference(VarReference { name: "b", segment: find_in(src, "$b") })),
+                    right: Box::new(Expr::VarReference(VarReference {
+                        name: "b",
+                        segment: find_in(src, "$b")
+                    })),
                 })),
             }
         );

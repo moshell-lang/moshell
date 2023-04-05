@@ -1,8 +1,10 @@
 use crate::Expr;
 use context::source::SourceSegment;
 use dbg_pls::DebugPls;
+use src_macros::segment_holder;
 
 ///An if statement
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct If<'a> {
     ///The if condition expression
@@ -11,39 +13,34 @@ pub struct If<'a> {
     pub success_branch: Box<Expr<'a>>,
     ///The 'else' branch if the condition fails
     pub fail_branch: Option<Box<Expr<'a>>>,
-
-    pub segment: SourceSegment,
 }
 
 ///A while loop statement
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct While<'a> {
     ///The while condition expression
     pub condition: Box<Expr<'a>>,
     ///The loop's body expression
     pub body: Box<Expr<'a>>,
-
-    pub segment: SourceSegment,
 }
 
 ///A loop statement
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Loop<'a> {
     ///The loop's body expression
     pub body: Box<Expr<'a>>,
-
-    pub segment: SourceSegment,
 }
 
 /// A for loop.
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct For<'a> {
     /// The type of the for loop.
     pub kind: Box<ForKind<'a>>,
     /// The body of the for loop.
     pub body: Box<Expr<'a>>,
-
-    pub segment: SourceSegment,
 }
 
 /// A for loop can be either a range loop or a conditional loop.
@@ -54,6 +51,7 @@ pub enum ForKind<'a> {
 }
 
 /// A for in range loop, e.g. `for i in 1..10; ...`.
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct RangeFor<'a> {
     /// The variable name that will be used in the loop to designate the current item.
@@ -63,6 +61,7 @@ pub struct RangeFor<'a> {
 }
 
 /// A for in conditional loop, e.g. `for (( i = 0; i < 10; i++ )); ...`.
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ConditionalFor<'a> {
     /// The initialization expression.

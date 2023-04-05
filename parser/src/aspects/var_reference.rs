@@ -67,11 +67,16 @@ mod tests {
     #[test]
     fn simple_ref() {
         let source = Source::unknown("$VARIABLE");
-        let ast = Parser::new(source.clone()).substitution().expect("failed to parse");
-        assert_eq!(ast, Expr::VarReference(VarReference {
-            name: "VARIABLE",
-            segment: find_in(&source.source, "VARIABLE"),
-        }));
+        let ast = Parser::new(source.clone())
+            .substitution()
+            .expect("failed to parse");
+        assert_eq!(
+            ast,
+            Expr::VarReference(VarReference {
+                name: "VARIABLE",
+                segment: find_in(&source.source, "VARIABLE"),
+            })
+        );
     }
 
     #[test]
@@ -120,7 +125,10 @@ mod tests {
             ast,
             vec![Expr::TemplateString(TemplateString {
                 parts: vec![
-                    Expr::VarReference(VarReference { name: "VAR", segment: 0..source.source.find('}').unwrap() }),
+                    Expr::VarReference(VarReference {
+                        name: "VAR",
+                        segment: 0..source.source.find('}').unwrap()
+                    }),
                     Expr::Literal("IABLE".into()),
                 ]
             })]
@@ -158,7 +166,6 @@ mod tests {
                     Expr::VarReference(VarReference {
                         name: "LONG",
                         segment: find_in(&source.source, "LONG")
-
                     }),
                     Expr::VarReference(VarReference {
                         name: "VERY_LONG",

@@ -225,13 +225,9 @@ mod tests {
                 op: Plus,
                 right: Box::new(Expr::Parenthesis(Parenthesis {
                     expression: Box::new(Expr::Binary(BinaryOperation {
-                        left: Box::new(Expr::Literal(Literal {
-                            parsed: 2.into(),
-                        })),
+                        left: Box::new(Expr::Literal(Literal { parsed: 2.into() })),
                         op: Plus,
-                        right: Box::new(Expr::Literal(Literal {
-                            parsed: 3.into(),
-                        })),
+                        right: Box::new(Expr::Literal(Literal { parsed: 3.into() })),
                     })),
                     segment: Default::default(),
                 })),

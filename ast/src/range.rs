@@ -39,17 +39,17 @@ pub struct NumericRange<'a> {
 
 impl SourceSegmentHolder for NumericRange<'_> {
     fn segment(&self) -> SourceSegment {
-        self.start.segment().start..self.step.as_ref().unwrap_or(&self.end).segment().end
+        let start = self.start.segment().start;
+        let end = self.step.as_ref().unwrap_or(&self.end).segment().end;
+
+        start..end
     }
 }
 
 /// A pattern that can be used to match files.
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
-pub struct FilePattern<'a> {
-    /// The raw glob pattern that was used to create this pattern.
-    pub lexeme: &'a str,
-
+pub struct FilePattern {
     /// The glob pattern that will be used to match files.
     ///
     /// For now, this is just a string that is passed to the libc.

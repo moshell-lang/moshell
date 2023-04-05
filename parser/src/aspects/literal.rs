@@ -171,7 +171,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                     if !literal_value.is_empty() {
                         parts.push(Expr::Literal(Literal {
                             parsed: LiteralValue::String(literal_value.clone()),
-                            segment: self.cursor.relative_pos(lexeme)
+                            segment: self.cursor.relative_pos(lexeme),
                         }));
                         literal_value.clear();
                     }
@@ -194,7 +194,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         if !literal_value.is_empty() {
             parts.push(Expr::Literal(Literal {
                 parsed: LiteralValue::String(literal_value),
-                segment: self.cursor.relative_pos(lexeme)
+                segment: self.cursor.relative_pos(lexeme),
             }));
         }
 
@@ -329,7 +329,7 @@ impl<'a> Parser<'a> {
             if token.value == read {
                 return Ok(Expr::Literal(Literal {
                     parsed: self.parse_number_value(token)?,
-                    segment
+                    segment,
                 }));
             }
         }
@@ -337,12 +337,12 @@ impl<'a> Parser<'a> {
             Expr::Range(Iterable::Files(FilePattern {
                 lexeme,
                 pattern: read,
-                segment
+                segment,
             }))
         } else {
             Expr::Literal(Literal {
                 parsed: LiteralValue::String(read),
-                segment
+                segment,
             })
         })
     }
@@ -376,7 +376,9 @@ mod tests {
     #[test]
     fn int_but_str() {
         let source = Source::unknown("5@5");
-        let parsed = Parser::new(source.clone()).expression().expect("Failed to parse.");
+        let parsed = Parser::new(source.clone())
+            .expression()
+            .expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
@@ -402,7 +404,9 @@ mod tests {
     #[test]
     fn escaped_literal() {
         let source = Source::unknown("a\\a");
-        let parsed = Parser::new(source.clone()).expression().expect("Failed to parse.");
+        let parsed = Parser::new(source.clone())
+            .expression()
+            .expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
@@ -415,7 +419,9 @@ mod tests {
     #[test]
     fn escaped_string_literal() {
         let source = Source::unknown("'a\\'a'");
-        let parsed = Parser::new(source.clone()).expression().expect("Failed to parse.");
+        let parsed = Parser::new(source.clone())
+            .expression()
+            .expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
@@ -458,7 +464,9 @@ mod tests {
     #[test]
     fn url_placeholder() {
         let source = Source::unknown("\"http://localhost:$NGINX_PORT\"");
-        let parsed = Parser::new(source.clone()).expression().expect("Failed to parse.");
+        let parsed = Parser::new(source.clone())
+            .expression()
+            .expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::TemplateString(TemplateString {
@@ -467,7 +475,10 @@ mod tests {
                         parsed: "http://localhost:".into(),
                         segment: source.segment(),
                     }),
-                    Expr::VarReference(VarReference { name: "NGINX_PORT", segment: find_in(source.source, "$NGINX_PORT") }),
+                    Expr::VarReference(VarReference {
+                        name: "NGINX_PORT",
+                        segment: find_in(source.source, "$NGINX_PORT")
+                    }),
                 ]
             })
         );

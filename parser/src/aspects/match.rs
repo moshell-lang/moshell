@@ -35,7 +35,11 @@ impl<'a> MatchAspect<'a> for Parser<'a> {
 
         let arms = self.parse_match_arms(parse_arm)?;
 
-        Ok(Match { operand, arms, segment: self.cursor.relative_pos(start).start..self.cursor.re })
+        Ok(Match {
+            operand,
+            arms,
+            segment: self.cursor.relative_pos(start).start..self.cursor.re,
+        })
     }
 }
 
@@ -73,16 +77,23 @@ impl<'a> Parser<'a> {
     {
         self.cursor.advance(blanks()); //consume blanks
 
+        let start = self.cursor.peek();
+
         let val_name = self.parse_extracted_name()?;
         let patterns = self.parse_patterns()?;
         let guard = self.parse_guard()?;
         let body = self.parse_body(parse_arm)?;
+
+        let end = self.cursor.peek();
+
+        let segment = start..end;
 
         Ok(MatchArm {
             val_name,
             patterns,
             guard,
             body,
+            segment
         })
     }
 
@@ -205,7 +216,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use crate::err::ParseErrorKind::Unexpected;
-    use crate::err::{find_between, find_in, ParseError};
+    use crate::err::{find_between, find_in, find_in_nth, ParseError};
     use crate::parse;
     use ast::call::Call;
     use ast::group::Subshell;
@@ -236,16 +247,23 @@ mod tests {
                     segment: Default::default(),
                 },
                 initializer: Some(Box::new(Expr::Match(Match {
-                    operand: Box::new(Expr::VarReference(VarReference { name: "1", segment: Default::default() })),
+                    operand: Box::new(Expr::VarReference(VarReference {
+                        name: "1",
+                        segment: Default::default(),
+                    })),
                     arms: vec![
                         MatchArm {
                             val_name: None,
-                            patterns: vec![MatchPattern::Literal("-e".into())],
+                            patterns: vec![MatchPattern::Literal(Literal {
+                                parsed: "-e".into(),
+                                segment: find_in(source.source, "-e"),
+                            })],
                             guard: None,
                             body: Expr::Literal(Literal {
                                 parsed: 75.into(),
                                 segment: find_in(source.source, "75"),
                             }),
+                            segment: find_in(content, "-e => 75"),
                         },
                         MatchArm {
                             val_name: Some("y"),
@@ -253,14 +271,20 @@ mod tests {
                                 MatchPattern::Template(TemplateString {
                                     parts: vec![
                                         Expr::Literal("test ".into()),
-                                        Expr::VarReference(VarReference { name: "2", segment: Default::default() }),
+                                        Expr::VarReference(VarReference {
+                                            name: "2",
+                                            segment: find_in(source.source, "$2"),
+                                        }),
                                     ]
                                 }),
                                 MatchPattern::Literal(Literal {
                                     parsed: 2.into(),
-                                    segment: find_in(source.source, "2"),
+                                    segment: find_in_nth(source.source, "2", 1),
                                 }),
-                                MatchPattern::VarRef(VarReference { name: "USER", segment: Default::default() }),
+                                MatchPattern::VarRef(VarReference {
+                                    name: "USER",
+                                    segment: find_in(source.source, "USER"),
+                                }),
                                 MatchPattern::Literal(Literal {
                                     parsed: "t x".into(),
                                     segment: find_in(source.source, "'t x'"),
@@ -270,14 +294,15 @@ mod tests {
                             body: Expr::Binary(BinaryOperation {
                                 left: Box::new(Expr::Literal(Literal {
                                     parsed: 4.into(),
-                                    segment: Default::default(),
+                                    segment: find_in(source.source, "4")
                                 })),
                                 op: BinaryOperator::Minus,
                                 right: Box::new(Expr::Literal(Literal {
                                     parsed: 7.into(),
-                                    segment: Default::default(),
+                                    segment: find_in(source.source, "7"),
                                 })),
                             }),
+                            segment: find_in(source.source, "y@\"test $2\" | 2 | $USER | 't x' => 4 - 7")
                         },
                     ],
                     segment: Default::default(),
@@ -302,16 +327,23 @@ mod tests {
         assert_eq!(
             ast,
             vec![Expr::Match(Match {
-                operand: Box::new(Expr::VarReference(VarReference { name: "1", segment: Default::default() })),
+                operand: Box::new(Expr::VarReference(VarReference {
+                    name: "1",
+                    segment: Default::default(),
+                })),
                 arms: vec![
                     MatchArm {
                         val_name: None,
-                        patterns: vec![MatchPattern::Literal("-e".into())],
+                        patterns: vec![MatchPattern::Literal(Literal {
+                            parsed: "-e",
+                            segment: find_in(content, "-e"),
+                        })],
                         guard: None,
                         body: Expr::Subshell(Subshell {
                             expressions: Vec::new(),
-                            segment: Default::default(),
+                            segment: find_in(content, "()"),
                         }),
+                        segment: find_in(content, "-e => ()"),
                     },
                     MatchArm {
                         val_name: Some("y"),
@@ -319,55 +351,70 @@ mod tests {
                             MatchPattern::Template(TemplateString {
                                 parts: vec![
                                     Expr::Literal("test ".into()),
-                                    Expr::VarReference(VarReference { name: "2", segment: Default::default() }),
+                                    Expr::VarReference(VarReference {
+                                        name: "2",
+                                        segment: Default::default(),
+                                    }),
                                 ]
                             }),
                             MatchPattern::Literal(Literal {
                                 parsed: 2.into(),
-                                segment: Default::default(),
+                                segment: find_in_nth(content, "2", 1),
                             }),
-                            MatchPattern::VarRef(VarReference { name: "USER", segment: Default::default() }),
+                            MatchPattern::VarRef(VarReference {
+                                name: "USER",
+                                segment: find_in(content, "USER"),
+                            }),
                             MatchPattern::Literal(Literal {
                                 parsed: "t x".into(),
-                                segment: Default::default(),
+                                segment: find_in(content, "'t x'"),
                             }),
                         ],
                         guard: None,
                         body: Expr::Subshell(Subshell {
                             expressions: Vec::new(),
-                            segment: Default::default(),
+                            segment: find_in_nth(content, "()", 1),
                         }),
+                        segment: find_in(content, "y@\"test $2\" | 2 | $USER | 't x' => ()"),
                     },
                     MatchArm {
                         val_name: Some("x"),
                         patterns: vec![MatchPattern::Wildcard],
                         guard: Some(Expr::Test(Test {
                             expression: Box::new(Expr::Binary(BinaryOperation {
-                                left: Box::new(Expr::VarReference(VarReference { name: "a", segment: Default::default() })),
+                                left: Box::new(Expr::VarReference(VarReference {
+                                    name: "a",
+                                    segment: Default::default(),
+                                })),
                                 op: BinaryOperator::EqualEqual,
                                 right: Box::new(Expr::Literal(Literal {
                                     parsed: 1.into(),
-                                    segment: Default::default(),
+                                    segment: find_in_nth(content, "1", 1),
                                 })),
                             })),
                             segment: find_in(content, "[ $a == 1 ]"),
                         })),
                         body: Expr::Subshell(Subshell {
                             expressions: Vec::new(),
-                            segment: Default::default(),
+                            segment: find_in_nth(content, "()", 2)
                         }),
+                        segment: find_in(content, "x@* if [ $a == 1 ] => ()")
                     },
                     MatchArm {
                         val_name: None,
-                        patterns: vec![MatchPattern::Wildcard],
+                        patterns: vec![MatchPattern::Wildcard(find_in_nth(content, "*", 1))],
                         guard: None,
                         body: Expr::Call(Call {
                             arguments: vec![
                                 Expr::Literal("echo".into()),
-                                Expr::VarReference(VarReference { name: "it", segment: Default::default() }),
+                                Expr::VarReference(VarReference {
+                                    name: "it",
+                                    segment: find_in(content, "$it"),
+                                }),
                             ],
                             type_parameters: vec![],
                         }),
+                        segment: find_in(content, "* => echo $it")
                     },
                 ],
                 segment: find_between(content, "match", "}"),
@@ -400,10 +447,14 @@ mod tests {
                     body: Expr::Call(Call {
                         arguments: vec![
                             Expr::Literal("echo".into()),
-                            Expr::VarReference(VarReference { name: "it", segment: Default::default() }),
+                            Expr::VarReference(VarReference {
+                                name: "it",
+                                segment: find_in(content, "$it"),
+                            }),
                         ],
                         type_parameters: vec![],
                     }),
+                    segment: find_in(content, "$a")
                 },],
                 segment: Default::default(),
             })]
@@ -425,63 +476,81 @@ mod tests {
         assert_eq!(
             ast,
             vec![Expr::Match(Match {
-                operand: Box::new(Expr::VarReference(VarReference { name: "1", segment: Default::default() })),
+                operand: Box::new(Expr::VarReference(VarReference {
+                    name: "1",
+                    segment: find_in(content, "$1"),
+                })),
                 arms: vec![
                     MatchArm {
                         val_name: None,
-                        patterns: vec![MatchPattern::Literal("-e".into())],
+                        patterns: vec![MatchPattern::Literal(Literal {
+                            parsed: "-e".into(),
+                            segment: find_in(content, "-e"),
+                        })],
                         guard: None,
                         body: Expr::Subshell(Subshell {
                             expressions: Vec::new(),
-                            segment: Default::default(),
+                            segment: find_in(content, "()"),
                         }),
+                        segment: find_in(content, "-e \n\n => \n\n ()"),
                     },
                     MatchArm {
                         val_name: Some("y"),
                         patterns: vec![
                             MatchPattern::Template(TemplateString {
                                 parts: vec![
-                                    Expr::Literal("test ".into()),
-                                    Expr::VarReference(VarReference { name: "2", segment: Default::default() }),
+                                    Expr::Literal(Literal {
+                                        parsed: "test",
+                                        segment: find_in(content, "test"),
+                                    }),
+                                    Expr::VarReference(VarReference {
+                                        name: "2",
+                                        segment: find_in(content, "$2"),
+                                    }),
                                 ]
                             }),
                             MatchPattern::Literal(Literal {
-                                lexeme: "2",
                                 parsed: 2.into(),
-                                segment: Default::default(),
+                                segment: find_in_nth(content, "2", 1),
                             }),
-                            MatchPattern::VarRef(VarReference { name: "USER", segment: Default::default() }),
+                            MatchPattern::VarRef(VarReference {
+                                name: "USER",
+                                segment: find_in(content, "USER"),
+                            }),
                             MatchPattern::Literal(Literal {
-                                lexeme: "'t x'",
                                 parsed: "t x".into(),
-                                segment: Default::default(),
+                                segment: find_in(content, "'t x'"),
                             }),
                         ],
                         guard: None,
                         body: Expr::Subshell(Subshell {
                             expressions: Vec::new(),
-                            segment: Default::default(),
+                            segment: find_in_nth(content, "()", 1),
                         }),
+                        segment: find_in(content, "y \n\n @ \n\n \"test $2\" \n\n | 2 \n\n | \n\n $USER \n\n | \n\n 't x' \n\n =>\n\n  ()")
                     },
                     MatchArm {
                         val_name: Some("x"),
                         patterns: vec![MatchPattern::Wildcard],
                         guard: Some(Expr::Test(Test {
                             expression: Box::new(Expr::Binary(BinaryOperation {
-                                left: Box::new(Expr::VarReference(VarReference { name: "a", segment: Default::default() })),
+                                left: Box::new(Expr::VarReference(VarReference {
+                                    name: "a",
+                                    segment: find_in(content, "$a"),
+                                })),
                                 op: BinaryOperator::EqualEqual,
                                 right: Box::new(Expr::Literal(Literal {
-                                    lexeme: "1",
                                     parsed: 1.into(),
-                                    segment: Default::default(),
+                                    segment: find_in_nth(content, "1", 1),
                                 })),
                             })),
                             segment: find_in(content, "[ $a == 1 ]"),
                         })),
                         body: Expr::Subshell(Subshell {
                             expressions: Vec::new(),
-                            segment: Default::default(),
+                            segment: find_in_nth(content, "()", 2),
                         }),
+                        segment: find_in(content, "x@* \n\n if \n\n [ $a == 1 ]\n\n  =>\n\n  ()")
                     },
                     MatchArm {
                         val_name: None,
@@ -490,10 +559,14 @@ mod tests {
                         body: Expr::Call(Call {
                             arguments: vec![
                                 Expr::Literal("echo".into()),
-                                Expr::VarReference(VarReference { name: "it", segment: Default::default() }),
+                                Expr::VarReference(VarReference {
+                                    name: "it",
+                                    segment: Default::default(),
+                                }),
                             ],
                             type_parameters: vec![],
                         }),
+                        segment: find_in(content, "* \n\n => \n\n echo $it")
                     },
                 ],
                 segment: Default::default(),

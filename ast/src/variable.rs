@@ -1,6 +1,6 @@
 use crate::r#type::Type;
 use crate::Expr;
-use context::source::SourceSegment;
+use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
 use src_macros::segment_holder;
 
@@ -42,11 +42,16 @@ pub struct VarReference<'a> {
 }
 
 /// A variable assignation.
-#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Assign<'a> {
     /// The identifier of the variable.
     pub name: &'a str,
     /// The value of the variable to be evaluated.
     pub value: Box<Expr<'a>>,
+}
+
+impl<'a> SourceSegmentHolder for Assign<'a> {
+    fn segment(&self) -> SourceSegment {
+        self.name..self.value.segment().end
+    }
 }

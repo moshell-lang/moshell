@@ -1,7 +1,7 @@
 use dbg_pls::DebugPls;
+use src_macros::segment_holder;
 use std::fmt::{Debug, Display, Formatter, Write};
 use std::ops::Deref;
-use src_macros::segment_holder;
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub enum Type<'a> {

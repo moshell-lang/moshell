@@ -56,6 +56,20 @@ pub fn find_in<'a>(source: &'a str, needle: &'a str) -> SourceSegment {
     start..start + needle.len()
 }
 
+///finds the nth match of needle in input source
+pub fn find_in_nth<'a>(source: &'a str, needle: &'a str, mut nth: usize) -> SourceSegment {
+    let mut result = find_in(source, needle);
+    while (nth = nth - 1) > 1 {
+        result = find_in(&source[result.start..], needle)
+    }
+    result
+}
+
+pub fn rfind_in<'a>(source: &'a str, needle: &'a str) -> SourceSegment {
+    let start = source.rfind(needle).expect("String not found.");
+    start..start + needle.len()
+}
+
 pub fn find_between<'a>(source: &'a str, start: &'a str, end: &'a str) -> SourceSegment {
     let start = source.find(start).expect("Start not found.");
     let end = source[start..].find(end).expect("End not found.") + 1;

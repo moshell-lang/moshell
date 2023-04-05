@@ -45,7 +45,10 @@ fn with_lexer_var_reference_one() {
                     parsed: "$var5".into(),
                     segment: find_in(source.source, "'$var5'"),
                 }),
-                Expr::VarReference(VarReference { name: "var5", segment: rfind_between(source.source, "5", "$") }),
+                Expr::VarReference(VarReference {
+                    name: "var5",
+                    segment: rfind_between(source.source, "5", "$")
+                }),
             ],
             type_parameters: Vec::new()
         })]

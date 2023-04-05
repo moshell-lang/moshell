@@ -183,9 +183,15 @@ mod tests {
                     right: Box::new(Expr::Test(Test {
                         expression: Box::new(Expr::Parenthesis(Parenthesis {
                             expression: Box::new(Expr::Binary(BinaryOperation {
-                                left: Box::new(Expr::VarReference(VarReference { name: "a", segment: find_in(content, "$a") })),
+                                left: Box::new(Expr::VarReference(VarReference {
+                                    name: "a",
+                                    segment: find_in(content, "$a")
+                                })),
                                 op: BinaryOperator::EqualEqual,
-                                right: Box::new(Expr::VarReference(VarReference { name: "b", segment: find_in(content, "$b") })),
+                                right: Box::new(Expr::VarReference(VarReference {
+                                    name: "b",
+                                    segment: find_in(content, "$b")
+                                })),
                             })),
                             segment: find_in(content, "[ ($a == $b) ]"),
                         })),
