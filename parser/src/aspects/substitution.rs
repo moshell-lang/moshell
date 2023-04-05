@@ -64,14 +64,15 @@ mod tests {
     use ast::substitution::{Substitution, SubstitutionKind};
     use ast::Expr;
 
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::aspects::literal::literal;
+    use crate::err::{find_in, ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
     use ast::group::{Block, Parenthesis, Subshell};
     use ast::operation::{BinaryOperation, BinaryOperator};
     use ast::value::Literal;
     use ast::variable::VarReference;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -107,7 +108,9 @@ mod tests {
     #[test]
     fn mix_blocks() {
         let source = Source::unknown("$({ls $(pwd)})");
-        let ast = Parser::new(source).substitution().expect("Failed to parse");
+        let ast = Parser::new(source.clone())
+            .substitution()
+            .expect("Failed to parse");
         assert_eq!(
             ast,
             Expr::Substitution(Substitution {
@@ -115,7 +118,7 @@ mod tests {
                     expressions: vec![Expr::Block(Block {
                         expressions: vec![Expr::Call(Call {
                             arguments: vec![
-                                Expr::Literal("ls".into()),
+                                literal(source.source, "ls"),
                                 Expr::Substitution(Substitution {
                                     underlying: Subshell {
                                         expressions: vec![Expr::Call(Call {
@@ -168,18 +171,24 @@ mod tests {
     #[test]
     fn arithmetic() {
         let source = Source::unknown("$(($a + 1))");
-        let ast = Parser::new(source).substitution().expect("Failed to parse");
+        let ast = Parser::new(source.clone())
+            .substitution()
+            .expect("Failed to parse");
         assert_eq!(
             ast,
             Expr::Parenthesis(Parenthesis {
                 expression: Box::new(Expr::Binary(BinaryOperation {
-                    left: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                    left: Box::new(Expr::VarReference(VarReference {
+                        name: "a",
+                        segment: find_in(source.source, "$a")
+                    })),
                     op: BinaryOperator::Plus,
                     right: Box::new(Expr::Literal(Literal {
-                        lexeme: "1",
                         parsed: 1.into(),
+                        segment: find_in(source.source, "1")
                     })),
                 })),
+                segment: source.segment(),
             })
         );
     }

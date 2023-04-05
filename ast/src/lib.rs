@@ -86,7 +86,7 @@ pub enum Expr<'a> {
 impl SourceSegmentHolder for Expr<'_> {
     fn segment(&self) -> SourceSegment {
         match self {
-            Expr::Assign(assign) => assign.segment.clone(),
+            Expr::Assign(assign) => assign.segment(),
             Expr::Binary(binary) => binary.segment(),
             Expr::Literal(literal) => literal.segment.clone(),
             Expr::Match(m) => m.segment.clone(),

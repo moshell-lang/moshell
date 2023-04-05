@@ -7,7 +7,7 @@ use src_macros::segment_holder;
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub enum Iterable<'a> {
     Range(NumericRange<'a>),
-    Files(FilePattern<'a>),
+    Files(FilePattern),
 }
 
 impl SourceSegmentHolder for Iterable<'_> {

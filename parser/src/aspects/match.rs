@@ -12,6 +12,7 @@ use crate::parser::{ParseResult, Parser};
 use ast::r#match::MatchPattern::{Literal, Template, VarRef, Wildcard};
 use ast::r#match::{Match, MatchArm, MatchPattern};
 use ast::Expr;
+use context::source::SourceSegment;
 
 /// A Parser Aspect for match expression-statement and value
 pub trait MatchAspect<'a> {
@@ -33,18 +34,21 @@ impl<'a> MatchAspect<'a> for Parser<'a> {
 
         let operand = Box::new(self.expression_statement()?);
 
-        let arms = self.parse_match_arms(parse_arm)?;
+        let (arms, segment) = self.parse_match_arms(parse_arm)?;
 
         Ok(Match {
             operand,
             arms,
-            segment: self.cursor.relative_pos(start).start..self.cursor.re,
+            segment: self.cursor.relative_pos(start).start..segment.end,
         })
     }
 }
 
 impl<'a> Parser<'a> {
-    fn parse_match_arms<P>(&mut self, parse_arm: P) -> ParseResult<Vec<MatchArm<'a>>>
+    fn parse_match_arms<P>(
+        &mut self,
+        parse_arm: P,
+    ) -> ParseResult<(Vec<MatchArm<'a>>, SourceSegment)>
     where
         P: FnMut(&mut Self) -> ParseResult<Expr<'a>> + Clone,
     {
@@ -61,14 +65,18 @@ impl<'a> Parser<'a> {
             let arm = self.parse_match_arm(parse_arm.clone())?;
             arms.push(arm);
         }
-        self.cursor.force_with(
+        let closing_bracket = self.cursor.force_with(
             blanks().then(of_type(CurlyRightBracket)),
             "expected '}'",
             ParseErrorKind::Unpaired(self.cursor.relative_pos(opening_bracket)),
         )?;
         self.delimiter_stack.pop_back();
 
-        Ok(arms)
+        Ok((
+            arms,
+            self.cursor
+                .relative_pos_ctx(opening_bracket..closing_bracket),
+        ))
     }
 
     fn parse_match_arm<P>(&mut self, parse_arm: P) -> ParseResult<MatchArm<'a>>
@@ -93,7 +101,7 @@ impl<'a> Parser<'a> {
             patterns,
             guard,
             body,
-            segment
+            segment,
         })
     }
 
@@ -215,6 +223,7 @@ mod tests {
     use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
 
+    use crate::aspects::literal::{literal, literal_expr};
     use crate::err::ParseErrorKind::Unexpected;
     use crate::err::{find_between, find_in, find_in_nth, ParseError};
     use crate::parse;
@@ -263,14 +272,14 @@ mod tests {
                                 parsed: 75.into(),
                                 segment: find_in(source.source, "75"),
                             }),
-                            segment: find_in(content, "-e => 75"),
+                            segment: find_in(source.source, "-e => 75"),
                         },
                         MatchArm {
                             val_name: Some("y"),
                             patterns: vec![
                                 MatchPattern::Template(TemplateString {
                                     parts: vec![
-                                        Expr::Literal("test ".into()),
+                                        literal(source.source, "test "),
                                         Expr::VarReference(VarReference {
                                             name: "2",
                                             segment: find_in(source.source, "$2"),
@@ -302,7 +311,10 @@ mod tests {
                                     segment: find_in(source.source, "7"),
                                 })),
                             }),
-                            segment: find_in(source.source, "y@\"test $2\" | 2 | $USER | 't x' => 4 - 7")
+                            segment: find_in(
+                                source.source,
+                                "y@\"test $2\" | 2 | $USER | 't x' => 4 - 7"
+                            )
                         },
                     ],
                     segment: Default::default(),
@@ -334,10 +346,7 @@ mod tests {
                 arms: vec![
                     MatchArm {
                         val_name: None,
-                        patterns: vec![MatchPattern::Literal(Literal {
-                            parsed: "-e",
-                            segment: find_in(content, "-e"),
-                        })],
+                        patterns: vec![MatchPattern::Literal(literal_expr(content, "-e"))],
                         guard: None,
                         body: Expr::Subshell(Subshell {
                             expressions: Vec::new(),
@@ -350,10 +359,10 @@ mod tests {
                         patterns: vec![
                             MatchPattern::Template(TemplateString {
                                 parts: vec![
-                                    Expr::Literal("test ".into()),
+                                    literal(content, "test "),
                                     Expr::VarReference(VarReference {
                                         name: "2",
-                                        segment: Default::default(),
+                                        segment: Default::default()
                                     }),
                                 ]
                             }),
@@ -406,7 +415,7 @@ mod tests {
                         guard: None,
                         body: Expr::Call(Call {
                             arguments: vec![
-                                Expr::Literal("echo".into()),
+                                literal(content, "echo "),
                                 Expr::VarReference(VarReference {
                                     name: "it",
                                     segment: find_in(content, "$it"),
@@ -424,20 +433,20 @@ mod tests {
 
     #[test]
     fn parse_match_direct_wildcard() {
-        let ast = parse(Source::unknown(
+        let source = Source::unknown(
             "\
         match nginx {\
            * => echo $it
         }\
         ",
-        ))
-        .expect("parse fail");
+        );
+        let ast = parse(source.clone()).expect("parse fail");
 
         assert_eq!(
             ast,
             vec![Expr::Match(Match {
                 operand: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("nginx".into())],
+                    arguments: vec![literal(source.source, "nginx")],
                     type_parameters: vec![],
                 })),
                 arms: vec![MatchArm {
@@ -446,15 +455,15 @@ mod tests {
                     guard: None,
                     body: Expr::Call(Call {
                         arguments: vec![
-                            Expr::Literal("echo".into()),
+                            literal(source.source, "echo"),
                             Expr::VarReference(VarReference {
                                 name: "it",
-                                segment: find_in(content, "$it"),
+                                segment: find_in(source.source, "$it"),
                             }),
                         ],
                         type_parameters: vec![],
                     }),
-                    segment: find_in(content, "$a")
+                    segment: find_in(source.source, "$a")
                 },],
                 segment: Default::default(),
             })]
@@ -499,14 +508,8 @@ mod tests {
                         patterns: vec![
                             MatchPattern::Template(TemplateString {
                                 parts: vec![
-                                    Expr::Literal(Literal {
-                                        parsed: "test",
-                                        segment: find_in(content, "test"),
-                                    }),
-                                    Expr::VarReference(VarReference {
-                                        name: "2",
-                                        segment: find_in(content, "$2"),
-                                    }),
+                                    literal(content, "test "),
+                                    Expr::VarReference(VarReference { name: "2", segment: find_in(content, "$2") }),
                                 ]
                             }),
                             MatchPattern::Literal(Literal {

@@ -65,6 +65,7 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::aspects::literal::literal;
     use crate::err::{find_between, find_in, rfind_between, ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
@@ -96,7 +97,7 @@ mod tests {
                     segment: find_between(content, "[", "]"),
                 })),
                 success_branch: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
+                    arguments: vec![literal(source.source, "$1"), literal(source.source, "test")],
                     type_parameters: vec![],
                 })),
                 fail_branch: None,
@@ -109,40 +110,52 @@ mod tests {
     fn if_else_if() {
         let content =
             "if echo a && [[ -f /file/exe ]]; echo test\n\n\nelse if [ $a ] \n;\n { $7 }; else $5";
-        let source = Source::unknown(content);
+        let source = Source::unknown(content.clone());
         let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::If(If {
                 condition: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Call(Call {
-                        arguments: vec![Expr::Literal("echo".into()), Expr::Literal("a".into())],
+                        arguments: vec![literal(content, "echo"), literal(content, "a")],
                         type_parameters: vec![],
                     })),
                     op: And,
                     right: Box::new(Expr::Call(Call {
                         arguments: vec![
-                            Expr::Literal("test".into()),
-                            Expr::Literal("-f".into()),
-                            Expr::Literal("/file/exe".into())
+                            literal(content, "test"),
+                            literal(content, "-f"),
+                            literal(content, "/file/exe"),
                         ],
                         type_parameters: vec![],
                     }))
                 })),
                 success_branch: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
+                    arguments: vec![literal(content, "echo"), literal(content, "test")],
                     type_parameters: vec![],
                 })),
                 fail_branch: Some(Box::new(Expr::If(If {
                     condition: Box::new(Expr::Test(Test {
-                        expression: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                        expression: Box::new(Expr::VarReference(VarReference {
+                            name: "a",
+                            segment: find_in(content, "$a")
+                        })),
                         segment: rfind_between(content, "[", "]"),
                     })),
                     success_branch: Box::new(Expr::Block(Block {
-                        expressions: vec![Expr::VarReference(VarReference { name: "7" })]
+                        expressions: vec![Expr::VarReference(VarReference {
+                            name: "7",
+                            segment: find_in(content, "$7")
+                        })],
+                        segment: rfind_between(content, "{", "}"),
                     })),
-                    fail_branch: Some(Box::new(Expr::VarReference(VarReference { name: "5" }))),
+                    fail_branch: Some(Box::new(Expr::VarReference(VarReference {
+                        name: "5",
+                        segment: find_in(content, "$5")
+                    }))),
+                    segment: rfind_between(content, "else if", "else"),
                 }))),
+                segment: source.segment(),
             })]
         )
     }
@@ -163,16 +176,26 @@ mod tests {
                     segment: find_between(content, "[", "]"),
                 })),
                 success_branch: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
+                    arguments: vec![literal(content, "$1"), literal(content, "test")],
                     type_parameters: vec![],
                 })),
                 fail_branch: Some(Box::new(Expr::If(If {
                     condition: Box::new(Expr::Test(Test {
-                        expression: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                        expression: Box::new(Expr::VarReference(VarReference {
+                            name: "a",
+                            segment: find_in(content, "$a")
+                        })),
                         segment: rfind_between(content, "[", "]")
                     })),
-                    success_branch: Box::new(Expr::VarReference(VarReference { name: "7" })),
-                    fail_branch: Some(Box::new(Expr::VarReference(VarReference { name: "5" }))),
+                    success_branch: Box::new(Expr::VarReference(VarReference {
+                        name: "7",
+                        segment: find_in(content, "$7")
+                    })),
+                    fail_branch: Some(Box::new(Expr::VarReference(VarReference {
+                        name: "5",
+                        segment: find_in(content, "$5")
+                    }))),
+                    segment: rfind_between(content, "$1", "else")
                 }))),
                 segment: source.segment(),
             })]
@@ -191,10 +214,12 @@ mod tests {
                     segment: find_in(source.source, "$x")
                 })),
                 success_branch: Box::new(Expr::Block(Block {
-                    expressions: vec![]
+                    expressions: vec![],
+                    segment: find_between(source.source, "{", "}")
                 })),
                 fail_branch: Some(Box::new(Expr::Block(Block {
-                    expressions: vec![]
+                    expressions: vec![],
+                    segment: rfind_between(source.source, "{", "}")
                 }))),
                 segment: source.segment(),
             })]
@@ -221,11 +246,12 @@ mod tests {
                             left: Box::new(Expr::Block(Block {
                                 expressions: vec![Expr::Call(Call {
                                     arguments: vec![
-                                        Expr::Literal("date".into()),
-                                        Expr::Literal("+\"%Y\"".into())
+                                        literal(content, "date"),
+                                        literal(content, "+\"%Y\""),
                                     ],
                                     type_parameters: vec![],
-                                })]
+                                })],
+                                segment: find_between(content, "{", "}")
                             })),
                             op: BinaryOperator::Less,
                             right: Box::new(Expr::Literal(Literal {
@@ -236,10 +262,10 @@ mod tests {
                         segment: find_between(content, "[", "]"),
                     })),
                     success_branch: Box::new(Expr::TemplateString(TemplateString {
-                        parts: vec![Expr::Literal("bash".into())]
+                        parts: vec![literal(content, "bash")],
                     })),
                     fail_branch: Some(Box::new(Expr::TemplateString(TemplateString {
-                        parts: vec![Expr::Literal("moshell".into())]
+                        parts: vec![literal(content, "moshell")],
                     }))),
                     segment: Default::default(),
                 }))),

@@ -40,14 +40,14 @@ impl<'a> DetachedAspect<'a> for Parser<'a> {
 mod tests {
     use pretty_assertions::assert_eq;
 
+    use crate::aspects::literal::literal;
     use ast::call::{Call, Detached};
     use ast::group::Block;
     use ast::Expr;
-    use ast::Expr::Literal;
     use context::source::{Source, SourceSegmentHolder};
 
-    use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
+    use crate::err::{find_between, find_in, ParseError};
     use crate::parse;
     use crate::parser::ParseResult;
 
@@ -75,10 +75,12 @@ mod tests {
                 underlying: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Detached(Detached {
                         underlying: Box::new(Expr::Call(Call {
-                            arguments: vec![Literal("date".into())],
+                            arguments: vec![literal(source.source, "date")],
                             type_parameters: vec![],
-                        }))
-                    })]
+                        })),
+                        segment: find_in(source.source, "date &")
+                    })],
+                    segment: find_between(source.source, "{", "}")
                 })),
                 segment: source.segment()
             })]
