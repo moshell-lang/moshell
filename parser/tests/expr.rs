@@ -1,5 +1,6 @@
 use ast::call::{Call, ProgrammaticCall, Redir, RedirFd, RedirOp, Redirected};
 use ast::control_flow::{For, ForKind, RangeFor};
+use ast::group::Parenthesis;
 use ast::lambda::LambdaDef;
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::r#type::{CastedExpr, SimpleType, Type};
@@ -10,7 +11,6 @@ use ast::Expr;
 use context::source::Source;
 use parser::parse;
 use pretty_assertions::assert_eq;
-use ast::group::{Parenthesis};
 
 #[test]
 fn empty() {
@@ -48,42 +48,39 @@ fn expr_cast() {
     let result = parse(source).expect("parse error");
     assert_eq!(
         result,
-        vec![
-            Expr::Casted(CastedExpr {
-                expr: Box::new(Expr::Parenthesis(Parenthesis {
-                    expression: Box::new(Expr::Binary(BinaryOperation {
-                        left: Box::new(Expr::Casted(CastedExpr {
-                            expr: Box::new(Expr::Literal(Literal {
-                                lexeme: "1",
-                                parsed: 1.into(),
-                            })),
-                            casted_type: Type::Simple(SimpleType {
-                                name: "Exitcode",
-                                params: Vec::new(),
-                            }),
+        vec![Expr::Casted(CastedExpr {
+            expr: Box::new(Expr::Parenthesis(Parenthesis {
+                expression: Box::new(Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::Casted(CastedExpr {
+                        expr: Box::new(Expr::Literal(Literal {
+                            lexeme: "1",
+                            parsed: 1.into(),
                         })),
-                        op: BinaryOperator::Plus,
-                        right: Box::new(Expr::Casted(CastedExpr {
-                            expr: Box::new(Expr::Literal(Literal {
-                                lexeme: "1",
-                                parsed: 1.into(),
-                            })),
-                            casted_type: Type::Simple(SimpleType {
-                                name: "Int",
-                                params: Vec::new(),
-                            }),
+                        casted_type: Type::Simple(SimpleType {
+                            name: "Exitcode",
+                            params: Vec::new(),
+                        }),
+                    })),
+                    op: BinaryOperator::Plus,
+                    right: Box::new(Expr::Casted(CastedExpr {
+                        expr: Box::new(Expr::Literal(Literal {
+                            lexeme: "1",
+                            parsed: 1.into(),
                         })),
-                    }))
-                })),
-                casted_type: Type::Simple(SimpleType {
-                    name: "Float",
-                    params: Vec::new(),
-                }),
-            })
-        ]
+                        casted_type: Type::Simple(SimpleType {
+                            name: "Int",
+                            params: Vec::new(),
+                        }),
+                    })),
+                }))
+            })),
+            casted_type: Type::Simple(SimpleType {
+                name: "Float",
+                params: Vec::new(),
+            }),
+        })]
     );
 }
-
 
 #[test]
 fn lambda_in_val() {

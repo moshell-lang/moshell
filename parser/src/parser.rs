@@ -15,6 +15,7 @@ use crate::aspects::lambda_def::LambdaDefinitionAspect;
 use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
 use crate::aspects::r#loop::LoopAspect;
 use crate::aspects::r#match::MatchAspect;
+use crate::aspects::r#type::TypeAspect;
 use crate::aspects::r#use::UseAspect;
 use crate::aspects::range::RangeAspect;
 use crate::aspects::redirection::RedirectionAspect;
@@ -28,7 +29,6 @@ use crate::moves::{
 };
 use ast::range::Iterable;
 use ast::Expr;
-use crate::aspects::r#type::TypeAspect;
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
 
@@ -133,7 +133,7 @@ impl<'a> Parser<'a> {
         self.repos("Expected statement")?;
 
         let pivot = self.cursor.peek().token_type;
-        let expr = match pivot {
+        match pivot {
             Var | Val => self.var_declaration(),
             Use => self.parse_use(),
             Fun => self
@@ -153,9 +153,7 @@ impl<'a> Parser<'a> {
             }
 
             _ => self.next_expression_statement(),
-        };
-
-        self.handle_cast(expr?)
+        }
     }
 
     ///Parse the next expression
@@ -163,7 +161,7 @@ impl<'a> Parser<'a> {
         self.repos("Expected expression statement")?;
 
         let pivot = self.cursor.peek().token_type;
-        let expr = match pivot {
+        match pivot {
             If => self.parse_if(Parser::statement).map(Expr::If),
             Match => self.parse_match(Parser::statement).map(Expr::Match),
             Identifier | Quote | DoubleQuote => self.any_call(),
@@ -171,9 +169,7 @@ impl<'a> Parser<'a> {
             _ if pivot.is_bin_operator() => self.call(),
 
             _ => self.next_expression(),
-        };
-
-        self.handle_cast(expr?)
+        }
     }
 
     ///Parse the next expression
@@ -181,7 +177,7 @@ impl<'a> Parser<'a> {
         self.repos("Expected expression")?;
 
         let pivot = self.cursor.peek().token_type;
-        let expr = match pivot {
+        match pivot {
             //if we are parsing an expression, then we want to see a parenthesised expr as a subshell expression
             RoundedLeftBracket => self.subshell_or_parentheses(),
             SquaredLeftBracket => self.parse_test(),
@@ -199,9 +195,7 @@ impl<'a> Parser<'a> {
             Not => self.not(Parser::next_expression_statement),
 
             _ => self.next_value(),
-        };
-
-        self.handle_cast(expr?)
+        }
     }
 
     ///Parse the next value expression

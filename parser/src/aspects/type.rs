@@ -3,9 +3,12 @@ use crate::err::ParseErrorKind::{Expected, Unexpected};
 use crate::moves::{any, blanks, not, of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::r#type::{ByName, CallableType, CastedExpr, SimpleType, Type};
-use lexer::token::TokenType::{As, FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket, SquaredLeftBracket, SquaredRightBracket, Unit};
-use std::fmt::Write;
 use ast::Expr;
+use lexer::token::TokenType::{
+    As, FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket, SquaredLeftBracket,
+    SquaredRightBracket, Unit,
+};
+use std::fmt::Write;
 
 ///A parser aspect to parse all type declarations, such as lambdas, constant types, parametrized types and Unit
 pub trait TypeAspect<'a> {
@@ -88,15 +91,14 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
     }
 
     fn parse_cast(&mut self, casted_expr: Expr<'a>) -> ParseResult<CastedExpr<'a>> {
-        self.cursor
-            .force(
-                blanks().then(of_type(As)),
-                "expected 'as' for cast expression."
-            )?;
+        self.cursor.force(
+            blanks().then(of_type(As)),
+            "expected 'as' for cast expression.",
+        )?;
         let casted_type = self.parse_type()?;
         Ok(CastedExpr {
             expr: Box::new(casted_expr),
-            casted_type
+            casted_type,
         })
     }
 }
