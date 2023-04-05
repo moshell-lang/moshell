@@ -20,7 +20,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         self.cursor.advance(blanks());
 
         let first_token = self.cursor.peek();
-        //if there's a parenthesis then the type is necessarily a lambda types
+        // if there's a parenthesis then the type is necessarily a lambda type
         let mut tpe = match first_token.token_type {
             RoundedLeftBracket => self.parse_parentheses()?,
             FatArrow => self.parse_by_name().map(Type::ByName)?,
@@ -119,7 +119,7 @@ impl<'a> Parser<'a> {
             return self.parse_lambda_with_inputs(inputs).map(Type::Callable);
         }
 
-        //there is no inputs (`()`) and no `=>` after, this is a Unit types
+        // there is no input (`()`) and no `=>` after, this is a Unit type
         if inputs.is_empty() {
             return Ok(Type::Unit);
         }

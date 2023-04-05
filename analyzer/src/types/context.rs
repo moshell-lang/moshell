@@ -82,14 +82,17 @@ impl TypeContext {
         let defined = def.with_identity(id).build(ctx.clone())?;
         let defined = Rc::new(defined);
 
-        if ctx.borrow().classes.contains_key(&defined.identity) {
-            return Err(format!("type already contained in context {}", defined.name).to_owned());
+        let mut ctx = ctx.borrow_mut();
+        match ctx.classes.entry(defined.identity) {
+            Entry::Occupied(_) => Err(format!(
+                "type already contained in context {}",
+                defined.name
+            )),
+            Entry::Vacant(vacant) => {
+                vacant.insert(defined.clone());
+                Ok(defined)
+            }
         }
-
-        ctx.borrow_mut()
-            .classes
-            .insert(defined.identity, defined.clone());
-        Ok(defined)
     }
 
     ///perform a class type lookup based on the defined types.
@@ -123,12 +126,8 @@ impl TypeContext {
         }
     }
 
+    /// Find nearest type between two class types.
     pub fn unify(&self, t1: &Type, t2: &Type) -> Result<Type, String> {
-        self.unify_internal(t1, t2)
-    }
-
-    ///Find largest possible type between two class types
-    fn unify_internal(&self, t1: &Type, t2: &Type) -> Result<Type, String> {
         match (t1, t2) {
             (any, Type::Nothing) => Ok(any.clone()),
             (Type::Nothing, any) => Ok(any.clone()),

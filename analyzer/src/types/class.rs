@@ -7,37 +7,39 @@ use std::fmt::{Debug, Display, Formatter};
 use std::rc::Rc;
 
 ///This structures hosts the definition of a types,
-///
 #[derive(Clone, PartialEq, Eq)]
 pub struct TypeClass {
-    ///The super type of this types
+    ///The super type of this type.
     pub super_type: Option<Rc<TypeClass>>,
 
-    /// The class types's name
+    /// The class type name
     pub name: String,
 
-    ///The class's generic parameters bounds.
+    /// The bounds of the generic parameters of the class.
     pub generic_parameters: Vec<GenericParam>,
 
-    ///The associations between child and parent type parameters
+    /// The associations between the child and parent type parameters.
+    ///
     /// This vector must match the length of parent's type parameters.
-    /// - `class List[A]: Iterable[A]`   The generic param of child (`List`) is associated with generic param of parent (`Iterable`),
+    /// For instance:
+    /// - `class List[A]: Iterable[A]`   The generic param of the child (`List`) is associated with the generic param of the parent (`Iterable`),
     ///                                  Thus, we have `List::A => Iterable::A`
     ///
     /// - `class WeirdMap[A]: Map[A, A]` Here, we have `WeirdMap::A => Map::K` and `WeirdMap::A => Map::V`
     ///
-    /// - `class Map[K, V]: Iterable[A]` This defines a map that is iterable only on keys, the first map's generic parameter `K`
+    /// - `class Map[K, V]: Iterable[A]` This defines a map that is iterable only over its keys, the first map's generic parameter `K`
     ///                                  is then bound on lone iterable's generic parameter, and the generic param `V` has no links with the parent,
     ///                                  Thus we only have `Map::K => Iterable::A` as an association set.
     ///
     /// - `class StrMap[V]: Map[Str, V]` Here, the associations are `lang::Str => Map::K` and `StrMap::V => Map::V`
     pub(in crate::types) super_params_associations: Vec<ParamAssociation>,
 
-    ///This Type's identity.
+    /// The identity of the type.
     pub(crate) identity: u64,
 
-    ///The type context of this type.
-    /// The context contains generic parameters definitions
+    /// The type context of this type.
+    ///
+    /// The context is guaranteed to own the definition of the generic parameters.
     pub context: Rc<RefCell<TypeContext>>,
 }
 

@@ -13,7 +13,7 @@ pub enum Type<'a> {
     ///A By name declaration (`=> X`)
     ByName(ByName<'a>),
 
-    ///Either `()` or `Unit`, representing a void types
+    ///Either `()` or `Unit`, representing a void type
     Unit,
 
     ///The Nothing types
