@@ -1,12 +1,13 @@
 use crate::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
+use src_macros::segment_holder;
 
 /// A literal value that can be used directly.
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Literal {
     pub parsed: LiteralValue,
-    pub segment: SourceSegment,
 }
 
 /// A literal value that can be used directly.

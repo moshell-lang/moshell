@@ -1,6 +1,7 @@
 use crate::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
+use src_macros::segment_holder;
 
 /// A range of values that can be iterated over.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
@@ -43,6 +44,7 @@ impl SourceSegmentHolder for NumericRange<'_> {
 }
 
 /// A pattern that can be used to match files.
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct FilePattern<'a> {
     /// The raw glob pattern that was used to create this pattern.
@@ -52,7 +54,4 @@ pub struct FilePattern<'a> {
     ///
     /// For now, this is just a string that is passed to the libc.
     pub pattern: String,
-
-    /// The segment of the source code that this pattern was created from.
-    pub segment: SourceSegment,
 }

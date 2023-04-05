@@ -3,11 +3,12 @@ use crate::variable::TypedVariable;
 use crate::Expr;
 use context::source::SourceSegment;
 use dbg_pls::DebugPls;
+use src_macros::segment_holder;
 
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Return<'a> {
     pub expr: Box<Expr<'a>>,
-    pub segment: SourceSegment,
 }
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]

@@ -383,7 +383,7 @@ mod tests {
     #[test]
     fn constructor_with_newlines_and_space() {
         let source = Source::unknown("Foo( \\\nthis , \\\n  is,\\\nfine)");
-        let expr = parse(source).expect("Failed to parse");
+        let expr = parse(source.clone()).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
@@ -394,6 +394,7 @@ mod tests {
                     Expr::Literal("fine".into()),
                 ],
                 type_parameters: vec![],
+                segment: 0..source.source.len(),
             })],
         );
     }
