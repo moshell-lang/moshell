@@ -80,7 +80,7 @@ mod tests {
     use ast::group::Block;
     use ast::operation::BinaryOperation;
     use ast::operation::BinaryOperator::Plus;
-    use ast::r#type::{SimpleType, Type};
+    use ast::r#type::{ParametrizedType, Type};
     use ast::value::{Literal, LiteralValue};
     use ast::Expr;
     use context::source::Source;
@@ -121,7 +121,7 @@ mod tests {
                 kind: VarKind::Val,
                 var: TypedVariable {
                     name: "variable",
-                    ty: Some(Type::Simple(SimpleType {
+                    ty: Some(Type::Parametrized(ParametrizedType {
                         name: "int",
                         params: Vec::new(),
                     })),

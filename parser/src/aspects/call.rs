@@ -217,7 +217,7 @@ mod tests {
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
     use ast::call::{Call, ProgrammaticCall};
-    use ast::r#type::{SimpleType, Type};
+    use ast::r#type::{ParametrizedType, Type};
     use ast::value::Literal;
     use ast::Expr;
 
@@ -247,7 +247,7 @@ mod tests {
                     Expr::Literal("x".into()),
                     Expr::Literal("y".into())
                 ],
-                type_parameters: vec![Type::Simple(SimpleType {
+                type_parameters: vec![Type::Parametrized(ParametrizedType {
                     name: "int",
                     params: Vec::new()
                 })]
@@ -424,7 +424,7 @@ mod tests {
                     lexeme: "'hi'",
                     parsed: "hi".into(),
                 })],
-                type_parameters: vec![Type::Simple(SimpleType {
+                type_parameters: vec![Type::Parametrized(ParametrizedType {
                     name: "Str",
                     params: vec![],
                 })],

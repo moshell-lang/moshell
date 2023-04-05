@@ -39,7 +39,7 @@ mod tests {
     use ast::group::Block;
     use ast::lambda::LambdaDef;
     use ast::operation::{BinaryOperation, BinaryOperator};
-    use ast::r#type::{SimpleType, Type};
+    use ast::r#type::{ParametrizedType, Type};
     use ast::variable::{TypedVariable, VarReference};
     use ast::Expr;
     use context::source::Source;
@@ -61,7 +61,7 @@ mod tests {
                     },
                     TypedVariable {
                         name: "b",
-                        ty: Some(Type::Simple(SimpleType {
+                        ty: Some(Type::Parametrized(ParametrizedType {
                             name: "Int",
                             params: Vec::new(),
                         })),
@@ -110,7 +110,7 @@ mod tests {
             LambdaDef {
                 args: vec![TypedVariable {
                     name: "a",
-                    ty: Some(Type::Simple(SimpleType {
+                    ty: Some(Type::Parametrized(ParametrizedType {
                         name: "Int",
                         params: Vec::new(),
                     })),

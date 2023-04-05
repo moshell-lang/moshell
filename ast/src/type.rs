@@ -4,8 +4,8 @@ use std::ops::Deref;
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub enum Type<'a> {
-    ///A Simple type with optional parameters (`A`, `A[V]`)
-    Simple(SimpleType<'a>),
+    ///A Simple type with optional parameters (`A`, `A[V]`, std::foo::Option[A])
+    Parametrized(ParametrizedType<'a>),
 
     ///A callable declaration with of form `(A, B, ...) => Out`
     Callable(CallableType<'a>),
@@ -17,9 +17,16 @@ pub enum Type<'a> {
     Unit,
 }
 
+
 #[derive(Debug, Clone, PartialEq, DebugPls)]
-pub struct SimpleType<'a> {
+pub struct ParametrizedType<'a> {
+    ///list of prefixed modules
+    pub location: Vec<&'a str>,
+
+    /// the type's name
     pub name: &'a str,
+
+    ///the type's parameters
     pub params: Vec<Type<'a>>,
 }
 
@@ -37,7 +44,7 @@ pub struct CallableType<'a> {
 impl<'a> Display for Type<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Type::Simple(m) => Display::fmt(m, f),
+            Type::Parametrized(m) => Display::fmt(m, f),
             Type::Callable(p) => Display::fmt(p, f),
             Type::ByName(n) => Display::fmt(n, f),
             Type::Unit => write!(f, "Unit"),
@@ -65,7 +72,7 @@ fn display_type_list<'a>(
 impl<'a> Display for CallableType<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let inputs = &self.params;
-        if let Some(Type::Simple(first_in)) = inputs.first() {
+        if let Some(Type::Parametrized(first_in)) = inputs.first() {
             Display::fmt(first_in, f)?;
         } else {
             display_type_list('(', ')', inputs, f)?;
@@ -75,7 +82,7 @@ impl<'a> Display for CallableType<'a> {
     }
 }
 
-impl<'a> Display for SimpleType<'a> {
+impl<'a> Display for ParametrizedType<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.name)?;
         if self.params.is_empty() {

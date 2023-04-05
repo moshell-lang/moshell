@@ -176,7 +176,7 @@ mod tests {
     use ast::call::Call;
     use ast::function::{FunctionDeclaration, FunctionParameter, Return};
     use ast::operation::{BinaryOperation, BinaryOperator};
-    use ast::r#type::{SimpleType, Type};
+    use ast::r#type::{ParametrizedType, Type};
     use ast::value::Literal;
     use ast::variable::{TypedVariable, VarReference};
     use ast::Expr;
@@ -345,14 +345,14 @@ mod tests {
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
-                        ty: Some(Type::Simple(SimpleType {
+                        ty: Some(Type::Parametrized(ParametrizedType {
                             name: "String",
                             params: vec![],
                         })),
                     }),
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
-                        ty: Some(Type::Simple(SimpleType {
+                        ty: Some(Type::Parametrized(ParametrizedType {
                             name: "Test",
                             params: vec![],
                         })),
@@ -380,11 +380,11 @@ mod tests {
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "test",
                 type_parameters: vec![
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
                         name: "X",
                         params: Vec::new(),
                     }),
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
                         name: "Y",
                         params: Vec::new(),
                     }),
@@ -392,14 +392,14 @@ mod tests {
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
-                        ty: Some(Type::Simple(SimpleType {
+                        ty: Some(Type::Parametrized(ParametrizedType {
                             name: "X",
                             params: vec![],
                         })),
                     }),
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
-                        ty: Some(Type::Simple(SimpleType {
+                        ty: Some(Type::Parametrized(ParametrizedType {
                             name: "Y",
                             params: vec![],
                         })),
@@ -427,8 +427,8 @@ mod tests {
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "test",
                 type_parameters: vec![],
-                parameters: vec![FunctionParameter::Variadic(Some(Type::Simple(
-                    SimpleType {
+                parameters: vec![FunctionParameter::Variadic(Some(Type::Parametrized(
+                    ParametrizedType {
                         name: "X",
                         params: Vec::new(),
                     }
@@ -456,7 +456,7 @@ mod tests {
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
-                        ty: Some(Type::Simple(SimpleType {
+                        ty: Some(Type::Parametrized(ParametrizedType {
                             name: "int",
                             params: Vec::new(),
                         })),
@@ -483,11 +483,11 @@ mod tests {
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "test",
                 type_parameters: vec![
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
                         name: "X",
                         params: Vec::new(),
                     }),
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
                         name: "Y",
                         params: Vec::new(),
                     }),
@@ -495,20 +495,20 @@ mod tests {
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
-                        ty: Some(Type::Simple(SimpleType {
+                        ty: Some(Type::Parametrized(ParametrizedType {
                             name: "X",
                             params: vec![],
                         })),
                     }),
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
-                        ty: Some(Type::Simple(SimpleType {
+                        ty: Some(Type::Parametrized(ParametrizedType {
                             name: "Y",
                             params: vec![],
                         })),
                     }),
                 ],
-                return_type: Some(Type::Simple(SimpleType {
+                return_type: Some(Type::Parametrized(ParametrizedType {
                     name: "X",
                     params: Vec::new(),
                 })),

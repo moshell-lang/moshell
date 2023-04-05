@@ -2,7 +2,7 @@ use crate::aspects::expr_list::ExpressionListAspect;
 use crate::err::ParseErrorKind::{Expected, Unexpected};
 use crate::moves::{any, blanks, not, of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use ast::r#type::{ByName, CallableType, SimpleType, Type};
+use ast::r#type::{ByName, CallableType, ParametrizedType, Type};
 use lexer::token::TokenType::{
     FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket, SquaredLeftBracket,
     SquaredRightBracket, Unit,
@@ -39,7 +39,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             return Ok(tpe);
         }
 
-        if matches!(tpe, Type::Simple(..)) {
+        if matches!(tpe, Type::Parametrized(..)) {
             tpe = Type::Callable(CallableType {
                 params: vec![tpe],
                 output: Box::new(self.parse_simple_or_unit()?),
@@ -163,7 +163,7 @@ impl<'a> Parser<'a> {
 
         let ttype = name_token.token_type;
         if ttype == Identifier {
-            return Ok(Type::Simple(SimpleType {
+            return Ok(Type::Parametrized(ParametrizedType {
                 name: name_token.value,
                 params: self.parse_type_parameter_list()?,
             }));
@@ -198,7 +198,7 @@ mod tests {
     use crate::err::ParseError;
     use crate::err::ParseErrorKind::{Expected, Unexpected, Unpaired};
     use crate::parser::Parser;
-    use ast::r#type::{ByName, CallableType, SimpleType, Type};
+    use ast::r#type::{ByName, CallableType, ParametrizedType, Type};
     use context::source::Source;
     use pretty_assertions::assert_eq;
 
@@ -208,7 +208,7 @@ mod tests {
         let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source).parse_type(),
-            Ok(Type::Simple(SimpleType {
+            Ok(Type::Parametrized(ParametrizedType {
                 name: "MyType",
                 params: Vec::new(),
             }))
@@ -238,34 +238,34 @@ mod tests {
         let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source).parse_type(),
-            Ok(Type::Simple(SimpleType {
+            Ok(Type::Parametrized(ParametrizedType {
                 name: "MyType",
                 params: vec![
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
                         name: "A",
                         params: vec![
-                            Type::Simple(SimpleType {
+                            Type::Parametrized(ParametrizedType {
                                 name: "X",
                                 params: Vec::new(),
                             }),
-                            Type::Simple(SimpleType {
+                            Type::Parametrized(ParametrizedType {
                                 name: "Y",
-                                params: vec![Type::Simple(SimpleType {
+                                params: vec![Type::Parametrized(ParametrizedType {
                                     name: "_",
                                     params: Vec::new(),
                                 })],
                             }),
-                            Type::Simple(SimpleType {
+                            Type::Parametrized(ParametrizedType {
                                 name: "Z",
                                 params: Vec::new(),
                             }),
                         ],
                     }),
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
                         name: "B",
-                        params: vec![Type::Simple(SimpleType {
+                        params: vec![Type::Parametrized(ParametrizedType {
                             name: "C",
-                            params: vec![Type::Simple(SimpleType {
+                            params: vec![Type::Parametrized(ParametrizedType {
                                 name: "D",
                                 params: Vec::new(),
                             })],
@@ -326,11 +326,11 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_type(),
             Ok(Type::Callable(CallableType {
-                params: vec![Type::Simple(SimpleType {
+                params: vec![Type::Parametrized(ParametrizedType {
                     name: "A",
                     params: Vec::new(),
                 })],
-                output: Box::new(Type::Simple(SimpleType {
+                output: Box::new(Type::Parametrized(ParametrizedType {
                     name: "B",
                     params: Vec::new(),
                 })),
@@ -345,7 +345,7 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_type(),
             Ok(Type::ByName(ByName {
-                name: Box::new(Type::Simple(SimpleType {
+                name: Box::new(Type::Parametrized(ParametrizedType {
                     name: "B",
                     params: Vec::new(),
                 })),
@@ -375,7 +375,7 @@ mod tests {
             Parser::new(source).parse_type(),
             Ok(Type::ByName(ByName {
                 name: Box::new(Type::ByName(ByName {
-                    name: Box::new(Type::Simple(SimpleType {
+                    name: Box::new(Type::Parametrized(ParametrizedType {
                         name: "B",
                         params: Vec::new(),
                     }))
@@ -390,7 +390,7 @@ mod tests {
         let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source).parse_type(),
-            Ok(Type::Simple(SimpleType {
+            Ok(Type::Parametrized(ParametrizedType {
                 name: "A",
                 params: Vec::new(),
             }))
@@ -405,7 +405,7 @@ mod tests {
             Parser::new(source).parse_type(),
             Ok(Type::Callable(CallableType {
                 params: vec![],
-                output: Box::new(Type::Simple(SimpleType {
+                output: Box::new(Type::Parametrized(ParametrizedType {
                     name: "B",
                     params: Vec::new(),
                 })),
@@ -430,7 +430,7 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_type(),
             Ok(Type::Callable(CallableType {
-                params: vec![Type::Simple(SimpleType {
+                params: vec![Type::Parametrized(ParametrizedType {
                     name: "A",
                     params: Vec::new(),
                 })],
@@ -447,20 +447,20 @@ mod tests {
             Parser::new(source).parse_type(),
             Ok(Type::Callable(CallableType {
                 params: vec![
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
                         name: "A",
                         params: Vec::new(),
                     }),
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
                         name: "B",
                         params: Vec::new(),
                     }),
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
                         name: "C",
                         params: Vec::new(),
                     }),
                 ],
-                output: Box::new(Type::Simple(SimpleType {
+                output: Box::new(Type::Parametrized(ParametrizedType {
                     name: "D",
                     params: Vec::new(),
                 })),
@@ -478,21 +478,21 @@ mod tests {
             Ok(Type::Callable(CallableType {
                 params: vec![Type::Callable(CallableType {
                     params: vec![Type::Callable(CallableType {
-                        params: vec![Type::Simple(SimpleType {
+                        params: vec![Type::Parametrized(ParametrizedType {
                             name: "A",
                             params: Vec::new(),
                         }),],
-                        output: Box::new(Type::Simple(SimpleType {
+                        output: Box::new(Type::Parametrized(ParametrizedType {
                             name: "B",
                             params: Vec::new(),
                         })),
                     })],
-                    output: Box::new(Type::Simple(SimpleType {
+                    output: Box::new(Type::Parametrized(ParametrizedType {
                         name: "C",
                         params: Vec::new(),
                     })),
                 })],
-                output: Box::new(Type::Simple(SimpleType {
+                output: Box::new(Type::Parametrized(ParametrizedType {
                     name: "D",
                     params: Vec::new(),
                 })),
@@ -525,25 +525,25 @@ mod tests {
             ast,
             Ok(Type::Callable(CallableType {
                 params: vec![
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
                         name: "A",
                         params: Vec::new(),
                     }),
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
                         name: "B",
                         params: Vec::new(),
                     }),
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
                         name: "C",
                         params: Vec::new(),
                     }),
                 ],
                 output: Box::new(Type::Callable(CallableType {
-                    params: vec![Type::Simple(SimpleType {
+                    params: vec![Type::Parametrized(ParametrizedType {
                         name: "D",
                         params: Vec::new()
                     })],
-                    output: Box::new(Type::Simple(SimpleType {
+                    output: Box::new(Type::Parametrized(ParametrizedType {
                         name: "E",
                         params: Vec::new()
                     })),

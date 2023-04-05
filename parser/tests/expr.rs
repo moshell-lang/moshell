@@ -2,7 +2,7 @@ use ast::call::{Call, ProgrammaticCall, Redir, RedirFd, RedirOp, Redirected};
 use ast::control_flow::{For, ForKind, RangeFor};
 use ast::lambda::LambdaDef;
 use ast::operation::{BinaryOperation, BinaryOperator};
-use ast::r#type::{SimpleType, Type};
+use ast::r#type::{ParametrizedType, Type};
 use ast::range::{Iterable, NumericRange};
 use ast::value::{Literal, LiteralValue};
 use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference};
@@ -27,7 +27,7 @@ fn variable_type_and_initializer() {
         kind: VarKind::Var,
         var: TypedVariable {
             name: "a",
-            ty: Some(Type::Simple(SimpleType {
+            ty: Some(Type::Parametrized(ParametrizedType {
                 name: "int",
                 params: Vec::new(),
             })),

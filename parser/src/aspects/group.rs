@@ -134,7 +134,7 @@ mod tests {
     use crate::parser::Parser;
     use ast::call::Call;
     use ast::group::{Block, Subshell};
-    use ast::r#type::SimpleType;
+    use ast::r#type::ParametrizedType;
     use ast::r#type::Type;
     use ast::value::Literal;
     use ast::value::LiteralValue::{Float, Int};
@@ -312,7 +312,7 @@ mod tests {
                         kind: VarKind::Var,
                         var: TypedVariable {
                             name: "test",
-                            ty: Some(Type::Simple(SimpleType {
+                            ty: Some(Type::Parametrized(ParametrizedType {
                                 name: "int",
                                 params: Vec::new()
                             })),
