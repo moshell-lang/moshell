@@ -1,7 +1,7 @@
 use crate::types::class::{ClassTypeDefinition, TypeClass};
 use crate::types::types::{DefinedType, Type};
 use std::cell::RefCell;
-use std::collections::hash_map::DefaultHasher;
+use std::collections::hash_map::{DefaultHasher, Entry};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
