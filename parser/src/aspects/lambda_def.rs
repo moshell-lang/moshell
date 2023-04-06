@@ -14,11 +14,13 @@ pub trait LambdaDefinitionAspect<'a> {
 
 impl<'a> LambdaDefinitionAspect<'a> for Parser<'a> {
     fn parse_lambda_definition(&mut self) -> ParseResult<LambdaDef<'a>> {
-        let args = self.parse_implicit_list(
-            RoundedLeftBracket,
-            RoundedRightBracket,
-            Self::parse_typed_var,
-        )?;
+        let args = self
+            .parse_implicit_list(
+                RoundedLeftBracket,
+                RoundedRightBracket,
+                Self::parse_typed_var,
+            )?
+            .0;
         self.cursor.force_with(
             blanks().then(of_type(FatArrow)),
             "expected lambda arrow",
@@ -132,7 +134,7 @@ mod tests {
                         params: Vec::new(),
                         segment: find_in(src, "Int")
                     })),
-                    segment: 1..2,
+                    segment: find_in(src, "a: Int")
                 },],
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::VarReference(VarReference {

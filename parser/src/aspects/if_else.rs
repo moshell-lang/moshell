@@ -69,7 +69,7 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
-    use crate::source::{find_between, find_in, literal, rfind_between};
+    use crate::source::{find_between, find_in, literal, literal_nth, rfind_between};
     use ast::call::Call;
     use ast::control_flow::If;
     use ast::group::Block;
@@ -98,7 +98,10 @@ mod tests {
                     segment: find_between(content, "[", "]"),
                 })),
                 success_branch: Box::new(Expr::Call(Call {
-                    arguments: vec![literal(source.source, "$1"), literal(source.source, "test")],
+                    arguments: vec![
+                        literal(source.source, "echo"),
+                        literal(source.source, "test")
+                    ],
                     type_parameters: vec![],
                 })),
                 fail_branch: None,
@@ -124,7 +127,10 @@ mod tests {
                     op: And,
                     right: Box::new(Expr::Call(Call {
                         arguments: vec![
-                            literal(content, "test"),
+                            Expr::Literal(Literal {
+                                parsed: "test".into(),
+                                segment: find_in(content, "[[")
+                            }),
                             literal(content, "-f"),
                             literal(content, "/file/exe"),
                         ],
@@ -132,7 +138,7 @@ mod tests {
                     }))
                 })),
                 success_branch: Box::new(Expr::Call(Call {
-                    arguments: vec![literal(content, "echo"), literal(content, "test")],
+                    arguments: vec![literal_nth(content, "echo", 1), literal(content, "test")],
                     type_parameters: vec![],
                 })),
                 fail_branch: Some(Box::new(Expr::If(If {
@@ -154,7 +160,7 @@ mod tests {
                         name: "5",
                         segment: find_in(content, "$5")
                     }))),
-                    segment: rfind_between(content, "else if", "else"),
+                    segment: rfind_between(content, "if [ $a ]", "$5"),
                 }))),
                 segment: source.segment(),
             })]
@@ -263,10 +269,10 @@ mod tests {
                         segment: find_between(content, "[", "]"),
                     })),
                     success_branch: Box::new(Expr::TemplateString(TemplateString {
-                        parts: vec![literal(content, "bash")],
+                        parts: vec![literal(content, "\"bash\"")],
                     })),
                     fail_branch: Some(Box::new(Expr::TemplateString(TemplateString {
-                        parts: vec![literal(content, "moshell")],
+                        parts: vec![literal(content, "\"moshell\"")],
                     }))),
                     segment: find_between(content, "if", "\"moshell\""),
                 }))),

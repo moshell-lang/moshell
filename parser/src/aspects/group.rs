@@ -141,7 +141,7 @@ impl<'a> Parser<'a> {
 mod tests {
     use crate::aspects::group::GroupAspect;
     use crate::parser::Parser;
-    use crate::source::{find_between, find_in, literal};
+    use crate::source::{find_between, find_in, find_in_nth, literal};
     use ast::call::Call;
     use ast::group::{Block, Subshell};
     use ast::r#type::SimpleType;
@@ -233,15 +233,13 @@ mod tests {
     #[test]
     fn block_with_nested_blocks() {
         let source = Source::unknown(
-            "\
-        {\
+            "{\
             val test = {\
                 val x = 8\n\n\n
                 8
             }\n\
             (val x = 89; command call; 7)\
-        }\
-        ",
+        }",
         );
         let mut parser = Parser::new(source.clone());
         let ast = parser
@@ -276,12 +274,12 @@ mod tests {
                                 }),
                                 Expr::Literal(Literal {
                                     parsed: Int(8),
-                                    segment: find_in(source.source, "8"),
+                                    segment: find_in_nth(source.source, "8", 1),
                                 }),
                             ],
                             segment: find_between(source.source, "{", "}"),
                         }))),
-                        segment: find_in(source.source, "val test = {"),
+                        segment: find_between(source.source, "val test = {", "}"),
                     }),
                     Expr::Subshell(Subshell {
                         expressions: vec![
@@ -321,12 +319,10 @@ mod tests {
     #[test]
     fn block() {
         let source = Source::unknown(
-            "\
-        {\
+            "{\
             var test: int = 7.0\n\
             val x = 8\
-        }\
-        ",
+        }",
         );
         let mut parser = Parser::new(source.clone());
         let ast = parser.block().expect("failed to parse block");

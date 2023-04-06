@@ -3,7 +3,7 @@ use crate::err::ParseErrorKind::{Expected, Unexpected};
 use crate::moves::{any, blanks, not, of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::r#type::{ByName, CallableType, SimpleType, Type};
-use context::source::SourceSegmentHolder;
+use context::source::{SourceSegment, SourceSegmentHolder};
 use lexer::token::TokenType::{
     FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket, SquaredLeftBracket,
     SquaredRightBracket, Unit,
@@ -78,8 +78,9 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             return Ok(Vec::new());
         }
         let start = self.cursor.peek();
-        let tparams =
-            self.parse_explicit_list(SquaredLeftBracket, SquaredRightBracket, Self::parse_type)?;
+        let tparams = self
+            .parse_explicit_list(SquaredLeftBracket, SquaredRightBracket, Self::parse_type)?
+            .0;
         if tparams.is_empty() {
             return self.expected_with(
                 "unexpected empty type parameter list",
@@ -115,7 +116,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_parentheses(&mut self) -> ParseResult<Type<'a>> {
-        let inputs =
+        let (inputs, segment) =
             self.parse_implicit_list(RoundedLeftBracket, RoundedRightBracket, Self::parse_type)?;
 
         //if there is an arrow then it is a lambda
@@ -124,7 +125,9 @@ impl<'a> Parser<'a> {
             .advance(spaces().then(of_type(FatArrow)))
             .is_some()
         {
-            return self.parse_lambda_with_inputs(inputs).map(Type::Callable);
+            return self
+                .parse_lambda_with_inputs(segment, inputs)
+                .map(Type::Callable);
         }
 
         //there is no inputs (`()`) and no `=>` after, this is a Unit type
@@ -156,12 +159,17 @@ impl<'a> Parser<'a> {
         )
     }
 
-    fn parse_lambda_with_inputs(&mut self, inputs: Vec<Type<'a>>) -> ParseResult<CallableType<'a>> {
+    fn parse_lambda_with_inputs(
+        &mut self,
+        inputs_segment: SourceSegment,
+        inputs: Vec<Type<'a>>,
+    ) -> ParseResult<CallableType<'a>> {
         let output = Box::new(self.parse_type()?);
+        let segment = inputs_segment.start..output.segment().end;
         Ok(CallableType {
             params: inputs,
             output,
-            segment: Default::default(),
+            segment,
         })
     }
 

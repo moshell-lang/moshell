@@ -32,6 +32,7 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
         };
 
         let var = self.parse_typed_var()?;
+        let mut segment = self.cursor.relative_pos_ctx(start).start..var.segment.end;
 
         let initializer = match self
             .cursor
@@ -45,7 +46,11 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
                 None
             }
 
-            Some(_) => Some(self.value()?),
+            Some(_) => {
+                let value = self.value()?;
+                segment = segment.start..value.segment().end;
+                Some(value)
+            }
         }
         .map(Box::new);
 
@@ -53,7 +58,7 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
             kind,
             var,
             initializer,
-            segment: self.cursor.relative_pos_ctx(start..self.cursor.peek()),
+            segment,
         }))
     }
 
@@ -95,7 +100,7 @@ mod tests {
 
     use crate::err::ParseError;
     use crate::parser::Parser;
-    use crate::source::find_in;
+    use crate::source::{find_in, find_in_nth, literal};
 
     use super::*;
 
@@ -168,10 +173,7 @@ mod tests {
                     ty: None,
                     segment: find_in(&source.source, "variable")
                 },
-                initializer: Some(Box::from(Expr::Literal(Literal {
-                    parsed: "hello $test".into(),
-                    segment: find_in(&source.source, "variable")
-                }))),
+                initializer: Some(Box::from(literal(source.source, "'hello $test'"))),
                 segment: 0..source.source.len(),
             })
         )
@@ -216,7 +218,7 @@ mod tests {
                             }),
                             Expr::Literal(Literal {
                                 parsed: "a".into(),
-                                segment: find_in(&source.source, "a"),
+                                segment: find_in_nth(&source.source, "a", 1),
                             }),
                         ],
                         type_parameters: vec![],

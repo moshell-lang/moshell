@@ -61,7 +61,7 @@ fn lambda_in_val() {
                 args: vec![TypedVariable {
                     name: "a",
                     ty: None,
-                    segment: find_in(source.source, "a"),
+                    segment: find_in_nth(source.source, "a", 1),
                 },],
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::VarReference(VarReference {

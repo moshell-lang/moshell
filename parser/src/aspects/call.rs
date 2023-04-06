@@ -357,15 +357,16 @@ mod tests {
         let source = Source::unknown("Foo()");
         let source2 = Source::unknown("Foo( )");
         let expr = parse(source.clone()).expect("Failed to parse");
-        let expr2 = parse(source2).expect("Failed to parse");
-        let expected = vec![Expr::ProgrammaticCall(ProgrammaticCall {
+        let expr2 = parse(source2.clone()).expect("Failed to parse");
+        let mut expected = ProgrammaticCall {
             name: "Foo",
             arguments: vec![],
             type_parameters: vec![],
             segment: source.segment(),
-        })];
-        assert_eq!(expr, expected);
-        assert_eq!(expr2, expected);
+        };
+        assert_eq!(expr, vec![Expr::ProgrammaticCall(expected.clone())]);
+        expected.segment = source2.segment();
+        assert_eq!(expr2, vec![Expr::ProgrammaticCall(expected)]);
     }
 
     #[test]

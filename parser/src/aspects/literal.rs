@@ -112,7 +112,8 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
 
     fn templated_string_literal(&mut self) -> ParseResult<TemplateString<'a>> {
         let start = self.cursor.force(of_type(DoubleQuote), "Expected quote.")?;
-        let mut lexeme = self.cursor.peek().value;
+        let mut begin = start.clone();
+        let mut end;
         let mut literal_value = String::new();
         let mut parts = Vec::new();
         loop {
@@ -123,57 +124,38 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 );
             }
 
-            let current = self.cursor.peek();
-            match current.token_type {
-                DoubleQuote => {
-                    self.cursor.advance(next());
-                    break;
-                }
-
+            end = self.cursor.peek();
+            match end.token_type {
+                DoubleQuote => break,
                 BackSlash => {
                     self.cursor.advance(next());
-                    if let Some(joined) = try_join_str(self.source.source, lexeme, current.value) {
-                        lexeme = joined;
-                    }
-                    if let Some(next) = self.cursor.advance(next()) {
-                        literal_value.push_str(next.value);
-                        if let Some(joined) = try_join_str(self.source.source, lexeme, next.value) {
-                            lexeme = joined;
-                        }
-                    }
                 }
-
                 Dollar => {
                     if !literal_value.is_empty() {
                         parts.push(Expr::Literal(Literal {
                             parsed: LiteralValue::String(literal_value.clone()),
-                            segment: self.cursor.relative_pos(lexeme),
+                            segment: self.cursor.relative_pos_ctx(begin..end.clone()),
                         }));
                         literal_value.clear();
+                        begin = end;
                     }
-                    lexeme = "";
-
                     parts.push(self.substitution()?);
                 }
 
                 _ => {
                     let value = self.cursor.next()?.value;
                     literal_value.push_str(value);
-                    if lexeme.is_empty() {
-                        lexeme = value;
-                    } else if let Some(joined) = try_join_str(self.source.source, lexeme, value) {
-                        lexeme = joined;
-                    }
                 }
             };
         }
         if !literal_value.is_empty() {
             parts.push(Expr::Literal(Literal {
                 parsed: LiteralValue::String(literal_value),
-                segment: self.cursor.relative_pos(lexeme),
+                segment: self.cursor.relative_pos_ctx(start..end),
             }));
         }
 
+        self.cursor.advance(next());
         Ok(TemplateString { parts })
     }
 

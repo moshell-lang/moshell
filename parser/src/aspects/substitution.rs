@@ -29,7 +29,9 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
                 .lookahead(repeat_n(2, of_type(RoundedLeftBracket)))
             {
                 self.cursor.advance(of_type(RoundedLeftBracket));
-                let parenthesis = self.parenthesis()?;
+                let mut parenthesis = self.parenthesis()?;
+                parenthesis.segment.start -= 1;
+                parenthesis.segment.end += 1;
                 self.cursor.force_with(
                     of_type(RoundedRightBracket),
                     "Expected a second closing parenthesis.",

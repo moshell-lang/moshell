@@ -190,7 +190,7 @@ mod tests {
     use context::source::{Source, SourceSegmentHolder};
 
     use crate::parse;
-    use crate::source::{find_between, find_in, literal};
+    use crate::source::{find_between, find_in, find_in_nth, literal, literal_nth};
 
     #[test]
     fn function_no_name() {
@@ -316,11 +316,7 @@ mod tests {
 
     #[test]
     fn function_declaration_param() {
-        let source = Source::unknown(
-            "\
-        fun test(x) = $x
-        ",
-        );
+        let source = Source::unknown("fun test(x) = $x");
         let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
@@ -344,11 +340,7 @@ mod tests {
 
     #[test]
     fn function_declaration_params() {
-        let source = Source::unknown(
-            "\
-        fun test(  x : String  ,  y : Test   ) = x
-        ",
-        );
+        let source = Source::unknown("fun test(  x : String  ,  y : Test   ) = x");
         let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
@@ -363,7 +355,7 @@ mod tests {
                             params: vec![],
                             segment: find_in(source.source, "String")
                         })),
-                        segment: find_in(source.source, "x")
+                        segment: find_in(source.source, "x : String")
                     }),
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
@@ -372,12 +364,12 @@ mod tests {
                             params: vec![],
                             segment: find_in(source.source, "Test")
                         })),
-                        segment: find_in(source.source, "y")
+                        segment: find_in(source.source, "y : Test")
                     }),
                 ],
                 return_type: None,
                 body: Box::new(Expr::Call(Call {
-                    arguments: vec![literal(source.source, "x")],
+                    arguments: vec![literal_nth(source.source, "x", 1)],
                     type_parameters: vec![],
                 })),
                 segment: source.segment()
@@ -387,11 +379,7 @@ mod tests {
 
     #[test]
     fn function_declaration_tparams() {
-        let source = Source::unknown(
-            "\
-        fun test[X, Y](  x : X  ,  y : Y   ) = x
-        ",
-        );
+        let source = Source::unknown("fun test[X, Y](  x : X  ,  y : Y   ) = x");
         let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
@@ -417,7 +405,7 @@ mod tests {
                             params: vec![],
                             segment: find_in(source.source, "X")
                         })),
-                        segment: find_in(source.source, "x")
+                        segment: find_in(source.source, "x : X")
                     }),
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
@@ -426,7 +414,7 @@ mod tests {
                             params: vec![],
                             segment: find_in(source.source, "Y")
                         })),
-                        segment: find_in(source.source, "y")
+                        segment: find_in(source.source, "y : Y")
                     }),
                 ],
                 return_type: None,
@@ -441,11 +429,7 @@ mod tests {
 
     #[test]
     fn function_declaration_vararg() {
-        let source = Source::unknown(
-            "\
-        fun test(X...) = $x
-        ",
-        );
+        let source = Source::unknown("fun test(X...) = $x");
         let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
@@ -471,11 +455,7 @@ mod tests {
 
     #[test]
     fn function_declaration_vararg_notype() {
-        let source = Source::unknown(
-            "\
-        fun test(x: int, ...) = $x
-        ",
-        );
+        let source = Source::unknown("fun test(x: int, ...) = $x");
         let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
@@ -508,11 +488,7 @@ mod tests {
 
     #[test]
     fn function_declaration_complete() {
-        let source = Source::unknown(
-            "\
-        fun test[X, Y](  x : X  ,  y : Y   ) -> X = x
-        ",
-        );
+        let source = Source::unknown("fun test[X, Y](  x : X  ,  y : Y   ) -> X = x");
         let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
@@ -536,27 +512,27 @@ mod tests {
                         ty: Some(Type::Simple(SimpleType {
                             name: "X",
                             params: vec![],
-                            segment: find_in(source.source, "X")
+                            segment: find_in_nth(source.source, "X", 1)
                         })),
-                        segment: find_in(source.source, "x")
+                        segment: find_in(source.source, "x : X")
                     }),
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
                         ty: Some(Type::Simple(SimpleType {
                             name: "Y",
                             params: vec![],
-                            segment: find_in(source.source, "Y")
+                            segment: find_in_nth(source.source, "Y", 1)
                         })),
-                        segment: find_in(source.source, "y")
+                        segment: find_in(source.source, "y : Y")
                     }),
                 ],
                 return_type: Some(Type::Simple(SimpleType {
                     name: "X",
                     params: Vec::new(),
-                    segment: find_in(source.source, "X")
+                    segment: find_in_nth(source.source, "X", 2)
                 })),
                 body: Box::new(Expr::Call(Call {
-                    arguments: vec![literal(source.source, "x")],
+                    arguments: vec![literal_nth(source.source, "x", 1)],
                     type_parameters: vec![],
                 })),
                 segment: source.segment()

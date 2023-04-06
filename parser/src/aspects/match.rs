@@ -519,7 +519,7 @@ mod tests {
                             }),
                             MatchPattern::VarRef(VarReference {
                                 name: "USER",
-                                segment: find_in(content, "$cUSER"),
+                                segment: find_in(content, "$USER"),
                             }),
                             MatchPattern::Literal(Literal {
                                 parsed: "t x".into(),

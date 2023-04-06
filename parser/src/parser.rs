@@ -281,17 +281,17 @@ impl<'a> Parser<'a> {
     }
 
     /// Expect a specific delimiter token type and pop it from the delimiter stack.
-    pub(crate) fn expect_delimiter(&mut self, eog: TokenType) -> ParseResult<()> {
-        if self.cursor.advance(of_type(eog)).is_some() {
+    pub(crate) fn expect_delimiter(&mut self, eog: TokenType) -> ParseResult<Token<'a>> {
+        if let Some(token) = self.cursor.advance(of_type(eog)) {
             self.delimiter_stack.pop_back();
-            Ok(())
+            Ok(token)
         } else {
             self.mismatched_delimiter(eog)
         }
     }
 
     /// Raise a mismatched delimiter error on the current token.
-    pub(crate) fn mismatched_delimiter(&mut self, eog: TokenType) -> ParseResult<()> {
+    pub(crate) fn mismatched_delimiter<T>(&mut self, eog: TokenType) -> ParseResult<T> {
         if let Some(last) = self.delimiter_stack.back() {
             self.expected(
                 "Mismatched closing delimiter.",

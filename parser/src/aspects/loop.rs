@@ -126,11 +126,12 @@ impl<'a> Parser<'a> {
         )?;
         self.cursor.advance(blanks());
         let iterable = self.value()?;
+        let segment = self.cursor.relative_pos(&receiver).start..iterable.segment().end;
 
         Ok(RangeFor {
             receiver: receiver.value,
             iterable,
-            segment: self.cursor.relative_pos_ctx(receiver..self.cursor.peek()),
+            segment,
         })
     }
 
@@ -203,7 +204,7 @@ mod tests {
     use crate::parse;
     use crate::parser::ParseResult;
 
-    use crate::source::{find_between, find_in, literal, rfind_in};
+    use crate::source::{find_between, find_in, find_in_nth, literal};
     use ast::call::Call;
     use ast::control_flow::{ConditionalFor, For, ForKind, Loop, RangeFor, While};
     use ast::group::{Block, Parenthesis};
@@ -357,7 +358,7 @@ mod tests {
                             }),
                             Expr::VarReference(VarReference {
                                 name: "i",
-                                segment: find_in(source.source, "$i")
+                                segment: find_in_nth(source.source, "$i", 2)
                             }),
                         ],
                         type_parameters: vec![],
@@ -422,7 +423,7 @@ mod tests {
                                 })),
                                 op: BinaryOperator::Plus,
                                 right: Box::new(Expr::Literal(Literal {
-                                    parsed: 1.into(),
+                                    parsed: 2.into(),
                                     segment: find_in(source.source, "2")
                                 })),
                             })),
@@ -498,7 +499,7 @@ mod tests {
                         var: TypedVariable {
                             name: "i",
                             ty: None,
-                            segment: find_in(source.source, "var i=0")
+                            segment: find_in(source.source, "i")
                         },
                         initializer: Some(Box::new(Expr::Literal(Literal {
                             parsed: 0.into(),
@@ -522,12 +523,12 @@ mod tests {
                         value: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::VarReference(VarReference {
                                 name: "i",
-                                segment: rfind_in(source.source, "$i")
+                                segment: find_in_nth(source.source, "$i", 1)
                             })),
                             op: BinaryOperator::Plus,
                             right: Box::new(Expr::Literal(Literal {
                                 parsed: 1.into(),
-                                segment: find_in(source.source, "1")
+                                segment: find_in_nth(source.source, "1", 1)
                             })),
                         })),
                         segment: find_in(source.source, "i=$i + 1")

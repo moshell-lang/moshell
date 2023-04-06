@@ -236,7 +236,7 @@ mod tests {
                             segment: find_in(source.source, "3")
                         })),
                     })),
-                    segment: Default::default(),
+                    segment: find_between(source.source, "(", ")")
                 })),
             })
         )
@@ -422,7 +422,7 @@ mod tests {
                         op: And,
                         right: Box::new(Expr::Call(Call {
                             arguments: vec![
-                                literal_nth(source.source, "echo", 2),
+                                literal_nth(source.source, "echo", 1),
                                 literal(source.source, "world"),
                             ],
                             type_parameters: vec![],
@@ -433,7 +433,7 @@ mod tests {
                 op: Or,
                 right: Box::new(Expr::Call(Call {
                     arguments: vec![
-                        literal_nth(source.source, "echo", 3),
+                        literal_nth(source.source, "echo", 2),
                         literal(source.source, "damn"),
                     ],
                     type_parameters: vec![],
@@ -468,14 +468,8 @@ mod tests {
                 op: Or,
                 right: Box::new(Expr::Call(Call {
                     arguments: vec![
-                        Expr::Literal(Literal {
-                            parsed: "echo".into(),
-                            segment: find_in(source.source, "echo")
-                        }),
-                        Expr::Literal(Literal {
-                            parsed: "damn".into(),
-                            segment: find_in(source.source, "damn")
-                        }),
+                        literal_nth(source.source, "echo", 1),
+                        literal(source.source, "damn"),
                     ],
                     type_parameters: vec![],
                 })),

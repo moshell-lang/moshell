@@ -211,7 +211,7 @@ mod tests {
                                     segment: find_in(content, "$b")
                                 })),
                             })),
-                            segment: find_in(content, "[ ($a == $b) ]"),
+                            segment: find_in(content, "($a == $b)"),
                         })),
                         segment: find_between(content, "[", "]"),
                     }))

@@ -64,7 +64,7 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
-    use crate::source::find_in;
+    use crate::source::{find_in, literal};
     use ast::value::{Literal, TemplateString};
     use ast::variable::VarReference;
     use ast::Expr;
@@ -81,7 +81,7 @@ mod tests {
             ast,
             Expr::VarReference(VarReference {
                 name: "VARIABLE",
-                segment: find_in(&source.source, "VARIABLE"),
+                segment: source.segment()
             })
         );
     }
@@ -108,23 +108,23 @@ mod tests {
             vec![
                 Expr::VarReference(VarReference {
                     name: "@",
-                    segment: find_in(&source.source, "@"),
+                    segment: find_in(&source.source, "$@"),
                 }),
                 Expr::VarReference(VarReference {
                     name: "^",
-                    segment: find_in(&source.source, "^"),
+                    segment: find_in(&source.source, "$^"),
                 }),
                 Expr::VarReference(VarReference {
                     name: "!",
-                    segment: find_in(&source.source, "!"),
+                    segment: find_in(&source.source, "$!"),
                 }),
                 Expr::VarReference(VarReference {
                     name: "!!",
-                    segment: find_in(&source.source, "!!"),
+                    segment: find_in(&source.source, "$!!"),
                 }),
                 Expr::VarReference(VarReference {
                     name: "$",
-                    segment: source.source.rfind('$').map(|p| p..p + 1).unwrap(),
+                    segment: find_in(&source.source, "$$"),
                 }),
             ]
         )
@@ -176,19 +176,16 @@ mod tests {
                 parts: vec![
                     Expr::VarReference(VarReference {
                         name: "VAR",
-                        segment: find_in(source.source, "VAR")
+                        segment: find_in(source.source, "${VAR}")
                     }),
-                    Expr::Literal(Literal {
-                        parsed: "IABLE".into(),
-                        segment: find_in(source.source, "IABLE")
-                    }),
+                    literal(source.source, "IABLE"),
                     Expr::VarReference(VarReference {
                         name: "LONG",
-                        segment: find_in(source.source, "LONG")
+                        segment: find_in(source.source, "${LONG}")
                     }),
                     Expr::VarReference(VarReference {
                         name: "VERY_LONG",
-                        segment: find_in(source.source, "VERY_LONG")
+                        segment: find_in(source.source, "${VERY_LONG}")
                     }),
                 ]
             })]
