@@ -33,11 +33,12 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
         self.cursor.advance(eox());
 
         let body = Box::new(self.expression_statement()?);
+        let segment = self.cursor.relative_pos(start).start..body.segment().end;
 
         Ok(While {
             condition,
             body,
-            segment: self.cursor.relative_pos(start).start..body.segment().end,
+            segment,
         })
     }
 
@@ -48,11 +49,9 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
         )?;
         self.cursor.advance(blanks());
         let body = Box::new(self.expression_statement()?);
+        let segment = self.cursor.relative_pos(start).start..body.segment().end;
 
-        Ok(Loop {
-            body,
-            segment: self.cursor.relative_pos(start).start..body.segment().end,
-        })
+        Ok(Loop { body, segment })
     }
 
     fn parse_for(&mut self) -> ParseResult<For<'a>> {
@@ -64,11 +63,12 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
         let kind = Box::new(self.parse_for_kind()?);
         self.cursor.advance(eox());
         let body = Box::new(self.expression_statement()?);
+        let segment = self.cursor.relative_pos(start).start..body.segment().end;
 
         Ok(For {
             kind,
             body,
-            segment: self.cursor.relative_pos(start).start..body.segment().end,
+            segment,
         })
     }
 }
@@ -198,11 +198,12 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
-    use crate::err::{find_between, find_in, rfind_in, ParseError};
     use crate::parse;
     use crate::parser::ParseResult;
 
+    use crate::source::{find_between, find_in, literal, rfind_in};
     use ast::call::Call;
     use ast::control_flow::{ConditionalFor, For, ForKind, Loop, RangeFor, While};
     use ast::group::{Block, Parenthesis};
@@ -312,14 +313,8 @@ mod tests {
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
                         arguments: vec![
-                            Expr::Literal(Literal {
-                                parsed: "echo".into(),
-                                segment: find_in(source.source, "date"),
-                            }),
-                            Expr::Literal(Literal {
-                                parsed: "test".into(),
-                                segment: find_in(source.source, "test"),
-                            })
+                            literal(source.source, "echo"),
+                            literal(source.source, "test"),
                         ],
                         type_parameters: vec![],
                     })],
@@ -535,12 +530,13 @@ mod tests {
                                 segment: find_in(source.source, "1")
                             })),
                         })),
+                        segment: find_in(source.source, "i=$i + 1")
                     }),
                     segment: find_in(source.source, ""),
                 })),
                 body: Box::new(Expr::Call(Call {
                     arguments: vec![
-                        Expr::Literal("echo".into()),
+                        literal(source.source, "echo"),
                         Expr::VarReference(VarReference {
                             name: "i",
                             segment: find_in(source.source, "(( var i=0; $i<10; i=$i + 1 ))")

@@ -49,12 +49,11 @@ impl<'a> UseAspect<'a> for Parser<'a> {
             .force(spaces().then(eox()), "expected new line or semicolon.")?;
 
         uses.append(&mut tail);
+        let last = *uses.last().unwrap();
 
         Ok(Expr::Use(Use {
             uses,
-            segment: self
-                .cursor
-                .relative_pos_ctx(start.value..uses.last().unwrap()),
+            segment: self.cursor.relative_pos_ctx(start.value..last),
         }))
     }
 }

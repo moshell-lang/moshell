@@ -2,7 +2,7 @@ use context::source::try_join_str;
 use lexer::token::TokenType::*;
 
 use crate::err::ParseErrorKind;
-use crate::moves::{like, of_type, repeat, MoveOperations, blanks, any, lookahead};
+use crate::moves::{any, blanks, like, lookahead, of_type, repeat, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::variable::VarReference;
 use ast::Expr;
@@ -16,7 +16,10 @@ pub trait VarReferenceAspect<'a> {
 impl<'a> VarReferenceAspect<'a> for Parser<'a> {
     /// Parses a variable reference.
     fn var_reference(&mut self) -> ParseResult<Expr<'a>> {
-        let start = self.cursor.advance(blanks().then(lookahead(any()))).unwrap();
+        let start = self
+            .cursor
+            .advance(blanks().then(lookahead(any())))
+            .unwrap();
         let bracket = self.cursor.advance(of_type(CurlyLeftBracket));
 
         let tokens = self
@@ -39,36 +42,29 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
             try_join_str(self.source.source, acc, t.value).unwrap()
         });
 
+        let mut segment = self.cursor.relative_pos_ctx(start.value..name);
+        segment.start -= 1;
+
         if let Some(bracket) = bracket {
             self.cursor.force_with(
                 of_type(CurlyRightBracket),
                 "Expected closing curly bracket.",
                 ParseErrorKind::Unpaired(self.cursor.relative_pos(bracket)),
             )?;
+            segment.end += 1;
         }
 
-        let end = self.cursor.peek();
-
-        let segment = self.cursor
-            .relative_pos_ctx(start)
-            .start..self
-            .cursor
-            .relative_pos_ctx(end)
-            .end;
-
-        Ok(Expr::VarReference(VarReference {
-            name,
-            segment,
-        }))
+        Ok(Expr::VarReference(VarReference { name, segment }))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::aspects::substitution::SubstitutionAspect;
-    use crate::err::{find_in, ParseError, ParseErrorKind};
+    use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
+    use crate::source::find_in;
     use ast::value::{Literal, TemplateString};
     use ast::variable::VarReference;
     use ast::Expr;
@@ -93,17 +89,20 @@ mod tests {
     #[test]
     fn dollar_is_literal() {
         let source = Source::unknown("$");
-        let ast = parse(source).expect("failed to parse");
-        assert_eq!(ast, vec![Expr::Literal(Literal {
-            parsed: "$".into(),
-            segment: source.segment()
-        })])
+        let ast = parse(source.clone()).expect("failed to parse");
+        assert_eq!(
+            ast,
+            vec![Expr::Literal(Literal {
+                parsed: "$".into(),
+                segment: source.segment()
+            })]
+        )
     }
 
     #[test]
     fn special_refs() {
         let source = Source::unknown("$@;$^;$!;$!!;$$");
-        let ast = parse(source).expect("failed to parse");
+        let ast = parse(source.clone()).expect("failed to parse");
         assert_eq!(
             ast,
             vec![
@@ -125,7 +124,7 @@ mod tests {
                 }),
                 Expr::VarReference(VarReference {
                     name: "$",
-                    segment: find_in(&source.source, "$"),
+                    segment: source.source.rfind('$').map(|p| p..p + 1).unwrap(),
                 }),
             ]
         )

@@ -338,7 +338,7 @@ impl<'a> Parser<'a> {
 
         if let Expr::Literal(literal) = &expr {
             if self.cursor.lookahead(bin_op()).is_some() {
-                let start_pos = self.cursor.relative_pos(literal.lexeme).start;
+                let start_pos = literal.segment.start;
                 if self
                     .binary_operation_right(expr, Parser::next_value)
                     .is_ok()

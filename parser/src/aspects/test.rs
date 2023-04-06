@@ -3,8 +3,8 @@ use crate::err::ParseErrorKind;
 use crate::moves::{of_type, spaces, times, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::test::{Not, Test};
-use ast::Expr;
 use ast::value::Literal;
+use ast::Expr;
 use context::source::SourceSegmentHolder;
 use lexer::token::TokenType::{SquaredLeftBracket, SquaredRightBracket};
 use lexer::token::{Token, TokenType};
@@ -29,10 +29,11 @@ impl<'a> TestAspect<'a> for Parser<'a> {
             .force(of_type(TokenType::Not), "expected '!'")?
             .value;
         let underlying = Box::new(parse_next(self)?);
+        let segment = self.cursor.relative_pos(lexeme).start..underlying.segment().end;
 
         Ok(Expr::Not(Not {
             underlying,
-            segment: self.cursor.relative_pos(lexeme).start..underlying.segment().end,
+            segment,
         }))
     }
 
@@ -73,11 +74,14 @@ impl<'a> TestAspect<'a> for Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn parse_test_call(&mut self, start: Token) -> ParseResult<Expr<'a>> {
+        let segment = self.cursor.relative_pos_ctx(start.clone());
         let call = self.call_arguments(
             Expr::Literal(Literal {
                 parsed: "test".into(),
-                segment: self.cursor.relative_pos_ctx(start.clone())
-            }), Vec::new());
+                segment: segment.start..segment.end + 1,
+            }),
+            Vec::new(),
+        );
 
         self.cursor.force_with(
             //expect trailing ']]'
@@ -91,9 +95,10 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::err::{find_between, find_in, ParseError, ParseErrorKind};
+    use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
+    use crate::source::{find_between, find_in, literal};
     use ast::call::Call;
     use ast::group::{Parenthesis, Subshell};
     use ast::operation::{BinaryOperation, BinaryOperator};
@@ -103,7 +108,6 @@ mod tests {
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
-    use crate::aspects::literal::literal;
 
     #[test]
     fn native_empty() {

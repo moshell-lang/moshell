@@ -1,6 +1,7 @@
 use crate::aspects::r#type::TypeAspect;
 use ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use ast::Expr;
+use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
 
 use crate::err::ParseErrorKind;
@@ -67,10 +68,14 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
             .advance(blanks().then(of_type(TokenType::Colon)))
             .map(|_| self.parse_type())
             .transpose()?;
+        let mut segment = self.cursor.relative_pos_ctx(name.value);
+        if let Some(ty) = ty.as_ref() {
+            segment = segment.start..ty.segment().end;
+        }
         Ok(TypedVariable {
             name: name.value,
             ty,
-            segment: self.cursor.relative_pos_ctx(name..self.cursor.peek()),
+            segment,
         })
     }
 }
@@ -88,8 +93,9 @@ mod tests {
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
 
-    use crate::err::{find_in, ParseError};
+    use crate::err::ParseError;
     use crate::parser::Parser;
+    use crate::source::find_in;
 
     use super::*;
 

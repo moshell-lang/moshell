@@ -3,6 +3,7 @@ use crate::err::ParseErrorKind::{Expected, Unexpected};
 use crate::moves::{any, blanks, not, of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::r#type::{ByName, CallableType, SimpleType, Type};
+use context::source::SourceSegmentHolder;
 use lexer::token::TokenType::{
     FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket, SquaredLeftBracket,
     SquaredRightBracket, Unit,
@@ -40,9 +41,12 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         }
 
         if matches!(tpe, Type::Simple(..)) {
+            let output = self.parse_simple_or_unit()?;
             tpe = Type::Callable(CallableType {
                 params: vec![tpe],
                 output: Box::new(self.parse_simple_or_unit()?),
+                segment: self.cursor.relative_pos_ctx(first_token.clone()).start
+                    ..output.segment().end,
             })
         }
 
@@ -89,16 +93,17 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn parse_by_name(&mut self) -> ParseResult<ByName<'a>> {
-        self.cursor
+        let arrow = self
+            .cursor
             .force(of_type(FatArrow), "'=>' expected here.")?;
 
         //control case of => => A which is invalid
         self.cursor
             .force(spaces().then(not(of_type(FatArrow))), "unexpected '=>'")?;
 
-        Ok(ByName {
-            name: self.parse_type().map(Box::new)?,
-        })
+        let name = self.parse_type().map(Box::new)?;
+        let segment = self.cursor.relative_pos_ctx(arrow).start..name.segment().end;
+        Ok(ByName { name, segment })
     }
 
     fn unparenthesised_lambda_input_tip(
@@ -152,9 +157,11 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_lambda_with_inputs(&mut self, inputs: Vec<Type<'a>>) -> ParseResult<CallableType<'a>> {
+        let output = Box::new(self.parse_type()?);
         Ok(CallableType {
             params: inputs,
-            output: Box::new(self.parse_type()?),
+            output,
+            segment: Default::default(),
         })
     }
 
@@ -166,6 +173,7 @@ impl<'a> Parser<'a> {
             return Ok(Type::Simple(SimpleType {
                 name: name_token.value,
                 params: self.parse_type_parameter_list()?,
+                segment: self.cursor.relative_pos_ctx(name_token),
             }));
         }
 
@@ -198,8 +206,9 @@ mod tests {
     use crate::err::ParseError;
     use crate::err::ParseErrorKind::{Expected, Unexpected, Unpaired};
     use crate::parser::Parser;
+    use crate::source::find_in;
     use ast::r#type::{ByName, CallableType, SimpleType, Type};
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -207,10 +216,11 @@ mod tests {
         let content = "MyType";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source).parse_type(),
+            Parser::new(source.clone()).parse_type(),
             Ok(Type::Simple(SimpleType {
                 name: "MyType",
                 params: Vec::new(),
+                segment: source.segment(),
             }))
         );
     }
@@ -237,7 +247,7 @@ mod tests {
         let content = "MyType[A[X, Y[_], Z], B[C[D]]]";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source).parse_type(),
+            Parser::new(source.clone()).parse_type(),
             Ok(Type::Simple(SimpleType {
                 name: "MyType",
                 params: vec![
@@ -247,19 +257,24 @@ mod tests {
                             Type::Simple(SimpleType {
                                 name: "X",
                                 params: Vec::new(),
+                                segment: find_in(content, "X"),
                             }),
                             Type::Simple(SimpleType {
                                 name: "Y",
                                 params: vec![Type::Simple(SimpleType {
                                     name: "_",
                                     params: Vec::new(),
+                                    segment: find_in(content, "_"),
                                 })],
+                                segment: find_in(content, "Y[_]"),
                             }),
                             Type::Simple(SimpleType {
                                 name: "Z",
                                 params: Vec::new(),
+                                segment: find_in(content, "Z"),
                             }),
                         ],
+                        segment: find_in(content, "A[X, Y[_], Z]"),
                     }),
                     Type::Simple(SimpleType {
                         name: "B",
@@ -268,10 +283,14 @@ mod tests {
                             params: vec![Type::Simple(SimpleType {
                                 name: "D",
                                 params: Vec::new(),
+                                segment: find_in(content, "D"),
                             })],
+                            segment: find_in(content, "C[D]"),
                         })],
+                        segment: find_in(content, "B[C[D]]"),
                     }),
                 ],
+                segment: source.segment(),
             }))
         );
     }
@@ -324,16 +343,19 @@ mod tests {
         let content = "A => B";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source).parse_type(),
+            Parser::new(source.clone()).parse_type(),
             Ok(Type::Callable(CallableType {
                 params: vec![Type::Simple(SimpleType {
                     name: "A",
                     params: Vec::new(),
+                    segment: find_in(content, "A"),
                 })],
                 output: Box::new(Type::Simple(SimpleType {
                     name: "B",
                     params: Vec::new(),
+                    segment: find_in(content, "B"),
                 })),
+                segment: source.segment(),
             }))
         );
     }
@@ -348,7 +370,9 @@ mod tests {
                 name: Box::new(Type::Simple(SimpleType {
                     name: "B",
                     params: Vec::new(),
+                    segment: find_in(content, "B"),
                 })),
+                segment: 1..content.len(),
             }))
         );
     }
@@ -372,14 +396,17 @@ mod tests {
         let content = "=> (=> B)";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source).parse_type(),
+            Parser::new(source.clone()).parse_type(),
             Ok(Type::ByName(ByName {
                 name: Box::new(Type::ByName(ByName {
                     name: Box::new(Type::Simple(SimpleType {
                         name: "B",
                         params: Vec::new(),
-                    }))
-                }))
+                        segment: find_in(content, "B"),
+                    })),
+                    segment: find_in(content, "=> B"),
+                })),
+                segment: source.segment(),
             }))
         );
     }
@@ -393,6 +420,7 @@ mod tests {
             Ok(Type::Simple(SimpleType {
                 name: "A",
                 params: Vec::new(),
+                segment: find_in(content, "A"),
             }))
         );
     }
@@ -402,13 +430,15 @@ mod tests {
         let content = "() => B";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source).parse_type(),
+            Parser::new(source.clone()).parse_type(),
             Ok(Type::Callable(CallableType {
                 params: vec![],
                 output: Box::new(Type::Simple(SimpleType {
                     name: "B",
                     params: Vec::new(),
+                    segment: find_in(content, "B"),
                 })),
+                segment: source.segment(),
             }))
         );
     }
@@ -428,13 +458,15 @@ mod tests {
         let content = "A => ()";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source).parse_type(),
+            Parser::new(source.clone()).parse_type(),
             Ok(Type::Callable(CallableType {
                 params: vec![Type::Simple(SimpleType {
                     name: "A",
                     params: Vec::new(),
+                    segment: find_in(content, "A"),
                 })],
                 output: Box::new(Type::Unit),
+                segment: source.segment(),
             }))
         );
     }
@@ -444,26 +476,31 @@ mod tests {
         let content = "(A, B, C) => D";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source).parse_type(),
+            Parser::new(source.clone()).parse_type(),
             Ok(Type::Callable(CallableType {
                 params: vec![
                     Type::Simple(SimpleType {
                         name: "A",
                         params: Vec::new(),
+                        segment: find_in(content, "A"),
                     }),
                     Type::Simple(SimpleType {
                         name: "B",
                         params: Vec::new(),
+                        segment: find_in(content, "B"),
                     }),
                     Type::Simple(SimpleType {
                         name: "C",
                         params: Vec::new(),
+                        segment: find_in(content, "C"),
                     }),
                 ],
                 output: Box::new(Type::Simple(SimpleType {
                     name: "D",
                     params: Vec::new(),
+                    segment: find_in(content, "D"),
                 })),
+                segment: source.segment(),
             }))
         );
     }
@@ -472,7 +509,7 @@ mod tests {
     fn chained_lambdas() {
         let content = "((A => B) => C) => D";
         let source = Source::unknown(content);
-        let ast = Parser::new(source).parse_type();
+        let ast = Parser::new(source.clone()).parse_type();
         assert_eq!(
             ast,
             Ok(Type::Callable(CallableType {
@@ -481,21 +518,28 @@ mod tests {
                         params: vec![Type::Simple(SimpleType {
                             name: "A",
                             params: Vec::new(),
+                            segment: find_in(content, "A"),
                         }),],
                         output: Box::new(Type::Simple(SimpleType {
                             name: "B",
                             params: Vec::new(),
+                            segment: find_in(content, "B"),
                         })),
+                        segment: find_in(content, "A => B"),
                     })],
                     output: Box::new(Type::Simple(SimpleType {
                         name: "C",
                         params: Vec::new(),
+                        segment: find_in(content, "C"),
                     })),
+                    segment: find_in(content, "(A => B) => C"),
                 })],
                 output: Box::new(Type::Simple(SimpleType {
                     name: "D",
                     params: Vec::new(),
+                    segment: find_in(content, "D"),
                 })),
+                segment: source.segment(),
             }))
         );
     }
@@ -520,7 +564,7 @@ mod tests {
     fn parenthesised_lambda_input() {
         let content = "(A, B, C) => D => E";
         let source = Source::unknown(content);
-        let ast = Parser::new(source).parse_type();
+        let ast = Parser::new(source.clone()).parse_type();
         assert_eq!(
             ast,
             Ok(Type::Callable(CallableType {
@@ -528,26 +572,33 @@ mod tests {
                     Type::Simple(SimpleType {
                         name: "A",
                         params: Vec::new(),
+                        segment: find_in(content, "A")
                     }),
                     Type::Simple(SimpleType {
                         name: "B",
                         params: Vec::new(),
+                        segment: find_in(content, "B")
                     }),
                     Type::Simple(SimpleType {
                         name: "C",
                         params: Vec::new(),
+                        segment: find_in(content, "C")
                     }),
                 ],
                 output: Box::new(Type::Callable(CallableType {
                     params: vec![Type::Simple(SimpleType {
                         name: "D",
-                        params: Vec::new()
+                        params: Vec::new(),
+                        segment: find_in(content, "D")
                     })],
                     output: Box::new(Type::Simple(SimpleType {
                         name: "E",
-                        params: Vec::new()
+                        params: Vec::new(),
+                        segment: find_in(content, "E")
                     })),
+                    segment: find_in(content, "D => E")
                 })),
+                segment: source.segment(),
             }))
         );
     }

@@ -3,6 +3,7 @@ use ast::Expr;
 use context::source::Source;
 use parser::err::{ParseError, ParseErrorKind, ParseReport};
 use parser::parse;
+use parser::source::{literal, literal_nth};
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -14,12 +15,15 @@ fn repos_delimiter_stack() {
     echo end\n\
     val n=9!3";
     let source = Source::unknown(content);
-    let report = parse(source);
+    let report = parse(source.clone());
     assert_eq!(
         report,
         ParseReport {
             expr: vec![Expr::Call(Call {
-                arguments: vec![Expr::Literal("echo".into()), Expr::Literal("end".into())],
+                arguments: vec![
+                    literal_nth(source.source, "echo", 2),
+                    literal(source.source, "end")
+                ],
                 type_parameters: Vec::new()
             })],
             errors: vec![

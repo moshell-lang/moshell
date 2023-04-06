@@ -27,9 +27,10 @@ impl<'a> DetachedAspect<'a> for Parser<'a> {
                 );
             }
             let underlying = Box::new(underlying);
+            let segment = underlying.segment().start..self.cursor.relative_pos(first).end;
             return Ok(Expr::Detached(Detached {
                 underlying,
-                segment: self.cursor.relative_pos(first).start..underlying.segment().end,
+                segment,
             }));
         }
         Ok(underlying)
@@ -40,16 +41,16 @@ impl<'a> DetachedAspect<'a> for Parser<'a> {
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use crate::aspects::literal::literal;
     use ast::call::{Call, Detached};
     use ast::group::Block;
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
 
+    use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
-    use crate::err::{find_between, find_in, ParseError};
     use crate::parse;
     use crate::parser::ParseResult;
+    use crate::source::{find_between, find_in, literal};
 
     #[test]
     fn twice_derived() {

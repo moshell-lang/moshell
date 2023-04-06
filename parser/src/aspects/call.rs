@@ -58,7 +58,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         self.cursor.advance(next());
         let callee = Expr::Literal(Literal {
             parsed: value.into(),
-            segment: self.cursor.relative_pos(identifier),
+            segment: self.cursor.relative_pos(value),
         });
         let type_parameters = self.parse_type_parameter_list()?;
         if let Some(open_parenthesis) = self.cursor.advance(of_type(TokenType::RoundedLeftBracket))
@@ -69,7 +69,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
                 name: value,
                 arguments,
                 type_parameters,
-                segment: self.cursor.relative_pos(identifier).start
+                segment: self.cursor.relative_pos(value).start
                     ..self.cursor.relative_pos(self.cursor.peek()).end, // FIXME
             }))
         } else if self
@@ -82,7 +82,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
                 args: vec![TypedVariable {
                     name: value,
                     ty: None,
-                    segment: self.cursor.relative_pos(identifier).start..body.segment().end,
+                    segment: self.cursor.relative_pos(value).start..body.segment().end,
                 }],
                 body,
             }))
@@ -223,10 +223,10 @@ mod tests {
     use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
 
-    use crate::aspects::literal::literal;
-    use crate::err::{find_in, ParseError, ParseErrorKind};
+    use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
+    use crate::source::{find_between, find_in, literal, literal_nth};
     use ast::call::{Call, ProgrammaticCall};
     use ast::r#type::{SimpleType, Type};
     use ast::value::Literal;
@@ -277,10 +277,10 @@ mod tests {
                     literal(content, "echo"),
                     literal(content, "how"),
                     literal(content, "!"),
-                    literal(content, "how"),
+                    literal_nth(content, "how", 1),
                     literal(content, "are"),
                     literal(content, "you"),
-                    literal(content, "!"),
+                    literal_nth(content, "!", 1),
                 ],
                 type_parameters: vec![],
             })]
@@ -356,7 +356,7 @@ mod tests {
     fn empty_constructor() {
         let source = Source::unknown("Foo()");
         let source2 = Source::unknown("Foo( )");
-        let expr = parse(source).expect("Failed to parse");
+        let expr = parse(source.clone()).expect("Failed to parse");
         let expr2 = parse(source2).expect("Failed to parse");
         let expected = vec![Expr::ProgrammaticCall(ProgrammaticCall {
             name: "Foo",
@@ -400,7 +400,7 @@ mod tests {
                 name: "Foo",
                 arguments: vec![
                     literal(source.source, "this"),
-                    literal(source.source, "is"),
+                    literal_nth(source.source, "is", 1),
                     literal(source.source, "fine"),
                 ],
                 type_parameters: vec![],
@@ -420,7 +420,7 @@ mod tests {
                 arguments: vec![
                     Expr::Literal(Literal {
                         parsed: "===\ntesting something\n===".into(),
-                        segment: source.segment()
+                        segment: find_between(source.source, "'", "'")
                     }),
                     literal(source.source, "c"),
                 ],

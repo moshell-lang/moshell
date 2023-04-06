@@ -155,9 +155,9 @@ mod tests {
     use context::source::{Source, SourceSegmentHolder};
 
     use crate::aspects::binary_operation::BinaryOperationsAspect;
-    use crate::aspects::literal::literal;
-    use crate::err::{find_between, find_in, ParseError, ParseErrorKind};
+    use crate::err::{ParseError, ParseErrorKind};
     use crate::parser::Parser;
+    use crate::source::{find_between, find_in, find_in_nth, literal, literal_nth};
     use ast::call::Call;
     use ast::group::{Parenthesis, Subshell};
     use ast::operation::BinaryOperation;
@@ -320,18 +320,18 @@ mod tests {
                         left: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Literal(Literal {
                                 parsed: 7.into(),
-                                segment: find_in(source.source, "7")
+                                segment: find_in_nth(source.source, "7", 2)
                             })),
                             op: Modulo,
                             right: Box::new(Expr::Literal(Literal {
                                 parsed: 4.into(),
-                                segment: find_in(source.source, "4")
+                                segment: find_in_nth(source.source, "4", 1)
                             })),
                         })),
                         op: EqualEqual,
                         right: Box::new(Expr::Literal(Literal {
                             parsed: 3.into(),
-                            segment: find_in(source.source, "3")
+                            segment: find_in_nth(source.source, "3", 1)
                         })),
                     })),
                 })),
@@ -339,7 +339,7 @@ mod tests {
                 right: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Literal(Literal {
                         parsed: 7.into(),
-                        segment: find_in(source.source, "7")
+                        segment: find_in_nth(source.source, "7", 3)
                     })),
                     op: EqualEqual,
                     right: Box::new(Expr::Literal(Literal {
@@ -422,7 +422,7 @@ mod tests {
                         op: And,
                         right: Box::new(Expr::Call(Call {
                             arguments: vec![
-                                literal(source.source, "echo"),
+                                literal_nth(source.source, "echo", 2),
                                 literal(source.source, "world"),
                             ],
                             type_parameters: vec![],
@@ -433,7 +433,7 @@ mod tests {
                 op: Or,
                 right: Box::new(Expr::Call(Call {
                     arguments: vec![
-                        literal(source.source, "echo"),
+                        literal_nth(source.source, "echo", 3),
                         literal(source.source, "damn"),
                     ],
                     type_parameters: vec![],

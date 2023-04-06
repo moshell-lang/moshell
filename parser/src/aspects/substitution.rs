@@ -64,10 +64,10 @@ mod tests {
     use ast::substitution::{Substitution, SubstitutionKind};
     use ast::Expr;
 
-    use crate::aspects::literal::literal;
-    use crate::err::{find_in, ParseError, ParseErrorKind};
+    use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
+    use crate::source::{find_in, literal};
     use ast::group::{Block, Parenthesis, Subshell};
     use ast::operation::{BinaryOperation, BinaryOperator};
     use ast::value::Literal;
@@ -122,10 +122,7 @@ mod tests {
                                 Expr::Substitution(Substitution {
                                     underlying: Subshell {
                                         expressions: vec![Expr::Call(Call {
-                                            arguments: vec![Expr::Literal(Literal {
-                                                parsed: "pwd".into(),
-                                                segment: find_in(source.source, "pwd"),
-                                            })],
+                                            arguments: vec![literal(source.source, "pwd")],
                                             type_parameters: vec![],
                                         })],
                                         segment: find_in(source.source, "(pwd)")

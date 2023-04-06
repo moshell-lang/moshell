@@ -40,7 +40,6 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
     fn redirection(&mut self) -> ParseResult<Redir<'a>> {
         self.cursor.advance(spaces());
         let mut token = self.cursor.next()?;
-        println!("token: {:?}", token);
         // Parse if present the redirected file descriptor
         let fd = match token.token_type {
             TokenType::Ampersand => {
@@ -97,7 +96,6 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
         }
 
         let operand = self.next_value()?;
-        println!("peek: {:?}", self.cursor.peek());
         Ok(Redir {
             fd,
             operator,
@@ -176,13 +174,13 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod test {
-    use context::source::{Source, SourceSegmentHolder};
+    use context::source::Source;
     use pretty_assertions::assert_eq;
 
     use crate::aspects::call::CallAspect;
-    use crate::err::find_in;
     use crate::parse;
     use crate::parser::Parser;
+    use crate::source::{find_in, literal};
     use ast::call::{Call, Redir, RedirFd, RedirOp, Redirected};
     use ast::group::Block;
     use ast::value::Literal;
@@ -192,26 +190,18 @@ mod test {
     fn expr_redirection() {
         let content = "{ls; cd;} > /tmp/out";
         let source = Source::unknown(content);
-        let parsed = parse(source).expect("Failed to parse");
+        let parsed = parse(source.clone()).expect("Failed to parse");
         assert_eq!(
             parsed,
             vec![Expr::Redirected(Redirected {
                 expr: Box::new(Expr::Block(Block {
                     expressions: vec![
                         Expr::Call(Call {
-                            arguments: vec![Expr::Literal(Literal {
-                                parsed: "ls",
-                                segment: find_in(content, "ls"),
-                            })],
+                            arguments: vec![literal(source.source, "ls")],
                             type_parameters: vec![],
                         }),
                         Expr::Call(Call {
-                            arguments: vec![
-                                Expr::Literal(Literal {
-                                    parsed: "cd",
-                                    segment: find_in(content, "cd"),
-                                })
-                            ],
+                            arguments: vec![literal(source.source, "cd")],
                             type_parameters: vec![],
                         }),
                     ],
@@ -220,14 +210,10 @@ mod test {
                 redirections: vec![Redir {
                     operator: RedirOp::Write,
                     fd: RedirFd::Default,
-                    operand: Expr::Literal(Literal {
-                        parsed: "/tmp/out",
-                        segment: find_in(content, "/tmp/out"),
-                    }),
+                    operand: literal(source.source, "/tmp/out"),
                     segment: find_in(content, "> /tmp/out"),
                 }],
-            }),
-            ]
+            }),]
         );
     }
 
@@ -235,18 +221,18 @@ mod test {
     fn call_redirection() {
         let content = "ls> /tmp/out";
         let source = Source::unknown(content);
-        let parsed = Parser::new(source).call().expect("Failed to parse");
+        let parsed = Parser::new(source.clone()).call().expect("Failed to parse");
         assert_eq!(
             parsed,
             Expr::Redirected(Redirected {
                 expr: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("ls".into())],
+                    arguments: vec![literal(source.source, "ls")],
                     type_parameters: vec![],
                 })),
                 redirections: vec![Redir {
                     fd: RedirFd::Default,
                     operator: RedirOp::Write,
-                    operand: Expr::Literal("/tmp/out".into()),
+                    operand: literal(source.source, "/tmp/out"),
                     segment: find_in(content, "> /tmp/out"),
                 }],
             })

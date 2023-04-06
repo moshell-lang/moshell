@@ -8,8 +8,8 @@ use ast::value::{Literal, LiteralValue};
 use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
-use parser::err::find_in;
 use parser::parse;
+use parser::source::{find_in, find_in_nth, literal};
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -31,10 +31,13 @@ fn variable_type_and_initializer() {
             ty: Some(Type::Simple(SimpleType {
                 name: "int",
                 params: Vec::new(),
+                segment: find_in(source.source, "int"),
             })),
+            segment: find_in(source.source, "a"),
         },
         initializer: Some(Box::new(Expr::Literal(Literal {
             parsed: LiteralValue::Int(1),
+            segment: find_in(source.source, "1"),
         }))),
         segment: source.segment(),
     })];
@@ -52,16 +55,24 @@ fn lambda_in_val() {
             var: TypedVariable {
                 name: "x",
                 ty: None,
+                segment: find_in(source.source, "x"),
             },
             initializer: Some(Box::new(Expr::LambdaDef(LambdaDef {
                 args: vec![TypedVariable {
                     name: "a",
                     ty: None,
+                    segment: find_in(source.source, "a"),
                 },],
                 body: Box::new(Expr::Binary(BinaryOperation {
-                    left: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                    left: Box::new(Expr::VarReference(VarReference {
+                        name: "a",
+                        segment: find_in(source.source, "$a")
+                    })),
                     op: BinaryOperator::Plus,
-                    right: Box::new(Expr::VarReference(VarReference { name: "b" })),
+                    right: Box::new(Expr::VarReference(VarReference {
+                        name: "b",
+                        segment: find_in(source.source, "$b")
+                    })),
                 })),
             }))),
             segment: source.segment(),
@@ -72,15 +83,21 @@ fn lambda_in_val() {
 #[test]
 fn lambda_empty_params() {
     let source = Source::unknown("() => $a + $b");
-    let parsed = parse(source).expect("Failed to parse.");
+    let parsed = parse(source.clone()).expect("Failed to parse.");
     assert_eq!(
         parsed,
         vec![Expr::LambdaDef(LambdaDef {
             args: vec![],
             body: Box::new(Expr::Binary(BinaryOperation {
-                left: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                left: Box::new(Expr::VarReference(VarReference {
+                    name: "a",
+                    segment: find_in(source.source, "$a")
+                })),
                 op: BinaryOperator::Plus,
-                right: Box::new(Expr::VarReference(VarReference { name: "b" })),
+                right: Box::new(Expr::VarReference(VarReference {
+                    name: "b",
+                    segment: find_in(source.source, "$b")
+                })),
             })),
         })]
     );
@@ -89,18 +106,23 @@ fn lambda_empty_params() {
 #[test]
 fn lambda_in_classic_call() {
     let source = Source::unknown("echo a => $a + $b");
-    let parsed = parse(source).expect("Failed to parse.");
+    let parsed = parse(source.clone()).expect("Failed to parse.");
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
             type_parameters: Vec::new(),
             arguments: vec![
-                Expr::Literal("echo".into()),
-                Expr::Literal("a".into()),
-                Expr::Literal("=>".into()),
-                Expr::VarReference(VarReference { name: "a" }),
-                Expr::Literal("+".into()),
-                Expr::VarReference(VarReference { name: "b" }),
+                literal(source.source, "a"),
+                literal(source.source, "=>"),
+                Expr::VarReference(VarReference {
+                    name: "a",
+                    segment: find_in(source.source, "$a")
+                }),
+                literal(source.source, "+"),
+                Expr::VarReference(VarReference {
+                    name: "b",
+                    segment: find_in(source.source, "$b")
+                }),
             ]
         })]
     );
@@ -109,7 +131,7 @@ fn lambda_in_classic_call() {
 #[test]
 fn lambda_one_arg() {
     let source = Source::unknown("calc(n => $n * $n)");
-    let parsed = parse(source).expect("Failed to parse.");
+    let parsed = parse(source.clone()).expect("Failed to parse.");
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
@@ -118,14 +140,22 @@ fn lambda_one_arg() {
                 args: vec![TypedVariable {
                     name: "n",
                     ty: None,
+                    segment: find_in(source.source, "n"),
                 }],
                 body: Box::new(Expr::Binary(BinaryOperation {
-                    left: Box::new(Expr::VarReference(VarReference { name: "n" })),
+                    left: Box::new(Expr::VarReference(VarReference {
+                        name: "n",
+                        segment: find_in_nth(source.source, "$n", 1)
+                    })),
                     op: BinaryOperator::Times,
-                    right: Box::new(Expr::VarReference(VarReference { name: "n" })),
+                    right: Box::new(Expr::VarReference(VarReference {
+                        name: "n",
+                        segment: find_in_nth(source.source, "$n", 2)
+                    })),
                 })),
             })],
             type_parameters: vec![],
+            segment: source.segment(),
         })]
     );
 }
@@ -133,7 +163,7 @@ fn lambda_one_arg() {
 #[test]
 fn lambda_in_pfc() {
     let source = Source::unknown("calc(() => $a + $b)");
-    let parsed = parse(source).expect("Failed to parse.");
+    let parsed = parse(source.clone()).expect("Failed to parse.");
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
@@ -141,12 +171,19 @@ fn lambda_in_pfc() {
             arguments: vec![Expr::LambdaDef(LambdaDef {
                 args: vec![],
                 body: Box::new(Expr::Binary(BinaryOperation {
-                    left: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                    left: Box::new(Expr::VarReference(VarReference {
+                        name: "a",
+                        segment: find_in(source.source, "$a")
+                    })),
                     op: BinaryOperator::Plus,
-                    right: Box::new(Expr::VarReference(VarReference { name: "b" })),
+                    right: Box::new(Expr::VarReference(VarReference {
+                        name: "b",
+                        segment: find_in(source.source, "$b")
+                    })),
                 })),
             })],
             type_parameters: vec![],
+            segment: source.segment(),
         })]
     );
 }
@@ -154,15 +191,19 @@ fn lambda_in_pfc() {
 #[test]
 fn identity_lambda() {
     let source = Source::unknown("a => $a");
-    let parsed = parse(source).expect("Failed to parse.");
+    let parsed = parse(source.clone()).expect("Failed to parse.");
     assert_eq!(
         parsed,
         vec![Expr::LambdaDef(LambdaDef {
             args: vec![TypedVariable {
                 name: "a",
                 ty: None,
+                segment: 0..1,
             }],
-            body: Box::new(Expr::VarReference(VarReference { name: "a" })),
+            body: Box::new(Expr::VarReference(VarReference {
+                name: "a",
+                segment: find_in(source.source, "$a")
+            })),
         })]
     );
 }
@@ -170,10 +211,13 @@ fn identity_lambda() {
 #[test]
 fn command_echo() {
     let source = Source::unknown("echo hello");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
 
     let expected = vec![Expr::Call(Call {
-        arguments: vec![Expr::Literal("echo".into()), Expr::Literal("hello".into())],
+        arguments: vec![
+            literal(source.source, "echo"),
+            literal(source.source, "hello"),
+        ],
         type_parameters: Vec::new(),
     })];
     assert_eq!(parsed, expected);
@@ -182,11 +226,11 @@ fn command_echo() {
 #[test]
 fn command_starting_with_arg() {
     let source = Source::unknown("- W");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
-            arguments: vec![Expr::Literal("-".into()), Expr::Literal("W".into())],
+            arguments: vec![literal(source.source, "-"), literal(source.source, "W")],
             type_parameters: Vec::new()
         })]
     );
@@ -195,20 +239,21 @@ fn command_starting_with_arg() {
 #[test]
 fn constructor_in_call() {
     let source = Source::unknown("echo Foo() Bar\\(\\)");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
             arguments: vec![
-                Expr::Literal("echo".into()),
+                literal(source.source, "echo"),
                 Expr::ProgrammaticCall(ProgrammaticCall {
                     name: "Foo",
                     arguments: vec![],
                     type_parameters: vec![],
+                    segment: find_in(source.source, "Foo()"),
                 }),
                 Expr::Literal(Literal {
-                    lexeme: "Bar\\(\\)",
                     parsed: "Bar()".into(),
+                    segment: find_in(source.source, "Bar\\(\\)")
                 }),
             ],
             type_parameters: Vec::new()
@@ -227,16 +272,17 @@ fn arithmetic_multiple_lines() {
             var: TypedVariable {
                 name: "n",
                 ty: None,
+                segment: find_in(source.source, "n"),
             },
             initializer: Some(Box::new(Expr::Binary(BinaryOperation {
                 left: Box::new(Expr::Literal(Literal {
-                    lexeme: "1",
                     parsed: 1.into(),
+                    segment: find_in(source.source, "1"),
                 })),
                 op: BinaryOperator::Plus,
                 right: Box::new(Expr::Literal(Literal {
-                    lexeme: "2",
                     parsed: 2.into(),
+                    segment: find_in(source.source, "2"),
                 })),
             }))),
             segment: 0..source.source.len(),
@@ -255,28 +301,25 @@ fn wildcard_redirect_or() {
             left: Box::new(Expr::Redirected(Redirected {
                 expr: Box::new(Expr::Call(Call {
                     arguments: vec![
-                        Expr::Literal("docker".into()),
-                        Expr::Literal("image".into()),
-                        Expr::Literal("inspect".into()),
-                        Expr::Literal("moshell:0.1".into()),
+                        literal(content, "docker"),
+                        literal(content, "image"),
+                        literal(content, "inspect"),
+                        literal(content, "moshell:0.1"),
                     ],
                     type_parameters: Vec::new()
                 })),
                 redirections: vec![Redir {
                     fd: RedirFd::Wildcard,
                     operator: RedirOp::Write,
-                    operand: Expr::Literal("/dev/null".into()),
+                    operand: literal(content, "/dev/null"),
                     segment: find_in(content, "&> /dev/null"),
                 }],
             })),
             op: BinaryOperator::Or,
             right: Box::new(Expr::Call(Call {
                 arguments: vec![
-                    Expr::Literal("echo".into()),
-                    Expr::Literal(Literal {
-                        lexeme: "'Unknown image!'",
-                        parsed: "Unknown image!".into(),
-                    }),
+                    literal(content, "echo"),
+                    literal(content, "'Unknown image!'"),
                 ],
                 type_parameters: Vec::new()
             })),
@@ -287,23 +330,24 @@ fn wildcard_redirect_or() {
 #[test]
 fn assign_iterable() {
     let source = Source::unknown("it = 1..10");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Assign(Assign {
             name: "it",
             value: Box::new(Expr::Range(Iterable::Range(NumericRange {
                 start: Box::new(Expr::Literal(Literal {
-                    lexeme: "1",
                     parsed: 1.into(),
+                    segment: find_in(source.source, "1")
                 })),
                 end: Box::new(Expr::Literal(Literal {
-                    lexeme: "10",
                     parsed: 10.into(),
+                    segment: find_in(source.source, "10")
                 })),
                 step: None,
                 upper_inclusive: false,
             }))),
+            segment: source.segment()
         })]
     );
 }
@@ -311,7 +355,7 @@ fn assign_iterable() {
 #[test]
 fn for_in_step_2_range() {
     let source = Source::unknown("for i in 1..=10..2; break");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::For(For {
@@ -319,21 +363,23 @@ fn for_in_step_2_range() {
                 receiver: "i",
                 iterable: Expr::Range(Iterable::Range(NumericRange {
                     start: Box::new(Expr::Literal(Literal {
-                        lexeme: "1",
                         parsed: 1.into(),
+                        segment: find_in(source.source, "1")
                     })),
                     end: Box::new(Expr::Literal(Literal {
-                        lexeme: "10",
                         parsed: 10.into(),
+                        segment: find_in(source.source, "10")
                     })),
                     step: Some(Box::new(Expr::Literal(Literal {
-                        lexeme: "2",
                         parsed: 2.into(),
+                        segment: find_in(source.source, "2")
                     }))),
                     upper_inclusive: true,
-                }))
+                })),
+                segment: find_in(source.source, "i in 1..=10..2")
             })),
             body: Box::new(Expr::Break),
+            segment: source.segment()
         })]
     );
 }
@@ -341,19 +387,16 @@ fn for_in_step_2_range() {
 #[test]
 fn call_not_assign() {
     let source = Source::unknown("a '=' 5");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
             arguments: vec![
-                Expr::Literal("a".into()),
+                literal(source.source, "a"),
+                literal(source.source, "'='"),
                 Expr::Literal(Literal {
-                    lexeme: "'='",
-                    parsed: "=".into(),
-                }),
-                Expr::Literal(Literal {
-                    lexeme: "5",
                     parsed: 5.into(),
+                    segment: find_in(source.source, "5")
                 }),
             ],
             type_parameters: Vec::new()
@@ -364,7 +407,7 @@ fn call_not_assign() {
 #[test]
 fn constructor_assign() {
     let source = Source::unknown("a = Foo(5)");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Assign(Assign {
@@ -372,11 +415,13 @@ fn constructor_assign() {
             value: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
                 name: "Foo",
                 arguments: vec![Expr::Literal(Literal {
-                    lexeme: "5",
                     parsed: 5.into(),
+                    segment: find_in(source.source, "5")
                 })],
                 type_parameters: vec![],
+                segment: find_in(source.source, "Foo(5)")
             })),
+            segment: source.segment()
         })]
     );
 }
@@ -384,33 +429,28 @@ fn constructor_assign() {
 #[test]
 fn programmatic_call() {
     let source = Source::unknown("ssh(localhost, 'ls -l', 8 / 2)");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
             name: "ssh",
             arguments: vec![
-                Expr::Literal(Literal {
-                    lexeme: "localhost",
-                    parsed: "localhost".into(),
-                }),
-                Expr::Literal(Literal {
-                    lexeme: "'ls -l'",
-                    parsed: "ls -l".into(),
-                }),
+                literal(source.source, "localhost"),
+                literal(source.source, "'ls -l'"),
                 Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Literal(Literal {
-                        lexeme: "8",
                         parsed: 8.into(),
+                        segment: find_in(source.source, "8")
                     })),
                     op: BinaryOperator::Divide,
                     right: Box::new(Expr::Literal(Literal {
-                        lexeme: "2",
                         parsed: 2.into(),
+                        segment: find_in(source.source, "2")
                     })),
                 }),
             ],
-            type_parameters: Vec::new()
+            type_parameters: Vec::new(),
+            segment: source.segment()
         })]
     );
 }
@@ -418,26 +458,23 @@ fn programmatic_call() {
 #[test]
 fn classic_call() {
     let source = Source::unknown("ssh localhost , 'ls -l' 8 / 2");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
             arguments: vec![
-                Expr::Literal("ssh".into()),
-                Expr::Literal("localhost".into()),
-                Expr::Literal(",".into()),
+                literal(source.source, "ssh"),
+                literal(source.source, "localhost"),
+                literal(source.source, ","),
+                literal(source.source, "'ls -l'"),
                 Expr::Literal(Literal {
-                    lexeme: "'ls -l'",
-                    parsed: "ls -l".into(),
-                }),
-                Expr::Literal(Literal {
-                    lexeme: "8",
                     parsed: 8.into(),
+                    segment: find_in(source.source, "8")
                 }),
-                Expr::Literal("/".into()),
+                literal(source.source, "/"),
                 Expr::Literal(Literal {
-                    lexeme: "2",
                     parsed: 2.into(),
+                    segment: find_in(source.source, "2")
                 }),
             ],
             type_parameters: Vec::new()
@@ -448,21 +485,18 @@ fn classic_call() {
 #[test]
 fn classic_call_no_regression() {
     let source = Source::unknown("test '=>' ,,here, ->..3 54a2 => 1..=9");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
             arguments: vec![
-                Expr::Literal("test".into()),
-                Expr::Literal(Literal {
-                    lexeme: "'=>'",
-                    parsed: "=>".into()
-                }),
-                Expr::Literal(",,here,".into()),
-                Expr::Literal("->..3".into()),
-                Expr::Literal("54a2".into()),
-                Expr::Literal("=>".into()),
-                Expr::Literal("1..=9".into()),
+                literal(source.source, "test"),
+                literal(source.source, "'=>'"),
+                literal(source.source, ",,here,"),
+                literal(source.source, "->..3"),
+                literal(source.source, "54a2"),
+                literal(source.source, "=>"),
+                literal(source.source, "1..=9"),
             ],
             type_parameters: Vec::new()
         })]

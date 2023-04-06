@@ -50,6 +50,7 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
 
         let segment = self.cursor.relative_pos(start.value).start
             ..fail_branch
+                .as_ref()
                 .map(|b| b.as_ref())
                 .unwrap_or(&success_branch)
                 .segment()
@@ -65,10 +66,10 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::aspects::literal::literal;
-    use crate::err::{find_between, find_in, rfind_between, ParseError, ParseErrorKind};
+    use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
+    use crate::source::{find_between, find_in, literal, rfind_between};
     use ast::call::Call;
     use ast::control_flow::If;
     use ast::group::Block;
@@ -111,7 +112,7 @@ mod tests {
         let content =
             "if echo a && [[ -f /file/exe ]]; echo test\n\n\nelse if [ $a ] \n;\n { $7 }; else $5";
         let source = Source::unknown(content.clone());
-        let ast = parse(source).expect("parse failed");
+        let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::If(If {
@@ -229,8 +230,8 @@ mod tests {
     #[test]
     fn if_else_as_value() {
         let content = "val x = if [ {date +\"%Y\"} < 2023 ]; \"bash\" else \"moshell\"";
-        let source = Source::unknown(content.clone());
-        let ast = parse(source).expect("parse failed");
+        let source = Source::unknown(content);
+        let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::VarDeclaration(VarDeclaration {
@@ -267,7 +268,7 @@ mod tests {
                     fail_branch: Some(Box::new(Expr::TemplateString(TemplateString {
                         parts: vec![literal(content, "moshell")],
                     }))),
-                    segment: Default::default(),
+                    segment: find_between(content, "if", "\"moshell\""),
                 }))),
                 segment: source.segment()
             }),]

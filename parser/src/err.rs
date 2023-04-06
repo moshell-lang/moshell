@@ -51,35 +51,13 @@ impl<'a> From<&'a str> for ErrorContext<'a> {
     }
 }
 
-pub fn find_in<'a>(source: &'a str, needle: &'a str) -> SourceSegment {
-    let start = source.find(needle).expect("String not found.");
-    start..start + needle.len()
-}
-
-///finds the nth match of needle in input source
-pub fn find_in_nth<'a>(source: &'a str, needle: &'a str, mut nth: usize) -> SourceSegment {
-    let mut result = find_in(source, needle);
-    while (nth = nth - 1) > 1 {
-        result = find_in(&source[result.start..], needle)
+impl<'a> From<std::ops::Range<&'a str>> for ErrorContext<'a> {
+    fn from(range: std::ops::Range<&'a str>) -> Self {
+        Self {
+            from: range.start,
+            to: range.end,
+        }
     }
-    result
-}
-
-pub fn rfind_in<'a>(source: &'a str, needle: &'a str) -> SourceSegment {
-    let start = source.rfind(needle).expect("String not found.");
-    start..start + needle.len()
-}
-
-pub fn find_between<'a>(source: &'a str, start: &'a str, end: &'a str) -> SourceSegment {
-    let start = source.find(start).expect("Start not found.");
-    let end = source[start..].find(end).expect("End not found.") + 1;
-    start..start + end
-}
-
-pub fn rfind_between<'a>(source: &'a str, start: &'a str, end: &'a str) -> SourceSegment {
-    let end = source.rfind(end).expect("End not found.");
-    let start = source[..end].rfind(start).expect("Start not found.");
-    start..end + 1
 }
 
 /// The kind of error that occurred.

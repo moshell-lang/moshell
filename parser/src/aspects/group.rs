@@ -5,6 +5,7 @@ use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::group::{Block, Parenthesis, Subshell};
 use ast::Expr;
+use context::source::SourceSegment;
 
 ///A parser aspect for parsing block expressions
 pub trait GroupAspect<'a> {
@@ -28,23 +29,24 @@ pub trait GroupAspect<'a> {
 impl<'a> GroupAspect<'a> for Parser<'a> {
     fn block(&mut self) -> ParseResult<Block<'a>> {
         let start = self.ensure_at_group_start(TokenType::CurlyLeftBracket)?;
-        let lexeme = start.value;
+        let (expressions, segment) =
+            self.sub_exprs(start, TokenType::CurlyRightBracket, Parser::statement)?;
         Ok(Block {
-            expressions: self.sub_exprs(start, TokenType::CurlyRightBracket, Parser::statement)?,
-            segment: self.cursor.relative_pos(lexeme).start..self.cursor.relative_pos(lexeme).end,
+            expressions,
+            segment,
         })
     }
 
     fn subshell(&mut self) -> ParseResult<Subshell<'a>> {
         let start = self.ensure_at_group_start(TokenType::RoundedLeftBracket)?;
+        let (expressions, segment) = self.sub_exprs(
+            start.clone(),
+            TokenType::RoundedRightBracket,
+            Parser::statement,
+        )?;
         Ok(Subshell {
-            expressions: self.sub_exprs(
-                start.clone(),
-                TokenType::RoundedRightBracket,
-                Parser::statement,
-            )?,
-            segment: self.cursor.relative_pos(start.value).start
-                ..self.cursor.relative_pos(start.value).end,
+            expressions,
+            segment,
         })
     }
 
@@ -82,11 +84,12 @@ impl<'a> Parser<'a> {
         start_token: Token,
         eog: TokenType,
         mut parser: F,
-    ) -> ParseResult<Vec<Expr<'a>>>
+    ) -> ParseResult<(Vec<Expr<'a>>, SourceSegment)>
     where
         F: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
     {
         let mut statements: Vec<Expr<'a>> = Vec::new();
+        let mut segment = self.cursor.relative_pos(start_token.value);
 
         //consume all heading spaces and end of expressions (\n or ;)
         self.cursor.advance(repeat(spaces().then(eox())));
@@ -94,7 +97,7 @@ impl<'a> Parser<'a> {
         //if we directly hit end of group, return an empty block.
         if self.cursor.advance(of_type(eog)).is_some() {
             self.delimiter_stack.pop_back();
-            return Ok(statements);
+            return Ok((statements, segment.start..segment.end + 1));
         }
 
         loop {
@@ -114,11 +117,12 @@ impl<'a> Parser<'a> {
             );
 
             //checks if this group expression is closed after the parsed expression
-            let closed = self.cursor.advance(spaces().then(of_type(eog))).is_some();
+            let closed = self.cursor.advance(spaces().then(of_type(eog)));
 
             //if the group is closed, then we stop looking for other expressions.
-            if closed {
+            if let Some(closing) = closed {
                 self.delimiter_stack.pop_back();
+                segment = segment.start..self.cursor.relative_pos(closing).end;
                 break;
             }
 
@@ -129,16 +133,15 @@ impl<'a> Parser<'a> {
             //but if not closed, expect the cursor to hit EOX.
             eox_res?;
         }
-        Ok(statements)
+        Ok((statements, segment))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::aspects::group::GroupAspect;
-    use crate::aspects::literal::literal;
-    use crate::err::{find_between, find_in};
     use crate::parser::Parser;
+    use crate::source::{find_between, find_in, literal};
     use ast::call::Call;
     use ast::group::{Block, Subshell};
     use ast::r#type::SimpleType;

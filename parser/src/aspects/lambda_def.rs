@@ -32,10 +32,10 @@ impl<'a> LambdaDefinitionAspect<'a> for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::aspects::lambda_def::LambdaDefinitionAspect;
-    use crate::aspects::literal::literal;
+    use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
-    use crate::err::{find_between, find_in, ParseError};
     use crate::parser::Parser;
+    use crate::source::{find_between, find_in, literal};
     use ast::call::Call;
     use ast::group::Block;
     use ast::lambda::LambdaDef;
@@ -59,7 +59,7 @@ mod tests {
                     TypedVariable {
                         name: "a",
                         ty: None,
-                        segment: Default::default(),
+                        segment: find_in(source.source, "a")
                     },
                     TypedVariable {
                         name: "b",
@@ -68,7 +68,7 @@ mod tests {
                             params: Vec::new(),
                             segment: find_in(source.source, "Int"),
                         })),
-                        segment: Default::default(),
+                        segment: find_in(source.source, "b: Int")
                     },
                 ],
                 body: Box::new(Expr::Binary(BinaryOperation {

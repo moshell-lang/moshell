@@ -43,6 +43,7 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
             .force(blanks().then(of_type(Equal)), "expected '='")
             .and_then(|_| self.statement())
             .map(Box::new)?;
+        let segment = self.cursor.relative_pos(fun).start..body.segment().end;
 
         Ok(FunctionDeclaration {
             name,
@@ -50,7 +51,7 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
             parameters: params,
             return_type: rtype,
             body,
-            segment: self.cursor.relative_pos(fun).start..body.segment().end,
+            segment,
         })
     }
 
@@ -59,10 +60,8 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
             .cursor
             .force(of_type(Return), "'return' keyword expected here")?;
         let expr = Box::new(self.value()?);
-        Ok(Return {
-            expr,
-            segment: self.cursor.relative_pos(start).start..expr.segment().end,
-        })
+        let segment = self.cursor.relative_pos(start).start..expr.segment().end;
+        Ok(Return { expr, segment })
     }
 }
 
@@ -180,8 +179,7 @@ impl<'a> Parser<'a> {
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use crate::aspects::literal::literal;
-    use crate::err::{find_between, find_in, ParseError, ParseErrorKind};
+    use crate::err::{ParseError, ParseErrorKind};
     use ast::call::Call;
     use ast::function::{FunctionDeclaration, FunctionParameter, Return};
     use ast::operation::{BinaryOperation, BinaryOperator};
@@ -192,6 +190,7 @@ mod tests {
     use context::source::{Source, SourceSegmentHolder};
 
     use crate::parse;
+    use crate::source::{find_between, find_in, literal};
 
     #[test]
     fn function_no_name() {

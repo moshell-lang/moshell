@@ -12,7 +12,7 @@ use crate::parser::{ParseResult, Parser};
 use ast::r#match::MatchPattern::{Literal, Template, VarRef, Wildcard};
 use ast::r#match::{Match, MatchArm, MatchPattern};
 use ast::Expr;
-use context::source::SourceSegment;
+use context::source::{SourceSegment, SourceSegmentHolder};
 
 /// A Parser Aspect for match expression-statement and value
 pub trait MatchAspect<'a> {
@@ -68,7 +68,7 @@ impl<'a> Parser<'a> {
         let closing_bracket = self.cursor.force_with(
             blanks().then(of_type(CurlyRightBracket)),
             "expected '}'",
-            ParseErrorKind::Unpaired(self.cursor.relative_pos(opening_bracket)),
+            ParseErrorKind::Unpaired(self.cursor.relative_pos(opening_bracket.clone())),
         )?;
         self.delimiter_stack.pop_back();
 
@@ -92,9 +92,7 @@ impl<'a> Parser<'a> {
         let guard = self.parse_guard()?;
         let body = self.parse_body(parse_arm)?;
 
-        let end = self.cursor.relative_pos_ctx(self.cursor.peek()).start;
-
-        let segment = start..end;
+        let segment = start..body.segment().end;
 
         Ok(MatchArm {
             val_name,
@@ -186,7 +184,8 @@ impl<'a> Parser<'a> {
 
         match self.cursor.peek().token_type {
             TokenType::Star => {
-                let segment = self.cursor.relative_pos_ctx(self.cursor.next()?);
+                let star = self.cursor.next()?;
+                let segment = self.cursor.relative_pos(star.value);
                 Ok(Wildcard(segment))
             }
             _ => match self.literal(LiteralLeniency::Strict)? {
@@ -223,10 +222,11 @@ mod tests {
     use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
 
-    use crate::aspects::literal::{literal, literal_expr};
+    use crate::aspects::literal::literal_expr;
+    use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
-    use crate::err::{find_between, find_in, find_in_nth, ParseError};
     use crate::parse;
+    use crate::source::{find_between, find_in, find_in_nth, literal};
     use ast::call::Call;
     use ast::group::Subshell;
     use ast::operation::{BinaryOperation, BinaryOperator};
@@ -253,12 +253,12 @@ mod tests {
                 var: TypedVariable {
                     name: "x",
                     ty: None,
-                    segment: Default::default(),
+                    segment: find_in(source.source, "x"),
                 },
                 initializer: Some(Box::new(Expr::Match(Match {
                     operand: Box::new(Expr::VarReference(VarReference {
                         name: "1",
-                        segment: Default::default(),
+                        segment: find_in(source.source, "$1"),
                     })),
                     arms: vec![
                         MatchArm {
@@ -317,7 +317,7 @@ mod tests {
                             )
                         },
                     ],
-                    segment: Default::default(),
+                    segment: find_between(source.source, "match $1", "}"),
                 }))),
                 segment: source.segment(),
             }),]
@@ -341,7 +341,7 @@ mod tests {
             vec![Expr::Match(Match {
                 operand: Box::new(Expr::VarReference(VarReference {
                     name: "1",
-                    segment: Default::default(),
+                    segment: find_in(content, "$1"),
                 })),
                 arms: vec![
                     MatchArm {
@@ -362,7 +362,7 @@ mod tests {
                                     literal(content, "test "),
                                     Expr::VarReference(VarReference {
                                         name: "2",
-                                        segment: Default::default()
+                                        segment: find_in(content, "$2"),
                                     }),
                                 ]
                             }),
@@ -393,7 +393,7 @@ mod tests {
                             expression: Box::new(Expr::Binary(BinaryOperation {
                                 left: Box::new(Expr::VarReference(VarReference {
                                     name: "a",
-                                    segment: Default::default(),
+                                    segment: find_in(content, "$a"),
                                 })),
                                 op: BinaryOperator::EqualEqual,
                                 right: Box::new(Expr::Literal(Literal {
@@ -465,7 +465,7 @@ mod tests {
                     }),
                     segment: find_in(source.source, "$a")
                 },],
-                segment: Default::default(),
+                segment: source.segment(),
             })]
         )
     }
@@ -480,7 +480,8 @@ mod tests {
            \n\n * \n\n => \n\n echo $it \n\n\
         \n\n }\
         ";
-        let ast = parse(Source::unknown(content)).expect("parse fail");
+        let source = Source::unknown(content);
+        let ast = parse(source.clone()).expect("parse fail");
 
         assert_eq!(
             ast,
@@ -518,7 +519,7 @@ mod tests {
                             }),
                             MatchPattern::VarRef(VarReference {
                                 name: "USER",
-                                segment: find_in(content, "USER"),
+                                segment: find_in(content, "$cUSER"),
                             }),
                             MatchPattern::Literal(Literal {
                                 parsed: "t x".into(),
@@ -561,13 +562,10 @@ mod tests {
                         guard: None,
                         body: Expr::Call(Call {
                             arguments: vec![
-                                Expr::Literal(Literal {
-                                    parsed: "echo".into(),
-                                    segment: find_in(content, "echo")
-                                }),
+                                literal(content, "echo"),
                                 Expr::VarReference(VarReference {
                                     name: "it",
-                                    segment: Default::default(),
+                                    segment: find_in(content, "$it"),
                                 }),
                             ],
                             type_parameters: vec![],
@@ -575,7 +573,7 @@ mod tests {
                         segment: find_in(content, "* \n\n => \n\n echo $it")
                     },
                 ],
-                segment: Default::default(),
+                segment: source.segment(),
             })]
         )
     }

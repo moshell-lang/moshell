@@ -1,3 +1,4 @@
+use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
 use src_macros::segment_holder;
 use std::fmt::{Debug, Display, Formatter, Write};
@@ -45,6 +46,17 @@ impl<'a> Display for Type<'a> {
             Type::Callable(p) => Display::fmt(p, f),
             Type::ByName(n) => Display::fmt(n, f),
             Type::Unit => write!(f, "Unit"),
+        }
+    }
+}
+
+impl SourceSegmentHolder for Type<'_> {
+    fn segment(&self) -> SourceSegment {
+        match self {
+            Type::Simple(m) => m.segment(),
+            Type::Callable(p) => p.segment(),
+            Type::ByName(n) => n.segment(),
+            Type::Unit => SourceSegment::default(),
         }
     }
 }
