@@ -1,10 +1,12 @@
 use crate::err::ParseErrorKind;
-use crate::moves::{of_type, MoveOperations, blanks, spaces, eox};
+
+use crate::moves::{of_type, MoveOperations, blanks, spaces, eox, repeat, not, lookahead, any, blank, of_types, like};
 use crate::parser::{ParseResult, Parser};
 use ast::Expr;
 use ast::r#use::{Import, ImportedSymbol, ImportList, Use};
+use context::source::{try_join_str};
 use lexer::token::TokenType;
-use lexer::token::TokenType::{As, At, Colon, CurlyLeftBracket, CurlyRightBracket, Identifier, Star};
+use lexer::token::TokenType::{As, At, Colon, Comma, CurlyLeftBracket, CurlyRightBracket, DoubleQuote, Identifier, Quote, Star};
 use crate::aspects::expr_list::ExpressionListAspect;
 
 /// Parser aspect to parse use statements
@@ -34,6 +36,7 @@ impl<'a> UseAspect<'a> for Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
+
     fn parse_import(&mut self) -> ParseResult<Import<'a>> {
         self.cursor.advance(blanks()); //consume blanks
 
@@ -59,11 +62,11 @@ impl<'a> Parser<'a> {
                 .parse_import_list(Vec::new())
                 .map(Import::List),
 
-            _ => self.parse_import_symbol_or_list()
+            _ => self.parse_import_with_path()
         }
     }
 
-    fn parse_import_list(&mut self, location: Vec<&'a str>) -> ParseResult<ImportList<'a>> {
+    fn parse_import_list(&mut self, path: Vec<&'a str>) -> ParseResult<ImportList<'a>> {
         let start = self.cursor.peek();
         self
             .parse_explicit_list(CurlyLeftBracket, CurlyRightBracket, Self::parse_import)
@@ -74,22 +77,59 @@ impl<'a> Parser<'a> {
                                                    ParseErrorKind::Expected("non-empty brackets".to_string()),
                     ))
                 }
-                Ok(ImportList { location, imports })
+                Ok(ImportList {
+                    path,
+                    imports,
+                })
             })
     }
 
-    fn parse_import_symbol_or_list(&mut self) -> ParseResult<Import<'a>> {
-        macro_rules! expect_identifier {
-            () => {
-                self.cursor.force_with(
-                    spaces().then(of_type(Identifier)),
-                    "identifier expected",
-                    ParseErrorKind::Expected("<identifier>".to_string()),
-                ).map(|t| t.value)
-            }
+    fn expect_identifier(&mut self) -> ParseResult<&'a str> {
+        self.cursor.advance(spaces()); //consume spaces
+
+        self.cursor.force_with(
+            of_type(Identifier),
+            "identifier expected, you may want to escape it",
+            ParseErrorKind::UnexpectedInContext(format!("\\{}", self.cursor.peek().value)),
+        ).map(|t| t.value)
+    }
+
+    //parse an identifier or a file path.
+    fn parse_first_path_element(&mut self) -> ParseResult<&'a str> {
+
+        //collects all tokens that can form a file path until `::`
+        let tokens = self.cursor.collect(repeat(
+            not(
+                blank()
+                    .or(eox())
+                    .or(like(TokenType::is_ponctuation))
+                    .or(of_types(&[Quote, DoubleQuote, Comma]))
+            )
+                .and_then(not(lookahead(
+                    of_type(Colon)
+                        .and_then(of_type(Colon))
+                )))
+                .and_then(any())
+        ));
+
+        let tokens = tokens.split_first();
+
+        if let Some((head, tail)) = tokens {
+            let first_path_element = tail
+                .into_iter()
+                .fold(head.value, |acc, t|
+                    try_join_str(self.source.source, acc, t.value)
+                        .expect("collect should be adjacent"),
+                );
+
+            return Ok(first_path_element)
         }
 
-        let mut identifiers = vec![expect_identifier!()?];
+        self.expected("identifier expected", ParseErrorKind::Expected("<identifier>".to_string()))
+    }
+
+    fn parse_import_with_path(&mut self) -> ParseResult<Import<'a>> {
+        let mut identifiers = vec![self.parse_first_path_element()?];
 
         while self.cursor.advance(
             blanks()
@@ -108,7 +148,7 @@ impl<'a> Parser<'a> {
                 self.cursor.next()?;
                 return Ok(Import::AllIn(identifiers))
             }
-            identifiers.push(expect_identifier!()?)
+            identifiers.push(self.expect_identifier()?)
         }
 
         let alias = self.cursor
@@ -118,11 +158,11 @@ impl<'a> Parser<'a> {
                     .then(of_type(Identifier))
             ).map(|t| t.value);
 
-        let (name, location) = identifiers.split_last().unwrap();
+        let (name, path) = identifiers.split_last().unwrap();
 
         Ok(Import::Symbol(ImportedSymbol {
             name,
-            location: location.to_vec(),
+            path: path.to_vec(),
             alias,
         }))
     }
@@ -149,11 +189,28 @@ mod tests {
                 import: Import::Symbol(ImportedSymbol {
                     name: "bar",
                     alias: None,
-                    location: vec!["std", "foo"],
+                    path: vec!["std", "foo"],
                 })
             })]
         )
     }
+
+    #[test]
+    fn import_with_file() {
+        let source = Source::unknown("use ../foo/bar/asm/std::foo::bar");
+        let result = parse(source).expect("parser failed");
+        assert_eq!(
+            result,
+            vec![Expr::Use(Use {
+                import: Import::Symbol(ImportedSymbol {
+                    name: "bar",
+                    alias: None,
+                    path: vec!["../foo/bar/asm/std", "foo"],
+                })
+            })]
+        )
+    }
+
 
     #[test]
     fn wrong_env_name() {
@@ -232,20 +289,20 @@ mod tests {
             result,
             vec![Expr::Use(Use {
                 import: Import::List(ImportList {
-                    location: vec![],
+                    path: vec![],
                     imports: vec![
                         Import::Symbol(ImportedSymbol {
-                            location: vec!["std"],
+                            path: vec!["std"],
                             name: "TOKEN",
                             alias: Some("X"),
                         }),
                         Import::Environment("A"),
                         Import::Environment("B"),
                         Import::List(ImportList {
-                            location: vec!["foo"],
+                            path: vec!["foo"],
                             imports: vec![
                                 Import::Symbol(ImportedSymbol {
-                                    location: vec![],
+                                    path: vec![],
                                     name: "my_function",
                                     alias: None,
                                 }),

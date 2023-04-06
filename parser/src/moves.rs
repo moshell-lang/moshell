@@ -51,6 +51,7 @@ impl<A: Move + Copy> MoveOperations<A> for A {
             right: other,
         }
     }
+
 }
 
 ///A Move that only move over one token and only if it satisfies its predicate.
@@ -276,8 +277,8 @@ pub(crate) struct AndThenMove<A: Move + Copy, B: Move + Copy> {
 
 impl<A: Move + Copy, B: Move + Copy> Move for AndThenMove<A, B> {
     fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
-    where
-        F: Fn(usize) -> Token<'a>,
+        where
+            F: Fn(usize) -> Token<'a>,
     {
         self.left
             .apply(&at, pos)

@@ -20,8 +20,8 @@ pub enum Import<'a> {
 
 #[derive(Debug, Clone, PartialEq, dbg_pls::DebugPls)]
 pub struct ImportList<'a> {
-    ///list of prefixed modules
-    pub location: Vec<&'a str>,
+    ///list of prefixed modules (with an optional file path at index 0 of the vec)
+    pub path: Vec<&'a str>,
 
     ///All the imports
     pub imports: Vec<Import<'a>>,
@@ -30,8 +30,9 @@ pub struct ImportList<'a> {
 ///An imported symbol. can be a constant, function, type or a module.
 #[derive(Debug, Clone, PartialEq, dbg_pls::DebugPls)]
 pub struct ImportedSymbol<'a> {
+
     ///list of prefixed modules
-    pub location: Vec<&'a str>,
+    pub path: Vec<&'a str>,
 
     ///The symbol's type
     pub name: &'a str,

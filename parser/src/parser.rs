@@ -25,7 +25,8 @@ use crate::cursor::ParserCursor;
 use crate::err::ParseErrorKind::Unexpected;
 use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
 use crate::moves::{
-    any, bin_op, blanks, eod, eox, like, next, of_type, of_types, repeat, spaces, MoveOperations,
+    any, bin_op, blanks, eod, eox, like, next,
+    of_type, of_types, repeat, spaces, MoveOperations,
 };
 use ast::range::Iterable;
 use ast::Expr;

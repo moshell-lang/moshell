@@ -221,8 +221,8 @@ impl TokenType {
                 | Less
                 | Greater
                 | Bar
-                | And
                 | Or
+                | And
                 | SquaredLeftBracket
                 | SquaredRightBracket
                 | RoundedLeftBracket
@@ -242,9 +242,9 @@ impl TokenType {
             Ampersand
                 | Less
                 | Greater
-                | And
-                | Or
                 | Bar
+                | Or
+                | And
                 | SquaredLeftBracket
                 | SquaredRightBracket
                 | RoundedLeftBracket
