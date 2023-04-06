@@ -1,10 +1,11 @@
 use crate::err::ParseErrorKind;
-use crate::moves::{eox, of_type, repeat, spaces, MoveOperations};
+use crate::moves::{of_type, MoveOperations, blanks, spaces, eox};
 use crate::parser::{ParseResult, Parser};
 use ast::Expr;
+use ast::r#use::{Import, ImportedSymbol, ImportList, Use};
 use lexer::token::TokenType;
-use lexer::token::TokenType::{Comma, Identifier};
-
+use lexer::token::TokenType::{As, At, Colon, CurlyLeftBracket, CurlyRightBracket, Identifier, Star};
+use crate::aspects::expr_list::ExpressionListAspect;
 
 /// Parser aspect to parse use statements
 pub trait UseAspect<'a> {
@@ -17,137 +18,256 @@ impl<'a> UseAspect<'a> for Parser<'a> {
         self.cursor
             .force(of_type(TokenType::Use), "expected 'use'")?;
 
-        //first identifier
-        let mut uses = vec![
-            self.cursor
-                .force(
-                    spaces().then(of_type(Identifier)),
-                    "expected at least one symbol",
-                )?
-                .value,
-        ];
+        let import = self.parse_import()?;
 
-        //then parse others if any
-        let mut tail: Vec<_> = self
-            .cursor
-            .collect(repeat(
-                spaces()
-                    .then(of_type(Comma))
-                    .then(spaces().then(of_type(Identifier))),
-            ))
-            .into_iter()
-            .filter(|t| t.token_type == Identifier)
-            .map(|t| t.value)
-            .collect();
+        self.cursor.advance(spaces()); //consume spaces
 
-        //look for any trailing ','
-        if self.cursor.lookahead(spaces().or(of_type(Comma))).is_some() {
-            return self.expected("Unexpected comma ','", ParseErrorKind::Unexpected);
-        }
-        self.cursor
-            .force(spaces().then(eox()), "expected new line or semicolon.")?;
+        if self.cursor.advance(spaces().then(eox()))
+            .is_none() {
+            return self.expected("expected new line or semicolon", ParseErrorKind::Expected("<new_line> or ';'".to_string()))
+        };
 
-        uses.append(&mut tail);
-
-        todo!();
-
-        // Ok(Expr::Use(Use {
-        //     uses
-        // }))
+        Ok(Expr::Use(Use {
+            import
+        }))
     }
 }
 
 impl<'a> Parser<'a> {
-    // fn parse_import(&mut self) -> ParseResult<Import<'a>> {
-    //     self.cursor.advance(blanks());
-    //
-    //     if self.cursor.peek().token_type == TokenType::At {
-    //         return Ok(Import::Environment(self.cursor.next()?.value));
-    //     }
-    //
-    //     let identifiers: Vec<_> = self.cursor
-    //         .collect(repeat(
-    //             (
-    //                 blanks().then(of_type(Identifier))
-    //             ).and_then(
-    //                 blanks().then(of_type(DotDot))
-    //             )
-    //         ))
-    //         .into_iter()
-    //         .filter(|t| t.token_type == Identifier)
-    //         .map(|t| t.value)
-    //         .collect();
-    //
-    //     if identifiers.is_empty() {
-    //         return self.expected(
-    //             "'use' statement needs at least one element.",
-    //             ParseErrorKind::Expected("<symbol>".to_string())
-    //         )
-    //     }
-    //
-    //     if self.cursor.advance(blanks().then(of_type(CurlyLeftBracket))).is_some() {
-    //         return self.parse_symbol_list(identifiers).map(Import::Symbols)
-    //     }
-    //
-    //     let (modules, name) = identifiers.split_last().unwrap();
-    //
-    //     let alias = self.cursor.force(of_type(TokenType::As))
-    //
-    //     Import::Symbols(vec![ImportedSymbol {
-    //         name,
-    //
-    //     }])
-    // }
+    fn parse_import(&mut self) -> ParseResult<Import<'a>> {
+        self.cursor.advance(blanks()); //consume blanks
 
-    // //parses a list of symbols ({Type1, foo, bar::*}) assuming that '{' is already parsed
-    // fn parse_symbol_list(&mut self, loc: Vec<&str>) -> ParseResult<Vec<ImportedSymbol<'a>>> {
-    //
-    // }
+        let pivot = self.cursor.peek();
+
+        match pivot.token_type {
+            At => {
+                //handle '@ENV_VARIABLE` expression
+                self.cursor.next()?;
+                let env_variable = self.cursor.force_with(
+                    spaces().then(of_type(Identifier)),
+                    "Environment variable name expected.",
+                    ParseErrorKind::Expected("<identifier>".to_string()),
+                )?.value;
+                Ok(Import::Environment(env_variable))
+            },
+            Star => Err(self.mk_parse_error(
+                "import all statement needs a symbol prefix.",
+                pivot,
+                ParseErrorKind::Expected("module or file path".to_string()),
+            )),
+            CurlyLeftBracket => self
+                .parse_import_list(Vec::new())
+                .map(Import::List),
+
+            _ => self.parse_import_symbol_or_list()
+        }
+    }
+
+    fn parse_import_list(&mut self, location: Vec<&'a str>) -> ParseResult<ImportList<'a>> {
+        let start = self.cursor.peek();
+        self
+            .parse_explicit_list(CurlyLeftBracket, CurlyRightBracket, Self::parse_import)
+            .and_then(|imports| {
+                if imports.is_empty() {
+                    return Err(self.mk_parse_error("empty brackets",
+                                                   start..self.cursor.peek(),
+                                                   ParseErrorKind::Expected("non-empty brackets".to_string()),
+                    ))
+                }
+                Ok(ImportList { location, imports })
+            })
+    }
+
+    fn parse_import_symbol_or_list(&mut self) -> ParseResult<Import<'a>> {
+        macro_rules! expect_identifier {
+            () => {
+                self.cursor.force_with(
+                    spaces().then(of_type(Identifier)),
+                    "identifier expected",
+                    ParseErrorKind::Expected("<identifier>".to_string()),
+                ).map(|t| t.value)
+            }
+        }
+
+        let mut identifiers = vec![expect_identifier!()?];
+
+        while self.cursor.advance(
+            blanks()
+                .then(of_type(Colon))
+                .then(of_type(Colon))
+        ).is_some() {
+            self.cursor.advance(blanks()); //consume blanks
+
+            let pivot = self.cursor.peek();
+            if pivot.token_type == CurlyLeftBracket {
+                return self
+                    .parse_import_list(identifiers)
+                    .map(Import::List)
+            }
+            if pivot.token_type == Star {
+                self.cursor.next()?;
+                return Ok(Import::AllIn(identifiers))
+            }
+            identifiers.push(expect_identifier!()?)
+        }
+
+        let alias = self.cursor
+            .advance(
+                spaces().then(of_type(As))
+                    .and_then(spaces())
+                    .then(of_type(Identifier))
+            ).map(|t| t.value);
+
+        let (name, location) = identifiers.split_last().unwrap();
+
+        Ok(Import::Symbol(ImportedSymbol {
+            name,
+            location: location.to_vec(),
+            alias,
+        }))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
-    use crate::parser::ParseResult;
+    use crate::parser::{Parser, ParseResult};
     use context::source::Source;
     use pretty_assertions::assert_eq;
+    use ast::Expr;
+    use ast::r#use::{Import, ImportedSymbol, ImportList, Use};
+    use crate::aspects::r#use::UseAspect;
 
-    // #[test]
-    // fn test_use() {
-    //     let source = Source::unknown("use TOKEN");
-    //     let result = parse(source).expect("parser failed");
-    //     // assert_eq!(
-    //     //     result,
-    //     //     vec![Expr::Use(Use {
-    //     //         uses: vec!["TOKEN"]
-    //     //     })]
-    //     // )
-    // }
-    //
-    // #[test]
-    // fn uses() {
-    //     let source = Source::unknown("use TOKEN,    A \\\n , B \\\n , C");
-    //     let result = parse(source).expect("parser failed");
-    //     // assert_eq!(
-    //     //     result,
-    //     //     vec![Expr::Use(Use {
-    //     //         uses: vec!["TOKEN", "A", "B", "C"]
-    //     //     })]
-    //     // )
-    // }
+    #[test]
+    fn simple_use() {
+        let source = Source::unknown("use std::foo::bar");
+        let result = parse(source).expect("parser failed");
+        assert_eq!(
+            result,
+            vec![Expr::Use(Use {
+                import: Import::Symbol(ImportedSymbol {
+                    name: "bar",
+                    alias: None,
+                    location: vec!["std", "foo"],
+                })
+            })]
+        )
+    }
+
+    #[test]
+    fn wrong_env_name() {
+        let source = Source::unknown("use @9");
+        let result = Parser::new(source.clone()).parse_use().expect_err("no error thrown");
+        assert_eq!(
+            result,
+            ParseError {
+                message: "Environment variable name expected.".to_string(),
+                kind: ParseErrorKind::Expected("<identifier>".to_string()),
+                position: source.source.len()..source.source.len(),
+            }
+        )
+    }
+
+
+    #[test]
+    fn list_use_aliased() {
+        let source = Source::unknown("use std::foo::{bar} as X");
+        let result = Parser::new(source.clone()).parse_use().expect_err("no error thrown");
+        assert_eq!(
+            result,
+            ParseError {
+                message: "expected new line or semicolon".to_string(),
+                kind: ParseErrorKind::Expected("<new_line> or ';'".to_string()),
+                position: source.source.find("as").map(|i| i..i + 2).unwrap(),
+            }
+        )
+    }
+
+    #[test]
+    fn use_empty_list() {
+        let source = Source::unknown("use {}");
+        let result = Parser::new(source.clone()).parse_use().expect_err("no error raised");
+        assert_eq!(
+            result,
+            ParseError {
+                message: "empty brackets".to_string(),
+                kind: ParseErrorKind::Expected("non-empty brackets".to_string()),
+                position: source.source.find("{}").map(|i| i..i + 2).unwrap(),
+            }
+        )
+    }
+
+    #[test]
+    fn use_all() {
+        let source = Source::unknown("use *");
+        let result = Parser::new(source.clone()).parse_use().expect_err("no error raised");
+        assert_eq!(
+            result,
+            ParseError {
+                message: "import all statement needs a symbol prefix.".to_string(),
+                kind: ParseErrorKind::Expected("module or file path".to_string()),
+                position: source.source.find("*").map(|i| i..i + 1).unwrap(),
+            }
+        )
+    }
+
+    #[test]
+    fn use_all_in() {
+        let source = Source::unknown("use std::*");
+        let result = Parser::new(source.clone()).parse_use().expect("parse fail");
+        assert_eq!(
+            result,
+            Expr::Use(Use {
+                import: Import::AllIn(vec!["std"])
+            })
+        )
+    }
+
+    #[test]
+    fn uses() {
+        let source = Source::unknown("use \n{std::TOKEN as X,    @A \n , @B \\\n , foo::{my_function}}");
+        let result = parse(source).expect("parser failed");
+        assert_eq!(
+            result,
+            vec![Expr::Use(Use {
+                import: Import::List(ImportList {
+                    location: vec![],
+                    imports: vec![
+                        Import::Symbol(ImportedSymbol {
+                            location: vec!["std"],
+                            name: "TOKEN",
+                            alias: Some("X"),
+                        }),
+                        Import::Environment("A"),
+                        Import::Environment("B"),
+                        Import::List(ImportList {
+                            location: vec!["foo"],
+                            imports: vec![
+                                Import::Symbol(ImportedSymbol {
+                                    location: vec![],
+                                    name: "my_function",
+                                    alias: None,
+                                }),
+                            ],
+                        }),
+                    ],
+                })
+            })]
+        )
+    }
 
     #[test]
     fn use_trailing_comma() {
-        let content = "use TOKEN, A, B, ";
+        let content = "use TOKEN, A";
         let source = Source::unknown(content);
         let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Err(ParseError {
-                message: "Unexpected comma ','".to_string(),
-                position: content.rfind(',').map(|p| p..p + 1).unwrap(),
-                kind: ParseErrorKind::Unexpected,
+                message: "expected new line or semicolon".to_string(),
+                position: content.find(',').map(|p| p..p + 1).unwrap(),
+                kind: ParseErrorKind::Expected("<new_line> or ';'".to_string()),
             })
         )
     }
@@ -160,9 +280,9 @@ mod tests {
         assert_eq!(
             result,
             Err(ParseError {
-                message: "expected at least one identifier".to_string(),
+                message: "identifier expected".to_string(),
                 position: content.len()..content.len(),
-                kind: ParseErrorKind::Unexpected,
+                kind: ParseErrorKind::Expected("<identifier>".to_string()),
             })
         )
     }

@@ -98,10 +98,10 @@ pub enum TokenType {
     Comma,
     #[assoc(str = ".")]
     Dot,
-    #[assoc(str = "...")]
-    Vararg,
     #[assoc(str = "..")]
     DotDot,
+    #[assoc(str = "...")]
+    Vararg,
 
     #[assoc(str = "|")]
     Bar,
