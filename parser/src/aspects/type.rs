@@ -2,15 +2,13 @@ use crate::aspects::expr_list::ExpressionListAspect;
 use crate::err::ParseErrorKind::{Expected, Unexpected};
 use crate::moves::{any, blanks, not, of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
+
 use ast::r#type::{ByName, CallableType, CastedExpr, SimpleType, Type};
 use ast::Expr;
-use lexer::token::TokenType::{
-    As, FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket, SquaredLeftBracket,
-    SquaredRightBracket, Unit,
-};
+use lexer::token::TokenType::*;
 use std::fmt::Write;
 
-///A parser aspect to parse all type declarations, such as lambdas, constant types, parametrized types and Unit
+///A parser aspect to parse all type declarations, such as lambdas, constant types, parametrized type and Unit
 pub trait TypeAspect<'a> {
     ///parse a lambda type signature, a constant or parametrized type or Unit.
     fn parse_type(&mut self) -> ParseResult<Type<'a>>;
@@ -27,7 +25,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         self.cursor.advance(blanks());
 
         let first_token = self.cursor.peek();
-        //if there's a parenthesis then the type is necessarily a lambda type
+        // if there's a parenthesis then the type is necessarily a lambda type
         let mut tpe = match first_token.token_type {
             RoundedLeftBracket => self.parse_parentheses()?,
             FatArrow => self.parse_by_name().map(Type::ByName)?,
@@ -138,7 +136,7 @@ impl<'a> Parser<'a> {
             return self.parse_lambda_with_inputs(inputs).map(Type::Callable);
         }
 
-        //there is no inputs (`()`) and no `=>` after, this is a Unit type
+        // there is no input (`()`) and no `=>` after, this is a Unit type
         if inputs.is_empty() {
             return Ok(Type::Unit);
         }
@@ -160,7 +158,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        rendered_tuple += ") => <type>";
+        rendered_tuple += ") => <types>";
         self.expected(
             "Tuples are not yet supported. A lambda declaration was expected here",
             Expected(rendered_tuple),
@@ -177,34 +175,40 @@ impl<'a> Parser<'a> {
     fn parse_simple_or_unit(&mut self) -> ParseResult<Type<'a>> {
         let name_token = self.cursor.advance(spaces().then(any())).unwrap();
 
-        let ttype = name_token.token_type;
-        if ttype == Identifier {
-            return Ok(Type::Simple(SimpleType {
+        return match name_token.token_type {
+            Identifier => Ok(Type::Simple(SimpleType {
                 name: name_token.value,
                 params: self.parse_type_parameter_list()?,
-            }));
-        }
+            })),
+            Unit => Ok(Type::Unit),
+            Nothing => Ok(Type::Nothing),
 
-        //Unit type can either be `Unit` or `()`
-        if ttype == Unit
-            || (ttype == RoundedLeftBracket
+            NewLine => self.expected_with(
+                "expected types",
+                name_token,
+                Expected("<types>".to_string()),
+            ),
+
+            x if x.is_closing_ponctuation() => self.expected_with(
+                "expected types",
+                name_token,
+                Expected("<types>".to_string()),
+            ),
+            x if (x == RoundedLeftBracket
                 && self
                     .cursor
                     .advance(spaces().then(of_type(RoundedRightBracket)))
-                    .is_some())
-        {
-            return Ok(Type::Unit);
-        }
+                    .is_some()) =>
+            {
+                return Ok(Type::Unit);
+            }
 
-        if ttype == NewLine || ttype.is_closing_ponctuation() {
-            return self.expected_with("expected type", name_token, Expected("<type>".to_string()));
-        }
-
-        self.expected_with(
-            &format!("'{}' is not a valid type identifier.", &name_token.value),
-            name_token.value,
-            Unexpected,
-        )
+            _ => self.expected_with(
+                &format!("'{}' is not a valid type identifier.", &name_token.value),
+                name_token.value,
+                Unexpected,
+            ),
+        };
     }
 }
 
@@ -527,7 +531,7 @@ mod tests {
                 message: "Tuples are not yet supported. A lambda declaration was expected here"
                     .to_string(),
                 position: content.len()..content.len(),
-                kind: Expected("(A, B, C) => <type>".to_string()),
+                kind: Expected("(A, B, C) => <types>".to_string()),
             })
         );
     }

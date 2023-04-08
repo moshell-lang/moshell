@@ -23,6 +23,7 @@ impl<'a> Lexer<'a> {
             'r' => self.emit_keyword("eturn", TokenType::Return),
             'u' => self.emit_keyword("se", TokenType::Use),
             'U' => self.emit_keyword("nit", TokenType::Unit),
+            'N' => self.emit_keyword("othing", TokenType::Nothing),
             'v' => self
                 .emit_keyword("ar", TokenType::Var)
                 .or_else(|| self.emit_keyword("al", TokenType::Val)),
