@@ -3,7 +3,8 @@ use crate::err::ParseErrorKind::{Expected, Unexpected};
 use crate::moves::{any, blanks, not, of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
-use ast::r#type::{ByName, CallableType, SimpleType, Type};
+use ast::r#type::{ByName, CallableType, CastedExpr, SimpleType, Type};
+use ast::Expr;
 use lexer::token::TokenType::*;
 use std::fmt::Write;
 
