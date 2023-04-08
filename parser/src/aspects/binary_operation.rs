@@ -463,7 +463,7 @@ mod tests {
                         ],
                         type_parameters: vec![],
                     })],
-                    segment: find_between(source.source, "(", ")")
+                    segment: find_between(source.source, "(", ";)")
                 })),
                 op: Or,
                 right: Box::new(Expr::Call(Call {

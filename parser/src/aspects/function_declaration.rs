@@ -35,7 +35,7 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
         self.cursor.advance(blanks());
 
         let name = self.parse_fn_declaration_name()?;
-        let tparams = self.parse_type_parameter_list()?;
+        let tparams = self.parse_type_parameter_list()?.0;
         let params = self.parse_fn_parameter_list()?;
         let rtype = self.parse_fn_return_type()?;
         let body = self
@@ -403,7 +403,7 @@ mod tests {
                         ty: Some(Type::Simple(SimpleType {
                             name: "X",
                             params: vec![],
-                            segment: find_in(source.source, "X")
+                            segment: find_in_nth(source.source, "X", 1)
                         })),
                         segment: find_in(source.source, "x : X")
                     }),
@@ -412,14 +412,14 @@ mod tests {
                         ty: Some(Type::Simple(SimpleType {
                             name: "Y",
                             params: vec![],
-                            segment: find_in(source.source, "Y")
+                            segment: find_in_nth(source.source, "Y", 1)
                         })),
                         segment: find_in(source.source, "y : Y")
                     }),
                 ],
                 return_type: None,
                 body: Box::new(Expr::Call(Call {
-                    arguments: vec![literal(source.source, "x")],
+                    arguments: vec![literal_nth(source.source, "x", 1)],
                     type_parameters: vec![],
                 })),
                 segment: source.segment()
@@ -471,7 +471,7 @@ mod tests {
                             params: Vec::new(),
                             segment: find_in(source.source, "int")
                         })),
-                        segment: find_in(source.source, "x")
+                        segment: find_in(source.source, "x: int")
                     }),
                     FunctionParameter::Variadic(None)
                 ],

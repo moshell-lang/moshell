@@ -142,7 +142,7 @@ mod tests {
                         params: Vec::new(),
                         segment: find_in(&source.source, "Int"),
                     })),
-                    segment: find_in(&source.source, "variable")
+                    segment: find_in(&source.source, "variable: Int")
                 },
                 initializer: None,
                 segment: source.segment(),

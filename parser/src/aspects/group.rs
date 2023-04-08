@@ -171,7 +171,7 @@ mod tests {
                         }),
                         Expr::Block(Block {
                             expressions: vec![],
-                            segment: 7..9
+                            segment: 6..8
                         }),
                     ],
                     segment: 1..source.source.len() - 1
@@ -199,7 +199,7 @@ mod tests {
                         }),
                         Expr::Block(Block {
                             expressions: vec![],
-                            segment: 12..14
+                            segment: 13..15
                         }),
                     ],
                     segment: 3..source.source.len() - 1
@@ -277,7 +277,12 @@ mod tests {
                                     segment: find_in_nth(source.source, "8", 1),
                                 }),
                             ],
-                            segment: find_between(source.source, "{", "}"),
+                            segment: find_between(
+                                source.source,
+                                "{\
+                val x",
+                                "}"
+                            ),
                         }))),
                         segment: find_between(source.source, "val test = {", "}"),
                     }),
@@ -288,7 +293,7 @@ mod tests {
                                 var: TypedVariable {
                                     name: "x",
                                     ty: None,
-                                    segment: find_in(source.source, "x"),
+                                    segment: find_in_nth(source.source, "x", 1),
                                 },
                                 initializer: Some(Box::from(Expr::Literal(Literal {
                                     parsed: Int(89),
@@ -340,7 +345,7 @@ mod tests {
                                 params: Vec::new(),
                                 segment: find_in(source.source, "int")
                             })),
-                            segment: find_in(source.source, "test")
+                            segment: find_in(source.source, "test: int")
                         },
                         initializer: Some(Box::new(Expr::Literal(Literal {
                             parsed: Float(7.0),

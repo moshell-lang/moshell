@@ -63,8 +63,8 @@ pub enum Expr<'a> {
     Loop(Loop<'a>),
     For(For<'a>),
 
-    Continue,
-    Break,
+    Continue(SourceSegment),
+    Break(SourceSegment),
     Return(Return<'a>),
 
     //var / val handling expressions
@@ -105,8 +105,8 @@ impl SourceSegmentHolder for Expr<'_> {
             Expr::While(while_) => while_.segment.clone(),
             Expr::Loop(loop_) => loop_.segment.clone(),
             Expr::For(for_) => for_.segment.clone(),
-            Expr::Continue => SourceSegment::default(),
-            Expr::Break => SourceSegment::default(),
+            Expr::Continue(source) => source.clone(),
+            Expr::Break(source) => source.clone(),
             Expr::Return(return_) => return_.segment.clone(),
             Expr::VarReference(var_reference) => var_reference.segment.clone(),
             Expr::VarDeclaration(var_declaration) => var_declaration.segment.clone(),

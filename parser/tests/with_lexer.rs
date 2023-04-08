@@ -6,7 +6,7 @@ use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
 use parser::parse;
-use parser::source::{find_in, find_in_nth, literal, literal_nth, rfind_between};
+use parser::source::{find_in, find_in_nth, literal, literal_nth};
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -39,10 +39,10 @@ fn with_lexer_var_reference_one() {
         vec![Expr::Call(Call {
             arguments: vec![
                 literal(source.source, "echo"),
-                literal(source.source, "$var5"),
+                literal(source.source, "'$var5'"),
                 Expr::VarReference(VarReference {
                     name: "var5",
-                    segment: rfind_between(source.source, "5", "$")
+                    segment: find_in_nth(source.source, "$var5", 1)
                 }),
             ],
             type_parameters: Vec::new()
@@ -61,7 +61,7 @@ fn with_lexer_var_reference_two() {
             arguments: vec![
                 Expr::TemplateString(TemplateString {
                     parts: vec![
-                        literal(source.source, "fake"),
+                        literal(source.source, "\"fake"),
                         Expr::VarReference(VarReference {
                             name: "cmd",
                             segment: find_in(source.source, "$cmd")
@@ -98,7 +98,7 @@ fn with_lexer_var_reference_three() {
                 literal(source.source, "echo"),
                 Expr::TemplateString(TemplateString {
                     parts: vec![
-                        literal(source.source, "hello "),
+                        literal(source.source, "\"hello "),
                         Expr::VarReference(VarReference {
                             name: "world",
                             segment: find_in(source.source, "$world")
@@ -112,7 +112,7 @@ fn with_lexer_var_reference_three() {
                             name: "ready",
                             segment: find_in(source.source, "${ready}")
                         }),
-                        literal(source.source, "!"),
+                        literal(source.source, "!\""),
                     ]
                 }),
             ],
@@ -195,7 +195,7 @@ fn with_lexer_pipe_and_redirection() {
                         fd: RedirFd::Default,
                         operator: RedirOp::Write,
                         operand: literal(source.source, "out.txt"),
-                        segment: find_in(source.source, "out.txt"),
+                        segment: find_in(source.source, "> out.txt"),
                     }],
                 }),
             ],
@@ -308,7 +308,7 @@ fn with_lexer_substitution_in_substitution() {
                                             },
                                             kind: SubstitutionKind::Capture,
                                         }),
-                                        literal(source.source, "/test"),
+                                        literal(source.source, "/test\""),
                                     ]
                                 }),
                             ],

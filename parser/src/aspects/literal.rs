@@ -113,7 +113,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
     fn templated_string_literal(&mut self) -> ParseResult<TemplateString<'a>> {
         let start = self.cursor.force(of_type(DoubleQuote), "Expected quote.")?;
         let mut begin = start.clone();
-        let mut end;
+        let mut end = begin.clone();
         let mut literal_value = String::new();
         let mut parts = Vec::new();
         loop {
@@ -124,8 +124,8 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 );
             }
 
-            end = self.cursor.peek();
-            match end.token_type {
+            let current = self.cursor.peek();
+            match current.token_type {
                 DoubleQuote => break,
                 BackSlash => {
                     self.cursor.advance(next());
@@ -137,21 +137,22 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                             segment: self.cursor.relative_pos_ctx(begin..end.clone()),
                         }));
                         literal_value.clear();
-                        begin = end;
                     }
                     parts.push(self.substitution()?);
+                    begin = self.cursor.peek();
                 }
 
                 _ => {
                     let value = self.cursor.next()?.value;
                     literal_value.push_str(value);
+                    end = current;
                 }
             };
         }
         if !literal_value.is_empty() {
             parts.push(Expr::Literal(Literal {
                 parsed: LiteralValue::String(literal_value),
-                segment: self.cursor.relative_pos_ctx(start..end),
+                segment: self.cursor.relative_pos_ctx(begin..self.cursor.peek()),
             }));
         }
 
@@ -214,14 +215,8 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 Space | NewLine => break,
 
                 BackSlash => {
-                    if let Some(joined) = try_join_str(self.source.source, lexeme, token.value) {
-                        lexeme = joined;
-                    }
                     //never retain first backslash
                     self.cursor.next()?;
-                    //advance so we are not pointing to token after '\'
-                    //will append the escaped value (token after the backslash)
-                    append_current!();
                 }
 
                 Dollar => {
@@ -234,6 +229,28 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                         builder.clear();
                     }
                     parts.push(self.substitution()?);
+                }
+                Quote => {
+                    if !builder.is_empty() {
+                        parts.push(self.literal_or_wildcard(
+                            builder.clone(),
+                            lexeme,
+                            numeric.take(),
+                        )?);
+                        builder.clear();
+                    }
+                    parts.push(self.string_literal().map(Expr::Literal)?);
+                }
+                DoubleQuote => {
+                    if !builder.is_empty() {
+                        parts.push(self.literal_or_wildcard(
+                            builder.clone(),
+                            lexeme,
+                            numeric.take(),
+                        )?);
+                        builder.clear();
+                    }
+                    parts.extend(self.templated_string_literal()?.parts);
                 }
                 _ if leniency == LiteralLeniency::Strict && pivot.is_extended_ponctuation() => {
                     break
@@ -435,6 +452,23 @@ mod tests {
     }
 
     #[test]
+    fn prefixed_arg() {
+        let source = Source::unknown("+'hello'");
+        let parsed = Parser::new(source.clone())
+            .expression()
+            .expect("Failed to parse.");
+        assert_eq!(
+            parsed,
+            Expr::TemplateString(TemplateString {
+                parts: vec![
+                    literal(source.source, "+"),
+                    literal(source.source, "'hello'"),
+                ]
+            })
+        );
+    }
+
+    #[test]
     fn url_placeholder() {
         let source = Source::unknown("\"http://localhost:$NGINX_PORT\"");
         let parsed = Parser::new(source.clone())
@@ -444,7 +478,7 @@ mod tests {
             parsed,
             Expr::TemplateString(TemplateString {
                 parts: vec![
-                    literal(source.source, "http://localhost:"),
+                    literal(source.source, "\"http://localhost:"),
                     Expr::VarReference(VarReference {
                         name: "NGINX_PORT",
                         segment: find_in(source.source, "$NGINX_PORT")

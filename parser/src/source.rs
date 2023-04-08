@@ -1,19 +1,27 @@
-use crate::aspects::literal::literal_expr;
 use ast::value::Literal;
 use ast::Expr;
 use context::source::SourceSegment;
 
 pub fn literal<'a>(source: &'a str, literal: &'_ str) -> Expr<'a> {
-    Expr::Literal(literal_expr(source, literal))
+    literal_nth(source, literal, 0)
 }
 
 pub fn literal_nth<'a>(source: &'a str, literal: &'_ str, nth: usize) -> Expr<'a> {
     let segment = find_in_nth(source, literal, nth);
+    // Remove quotes from the lexeme if present, start and end independently
+    let mut parsed = if literal.starts_with('"') || literal.starts_with('\'') {
+        &literal[1..]
+    } else {
+        literal
+    };
+    parsed = if literal.ends_with('"') || literal.ends_with('\'') {
+        &parsed[..parsed.len() - 1]
+    } else {
+        parsed
+    };
+
     Expr::Literal(Literal {
-        parsed: match literal.chars().next().unwrap() {
-            '"' | '\'' => literal[1..literal.len() - 1].into(),
-            _ => literal.into(),
-        },
+        parsed: parsed.into(),
         segment,
     })
 }

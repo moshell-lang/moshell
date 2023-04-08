@@ -13,7 +13,7 @@ use ast::r#type::Type;
 use ast::value::Literal;
 use ast::variable::TypedVariable;
 use ast::Expr;
-use context::source::SourceSegmentHolder;
+use context::source::SourceSegment;
 
 /// A parse aspect for command and function calls
 pub trait CallAspect<'a> {
@@ -60,17 +60,16 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             parsed: value.into(),
             segment: self.cursor.relative_pos(value),
         });
-        let type_parameters = self.parse_type_parameter_list()?;
+        let type_parameters = self.parse_type_parameter_list()?.0;
         if let Some(open_parenthesis) = self.cursor.advance(of_type(TokenType::RoundedLeftBracket))
         {
             self.delimiter_stack.push_back(open_parenthesis.clone());
-            let arguments = self.parse_comma_separated_arguments(open_parenthesis)?;
+            let (arguments, segment) = self.parse_comma_separated_arguments(open_parenthesis)?;
             Ok(Expr::ProgrammaticCall(ProgrammaticCall {
                 name: value,
                 arguments,
                 type_parameters,
-                segment: self.cursor.relative_pos(value).start
-                    ..self.cursor.relative_pos(self.cursor.peek()).end, // FIXME
+                segment: self.cursor.relative_pos(value).start..segment.end,
             }))
         } else if self
             .cursor
@@ -82,7 +81,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
                 args: vec![TypedVariable {
                     name: value,
                     ty: None,
-                    segment: self.cursor.relative_pos(value).start..body.segment().end,
+                    segment: self.cursor.relative_pos(value),
                 }],
                 body,
             }))
@@ -93,7 +92,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
     fn call(&mut self) -> ParseResult<Expr<'a>> {
         let callee = self.next_value()?;
-        let tparams = self.parse_type_parameter_list()?;
+        let tparams = self.parse_type_parameter_list()?.0;
         self.call_arguments(callee, tparams)
     }
 
@@ -101,19 +100,18 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         let name = self
             .cursor
             .force(of_type(TokenType::Identifier), "Expected function name.")?;
-        let type_parameters = self.parse_type_parameter_list()?;
+        let type_parameters = self.parse_type_parameter_list()?.0;
         let open_parenthesis = self.cursor.force(
             of_type(TokenType::RoundedLeftBracket),
             "Expected opening parenthesis.",
         )?;
         self.delimiter_stack.push_back(open_parenthesis.clone());
-        let arguments = self.parse_comma_separated_arguments(open_parenthesis)?;
+        let (arguments, segment) = self.parse_comma_separated_arguments(open_parenthesis)?;
         Ok(Expr::ProgrammaticCall(ProgrammaticCall {
             name: name.value,
             arguments,
             type_parameters,
-            segment: self.cursor.relative_pos(name).start
-                ..self.cursor.relative_pos(self.cursor.peek()).end, // FIXME
+            segment: self.cursor.relative_pos(name).start..segment.end,
         }))
     }
 
@@ -178,18 +176,18 @@ impl<'a> Parser<'a> {
     fn parse_comma_separated_arguments(
         &mut self,
         open_parenthesis: Token<'a>,
-    ) -> ParseResult<Vec<Expr<'a>>> {
+    ) -> ParseResult<(Vec<Expr<'a>>, SourceSegment)> {
         // Read the args until a closing delimiter or a new non-escaped line is found.
         let mut args = Vec::new();
+        let mut segment = self.cursor.relative_pos(open_parenthesis.clone());
         loop {
             self.cursor.advance(spaces());
-            if self
-                .cursor
-                .advance(of_type(TokenType::RoundedRightBracket))
-                .is_some()
+            if let Some(closing_parenthesis) =
+                self.cursor.advance(of_type(TokenType::RoundedRightBracket))
             {
                 self.delimiter_stack.pop_back();
-                return Ok(args);
+                segment.end = self.cursor.relative_pos(closing_parenthesis).end;
+                return Ok((args, segment));
             }
             if self.cursor.lookahead(of_type(TokenType::Comma)).is_some() {
                 self.expected("Expected argument.", ParseErrorKind::Unexpected)?;
@@ -205,7 +203,8 @@ impl<'a> Parser<'a> {
                 )?;
             }
             if self.cursor.lookahead(eod()).is_some() {
-                self.expect_delimiter(TokenType::RoundedRightBracket)?;
+                let closing_parenthesis = self.expect_delimiter(TokenType::RoundedRightBracket)?;
+                segment.end = self.cursor.relative_pos_ctx(closing_parenthesis).end;
                 break;
             }
             self.cursor.force(
@@ -214,7 +213,7 @@ impl<'a> Parser<'a> {
             )?;
         }
 
-        Ok(args)
+        Ok((args, segment))
     }
 }
 

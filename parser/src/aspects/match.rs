@@ -28,9 +28,10 @@ impl<'a> MatchAspect<'a> for Parser<'a> {
         P: FnMut(&mut Self) -> ParseResult<Expr<'a>> + Clone,
     {
         let start = self.cursor.force(
-            of_type(TokenType::Match).and_then(blanks()),
+            of_type(TokenType::Match),
             "expected 'match' keyword at start of match expression.",
         )?;
+        self.cursor.advance(blanks());
 
         let operand = Box::new(self.expression_statement()?);
 
@@ -279,7 +280,7 @@ mod tests {
                             patterns: vec![
                                 MatchPattern::Template(TemplateString {
                                     parts: vec![
-                                        literal(source.source, "test "),
+                                        literal(source.source, "\"test "),
                                         Expr::VarReference(VarReference {
                                             name: "2",
                                             segment: find_in(source.source, "$2"),
@@ -292,7 +293,7 @@ mod tests {
                                 }),
                                 MatchPattern::VarRef(VarReference {
                                     name: "USER",
-                                    segment: find_in(source.source, "USER"),
+                                    segment: find_in(source.source, "$USER"),
                                 }),
                                 MatchPattern::Literal(Literal {
                                     parsed: "t x".into(),
@@ -308,7 +309,7 @@ mod tests {
                                 op: BinaryOperator::Minus,
                                 right: Box::new(Expr::Literal(Literal {
                                     parsed: 7.into(),
-                                    segment: find_in(source.source, "7"),
+                                    segment: find_in_nth(source.source, "7", 1),
                                 })),
                             }),
                             segment: find_in(
@@ -326,14 +327,12 @@ mod tests {
 
     #[test]
     fn parse_complete_match() {
-        let content = "\
-        match $1 {\
+        let content = "match $1 {\
            -e => ();;;;;\n;;\n;;;;;\
            y@\"test $2\" | 2 | $USER | 't x' => ()
            x@* if [ $a == 1 ] => ();\
            * => echo $it
-        }\
-        ";
+        }";
         let ast = parse(Source::unknown(content)).expect("parse fail");
 
         assert_eq!(
@@ -359,7 +358,7 @@ mod tests {
                         patterns: vec![
                             MatchPattern::Template(TemplateString {
                                 parts: vec![
-                                    literal(content, "test "),
+                                    literal(content, "\"test "),
                                     Expr::VarReference(VarReference {
                                         name: "2",
                                         segment: find_in(content, "$2"),
@@ -372,7 +371,7 @@ mod tests {
                             }),
                             MatchPattern::VarRef(VarReference {
                                 name: "USER",
-                                segment: find_in(content, "USER"),
+                                segment: find_in(content, "$USER"),
                             }),
                             MatchPattern::Literal(Literal {
                                 parsed: "t x".into(),
@@ -415,7 +414,7 @@ mod tests {
                         guard: None,
                         body: Expr::Call(Call {
                             arguments: vec![
-                                literal(content, "echo "),
+                                literal(content, "echo"),
                                 Expr::VarReference(VarReference {
                                     name: "it",
                                     segment: find_in(content, "$it"),
@@ -463,7 +462,7 @@ mod tests {
                         ],
                         type_parameters: vec![],
                     }),
-                    segment: find_in(source.source, "$a")
+                    segment: find_in(source.source, "* => echo $it")
                 },],
                 segment: source.segment(),
             })]
@@ -509,7 +508,7 @@ mod tests {
                         patterns: vec![
                             MatchPattern::Template(TemplateString {
                                 parts: vec![
-                                    literal(content, "test "),
+                                    literal(content, "\"test "),
                                     Expr::VarReference(VarReference { name: "2", segment: find_in(content, "$2") }),
                                 ]
                             }),

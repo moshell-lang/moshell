@@ -30,7 +30,7 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
             {
                 self.cursor.advance(of_type(RoundedLeftBracket));
                 let mut parenthesis = self.parenthesis()?;
-                parenthesis.segment.start -= 1;
+                parenthesis.segment.start -= 2; // Include the '$('
                 parenthesis.segment.end += 1;
                 self.cursor.force_with(
                     of_type(RoundedRightBracket),
@@ -41,7 +41,10 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
             }
             return Ok(Expr::Substitution(Substitution {
                 // Read the expression inside the parentheses as a new statement
-                underlying: self.subshell()?,
+                underlying: self.subshell().map(|mut subshell| {
+                    subshell.segment.start -= 1; // Include the '$('
+                    subshell
+                })?,
                 kind: SubstitutionKind::Capture,
             }));
         }
@@ -54,7 +57,7 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
         //finally it's a lonely '$' so we return it as a literal
         return Ok(Expr::Literal(Literal {
             parsed: LiteralValue::String(dollar_value.to_owned()),
-            segment: Default::default(),
+            segment: self.cursor.relative_pos(dollar_value),
         }));
     }
 }
@@ -127,7 +130,7 @@ mod tests {
                                             arguments: vec![literal(source.source, "pwd")],
                                             type_parameters: vec![],
                                         })],
-                                        segment: find_in(source.source, "(pwd)")
+                                        segment: find_in(source.source, "$(pwd)")
                                     },
                                     kind: SubstitutionKind::Capture,
                                 }),
@@ -136,7 +139,7 @@ mod tests {
                         })],
                         segment: find_in(source.source, "{ls $(pwd)}")
                     })],
-                    segment: find_in(source.source, "({ls $(pwd)})")
+                    segment: source.segment()
                 },
                 kind: SubstitutionKind::Capture,
             })

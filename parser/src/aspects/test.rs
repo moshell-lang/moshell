@@ -288,18 +288,9 @@ mod tests {
             vec![Expr::Not(Not {
                 underlying: Box::new(Expr::Call(Call {
                     arguments: vec![
-                        Expr::Literal(Literal {
-                            parsed: LiteralValue::String("grep".to_string()),
-                            segment: find_in(source.source, "grep'"),
-                        }),
-                        Expr::Literal(Literal {
-                            parsed: LiteralValue::String("-E".to_string()),
-                            segment: find_in(source.source, "-E"),
-                        }),
-                        Expr::Literal(Literal {
-                            parsed: LiteralValue::String("^[0-9]+$".to_string()),
-                            segment: find_in(source.source, "'^[0-9]+$'"),
-                        }),
+                        literal(source.source, "grep"),
+                        literal(source.source, "-E"),
+                        literal(source.source, "'^[0-9]+$'"),
                     ],
                     type_parameters: vec![],
                 })),

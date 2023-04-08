@@ -182,12 +182,12 @@ impl<'a> Parser<'a> {
             SquaredLeftBracket => self.parse_test(),
 
             Continue => {
-                self.cursor.next()?;
-                Ok(Expr::Continue)
+                let current = self.cursor.next()?;
+                Ok(Expr::Continue(self.cursor.relative_pos(current.value)))
             }
             Break => {
-                self.cursor.next()?;
-                Ok(Expr::Break)
+                let current = self.cursor.next()?;
+                Ok(Expr::Break(self.cursor.relative_pos(current.value)))
             }
             Return => self.parse_return().map(Expr::Return),
 

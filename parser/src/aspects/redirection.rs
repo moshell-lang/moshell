@@ -4,6 +4,7 @@ use crate::moves::{eox, like, next, of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::call::{Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use ast::Expr;
+use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
 use lexer::token::TokenType::{BackSlash, DoubleQuote, Quote};
 
@@ -39,7 +40,8 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
 
     fn redirection(&mut self) -> ParseResult<Redir<'a>> {
         self.cursor.advance(spaces());
-        let mut token = self.cursor.next()?;
+        let start = self.cursor.next()?;
+        let mut token = start.clone();
         // Parse if present the redirected file descriptor
         let fd = match token.token_type {
             TokenType::Ampersand => {
@@ -96,11 +98,12 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
         }
 
         let operand = self.next_value()?;
+        let segment = self.cursor.relative_pos_ctx(start).start..operand.segment().end;
         Ok(Redir {
             fd,
             operator,
             operand,
-            segment: self.cursor.relative_pos_ctx(token..self.cursor.peek()),
+            segment,
         })
     }
 

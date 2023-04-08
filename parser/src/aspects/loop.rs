@@ -1,4 +1,4 @@
-use lexer::token::TokenType;
+use lexer::token::{Token, TokenType};
 
 use crate::err::ParseErrorKind;
 use crate::moves::{blanks, eod, eox, of_type, times, MoveOperations};
@@ -160,9 +160,10 @@ impl<'a> Parser<'a> {
         )?;
         let increment = self.statement()?;
 
+        let mut end: Option<Token<'a>> = None;
         for _ in 0..2 {
             if self.cursor.lookahead(eod()).is_some() {
-                self.expect_delimiter(TokenType::RoundedRightBracket)?;
+                end = Some(self.expect_delimiter(TokenType::RoundedRightBracket)?);
             } else {
                 self.expected(
                     "Expected '))' at end of conditional for",
@@ -173,7 +174,7 @@ impl<'a> Parser<'a> {
 
         let segment = self
             .cursor
-            .relative_pos_ctx(start.first().unwrap().clone()..self.cursor.peek());
+            .relative_pos_ctx(start.first().unwrap().clone()..end.unwrap());
 
         Ok(ConditionalFor {
             initializer,
@@ -230,7 +231,10 @@ mod tests {
             res,
             vec![Expr::Loop(Loop {
                 body: Box::new(Expr::Block(Block {
-                    expressions: vec![Continue, Break],
+                    expressions: vec![
+                        Continue(find_in(source.source, "continue")),
+                        Break(find_in(source.source, "break"))
+                    ],
                     segment: find_between(source.source, "{", "}")
                 })),
                 segment: source.segment()
@@ -260,7 +264,7 @@ mod tests {
                         type_parameters: vec![],
                     })),
                     op: And,
-                    right: Box::new(Break),
+                    right: Box::new(Break(find_in(source.source, "break"))),
                 })),
                 segment: source.segment(),
             })]
@@ -358,7 +362,7 @@ mod tests {
                             }),
                             Expr::VarReference(VarReference {
                                 name: "i",
-                                segment: find_in_nth(source.source, "$i", 2)
+                                segment: find_in(source.source, "$i")
                             }),
                         ],
                         type_parameters: vec![],
@@ -533,14 +537,14 @@ mod tests {
                         })),
                         segment: find_in(source.source, "i=$i + 1")
                     }),
-                    segment: find_in(source.source, ""),
+                    segment: find_between(source.source, "((", "))")
                 })),
                 body: Box::new(Expr::Call(Call {
                     arguments: vec![
                         literal(source.source, "echo"),
                         Expr::VarReference(VarReference {
                             name: "i",
-                            segment: find_in(source.source, "(( var i=0; $i<10; i=$i + 1 ))")
+                            segment: find_in_nth(source.source, "$i", 2)
                         }),
                     ],
                     type_parameters: vec![],

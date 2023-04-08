@@ -160,7 +160,7 @@ mod tests {
                         name: "5",
                         segment: find_in(content, "$5")
                     }))),
-                    segment: rfind_between(content, "if [ $a ]", "$5"),
+                    segment: find_between(content, "if [ $a ]", "$5"),
                 }))),
                 segment: source.segment(),
             })]
@@ -183,7 +183,7 @@ mod tests {
                     segment: find_between(content, "[", "]"),
                 })),
                 success_branch: Box::new(Expr::Call(Call {
-                    arguments: vec![literal(content, "$1"), literal(content, "test")],
+                    arguments: vec![literal(content, "echo"), literal(content, "test")],
                     type_parameters: vec![],
                 })),
                 fail_branch: Some(Box::new(Expr::If(If {
@@ -202,7 +202,7 @@ mod tests {
                         name: "5",
                         segment: find_in(content, "$5")
                     }))),
-                    segment: rfind_between(content, "$1", "else")
+                    segment: find_between(content, "if [ $a ]", "$5")
                 }))),
                 segment: source.segment(),
             })]
@@ -254,7 +254,12 @@ mod tests {
                                 expressions: vec![Expr::Call(Call {
                                     arguments: vec![
                                         literal(content, "date"),
-                                        literal(content, "+\"%Y\""),
+                                        Expr::TemplateString(TemplateString {
+                                            parts: vec![
+                                                literal(content, "+"),
+                                                literal(content, "\"%Y\"")
+                                            ],
+                                        })
                                     ],
                                     type_parameters: vec![],
                                 })],

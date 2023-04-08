@@ -16,7 +16,7 @@ pub trait TypeAspect<'a> {
     fn parse_type(&mut self) -> ParseResult<Type<'a>>;
 
     ///parse a type parameter list (`[...]`)
-    fn parse_type_parameter_list(&mut self) -> ParseResult<Vec<Type<'a>>>;
+    fn parse_type_parameter_list(&mut self) -> ParseResult<(Vec<Type<'a>>, SourceSegment)>;
 }
 
 impl<'a> TypeAspect<'a> for Parser<'a> {
@@ -42,11 +42,12 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
 
         if matches!(tpe, Type::Simple(..)) {
             let output = self.parse_simple_or_unit()?;
+            let segment =
+                self.cursor.relative_pos_ctx(first_token.clone()).start..output.segment().end;
             tpe = Type::Callable(CallableType {
                 params: vec![tpe],
-                output: Box::new(self.parse_simple_or_unit()?),
-                segment: self.cursor.relative_pos_ctx(first_token.clone()).start
-                    ..output.segment().end,
+                output: Box::new(output),
+                segment,
             })
         }
 
@@ -69,18 +70,17 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         Ok(tpe)
     }
 
-    fn parse_type_parameter_list(&mut self) -> ParseResult<Vec<Type<'a>>> {
+    fn parse_type_parameter_list(&mut self) -> ParseResult<(Vec<Type<'a>>, SourceSegment)> {
         if self
             .cursor
             .lookahead(blanks().then(of_type(SquaredLeftBracket)))
             .is_none()
         {
-            return Ok(Vec::new());
+            return Ok((Vec::new(), self.cursor.relative_pos_ctx(self.cursor.peek())));
         }
         let start = self.cursor.peek();
-        let tparams = self
-            .parse_explicit_list(SquaredLeftBracket, SquaredRightBracket, Self::parse_type)?
-            .0;
+        let (tparams, segment) =
+            self.parse_explicit_list(SquaredLeftBracket, SquaredRightBracket, Self::parse_type)?;
         if tparams.is_empty() {
             return self.expected_with(
                 "unexpected empty type parameter list",
@@ -88,7 +88,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
                 Unexpected,
             );
         }
-        Ok(tparams)
+        Ok((tparams, segment))
     }
 }
 
@@ -132,7 +132,7 @@ impl<'a> Parser<'a> {
 
         //there is no inputs (`()`) and no `=>` after, this is a Unit type
         if inputs.is_empty() {
-            return Ok(Type::Unit);
+            return Ok(Type::Unit(segment));
         }
 
         //its a type of form `(A)`
@@ -178,10 +178,15 @@ impl<'a> Parser<'a> {
 
         let ttype = name_token.token_type;
         if ttype == Identifier {
+            let mut segment = self.cursor.relative_pos(name_token.value);
+            let (params, params_segment) = self.parse_type_parameter_list()?;
+            if !params.is_empty() {
+                segment.end = params_segment.end;
+            }
             return Ok(Type::Simple(SimpleType {
                 name: name_token.value,
-                params: self.parse_type_parameter_list()?,
-                segment: self.cursor.relative_pos_ctx(name_token),
+                params,
+                segment,
             }));
         }
 
@@ -190,10 +195,19 @@ impl<'a> Parser<'a> {
             || (ttype == RoundedLeftBracket
                 && self
                     .cursor
-                    .advance(spaces().then(of_type(RoundedRightBracket)))
+                    .lookahead(spaces().then(of_type(RoundedRightBracket)))
                     .is_some())
         {
-            return Ok(Type::Unit);
+            if let Some(closing_parenthesis) = self
+                .cursor
+                .advance(spaces().then(of_type(RoundedRightBracket)))
+            {
+                return Ok(Type::Unit(
+                    self.cursor
+                        .relative_pos_ctx(name_token..closing_parenthesis),
+                ));
+            }
+            return Ok(Type::Unit(self.cursor.relative_pos_ctx(name_token)));
         }
 
         if ttype == NewLine || ttype.is_closing_ponctuation() {
@@ -201,7 +215,10 @@ impl<'a> Parser<'a> {
         }
 
         self.expected_with(
-            &format!("'{}' is not a valid type identifier.", &name_token.value),
+            &format!(
+                "'{}' is not a valid type identifier.",
+                name_token.token_type.str().unwrap_or(name_token.value)
+            ),
             name_token.value,
             Unexpected,
         )
@@ -414,7 +431,7 @@ mod tests {
                     })),
                     segment: find_in(content, "=> B"),
                 })),
-                segment: source.segment(),
+                segment: /*source.segment()*/0..content.len() - 1,
             }))
         );
     }
@@ -456,9 +473,9 @@ mod tests {
         let res1 = Parser::new(Source::unknown("()")).parse_type();
         let res2 = Parser::new(Source::unknown("Unit")).parse_type();
         let res3 = Parser::new(Source::unknown("(\n   \n)")).parse_type();
-        assert_eq!(res1, Ok(Type::Unit));
-        assert_eq!(res2, Ok(Type::Unit));
-        assert_eq!(res3, Ok(Type::Unit));
+        assert_eq!(res1, Ok(Type::Unit(0..2)));
+        assert_eq!(res2, Ok(Type::Unit(0..4)));
+        assert_eq!(res3, Ok(Type::Unit(0..7)));
     }
 
     #[test]
@@ -473,7 +490,7 @@ mod tests {
                     params: Vec::new(),
                     segment: find_in(content, "A"),
                 })],
-                output: Box::new(Type::Unit),
+                output: Box::new(Type::Unit(find_in(source.source, "()"))),
                 segment: source.segment(),
             }))
         );

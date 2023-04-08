@@ -16,7 +16,7 @@ pub enum Type<'a> {
     ByName(ByName<'a>),
 
     ///Either `()` or `Unit`, representing a void type
-    Unit,
+    Unit(SourceSegment),
 }
 
 #[segment_holder]
@@ -45,7 +45,7 @@ impl<'a> Display for Type<'a> {
             Type::Simple(m) => Display::fmt(m, f),
             Type::Callable(p) => Display::fmt(p, f),
             Type::ByName(n) => Display::fmt(n, f),
-            Type::Unit => write!(f, "Unit"),
+            Type::Unit(_) => write!(f, "Unit"),
         }
     }
 }
@@ -56,7 +56,7 @@ impl SourceSegmentHolder for Type<'_> {
             Type::Simple(m) => m.segment(),
             Type::Callable(p) => p.segment(),
             Type::ByName(n) => n.segment(),
-            Type::Unit => SourceSegment::default(),
+            Type::Unit(segment) => segment.clone(),
         }
     }
 }

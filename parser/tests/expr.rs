@@ -9,7 +9,7 @@ use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
 use parser::parse;
-use parser::source::{find_in, find_in_nth, literal};
+use parser::source::{find_in, find_in_nth, literal, literal_nth};
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -33,7 +33,7 @@ fn variable_type_and_initializer() {
                 params: Vec::new(),
                 segment: find_in(source.source, "int"),
             })),
-            segment: find_in(source.source, "a"),
+            segment: find_in(source.source, "a:int"),
         },
         initializer: Some(Box::new(Expr::Literal(Literal {
             parsed: LiteralValue::Int(1),
@@ -112,6 +112,7 @@ fn lambda_in_classic_call() {
         vec![Expr::Call(Call {
             type_parameters: Vec::new(),
             arguments: vec![
+                literal(source.source, "echo"),
                 literal(source.source, "a"),
                 literal(source.source, "=>"),
                 Expr::VarReference(VarReference {
@@ -145,12 +146,12 @@ fn lambda_one_arg() {
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::VarReference(VarReference {
                         name: "n",
-                        segment: find_in_nth(source.source, "$n", 1)
+                        segment: find_in(source.source, "$n")
                     })),
                     op: BinaryOperator::Times,
                     right: Box::new(Expr::VarReference(VarReference {
                         name: "n",
-                        segment: find_in_nth(source.source, "$n", 2)
+                        segment: find_in_nth(source.source, "$n", 1)
                     })),
                 })),
             })],
@@ -378,7 +379,7 @@ fn for_in_step_2_range() {
                 })),
                 segment: find_in(source.source, "i in 1..=10..2")
             })),
-            body: Box::new(Expr::Break),
+            body: Box::new(Expr::Break(find_in(source.source, "break"))),
             segment: source.segment()
         })]
     );
@@ -495,7 +496,7 @@ fn classic_call_no_regression() {
                 literal(source.source, ",,here,"),
                 literal(source.source, "->..3"),
                 literal(source.source, "54a2"),
-                literal(source.source, "=>"),
+                literal_nth(source.source, "=>", 1),
                 literal(source.source, "1..=9"),
             ],
             type_parameters: Vec::new()
