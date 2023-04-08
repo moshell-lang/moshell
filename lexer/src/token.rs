@@ -60,6 +60,8 @@ pub enum TokenType {
     Loop,
     #[assoc(str = "match")]
     Match,
+    #[assoc(str = "as")]
+    As,
 
     #[assoc(str = "continue")]
     Continue,

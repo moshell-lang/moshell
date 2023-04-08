@@ -8,6 +8,7 @@ impl<'a> Lexer<'a> {
     /// The first letter of the keyword must have already been consumed.
     pub(crate) fn read_keyword(&mut self, ch: char) -> Option<Token<'a>> {
         match ch {
+            'a' => self.emit_keyword("s", TokenType::As),
             'b' => self.emit_keyword("reak", TokenType::Break),
             'c' => self.emit_keyword("ontinue", TokenType::Continue),
             'e' => self.emit_keyword("lse", TokenType::Else),
