@@ -144,7 +144,7 @@ impl TypeClass {
             parent_ctx.borrow().lookup_defined(&any())?
         };
 
-        let class_context = Rc::new(RefCell::new(TypeContext::fork(parent_ctx.clone())));
+        let class_context = Rc::new(RefCell::new(TypeContext::fork(parent_ctx)));
 
         Self::contextualize(class_context.clone(), &definition.generic_parameters)?;
 
@@ -207,12 +207,11 @@ impl TypeClass {
 
         let mut validated_associations = vec![ParamAssociation::Nothing; parent_gparam_count];
 
-        for idx in 0..parent_gparam_count {
+        for (idx, parent_gparam) in parent.generic_parameters.iter().enumerate() {
             let association = associations.get(&idx).ok_or(format!(
                 "No association set for parent generic parameter {}",
                 parent.name
             ))?;
-            let parent_gparam = &parent.generic_parameters[idx];
 
             let association = match association {
                 Type::Nothing => ParamAssociation::Nothing,

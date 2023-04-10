@@ -104,7 +104,7 @@ impl TypeContext {
             None => {
                 let iter = self.dependencies.iter();
                 for dep in iter {
-                    if let Some(found) = dep.borrow().lookup_id(id).ok() {
+                    if let Ok(found) = dep.borrow().lookup_id(id) {
                         return Ok(found);
                     }
                 }
