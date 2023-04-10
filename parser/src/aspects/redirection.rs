@@ -183,11 +183,12 @@ mod test {
     use crate::aspects::call::CallAspect;
     use crate::parse;
     use crate::parser::Parser;
-    use crate::source::{find_in, literal};
+    use crate::source::literal;
     use ast::call::{Call, Redir, RedirFd, RedirOp, Redirected};
     use ast::group::Block;
     use ast::value::Literal;
     use ast::Expr;
+    use context::str_find::find_in;
 
     #[test]
     fn expr_redirection() {

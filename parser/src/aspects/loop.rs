@@ -205,7 +205,7 @@ mod tests {
     use crate::parse;
     use crate::parser::ParseResult;
 
-    use crate::source::{find_between, find_in, find_in_nth, literal};
+    use crate::source::literal;
     use ast::call::Call;
     use ast::control_flow::{ConditionalFor, For, ForKind, Loop, RangeFor, While};
     use ast::group::{Block, Parenthesis};
@@ -217,6 +217,7 @@ mod tests {
     use ast::Expr;
     use ast::Expr::{Break, Continue};
     use context::source::{Source, SourceSegmentHolder};
+    use context::str_find::{find_between, find_in, find_in_nth};
     use pretty_assertions::assert_eq;
 
     #[test]

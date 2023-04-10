@@ -64,11 +64,12 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
-    use crate::source::{find_in, literal};
+    use crate::source::literal;
     use ast::value::{Literal, TemplateString};
     use ast::variable::VarReference;
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
+    use context::str_find::find_in;
     use pretty_assertions::assert_eq;
 
     #[test]

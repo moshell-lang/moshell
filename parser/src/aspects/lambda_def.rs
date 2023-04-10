@@ -41,7 +41,7 @@ mod tests {
     use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
     use crate::parser::Parser;
-    use crate::source::{find_between, find_in, literal};
+    use crate::source::literal;
     use ast::call::Call;
     use ast::group::Block;
     use ast::lambda::LambdaDef;
@@ -50,6 +50,7 @@ mod tests {
     use ast::variable::{TypedVariable, VarReference};
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
+    use context::str_find::{find_between, find_in};
     use pretty_assertions::assert_eq;
 
     #[test]

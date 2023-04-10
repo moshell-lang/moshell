@@ -72,12 +72,13 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
-    use crate::source::{find_in, literal};
+    use crate::source::literal;
     use ast::group::{Block, Parenthesis, Subshell};
     use ast::operation::{BinaryOperation, BinaryOperator};
     use ast::value::Literal;
     use ast::variable::VarReference;
     use context::source::{Source, SourceSegmentHolder};
+    use context::str_find::find_in;
     use pretty_assertions::assert_eq;
 
     #[test]

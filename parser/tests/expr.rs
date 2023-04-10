@@ -8,8 +8,9 @@ use ast::value::{Literal, LiteralValue};
 use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
+use context::str_find::{find_between, find_in, find_in_nth};
 use parser::parse;
-use parser::source::{find_between, find_in, find_in_nth, literal, literal_nth};
+use parser::source::{literal, literal_nth};
 use pretty_assertions::assert_eq;
 
 #[test]

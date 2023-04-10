@@ -231,9 +231,9 @@ mod tests {
     use crate::err::ParseError;
     use crate::err::ParseErrorKind::{Expected, Unexpected, Unpaired};
     use crate::parser::Parser;
-    use crate::source::find_in;
     use ast::r#type::{ByName, CallableType, SimpleType, Type};
     use context::source::{Source, SourceSegmentHolder};
+    use context::str_find::find_in;
     use pretty_assertions::assert_eq;
 
     #[test]

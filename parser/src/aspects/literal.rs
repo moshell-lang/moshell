@@ -340,9 +340,10 @@ mod tests {
     use super::*;
     use crate::err::ParseErrorKind::InvalidFormat;
     use crate::err::{ParseError, ParseErrorKind};
-    use crate::source::{find_in, literal};
+    use crate::source::literal;
     use ast::variable::VarReference;
     use context::source::{Source, SourceSegmentHolder};
+    use context::str_find::find_in;
     use pretty_assertions::assert_eq;
 
     #[test]

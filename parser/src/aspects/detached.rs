@@ -45,12 +45,13 @@ mod tests {
     use ast::group::Block;
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
+    use context::str_find::{find_between, find_in};
 
     use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
     use crate::parse;
     use crate::parser::ParseResult;
-    use crate::source::{find_between, find_in, literal};
+    use crate::source::literal;
 
     #[test]
     fn twice_derived() {

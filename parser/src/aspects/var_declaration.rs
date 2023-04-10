@@ -97,10 +97,11 @@ mod tests {
     use ast::value::{Literal, LiteralValue};
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
+    use context::str_find::{find_in, find_in_nth};
 
     use crate::err::ParseError;
     use crate::parser::Parser;
-    use crate::source::{find_in, find_in_nth, literal};
+    use crate::source::literal;
 
     use super::*;
 

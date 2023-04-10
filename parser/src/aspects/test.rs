@@ -98,7 +98,7 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
-    use crate::source::{find_between, find_in, literal};
+    use crate::source::literal;
     use ast::call::Call;
     use ast::group::{Parenthesis, Subshell};
     use ast::operation::{BinaryOperation, BinaryOperator};
@@ -107,6 +107,7 @@ mod tests {
     use ast::variable::VarReference;
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
+    use context::str_find::{find_between, find_in};
     use pretty_assertions::assert_eq;
 
     #[test]

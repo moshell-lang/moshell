@@ -35,6 +35,7 @@ impl<'a> Source<'a> {
         }
     }
 
+    /// Gets the length in bytes of the source.
     pub fn len(&self) -> usize {
         self.source.len()
     }

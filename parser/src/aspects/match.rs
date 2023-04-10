@@ -227,7 +227,7 @@ mod tests {
     use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
     use crate::parse;
-    use crate::source::{find_between, find_in, find_in_nth, literal};
+    use crate::source::literal;
     use ast::call::Call;
     use ast::group::Subshell;
     use ast::operation::{BinaryOperation, BinaryOperator};
@@ -236,6 +236,7 @@ mod tests {
     use ast::value::{Literal, TemplateString};
     use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
     use ast::Expr;
+    use context::str_find::{find_between, find_in, find_in_nth};
 
     #[test]
     fn parse_match_as_value() {

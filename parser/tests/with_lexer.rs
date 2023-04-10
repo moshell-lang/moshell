@@ -5,8 +5,9 @@ use ast::value::TemplateString;
 use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
+use context::str_find::{find_in, find_in_nth};
 use parser::parse;
-use parser::source::{find_in, find_in_nth, literal, literal_nth};
+use parser::source::{literal, literal_nth};
 use pretty_assertions::assert_eq;
 
 #[test]

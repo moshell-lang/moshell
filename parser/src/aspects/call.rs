@@ -227,11 +227,12 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
-    use crate::source::{find_between, find_in, literal, literal_nth};
+    use crate::source::{literal, literal_nth};
     use ast::call::{Call, ProgrammaticCall};
     use ast::r#type::{SimpleType, Type};
     use ast::value::Literal;
     use ast::Expr;
+    use context::str_find::{find_between, find_in};
 
     #[test]
     fn wrong_group_end() {

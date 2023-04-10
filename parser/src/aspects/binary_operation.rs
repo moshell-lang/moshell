@@ -157,13 +157,14 @@ mod tests {
     use crate::aspects::binary_operation::BinaryOperationsAspect;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parser::Parser;
-    use crate::source::{find_between, find_in, find_in_nth, literal, literal_nth};
+    use crate::source::{literal, literal_nth};
     use ast::call::Call;
     use ast::group::{Parenthesis, Subshell};
     use ast::operation::BinaryOperation;
     use ast::operation::BinaryOperator::*;
     use ast::value::Literal;
     use ast::Expr;
+    use context::str_find::{find_between, find_in, find_in_nth};
 
     #[test]
     fn is_left_associative() {
