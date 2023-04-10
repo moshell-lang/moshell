@@ -25,7 +25,7 @@ use std::rc::Rc;
 
 /// An environment.
 /// The Environment contains the defined types, variables, structure and function definitions of a certain scope.
-/// It can have dependencies over other dependences.
+/// It can have dependencies over other dependencies.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Environment<'a> {
     /// The type context.

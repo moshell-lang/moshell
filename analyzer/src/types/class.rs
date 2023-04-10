@@ -1,6 +1,7 @@
 use crate::lang_types::any;
 use crate::types::context::TypeContext;
 use crate::types::types::{DefinedType, Type};
+use context::display::fmt_comma_separated;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
@@ -59,14 +60,7 @@ impl Debug for TypeClass {
 impl Display for TypeClass {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.name)?;
-        if let Some((first, tail)) = self.generic_parameters.split_first() {
-            write!(f, "[{}", first)?;
-            for gparam in tail {
-                write!(f, ", {}", gparam)?;
-            }
-        }
-
-        Ok(())
+        fmt_comma_separated('[', ']', &self.generic_parameters, f)
     }
 }
 

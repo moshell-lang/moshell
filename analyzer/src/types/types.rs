@@ -1,4 +1,5 @@
-use std::fmt::{Debug, Display, Formatter, Write};
+use context::display::fmt_comma_separated;
+use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct ParameterizedType {
@@ -23,7 +24,7 @@ impl Display for ParameterizedType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.name)?;
         if !self.params.is_empty() {
-            display_type_list('[', ']', &self.params, f)?;
+            fmt_comma_separated('[', ']', &self.params, f)?;
         }
         Ok(())
     }
@@ -74,7 +75,7 @@ impl Type {
 impl Display for Type {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Type::Defined(d) => write!(f, "{}", d),
+            Type::Defined(d) => write!(f, "{d}"),
             Type::Unknown => write!(f, "<unknown>"),
             Type::Nothing => write!(f, "Nothing"),
         }
@@ -84,23 +85,7 @@ impl Display for Type {
 impl Display for DefinedType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            DefinedType::Parameterized(p) => write!(f, "{}", p),
+            DefinedType::Parameterized(p) => write!(f, "{p}"),
         }
     }
-}
-
-fn display_type_list<'a>(
-    start: char,
-    end: char,
-    types: &Vec<Type>,
-    f: &mut Formatter<'_>,
-) -> std::fmt::Result {
-    f.write_char(start)?;
-    if let Some((first, rest)) = types.split_first() {
-        write!(f, "{first}")?;
-        for ty in rest {
-            write!(f, ", {ty}")?;
-        }
-    }
-    f.write_char(end)
 }

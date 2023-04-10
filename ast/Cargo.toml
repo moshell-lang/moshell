@@ -7,5 +7,6 @@ edition = "2021"
 
 [dependencies]
 dbg-pls = { version = "0.3.5", features = ["derive"] }
-enum-assoc = "0.4.0"
+enum-assoc = "1.0.0"
+context = { path = "../context" }
 lexer = { path = "../lexer" }

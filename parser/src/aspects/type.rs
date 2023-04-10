@@ -5,8 +5,8 @@ use crate::parser::{ParseResult, Parser};
 
 use ast::r#type::{ByName, CallableType, CastedExpr, SimpleType, Type};
 use ast::Expr;
+use context::display::fmt_comma_separated;
 use lexer::token::TokenType::*;
-use std::fmt::Write;
 
 ///A parser aspect to parse all type declarations, such as lambdas, constant types, parametrized type and Unit
 pub trait TypeAspect<'a> {
@@ -149,16 +149,9 @@ impl<'a> Parser<'a> {
         }
 
         let mut rendered_tuple = String::new();
-        rendered_tuple += "(";
+        fmt_comma_separated('(', ')', &inputs, &mut rendered_tuple).unwrap();
 
-        if let Some((first, rest)) = inputs.split_first() {
-            write!(rendered_tuple, "{}", first).unwrap();
-            for tpe in rest {
-                write!(rendered_tuple, ", {}", tpe).unwrap();
-            }
-        }
-
-        rendered_tuple += ") => <types>";
+        rendered_tuple += " => <types>";
         self.expected(
             "Tuples are not yet supported. A lambda declaration was expected here",
             Expected(rendered_tuple),
