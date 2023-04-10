@@ -1,4 +1,5 @@
 use crate::group::Subshell;
+use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
 
 /// A special type of grouping expression that should be substituted
@@ -7,6 +8,12 @@ use dbg_pls::DebugPls;
 pub struct Substitution<'a> {
     pub underlying: Subshell<'a>,
     pub kind: SubstitutionKind,
+}
+
+impl SourceSegmentHolder for Substitution<'_> {
+    fn segment(&self) -> SourceSegment {
+        self.underlying.segment.clone()
+    }
 }
 
 /// The kind of substitution that should be performed.

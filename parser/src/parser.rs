@@ -183,12 +183,12 @@ impl<'a> Parser<'a> {
             SquaredLeftBracket => self.parse_test(),
 
             Continue => {
-                self.cursor.next()?;
-                Ok(Expr::Continue)
+                let current = self.cursor.next()?;
+                Ok(Expr::Continue(self.cursor.relative_pos(current.value)))
             }
             Break => {
-                self.cursor.next()?;
-                Ok(Expr::Break)
+                let current = self.cursor.next()?;
+                Ok(Expr::Break(self.cursor.relative_pos(current.value)))
             }
             Return => self.parse_return().map(Expr::Return),
 
@@ -292,17 +292,17 @@ impl<'a> Parser<'a> {
     }
 
     /// Expect a specific delimiter token type and pop it from the delimiter stack.
-    pub(crate) fn expect_delimiter(&mut self, eog: TokenType) -> ParseResult<()> {
-        if self.cursor.advance(of_type(eog)).is_some() {
+    pub(crate) fn expect_delimiter(&mut self, eog: TokenType) -> ParseResult<Token<'a>> {
+        if let Some(token) = self.cursor.advance(of_type(eog)) {
             self.delimiter_stack.pop_back();
-            Ok(())
+            Ok(token)
         } else {
             self.mismatched_delimiter(eog)
         }
     }
 
     /// Raise a mismatched delimiter error on the current token.
-    pub(crate) fn mismatched_delimiter(&mut self, eog: TokenType) -> ParseResult<()> {
+    pub(crate) fn mismatched_delimiter<T>(&mut self, eog: TokenType) -> ParseResult<T> {
         if let Some(last) = self.delimiter_stack.back() {
             self.expected(
                 "Mismatched closing delimiter.",
@@ -349,7 +349,7 @@ impl<'a> Parser<'a> {
 
         if let Expr::Literal(literal) = &expr {
             if self.cursor.lookahead(bin_op()).is_some() {
-                let start_pos = self.cursor.relative_pos(literal.lexeme).start;
+                let start_pos = literal.segment.start;
                 if self
                     .binary_operation_right(expr.clone(), Parser::next_value)
                     .is_ok()

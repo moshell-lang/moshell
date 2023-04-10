@@ -1,6 +1,7 @@
 use crate::err::ParseErrorKind::Expected;
 use crate::moves::{blanks, eod, lookahead, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
+use context::source::{SourceSegment, SourceSegmentHolder};
 use lexer::token::TokenType;
 use lexer::token::TokenType::Comma;
 
@@ -13,8 +14,9 @@ pub(super) trait ExpressionListAspect<'a> {
         start: TokenType,
         end: TokenType,
         parse_element: F,
-    ) -> ParseResult<Vec<E>>
+    ) -> ParseResult<(Vec<E>, SourceSegment)>
     where
+        E: SourceSegmentHolder,
         F: FnMut(&mut Self) -> ParseResult<E>;
 
     ///Explicits lists are whether (A), (A, B, ...) or () (if it can be empty)
@@ -26,8 +28,9 @@ pub(super) trait ExpressionListAspect<'a> {
         start: TokenType,
         end: TokenType,
         parse_element: F,
-    ) -> ParseResult<Vec<E>>
+    ) -> ParseResult<(Vec<E>, SourceSegment)>
     where
+        E: SourceSegmentHolder,
         F: FnMut(&mut Self) -> ParseResult<E>;
 }
 
@@ -37,14 +40,17 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         start: TokenType,
         end: TokenType,
         mut parse_element: F,
-    ) -> ParseResult<Vec<E>>
+    ) -> ParseResult<(Vec<E>, SourceSegment)>
     where
+        E: SourceSegmentHolder,
         F: FnMut(&mut Self) -> ParseResult<E>,
     {
         if self.cursor.lookahead(of_type(start)).is_some() {
             self.parse_explicit_list(start, end, parse_element)
         } else {
-            Ok(vec![parse_element(self)?])
+            let elem = parse_element(self)?;
+            let segment = elem.segment();
+            Ok((vec![elem], segment))
         }
     }
 
@@ -53,8 +59,9 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         start: TokenType,
         end: TokenType,
         mut parse_element: F,
-    ) -> ParseResult<Vec<E>>
+    ) -> ParseResult<(Vec<E>, SourceSegment)>
     where
+        E: SourceSegmentHolder,
         F: FnMut(&mut Self) -> ParseResult<E>,
     {
         let start = self.cursor.force_with(
@@ -81,8 +88,8 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         }
         self.cursor.advance(blanks());
 
-        self.expect_delimiter(end)?;
+        let end = self.expect_delimiter(end)?;
 
-        Ok(elements)
+        Ok((elements, self.cursor.relative_pos_ctx(start..end)))
     }
 }

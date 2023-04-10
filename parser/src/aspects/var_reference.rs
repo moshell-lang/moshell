@@ -2,7 +2,7 @@ use context::source::try_join_str;
 use lexer::token::TokenType::*;
 
 use crate::err::ParseErrorKind;
-use crate::moves::{like, of_type, repeat, MoveOperations};
+use crate::moves::{any, blanks, like, lookahead, of_type, repeat, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::variable::VarReference;
 use ast::Expr;
@@ -16,6 +16,10 @@ pub trait VarReferenceAspect<'a> {
 impl<'a> VarReferenceAspect<'a> for Parser<'a> {
     /// Parses a variable reference.
     fn var_reference(&mut self) -> ParseResult<Expr<'a>> {
+        let start = self
+            .cursor
+            .advance(blanks().then(lookahead(any())))
+            .unwrap();
         let bracket = self.cursor.advance(of_type(CurlyLeftBracket));
 
         let tokens = self
@@ -38,14 +42,19 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
             try_join_str(self.source.source, acc, t.value).unwrap()
         });
 
+        let mut segment = self.cursor.relative_pos_ctx(start.value..name);
+        segment.start -= 1;
+
         if let Some(bracket) = bracket {
             self.cursor.force_with(
                 of_type(CurlyRightBracket),
                 "Expected closing curly bracket.",
                 ParseErrorKind::Unpaired(self.cursor.relative_pos(bracket)),
             )?;
+            segment.end += 1;
         }
-        Ok(Expr::VarReference(VarReference { name }))
+
+        Ok(Expr::VarReference(VarReference { name, segment }))
     }
 }
 
@@ -55,38 +64,69 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
-    use ast::value::TemplateString;
+    use crate::source::literal;
+    use ast::value::{Literal, TemplateString};
     use ast::variable::VarReference;
     use ast::Expr;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
+    use context::str_find::find_in;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn simple_ref() {
         let source = Source::unknown("$VARIABLE");
-        let ast = Parser::new(source).substitution().expect("failed to parse");
-        assert_eq!(ast, Expr::VarReference(VarReference { name: "VARIABLE" }));
+        let ast = Parser::new(source.clone())
+            .substitution()
+            .expect("failed to parse");
+        assert_eq!(
+            ast,
+            Expr::VarReference(VarReference {
+                name: "VARIABLE",
+                segment: source.segment()
+            })
+        );
     }
 
     #[test]
     fn dollar_is_literal() {
         let source = Source::unknown("$");
-        let ast = parse(source).expect("failed to parse");
-        assert_eq!(ast, vec![Expr::Literal("$".into())])
+        let ast = parse(source.clone()).expect("failed to parse");
+        assert_eq!(
+            ast,
+            vec![Expr::Literal(Literal {
+                parsed: "$".into(),
+                segment: source.segment()
+            })]
+        )
     }
 
     #[test]
     fn special_refs() {
         let source = Source::unknown("$@;$^;$!;$!!;$$");
-        let ast = parse(source).expect("failed to parse");
+        let ast = parse(source.clone()).expect("failed to parse");
         assert_eq!(
             ast,
             vec![
-                Expr::VarReference(VarReference { name: "@" }),
-                Expr::VarReference(VarReference { name: "^" }),
-                Expr::VarReference(VarReference { name: "!" }),
-                Expr::VarReference(VarReference { name: "!!" }),
-                Expr::VarReference(VarReference { name: "$" }),
+                Expr::VarReference(VarReference {
+                    name: "@",
+                    segment: find_in(&source.source, "$@"),
+                }),
+                Expr::VarReference(VarReference {
+                    name: "^",
+                    segment: find_in(&source.source, "$^"),
+                }),
+                Expr::VarReference(VarReference {
+                    name: "!",
+                    segment: find_in(&source.source, "$!"),
+                }),
+                Expr::VarReference(VarReference {
+                    name: "!!",
+                    segment: find_in(&source.source, "$!!"),
+                }),
+                Expr::VarReference(VarReference {
+                    name: "$",
+                    segment: find_in(&source.source, "$$"),
+                }),
             ]
         )
     }
@@ -94,13 +134,19 @@ mod tests {
     #[test]
     fn wrapped_ref() {
         let source = Source::unknown("${VAR}IABLE");
-        let ast = parse(source).expect("failed to parse");
+        let ast = parse(source.clone()).expect("failed to parse");
         assert_eq!(
             ast,
             vec![Expr::TemplateString(TemplateString {
                 parts: vec![
-                    Expr::VarReference(VarReference { name: "VAR" }),
-                    Expr::Literal("IABLE".into()),
+                    Expr::VarReference(VarReference {
+                        name: "VAR",
+                        segment: find_in(source.source, "${VAR}")
+                    }),
+                    Expr::Literal(Literal {
+                        parsed: "IABLE".into(),
+                        segment: find_in(source.source, "IABLE")
+                    }),
                 ]
             })]
         )
@@ -124,15 +170,24 @@ mod tests {
     #[test]
     fn multiple_wrapped_ref() {
         let source = Source::unknown("${VAR}IABLE${LONG}${VERY_LONG}");
-        let ast = parse(source).expect("failed to parse");
+        let ast = parse(source.clone()).expect("failed to parse");
         assert_eq!(
             ast,
             vec![Expr::TemplateString(TemplateString {
                 parts: vec![
-                    Expr::VarReference(VarReference { name: "VAR" }),
-                    Expr::Literal("IABLE".into()),
-                    Expr::VarReference(VarReference { name: "LONG" }),
-                    Expr::VarReference(VarReference { name: "VERY_LONG" }),
+                    Expr::VarReference(VarReference {
+                        name: "VAR",
+                        segment: find_in(source.source, "${VAR}")
+                    }),
+                    literal(source.source, "IABLE"),
+                    Expr::VarReference(VarReference {
+                        name: "LONG",
+                        segment: find_in(source.source, "${LONG}")
+                    }),
+                    Expr::VarReference(VarReference {
+                        name: "VERY_LONG",
+                        segment: find_in(source.source, "${VERY_LONG}")
+                    }),
                 ]
             })]
         )

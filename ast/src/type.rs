@@ -1,6 +1,8 @@
 use crate::Expr;
 use context::display::fmt_comma_separated;
+use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
+use src_macros::segment_holder;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 
@@ -16,13 +18,14 @@ pub enum Type<'a> {
     ByName(ByName<'a>),
 
     ///Either `()` or `Unit`, representing a void type
-    Unit,
+    Unit(SourceSegment),
 
-    ///The Nothing types
-    Nothing,
+    ///The Nothing type
+    Nothing(SourceSegment),
 }
 
-///a casted expression
+/// A casted expression
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct CastedExpr<'a> {
     ///the underlying expression
@@ -32,17 +35,20 @@ pub struct CastedExpr<'a> {
     pub casted_type: Type<'a>,
 }
 
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct SimpleType<'a> {
     pub name: &'a str,
     pub params: Vec<Type<'a>>,
 }
 
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ByName<'a> {
     pub name: Box<Type<'a>>,
 }
 
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct CallableType<'a> {
     pub params: Vec<Type<'a>>,
@@ -55,8 +61,20 @@ impl<'a> Display for Type<'a> {
             Type::Simple(m) => Display::fmt(m, f),
             Type::Callable(p) => Display::fmt(p, f),
             Type::ByName(n) => Display::fmt(n, f),
-            Type::Unit => write!(f, "Unit"),
-            Type::Nothing => write!(f, "Nothing"),
+            Type::Unit(_) => write!(f, "Unit"),
+            Type::Nothing(_) => write!(f, "Nothing"),
+        }
+    }
+}
+
+impl SourceSegmentHolder for Type<'_> {
+    fn segment(&self) -> SourceSegment {
+        match self {
+            Type::Simple(m) => m.segment(),
+            Type::Callable(p) => p.segment(),
+            Type::ByName(n) => n.segment(),
+            Type::Unit(segment) => segment.clone(),
+            Type::Nothing(segment) => segment.clone(),
         }
     }
 }

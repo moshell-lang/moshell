@@ -1,17 +1,19 @@
 use ast::call::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use ast::group::Subshell;
 use ast::substitution::{Substitution, SubstitutionKind};
-use ast::value::{Literal, TemplateString};
+use ast::value::TemplateString;
 use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
-use context::source::Source;
+use context::source::{Source, SourceSegmentHolder};
+use context::str_find::{find_in, find_in_nth};
 use parser::parse;
+use parser::source::{literal, literal_nth};
 use pretty_assertions::assert_eq;
 
 #[test]
 fn with_lexer_variable() {
     let source = Source::unknown("var a = 'hello world!'");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
 
     assert_eq!(
         parsed,
@@ -20,11 +22,10 @@ fn with_lexer_variable() {
             var: TypedVariable {
                 name: "a",
                 ty: None,
+                segment: find_in_nth(source.source, "a", 1)
             },
-            initializer: Some(Box::new(Expr::Literal(Literal {
-                lexeme: "'hello world!'",
-                parsed: "hello world!".into(),
-            }))),
+            initializer: Some(Box::new(literal(source.source, "'hello world!'"))),
+            segment: source.segment()
         })]
     );
 }
@@ -32,18 +33,18 @@ fn with_lexer_variable() {
 #[test]
 fn with_lexer_var_reference_one() {
     let source = Source::unknown("echo '$var5' $var5");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
 
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
             arguments: vec![
-                Expr::Literal("echo".into()),
-                Expr::Literal(Literal {
-                    lexeme: "'$var5'",
-                    parsed: "$var5".into(),
+                literal(source.source, "echo"),
+                literal(source.source, "'$var5'"),
+                Expr::VarReference(VarReference {
+                    name: "var5",
+                    segment: find_in_nth(source.source, "$var5", 1)
                 }),
-                Expr::VarReference(VarReference { name: "var5" }),
             ],
             type_parameters: Vec::new()
         })]
@@ -53,7 +54,7 @@ fn with_lexer_var_reference_one() {
 #[test]
 fn with_lexer_var_reference_two() {
     let source = Source::unknown("\"fake$cmd\" do $arg2");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
 
     assert_eq!(
         parsed,
@@ -61,12 +62,18 @@ fn with_lexer_var_reference_two() {
             arguments: vec![
                 Expr::TemplateString(TemplateString {
                     parts: vec![
-                        Expr::Literal("fake".into()),
-                        Expr::VarReference(VarReference { name: "cmd" }),
+                        literal(source.source, "\"fake"),
+                        Expr::VarReference(VarReference {
+                            name: "cmd",
+                            segment: find_in(source.source, "$cmd")
+                        }),
                     ]
                 }),
-                Expr::Literal("do".into()),
-                Expr::VarReference(VarReference { name: "arg2" }),
+                literal(source.source, "do"),
+                Expr::VarReference(VarReference {
+                    name: "arg2",
+                    segment: find_in(source.source, "$arg2")
+                }),
             ],
             type_parameters: Vec::new()
         })]
@@ -83,21 +90,30 @@ fn empty_content() {
 #[test]
 fn with_lexer_var_reference_three() {
     let source = Source::unknown("echo \"hello $world everyone $verb${ready}!\"");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
 
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
             arguments: vec![
-                Expr::Literal("echo".into()),
+                literal(source.source, "echo"),
                 Expr::TemplateString(TemplateString {
                     parts: vec![
-                        Expr::Literal("hello ".into()),
-                        Expr::VarReference(VarReference { name: "world" }),
-                        Expr::Literal(" everyone ".into()),
-                        Expr::VarReference(VarReference { name: "verb" }),
-                        Expr::VarReference(VarReference { name: "ready" }),
-                        Expr::Literal("!".into()),
+                        literal(source.source, "\"hello "),
+                        Expr::VarReference(VarReference {
+                            name: "world",
+                            segment: find_in(source.source, "$world")
+                        }),
+                        literal(source.source, " everyone "),
+                        Expr::VarReference(VarReference {
+                            name: "verb",
+                            segment: find_in(source.source, "$verb")
+                        }),
+                        Expr::VarReference(VarReference {
+                            name: "ready",
+                            segment: find_in(source.source, "${ready}")
+                        }),
+                        literal(source.source, "!\""),
                     ]
                 }),
             ],
@@ -109,18 +125,19 @@ fn with_lexer_var_reference_three() {
 #[test]
 fn with_lexer_redirection() {
     let source = Source::unknown("test &> /dev/null");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Redirected(Redirected {
             expr: Box::new(Expr::Call(Call {
-                arguments: vec![Expr::Literal("test".into())],
+                arguments: vec![literal(source.source, "test")],
                 type_parameters: Vec::new()
             })),
             redirections: vec![Redir {
                 fd: RedirFd::Wildcard,
                 operator: RedirOp::Write,
-                operand: Expr::Literal("/dev/null".into()),
+                operand: literal(source.source, "/dev/null"),
+                segment: find_in(source.source, "&> /dev/null")
             }],
         })]
     );
@@ -129,24 +146,26 @@ fn with_lexer_redirection() {
 #[test]
 fn with_lexer_redirections() {
     let source = Source::unknown("command < /tmp/input 2> /tmp/output");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Redirected(Redirected {
             expr: Box::new(Expr::Call(Call {
-                arguments: vec![Expr::Literal("command".into())],
+                arguments: vec![literal(source.source, "command")],
                 type_parameters: Vec::new()
             })),
             redirections: vec![
                 Redir {
                     fd: RedirFd::Default,
                     operator: RedirOp::Read,
-                    operand: Expr::Literal("/tmp/input".into()),
+                    operand: literal(source.source, "/tmp/input"),
+                    segment: find_in(source.source, "< /tmp/input")
                 },
                 Redir {
                     fd: RedirFd::Fd(2),
                     operator: RedirOp::Write,
-                    operand: Expr::Literal("/tmp/output".into()),
+                    operand: literal(source.source, "/tmp/output"),
+                    segment: find_in(source.source, "2> /tmp/output")
                 },
             ],
         })]
@@ -156,30 +175,28 @@ fn with_lexer_redirections() {
 #[test]
 fn with_lexer_pipe_and_redirection() {
     let source = Source::unknown("ls -l | grep 'hello' > out.txt");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Pipeline(Pipeline {
             commands: vec![
                 Expr::Call(Call {
-                    arguments: vec![Expr::Literal("ls".into()), Expr::Literal("-l".into())],
+                    arguments: vec![literal(source.source, "ls"), literal(source.source, "-l")],
                     type_parameters: Vec::new()
                 }),
                 Expr::Redirected(Redirected {
                     expr: Box::new(Expr::Call(Call {
                         arguments: vec![
-                            Expr::Literal("grep".into()),
-                            Expr::Literal(Literal {
-                                lexeme: "'hello'",
-                                parsed: "hello".into()
-                            }),
+                            literal(source.source, "grep"),
+                            literal(source.source, "'hello'"),
                         ],
                         type_parameters: Vec::new()
                     })),
                     redirections: vec![Redir {
                         fd: RedirFd::Default,
                         operator: RedirOp::Write,
-                        operand: Expr::Literal("out.txt".into()),
+                        operand: literal(source.source, "out.txt"),
+                        segment: find_in(source.source, "> out.txt"),
                     }],
                 }),
             ],
@@ -190,27 +207,24 @@ fn with_lexer_pipe_and_redirection() {
 #[test]
 fn with_lexer_pipe_and_pipe() {
     let source = Source::unknown("ls|wc|tr -s ' '");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Pipeline(Pipeline {
             commands: vec![
                 Expr::Call(Call {
-                    arguments: vec![Expr::Literal("ls".into())],
+                    arguments: vec![literal(source.source, "ls")],
                     type_parameters: Vec::new()
                 }),
                 Expr::Call(Call {
-                    arguments: vec![Expr::Literal("wc".into())],
+                    arguments: vec![literal(source.source, "wc")],
                     type_parameters: Vec::new()
                 }),
                 Expr::Call(Call {
                     arguments: vec![
-                        Expr::Literal("tr".into()),
-                        Expr::Literal("-s".into()),
-                        Expr::Literal(Literal {
-                            lexeme: "' '",
-                            parsed: " ".into(),
-                        }),
+                        literal(source.source, "tr"),
+                        literal(source.source, "-s"),
+                        literal(source.source, "' '"),
                     ],
                     type_parameters: Vec::new()
                 }),
@@ -221,22 +235,21 @@ fn with_lexer_pipe_and_pipe() {
 
 #[test]
 fn with_lexer_here_string() {
+    let content = "grep e <<< 'hello'";
     let source = Source::unknown("grep e <<< 'hello'");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Redirected(Redirected {
             expr: Box::new(Expr::Call(Call {
-                arguments: vec![Expr::Literal("grep".into()), Expr::Literal("e".into())],
+                arguments: vec![literal(content, "grep"), literal_nth(content, "e", 1)],
                 type_parameters: Vec::new()
             })),
             redirections: vec![Redir {
                 fd: RedirFd::Default,
                 operator: RedirOp::String,
-                operand: Expr::Literal(Literal {
-                    lexeme: "'hello'",
-                    parsed: "hello".into(),
-                }),
+                operand: literal(source.source, "'hello'"),
+                segment: find_in(content, "<<< 'hello'"),
             }],
         })]
     );
@@ -245,18 +258,22 @@ fn with_lexer_here_string() {
 #[test]
 fn with_lexer_substitution() {
     let source = Source::unknown("echo $(ls -l)");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
             arguments: vec![
-                Expr::Literal("echo".into()),
+                literal(source.source, "echo"),
                 Expr::Substitution(Substitution {
                     underlying: Subshell {
                         expressions: vec![Expr::Call(Call {
-                            arguments: vec![Expr::Literal("ls".into()), Expr::Literal("-l".into())],
+                            arguments: vec![
+                                literal(source.source, "ls"),
+                                literal(source.source, "-l")
+                            ],
                             type_parameters: Vec::new()
-                        })]
+                        })],
+                        segment: find_in(source.source, "$(ls -l)")
                     },
                     kind: SubstitutionKind::Capture,
                 }),
@@ -269,34 +286,36 @@ fn with_lexer_substitution() {
 #[test]
 fn with_lexer_substitution_in_substitution() {
     let source = Source::unknown("echo $( ls \"$(pwd)/test\" )");
-    let parsed = parse(source).expect("Failed to parse");
+    let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
             arguments: vec![
-                Expr::Literal("echo".into()),
+                literal(source.source, "echo"),
                 Expr::Substitution(Substitution {
                     underlying: Subshell {
                         expressions: vec![Expr::Call(Call {
                             arguments: vec![
-                                Expr::Literal("ls".into()),
+                                literal(source.source, "ls"),
                                 Expr::TemplateString(TemplateString {
                                     parts: vec![
                                         Expr::Substitution(Substitution {
                                             underlying: Subshell {
                                                 expressions: vec![Expr::Call(Call {
-                                                    arguments: vec![Expr::Literal("pwd".into())],
+                                                    arguments: vec![literal(source.source, "pwd")],
                                                     type_parameters: Vec::new()
                                                 })],
+                                                segment: find_in(source.source, "$(pwd)")
                                             },
                                             kind: SubstitutionKind::Capture,
                                         }),
-                                        Expr::Literal("/test".into()),
+                                        literal(source.source, "/test\""),
                                     ]
                                 }),
                             ],
                             type_parameters: Vec::new()
-                        })]
+                        })],
+                        segment: find_in(source.source, "$( ls \"$(pwd)/test\" )")
                     },
                     kind: SubstitutionKind::Capture,
                 }),

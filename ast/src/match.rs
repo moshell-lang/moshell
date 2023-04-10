@@ -1,9 +1,12 @@
 use crate::value::{Literal, TemplateString};
 use crate::variable::VarReference;
 use crate::Expr;
+use context::source::SourceSegment;
 use dbg_pls::DebugPls;
+use src_macros::segment_holder;
 
 /// structure of a `match` expression.
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Match<'a> {
     pub operand: Box<Expr<'a>>,
@@ -11,6 +14,7 @@ pub struct Match<'a> {
 }
 
 ///the arm (a@ b | c if d => ..) of a match expression
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct MatchArm<'a> {
     //the extracted value name (x@ ..)
@@ -27,10 +31,10 @@ pub struct MatchArm<'a> {
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub enum MatchPattern<'a> {
     //*, any
-    Wildcard,
+    Wildcard(SourceSegment),
 
     //refer to wrapped structures documentation
     VarRef(VarReference<'a>),
-    Literal(Literal<'a>),
+    Literal(Literal),
     Template(TemplateString<'a>),
 }

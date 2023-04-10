@@ -4,6 +4,7 @@ members = [
 	"sandbox",
 	"parser",
 	"context",
+	"context/macros",
 	"cli",
 	"analyzer"
 ]

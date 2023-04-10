@@ -5,6 +5,7 @@ use crate::moves::{of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::call::Detached;
 use ast::Expr;
+use context::source::SourceSegmentHolder;
 
 ///parses a detached expression (<expr> &)
 pub trait DetachedAspect<'a> {
@@ -17,7 +18,7 @@ impl<'a> DetachedAspect<'a> for Parser<'a> {
     fn parse_detached(&mut self, underlying: Expr<'a>) -> ParseResult<Expr<'a>> {
         let ampersand = spaces().then(of_type(Ampersand));
         //there is a trailing '&'
-        if self.cursor.advance(ampersand).is_some() {
+        if let Some(first) = self.cursor.advance(ampersand) {
             if let Some(another) = self.cursor.advance(ampersand) {
                 return self.expected_with(
                     "'&' not allowed here",
@@ -25,8 +26,11 @@ impl<'a> DetachedAspect<'a> for Parser<'a> {
                     ParseErrorKind::Unexpected,
                 );
             }
+            let underlying = Box::new(underlying);
+            let segment = underlying.segment().start..self.cursor.relative_pos(first).end;
             return Ok(Expr::Detached(Detached {
-                underlying: Box::new(underlying),
+                underlying,
+                segment,
             }));
         }
         Ok(underlying)
@@ -40,13 +44,14 @@ mod tests {
     use ast::call::{Call, Detached};
     use ast::group::Block;
     use ast::Expr;
-    use ast::Expr::Literal;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
+    use context::str_find::{find_between, find_in};
 
     use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
     use crate::parse;
     use crate::parser::ParseResult;
+    use crate::source::literal;
 
     #[test]
     fn twice_derived() {
@@ -64,18 +69,22 @@ mod tests {
 
     #[test]
     fn twice_derived_workaround() {
-        let res = parse(Source::unknown("{date &}&")).expect("Failed to parse");
+        let source = Source::unknown("{date &}&");
+        let res = parse(source.clone()).expect("Failed to parse");
         assert_eq!(
             res,
             vec![Expr::Detached(Detached {
                 underlying: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Detached(Detached {
                         underlying: Box::new(Expr::Call(Call {
-                            arguments: vec![Literal("date".into())],
+                            arguments: vec![literal(source.source, "date")],
                             type_parameters: vec![],
-                        }))
-                    })]
-                }))
+                        })),
+                        segment: find_in(source.source, "date &")
+                    })],
+                    segment: find_between(source.source, "{", "}")
+                })),
+                segment: source.segment()
             })]
         )
     }

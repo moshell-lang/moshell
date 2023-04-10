@@ -29,7 +29,9 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
                 .lookahead(repeat_n(2, of_type(RoundedLeftBracket)))
             {
                 self.cursor.advance(of_type(RoundedLeftBracket));
-                let parenthesis = self.parenthesis()?;
+                let mut parenthesis = self.parenthesis()?;
+                parenthesis.segment.start -= 2; // Include the '$('
+                parenthesis.segment.end += 1;
                 self.cursor.force_with(
                     of_type(RoundedRightBracket),
                     "Expected a second closing parenthesis.",
@@ -39,7 +41,10 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
             }
             return Ok(Expr::Substitution(Substitution {
                 // Read the expression inside the parentheses as a new statement
-                underlying: self.subshell()?,
+                underlying: self.subshell().map(|mut subshell| {
+                    subshell.segment.start -= 1; // Include the '$('
+                    subshell
+                })?,
                 kind: SubstitutionKind::Capture,
             }));
         }
@@ -51,8 +56,8 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
 
         //finally it's a lonely '$' so we return it as a literal
         return Ok(Expr::Literal(Literal {
-            lexeme: dollar_value,
-            parsed: LiteralValue::String(dollar_value.to_string()),
+            parsed: LiteralValue::String(dollar_value.to_owned()),
+            segment: self.cursor.relative_pos(dollar_value),
         }));
     }
 }
@@ -67,11 +72,13 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
+    use crate::source::literal;
     use ast::group::{Block, Parenthesis, Subshell};
     use ast::operation::{BinaryOperation, BinaryOperator};
     use ast::value::Literal;
     use ast::variable::VarReference;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
+    use context::str_find::find_in;
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -107,7 +114,9 @@ mod tests {
     #[test]
     fn mix_blocks() {
         let source = Source::unknown("$({ls $(pwd)})");
-        let ast = Parser::new(source).substitution().expect("Failed to parse");
+        let ast = Parser::new(source.clone())
+            .substitution()
+            .expect("Failed to parse");
         assert_eq!(
             ast,
             Expr::Substitution(Substitution {
@@ -115,20 +124,23 @@ mod tests {
                     expressions: vec![Expr::Block(Block {
                         expressions: vec![Expr::Call(Call {
                             arguments: vec![
-                                Expr::Literal("ls".into()),
+                                literal(source.source, "ls"),
                                 Expr::Substitution(Substitution {
                                     underlying: Subshell {
                                         expressions: vec![Expr::Call(Call {
-                                            arguments: vec![Expr::Literal("pwd".into())],
+                                            arguments: vec![literal(source.source, "pwd")],
                                             type_parameters: vec![],
                                         })],
+                                        segment: find_in(source.source, "$(pwd)")
                                     },
                                     kind: SubstitutionKind::Capture,
                                 }),
                             ],
                             type_parameters: vec![],
-                        })]
+                        })],
+                        segment: find_in(source.source, "{ls $(pwd)}")
                     })],
+                    segment: source.segment()
                 },
                 kind: SubstitutionKind::Capture,
             })
@@ -168,18 +180,24 @@ mod tests {
     #[test]
     fn arithmetic() {
         let source = Source::unknown("$(($a + 1))");
-        let ast = Parser::new(source).substitution().expect("Failed to parse");
+        let ast = Parser::new(source.clone())
+            .substitution()
+            .expect("Failed to parse");
         assert_eq!(
             ast,
             Expr::Parenthesis(Parenthesis {
                 expression: Box::new(Expr::Binary(BinaryOperation {
-                    left: Box::new(Expr::VarReference(VarReference { name: "a" })),
+                    left: Box::new(Expr::VarReference(VarReference {
+                        name: "a",
+                        segment: find_in(source.source, "$a")
+                    })),
                     op: BinaryOperator::Plus,
                     right: Box::new(Expr::Literal(Literal {
-                        lexeme: "1",
                         parsed: 1.into(),
+                        segment: find_in(source.source, "1")
                     })),
                 })),
+                segment: source.segment(),
             })
         );
     }

@@ -1,5 +1,6 @@
 use ast::function::{FunctionDeclaration, FunctionParameter, Return};
 use ast::r#type::Type;
+use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
 use lexer::token::TokenType::*;
 
@@ -22,16 +23,19 @@ pub trait FunctionDeclarationAspect<'a> {
 
 impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
     fn parse_function_declaration(&mut self) -> ParseResult<FunctionDeclaration<'a>> {
-        self.cursor.force(
-            of_type(Fun),
-            "expected 'fun' keyword at start of function declaration.",
-        )?;
+        let fun = self
+            .cursor
+            .force(
+                of_type(Fun),
+                "expected 'fun' keyword at start of function declaration.",
+            )?
+            .value;
 
         //consume blanks
         self.cursor.advance(blanks());
 
         let name = self.parse_fn_declaration_name()?;
-        let tparams = self.parse_type_parameter_list()?;
+        let tparams = self.parse_type_parameter_list()?.0;
         let params = self.parse_fn_parameter_list()?;
         let rtype = self.parse_fn_return_type()?;
         let body = self
@@ -39,6 +43,7 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
             .force(blanks().then(of_type(Equal)), "expected '='")
             .and_then(|_| self.statement())
             .map(Box::new)?;
+        let segment = self.cursor.relative_pos(fun).start..body.segment().end;
 
         Ok(FunctionDeclaration {
             name,
@@ -46,15 +51,17 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
             parameters: params,
             return_type: rtype,
             body,
+            segment,
         })
     }
 
     fn parse_return(&mut self) -> ParseResult<Return<'a>> {
-        self.cursor
+        let start = self
+            .cursor
             .force(of_type(Return), "'return' keyword expected here")?;
-        Ok(Return {
-            expr: Box::new(self.value()?),
-        })
+        let expr = Box::new(self.value()?);
+        let segment = self.cursor.relative_pos(start).start..expr.segment().end;
+        Ok(Return { expr, segment })
     }
 }
 
@@ -180,9 +187,11 @@ mod tests {
     use ast::value::Literal;
     use ast::variable::{TypedVariable, VarReference};
     use ast::Expr;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
+    use context::str_find::{find_between, find_in, find_in_nth};
 
     use crate::parse;
+    use crate::source::{literal, literal_nth};
 
     #[test]
     fn function_no_name() {
@@ -216,7 +225,8 @@ mod tests {
 
     #[test]
     fn function_with_return() {
-        let errs = parse(Source::unknown("fun foo() = return 4 + 5")).expect("parse fail");
+        let source = Source::unknown("fun foo() = return 4 + 5");
+        let errs = parse(source.clone()).expect("parse fail");
         assert_eq!(
             errs,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
@@ -227,16 +237,18 @@ mod tests {
                 body: Box::new(Expr::Return(Return {
                     expr: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Literal(Literal {
-                            lexeme: "4",
                             parsed: 4.into(),
+                            segment: source.source.find('4').map(|p| p..p + 1).unwrap(),
                         })),
                         op: BinaryOperator::Plus,
                         right: Box::new(Expr::Literal(Literal {
-                            lexeme: "5",
                             parsed: 5.into(),
+                            segment: source.source.find('5').map(|p| p..p + 1).unwrap(),
                         }),),
-                    }))
+                    })),
+                    segment: find_between(source.source, "return", "4 + 5")
                 })),
+                segment: source.segment()
             })]
         );
     }
@@ -285,12 +297,8 @@ mod tests {
 
     #[test]
     fn function_declaration() {
-        let source = Source::unknown(
-            "\
-        fun test() = x
-        ",
-        );
-        let ast = parse(source).expect("parse failed");
+        let source = Source::unknown("fun test() = x");
+        let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
@@ -299,21 +307,18 @@ mod tests {
                 parameters: vec![],
                 return_type: None,
                 body: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("x".into())],
+                    arguments: vec![literal(source.source, "x")],
                     type_parameters: vec![],
                 })),
+                segment: source.segment()
             })]
         )
     }
 
     #[test]
     fn function_declaration_param() {
-        let source = Source::unknown(
-            "\
-        fun test(x) = $x
-        ",
-        );
-        let ast = parse(source).expect("parse failed");
+        let source = Source::unknown("fun test(x) = $x");
+        let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
@@ -322,21 +327,22 @@ mod tests {
                 parameters: vec![FunctionParameter::Named(TypedVariable {
                     name: "x",
                     ty: None,
+                    segment: find_in(source.source, "x")
                 })],
                 return_type: None,
-                body: Box::new(Expr::VarReference(VarReference { name: "x" })),
+                body: Box::new(Expr::VarReference(VarReference {
+                    name: "x",
+                    segment: find_in(source.source, "$x")
+                })),
+                segment: source.segment()
             })]
         )
     }
 
     #[test]
     fn function_declaration_params() {
-        let source = Source::unknown(
-            "\
-        fun test(  x : String  ,  y : Test   ) = x
-        ",
-        );
-        let ast = parse(source).expect("parse failed");
+        let source = Source::unknown("fun test(  x : String  ,  y : Test   ) = x");
+        let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
@@ -348,33 +354,34 @@ mod tests {
                         ty: Some(Type::Simple(SimpleType {
                             name: "String",
                             params: vec![],
+                            segment: find_in(source.source, "String")
                         })),
+                        segment: find_in(source.source, "x : String")
                     }),
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
                         ty: Some(Type::Simple(SimpleType {
                             name: "Test",
                             params: vec![],
+                            segment: find_in(source.source, "Test")
                         })),
+                        segment: find_in(source.source, "y : Test")
                     }),
                 ],
                 return_type: None,
                 body: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("x".into())],
+                    arguments: vec![literal_nth(source.source, "x", 1)],
                     type_parameters: vec![],
                 })),
+                segment: source.segment()
             })]
         )
     }
 
     #[test]
     fn function_declaration_tparams() {
-        let source = Source::unknown(
-            "\
-        fun test[X, Y](  x : X  ,  y : Y   ) = x
-        ",
-        );
-        let ast = parse(source).expect("parse failed");
+        let source = Source::unknown("fun test[X, Y](  x : X  ,  y : Y   ) = x");
+        let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
@@ -383,10 +390,12 @@ mod tests {
                     Type::Simple(SimpleType {
                         name: "X",
                         params: Vec::new(),
+                        segment: find_in(source.source, "X")
                     }),
                     Type::Simple(SimpleType {
                         name: "Y",
                         params: Vec::new(),
+                        segment: find_in(source.source, "Y")
                     }),
                 ],
                 parameters: vec![
@@ -395,33 +404,34 @@ mod tests {
                         ty: Some(Type::Simple(SimpleType {
                             name: "X",
                             params: vec![],
+                            segment: find_in_nth(source.source, "X", 1)
                         })),
+                        segment: find_in(source.source, "x : X")
                     }),
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
                         ty: Some(Type::Simple(SimpleType {
                             name: "Y",
                             params: vec![],
+                            segment: find_in_nth(source.source, "Y", 1)
                         })),
+                        segment: find_in(source.source, "y : Y")
                     }),
                 ],
                 return_type: None,
                 body: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("x".into())],
+                    arguments: vec![literal_nth(source.source, "x", 1)],
                     type_parameters: vec![],
                 })),
+                segment: source.segment()
             })]
         )
     }
 
     #[test]
     fn function_declaration_vararg() {
-        let source = Source::unknown(
-            "\
-        fun test(X...) = $x
-        ",
-        );
-        let ast = parse(source).expect("parse failed");
+        let source = Source::unknown("fun test(X...) = $x");
+        let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
@@ -431,22 +441,23 @@ mod tests {
                     SimpleType {
                         name: "X",
                         params: Vec::new(),
+                        segment: find_in(source.source, "X")
                     }
                 )))],
                 return_type: None,
-                body: Box::new(Expr::VarReference(VarReference { name: "x" })),
+                body: Box::new(Expr::VarReference(VarReference {
+                    name: "x",
+                    segment: find_in(source.source, "$x")
+                })),
+                segment: source.segment()
             })]
         )
     }
 
     #[test]
     fn function_declaration_vararg_notype() {
-        let source = Source::unknown(
-            "\
-        fun test(x: int, ...) = $x
-        ",
-        );
-        let ast = parse(source).expect("parse failed");
+        let source = Source::unknown("fun test(x: int, ...) = $x");
+        let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
@@ -459,25 +470,27 @@ mod tests {
                         ty: Some(Type::Simple(SimpleType {
                             name: "int",
                             params: Vec::new(),
+                            segment: find_in(source.source, "int")
                         })),
+                        segment: find_in(source.source, "x: int")
                     }),
                     FunctionParameter::Variadic(None)
                 ],
 
                 return_type: None,
-                body: Box::new(Expr::VarReference(VarReference { name: "x" })),
+                body: Box::new(Expr::VarReference(VarReference {
+                    name: "x",
+                    segment: find_in(source.source, "$x")
+                })),
+                segment: source.segment()
             })]
         )
     }
 
     #[test]
     fn function_declaration_complete() {
-        let source = Source::unknown(
-            "\
-        fun test[X, Y](  x : X  ,  y : Y   ) -> X = x
-        ",
-        );
-        let ast = parse(source).expect("parse failed");
+        let source = Source::unknown("fun test[X, Y](  x : X  ,  y : Y   ) -> X = x");
+        let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
@@ -486,10 +499,12 @@ mod tests {
                     Type::Simple(SimpleType {
                         name: "X",
                         params: Vec::new(),
+                        segment: find_in(source.source, "X")
                     }),
                     Type::Simple(SimpleType {
                         name: "Y",
                         params: Vec::new(),
+                        segment: find_in(source.source, "Y")
                     }),
                 ],
                 parameters: vec![
@@ -498,24 +513,30 @@ mod tests {
                         ty: Some(Type::Simple(SimpleType {
                             name: "X",
                             params: vec![],
+                            segment: find_in_nth(source.source, "X", 1)
                         })),
+                        segment: find_in(source.source, "x : X")
                     }),
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
                         ty: Some(Type::Simple(SimpleType {
                             name: "Y",
                             params: vec![],
+                            segment: find_in_nth(source.source, "Y", 1)
                         })),
+                        segment: find_in(source.source, "y : Y")
                     }),
                 ],
                 return_type: Some(Type::Simple(SimpleType {
                     name: "X",
                     params: Vec::new(),
+                    segment: find_in_nth(source.source, "X", 2)
                 })),
                 body: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("x".into())],
+                    arguments: vec![literal_nth(source.source, "x", 1)],
                     type_parameters: vec![],
                 })),
+                segment: source.segment()
             })]
         )
     }

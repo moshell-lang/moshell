@@ -1,7 +1,11 @@
 use miette::{MietteError, MietteSpanContents, SourceCode, SourceSpan, SpanContents};
 use std::fmt::Debug;
 
-pub type Location = std::ops::Range<usize>;
+pub type SourceSegment = std::ops::Range<usize>;
+
+pub trait SourceSegmentHolder {
+    fn segment(&self) -> SourceSegment;
+}
 
 /// Defines a named source code from which tokens can be produced.
 #[derive(Clone)]
@@ -30,6 +34,11 @@ impl<'a> Source<'a> {
             name: "unknown".to_string(),
         }
     }
+
+    /// Gets the length in bytes of the source.
+    pub fn len(&self) -> usize {
+        self.source.len()
+    }
 }
 
 impl Debug for Source<'_> {
@@ -38,6 +47,12 @@ impl Debug for Source<'_> {
             .field("name", &self.name)
             .field("source", &"<redacted>")
             .finish()
+    }
+}
+
+impl SourceSegmentHolder for Source<'_> {
+    fn segment(&self) -> SourceSegment {
+        0..self.source.len()
     }
 }
 

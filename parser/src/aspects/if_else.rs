@@ -2,6 +2,7 @@ use crate::moves::{aerated, blanks, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::control_flow::If;
 use ast::Expr;
+use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
 use lexer::token::TokenType::{Else, SemiColon};
 
@@ -19,7 +20,7 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
     where
         F: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
     {
-        self.cursor.force(
+        let start = self.cursor.force(
             of_type(TokenType::If),
             "expected 'if' at start of if expression",
         )?;
@@ -47,10 +48,18 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
             None
         };
 
+        let segment = self.cursor.relative_pos(start.value).start
+            ..fail_branch
+                .as_ref()
+                .map(|b| b.as_ref())
+                .unwrap_or(&success_branch)
+                .segment()
+                .end;
         Ok(If {
             condition: Box::new(condition),
             success_branch: Box::new(success_branch),
             fail_branch,
+            segment,
         })
     }
 }
@@ -60,6 +69,7 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
+    use crate::source::{literal, literal_nth};
     use ast::call::Call;
     use ast::control_flow::If;
     use ast::group::Block;
@@ -69,90 +79,133 @@ mod tests {
     use ast::value::{Literal, TemplateString};
     use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
     use ast::Expr;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
+    use context::str_find::{find_between, find_in, rfind_between};
     use pretty_assertions::assert_eq;
 
     #[test]
     fn simple_if() {
-        let source = Source::unknown("if [ $1 ]; echo test");
-        let ast = parse(source).expect("parse failed");
+        let content = "if [ $1 ]; echo test";
+        let source = Source::unknown(content);
+        let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::If(If {
                 condition: Box::new(Expr::Test(Test {
-                    expression: Box::new(Expr::VarReference(VarReference { name: "1" }))
+                    expression: Box::new(Expr::VarReference(VarReference {
+                        name: "1",
+                        segment: find_in(content, "$1")
+                    })),
+                    segment: find_between(content, "[", "]"),
                 })),
                 success_branch: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
+                    arguments: vec![
+                        literal(source.source, "echo"),
+                        literal(source.source, "test")
+                    ],
                     type_parameters: vec![],
                 })),
                 fail_branch: None,
+                segment: source.segment(),
             })]
         )
     }
 
     #[test]
     fn if_else_if() {
-        let source = Source::unknown(
-            "if echo a && [[ -f /file/exe ]]; echo test\n\n\nelse if [ $a ] \n;\n { $7 }; else $5",
-        );
-        let ast = parse(source).expect("parse failed");
+        let content =
+            "if echo a && [[ -f /file/exe ]]; echo test\n\n\nelse if [ $a ] \n;\n { $7 }; else $5";
+        let source = Source::unknown(content.clone());
+        let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::If(If {
                 condition: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Call(Call {
-                        arguments: vec![Expr::Literal("echo".into()), Expr::Literal("a".into())],
+                        arguments: vec![literal(content, "echo"), literal(content, "a")],
                         type_parameters: vec![],
                     })),
                     op: And,
                     right: Box::new(Expr::Call(Call {
                         arguments: vec![
-                            Expr::Literal("test".into()),
-                            Expr::Literal("-f".into()),
-                            Expr::Literal("/file/exe".into())
+                            Expr::Literal(Literal {
+                                parsed: "test".into(),
+                                segment: find_in(content, "[[")
+                            }),
+                            literal(content, "-f"),
+                            literal(content, "/file/exe"),
                         ],
                         type_parameters: vec![],
                     }))
                 })),
                 success_branch: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
+                    arguments: vec![literal_nth(content, "echo", 1), literal(content, "test")],
                     type_parameters: vec![],
                 })),
                 fail_branch: Some(Box::new(Expr::If(If {
                     condition: Box::new(Expr::Test(Test {
-                        expression: Box::new(Expr::VarReference(VarReference { name: "a" }))
+                        expression: Box::new(Expr::VarReference(VarReference {
+                            name: "a",
+                            segment: find_in(content, "$a")
+                        })),
+                        segment: rfind_between(content, "[", "]"),
                     })),
                     success_branch: Box::new(Expr::Block(Block {
-                        expressions: vec![Expr::VarReference(VarReference { name: "7" })]
+                        expressions: vec![Expr::VarReference(VarReference {
+                            name: "7",
+                            segment: find_in(content, "$7")
+                        })],
+                        segment: rfind_between(content, "{", "}"),
                     })),
-                    fail_branch: Some(Box::new(Expr::VarReference(VarReference { name: "5" }))),
+                    fail_branch: Some(Box::new(Expr::VarReference(VarReference {
+                        name: "5",
+                        segment: find_in(content, "$5")
+                    }))),
+                    segment: find_between(content, "if [ $a ]", "$5"),
                 }))),
+                segment: source.segment(),
             })]
         )
     }
 
     #[test]
     fn if_else_if_separations() {
-        let source = Source::unknown("if [ $1 ]; echo test; else if [ $a ]; $7 else $5");
-        let ast = parse(source).expect("parse failed");
+        let content = "if [ $1 ]; echo test; else if [ $a ]; $7 else $5";
+        let source = Source::unknown(content);
+        let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::If(If {
                 condition: Box::new(Expr::Test(Test {
-                    expression: Box::new(Expr::VarReference(VarReference { name: "1" }))
+                    expression: Box::new(Expr::VarReference(VarReference {
+                        name: "1",
+                        segment: find_in(content, "$1")
+                    })),
+                    segment: find_between(content, "[", "]"),
                 })),
                 success_branch: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
+                    arguments: vec![literal(content, "echo"), literal(content, "test")],
                     type_parameters: vec![],
                 })),
                 fail_branch: Some(Box::new(Expr::If(If {
                     condition: Box::new(Expr::Test(Test {
-                        expression: Box::new(Expr::VarReference(VarReference { name: "a" }))
+                        expression: Box::new(Expr::VarReference(VarReference {
+                            name: "a",
+                            segment: find_in(content, "$a")
+                        })),
+                        segment: rfind_between(content, "[", "]")
                     })),
-                    success_branch: Box::new(Expr::VarReference(VarReference { name: "7" })),
-                    fail_branch: Some(Box::new(Expr::VarReference(VarReference { name: "5" }))),
+                    success_branch: Box::new(Expr::VarReference(VarReference {
+                        name: "7",
+                        segment: find_in(content, "$7")
+                    })),
+                    fail_branch: Some(Box::new(Expr::VarReference(VarReference {
+                        name: "5",
+                        segment: find_in(content, "$5")
+                    }))),
+                    segment: find_between(content, "if [ $a ]", "$5")
                 }))),
+                segment: source.segment(),
             })]
         )
     }
@@ -160,26 +213,32 @@ mod tests {
     #[test]
     fn no_separation_else() {
         let source = Source::unknown("if $x {} else {}");
-        let ast = parse(source).expect("parse fail");
+        let ast = parse(source.clone()).expect("parse fail");
         assert_eq!(
             ast,
             vec![Expr::If(If {
-                condition: Box::new(Expr::VarReference(VarReference { name: "x" })),
+                condition: Box::new(Expr::VarReference(VarReference {
+                    name: "x",
+                    segment: find_in(source.source, "$x")
+                })),
                 success_branch: Box::new(Expr::Block(Block {
-                    expressions: vec![]
+                    expressions: vec![],
+                    segment: find_between(source.source, "{", "}")
                 })),
                 fail_branch: Some(Box::new(Expr::Block(Block {
-                    expressions: vec![]
-                })))
+                    expressions: vec![],
+                    segment: rfind_between(source.source, "{", "}")
+                }))),
+                segment: source.segment(),
             })]
         )
     }
 
     #[test]
     fn if_else_as_value() {
-        let source =
-            Source::unknown("val x = if [ {date +\"%Y\"} < 2023 ]; \"bash\" else \"moshell\"");
-        let ast = parse(source).expect("parse failed");
+        let content = "val x = if [ {date +\"%Y\"} < 2023 ]; \"bash\" else \"moshell\"";
+        let source = Source::unknown(content);
+        let ast = parse(source.clone()).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::VarDeclaration(VarDeclaration {
@@ -187,6 +246,7 @@ mod tests {
                 var: TypedVariable {
                     name: "x",
                     ty: None,
+                    segment: find_in(content, "x")
                 },
                 initializer: Some(Box::new(Expr::If(If {
                     condition: Box::new(Expr::Test(Test {
@@ -194,26 +254,35 @@ mod tests {
                             left: Box::new(Expr::Block(Block {
                                 expressions: vec![Expr::Call(Call {
                                     arguments: vec![
-                                        Expr::Literal("date".into()),
-                                        Expr::Literal("+\"%Y\"".into())
+                                        literal(content, "date"),
+                                        Expr::TemplateString(TemplateString {
+                                            parts: vec![
+                                                literal(content, "+"),
+                                                literal(content, "\"%Y\"")
+                                            ],
+                                        })
                                     ],
                                     type_parameters: vec![],
-                                })]
+                                })],
+                                segment: find_between(content, "{", "}")
                             })),
                             op: BinaryOperator::Less,
                             right: Box::new(Expr::Literal(Literal {
-                                lexeme: "2023",
-                                parsed: 2023.into()
+                                parsed: 2023.into(),
+                                segment: find_in(content, "2023")
                             }))
-                        }))
+                        })),
+                        segment: find_between(content, "[", "]"),
                     })),
                     success_branch: Box::new(Expr::TemplateString(TemplateString {
-                        parts: vec![Expr::Literal("bash".into())]
+                        parts: vec![literal(content, "\"bash\"")],
                     })),
                     fail_branch: Some(Box::new(Expr::TemplateString(TemplateString {
-                        parts: vec![Expr::Literal("moshell".into())]
+                        parts: vec![literal(content, "\"moshell\"")],
                     }))),
+                    segment: find_between(content, "if", "\"moshell\""),
                 }))),
+                segment: source.segment()
             }),]
         )
     }

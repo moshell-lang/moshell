@@ -1,10 +1,12 @@
 use crate::Expr;
+use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
+use src_macros::segment_holder;
 
 /// A literal value that can be used directly.
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
-pub struct Literal<'a> {
-    pub lexeme: &'a str,
+pub struct Literal {
     pub parsed: LiteralValue,
 }
 
@@ -22,6 +24,12 @@ pub struct TemplateString<'a> {
     pub parts: Vec<Expr<'a>>,
 }
 
+impl SourceSegmentHolder for TemplateString<'_> {
+    fn segment(&self) -> SourceSegment {
+        self.parts.first().unwrap().segment().start..self.parts.last().unwrap().segment().end
+    }
+}
+
 impl From<&str> for LiteralValue {
     fn from(s: &str) -> Self {
         Self::String(s.to_string())
@@ -34,11 +42,8 @@ impl From<i64> for LiteralValue {
     }
 }
 
-impl<'a> From<&'a str> for Literal<'a> {
-    fn from(s: &'a str) -> Self {
-        Self {
-            lexeme: s,
-            parsed: LiteralValue::from(s),
-        }
+impl From<f64> for LiteralValue {
+    fn from(s: f64) -> Self {
+        Self::Float(s)
     }
 }

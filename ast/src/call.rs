@@ -1,6 +1,8 @@
 use crate::r#type::Type;
 use crate::Expr;
+use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
+use src_macros::segment_holder;
 
 /// A raw call to a function or a command.
 ///
@@ -17,9 +19,18 @@ pub struct Call<'a> {
     pub type_parameters: Vec<Type<'a>>,
 }
 
+impl SourceSegmentHolder for Call<'_> {
+    fn segment(&self) -> SourceSegment {
+        // A call must have at least one argument.
+        self.arguments.first().unwrap().segment().start
+            ..self.arguments.last().unwrap().segment().end
+    }
+}
+
 /// A programmatic call.
 ///
 /// Theses always have a constant name and are always called with parentheses.
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ProgrammaticCall<'a> {
     /// The name of the function to call.
@@ -33,6 +44,7 @@ pub struct ProgrammaticCall<'a> {
 }
 
 /// A call to a function or a command.
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Detached<'a> {
     /// The arguments of the command.
@@ -41,13 +53,26 @@ pub struct Detached<'a> {
     pub underlying: Box<Expr<'a>>,
 }
 
+/// An expression with IO redirections.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Redirected<'a> {
+    /// The expression to redirect.
     pub expr: Box<Expr<'a>>,
+    /// The redirections to apply to the expression.
+    ///
+    /// A valid redirected expression must have at least one redirection.
     pub redirections: Vec<Redir<'a>>,
 }
 
+impl SourceSegmentHolder for Redirected<'_> {
+    fn segment(&self) -> SourceSegment {
+        // A redirected expression must have at least one redirection.
+        self.expr.segment().start..self.redirections.last().unwrap().operand.segment().end
+    }
+}
+
 /// A redirection.
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Redir<'a> {
     /// File descriptor that is modified by this redirection.
@@ -78,6 +103,13 @@ pub struct Pipeline<'a> {
     ///
     /// A valid pipeline must have at least one command.
     pub commands: Vec<Expr<'a>>,
+}
+
+impl SourceSegmentHolder for Pipeline<'_> {
+    fn segment(&self) -> SourceSegment {
+        // A pipeline must have at least one command.
+        self.commands.first().unwrap().segment().start..self.commands.last().unwrap().segment().end
+    }
 }
 
 /// Redirection operators.
