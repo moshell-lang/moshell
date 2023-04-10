@@ -15,6 +15,7 @@ use crate::aspects::lambda_def::LambdaDefinitionAspect;
 use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
 use crate::aspects::r#loop::LoopAspect;
 use crate::aspects::r#match::MatchAspect;
+use crate::aspects::r#type::TypeAspect;
 use crate::aspects::r#use::UseAspect;
 use crate::aspects::range::RangeAspect;
 use crate::aspects::redirection::RedirectionAspect;
@@ -202,7 +203,7 @@ impl<'a> Parser<'a> {
         self.repos("Expected value")?;
 
         let pivot = self.cursor.peek().token_type;
-        match pivot {
+        let expr = match pivot {
             RoundedLeftBracket => self.lambda_or_parentheses(),
             CurlyLeftBracket => self.block().map(Expr::Block),
             Not => self.not(Parser::next_value),
@@ -223,7 +224,9 @@ impl<'a> Parser<'a> {
             //test expressions has nothing to do in a value expression.
             SquaredLeftBracket => self.expected("Unexpected start of test expression", Unexpected),
             _ => self.literal(LiteralLeniency::Strict),
-        }
+        };
+
+        self.handle_cast(expr?)
     }
 
     pub(crate) fn parse_next(&mut self) -> ParseResult<Expr<'a>> {
@@ -234,6 +237,14 @@ impl<'a> Parser<'a> {
                 .force(eox(), "expected end of expression or file")?;
         };
         statement
+    }
+
+    ///handle specific case of casted expressions (<expr> as <type>)
+    fn handle_cast(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
+        if self.cursor.lookahead(blanks().then(of_type(As))).is_some() {
+            return self.parse_cast(expr).map(Expr::Casted);
+        }
+        Ok(expr)
     }
 
     ///handle tricky case of lambda `(e) => x` and parentheses `(e)`
@@ -340,7 +351,7 @@ impl<'a> Parser<'a> {
             if self.cursor.lookahead(bin_op()).is_some() {
                 let start_pos = literal.segment.start;
                 if self
-                    .binary_operation_right(expr, Parser::next_value)
+                    .binary_operation_right(expr.clone(), Parser::next_value)
                     .is_ok()
                 {
                     let end_pos = self.cursor.relative_pos(self.cursor.peek()).end;
@@ -352,6 +363,11 @@ impl<'a> Parser<'a> {
                     );
                 }
             }
+        }
+
+        if self.cursor.lookahead(of_type(As)).is_some() {
+            let expr = self.parse_cast(expr).map(Expr::Casted)?;
+            return self.parse_binary_expr(expr);
         }
 
         //else, we hit an invalid binary expression.

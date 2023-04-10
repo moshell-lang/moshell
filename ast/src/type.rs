@@ -1,7 +1,9 @@
+use crate::Expr;
+use context::display::fmt_comma_separated;
 use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
 use src_macros::segment_holder;
-use std::fmt::{Debug, Display, Formatter, Write};
+use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
@@ -17,6 +19,20 @@ pub enum Type<'a> {
 
     ///Either `()` or `Unit`, representing a void type
     Unit(SourceSegment),
+
+    ///The Nothing type
+    Nothing(SourceSegment),
+}
+
+/// A casted expression
+#[segment_holder]
+#[derive(Debug, Clone, PartialEq, DebugPls)]
+pub struct CastedExpr<'a> {
+    ///the underlying expression
+    pub expr: Box<Expr<'a>>,
+
+    ///the casted type
+    pub casted_type: Type<'a>,
 }
 
 #[segment_holder]
@@ -46,6 +62,7 @@ impl<'a> Display for Type<'a> {
             Type::Callable(p) => Display::fmt(p, f),
             Type::ByName(n) => Display::fmt(n, f),
             Type::Unit(_) => write!(f, "Unit"),
+            Type::Nothing(_) => write!(f, "Nothing"),
         }
     }
 }
@@ -57,25 +74,9 @@ impl SourceSegmentHolder for Type<'_> {
             Type::Callable(p) => p.segment(),
             Type::ByName(n) => n.segment(),
             Type::Unit(segment) => segment.clone(),
+            Type::Nothing(segment) => segment.clone(),
         }
     }
-}
-
-///helper function to write a type list format in a given formatter
-fn display_type_list<'a>(
-    start: char,
-    end: char,
-    types: &Vec<Type<'a>>,
-    f: &mut Formatter<'_>,
-) -> std::fmt::Result {
-    f.write_char(start)?;
-    if let Some((first, rest)) = types.split_first() {
-        write!(f, "{first}")?;
-        for ty in rest {
-            write!(f, ", {ty}")?;
-        }
-    }
-    f.write_char(end)
 }
 
 impl<'a> Display for CallableType<'a> {
@@ -84,7 +85,7 @@ impl<'a> Display for CallableType<'a> {
         if let Some(Type::Simple(first_in)) = inputs.first() {
             Display::fmt(first_in, f)?;
         } else {
-            display_type_list('(', ')', inputs, f)?;
+            fmt_comma_separated('(', ')', inputs, f)?;
         }
         f.write_str(" => ")?;
         Display::fmt(self.output.deref(), f)
@@ -98,7 +99,7 @@ impl<'a> Display for SimpleType<'a> {
             return Ok(());
         }
 
-        display_type_list('[', ']', &self.params, f)
+        fmt_comma_separated('[', ']', &self.params, f)
     }
 }
 

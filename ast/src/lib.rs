@@ -11,6 +11,7 @@ use crate::group::{Block, Parenthesis, Subshell};
 use crate::lambda::LambdaDef;
 use crate::operation::BinaryOperation;
 use crate::r#match::Match;
+use crate::r#type::CastedExpr;
 use crate::r#use::Use;
 use crate::range::Iterable;
 use crate::substitution::Substitution;
@@ -54,6 +55,8 @@ pub enum Expr<'a> {
     TemplateString(TemplateString<'a>),
 
     Use(Use<'a>),
+
+    Casted(CastedExpr<'a>),
 
     Test(Test<'a>),
     Not(Not<'a>),
@@ -99,6 +102,7 @@ impl SourceSegmentHolder for Expr<'_> {
             Expr::Substitution(substitution) => substitution.segment(),
             Expr::TemplateString(template_string) => template_string.segment(),
             Expr::Use(use_) => use_.segment.clone(),
+            Expr::Casted(casted) => casted.segment(),
             Expr::Test(test) => test.segment.clone(),
             Expr::Not(not) => not.segment.clone(),
             Expr::If(if_) => if_.segment.clone(),

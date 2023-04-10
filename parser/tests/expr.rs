@@ -1,8 +1,9 @@
 use ast::call::{Call, ProgrammaticCall, Redir, RedirFd, RedirOp, Redirected};
 use ast::control_flow::{For, ForKind, RangeFor};
+use ast::group::Parenthesis;
 use ast::lambda::LambdaDef;
 use ast::operation::{BinaryOperation, BinaryOperator};
-use ast::r#type::{SimpleType, Type};
+use ast::r#type::{CastedExpr, SimpleType, Type};
 use ast::range::{Iterable, NumericRange};
 use ast::value::{Literal, LiteralValue};
 use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference};
@@ -43,6 +44,54 @@ fn variable_type_and_initializer() {
         segment: source.segment(),
     })];
     assert_eq!(parsed, expected);
+}
+
+#[test]
+fn expr_cast() {
+    let content = "$((1 as Exitcode + 1 as Int)) as Float";
+    let source = Source::unknown(content);
+    let result = parse(source.clone()).expect("parse error");
+    assert_eq!(
+        result,
+        vec![Expr::Casted(CastedExpr {
+            expr: Box::new(Expr::Parenthesis(Parenthesis {
+                expression: Box::new(Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::Casted(CastedExpr {
+                        expr: Box::new(Expr::Literal(Literal {
+                            parsed: 1.into(),
+                            segment: find_in(content, "1"),
+                        })),
+                        casted_type: Type::Simple(SimpleType {
+                            name: "Exitcode",
+                            params: Vec::new(),
+                            segment: find_in(content, "Exitcode"),
+                        }),
+                        segment: find_in(content, "1 as Exitcode"),
+                    })),
+                    op: BinaryOperator::Plus,
+                    right: Box::new(Expr::Casted(CastedExpr {
+                        expr: Box::new(Expr::Literal(Literal {
+                            parsed: 1.into(),
+                            segment: find_in_nth(content, "1", 1),
+                        })),
+                        casted_type: Type::Simple(SimpleType {
+                            name: "Int",
+                            params: Vec::new(),
+                            segment: find_in(content, "Int"),
+                        }),
+                        segment: find_in(content, "1 as Int"),
+                    })),
+                })),
+                segment: find_between(source.source, "$((", "))"),
+            })),
+            casted_type: Type::Simple(SimpleType {
+                name: "Float",
+                params: Vec::new(),
+                segment: find_in(source.source, "Float"),
+            }),
+            segment: source.segment(),
+        })]
+    );
 }
 
 #[test]

@@ -2,21 +2,27 @@ use crate::aspects::expr_list::ExpressionListAspect;
 use crate::err::ParseErrorKind::{Expected, Unexpected};
 use crate::moves::{any, blanks, not, of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use ast::r#type::{ByName, CallableType, SimpleType, Type};
 use context::source::{SourceSegment, SourceSegmentHolder};
 use lexer::token::TokenType::{
     FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket, SquaredLeftBracket,
     SquaredRightBracket, Unit,
 };
-use std::fmt::Write;
 
-///A parser aspect to parse all type declarations, such as lambdas, constant types, parametrized types and Unit
+use ast::r#type::{ByName, CallableType, CastedExpr, SimpleType, Type};
+use ast::Expr;
+use context::display::fmt_comma_separated;
+use lexer::token::TokenType::*;
+
+///A parser aspect to parse all type declarations, such as lambdas, constant types, parametrized type and Unit
 pub trait TypeAspect<'a> {
     ///parse a lambda type signature, a constant or parametrized type or Unit.
     fn parse_type(&mut self) -> ParseResult<Type<'a>>;
 
     ///parse a type parameter list (`[...]`)
     fn parse_type_parameter_list(&mut self) -> ParseResult<(Vec<Type<'a>>, SourceSegment)>;
+
+    ///parse a casted expression (ex: {..} as Type)
+    fn parse_cast(&mut self, casted_expr: Expr<'a>) -> ParseResult<CastedExpr<'a>>;
 }
 
 impl<'a> TypeAspect<'a> for Parser<'a> {
@@ -24,7 +30,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         self.cursor.advance(blanks());
 
         let first_token = self.cursor.peek();
-        //if there's a parenthesis then the type is necessarily a lambda type
+        // if there's a parenthesis then the type is necessarily a lambda type
         let mut tpe = match first_token.token_type {
             RoundedLeftBracket => self.parse_parentheses()?,
             FatArrow => self.parse_by_name().map(Type::ByName)?,
@@ -90,6 +96,20 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         }
         Ok((tparams, segment))
     }
+
+    fn parse_cast(&mut self, casted_expr: Expr<'a>) -> ParseResult<CastedExpr<'a>> {
+        self.cursor.force(
+            blanks().then(of_type(As)),
+            "expected 'as' for cast expression.",
+        )?;
+        let casted_type = self.parse_type()?;
+        let segment = casted_expr.segment().start..casted_type.segment().end;
+        Ok(CastedExpr {
+            expr: Box::new(casted_expr),
+            casted_type,
+            segment,
+        })
+    }
 }
 
 impl<'a> Parser<'a> {
@@ -130,7 +150,7 @@ impl<'a> Parser<'a> {
                 .map(Type::Callable);
         }
 
-        //there is no inputs (`()`) and no `=>` after, this is a Unit type
+        // there is no input (`()`) and no `=>` after, this is a Unit type
         if inputs.is_empty() {
             return Ok(Type::Unit(segment));
         }
@@ -143,16 +163,9 @@ impl<'a> Parser<'a> {
         }
 
         let mut rendered_tuple = String::new();
-        rendered_tuple += "(";
+        fmt_comma_separated('(', ')', &inputs, &mut rendered_tuple).unwrap();
 
-        if let Some((first, rest)) = inputs.split_first() {
-            write!(rendered_tuple, "{}", first).unwrap();
-            for tpe in rest {
-                write!(rendered_tuple, ", {}", tpe).unwrap();
-            }
-        }
-
-        rendered_tuple += ") => <type>";
+        rendered_tuple += " => <types>";
         self.expected(
             "Tuples are not yet supported. A lambda declaration was expected here",
             Expected(rendered_tuple),
@@ -175,53 +188,54 @@ impl<'a> Parser<'a> {
 
     fn parse_simple_or_unit(&mut self) -> ParseResult<Type<'a>> {
         let name_token = self.cursor.advance(spaces().then(any())).unwrap();
+        let mut segment = self.cursor.relative_pos(name_token.value);
 
-        let ttype = name_token.token_type;
-        if ttype == Identifier {
-            let mut segment = self.cursor.relative_pos(name_token.value);
-            let (params, params_segment) = self.parse_type_parameter_list()?;
-            if !params.is_empty() {
-                segment.end = params_segment.end;
+        return match name_token.token_type {
+            Identifier => {
+                let (params, params_segment) = self.parse_type_parameter_list()?;
+                if !params.is_empty() {
+                    segment.end = params_segment.end;
+                }
+                Ok(Type::Simple(SimpleType {
+                    name: name_token.value,
+                    params,
+                    segment,
+                }))
             }
-            return Ok(Type::Simple(SimpleType {
-                name: name_token.value,
-                params,
-                segment,
-            }));
-        }
+            Unit => Ok(Type::Unit(segment)),
+            Nothing => Ok(Type::Nothing(segment)),
 
-        //Unit type can either be `Unit` or `()`
-        if ttype == Unit
-            || (ttype == RoundedLeftBracket
-                && self
-                    .cursor
-                    .lookahead(spaces().then(of_type(RoundedRightBracket)))
-                    .is_some())
-        {
-            if let Some(closing_parenthesis) = self
-                .cursor
-                .advance(spaces().then(of_type(RoundedRightBracket)))
-            {
-                return Ok(Type::Unit(
-                    self.cursor
-                        .relative_pos_ctx(name_token..closing_parenthesis),
-                ));
-            }
-            return Ok(Type::Unit(self.cursor.relative_pos_ctx(name_token)));
-        }
-
-        if ttype == NewLine || ttype.is_closing_ponctuation() {
-            return self.expected_with("expected type", name_token, Expected("<type>".to_string()));
-        }
-
-        self.expected_with(
-            &format!(
-                "'{}' is not a valid type identifier.",
-                name_token.token_type.str().unwrap_or(name_token.value)
+            NewLine => self.expected_with(
+                "expected types",
+                name_token,
+                Expected("<types>".to_string()),
             ),
-            name_token.value,
-            Unexpected,
-        )
+
+            x if x.is_closing_ponctuation() => self.expected_with(
+                "expected types",
+                name_token,
+                Expected("<types>".to_string()),
+            ),
+
+            x => {
+                if x == RoundedLeftBracket {
+                    if let Some(closing_parenthesis) = self
+                        .cursor
+                        .advance(spaces().then(of_type(RoundedRightBracket)))
+                    {
+                        return Ok(Type::Unit(
+                            self.cursor
+                                .relative_pos_ctx(name_token..closing_parenthesis),
+                        ));
+                    }
+                }
+                self.expected_with(
+                    &format!("'{}' is not a valid type identifier.", &name_token.value),
+                    name_token.value,
+                    Unexpected,
+                )
+            }
+        };
     }
 }
 
@@ -580,7 +594,7 @@ mod tests {
                 message: "Tuples are not yet supported. A lambda declaration was expected here"
                     .to_string(),
                 position: content.len()..content.len(),
-                kind: Expected("(A, B, C) => <type>".to_string()),
+                kind: Expected("(A, B, C) => <types>".to_string()),
             })
         );
     }
