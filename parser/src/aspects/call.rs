@@ -5,9 +5,11 @@ use lexer::token::{Token, TokenType};
 use crate::aspects::r#type::TypeAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::err::ParseErrorKind;
-use crate::moves::{eod, eox, like, lookahead, next, of_type, of_types, word_seps, MoveOperations};
+use crate::moves::{
+    eod, eox, identifier_parenthesis, like, lookahead, next, of_type, word_seps, MoveOperations,
+};
 use crate::parser::{ParseResult, Parser};
-use ast::call::{Call, ProgrammaticCall};
+use ast::call::{Call, MethodCall, ProgrammaticCall};
 use ast::r#type::Type;
 use ast::value::Literal;
 use ast::Expr;
@@ -25,6 +27,12 @@ pub trait CallAspect<'a> {
 
     /// Parses a programmatic call with a known command name expression.
     fn programmatic_call_on(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
+
+    /// Parses a method call.
+    fn method_call_on(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
+
+    /// Parse any function call or method call after an expression.
+    fn expand_call_chain(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
 
     /// Continues to parse a call expression from a known command name expression
     fn call_arguments(
@@ -89,6 +97,47 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         }))
     }
 
+    fn method_call_on(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
+        self.cursor
+            .force(of_type(TokenType::Dot), "Expected dot.")?;
+        let name = self
+            .cursor
+            .force(of_type(TokenType::Identifier), "Expected function name.")?;
+        let type_parameters = self.parse_type_parameter_list()?;
+        let open_parenthesis = self.cursor.force(
+            of_type(TokenType::RoundedLeftBracket),
+            "Expected opening parenthesis.",
+        )?;
+        self.delimiter_stack.push_back(open_parenthesis.clone());
+        let arguments = self.parse_comma_separated_arguments(open_parenthesis)?;
+        Ok(Expr::MethodCall(MethodCall {
+            source: Box::new(expr),
+            name: name.value,
+            arguments,
+            type_parameters,
+        }))
+    }
+
+    fn expand_call_chain(&mut self, mut expr: Expr<'a>) -> ParseResult<Expr<'a>> {
+        loop {
+            match self.cursor.peek().token_type {
+                TokenType::RoundedLeftBracket => {
+                    expr = self.programmatic_call_on(expr)?;
+                }
+                _ if self
+                    .cursor
+                    .lookahead(of_type(TokenType::Dot).and_then(identifier_parenthesis()))
+                    .is_some() =>
+                {
+                    expr = self.method_call_on(expr)?;
+                }
+                _ => {
+                    return Ok(expr);
+                }
+            }
+        }
+    }
+
     fn call_arguments(
         &mut self,
         callee: Expr<'a>,
@@ -122,12 +171,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
     }
 
     fn may_be_at_programmatic_call_start(&self) -> bool {
-        self.cursor
-            .lookahead(of_type(TokenType::Identifier).and_then(of_types(&[
-                TokenType::RoundedLeftBracket,
-                TokenType::SquaredLeftBracket,
-            ])))
-            .is_some()
+        self.cursor.lookahead(identifier_parenthesis()).is_some()
     }
 }
 

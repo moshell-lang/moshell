@@ -1,10 +1,11 @@
-use ast::call::{Call, ProgrammaticCall, Redir, RedirFd, RedirOp, Redirected};
+use ast::call::{Call, MethodCall, ProgrammaticCall, Redir, RedirFd, RedirOp, Redirected};
 use ast::control_flow::{For, ForKind, RangeFor};
+use ast::group::Block;
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::r#type::{SimpleType, Type};
 use ast::range::{Iterable, NumericRange};
 use ast::value::{Literal, LiteralValue};
-use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind};
+use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
 use context::source::Source;
 use parser::parse;
@@ -309,6 +310,59 @@ fn classic_call() {
                     parsed: 2.into(),
                 }),
             ],
+            type_parameters: Vec::new()
+        })]
+    );
+}
+
+#[test]
+fn method_and_function_calls_mixed() {
+    let source = Source::unknown("create().foo(dummy().truthy()).bar()");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::MethodCall(MethodCall {
+            source: Box::new(Expr::MethodCall(MethodCall {
+                source: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
+                    expr: Box::new(Expr::Literal("create".into())),
+                    arguments: Vec::new(),
+                    type_parameters: Vec::new()
+                })),
+                name: "foo",
+                arguments: vec![Expr::MethodCall(MethodCall {
+                    source: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
+                        expr: Box::new(Expr::Literal("dummy".into())),
+                        arguments: Vec::new(),
+                        type_parameters: Vec::new()
+                    })),
+                    name: "truthy",
+                    arguments: Vec::new(),
+                    type_parameters: Vec::new()
+                })],
+                type_parameters: Vec::new()
+            })),
+            name: "bar",
+            arguments: Vec::new(),
+            type_parameters: Vec::new()
+        })]
+    );
+}
+
+#[test]
+fn block_method_call() {
+    let source = Source::unknown("{ $x }.foo('a')");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::MethodCall(MethodCall {
+            source: Box::new(Expr::Block(Block {
+                expressions: vec![Expr::VarReference(VarReference { name: "x" })],
+            })),
+            name: "foo",
+            arguments: vec![Expr::Literal(Literal {
+                lexeme: "'a'",
+                parsed: "a".into(),
+            })],
             type_parameters: Vec::new()
         })]
     );

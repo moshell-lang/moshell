@@ -32,6 +32,14 @@ pub struct ProgrammaticCall<'a> {
     pub type_parameters: Vec<Type<'a>>,
 }
 
+#[derive(Debug, Clone, PartialEq, DebugPls)]
+pub struct MethodCall<'a> {
+    pub source: Box<Expr<'a>>,
+    pub name: &'a str,
+    pub arguments: Vec<Expr<'a>>,
+    pub type_parameters: Vec<Type<'a>>,
+}
+
 /// A call to a function or a command.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Detached<'a> {

@@ -181,6 +181,13 @@ pub(crate) fn aerated<M: Move + Copy>(
     blanks().then(m).and_then(blanks())
 }
 
+pub(crate) fn identifier_parenthesis() -> AndThenMove<
+    PredicateMove<impl Fn(Token) -> bool + Copy + Sized>,
+    PredicateMove<impl Fn(Token) -> bool + Copy + Sized>,
+> {
+    of_type(Identifier).and_then(of_types(&[RoundedLeftBracket, SquaredLeftBracket]))
+}
+
 /// A Move to inverse the matching status of underlying move.
 /// If underlying succeeds: fail
 /// if underlying fails: succeed at given pos.
