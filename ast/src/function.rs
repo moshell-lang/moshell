@@ -1,7 +1,6 @@
 use crate::r#type::Type;
 use crate::variable::TypedVariable;
 use crate::Expr;
-use context::source::SourceSegment;
 use dbg_pls::DebugPls;
 use src_macros::segment_holder;
 
@@ -11,6 +10,7 @@ pub struct Return<'a> {
     pub expr: Box<Expr<'a>>,
 }
 
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct FunctionDeclaration<'a> {
     pub name: &'a str,
@@ -18,7 +18,6 @@ pub struct FunctionDeclaration<'a> {
     pub parameters: Vec<FunctionParameter<'a>>,
     pub return_type: Option<Type<'a>>,
     pub body: Box<Expr<'a>>,
-    pub segment: SourceSegment,
 }
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]

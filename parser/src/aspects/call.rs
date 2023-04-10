@@ -13,7 +13,7 @@ use ast::r#type::Type;
 use ast::value::Literal;
 use ast::variable::TypedVariable;
 use ast::Expr;
-use context::source::SourceSegment;
+use context::source::{SourceSegment, SourceSegmentHolder};
 
 /// A parse aspect for command and function calls
 pub trait CallAspect<'a> {
@@ -77,6 +77,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             .is_some()
         {
             let body = Box::new(self.value()?);
+            let segment = self.cursor.relative_pos(identifier).start..body.segment().end;
             Ok(Expr::LambdaDef(LambdaDef {
                 args: vec![TypedVariable {
                     name: value,
@@ -84,6 +85,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
                     segment: self.cursor.relative_pos(value),
                 }],
                 body,
+                segment,
             }))
         } else {
             self.call_arguments(callee, type_parameters)

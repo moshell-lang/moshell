@@ -1,7 +1,7 @@
 use crate::err::ParseErrorKind::Expected;
 use crate::moves::{blanks, eod, lookahead, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use context::source::SourceSegment;
+use context::source::{SourceSegment, SourceSegmentHolder};
 use lexer::token::TokenType;
 use lexer::token::TokenType::Comma;
 
@@ -16,6 +16,7 @@ pub(super) trait ExpressionListAspect<'a> {
         parse_element: F,
     ) -> ParseResult<(Vec<E>, SourceSegment)>
     where
+        E: SourceSegmentHolder,
         F: FnMut(&mut Self) -> ParseResult<E>;
 
     ///Explicits lists are whether (A), (A, B, ...) or () (if it can be empty)
@@ -29,6 +30,7 @@ pub(super) trait ExpressionListAspect<'a> {
         parse_element: F,
     ) -> ParseResult<(Vec<E>, SourceSegment)>
     where
+        E: SourceSegmentHolder,
         F: FnMut(&mut Self) -> ParseResult<E>;
 }
 
@@ -40,15 +42,15 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         mut parse_element: F,
     ) -> ParseResult<(Vec<E>, SourceSegment)>
     where
+        E: SourceSegmentHolder,
         F: FnMut(&mut Self) -> ParseResult<E>,
     {
         if self.cursor.lookahead(of_type(start)).is_some() {
             self.parse_explicit_list(start, end, parse_element)
         } else {
-            Ok((
-                vec![parse_element(self)?],
-                self.cursor.relative_pos_ctx(self.cursor.peek()),
-            ))
+            let elem = parse_element(self)?;
+            let segment = elem.segment();
+            Ok((vec![elem], segment))
         }
     }
 
@@ -59,6 +61,7 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         mut parse_element: F,
     ) -> ParseResult<(Vec<E>, SourceSegment)>
     where
+        E: SourceSegmentHolder,
         F: FnMut(&mut Self) -> ParseResult<E>,
     {
         let start = self.cursor.force_with(

@@ -9,7 +9,7 @@ use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
 use parser::parse;
-use parser::source::{find_in, find_in_nth, literal, literal_nth};
+use parser::source::{find_between, find_in, find_in_nth, literal, literal_nth};
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -74,6 +74,7 @@ fn lambda_in_val() {
                         segment: find_in(source.source, "$b")
                     })),
                 })),
+                segment: find_between(source.source, "(a)", "$b"),
             }))),
             segment: source.segment(),
         })]
@@ -99,6 +100,7 @@ fn lambda_empty_params() {
                     segment: find_in(source.source, "$b")
                 })),
             })),
+            segment: source.segment(),
         })]
     );
 }
@@ -154,6 +156,7 @@ fn lambda_one_arg() {
                         segment: find_in_nth(source.source, "$n", 1)
                     })),
                 })),
+                segment: find_in(source.source, "n => $n * $n")
             })],
             type_parameters: vec![],
             segment: source.segment(),
@@ -182,6 +185,7 @@ fn lambda_in_pfc() {
                         segment: find_in(source.source, "$b")
                     })),
                 })),
+                segment: find_in(source.source, "() => $a + $b")
             })],
             type_parameters: vec![],
             segment: source.segment(),
@@ -205,6 +209,7 @@ fn identity_lambda() {
                 name: "a",
                 segment: find_in(source.source, "$a")
             })),
+            segment: source.segment(),
         })]
     );
 }

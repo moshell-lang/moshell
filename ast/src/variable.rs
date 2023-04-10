@@ -1,6 +1,5 @@
 use crate::r#type::Type;
 use crate::Expr;
-use context::source::SourceSegment;
 use dbg_pls::DebugPls;
 use src_macros::segment_holder;
 
@@ -17,14 +16,13 @@ pub struct VarDeclaration<'a> {
 }
 
 /// A named variable declaration.
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct TypedVariable<'a> {
     /// The name of the variable.
     pub name: &'a str,
     /// The type of the declared variable.
     pub ty: Option<Type<'a>>,
-
-    pub segment: SourceSegment,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, DebugPls)]

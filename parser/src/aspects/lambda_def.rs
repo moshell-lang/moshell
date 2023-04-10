@@ -4,6 +4,7 @@ use crate::err::ParseErrorKind::Expected;
 use crate::moves::{blanks, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::lambda::LambdaDef;
+use context::source::SourceSegmentHolder;
 use lexer::token::TokenType::{FatArrow, RoundedLeftBracket, RoundedRightBracket};
 
 ///Parse a lambda definition
@@ -14,20 +15,23 @@ pub trait LambdaDefinitionAspect<'a> {
 
 impl<'a> LambdaDefinitionAspect<'a> for Parser<'a> {
     fn parse_lambda_definition(&mut self) -> ParseResult<LambdaDef<'a>> {
-        let args = self
-            .parse_implicit_list(
-                RoundedLeftBracket,
-                RoundedRightBracket,
-                Self::parse_typed_var,
-            )?
-            .0;
+        let (args, mut segment) = self.parse_implicit_list(
+            RoundedLeftBracket,
+            RoundedRightBracket,
+            Self::parse_typed_var,
+        )?;
         self.cursor.force_with(
             blanks().then(of_type(FatArrow)),
             "expected lambda arrow",
             Expected("=>".to_string()),
         )?;
         let body = Box::new(self.value()?);
-        Ok(LambdaDef { args, body })
+        segment.end = body.segment().end;
+        Ok(LambdaDef {
+            args,
+            body,
+            segment,
+        })
     }
 }
 
@@ -45,7 +49,7 @@ mod tests {
     use ast::r#type::{SimpleType, Type};
     use ast::variable::{TypedVariable, VarReference};
     use ast::Expr;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -84,6 +88,7 @@ mod tests {
                         segment: find_in(source.source, "$b")
                     })),
                 })),
+                segment: source.segment()
             }
         );
     }
@@ -113,6 +118,7 @@ mod tests {
                         segment: find_in(source.source, "$b")
                     })),
                 })),
+                segment: source.segment()
             }
         );
     }
@@ -121,7 +127,7 @@ mod tests {
     fn simple_lambda_definition_one_arg_typed_wrapped() {
         let src = "(a: Int) => $a + $b";
         let source = Source::unknown(src);
-        let parsed = Parser::new(source)
+        let parsed = Parser::new(source.clone())
             .parse_lambda_definition()
             .expect("parse fail");
         assert_eq!(
@@ -147,6 +153,7 @@ mod tests {
                         segment: find_in(src, "$b")
                     })),
                 })),
+                segment: source.segment()
             }
         );
     }
@@ -171,6 +178,7 @@ mod tests {
                     })],
                     segment: find_between(source.source, "{", "}")
                 })),
+                segment: source.segment()
             }
         );
     }
