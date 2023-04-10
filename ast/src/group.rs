@@ -1,7 +1,9 @@
 use crate::Expr;
 use dbg_pls::DebugPls;
+use src_macros::segment_holder;
 
 /// A block expression `{ ... }`
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Block<'a> {
     //underlying expressions
@@ -9,6 +11,7 @@ pub struct Block<'a> {
 }
 
 /// A parenthesis expression `( ... )`
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Parenthesis<'a> {
     //underlying expression
@@ -16,6 +19,7 @@ pub struct Parenthesis<'a> {
 }
 
 /// A subshell expression `( ... )`
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Subshell<'a> {
     //underlying expressions

@@ -12,6 +12,8 @@ mod cursor;
 pub mod err;
 mod moves;
 mod parser;
+//#[cfg(test)]
+pub mod source;
 
 pub fn parse(src: Source) -> ParseReport {
     Parser::new(src).parse()

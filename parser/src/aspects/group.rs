@@ -5,6 +5,7 @@ use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::group::{Block, Parenthesis, Subshell};
 use ast::Expr;
+use context::source::SourceSegment;
 
 ///A parser aspect for parsing block expressions
 pub trait GroupAspect<'a> {
@@ -28,26 +29,31 @@ pub trait GroupAspect<'a> {
 impl<'a> GroupAspect<'a> for Parser<'a> {
     fn block(&mut self) -> ParseResult<Block<'a>> {
         let start = self.ensure_at_group_start(TokenType::CurlyLeftBracket)?;
+        let (expressions, segment) =
+            self.sub_exprs(start, TokenType::CurlyRightBracket, Parser::statement)?;
         Ok(Block {
-            expressions: self.sub_exprs(start, TokenType::CurlyRightBracket, Parser::statement)?,
+            expressions,
+            segment,
         })
     }
 
     fn subshell(&mut self) -> ParseResult<Subshell<'a>> {
         let start = self.ensure_at_group_start(TokenType::RoundedLeftBracket)?;
+        let (expressions, segment) = self.sub_exprs(
+            start.clone(),
+            TokenType::RoundedRightBracket,
+            Parser::statement,
+        )?;
         Ok(Subshell {
-            expressions: self.sub_exprs(
-                start,
-                TokenType::RoundedRightBracket,
-                Parser::statement,
-            )?,
+            expressions,
+            segment,
         })
     }
 
     fn parenthesis(&mut self) -> ParseResult<Parenthesis<'a>> {
-        self.ensure_at_group_start(TokenType::RoundedLeftBracket)?;
+        let start = self.ensure_at_group_start(TokenType::RoundedLeftBracket)?;
         let expr = self.value()?;
-        self.cursor.force(
+        let end = self.cursor.force(
             repeat(spaces().then(eox())) //consume possible end of expressions
                 .then(spaces().then(of_type(TokenType::RoundedRightBracket))), //expect closing ')' token
             "parenthesis in value expression can only contain one expression",
@@ -56,6 +62,7 @@ impl<'a> GroupAspect<'a> for Parser<'a> {
 
         Ok(Parenthesis {
             expression: Box::new(expr),
+            segment: self.cursor.relative_pos_ctx(start..end),
         })
     }
 }
@@ -77,11 +84,12 @@ impl<'a> Parser<'a> {
         start_token: Token,
         eog: TokenType,
         mut parser: F,
-    ) -> ParseResult<Vec<Expr<'a>>>
+    ) -> ParseResult<(Vec<Expr<'a>>, SourceSegment)>
     where
         F: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
     {
         let mut statements: Vec<Expr<'a>> = Vec::new();
+        let mut segment = self.cursor.relative_pos(start_token.value);
 
         //consume all heading spaces and end of expressions (\n or ;)
         self.cursor.advance(repeat(spaces().then(eox())));
@@ -89,7 +97,7 @@ impl<'a> Parser<'a> {
         //if we directly hit end of group, return an empty block.
         if self.cursor.advance(of_type(eog)).is_some() {
             self.delimiter_stack.pop_back();
-            return Ok(statements);
+            return Ok((statements, segment.start..segment.end + 1));
         }
 
         loop {
@@ -109,11 +117,12 @@ impl<'a> Parser<'a> {
             );
 
             //checks if this group expression is closed after the parsed expression
-            let closed = self.cursor.advance(spaces().then(of_type(eog))).is_some();
+            let closed = self.cursor.advance(spaces().then(of_type(eog)));
 
             //if the group is closed, then we stop looking for other expressions.
-            if closed {
+            if let Some(closing) = closed {
                 self.delimiter_stack.pop_back();
+                segment = segment.start..self.cursor.relative_pos(closing).end;
                 break;
             }
 
@@ -124,7 +133,7 @@ impl<'a> Parser<'a> {
             //but if not closed, expect the cursor to hit EOX.
             eox_res?;
         }
-        Ok(statements)
+        Ok((statements, segment))
     }
 }
 
@@ -132,6 +141,7 @@ impl<'a> Parser<'a> {
 mod tests {
     use crate::aspects::group::GroupAspect;
     use crate::parser::Parser;
+    use crate::source::literal;
     use ast::call::Call;
     use ast::group::{Block, Subshell};
     use ast::r#type::SimpleType;
@@ -140,14 +150,15 @@ mod tests {
     use ast::value::LiteralValue::{Float, Int};
     use ast::variable::{TypedVariable, VarDeclaration, VarKind};
     use ast::Expr;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
+    use context::str_find::{find_between, find_in, find_in_nth};
     use pretty_assertions::assert_eq;
 
     //noinspection DuplicatedCode
     #[test]
     fn empty_blocks() {
         let source = Source::unknown("{{{}; {}}}");
-        let mut parser = Parser::new(source);
+        let mut parser = Parser::new(source.clone());
         let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
@@ -156,13 +167,17 @@ mod tests {
                 expressions: vec![Expr::Block(Block {
                     expressions: vec![
                         Expr::Block(Block {
-                            expressions: vec![]
+                            expressions: vec![],
+                            segment: 2..4
                         }),
                         Expr::Block(Block {
-                            expressions: vec![]
+                            expressions: vec![],
+                            segment: 6..8
                         }),
-                    ]
-                })]
+                    ],
+                    segment: 1..source.source.len() - 1
+                })],
+                segment: source.segment()
             }
         );
     }
@@ -171,7 +186,7 @@ mod tests {
     #[test]
     fn empty_blocks_empty_content() {
         let source = Source::unknown("{;;{;;;{;;}; {\n\n};}}");
-        let mut parser = Parser::new(source);
+        let mut parser = Parser::new(source.clone());
         let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
@@ -180,13 +195,17 @@ mod tests {
                 expressions: vec![Expr::Block(Block {
                     expressions: vec![
                         Expr::Block(Block {
-                            expressions: vec![]
+                            expressions: vec![],
+                            segment: 7..9
                         }),
                         Expr::Block(Block {
-                            expressions: vec![]
+                            expressions: vec![],
+                            segment: 13..15
                         }),
-                    ]
-                })]
+                    ],
+                    segment: 3..source.source.len() - 1
+                })],
+                segment: source.segment()
             }
         );
     }
@@ -215,17 +234,15 @@ mod tests {
     #[test]
     fn block_with_nested_blocks() {
         let source = Source::unknown(
-            "\
-        {\
+            "{\
             val test = {\
                 val x = 8\n\n\n
                 8
             }\n\
             (val x = 89; command call; 7)\
-        }\
-        ",
+        }",
         );
-        let mut parser = Parser::new(source);
+        let mut parser = Parser::new(source.clone());
         let ast = parser
             .block()
             .expect("failed to parse block with nested blocks");
@@ -239,6 +256,7 @@ mod tests {
                         var: TypedVariable {
                             name: "test",
                             ty: None,
+                            segment: find_in(source.source, "test"),
                         },
                         initializer: Some(Box::from(Expr::Block(Block {
                             expressions: vec![
@@ -247,18 +265,27 @@ mod tests {
                                     var: TypedVariable {
                                         name: "x",
                                         ty: None,
+                                        segment: find_in(source.source, "x"),
                                     },
                                     initializer: Some(Box::from(Expr::Literal(Literal {
-                                        lexeme: "8",
                                         parsed: Int(8),
+                                        segment: find_in(source.source, "8"),
                                     }))),
+                                    segment: find_in(source.source, "val x = 8"),
                                 }),
                                 Expr::Literal(Literal {
-                                    lexeme: "8",
                                     parsed: Int(8),
+                                    segment: find_in_nth(source.source, "8", 1),
                                 }),
-                            ]
+                            ],
+                            segment: find_between(
+                                source.source,
+                                "{\
+                val x",
+                                "}"
+                            ),
                         }))),
+                        segment: find_between(source.source, "val test = {", "}"),
                     }),
                     Expr::Subshell(Subshell {
                         expressions: vec![
@@ -267,26 +294,30 @@ mod tests {
                                 var: TypedVariable {
                                     name: "x",
                                     ty: None,
+                                    segment: find_in_nth(source.source, "x", 1),
                                 },
                                 initializer: Some(Box::from(Expr::Literal(Literal {
-                                    lexeme: "89",
                                     parsed: Int(89),
+                                    segment: find_in(source.source, "89")
                                 }))),
+                                segment: find_in(source.source, "val x = 89"),
                             }),
                             Expr::Call(Call {
                                 arguments: vec![
-                                    Expr::Literal("command".into()),
-                                    Expr::Literal("call".into()),
+                                    literal(source.source, "command"),
+                                    literal(source.source, "call")
                                 ],
                                 type_parameters: vec![],
                             }),
                             Expr::Literal(Literal {
-                                lexeme: "7",
                                 parsed: Int(7),
+                                segment: find_in(source.source, "7")
                             })
-                        ]
+                        ],
+                        segment: find_between(source.source, "(", ")"),
                     }),
-                ]
+                ],
+                segment: source.segment()
             }
         )
     }
@@ -294,14 +325,12 @@ mod tests {
     #[test]
     fn block() {
         let source = Source::unknown(
-            "\
-        {\
+            "{\
             var test: int = 7.0\n\
             val x = 8\
-        }\
-        ",
+        }",
         );
-        let mut parser = Parser::new(source);
+        let mut parser = Parser::new(source.clone());
         let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
@@ -314,26 +343,32 @@ mod tests {
                             name: "test",
                             ty: Some(Type::Simple(SimpleType {
                                 name: "int",
-                                params: Vec::new()
+                                params: Vec::new(),
+                                segment: find_in(source.source, "int")
                             })),
+                            segment: find_in(source.source, "test: int")
                         },
                         initializer: Some(Box::new(Expr::Literal(Literal {
-                            lexeme: "7.0",
                             parsed: Float(7.0),
+                            segment: find_in(source.source, "7.0")
                         }))),
+                        segment: find_in(source.source, "var test: int = 7.0"),
                     }),
                     Expr::VarDeclaration(VarDeclaration {
                         kind: VarKind::Val,
                         var: TypedVariable {
                             name: "x",
                             ty: None,
+                            segment: find_in(source.source, "x"),
                         },
                         initializer: Some(Box::new(Expr::Literal(Literal {
-                            lexeme: "8",
                             parsed: Int(8),
+                            segment: find_in(source.source, "8"),
                         }))),
+                        segment: find_in(source.source, "val x = 8"),
                     }),
-                ]
+                ],
+                segment: source.segment()
             }
         )
     }

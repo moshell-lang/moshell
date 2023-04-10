@@ -1,6 +1,6 @@
 use crate::err::{ErrorContext, ParseError, ParseErrorKind};
 use crate::moves::Move;
-use context::source::Location;
+use context::source::SourceSegment;
 use lexer::token::{Token, TokenType};
 
 use crate::parser::ParseResult;
@@ -34,6 +34,14 @@ impl<'a> ParserCursor<'a> {
             pos: 0,
             source,
         }
+    }
+
+    pub fn get_pos(&self) -> usize {
+        self.pos
+    }
+
+    pub fn repos(&mut self, pos: usize) {
+        self.pos = pos;
     }
 
     ///advance if next token satisfy the given move
@@ -152,7 +160,7 @@ impl<'a> ParserCursor<'a> {
     ///
     /// # Panics
     /// This method panics if the given string is not contained in the source code.
-    pub fn relative_pos<'s>(&self, str: impl Into<&'s str>) -> Location {
+    pub fn relative_pos<'s>(&self, str: impl Into<&'s str>) -> SourceSegment {
         let str = str.into();
         let start = (str.as_ptr() as usize)
             .checked_sub(self.source.as_ptr() as usize)
@@ -165,7 +173,7 @@ impl<'a> ParserCursor<'a> {
     ///
     /// # Panics
     /// This method panics if the given context is not contained in the source code.
-    pub fn relative_pos_ctx(&self, context: impl Into<ErrorContext<'a>>) -> Location {
+    pub fn relative_pos_ctx(&self, context: impl Into<ErrorContext<'a>>) -> SourceSegment {
         let context = context.into();
         let start = (context.from.as_ptr() as usize)
             .checked_sub(self.source.as_ptr() as usize)

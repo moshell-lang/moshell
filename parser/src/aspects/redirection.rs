@@ -4,6 +4,7 @@ use crate::moves::{eox, like, next, of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::call::{Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use ast::Expr;
+use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
 use lexer::token::TokenType::{BackSlash, DoubleQuote, Quote};
 
@@ -39,7 +40,8 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
 
     fn redirection(&mut self) -> ParseResult<Redir<'a>> {
         self.cursor.advance(spaces());
-        let mut token = self.cursor.next()?;
+        let start = self.cursor.next()?;
+        let mut token = start.clone();
         // Parse if present the redirected file descriptor
         let fd = match token.token_type {
             TokenType::Ampersand => {
@@ -96,10 +98,12 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
         }
 
         let operand = self.next_value()?;
+        let segment = self.cursor.relative_pos_ctx(start).start..operand.segment().end;
         Ok(Redir {
             fd,
             operator,
             operand,
+            segment,
         })
     }
 
@@ -179,34 +183,39 @@ mod test {
     use crate::aspects::call::CallAspect;
     use crate::parse;
     use crate::parser::Parser;
+    use crate::source::literal;
     use ast::call::{Call, Redir, RedirFd, RedirOp, Redirected};
     use ast::group::Block;
     use ast::value::Literal;
     use ast::Expr;
+    use context::str_find::find_in;
 
     #[test]
     fn expr_redirection() {
-        let source = Source::unknown("{ls; cd;} > /tmp/out");
-        let parsed = parse(source).expect("Failed to parse");
+        let content = "{ls; cd;} > /tmp/out";
+        let source = Source::unknown(content);
+        let parsed = parse(source.clone()).expect("Failed to parse");
         assert_eq!(
             parsed,
             vec![Expr::Redirected(Redirected {
                 expr: Box::new(Expr::Block(Block {
                     expressions: vec![
                         Expr::Call(Call {
-                            arguments: vec![Expr::Literal("ls".into())],
+                            arguments: vec![literal(source.source, "ls")],
                             type_parameters: vec![],
                         }),
                         Expr::Call(Call {
-                            arguments: vec![Expr::Literal("cd".into())],
+                            arguments: vec![literal(source.source, "cd")],
                             type_parameters: vec![],
                         }),
-                    ]
+                    ],
+                    segment: find_in(content, "{ls; cd;}")
                 })),
                 redirections: vec![Redir {
                     operator: RedirOp::Write,
                     fd: RedirFd::Default,
-                    operand: Expr::Literal("/tmp/out".into()),
+                    operand: literal(source.source, "/tmp/out"),
+                    segment: find_in(content, "> /tmp/out"),
                 }],
             }),]
         );
@@ -214,19 +223,21 @@ mod test {
 
     #[test]
     fn call_redirection() {
-        let source = Source::unknown("ls> /tmp/out");
-        let parsed = Parser::new(source).call().expect("Failed to parse");
+        let content = "ls> /tmp/out";
+        let source = Source::unknown(content);
+        let parsed = Parser::new(source.clone()).call().expect("Failed to parse");
         assert_eq!(
             parsed,
             Expr::Redirected(Redirected {
                 expr: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("ls".into())],
+                    arguments: vec![literal(source.source, "ls")],
                     type_parameters: vec![],
                 })),
                 redirections: vec![Redir {
                     fd: RedirFd::Default,
                     operator: RedirOp::Write,
-                    operand: Expr::Literal("/tmp/out".into()),
+                    operand: literal(source.source, "/tmp/out"),
+                    segment: find_in(content, "> /tmp/out"),
                 }],
             })
         );
@@ -234,22 +245,27 @@ mod test {
 
     #[test]
     fn dupe_fd() {
-        let source = Source::unknown("ls>&2");
+        let content = "ls>&2";
+        let source = Source::unknown(content);
         let parsed = Parser::new(source).call().expect("Failed to parse");
         assert_eq!(
             parsed,
             Expr::Redirected(Redirected {
                 expr: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("ls".into())],
+                    arguments: vec![Expr::Literal(Literal {
+                        parsed: "ls".into(),
+                        segment: find_in(content, "ls")
+                    })],
                     type_parameters: vec![],
                 })),
                 redirections: vec![Redir {
                     fd: RedirFd::Default,
                     operator: RedirOp::FdOut,
                     operand: Expr::Literal(Literal {
-                        lexeme: "2",
                         parsed: 2.into(),
+                        segment: find_in(content, "2")
                     }),
+                    segment: find_in(content, ">&2"),
                 }],
             })
         );

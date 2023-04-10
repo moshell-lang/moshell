@@ -1,5 +1,5 @@
 use crate::err::ParseErrorKind;
-use crate::moves::{eox, of_type, repeat, spaces, word_seps, MoveOperations};
+use crate::moves::{eox, of_type, repeat, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::r#use::Use;
 use ast::Expr;
@@ -14,7 +14,8 @@ pub trait UseAspect<'a> {
 
 impl<'a> UseAspect<'a> for Parser<'a> {
     fn parse_use(&mut self) -> ParseResult<Expr<'a>> {
-        self.cursor
+        let start = self
+            .cursor
             .force(of_type(TokenType::Use), "expected 'use'")?;
 
         //first identifier
@@ -31,9 +32,9 @@ impl<'a> UseAspect<'a> for Parser<'a> {
         let mut tail: Vec<_> = self
             .cursor
             .collect(repeat(
-                word_seps()
+                spaces()
                     .then(of_type(Comma))
-                    .then(word_seps().then(of_type(Identifier))),
+                    .then(spaces().then(of_type(Identifier))),
             ))
             .into_iter()
             .filter(|t| t.token_type == Identifier)
@@ -48,8 +49,12 @@ impl<'a> UseAspect<'a> for Parser<'a> {
             .force(spaces().then(eox()), "expected new line or semicolon.")?;
 
         uses.append(&mut tail);
+        let last = *uses.last().unwrap();
 
-        Ok(Expr::Use(Use { uses }))
+        Ok(Expr::Use(Use {
+            uses,
+            segment: self.cursor.relative_pos_ctx(start.value..last),
+        }))
     }
 }
 
@@ -60,17 +65,18 @@ mod tests {
     use crate::parser::ParseResult;
     use ast::r#use::Use;
     use ast::Expr;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
 
     #[test]
     fn test_use() {
         let source = Source::unknown("use TOKEN");
-        let result = parse(source).expect("parser failed");
+        let result = parse(source.clone()).expect("parser failed");
         assert_eq!(
             result,
             vec![Expr::Use(Use {
-                uses: vec!["TOKEN"]
+                uses: vec!["TOKEN"],
+                segment: 0..source.len(),
             })]
         )
     }
@@ -78,11 +84,12 @@ mod tests {
     #[test]
     fn uses() {
         let source = Source::unknown("use TOKEN,    A \\\n , B \\\n , C");
-        let result = parse(source).expect("parser failed");
+        let result = parse(source.clone()).expect("parser failed");
         assert_eq!(
             result,
             vec![Expr::Use(Use {
-                uses: vec!["TOKEN", "A", "B", "C"]
+                uses: vec!["TOKEN", "A", "B", "C"],
+                segment: source.segment()
             })]
         )
     }

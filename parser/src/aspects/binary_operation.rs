@@ -1,4 +1,4 @@
-use crate::moves::{bin_op, eox, spaces, word_seps, MoveOperations};
+use crate::moves::{bin_op, eox, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::Expr;
@@ -65,7 +65,7 @@ impl<'p> Parser<'p> {
     //does current operator priority has priority over next binary operator ?
     fn has_priority(&self, current_priority: i8) -> bool {
         self.cursor
-            .lookahead(word_seps().then(bin_op()))
+            .lookahead(spaces().then(bin_op()))
             .map(|t| {
                 BinaryOperator::try_from(t.token_type)
                     .expect("conception error") //cannot fail
@@ -85,7 +85,7 @@ impl<'p> Parser<'p> {
         P: FnMut(&mut Self) -> ParseResult<Expr<'p>>,
     {
         //current expressions' infix operator
-        let operator = self.cursor.advance(word_seps().then(bin_op())).map(|t| {
+        let operator = self.cursor.advance(spaces().then(bin_op())).map(|t| {
             BinaryOperator::try_from(t.token_type) //cannot fail
                 .expect("conception error")
         });
@@ -107,7 +107,7 @@ impl<'p> Parser<'p> {
         //is > 0 if current operator's priority is smaller
         let priority_comparison = self
             .cursor
-            .lookahead(word_seps().then(bin_op()))
+            .lookahead(spaces().then(bin_op()))
             .map(|t| {
                 operator_priority
                     - BinaryOperator::try_from(t.token_type)
@@ -152,22 +152,24 @@ impl<'p> Parser<'p> {
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
 
     use crate::aspects::binary_operation::BinaryOperationsAspect;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parser::Parser;
+    use crate::source::{literal, literal_nth};
     use ast::call::Call;
     use ast::group::{Parenthesis, Subshell};
     use ast::operation::BinaryOperation;
     use ast::operation::BinaryOperator::*;
     use ast::value::Literal;
     use ast::Expr;
+    use context::str_find::{find_between, find_in, find_in_nth};
 
     #[test]
     fn is_left_associative() {
         let source = Source::unknown("1 && 2 || \\\n 3 || 4 && 5");
-        let mut parser = Parser::new(source);
+        let mut parser = Parser::new(source.clone());
         let ast = parser
             .binary_operation(Parser::next_statement)
             .expect("parsing error");
@@ -178,31 +180,31 @@ mod tests {
                     left: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Literal(Literal {
-                                lexeme: "1",
                                 parsed: 1.into(),
+                                segment: 0..1
                             })),
                             op: And,
                             right: Box::new(Expr::Literal(Literal {
-                                lexeme: "2",
                                 parsed: 2.into(),
+                                segment: find_in(source.source, "2")
                             })),
                         })),
                         op: Or,
                         right: Box::new(Expr::Literal(Literal {
-                            lexeme: "3",
                             parsed: 3.into(),
+                            segment: find_in(source.source, "3")
                         })),
                     })),
                     op: Or,
                     right: Box::new(Expr::Literal(Literal {
-                        lexeme: "4",
                         parsed: 4.into(),
+                        segment: find_in(source.source, "4")
                     })),
                 })),
                 op: And,
                 right: Box::new(Expr::Literal(Literal {
-                    lexeme: "5",
                     parsed: 5.into(),
+                    segment: find_in(source.source, "5")
                 })),
             }),
         )
@@ -211,7 +213,7 @@ mod tests {
     #[test]
     fn explicit_priority() {
         let source = Source::unknown("1 \\\n+\\\n (2 + 3)");
-        let mut parser = Parser::new(source);
+        let mut parser = Parser::new(source.clone());
         let ast = parser
             .binary_operation(Parser::next_value)
             .expect("parsing error");
@@ -219,22 +221,23 @@ mod tests {
             ast,
             Expr::Binary(BinaryOperation {
                 left: Box::new(Expr::Literal(Literal {
-                    lexeme: "1",
                     parsed: 1.into(),
+                    segment: find_in(source.source, "1")
                 })),
                 op: Plus,
                 right: Box::new(Expr::Parenthesis(Parenthesis {
                     expression: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Literal(Literal {
-                            lexeme: "2",
                             parsed: 2.into(),
+                            segment: find_in(source.source, "2")
                         })),
                         op: Plus,
                         right: Box::new(Expr::Literal(Literal {
-                            lexeme: "3",
                             parsed: 3.into(),
+                            segment: find_in(source.source, "3")
                         })),
                     })),
+                    segment: find_between(source.source, "(", ")")
                 })),
             })
         )
@@ -243,7 +246,7 @@ mod tests {
     #[test]
     fn arithmetic_priority() {
         let source = Source::unknown("1 + 2 * 3");
-        let mut parser = Parser::new(source);
+        let mut parser = Parser::new(source.clone());
         let ast = parser
             .binary_operation(Parser::next_value)
             .expect("parsing error");
@@ -251,19 +254,19 @@ mod tests {
             ast,
             Expr::Binary(BinaryOperation {
                 left: Box::new(Expr::Literal(Literal {
-                    lexeme: "1",
                     parsed: 1.into(),
+                    segment: find_in(source.source, "1")
                 })),
                 op: Plus,
                 right: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Literal(Literal {
-                        lexeme: "2",
                         parsed: 2.into(),
+                        segment: find_in(source.source, "2")
                     })),
                     op: Times,
                     right: Box::new(Expr::Literal(Literal {
-                        lexeme: "3",
                         parsed: 3.into(),
+                        segment: find_in(source.source, "3")
                     })),
                 })),
             })
@@ -273,7 +276,7 @@ mod tests {
     #[test]
     fn complete_prioritization_test() {
         let source = Source::unknown("1 +\\\n 2 \\\n*\\\n 3\\\n < 874\\\n / 78 \\\n||\\\n 7\\\n % 4 \\\n== 3 \\\n&& \\\n7 ==\\\n 1");
-        let mut parser = Parser::new(source);
+        let mut parser = Parser::new(source.clone());
         let ast = parser
             .binary_operation(Parser::next_value)
             .expect("parsing error");
@@ -284,32 +287,32 @@ mod tests {
                     left: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Literal(Literal {
-                                lexeme: "1",
                                 parsed: 1.into(),
+                                segment: find_in(source.source, "1")
                             })),
                             op: Plus,
                             right: Box::new(Expr::Binary(BinaryOperation {
                                 left: Box::new(Expr::Literal(Literal {
-                                    lexeme: "2",
                                     parsed: 2.into(),
+                                    segment: find_in(source.source, "2")
                                 })),
                                 op: Times,
                                 right: Box::new(Expr::Literal(Literal {
-                                    lexeme: "3",
                                     parsed: 3.into(),
+                                    segment: find_in(source.source, "3")
                                 })),
                             })),
                         })),
                         op: Less,
                         right: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Literal(Literal {
-                                lexeme: "874",
                                 parsed: 874.into(),
+                                segment: find_in(source.source, "874")
                             })),
                             op: Divide,
                             right: Box::new(Expr::Literal(Literal {
-                                lexeme: "78",
                                 parsed: 78.into(),
+                                segment: find_in(source.source, "78")
                             })),
                         })),
                     })),
@@ -317,32 +320,32 @@ mod tests {
                     right: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Literal(Literal {
-                                lexeme: "7",
                                 parsed: 7.into(),
+                                segment: find_in_nth(source.source, "7", 2)
                             })),
                             op: Modulo,
                             right: Box::new(Expr::Literal(Literal {
-                                lexeme: "4",
                                 parsed: 4.into(),
+                                segment: find_in_nth(source.source, "4", 1)
                             })),
                         })),
                         op: EqualEqual,
                         right: Box::new(Expr::Literal(Literal {
-                            lexeme: "3",
                             parsed: 3.into(),
+                            segment: find_in_nth(source.source, "3", 1)
                         })),
                     })),
                 })),
                 op: And,
                 right: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Literal(Literal {
-                        lexeme: "7",
                         parsed: 7.into(),
+                        segment: find_in_nth(source.source, "7", 3)
                     })),
                     op: EqualEqual,
                     right: Box::new(Expr::Literal(Literal {
-                        lexeme: "1",
                         parsed: 1.into(),
+                        segment: source.source.rfind('1').map(|p| (p..p + 1)).unwrap()
                     })),
                 })),
             })
@@ -368,7 +371,7 @@ mod tests {
     #[test]
     fn bin_expression_in_group() {
         let source = Source::unknown("(1 + 2 * 3)");
-        let mut parser = Parser::new(source);
+        let mut parser = Parser::new(source.clone());
         let ast = parser
             .binary_operation(Parser::next_value)
             .expect("parsing error");
@@ -377,22 +380,23 @@ mod tests {
             Expr::Parenthesis(Parenthesis {
                 expression: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Literal(Literal {
-                        lexeme: "1",
                         parsed: 1.into(),
+                        segment: find_in(source.source, "1")
                     })),
                     op: Plus,
                     right: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Literal(Literal {
-                            lexeme: "2",
                             parsed: 2.into(),
+                            segment: find_in(source.source, "2")
                         })),
                         op: Times,
                         right: Box::new(Expr::Literal(Literal {
-                            lexeme: "3",
                             parsed: 3.into(),
+                            segment: find_in(source.source, "3")
                         })),
                     })),
-                }))
+                })),
+                segment: source.segment(),
             })
         )
     }
@@ -400,7 +404,7 @@ mod tests {
     #[test]
     fn exitcode_operators() {
         let source = Source::unknown("(echo hello && echo world ) || echo damn");
-        let mut parser = Parser::new(source);
+        let mut parser = Parser::new(source.clone());
         let ast = parser
             .binary_operation(Parser::next_statement)
             .expect("parsing error");
@@ -411,24 +415,28 @@ mod tests {
                     expressions: vec![Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Call(Call {
                             arguments: vec![
-                                Expr::Literal("echo".into()),
-                                Expr::Literal("hello".into()),
+                                literal(source.source, "echo"),
+                                literal(source.source, "hello"),
                             ],
                             type_parameters: vec![],
                         })),
                         op: And,
                         right: Box::new(Expr::Call(Call {
                             arguments: vec![
-                                Expr::Literal("echo".into()),
-                                Expr::Literal("world".into()),
+                                literal_nth(source.source, "echo", 1),
+                                literal(source.source, "world"),
                             ],
                             type_parameters: vec![],
                         })),
-                    })]
+                    })],
+                    segment: find_between(source.source, "(", ")")
                 })),
                 op: Or,
                 right: Box::new(Expr::Call(Call {
-                    arguments: vec![Expr::Literal("echo".into()), Expr::Literal("damn".into())],
+                    arguments: vec![
+                        literal_nth(source.source, "echo", 2),
+                        literal(source.source, "damn"),
+                    ],
                     type_parameters: vec![],
                 })),
             })
@@ -437,8 +445,8 @@ mod tests {
 
     #[test]
     fn escaped_operators() {
-        let source = Source::unknown("(echo hello \\&& world \\);) || echo damn");
-        let mut parser = Parser::new(source);
+        let source = Source::unknown("(echo hello \\& world \\);) || echo damn");
+        let mut parser = Parser::new(source.clone());
         let ast = parser
             .binary_operation(Parser::next_statement)
             .expect("parsing error");
@@ -448,32 +456,21 @@ mod tests {
                 left: Box::new(Expr::Subshell(Subshell {
                     expressions: vec![Expr::Call(Call {
                         arguments: vec![
-                            Expr::Literal("echo".into()),
-                            Expr::Literal("hello".into()),
-                            Expr::Literal(Literal {
-                                lexeme: "\\&&",
-                                parsed: "&&".into(),
-                            }),
-                            Expr::Literal("world".into()),
-                            Expr::Literal(Literal {
-                                lexeme: "\\)",
-                                parsed: ")".into(),
-                            }),
+                            literal(source.source, "echo"),
+                            literal(source.source, "hello"),
+                            literal(source.source, "&"),
+                            literal(source.source, "world"),
+                            literal(source.source, ")"),
                         ],
                         type_parameters: vec![],
-                    })]
+                    })],
+                    segment: find_between(source.source, "(", ";)")
                 })),
                 op: Or,
                 right: Box::new(Expr::Call(Call {
                     arguments: vec![
-                        Expr::Literal(Literal {
-                            lexeme: "echo",
-                            parsed: "echo".into(),
-                        }),
-                        Expr::Literal(Literal {
-                            lexeme: "damn",
-                            parsed: "damn".into(),
-                        }),
+                        literal_nth(source.source, "echo", 1),
+                        literal(source.source, "damn"),
                     ],
                     type_parameters: vec![],
                 })),

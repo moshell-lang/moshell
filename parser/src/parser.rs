@@ -11,9 +11,11 @@ use crate::aspects::detached::DetachedAspect;
 use crate::aspects::function_declaration::FunctionDeclarationAspect;
 use crate::aspects::group::GroupAspect;
 use crate::aspects::if_else::IfElseAspect;
+use crate::aspects::lambda_def::LambdaDefinitionAspect;
 use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
 use crate::aspects::r#loop::LoopAspect;
 use crate::aspects::r#match::MatchAspect;
+use crate::aspects::r#type::TypeAspect;
 use crate::aspects::r#use::UseAspect;
 use crate::aspects::range::RangeAspect;
 use crate::aspects::redirection::RedirectionAspect;
@@ -23,7 +25,7 @@ use crate::cursor::ParserCursor;
 use crate::err::ParseErrorKind::Unexpected;
 use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
 use crate::moves::{
-    bin_op, eod, eox, like, next, of_type, of_types, repeat, spaces, word_seps, MoveOperations,
+    any, bin_op, blanks, eod, eox, like, next, of_type, of_types, repeat, spaces, MoveOperations,
 };
 use ast::range::Iterable;
 use ast::Expr;
@@ -144,7 +146,7 @@ impl<'a> Parser<'a> {
             Identifier
                 if self
                     .cursor
-                    .lookahead(next().then(word_seps().then(of_type(Equal))))
+                    .lookahead(next().then(spaces().then(of_type(Equal))))
                     .is_some() =>
             {
                 self.parse_assign().map(Expr::Assign)
@@ -178,16 +180,16 @@ impl<'a> Parser<'a> {
         let pivot = self.cursor.peek().token_type;
         match pivot {
             //if we are parsing an expression, then we want to see a parenthesised expr as a subshell expression
-            RoundedLeftBracket => self.subshell().map(Expr::Subshell),
+            RoundedLeftBracket => self.subshell_or_parentheses(),
             SquaredLeftBracket => self.parse_test(),
 
             Continue => {
-                self.cursor.next()?;
-                Ok(Expr::Continue)
+                let current = self.cursor.next()?;
+                Ok(Expr::Continue(self.cursor.relative_pos(current.value)))
             }
             Break => {
-                self.cursor.next()?;
-                Ok(Expr::Break)
+                let current = self.cursor.next()?;
+                Ok(Expr::Break(self.cursor.relative_pos(current.value)))
             }
             Return => self.parse_return().map(Expr::Return),
 
@@ -203,7 +205,7 @@ impl<'a> Parser<'a> {
 
         let pivot = self.cursor.peek().token_type;
         let value = match pivot {
-            RoundedLeftBracket => self.parenthesis().map(Expr::Parenthesis),
+            RoundedLeftBracket => self.lambda_or_parentheses(),
             CurlyLeftBracket => self.block().map(Expr::Block),
             Not => self.not(Parser::next_value),
 
@@ -211,12 +213,21 @@ impl<'a> Parser<'a> {
             If => self.parse_if(Parser::value).map(Expr::If),
             Match => self.parse_match(Parser::value).map(Expr::Match),
             Identifier if self.may_be_at_programmatic_call_start() => self.programmatic_call(),
+            Identifier
+                if self
+                    .cursor
+                    .lookahead(any().then(blanks().then(of_type(FatArrow))))
+                    .is_some() =>
+            {
+                self.parse_lambda_definition().map(Expr::LambdaDef)
+            }
 
             //test expressions has nothing to do in a value expression.
             SquaredLeftBracket => self.expected("Unexpected start of test expression", Unexpected),
             _ => self.literal(LiteralLeniency::Strict),
         }?;
-        self.expand_call_chain(value)
+        let value = self.expand_call_chain(value)?;
+        self.handle_cast(value)
     }
 
     pub(crate) fn parse_next(&mut self) -> ParseResult<Expr<'a>> {
@@ -227,6 +238,38 @@ impl<'a> Parser<'a> {
                 .force(eox(), "expected end of expression or file")?;
         };
         statement
+    }
+
+    ///handle specific case of casted expressions (<expr> as <type>)
+    fn handle_cast(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
+        if self.cursor.lookahead(blanks().then(of_type(As))).is_some() {
+            return self.parse_cast(expr).map(Expr::Casted);
+        }
+        Ok(expr)
+    }
+
+    ///handle tricky case of lambda `(e) => x` and parentheses `(e)`
+    fn lambda_or_parentheses(&mut self) -> ParseResult<Expr<'a>> {
+        let initial = self.cursor.get_pos();
+        match self.parse_lambda_definition() {
+            Ok(def) => Ok(Expr::LambdaDef(def)),
+            Err(_) => {
+                self.cursor.repos(initial);
+                self.parenthesis().map(Expr::Parenthesis)
+            }
+        }
+    }
+
+    ///handle tricky case of lambda `(e) => x` and subshell `(e)`
+    fn subshell_or_parentheses(&mut self) -> ParseResult<Expr<'a>> {
+        let initial = self.cursor.get_pos();
+        match self.parse_lambda_definition() {
+            Ok(def) => Ok(Expr::LambdaDef(def)),
+            Err(_) => {
+                self.cursor.repos(initial);
+                self.subshell().map(Expr::Subshell)
+            }
+        }
     }
 
     /// Raise an error on the current token.
@@ -250,17 +293,17 @@ impl<'a> Parser<'a> {
     }
 
     /// Expect a specific delimiter token type and pop it from the delimiter stack.
-    pub(crate) fn expect_delimiter(&mut self, eog: TokenType) -> ParseResult<()> {
-        if self.cursor.advance(of_type(eog)).is_some() {
+    pub(crate) fn expect_delimiter(&mut self, eog: TokenType) -> ParseResult<Token<'a>> {
+        if let Some(token) = self.cursor.advance(of_type(eog)) {
             self.delimiter_stack.pop_back();
-            Ok(())
+            Ok(token)
         } else {
             self.mismatched_delimiter(eog)
         }
     }
 
     /// Raise a mismatched delimiter error on the current token.
-    pub(crate) fn mismatched_delimiter(&mut self, eog: TokenType) -> ParseResult<()> {
+    pub(crate) fn mismatched_delimiter<T>(&mut self, eog: TokenType) -> ParseResult<T> {
         if let Some(last) = self.delimiter_stack.back() {
             self.expected(
                 "Mismatched closing delimiter.",
@@ -307,9 +350,9 @@ impl<'a> Parser<'a> {
 
         if let Expr::Literal(literal) = &expr {
             if self.cursor.lookahead(bin_op()).is_some() {
-                let start_pos = self.cursor.relative_pos(literal.lexeme).start;
+                let start_pos = literal.segment.start;
                 if self
-                    .binary_operation_right(expr, Parser::next_value)
+                    .binary_operation_right(expr.clone(), Parser::next_value)
                     .is_ok()
                 {
                     let end_pos = self.cursor.relative_pos(self.cursor.peek()).end;
@@ -323,6 +366,11 @@ impl<'a> Parser<'a> {
             }
         }
 
+        if self.cursor.lookahead(of_type(As)).is_some() {
+            let expr = self.parse_cast(expr).map(Expr::Casted)?;
+            return self.parse_binary_expr(expr);
+        }
+
         //else, we hit an invalid binary expression.
         self.expected("invalid expression operator", Unexpected)
     }
@@ -331,7 +379,7 @@ impl<'a> Parser<'a> {
     //as the left arm of the expression.
     //if given expression is directly followed by an eox delimiter, then return it as is
     fn parse_binary_value_expr(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
-        self.cursor.advance(word_seps()); //consume word separators
+        self.cursor.advance(spaces()); //consume word separators
 
         if self.cursor.advance(of_type(DotDot)).is_some() {
             return self
@@ -358,7 +406,7 @@ impl<'a> Parser<'a> {
     ///Skips spaces and verify that this parser is not parsing the end of an expression
     /// (unescaped newline or semicolon)
     pub(crate) fn repos(&mut self, message: &str) -> ParseResult<()> {
-        self.cursor.advance(word_seps()); //skip word separators
+        self.cursor.advance(spaces()); //skip word separators
         if self.cursor.lookahead(eox()).is_some() {
             return self.expected(message, Unexpected);
         }

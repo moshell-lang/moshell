@@ -1,6 +1,7 @@
-use crate::moves::{of_type, word_seps};
+use crate::moves::{of_type, spaces};
 use crate::parser::{ParseResult, Parser};
 use ast::variable::Assign;
+use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
 
 pub trait AssignAspect<'a> {
@@ -14,13 +15,18 @@ impl<'a> AssignAspect<'a> for Parser<'a> {
             .cursor
             .force(of_type(TokenType::Identifier), "Expected variable name.")?
             .value;
-        self.cursor.advance(word_seps());
+        self.cursor.advance(spaces());
         self.cursor.force(
             of_type(TokenType::Equal),
             "Expected '=' at start of assignment",
         )?;
         let value = Box::new(self.value()?);
-        Ok(Assign { name, value })
+        let segment = self.cursor.relative_pos(name).start..value.segment().end;
+        Ok(Assign {
+            name,
+            value,
+            segment,
+        })
     }
 }
 
@@ -32,7 +38,7 @@ mod tests {
     use ast::value::Literal;
     use ast::variable::Assign;
     use ast::Expr;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
 
     #[test]
     fn assign_no_value() {
@@ -52,15 +58,16 @@ mod tests {
     #[test]
     fn assign() {
         let source = Source::unknown("a = 1");
-        let ast = parse(source).expect("Failed to parse");
+        let ast = parse(source.clone()).expect("Failed to parse");
         assert_eq!(
             ast,
             vec![Expr::Assign(Assign {
                 name: "a",
                 value: Box::new(Expr::Literal(Literal {
-                    lexeme: "1",
-                    parsed: 1.into()
-                }))
+                    parsed: 1.into(),
+                    segment: 4..5,
+                })),
+                segment: source.segment(),
             })]
         );
     }
