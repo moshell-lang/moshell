@@ -599,8 +599,8 @@ fn block_method_call() {
 }
 
 #[test]
-fn block_method_call_with_type_params() {
-    let source = Source::unknown("$a.foo($d);echo \"${c.bar()}\"");
+fn method_call_with_type_params_and_ref() {
+    let source = Source::unknown("$a.foo($d);echo \"${c.bar[T]()}\"");
     let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,
@@ -629,8 +629,12 @@ fn block_method_call_with_type_params() {
                             })),
                             name: "bar",
                             arguments: Vec::new(),
-                            type_parameters: Vec::new(),
-                            segment: find_in(source.source, ".bar()")
+                            type_parameters: vec![Type::Simple(SimpleType {
+                                name: "T",
+                                params: Vec::new(),
+                                segment: find_in(source.source, "T")
+                            })],
+                            segment: find_in(source.source, ".bar[T]()")
                         })],
                     }),
                 ],
