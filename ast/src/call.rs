@@ -25,8 +25,8 @@ pub struct Call<'a> {
 /// Theses always have a constant name and are always called with parentheses.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ProgrammaticCall<'a> {
-    ///list of prefixed modules
-    pub context: Vec<&'a str>,
+    /// inclusion path
+    pub path: Vec<&'a str>,
     
     /// The name of the function to call.
     pub name: &'a str,

@@ -158,7 +158,7 @@ fn lambda_one_arg() {
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
-            context: vec![],
+            path: vec![],
             name: "calc",
             arguments: vec![Expr::LambdaDef(LambdaDef {
                 args: vec![TypedVariable {
@@ -183,7 +183,7 @@ fn lambda_in_pfc() {
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
-            context: vec![],
+            path: vec![],
             name: "calc",
             arguments: vec![Expr::LambdaDef(LambdaDef {
                 args: vec![],
@@ -252,7 +252,7 @@ fn constructor_in_call() {
             arguments: vec![
                 Expr::Literal("echo".into()),
                 Expr::ProgrammaticCall(ProgrammaticCall {
-                    context: vec![],
+                    path: vec![],
                     name: "Foo",
                     arguments: vec![],
                     type_parameters: vec![],
@@ -421,7 +421,7 @@ fn constructor_assign() {
         vec![Expr::Assign(Assign {
             name: "a",
             value: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
-                context: vec![],
+                path: vec![],
                 name: "Foo",
                 arguments: vec![Expr::Literal(Literal {
                     lexeme: "5",
@@ -440,7 +440,7 @@ fn programmatic_call() {
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
-            context: vec![],
+            path: vec![],
             name: "ssh",
             arguments: vec![
                 Expr::Literal(Literal {

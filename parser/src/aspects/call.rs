@@ -5,7 +5,7 @@ use lexer::token::{Token, TokenType};
 use crate::aspects::r#type::TypeAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::err::ParseErrorKind;
-use crate::moves::{eod, eox, like, lookahead, of_type, of_types, spaces, MoveOperations};
+use crate::moves::{eod, eox, like, lookahead, of_type, of_types, spaces, MoveOperations, repeat};
 use crate::parser::{ParseResult, Parser};
 use ast::call::{Call, ProgrammaticCall};
 use ast::lambda::LambdaDef;
@@ -13,6 +13,7 @@ use ast::r#type::Type;
 use ast::value::Literal;
 use ast::variable::TypedVariable;
 use ast::Expr;
+use lexer::token::TokenType::{ColonColon, Identifier};
 use crate::aspects::modules::ModulesAspect;
 
 /// A parse aspect for command and function calls
@@ -40,6 +41,8 @@ pub trait CallAspect<'a> {
 
 impl<'a> CallAspect<'a> for Parser<'a> {
     fn any_call(&mut self) -> ParseResult<Expr<'a>> {
+        let path = self.parse_inclusion_path()?;
+
         // Equivalent to #may_be_at_programmatic_call_start, with an additional check for lambda definitions.
         if self
             .cursor
@@ -54,7 +57,6 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             return self.call();
         }
         // We don't known if this is a programmatic call, a raw call or a lambda definition yet.
-        let path = self.parse_inclusion_path()?;
         let identifier = self.cursor.next()?;
         let callee = Expr::Literal(Literal::from(identifier.value));
         let type_parameters = self.parse_type_parameter_list()?;
@@ -63,7 +65,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             self.delimiter_stack.push_back(open_parenthesis.clone());
             let arguments = self.parse_comma_separated_arguments(open_parenthesis)?;
             Ok(Expr::ProgrammaticCall(ProgrammaticCall {
-                context: vec![],
+                path,
                 name: identifier.value,
                 arguments,
                 type_parameters,
@@ -88,12 +90,11 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
     fn call(&mut self) -> ParseResult<Expr<'a>> {
         let path = self.parse_inclusion_path()?;
-        let callee = self.next_value()?;
-        let tparams = self.parse_type_parameter_list()?;
-        self.call_arguments(path, callee, tparams)
+        self.call_with_path(path)
     }
 
     fn programmatic_call(&mut self) -> ParseResult<Expr<'a>> {
+        let path = self.parse_inclusion_path()?;
         let name = self
             .cursor
             .force(of_type(TokenType::Identifier), "Expected function name.")?;
@@ -105,7 +106,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         self.delimiter_stack.push_back(open_parenthesis.clone());
         let arguments = self.parse_comma_separated_arguments(open_parenthesis)?;
         Ok(Expr::ProgrammaticCall(ProgrammaticCall {
-            context: vec![],
+            path,
             name: name.value,
             arguments,
             type_parameters,
@@ -121,7 +122,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         let mut arguments = vec![callee];
 
         self.cursor.advance(spaces()); //consume word separations
-                                       // Continue reading arguments until we reach the end of the input or a closing punctuation
+        // Continue reading arguments until we reach the end of the input or a closing punctuation
         while !self.cursor.is_at_end()
             && self
                 .cursor
@@ -149,7 +150,10 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
     fn may_be_at_programmatic_call_start(&self) -> bool {
         self.cursor
-            .lookahead(of_type(TokenType::Identifier).and_then(of_types(&[
+            .lookahead(repeat(
+                of_type(Identifier)
+                    .and_then(of_type(ColonColon))
+            ).then(of_type(Identifier)).and_then(of_types(&[
                 TokenType::RoundedLeftBracket,
                 TokenType::SquaredLeftBracket,
             ])))
@@ -158,6 +162,12 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
+
+    fn call_with_path(&mut self, path: Vec<&'a str>) -> ParseResult<Expr<'a>> {
+        let callee = self.next_value()?;
+        let tparams = self.parse_type_parameter_list()?;
+        self.call_arguments(path, callee, tparams)
+    }
 
     /// special pivot method for argument methods
     fn call_argument(&mut self) -> ParseResult<Expr<'a>> {
@@ -209,7 +219,7 @@ impl<'a> Parser<'a> {
             }
             self.cursor.force(
                 spaces().then(of_type(TokenType::Comma).or(lookahead(eod()))),
-                "expected ','",
+                &format!("expected ',', found {}", self.cursor.peek().value),
             )?;
         }
 
@@ -265,6 +275,30 @@ mod tests {
             }))
         );
     }
+
+    #[test]
+    fn call_with_inclusion_path() {
+        let content = "a::b::parse[int] x y";
+        let source = Source::unknown(content);
+        assert_eq!(
+            Parser::new(source).parse_next(),
+            Ok(Expr::Call(Call {
+                path: vec!["a", "b"],
+                arguments: vec![
+                    Expr::Literal("parse".into()),
+                    Expr::Literal("x".into()),
+                    Expr::Literal("y".into())
+                ],
+                type_parameters: vec![Type::Parametrized(ParametrizedType {
+                    context: vec![],
+                    name: "int",
+                    params: Vec::new()
+                })]
+            }))
+        );
+    }
+
+
 
     #[test]
     fn not_in_call_is_literal() {
@@ -361,7 +395,7 @@ mod tests {
         let expr = parse(source).expect("Failed to parse");
         let expr2 = parse(source2).expect("Failed to parse");
         let expected = vec![Expr::ProgrammaticCall(ProgrammaticCall {
-            context: vec![],
+            path: vec![],
             name: "Foo",
             arguments: vec![],
             type_parameters: vec![],
@@ -377,7 +411,7 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                context: vec![],
+                path: vec![],
                 name: "Foo",
                 arguments: vec![
                     Expr::Literal("a".into()),
@@ -399,7 +433,7 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                context: vec![],
+                path: vec![],
                 name: "Foo",
                 arguments: vec![
                     Expr::Literal("this".into()),
@@ -418,7 +452,7 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                context: vec![],
+                path: vec![],
                 name: "Foo",
                 arguments: vec![
                     Expr::Literal(Literal {
@@ -439,7 +473,105 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                context: vec![],
+                path: vec![],
+                name: "List",
+                arguments: vec![Expr::Literal(Literal {
+                    lexeme: "'hi'",
+                    parsed: "hi".into(),
+                })],
+                type_parameters: vec![Type::Parametrized(ParametrizedType {
+                    context: vec![],
+                    name: "Str",
+                    params: vec![],
+                })],
+            })],
+        );
+    }
+
+    #[test]
+    fn pfc_within_pfc() {
+        let source = Source::unknown("foo[Str](bar(), other[A]())");
+        let expr = parse(source).expect("Failed to parse");
+        assert_eq!(
+            expr,
+            vec![Expr::ProgrammaticCall(ProgrammaticCall {
+                path: vec![],
+                name: "foo",
+                arguments: vec![
+                    Expr::ProgrammaticCall(ProgrammaticCall {
+                        path: Vec::new(),
+                        name: "bar",
+                        arguments: Vec::new(),
+                        type_parameters: Vec::new()
+                    }),
+                    Expr::ProgrammaticCall(ProgrammaticCall {
+                        path: Vec::new(),
+                        name: "other",
+                        arguments: Vec::new(),
+                        type_parameters: vec![
+                            Type::Parametrized(ParametrizedType {
+                                context: Vec::new(),
+                                name: "A",
+                                params: Vec::new()
+                            })
+                        ]
+                    })
+                ],
+                type_parameters: vec![Type::Parametrized(ParametrizedType {
+                    context: vec![],
+                    name: "Str",
+                    params: vec![],
+                })],
+            })],
+        );
+    }
+
+    #[test]
+    fn pfc_within_pfc_with_path() {
+        let source = Source::unknown("a::b::foo[Str](std::bar(), foo::other[A]())");
+        let expr = parse(source).expect("Failed to parse");
+        assert_eq!(
+            expr,
+            vec![Expr::ProgrammaticCall(ProgrammaticCall {
+                path: vec!["a", "b"],
+                name: "foo",
+                arguments: vec![
+                    Expr::ProgrammaticCall(ProgrammaticCall {
+                        path: vec!["std"],
+                        name: "bar",
+                        arguments: Vec::new(),
+                        type_parameters: Vec::new()
+                    }),
+                    Expr::ProgrammaticCall(ProgrammaticCall {
+                        path: vec!["foo"],
+                        name: "other",
+                        arguments: Vec::new(),
+                        type_parameters: vec![
+                            Type::Parametrized(ParametrizedType {
+                                context: Vec::new(),
+                                name: "A",
+                                params: Vec::new()
+                            })
+                        ]
+                    })
+                ],
+                type_parameters: vec![Type::Parametrized(ParametrizedType {
+                    context: vec![],
+                    name: "Str",
+                    params: vec![],
+                })],
+            })],
+        );
+    }
+
+    #[test]
+    fn generic_constructor_with_include_path() {
+        let source = Source::unknown("foo::bar::List[Str]('hi')");
+        let expr = parse(source).expect("Failed to parse");
+        assert_eq!(
+            expr,
+            vec![Expr::ProgrammaticCall(ProgrammaticCall {
+                path: vec!["foo", "bar"],
                 name: "List",
                 arguments: vec![Expr::Literal(Literal {
                     lexeme: "'hi'",
@@ -468,6 +600,8 @@ mod tests {
             })
         )
     }
+
+
 
     #[test]
     fn constructor_exit_when_mismatched_bracket() {
