@@ -5,7 +5,7 @@ use lexer::token::{Token, TokenType};
 use crate::aspects::r#type::TypeAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::err::ParseErrorKind;
-use crate::moves::{eod, eox, like, lookahead, next, of_type, of_types, spaces, MoveOperations};
+use crate::moves::{eod, eox, like, lookahead, of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::call::{Call, ProgrammaticCall};
 use ast::lambda::LambdaDef;
@@ -52,8 +52,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             return self.call();
         }
         // We don't known if this is a programmatic call, a raw call or a lambda definition yet.
-        let identifier = self.cursor.peek();
-        self.cursor.advance(next());
+        let identifier = self.cursor.next()?;
         let callee = Expr::Literal(Literal::from(identifier.value));
         let type_parameters = self.parse_type_parameter_list()?;
         if let Some(open_parenthesis) = self.cursor.advance(of_type(TokenType::RoundedLeftBracket))
@@ -152,6 +151,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
+
     /// special pivot method for argument methods
     fn call_argument(&mut self) -> ParseResult<Expr<'a>> {
         self.repos("Expected value")?;

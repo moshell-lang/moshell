@@ -1,21 +1,26 @@
 use crate::err::ParseErrorKind;
 
-use crate::moves::{of_type, MoveOperations, blanks, spaces, eox, repeat, not, lookahead, any, blank, of_types, like};
+use crate::moves::{of_type, MoveOperations, blanks, spaces, eox, repeat, of_types, any};
 use crate::parser::{ParseResult, Parser};
 use ast::Expr;
 use ast::r#use::{Import, ImportedSymbol, ImportList, Use};
 use context::source::{try_join_str};
 use lexer::token::TokenType;
-use lexer::token::TokenType::{As, At, Colon, Comma, CurlyLeftBracket, CurlyRightBracket, DoubleQuote, Identifier, Quote, Star};
+use lexer::token::TokenType::{As, At, ColonColon, CurlyLeftBracket, CurlyRightBracket, Dot, DotDot, FloatLiteral, Identifier, IntLiteral, Slash, Star};
 use crate::aspects::expr_list::ExpressionListAspect;
 
-/// Parser aspect to parse use statements
-pub trait UseAspect<'a> {
+/// Parser aspect to parse all expressions in relation with modules.
+/// Which can be use statements, or module location prefix
+pub trait ModulesAspect<'a> {
     ///parse a 'use x, y' statement
     fn parse_use(&mut self) -> ParseResult<Expr<'a>>;
+
+    ///parse identifiers separated between `::` expressions.
+    /// This method stops when it founds an expressions that is not an identifier.
+    fn parse_prefix_modules(&mut self) -> ParseResult<Vec<&'a str>>;
 }
 
-impl<'a> UseAspect<'a> for Parser<'a> {
+impl<'a> ModulesAspect<'a> for Parser<'a> {
     fn parse_use(&mut self) -> ParseResult<Expr<'a>> {
         self.cursor
             .force(of_type(TokenType::Use), "expected 'use'")?;
@@ -33,9 +38,34 @@ impl<'a> UseAspect<'a> for Parser<'a> {
             import
         }))
     }
+
+    fn parse_prefix_modules(&mut self) -> ParseResult<Vec<&'a str>> {
+        self.parse_prefix_modules_with(Vec::new())
+    }
 }
 
 impl<'a> Parser<'a> {
+    fn parse_prefix_modules_with(&mut self, mut head: Vec<&'a str>) -> ParseResult<Vec<&'a str>> {
+        loop {
+            self.cursor.advance(spaces());
+            let identifier = self.cursor.peek();
+
+            if identifier.token_type != Identifier {
+                break
+            }
+
+            let identifier = identifier.value;
+
+            if self.cursor.advance(any().then(spaces().then(
+                of_type(ColonColon)
+            ))).is_none() {
+                break;
+            }
+            head.push(identifier)
+        }
+
+        Ok(head)
+    }
 
     fn parse_import(&mut self) -> ParseResult<Import<'a>> {
         self.cursor.advance(blanks()); //consume blanks
@@ -89,7 +119,7 @@ impl<'a> Parser<'a> {
 
         self.cursor.force_with(
             of_type(Identifier),
-            "identifier expected, you may want to escape it",
+            "identifier expected, you might want to escape it",
             ParseErrorKind::UnexpectedInContext(format!("\\{}", self.cursor.peek().value)),
         ).map(|t| t.value)
     }
@@ -97,24 +127,17 @@ impl<'a> Parser<'a> {
     //parse an identifier or a file path.
     fn parse_first_path_element(&mut self) -> ParseResult<&'a str> {
 
-        //collects all tokens that can form a file path until `::`
-        let tokens = self.cursor.collect(repeat(
-            not(
-                blank()
-                    .or(eox())
-                    .or(like(TokenType::is_ponctuation))
-                    .or(of_types(&[Quote, DoubleQuote, Comma]))
+        //collects all tokens that can form a file path until required `::`
+        let tokens = self.cursor.collect(
+            repeat(
+                of_types(&[Identifier, Slash, IntLiteral, FloatLiteral, Dot, DotDot])
             )
-                .and_then(not(lookahead(
-                    of_type(Colon)
-                        .and_then(of_type(Colon))
-                )))
-                .and_then(any())
-        ));
+        );
 
-        let tokens = tokens.split_first();
+        self.cursor.advance(spaces().then(of_type(ColonColon)));
 
-        if let Some((head, tail)) = tokens {
+
+        if let Some((head, tail)) = tokens.split_first() {
             let first_path_element = tail
                 .into_iter()
                 .fold(head.value, |acc, t|
@@ -129,27 +152,24 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_import_with_path(&mut self) -> ParseResult<Import<'a>> {
-        let mut identifiers = vec![self.parse_first_path_element()?];
+        let mut path = vec![self.parse_first_path_element()?];
+        path = self.parse_prefix_modules_with(path)?;
 
-        while self.cursor.advance(
-            blanks()
-                .then(of_type(Colon))
-                .then(of_type(Colon))
-        ).is_some() {
-            self.cursor.advance(blanks()); //consume blanks
-
-            let pivot = self.cursor.peek();
-            if pivot.token_type == CurlyLeftBracket {
-                return self
-                    .parse_import_list(identifiers)
-                    .map(Import::List)
-            }
-            if pivot.token_type == Star {
-                self.cursor.next()?;
-                return Ok(Import::AllIn(identifiers))
-            }
-            identifiers.push(self.expect_identifier()?)
+        self.cursor.advance(spaces()); //consume spaces
+        let token = self.cursor.peek();
+        if token.token_type == Star {
+            self.cursor.next()?;
+            return Ok(Import::AllIn(path))
+        } else if token.token_type == CurlyLeftBracket {
+            return self.parse_import_list(path).map(Import::List)
         }
+
+        let name = if token.token_type == Identifier {
+            self.cursor.next()?;
+            token.value
+        } else {
+            path.pop().unwrap() //cannot be empty;
+        };
 
         let alias = self.cursor
             .advance(
@@ -158,11 +178,9 @@ impl<'a> Parser<'a> {
                     .then(of_type(Identifier))
             ).map(|t| t.value);
 
-        let (name, path) = identifiers.split_last().unwrap();
-
         Ok(Import::Symbol(ImportedSymbol {
-            name,
             path: path.to_vec(),
+            name,
             alias,
         }))
     }
@@ -177,7 +195,7 @@ mod tests {
     use pretty_assertions::assert_eq;
     use ast::Expr;
     use ast::r#use::{Import, ImportedSymbol, ImportList, Use};
-    use crate::aspects::r#use::UseAspect;
+    use crate::aspects::modules::ModulesAspect;
 
     #[test]
     fn simple_use() {
@@ -196,7 +214,7 @@ mod tests {
     }
 
     #[test]
-    fn import_with_file() {
+    fn use_with_file() {
         let source = Source::unknown("use ../foo/bar/asm/std::foo::bar");
         let result = parse(source).expect("parser failed");
         assert_eq!(

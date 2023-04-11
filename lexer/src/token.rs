@@ -80,6 +80,8 @@ pub enum TokenType {
 
     #[assoc(str = ":")]
     Colon,
+    #[assoc(str = "::")]
+    ColonColon,
     #[assoc(str = ";")]
     SemiColon,
     #[assoc(str = "=")]

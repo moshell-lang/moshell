@@ -16,7 +16,7 @@ use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
 use crate::aspects::r#loop::LoopAspect;
 use crate::aspects::r#match::MatchAspect;
 use crate::aspects::r#type::TypeAspect;
-use crate::aspects::r#use::UseAspect;
+use crate::aspects::modules::ModulesAspect;
 use crate::aspects::range::RangeAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::aspects::test::TestAspect;
