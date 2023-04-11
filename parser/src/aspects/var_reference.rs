@@ -22,6 +22,9 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
             .advance(blanks().then(lookahead(any())))
             .unwrap();
         let bracket = self.cursor.advance(of_type(CurlyLeftBracket));
+        if let Some(bracket) = bracket.clone() {
+            self.delimiter_stack.push_back(bracket);
+        }
 
         let tokens = self
             .cursor
@@ -50,11 +53,16 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
             self.expand_call_chain(Expr::VarReference(VarReference { name, segment }))?;
 
         if let Some(bracket) = bracket {
-            self.cursor.force_with(
-                of_type(CurlyRightBracket),
-                "Expected closing curly bracket.",
-                ParseErrorKind::Unpaired(self.cursor.relative_pos(bracket)),
-            )?;
+            if self.cursor.peek().token_type.is_closing_ponctuation() {
+                self.expect_delimiter(CurlyRightBracket)?;
+            } else {
+                self.cursor.force_with(
+                    of_type(CurlyRightBracket),
+                    "Expected closing curly bracket.",
+                    ParseErrorKind::Unpaired(self.cursor.relative_pos(bracket)),
+                )?;
+            }
+
             if let Expr::VarReference(ref mut var) = expr {
                 var.segment.end += 1;
             }
@@ -218,6 +226,21 @@ mod tests {
                 type_parameters: vec![],
                 segment: source.segment()
             })]
+        )
+    }
+
+    #[test]
+    fn mismatched_delimiter() {
+        let content = "${VAR)}";
+        let source = Source::unknown(content);
+        let result: ParseResult<_> = parse(source).into();
+        assert_eq!(
+            result,
+            Err(ParseError {
+                message: "Mismatched closing delimiter.".to_owned(),
+                position: content.find(')').map(|p| p..p + 1).unwrap(),
+                kind: ParseErrorKind::Unpaired(content.find('{').map(|p| p..p + 1).unwrap()),
+            })
         )
     }
 }
