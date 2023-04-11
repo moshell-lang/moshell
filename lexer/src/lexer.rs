@@ -116,12 +116,13 @@ impl<'a> Lexer<'a> {
                 }
             }
             ';' => TokenType::SemiColon,
-            ':' =>
+            ':' => {
                 if self.matches_next(':', &mut size) {
                     TokenType::ColonColon
                 } else {
                     TokenType::Colon
                 }
+            }
             '\r' | '\n' => TokenType::NewLine,
             '!' => {
                 if self.matches_next('=', &mut size) {

@@ -13,10 +13,10 @@ use crate::aspects::group::GroupAspect;
 use crate::aspects::if_else::IfElseAspect;
 use crate::aspects::lambda_def::LambdaDefinitionAspect;
 use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
+use crate::aspects::modules::ModulesAspect;
 use crate::aspects::r#loop::LoopAspect;
 use crate::aspects::r#match::MatchAspect;
 use crate::aspects::r#type::TypeAspect;
-use crate::aspects::modules::ModulesAspect;
 use crate::aspects::range::RangeAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::aspects::test::TestAspect;
@@ -25,8 +25,7 @@ use crate::cursor::ParserCursor;
 use crate::err::ParseErrorKind::Unexpected;
 use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
 use crate::moves::{
-    any, bin_op, blanks, eod, eox, like, next,
-    of_type, of_types, repeat, spaces, MoveOperations,
+    any, bin_op, blanks, eod, eox, like, next, of_type, of_types, repeat, spaces, MoveOperations,
 };
 use ast::range::Iterable;
 use ast::Expr;

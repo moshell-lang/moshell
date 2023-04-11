@@ -1,4 +1,3 @@
-
 ///a `use x, y, z` expression
 #[derive(Debug, Clone, PartialEq, dbg_pls::DebugPls)]
 pub struct Use<'a> {
@@ -15,7 +14,7 @@ pub enum Import<'a> {
     ///An environment variable, command.
     Environment(&'a str),
 
-    List(ImportList<'a>)
+    List(ImportList<'a>),
 }
 
 #[derive(Debug, Clone, PartialEq, dbg_pls::DebugPls)]
@@ -30,7 +29,6 @@ pub struct ImportList<'a> {
 ///An imported symbol. can be a constant, function, type or a module.
 #[derive(Debug, Clone, PartialEq, dbg_pls::DebugPls)]
 pub struct ImportedSymbol<'a> {
-
     ///list of prefixed modules
     pub path: Vec<&'a str>,
 

@@ -27,7 +27,7 @@ pub struct Call<'a> {
 pub struct ProgrammaticCall<'a> {
     /// inclusion path
     pub path: Vec<&'a str>,
-    
+
     /// The name of the function to call.
     pub name: &'a str,
 

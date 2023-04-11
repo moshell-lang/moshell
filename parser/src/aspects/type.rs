@@ -1,4 +1,5 @@
 use crate::aspects::expr_list::ExpressionListAspect;
+use crate::aspects::modules::ModulesAspect;
 use crate::err::ParseErrorKind::{Expected, Unexpected};
 use crate::moves::{any, blanks, not, of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
@@ -9,7 +10,6 @@ use lexer::token::TokenType::{
     SquaredRightBracket,
 };
 use std::fmt::Write;
-use crate::aspects::modules::ModulesAspect;
 
 ///A parser aspect to parse all type declarations, such as lambdas, constant types, parametrized types and Unit
 pub trait TypeAspect<'a> {

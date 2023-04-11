@@ -2,10 +2,11 @@ use crate::aspects::group::GroupAspect;
 use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
 use lexer::token::{Token, TokenType};
 
+use crate::aspects::modules::ModulesAspect;
 use crate::aspects::r#type::TypeAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::err::ParseErrorKind;
-use crate::moves::{eod, eox, like, lookahead, of_type, of_types, spaces, MoveOperations, repeat};
+use crate::moves::{eod, eox, like, lookahead, of_type, of_types, repeat, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::call::{Call, ProgrammaticCall};
 use ast::lambda::LambdaDef;
@@ -14,7 +15,6 @@ use ast::value::Literal;
 use ast::variable::TypedVariable;
 use ast::Expr;
 use lexer::token::TokenType::{ColonColon, Identifier};
-use crate::aspects::modules::ModulesAspect;
 
 /// A parse aspect for command and function calls
 pub trait CallAspect<'a> {
@@ -122,7 +122,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         let mut arguments = vec![callee];
 
         self.cursor.advance(spaces()); //consume word separations
-        // Continue reading arguments until we reach the end of the input or a closing punctuation
+                                       // Continue reading arguments until we reach the end of the input or a closing punctuation
         while !self.cursor.is_at_end()
             && self
                 .cursor
@@ -150,19 +150,19 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
     fn may_be_at_programmatic_call_start(&self) -> bool {
         self.cursor
-            .lookahead(repeat(
-                of_type(Identifier)
-                    .and_then(of_type(ColonColon))
-            ).then(of_type(Identifier)).and_then(of_types(&[
-                TokenType::RoundedLeftBracket,
-                TokenType::SquaredLeftBracket,
-            ])))
+            .lookahead(
+                repeat(of_type(Identifier).and_then(of_type(ColonColon)))
+                    .then(of_type(Identifier))
+                    .and_then(of_types(&[
+                        TokenType::RoundedLeftBracket,
+                        TokenType::SquaredLeftBracket,
+                    ])),
+            )
             .is_some()
     }
 }
 
 impl<'a> Parser<'a> {
-
     fn call_with_path(&mut self, path: Vec<&'a str>) -> ParseResult<Expr<'a>> {
         let callee = self.next_value()?;
         let tparams = self.parse_type_parameter_list()?;
@@ -297,8 +297,6 @@ mod tests {
             }))
         );
     }
-
-
 
     #[test]
     fn not_in_call_is_literal() {
@@ -508,13 +506,11 @@ mod tests {
                         path: Vec::new(),
                         name: "other",
                         arguments: Vec::new(),
-                        type_parameters: vec![
-                            Type::Parametrized(ParametrizedType {
-                                path: Vec::new(),
-                                name: "A",
-                                params: Vec::new()
-                            })
-                        ]
+                        type_parameters: vec![Type::Parametrized(ParametrizedType {
+                            path: Vec::new(),
+                            name: "A",
+                            params: Vec::new()
+                        })]
                     })
                 ],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
@@ -546,13 +542,11 @@ mod tests {
                         path: vec!["foo"],
                         name: "other",
                         arguments: Vec::new(),
-                        type_parameters: vec![
-                            Type::Parametrized(ParametrizedType {
-                                path: Vec::new(),
-                                name: "A",
-                                params: Vec::new()
-                            })
-                        ]
+                        type_parameters: vec![Type::Parametrized(ParametrizedType {
+                            path: Vec::new(),
+                            name: "A",
+                            params: Vec::new()
+                        })]
                     })
                 ],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
@@ -600,8 +594,6 @@ mod tests {
             })
         )
     }
-
-
 
     #[test]
     fn constructor_exit_when_mismatched_bracket() {
