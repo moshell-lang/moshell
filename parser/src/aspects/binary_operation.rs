@@ -410,6 +410,7 @@ mod tests {
                 left: Box::new(Expr::Subshell(Subshell {
                     expressions: vec![Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Call(Call {
+                            path: Vec::new(),
                             arguments: vec![
                                 Expr::Literal("echo".into()),
                                 Expr::Literal("hello".into()),
@@ -418,6 +419,7 @@ mod tests {
                         })),
                         op: And,
                         right: Box::new(Expr::Call(Call {
+                            path: Vec::new(),
                             arguments: vec![
                                 Expr::Literal("echo".into()),
                                 Expr::Literal("world".into()),
@@ -428,6 +430,7 @@ mod tests {
                 })),
                 op: Or,
                 right: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![Expr::Literal("echo".into()), Expr::Literal("damn".into())],
                     type_parameters: vec![],
                 })),
@@ -447,6 +450,7 @@ mod tests {
             Expr::Binary(BinaryOperation {
                 left: Box::new(Expr::Subshell(Subshell {
                     expressions: vec![Expr::Call(Call {
+                        path: Vec::new(),
                         arguments: vec![
                             Expr::Literal("echo".into()),
                             Expr::Literal("hello".into()),
@@ -459,6 +463,7 @@ mod tests {
                 })),
                 op: Or,
                 right: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![
                         Expr::Literal(Literal {
                             lexeme: "echo",

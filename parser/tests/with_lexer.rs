@@ -37,6 +37,7 @@ fn with_lexer_var_reference_one() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
+            path: Vec::new(),
             arguments: vec![
                 Expr::Literal("echo".into()),
                 Expr::Literal(Literal {
@@ -58,6 +59,7 @@ fn with_lexer_var_reference_two() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
+            path: Vec::new(),
             arguments: vec![
                 Expr::TemplateString(TemplateString {
                     parts: vec![
@@ -88,6 +90,7 @@ fn with_lexer_var_reference_three() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
+            path: Vec::new(),
             arguments: vec![
                 Expr::Literal("echo".into()),
                 Expr::TemplateString(TemplateString {
@@ -114,6 +117,7 @@ fn with_lexer_redirection() {
         parsed,
         vec![Expr::Redirected(Redirected {
             expr: Box::new(Expr::Call(Call {
+                path: Vec::new(),
                 arguments: vec![Expr::Literal("test".into())],
                 type_parameters: Vec::new()
             })),
@@ -134,6 +138,7 @@ fn with_lexer_redirections() {
         parsed,
         vec![Expr::Redirected(Redirected {
             expr: Box::new(Expr::Call(Call {
+                path: Vec::new(),
                 arguments: vec![Expr::Literal("command".into())],
                 type_parameters: Vec::new()
             })),
@@ -162,11 +167,13 @@ fn with_lexer_pipe_and_redirection() {
         vec![Expr::Pipeline(Pipeline {
             commands: vec![
                 Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![Expr::Literal("ls".into()), Expr::Literal("-l".into())],
                     type_parameters: Vec::new()
                 }),
                 Expr::Redirected(Redirected {
                     expr: Box::new(Expr::Call(Call {
+                        path: Vec::new(),
                         arguments: vec![
                             Expr::Literal("grep".into()),
                             Expr::Literal(Literal {
@@ -196,14 +203,17 @@ fn with_lexer_pipe_and_pipe() {
         vec![Expr::Pipeline(Pipeline {
             commands: vec![
                 Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![Expr::Literal("ls".into())],
                     type_parameters: Vec::new()
                 }),
                 Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![Expr::Literal("wc".into())],
                     type_parameters: Vec::new()
                 }),
                 Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![
                         Expr::Literal("tr".into()),
                         Expr::Literal("-s".into()),
@@ -227,6 +237,7 @@ fn with_lexer_here_string() {
         parsed,
         vec![Expr::Redirected(Redirected {
             expr: Box::new(Expr::Call(Call {
+                path: Vec::new(),
                 arguments: vec![Expr::Literal("grep".into()), Expr::Literal("e".into())],
                 type_parameters: Vec::new()
             })),
@@ -249,11 +260,13 @@ fn with_lexer_substitution() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
+            path: Vec::new(),
             arguments: vec![
                 Expr::Literal("echo".into()),
                 Expr::Substitution(Substitution {
                     underlying: Subshell {
                         expressions: vec![Expr::Call(Call {
+                            path: Vec::new(),
                             arguments: vec![Expr::Literal("ls".into()), Expr::Literal("-l".into())],
                             type_parameters: Vec::new()
                         })]
@@ -273,11 +286,13 @@ fn with_lexer_substitution_in_substitution() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
+            path: Vec::new(),
             arguments: vec![
                 Expr::Literal("echo".into()),
                 Expr::Substitution(Substitution {
                     underlying: Subshell {
                         expressions: vec![Expr::Call(Call {
+                            path: Vec::new(),
                             arguments: vec![
                                 Expr::Literal("ls".into()),
                                 Expr::TemplateString(TemplateString {
@@ -285,6 +300,7 @@ fn with_lexer_substitution_in_substitution() {
                                         Expr::Substitution(Substitution {
                                             underlying: Subshell {
                                                 expressions: vec![Expr::Call(Call {
+                                                    path: Vec::new(),
                                                     arguments: vec![Expr::Literal("pwd".into())],
                                                     type_parameters: Vec::new()
                                                 })],

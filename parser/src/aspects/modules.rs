@@ -17,7 +17,7 @@ pub trait ModulesAspect<'a> {
 
     ///parse identifiers separated between `::` expressions.
     /// This method stops when it founds an expressions that is not an identifier.
-    fn parse_prefix_modules(&mut self) -> ParseResult<Vec<&'a str>>;
+    fn parse_inclusion_path(&mut self) -> ParseResult<Vec<&'a str>>;
 }
 
 impl<'a> ModulesAspect<'a> for Parser<'a> {
@@ -39,7 +39,7 @@ impl<'a> ModulesAspect<'a> for Parser<'a> {
         }))
     }
 
-    fn parse_prefix_modules(&mut self) -> ParseResult<Vec<&'a str>> {
+    fn parse_inclusion_path(&mut self) -> ParseResult<Vec<&'a str>> {
         self.parse_prefix_modules_with(Vec::new())
     }
 }

@@ -224,6 +224,7 @@ mod tests {
             vec![Expr::Loop(Loop {
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Call(Call {
+                        path: Vec::new(),
                         arguments: vec![
                             Expr::Literal("ssh".into()),
                             Expr::Literal("mabatista1@iut".into())
@@ -244,6 +245,7 @@ mod tests {
             res,
             vec![Expr::Loop(Loop {
                 body: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![Expr::Literal("date".into())],
                     type_parameters: vec![],
                 }))
@@ -275,6 +277,7 @@ mod tests {
                 condition: Box::new(Expr::VarReference(VarReference { name: "1" })),
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
+                        path: Vec::new(),
                         arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
                         type_parameters: vec![],
                     })]
@@ -307,6 +310,7 @@ mod tests {
                 })),
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
+                        path: Vec::new(),
                         arguments: vec![
                             Expr::Literal("echo".into()),
                             Expr::VarReference(VarReference { name: "i" }),
@@ -335,6 +339,7 @@ mod tests {
                     })),
                 })),
                 body: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![Expr::Literal("cat".into())],
                     type_parameters: vec![],
                 })),
@@ -374,6 +379,7 @@ mod tests {
                     })),
                 })),
                 body: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![Expr::Literal("ls".into())],
                     type_parameters: vec![],
                 })),
@@ -397,6 +403,7 @@ mod tests {
                 })),
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
+                        path: Vec::new(),
                         arguments: vec![
                             Expr::Literal("file".into()),
                             Expr::VarReference(VarReference { name: "f" }),
@@ -448,6 +455,7 @@ mod tests {
                     }),
                 })),
                 body: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![
                         Expr::Literal("echo".into()),
                         Expr::VarReference(VarReference { name: "i" }),

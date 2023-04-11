@@ -194,10 +194,12 @@ mod test {
                 expr: Box::new(Expr::Block(Block {
                     expressions: vec![
                         Expr::Call(Call {
+                            path: Vec::new(),
                             arguments: vec![Expr::Literal("ls".into())],
                             type_parameters: vec![],
                         }),
                         Expr::Call(Call {
+                            path: Vec::new(),
                             arguments: vec![Expr::Literal("cd".into())],
                             type_parameters: vec![],
                         }),
@@ -220,6 +222,7 @@ mod test {
             parsed,
             Expr::Redirected(Redirected {
                 expr: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![Expr::Literal("ls".into())],
                     type_parameters: vec![],
                 })),
@@ -240,6 +243,7 @@ mod test {
             parsed,
             Expr::Redirected(Redirected {
                 expr: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![Expr::Literal("ls".into())],
                     type_parameters: vec![],
                 })),

@@ -8,6 +8,9 @@ use dbg_pls::DebugPls;
 /// command name.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Call<'a> {
+    ///The relative path where this _function_ is stored.
+    pub path: Vec<&'a str>,
+
     /// The arguments of the command.
     ///
     /// A valid command must have at least one argument that is the command name.

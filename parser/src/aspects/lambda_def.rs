@@ -138,6 +138,7 @@ mod tests {
                 args: Vec::new(),
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
+                        path: Vec::new(),
                         arguments: vec![Expr::Literal("echo".into()), Expr::Literal("hey".into()),],
                         type_parameters: Vec::new(),
                     })]

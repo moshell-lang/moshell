@@ -359,6 +359,7 @@ mod tests {
                         patterns: vec![MatchPattern::Wildcard],
                         guard: None,
                         body: Expr::Call(Call {
+                            path: Vec::new(),
                             arguments: vec![
                                 Expr::Literal("echo".into()),
                                 Expr::VarReference(VarReference { name: "it" }),
@@ -386,6 +387,7 @@ mod tests {
             ast,
             vec![Expr::Match(Match {
                 operand: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![Expr::Literal("nginx".into())],
                     type_parameters: vec![],
                 })),
@@ -394,6 +396,7 @@ mod tests {
                     patterns: vec![MatchPattern::Wildcard],
                     guard: None,
                     body: Expr::Call(Call {
+                        path: Vec::new(),
                         arguments: vec![
                             Expr::Literal("echo".into()),
                             Expr::VarReference(VarReference { name: "it" }),
@@ -475,6 +478,7 @@ mod tests {
                         patterns: vec![MatchPattern::Wildcard],
                         guard: None,
                         body: Expr::Call(Call {
+                            path: Vec::new(),
                             arguments: vec![
                                 Expr::Literal("echo".into()),
                                 Expr::VarReference(VarReference { name: "it" }),

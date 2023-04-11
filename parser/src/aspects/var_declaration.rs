@@ -191,6 +191,7 @@ mod tests {
                 },
                 initializer: Some(Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
+                        path: Vec::new(),
                         arguments: vec![
                             Expr::Literal(Literal {
                                 lexeme: "echo",

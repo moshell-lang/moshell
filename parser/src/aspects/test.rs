@@ -66,7 +66,7 @@ impl<'a> TestAspect<'a> for Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn parse_call(&mut self, start: Token) -> ParseResult<Expr<'a>> {
-        let call = self.call_arguments(Literal("test".into()), Vec::new());
+        let call = self.call_arguments(Vec::new(), Literal("test".into()), Vec::new());
 
         self.cursor.force_with(
             //expect trailing ']]'
@@ -130,6 +130,7 @@ mod tests {
         assert_eq!(
             result,
             vec![Expr::Call(Call {
+                path: Vec::new(),
                 arguments: vec![Expr::Literal("test".into())],
                 type_parameters: vec![],
             })]
@@ -143,6 +144,7 @@ mod tests {
         assert_eq!(
             result,
             vec![Expr::Call(Call {
+                path: Vec::new(),
                 arguments: vec![
                     Expr::Literal("test".into()),
                     Expr::Literal(Literal {
@@ -169,6 +171,7 @@ mod tests {
             vec![Expr::Binary(BinaryOperation {
                 left: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Call(Call {
+                        path: Vec::new(),
                         arguments: vec![Expr::Literal("echo".into())],
                         type_parameters: vec![],
                     })),
@@ -185,6 +188,7 @@ mod tests {
                 })),
                 op: BinaryOperator::Or,
                 right: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![
                         Expr::Literal("test".into()),
                         Expr::VarReference(VarReference { name: "1" }),
@@ -248,6 +252,7 @@ mod tests {
             result,
             vec![Expr::Not(Not {
                 underlying: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![
                         Expr::Literal("grep".into()),
                         Expr::Literal("-E".into()),

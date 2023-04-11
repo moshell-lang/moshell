@@ -274,6 +274,7 @@ mod tests {
                                 }))),
                             }),
                             Expr::Call(Call {
+                                path: Vec::new(),
                                 arguments: vec![
                                     Expr::Literal("command".into()),
                                     Expr::Literal("call".into()),

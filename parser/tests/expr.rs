@@ -137,6 +137,7 @@ fn lambda_in_classic_call() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
+            path: Vec::new(),
             type_parameters: Vec::new(),
             arguments: vec![
                 Expr::Literal("echo".into()),
@@ -219,6 +220,7 @@ fn command_echo() {
     let parsed = parse(source).expect("Failed to parse");
 
     let expected = vec![Expr::Call(Call {
+        path: Vec::new(),
         arguments: vec![Expr::Literal("echo".into()), Expr::Literal("hello".into())],
         type_parameters: Vec::new(),
     })];
@@ -232,6 +234,7 @@ fn command_starting_with_arg() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
+            path: Vec::new(),
             arguments: vec![Expr::Literal("-".into()), Expr::Literal("W".into())],
             type_parameters: Vec::new()
         })]
@@ -245,6 +248,7 @@ fn constructor_in_call() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
+            path: Vec::new(),
             arguments: vec![
                 Expr::Literal("echo".into()),
                 Expr::ProgrammaticCall(ProgrammaticCall {
@@ -299,6 +303,7 @@ fn wildcard_redirect_or() {
         vec![Expr::Binary(BinaryOperation {
             left: Box::new(Expr::Redirected(Redirected {
                 expr: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![
                         Expr::Literal("docker".into()),
                         Expr::Literal("image".into()),
@@ -315,6 +320,7 @@ fn wildcard_redirect_or() {
             })),
             op: BinaryOperator::Or,
             right: Box::new(Expr::Call(Call {
+                path: Vec::new(),
                 arguments: vec![
                     Expr::Literal("echo".into()),
                     Expr::Literal(Literal {
@@ -389,6 +395,7 @@ fn call_not_assign() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
+            path: Vec::new(),
             arguments: vec![
                 Expr::Literal("a".into()),
                 Expr::Literal(Literal {
@@ -468,6 +475,7 @@ fn classic_call() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
+            path: Vec::new(),
             arguments: vec![
                 Expr::Literal("ssh".into()),
                 Expr::Literal("localhost".into()),
@@ -498,6 +506,7 @@ fn classic_call_no_regression() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
+            path: Vec::new(),
             arguments: vec![
                 Expr::Literal("test".into()),
                 Expr::Literal(Literal {

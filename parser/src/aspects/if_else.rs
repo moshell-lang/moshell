@@ -83,6 +83,7 @@ mod tests {
                     expression: Box::new(Expr::VarReference(VarReference { name: "1" }))
                 })),
                 success_branch: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
                     type_parameters: vec![],
                 })),
@@ -102,11 +103,13 @@ mod tests {
             vec![Expr::If(If {
                 condition: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Call(Call {
+                        path: Vec::new(),
                         arguments: vec![Expr::Literal("echo".into()), Expr::Literal("a".into())],
                         type_parameters: vec![],
                     })),
                     op: And,
                     right: Box::new(Expr::Call(Call {
+                        path: Vec::new(),
                         arguments: vec![
                             Expr::Literal("test".into()),
                             Expr::Literal("-f".into()),
@@ -116,6 +119,7 @@ mod tests {
                     }))
                 })),
                 success_branch: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
                     type_parameters: vec![],
                 })),
@@ -143,6 +147,7 @@ mod tests {
                     expression: Box::new(Expr::VarReference(VarReference { name: "1" }))
                 })),
                 success_branch: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
                     type_parameters: vec![],
                 })),
@@ -193,6 +198,7 @@ mod tests {
                         expression: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Block(Block {
                                 expressions: vec![Expr::Call(Call {
+                                    path: Vec::new(),
                                     arguments: vec![
                                         Expr::Literal("date".into()),
                                         Expr::Literal("+\"%Y\"".into())

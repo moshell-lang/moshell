@@ -13,6 +13,7 @@ use ast::r#type::Type;
 use ast::value::Literal;
 use ast::variable::TypedVariable;
 use ast::Expr;
+use crate::aspects::modules::ModulesAspect;
 
 /// A parse aspect for command and function calls
 pub trait CallAspect<'a> {
@@ -28,6 +29,7 @@ pub trait CallAspect<'a> {
     /// Continues to parse a call expression from a known command name expression
     fn call_arguments(
         &mut self,
+        path: Vec<&'a str>,
         command: Expr<'a>,
         tparams: Vec<Type<'a>>,
     ) -> ParseResult<Expr<'a>>;
@@ -52,6 +54,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             return self.call();
         }
         // We don't known if this is a programmatic call, a raw call or a lambda definition yet.
+        let path = self.parse_inclusion_path()?;
         let identifier = self.cursor.next()?;
         let callee = Expr::Literal(Literal::from(identifier.value));
         let type_parameters = self.parse_type_parameter_list()?;
@@ -79,14 +82,15 @@ impl<'a> CallAspect<'a> for Parser<'a> {
                 body,
             }))
         } else {
-            self.call_arguments(callee, type_parameters)
+            self.call_arguments(path, callee, type_parameters)
         }
     }
 
     fn call(&mut self) -> ParseResult<Expr<'a>> {
+        let path = self.parse_inclusion_path()?;
         let callee = self.next_value()?;
         let tparams = self.parse_type_parameter_list()?;
-        self.call_arguments(callee, tparams)
+        self.call_arguments(path, callee, tparams)
     }
 
     fn programmatic_call(&mut self) -> ParseResult<Expr<'a>> {
@@ -110,6 +114,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
     fn call_arguments(
         &mut self,
+        path: Vec<&'a str>,
         callee: Expr<'a>,
         tparams: Vec<Type<'a>>,
     ) -> ParseResult<Expr<'a>> {
@@ -129,12 +134,14 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
         if self.is_at_redirection_sign() {
             return self.redirectable(Expr::Call(Call {
+                path,
                 arguments,
                 type_parameters: tparams,
             }));
         }
 
         Ok(Expr::Call(Call {
+            path,
             arguments,
             type_parameters: tparams,
         }))
@@ -244,6 +251,7 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_next(),
             Ok(Expr::Call(Call {
+                path: Vec::new(),
                 arguments: vec![
                     Expr::Literal("parse".into()),
                     Expr::Literal("x".into()),
@@ -265,6 +273,7 @@ mod tests {
         assert_eq!(
             result,
             vec![Expr::Call(Call {
+                path: Vec::new(),
                 arguments: vec![
                     Expr::Literal("echo".into()),
                     Expr::Literal("how".into()),
@@ -287,6 +296,7 @@ mod tests {
             parsed,
             vec![
                 Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![
                         Expr::Literal("grep".into()),
                         Expr::Literal("-E".into()),
@@ -295,6 +305,7 @@ mod tests {
                     type_parameters: vec![]
                 }),
                 Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![Expr::Literal("echo".into()), Expr::Literal("test".into())],
                     type_parameters: vec![],
                 }),
@@ -309,6 +320,7 @@ mod tests {
         assert_eq!(
             parsed,
             vec![Expr::Call(Call {
+                path: Vec::new(),
                 arguments: vec![
                     Expr::Literal("g++".into()),
                     Expr::Literal("-std=c++20".into()),
@@ -328,6 +340,7 @@ mod tests {
         assert_eq!(
             parsed,
             vec![Expr::Call(Call {
+                path: Vec::new(),
                 arguments: vec![
                     Expr::Literal("grep".into()),
                     Expr::Literal("-E".into()),

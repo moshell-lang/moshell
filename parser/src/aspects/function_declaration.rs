@@ -299,6 +299,7 @@ mod tests {
                 parameters: vec![],
                 return_type: None,
                 body: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![Expr::Literal("x".into())],
                     type_parameters: vec![],
                 })),
@@ -362,6 +363,7 @@ mod tests {
                 ],
                 return_type: None,
                 body: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![Expr::Literal("x".into())],
                     type_parameters: vec![],
                 })),
@@ -413,6 +415,7 @@ mod tests {
                 ],
                 return_type: None,
                 body: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![Expr::Literal("x".into())],
                     type_parameters: vec![],
                 })),
@@ -526,6 +529,7 @@ mod tests {
                     params: Vec::new(),
                 })),
                 body: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![Expr::Literal("x".into())],
                     type_parameters: vec![],
                 })),

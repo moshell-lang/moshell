@@ -19,6 +19,7 @@ fn repos_delimiter_stack() {
         report,
         ParseReport {
             expr: vec![Expr::Call(Call {
+                path: Vec::new(),
                 arguments: vec![Expr::Literal("echo".into()), Expr::Literal("end".into())],
                 type_parameters: Vec::new()
             })],

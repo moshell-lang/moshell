@@ -71,6 +71,7 @@ mod tests {
                 underlying: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Detached(Detached {
                         underlying: Box::new(Expr::Call(Call {
+                            path: Vec::new(),
                             arguments: vec![Literal("date".into())],
                             type_parameters: vec![],
                         }))
