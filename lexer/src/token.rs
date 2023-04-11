@@ -70,9 +70,6 @@ pub enum TokenType {
     #[assoc(str = "return")]
     Return,
 
-    #[assoc(str = "Unit")]
-    Unit,
-
     #[assoc(str = "->")]
     Arrow,
     #[assoc(str = "=>")]

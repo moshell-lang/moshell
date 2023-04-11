@@ -13,9 +13,6 @@ pub enum Type<'a> {
 
     ///A By name declaration (`=> X`)
     ByName(ByName<'a>),
-
-    ///Either `()` or `Unit`, representing a void type
-    Unit,
 }
 
 ///a casted expression
@@ -30,8 +27,8 @@ pub struct CastedExpr<'a> {
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ParametrizedType<'a> {
-    ///list of prefixed modules
-    pub context: Vec<&'a str>,
+    /// inclusion path
+    pub path: Vec<&'a str>,
 
     /// the type's name
     pub name: &'a str,
@@ -57,7 +54,6 @@ impl<'a> Display for Type<'a> {
             Type::Parametrized(m) => Display::fmt(m, f),
             Type::Callable(p) => Display::fmt(p, f),
             Type::ByName(n) => Display::fmt(n, f),
-            Type::Unit => write!(f, "Unit"),
         }
     }
 }

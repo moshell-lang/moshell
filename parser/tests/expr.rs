@@ -29,7 +29,7 @@ fn variable_type_and_initializer() {
         var: TypedVariable {
             name: "a",
             ty: Some(Type::Parametrized(ParametrizedType {
-                context: vec![],
+                path: vec![],
                 name: "int",
                 params: Vec::new(),
             })),
@@ -58,7 +58,7 @@ fn expr_cast() {
                             parsed: 1.into(),
                         })),
                         casted_type: Type::Parametrized(ParametrizedType {
-                            context: vec![],
+                            path: vec![],
                             name: "Exitcode",
                             params: Vec::new(),
                         }),
@@ -70,7 +70,7 @@ fn expr_cast() {
                             parsed: 1.into(),
                         })),
                         casted_type: Type::Parametrized(ParametrizedType {
-                            context: vec![],
+                            path: vec![],
                             name: "Int",
                             params: Vec::new(),
                         }),
@@ -78,7 +78,7 @@ fn expr_cast() {
                 }))
             })),
             casted_type: Type::Parametrized(ParametrizedType {
-                context: vec![],
+                path: vec![],
                 name: "Float",
                 params: Vec::new(),
             }),

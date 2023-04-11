@@ -268,7 +268,7 @@ mod tests {
                     Expr::Literal("y".into())
                 ],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    context: vec![],
+                    path: vec![],
                     name: "int",
                     params: Vec::new()
                 })]
@@ -290,7 +290,7 @@ mod tests {
                     Expr::Literal("y".into())
                 ],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    context: vec![],
+                    path: vec![],
                     name: "int",
                     params: Vec::new()
                 })]
@@ -480,7 +480,7 @@ mod tests {
                     parsed: "hi".into(),
                 })],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    context: vec![],
+                    path: vec![],
                     name: "Str",
                     params: vec![],
                 })],
@@ -510,7 +510,7 @@ mod tests {
                         arguments: Vec::new(),
                         type_parameters: vec![
                             Type::Parametrized(ParametrizedType {
-                                context: Vec::new(),
+                                path: Vec::new(),
                                 name: "A",
                                 params: Vec::new()
                             })
@@ -518,7 +518,7 @@ mod tests {
                     })
                 ],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    context: vec![],
+                    path: vec![],
                     name: "Str",
                     params: vec![],
                 })],
@@ -548,7 +548,7 @@ mod tests {
                         arguments: Vec::new(),
                         type_parameters: vec![
                             Type::Parametrized(ParametrizedType {
-                                context: Vec::new(),
+                                path: Vec::new(),
                                 name: "A",
                                 params: Vec::new()
                             })
@@ -556,7 +556,7 @@ mod tests {
                     })
                 ],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    context: vec![],
+                    path: vec![],
                     name: "Str",
                     params: vec![],
                 })],
@@ -578,7 +578,7 @@ mod tests {
                     parsed: "hi".into(),
                 })],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    context: vec![],
+                    path: vec![],
                     name: "Str",
                     params: vec![],
                 })],
