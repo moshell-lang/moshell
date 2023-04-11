@@ -5,7 +5,7 @@ use ast::lambda::LambdaDef;
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::r#type::{CastedExpr, SimpleType, Type};
 use ast::range::{Iterable, NumericRange};
-use ast::value::{Literal, LiteralValue};
+use ast::value::{Literal, LiteralValue, TemplateString};
 use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
@@ -595,6 +595,48 @@ fn block_method_call() {
             type_parameters: Vec::new(),
             segment: find_between(source.source, ".", ")")
         })]
+    );
+}
+
+#[test]
+fn block_method_call_with_type_params() {
+    let source = Source::unknown("$a.foo($d);echo \"${c.bar()}\"");
+    let parsed = parse(source.clone()).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![
+            Expr::MethodCall(MethodCall {
+                source: Box::new(Expr::VarReference(VarReference {
+                    name: "a",
+                    segment: find_in(source.source, "$a")
+                })),
+                name: "foo",
+                arguments: vec![Expr::VarReference(VarReference {
+                    name: "d",
+                    segment: find_in(source.source, "$d")
+                })],
+                type_parameters: Vec::new(),
+                segment: find_between(source.source, ".", ")")
+            }),
+            Expr::Call(Call {
+                arguments: vec![
+                    literal(source.source, "echo"),
+                    Expr::TemplateString(TemplateString {
+                        parts: vec![Expr::MethodCall(MethodCall {
+                            source: Box::new(Expr::VarReference(VarReference {
+                                name: "c",
+                                segment: find_in(source.source, "${c")
+                            })),
+                            name: "bar",
+                            arguments: Vec::new(),
+                            type_parameters: Vec::new(),
+                            segment: find_in(source.source, ".bar()")
+                        })],
+                    }),
+                ],
+                type_parameters: Vec::new()
+            }),
+        ]
     );
 }
 

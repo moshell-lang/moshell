@@ -1,6 +1,7 @@
 use context::source::try_join_str;
 use lexer::token::TokenType::*;
 
+use crate::aspects::call::CallAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{any, blanks, like, lookahead, of_type, repeat, MoveOperations};
 use crate::parser::{ParseResult, Parser};
@@ -45,16 +46,20 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
         let mut segment = self.cursor.relative_pos_ctx(start.value..name);
         segment.start -= 1;
 
+        let mut expr =
+            self.expand_call_chain(Expr::VarReference(VarReference { name, segment }))?;
+
         if let Some(bracket) = bracket {
             self.cursor.force_with(
                 of_type(CurlyRightBracket),
                 "Expected closing curly bracket.",
                 ParseErrorKind::Unpaired(self.cursor.relative_pos(bracket)),
             )?;
-            segment.end += 1;
+            if let Expr::VarReference(ref mut var) = expr {
+                var.segment.end += 1;
+            }
         }
-
-        Ok(Expr::VarReference(VarReference { name, segment }))
+        Ok(expr)
     }
 }
 
