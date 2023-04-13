@@ -217,7 +217,7 @@ impl<'a> Parser<'a> {
             ),
 
             _ => self.expected_with(
-                &format!("'{}' is not a valid type identifier.", &name_token.value),
+                &format!("'{}' is not a valid type identifier.", name_token.value),
                 name_token.value,
                 Unexpected,
             ),
