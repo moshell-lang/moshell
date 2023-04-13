@@ -13,11 +13,12 @@ pub struct Use<'a> {
 pub enum Import<'a> {
     ///A symbol (or list of symbols)
     Symbol(ImportedSymbol<'a>),
-    /// all in given module (the vec being the module chain where the last is the used module)
+    /// all in given module (the vec being the inclusion path where the last element is the module that is being imported)
     AllIn(Vec<&'a str>, SourceSegment),
     ///An environment variable, command.
     Environment(&'a str, SourceSegment),
 
+    ///An import list
     List(ImportList<'a>),
 }
 
