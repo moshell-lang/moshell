@@ -540,7 +540,7 @@ fn classic_call() {
 
 #[test]
 fn method_and_function_calls_mixed() {
-    let source = Source::unknown("create().foo(dummy().truthy()).bar()");
+    let source = Source::unknown("create().foo(dummy().truthy())\n.bar()");
     let parsed = parse(source.clone()).expect("Failed to parse");
     assert_eq!(
         parsed,

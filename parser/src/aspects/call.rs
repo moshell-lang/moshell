@@ -6,7 +6,7 @@ use crate::aspects::r#type::TypeAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{
-    eod, eox, identifier_parenthesis, like, lookahead, next, of_type, of_types, spaces,
+    blanks, eod, eox, identifier_parenthesis, like, lookahead, next, of_type, of_types, spaces,
     MoveOperations,
 };
 use crate::parser::{ParseResult, Parser};
@@ -158,23 +158,24 @@ impl<'a> CallAspect<'a> for Parser<'a> {
     }
 
     fn expand_call_chain(&mut self, mut expr: Expr<'a>) -> ParseResult<Expr<'a>> {
-        loop {
-            match self.cursor.peek().token_type {
-                TokenType::RoundedLeftBracket => {
-                    expr = self.method_call_on(expr)?;
-                }
-                _ if self
-                    .cursor
-                    .lookahead(of_type(TokenType::Dot).and_then(identifier_parenthesis()))
-                    .is_some() =>
-                {
-                    expr = self.method_call_on(expr)?;
-                }
-                _ => {
-                    return Ok(expr);
-                }
+        while self
+            .cursor
+            .lookahead(
+                of_type(TokenType::RoundedLeftBracket)
+                    .or(blanks().then(of_type(TokenType::Dot).and_then(identifier_parenthesis()))),
+            )
+            .is_some()
+        {
+            if self
+                .cursor
+                .lookahead(of_type(TokenType::RoundedLeftBracket))
+                .is_none()
+            {
+                self.cursor.advance(blanks());
             }
+            expr = self.method_call_on(expr)?;
         }
+        Ok(expr)
     }
 
     fn call_arguments(
