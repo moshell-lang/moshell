@@ -6,16 +6,17 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
+use crate::identity::Identity;
 
 /// A type environment.
 ///
 /// Contexts track substitutions and generate fresh type variables.
 #[derive(Debug, Clone, Eq, Default)]
 pub struct TypeContext {
-    /// Records the type of each class by their identity.
-    pub(crate) classes: HashMap<u64, Rc<TypeClass>>,
+    /// Records the type of each class by their basename.
+    pub(crate) classes: HashMap<String, Rc<TypeClass>>,
 
-    pub(crate) dependencies: Vec<Rc<RefCell<TypeContext>>>,
+    env_identity: Identity
 }
 
 impl PartialEq for TypeContext {
@@ -32,6 +33,7 @@ pub(crate) fn hash_of<H: Hash>(hashable: &H) -> u64 {
 }
 
 impl TypeContext {
+
     ///Definitions of the lang type context.
     pub fn lang() -> Rc<RefCell<Self>> {
         let ctx_rc = Rc::new(RefCell::new(TypeContext::default()));
@@ -98,13 +100,14 @@ impl TypeContext {
     ///perform a class type lookup based on the defined types.
     /// If the type is not directly found in this context, then the context
     /// will lookup in parent's context.
-    pub fn lookup_id(&self, id: u64) -> Result<Rc<TypeClass>, String> {
-        match self.classes.get(&id) {
+    pub fn lookup_name(&self, name: &str) -> Result<Rc<TypeClass>, String> {
+        let name = name.to_string();
+        match self.classes.get(&name) {
             Some(v) => Ok(v.clone()),
             None => {
-                let iter = self.dependencies.iter();
+                let iter = self.env.iter();
                 for dep in iter {
-                    if let Ok(found) = dep.borrow().lookup_id(id) {
+                    if let Ok(found) = dep.borrow().lookup_id(name) {
                         return Ok(found);
                     }
                 }
@@ -115,16 +118,10 @@ impl TypeContext {
 
     pub fn lookup_defined(&self, def: &DefinedType) -> Result<Rc<TypeClass>, String> {
         match def {
-            DefinedType::Parameterized(p) => self.lookup_id(hash_of(&p.name)),
+            DefinedType::Parameterized(p) => self.lookup_name(hash_of(&p.name)),
         }
     }
 
-    pub(crate) fn fork(ctx: Rc<RefCell<Self>>) -> TypeContext {
-        TypeContext {
-            dependencies: vec![ctx],
-            ..Default::default()
-        }
-    }
 
     /// Find nearest type between two class types.
     pub fn unify(&self, t1: &Type, t2: &Type) -> Result<Type, String> {

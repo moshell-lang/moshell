@@ -405,7 +405,7 @@ mod tests {
                         })
                     )
                 ]),
-                dependencies: vec![ctx],
+                env: vec![ctx],
             }
         );
 
@@ -478,14 +478,14 @@ mod tests {
                         context: Rc::new(RefCell::new(Default::default())),
                     })
                 ),]),
-                dependencies: vec![ctx.clone()],
+                env: vec![ctx.clone()],
             }
         );
         assert_eq!(
             none_cl.context.borrow().clone(),
             TypeContext {
                 classes: HashMap::default(),
-                dependencies: vec![ctx],
+                env: vec![ctx],
             }
         );
 
@@ -576,7 +576,7 @@ mod tests {
                         })
                     )
                 ]),
-                dependencies: vec![ctx]
+                env: vec![ctx]
             }
         );
 
