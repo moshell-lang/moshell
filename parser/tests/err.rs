@@ -20,6 +20,8 @@ fn repos_delimiter_stack() {
         report,
         ParseReport {
             expr: vec![Expr::Call(Call {
+                path: Vec::new(),
+
                 arguments: vec![
                     literal_nth(source.source, "echo", 1),
                     literal(source.source, "end")

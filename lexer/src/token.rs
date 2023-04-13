@@ -70,12 +70,6 @@ pub enum TokenType {
     #[assoc(str = "return")]
     Return,
 
-    #[assoc(str = "Unit")]
-    Unit,
-
-    #[assoc(str = "Nothing")]
-    Nothing,
-
     #[assoc(str = "->")]
     Arrow,
     #[assoc(str = "=>")]
@@ -83,6 +77,8 @@ pub enum TokenType {
 
     #[assoc(str = ":")]
     Colon,
+    #[assoc(str = "::")]
+    ColonColon,
     #[assoc(str = ";")]
     SemiColon,
     #[assoc(str = "=")]
@@ -101,10 +97,10 @@ pub enum TokenType {
     Comma,
     #[assoc(str = ".")]
     Dot,
-    #[assoc(str = "...")]
-    Vararg,
     #[assoc(str = "..")]
     DotDot,
+    #[assoc(str = "...")]
+    Vararg,
 
     #[assoc(str = "|")]
     Bar,
@@ -224,8 +220,8 @@ impl TokenType {
                 | Less
                 | Greater
                 | Bar
-                | And
                 | Or
+                | And
                 | SquaredLeftBracket
                 | SquaredRightBracket
                 | RoundedLeftBracket
@@ -245,9 +241,9 @@ impl TokenType {
             Ampersand
                 | Less
                 | Greater
-                | And
-                | Or
                 | Bar
+                | Or
+                | And
                 | SquaredLeftBracket
                 | SquaredRightBracket
                 | RoundedLeftBracket

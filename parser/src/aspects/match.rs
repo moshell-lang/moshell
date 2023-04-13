@@ -414,6 +414,7 @@ mod tests {
                         patterns: vec![MatchPattern::Wildcard(find_in_nth(content, "*", 1))],
                         guard: None,
                         body: Expr::Call(Call {
+                            path: Vec::new(),
                             arguments: vec![
                                 literal(content, "echo"),
                                 Expr::VarReference(VarReference {
@@ -446,6 +447,7 @@ mod tests {
             ast,
             vec![Expr::Match(Match {
                 operand: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![literal(source.source, "nginx")],
                     type_parameters: vec![],
                 })),
@@ -454,6 +456,7 @@ mod tests {
                     patterns: vec![MatchPattern::Wildcard(find_in(source.source, "*"))],
                     guard: None,
                     body: Expr::Call(Call {
+                        path: Vec::new(),
                         arguments: vec![
                             literal(source.source, "echo"),
                             Expr::VarReference(VarReference {
@@ -561,6 +564,7 @@ mod tests {
                         patterns: vec![MatchPattern::Wildcard(find_in_nth(content, "*", 1))],
                         guard: None,
                         body: Expr::Call(Call {
+                            path: Vec::new(),
                             arguments: vec![
                                 literal(content, "echo"),
                                 Expr::VarReference(VarReference {

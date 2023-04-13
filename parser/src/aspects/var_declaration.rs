@@ -93,7 +93,7 @@ mod tests {
     use ast::group::Block;
     use ast::operation::BinaryOperation;
     use ast::operation::BinaryOperator::Plus;
-    use ast::r#type::{SimpleType, Type};
+    use ast::r#type::{ParametrizedType, Type};
     use ast::value::{Literal, LiteralValue};
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
@@ -138,7 +138,8 @@ mod tests {
                 kind: VarKind::Val,
                 var: TypedVariable {
                     name: "variable",
-                    ty: Some(Type::Simple(SimpleType {
+                    ty: Some(Type::Parametrized(ParametrizedType {
+                        path: vec![],
                         name: "Int",
                         params: Vec::new(),
                         segment: find_in(&source.source, "Int"),
@@ -212,6 +213,7 @@ mod tests {
                 },
                 initializer: Some(Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
+                        path: Vec::new(),
                         arguments: vec![
                             Expr::Literal(Literal {
                                 parsed: "echo".into(),

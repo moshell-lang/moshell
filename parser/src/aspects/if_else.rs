@@ -99,6 +99,7 @@ mod tests {
                     segment: find_between(content, "[", "]"),
                 })),
                 success_branch: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![
                         literal(source.source, "echo"),
                         literal(source.source, "test")
@@ -122,11 +123,13 @@ mod tests {
             vec![Expr::If(If {
                 condition: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Call(Call {
+                        path: Vec::new(),
                         arguments: vec![literal(content, "echo"), literal(content, "a")],
                         type_parameters: vec![],
                     })),
                     op: And,
                     right: Box::new(Expr::Call(Call {
+                        path: Vec::new(),
                         arguments: vec![
                             Expr::Literal(Literal {
                                 parsed: "test".into(),
@@ -139,6 +142,7 @@ mod tests {
                     }))
                 })),
                 success_branch: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![literal_nth(content, "echo", 1), literal(content, "test")],
                     type_parameters: vec![],
                 })),
@@ -184,6 +188,7 @@ mod tests {
                     segment: find_between(content, "[", "]"),
                 })),
                 success_branch: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![literal(content, "echo"), literal(content, "test")],
                     type_parameters: vec![],
                 })),
@@ -253,6 +258,7 @@ mod tests {
                         expression: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Block(Block {
                                 expressions: vec![Expr::Call(Call {
+                                    path: Vec::new(),
                                     arguments: vec![
                                         literal(content, "date"),
                                         Expr::TemplateString(TemplateString {

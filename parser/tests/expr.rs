@@ -3,7 +3,7 @@ use ast::control_flow::{For, ForKind, RangeFor};
 use ast::group::Parenthesis;
 use ast::lambda::LambdaDef;
 use ast::operation::{BinaryOperation, BinaryOperator};
-use ast::r#type::{CastedExpr, SimpleType, Type};
+use ast::r#type::{CastedExpr, ParametrizedType, Type};
 use ast::range::{Iterable, NumericRange};
 use ast::value::{Literal, LiteralValue};
 use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference};
@@ -30,7 +30,8 @@ fn variable_type_and_initializer() {
         kind: VarKind::Var,
         var: TypedVariable {
             name: "a",
-            ty: Some(Type::Simple(SimpleType {
+            ty: Some(Type::Parametrized(ParametrizedType {
+                path: vec![],
                 name: "int",
                 params: Vec::new(),
                 segment: find_in(source.source, "int"),
@@ -61,7 +62,8 @@ fn expr_cast() {
                             parsed: 1.into(),
                             segment: find_in(content, "1"),
                         })),
-                        casted_type: Type::Simple(SimpleType {
+                        casted_type: Type::Parametrized(ParametrizedType {
+                            path: vec![],
                             name: "Exitcode",
                             params: Vec::new(),
                             segment: find_in(content, "Exitcode"),
@@ -74,7 +76,8 @@ fn expr_cast() {
                             parsed: 1.into(),
                             segment: find_in_nth(content, "1", 1),
                         })),
-                        casted_type: Type::Simple(SimpleType {
+                        casted_type: Type::Parametrized(ParametrizedType {
+                            path: vec![],
                             name: "Int",
                             params: Vec::new(),
                             segment: find_in(content, "Int"),
@@ -84,7 +87,8 @@ fn expr_cast() {
                 })),
                 segment: find_between(source.source, "$((", "))"),
             })),
-            casted_type: Type::Simple(SimpleType {
+            casted_type: Type::Parametrized(ParametrizedType {
+                path: vec![],
                 name: "Float",
                 params: Vec::new(),
                 segment: find_in(source.source, "Float"),
@@ -162,6 +166,7 @@ fn lambda_in_classic_call() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
+            path: Vec::new(),
             type_parameters: Vec::new(),
             arguments: vec![
                 literal(source.source, "echo"),
@@ -188,6 +193,7 @@ fn lambda_one_arg() {
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
+            path: vec![],
             name: "calc",
             arguments: vec![Expr::LambdaDef(LambdaDef {
                 args: vec![TypedVariable {
@@ -221,6 +227,7 @@ fn lambda_in_pfc() {
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
+            path: vec![],
             name: "calc",
             arguments: vec![Expr::LambdaDef(LambdaDef {
                 args: vec![],
@@ -270,6 +277,7 @@ fn command_echo() {
     let parsed = parse(source.clone()).expect("Failed to parse");
 
     let expected = vec![Expr::Call(Call {
+        path: Vec::new(),
         arguments: vec![
             literal(source.source, "echo"),
             literal(source.source, "hello"),
@@ -286,6 +294,7 @@ fn command_starting_with_arg() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
+            path: Vec::new(),
             arguments: vec![literal(source.source, "-"), literal(source.source, "W")],
             type_parameters: Vec::new()
         })]
@@ -299,9 +308,11 @@ fn constructor_in_call() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
+            path: Vec::new(),
             arguments: vec![
                 literal(source.source, "echo"),
                 Expr::ProgrammaticCall(ProgrammaticCall {
+                    path: vec![],
                     name: "Foo",
                     arguments: vec![],
                     type_parameters: vec![],
@@ -356,6 +367,7 @@ fn wildcard_redirect_or() {
         vec![Expr::Binary(BinaryOperation {
             left: Box::new(Expr::Redirected(Redirected {
                 expr: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![
                         literal(content, "docker"),
                         literal(content, "image"),
@@ -373,6 +385,7 @@ fn wildcard_redirect_or() {
             })),
             op: BinaryOperator::Or,
             right: Box::new(Expr::Call(Call {
+                path: Vec::new(),
                 arguments: vec![
                     literal(content, "echo"),
                     literal(content, "'Unknown image!'"),
@@ -447,6 +460,7 @@ fn call_not_assign() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
+            path: Vec::new(),
             arguments: vec![
                 literal(source.source, "a"),
                 literal(source.source, "'='"),
@@ -469,6 +483,7 @@ fn constructor_assign() {
         vec![Expr::Assign(Assign {
             name: "a",
             value: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
+                path: vec![],
                 name: "Foo",
                 arguments: vec![Expr::Literal(Literal {
                     parsed: 5.into(),
@@ -489,6 +504,7 @@ fn programmatic_call() {
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
+            path: vec![],
             name: "ssh",
             arguments: vec![
                 literal(source.source, "localhost"),
@@ -518,6 +534,7 @@ fn classic_call() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
+            path: Vec::new(),
             arguments: vec![
                 literal(source.source, "ssh"),
                 literal(source.source, "localhost"),
@@ -545,6 +562,7 @@ fn classic_call_no_regression() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
+            path: Vec::new(),
             arguments: vec![
                 literal(source.source, "test"),
                 literal(source.source, "'=>'"),

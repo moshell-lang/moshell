@@ -76,12 +76,13 @@ impl<'a> Parser<'a> {
     fn parse_test_call(&mut self, start: Token) -> ParseResult<Expr<'a>> {
         let segment = self.cursor.relative_pos_ctx(start.clone());
         let call = self.call_arguments(
+            Vec::new(),
             Expr::Literal(Literal {
                 parsed: "test".into(),
                 segment: segment.start..segment.end + 1,
             }),
             Vec::new(),
-        );
+        )?;
 
         self.cursor.force_with(
             //expect trailing ']]'
@@ -89,7 +90,8 @@ impl<'a> Parser<'a> {
             "missing ']]'",
             ParseErrorKind::Unpaired(self.cursor.relative_pos(start)),
         )?;
-        call
+
+        Ok(call)
     }
 }
 
@@ -146,6 +148,7 @@ mod tests {
         assert_eq!(
             result,
             vec![Expr::Call(Call {
+                path: Vec::new(),
                 arguments: vec![Expr::Literal(Literal {
                     parsed: "test".into(),
                     segment: find_in(source.source, "[[")
@@ -162,6 +165,7 @@ mod tests {
         assert_eq!(
             result,
             vec![Expr::Call(Call {
+                path: Vec::new(),
                 arguments: vec![
                     Expr::Literal(Literal {
                         parsed: "test".into(),
@@ -195,6 +199,7 @@ mod tests {
             vec![Expr::Binary(BinaryOperation {
                 left: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Call(Call {
+                        path: Vec::new(),
                         arguments: vec![literal(content, "echo")],
                         type_parameters: vec![],
                     })),
@@ -219,6 +224,7 @@ mod tests {
                 })),
                 op: BinaryOperator::Or,
                 right: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![
                         Expr::Literal(Literal {
                             parsed: "test".into(),
@@ -288,6 +294,7 @@ mod tests {
             result,
             vec![Expr::Not(Not {
                 underlying: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![
                         literal(source.source, "grep"),
                         literal(source.source, "-E"),
