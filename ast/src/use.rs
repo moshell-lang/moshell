@@ -35,7 +35,7 @@ impl<'a> SourceSegmentHolder for Import<'a> {
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq, dbg_pls::DebugPls)]
 pub struct ImportList<'a> {
-    ///list of prefixed modules (with an optional file path at index 0 of the vec)
+    ///list of relative prefixed modules
     pub path: Vec<&'a str>,
 
     ///All the imports
@@ -46,7 +46,7 @@ pub struct ImportList<'a> {
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq, dbg_pls::DebugPls)]
 pub struct ImportedSymbol<'a> {
-    ///list of prefixed modules
+    ///list of relative prefixed modules
     pub path: Vec<&'a str>,
 
     ///The symbol's type
