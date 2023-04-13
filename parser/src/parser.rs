@@ -24,9 +24,7 @@ use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::cursor::ParserCursor;
 use crate::err::ParseErrorKind::Unexpected;
 use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
-use crate::moves::{
-    any, bin_op, blanks, eod, eox, like, next, of_type, of_types, repeat, spaces, MoveOperations,
-};
+use crate::moves::{any, bin_op, blanks, eod, eox, like, next, of_type, of_types, repeat, spaces, MoveOperations};
 use ast::range::Iterable;
 use ast::Expr;
 
@@ -37,6 +35,7 @@ pub(crate) struct Parser<'a> {
     pub(crate) cursor: ParserCursor<'a>,
     pub(crate) source: Source<'a>,
     pub(crate) delimiter_stack: VecDeque<Token<'a>>,
+    errors: Vec<ParseError>,
 }
 
 //all tokens that can't be an infix operator
@@ -63,19 +62,19 @@ impl<'a> Parser<'a> {
             cursor: ParserCursor::new_with_source(lex(source.source), source.source),
             source,
             delimiter_stack: VecDeque::new(),
+            errors: Vec::new(),
         }
     }
 
     /// Parses input tokens into an abstract syntax tree representation.
-    pub fn parse(&mut self) -> ParseReport<'a> {
+    pub fn parse(mut self) -> ParseReport<'a> {
         let mut statements = Vec::new();
-        let mut errors = Vec::new();
 
         while self.look_for_input() {
             match self.parse_next() {
                 Err(error) => {
                     self.repos_to_next_expr();
-                    errors.push(error);
+                    self.errors.push(error);
                 }
                 Ok(statement) => statements.push(statement),
             }
@@ -83,7 +82,7 @@ impl<'a> Parser<'a> {
 
         ParseReport {
             expr: statements,
-            errors,
+            errors: self.errors,
             stack_ended: self.delimiter_stack.is_empty(),
         }
     }
@@ -413,6 +412,18 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
+    pub(crate) fn recover_from(&mut self, error: ParseError) {
+        match error.kind {
+            ParseErrorKind::Unpaired(_) => {
+                self.repos_to_top_delimiter();
+            }
+            _ => {
+                self.repos_to_next_expr();
+            }
+        }
+        self.errors.push(error);
+    }
+
     //traverse current expression and go to next expression
     fn repos_to_next_expr(&mut self) {
         while !self.cursor.is_at_end() {
@@ -429,6 +440,26 @@ impl<'a> Parser<'a> {
                 }
             } else if self.cursor.lookahead(eox()).is_none() {
                 self.cursor.advance(next());
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn repos_to_top_delimiter(&mut self) {
+        while !self.cursor.is_at_end() {
+            if let Some(last) = self.delimiter_stack.back() {
+                if let Some(token) = self.cursor.advance(next()) {
+                    if last
+                        .token_type
+                        .closing_pair()
+                        .expect("invalid delimiter passed to stack")
+                        == token.token_type
+                    {
+                        self.delimiter_stack.pop_back();
+                        break;
+                    }
+                }
             } else {
                 break;
             }

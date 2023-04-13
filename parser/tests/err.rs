@@ -35,6 +35,11 @@ fn repos_delimiter_stack() {
                     kind: ParseErrorKind::Unpaired(content.find('(').map(|p| p..p + 1).unwrap())
                 },
                 ParseError {
+                    message: "Mismatched closing delimiter.".to_string(),
+                    position: content.find(']').map(|p| p..p + 1).unwrap(),
+                    kind: ParseErrorKind::Unpaired(content.find('{').map(|p| p..p + 1).unwrap())
+                },
+                ParseError {
                     message: "invalid infix operator".to_string(),
                     position: content.rfind('!').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected

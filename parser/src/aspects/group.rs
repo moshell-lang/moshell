@@ -107,8 +107,15 @@ impl<'a> Parser<'a> {
                     ParseErrorKind::Unpaired(self.cursor.relative_pos(&start_token)),
                 )?;
             }
-            let statement = parser(self)?;
-            statements.push(statement);
+            let statement = parser(self);
+            match statement {
+                Ok(statement) => {
+                    statements.push(statement);
+                }
+                Err(err) => {
+                    self.recover_from(err);
+                }
+            }
 
             //expects at least one newline or ';'
             let eox_res = self.cursor.force(
