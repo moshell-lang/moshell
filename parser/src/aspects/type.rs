@@ -36,7 +36,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         let mut tpe = match first_token.token_type {
             RoundedLeftBracket => self.parse_parentheses()?,
             FatArrow => self.parse_by_name().map(Type::ByName)?,
-            _ => self.parse_parametrized_or_unit()?,
+            _ => self.parse_parametrized()?,
         };
         //check if there's an arrow, if some, we are maybe in a case where the type is "A => ..."
         // (a lambda with one parameter and no parenthesis for the input, which is valid)
@@ -49,7 +49,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         }
 
         if matches!(tpe, Type::Parametrized(..)) {
-            let output = self.parse_parametrized_or_unit()?;
+            let output = self.parse_parametrized()?;
             let segment =
                 self.cursor.relative_pos_ctx(first_token.clone()).start..output.segment().end;
             tpe = Type::Callable(CallableType {
@@ -67,7 +67,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             .is_some()
         {
             //parse second lambda output in order to advance on the full invalid lambda expression
-            let second_rt = self.parse_parametrized_or_unit()?;
+            let second_rt = self.parse_parametrized()?;
             return self.expected_with(
                 "Lambda type as input of another lambda must be surrounded with parenthesis",
                 first_token..self.cursor.peek(),
@@ -183,7 +183,7 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_parametrized_or_unit(&mut self) -> ParseResult<Type<'a>> {
+    fn parse_parametrized(&mut self) -> ParseResult<Type<'a>> {
         self.cursor.advance(spaces());
         let start = self.cursor.peek();
         let path = self.parse_inclusion_path()?;
