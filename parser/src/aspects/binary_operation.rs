@@ -414,6 +414,7 @@ mod tests {
                 left: Box::new(Expr::Subshell(Subshell {
                     expressions: vec![Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Call(Call {
+                            path: Vec::new(),
                             arguments: vec![
                                 literal(source.source, "echo"),
                                 literal(source.source, "hello"),
@@ -422,6 +423,7 @@ mod tests {
                         })),
                         op: And,
                         right: Box::new(Expr::Call(Call {
+                            path: Vec::new(),
                             arguments: vec![
                                 literal_nth(source.source, "echo", 1),
                                 literal(source.source, "world"),
@@ -433,6 +435,7 @@ mod tests {
                 })),
                 op: Or,
                 right: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![
                         literal_nth(source.source, "echo", 2),
                         literal(source.source, "damn"),
@@ -455,6 +458,7 @@ mod tests {
             Expr::Binary(BinaryOperation {
                 left: Box::new(Expr::Subshell(Subshell {
                     expressions: vec![Expr::Call(Call {
+                        path: Vec::new(),
                         arguments: vec![
                             literal(source.source, "echo"),
                             literal(source.source, "hello"),
@@ -468,6 +472,7 @@ mod tests {
                 })),
                 op: Or,
                 right: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![
                         literal_nth(source.source, "echo", 1),
                         literal(source.source, "damn"),

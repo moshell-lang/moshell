@@ -144,7 +144,7 @@ mod tests {
     use crate::source::literal;
     use ast::call::Call;
     use ast::group::{Block, Subshell};
-    use ast::r#type::SimpleType;
+    use ast::r#type::ParametrizedType;
     use ast::r#type::Type;
     use ast::value::Literal;
     use ast::value::LiteralValue::{Float, Int};
@@ -303,6 +303,7 @@ mod tests {
                                 segment: find_in(source.source, "val x = 89"),
                             }),
                             Expr::Call(Call {
+                                path: Vec::new(),
                                 arguments: vec![
                                     literal(source.source, "command"),
                                     literal(source.source, "call")
@@ -341,7 +342,8 @@ mod tests {
                         kind: VarKind::Var,
                         var: TypedVariable {
                             name: "test",
-                            ty: Some(Type::Simple(SimpleType {
+                            ty: Some(Type::Parametrized(ParametrizedType {
+                                path: vec![],
                                 name: "int",
                                 params: Vec::new(),
                                 segment: find_in(source.source, "int")

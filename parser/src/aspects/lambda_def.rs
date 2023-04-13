@@ -46,7 +46,7 @@ mod tests {
     use ast::group::Block;
     use ast::lambda::LambdaDef;
     use ast::operation::{BinaryOperation, BinaryOperator};
-    use ast::r#type::{SimpleType, Type};
+    use ast::r#type::{ParametrizedType, Type};
     use ast::variable::{TypedVariable, VarReference};
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
@@ -70,7 +70,8 @@ mod tests {
                     },
                     TypedVariable {
                         name: "b",
-                        ty: Some(Type::Simple(SimpleType {
+                        ty: Some(Type::Parametrized(ParametrizedType {
+                            path: vec![],
                             name: "Int",
                             params: Vec::new(),
                             segment: find_in(source.source, "Int"),
@@ -136,7 +137,8 @@ mod tests {
             LambdaDef {
                 args: vec![TypedVariable {
                     name: "a",
-                    ty: Some(Type::Simple(SimpleType {
+                    ty: Some(Type::Parametrized(ParametrizedType {
+                        path: vec![],
                         name: "Int",
                         params: Vec::new(),
                         segment: find_in(src, "Int")
@@ -171,6 +173,7 @@ mod tests {
                 args: Vec::new(),
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
+                        path: Vec::new(),
                         arguments: vec![
                             literal(source.source, "echo"),
                             literal(source.source, "hey")

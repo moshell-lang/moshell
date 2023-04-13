@@ -8,20 +8,14 @@ use std::ops::Deref;
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub enum Type<'a> {
-    ///A Simple type with optional parameters (`A`, `A[V]`)
-    Simple(SimpleType<'a>),
+    ///A Simple type with optional parameters (`A`, `A[V]`, std::foo::Option[A])
+    Parametrized(ParametrizedType<'a>),
 
     ///A callable declaration with of form `(A, B, ...) => Out`
     Callable(CallableType<'a>),
 
     ///A By name declaration (`=> X`)
     ByName(ByName<'a>),
-
-    ///Either `()` or `Unit`, representing a void type
-    Unit(SourceSegment),
-
-    ///The Nothing type
-    Nothing(SourceSegment),
 }
 
 /// A casted expression
@@ -37,8 +31,14 @@ pub struct CastedExpr<'a> {
 
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
-pub struct SimpleType<'a> {
+pub struct ParametrizedType<'a> {
+    /// inclusion path
+    pub path: Vec<&'a str>,
+
+    /// the type's name
     pub name: &'a str,
+
+    ///the type's parameters
     pub params: Vec<Type<'a>>,
 }
 
@@ -58,11 +58,9 @@ pub struct CallableType<'a> {
 impl<'a> Display for Type<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Type::Simple(m) => Display::fmt(m, f),
+            Type::Parametrized(m) => Display::fmt(m, f),
             Type::Callable(p) => Display::fmt(p, f),
             Type::ByName(n) => Display::fmt(n, f),
-            Type::Unit(_) => write!(f, "Unit"),
-            Type::Nothing(_) => write!(f, "Nothing"),
         }
     }
 }
@@ -70,11 +68,9 @@ impl<'a> Display for Type<'a> {
 impl SourceSegmentHolder for Type<'_> {
     fn segment(&self) -> SourceSegment {
         match self {
-            Type::Simple(m) => m.segment(),
+            Type::Parametrized(m) => m.segment(),
             Type::Callable(p) => p.segment(),
             Type::ByName(n) => n.segment(),
-            Type::Unit(segment) => segment.clone(),
-            Type::Nothing(segment) => segment.clone(),
         }
     }
 }
@@ -82,7 +78,7 @@ impl SourceSegmentHolder for Type<'_> {
 impl<'a> Display for CallableType<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let inputs = &self.params;
-        if let Some(Type::Simple(first_in)) = inputs.first() {
+        if let Some(Type::Parametrized(first_in)) = inputs.first() {
             Display::fmt(first_in, f)?;
         } else {
             fmt_comma_separated('(', ')', inputs, f)?;
@@ -92,7 +88,7 @@ impl<'a> Display for CallableType<'a> {
     }
 }
 
-impl<'a> Display for SimpleType<'a> {
+impl<'a> Display for ParametrizedType<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.name)?;
         if self.params.is_empty() {

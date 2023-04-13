@@ -1,14 +1,16 @@
 use crate::aspects::expr_list::ExpressionListAspect;
+use crate::aspects::modules::ModulesAspect;
 use crate::err::ParseErrorKind::{Expected, Unexpected};
 use crate::moves::{any, blanks, not, of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
+
 use context::source::{SourceSegment, SourceSegmentHolder};
 use lexer::token::TokenType::{
     FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket, SquaredLeftBracket,
-    SquaredRightBracket, Unit,
+    SquaredRightBracket,
 };
 
-use ast::r#type::{ByName, CallableType, CastedExpr, SimpleType, Type};
+use ast::r#type::{ByName, CallableType, CastedExpr, ParametrizedType, Type};
 use ast::Expr;
 use context::display::fmt_comma_separated;
 use lexer::token::TokenType::*;
@@ -34,7 +36,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         let mut tpe = match first_token.token_type {
             RoundedLeftBracket => self.parse_parentheses()?,
             FatArrow => self.parse_by_name().map(Type::ByName)?,
-            _ => self.parse_simple_or_unit()?,
+            _ => self.parse_parametrized()?,
         };
         //check if there's an arrow, if some, we are maybe in a case where the type is "A => ..."
         // (a lambda with one parameter and no parenthesis for the input, which is valid)
@@ -46,8 +48,8 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             return Ok(tpe);
         }
 
-        if matches!(tpe, Type::Simple(..)) {
-            let output = self.parse_simple_or_unit()?;
+        if matches!(tpe, Type::Parametrized(..)) {
+            let output = self.parse_parametrized()?;
             let segment =
                 self.cursor.relative_pos_ctx(first_token.clone()).start..output.segment().end;
             tpe = Type::Callable(CallableType {
@@ -65,7 +67,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             .is_some()
         {
             //parse second lambda output in order to advance on the full invalid lambda expression
-            let second_rt = self.parse_simple_or_unit()?;
+            let second_rt = self.parse_parametrized()?;
             return self.expected_with(
                 "Lambda type as input of another lambda must be surrounded with parenthesis",
                 first_token..self.cursor.peek(),
@@ -150,11 +152,6 @@ impl<'a> Parser<'a> {
                 .map(Type::Callable);
         }
 
-        // there is no input (`()`) and no `=>` after, this is a Unit type
-        if inputs.is_empty() {
-            return Ok(Type::Unit(segment));
-        }
-
         //its a type of form `(A)`
         if let Some(ty) = inputs.first() {
             if inputs.len() == 1 {
@@ -186,9 +183,12 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_simple_or_unit(&mut self) -> ParseResult<Type<'a>> {
+    fn parse_parametrized(&mut self) -> ParseResult<Type<'a>> {
+        self.cursor.advance(spaces());
+        let start = self.cursor.peek();
+        let path = self.parse_inclusion_path()?;
         let name_token = self.cursor.advance(spaces().then(any())).unwrap();
-        let mut segment = self.cursor.relative_pos(name_token.value);
+        let mut segment = self.cursor.relative_pos_ctx(start..name_token.clone());
 
         return match name_token.token_type {
             Identifier => {
@@ -196,14 +196,13 @@ impl<'a> Parser<'a> {
                 if !params.is_empty() {
                     segment.end = params_segment.end;
                 }
-                Ok(Type::Simple(SimpleType {
+                Ok(Type::Parametrized(ParametrizedType {
+                    path,
                     name: name_token.value,
                     params,
                     segment,
                 }))
             }
-            Unit => Ok(Type::Unit(segment)),
-            Nothing => Ok(Type::Nothing(segment)),
 
             NewLine => self.expected_with(
                 "expected types",
@@ -217,24 +216,11 @@ impl<'a> Parser<'a> {
                 Expected("<types>".to_string()),
             ),
 
-            x => {
-                if x == RoundedLeftBracket {
-                    if let Some(closing_parenthesis) = self
-                        .cursor
-                        .advance(spaces().then(of_type(RoundedRightBracket)))
-                    {
-                        return Ok(Type::Unit(
-                            self.cursor
-                                .relative_pos_ctx(name_token..closing_parenthesis),
-                        ));
-                    }
-                }
-                self.expected_with(
-                    &format!("'{}' is not a valid type identifier.", &name_token.value),
-                    name_token.value,
-                    Unexpected,
-                )
-            }
+            _ => self.expected_with(
+                &format!("'{}' is not a valid type identifier.", name_token.value),
+                name_token.value,
+                Unexpected,
+            ),
         };
     }
 }
@@ -245,7 +231,7 @@ mod tests {
     use crate::err::ParseError;
     use crate::err::ParseErrorKind::{Expected, Unexpected, Unpaired};
     use crate::parser::Parser;
-    use ast::r#type::{ByName, CallableType, SimpleType, Type};
+    use ast::r#type::{ByName, CallableType, ParametrizedType, Type};
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::find_in;
     use pretty_assertions::assert_eq;
@@ -256,7 +242,23 @@ mod tests {
         let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source.clone()).parse_type(),
-            Ok(Type::Simple(SimpleType {
+            Ok(Type::Parametrized(ParametrizedType {
+                path: vec![],
+                name: "MyType",
+                params: Vec::new(),
+                segment: source.segment(),
+            }))
+        );
+    }
+
+    #[test]
+    fn simple_type_include_path() {
+        let content = "std::MyType";
+        let source = Source::unknown(content);
+        assert_eq!(
+            Parser::new(source.clone()).parse_type(),
+            Ok(Type::Parametrized(ParametrizedType {
+                path: vec!["std"],
                 name: "MyType",
                 params: Vec::new(),
                 segment: source.segment(),
@@ -283,50 +285,59 @@ mod tests {
 
     #[test]
     fn parametrized_types() {
-        let content = "MyType[A[X, Y[_], Z], B[C[D]]]";
+        let content = "MyType[A[X, Y[Any], foo::Z], B[std::C[D]]]";
         let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source.clone()).parse_type(),
-            Ok(Type::Simple(SimpleType {
+            Ok(Type::Parametrized(ParametrizedType {
+                path: vec![],
                 name: "MyType",
                 params: vec![
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
+                        path: vec![],
                         name: "A",
                         params: vec![
-                            Type::Simple(SimpleType {
+                            Type::Parametrized(ParametrizedType {
+                                path: vec![],
                                 name: "X",
                                 params: Vec::new(),
                                 segment: find_in(content, "X"),
                             }),
-                            Type::Simple(SimpleType {
+                            Type::Parametrized(ParametrizedType {
+                                path: vec![],
                                 name: "Y",
-                                params: vec![Type::Simple(SimpleType {
-                                    name: "_",
+                                params: vec![Type::Parametrized(ParametrizedType {
+                                    path: vec![],
+                                    name: "Any",
                                     params: Vec::new(),
-                                    segment: find_in(content, "_"),
+                                    segment: find_in(content, "Any"),
                                 })],
-                                segment: find_in(content, "Y[_]"),
+                                segment: find_in(content, "Y[Any]"),
                             }),
-                            Type::Simple(SimpleType {
+                            Type::Parametrized(ParametrizedType {
+                                path: vec!["foo"],
                                 name: "Z",
                                 params: Vec::new(),
-                                segment: find_in(content, "Z"),
+                                segment: find_in(content, "foo::Z"),
                             }),
                         ],
-                        segment: find_in(content, "A[X, Y[_], Z]"),
+                        segment: find_in(content, "A[X, Y[Any], foo::Z]"),
                     }),
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
+                        path: vec![],
                         name: "B",
-                        params: vec![Type::Simple(SimpleType {
+                        params: vec![Type::Parametrized(ParametrizedType {
+                            path: vec!["std"],
                             name: "C",
-                            params: vec![Type::Simple(SimpleType {
+                            params: vec![Type::Parametrized(ParametrizedType {
+                                path: vec![],
                                 name: "D",
                                 params: Vec::new(),
                                 segment: find_in(content, "D"),
                             })],
-                            segment: find_in(content, "C[D]"),
+                            segment: find_in(content, "std::C[D]"),
                         })],
-                        segment: find_in(content, "B[C[D]]"),
+                        segment: find_in(content, "B[std::C[D]]"),
                     }),
                 ],
                 segment: source.segment(),
@@ -384,12 +395,14 @@ mod tests {
         assert_eq!(
             Parser::new(source.clone()).parse_type(),
             Ok(Type::Callable(CallableType {
-                params: vec![Type::Simple(SimpleType {
+                params: vec![Type::Parametrized(ParametrizedType {
+                    path: vec![],
                     name: "A",
                     params: Vec::new(),
                     segment: find_in(content, "A"),
                 })],
-                output: Box::new(Type::Simple(SimpleType {
+                output: Box::new(Type::Parametrized(ParametrizedType {
+                    path: vec![],
                     name: "B",
                     params: Vec::new(),
                     segment: find_in(content, "B"),
@@ -406,7 +419,8 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_type(),
             Ok(Type::ByName(ByName {
-                name: Box::new(Type::Simple(SimpleType {
+                name: Box::new(Type::Parametrized(ParametrizedType {
+                    path: vec![],
                     name: "B",
                     params: Vec::new(),
                     segment: find_in(content, "B"),
@@ -438,7 +452,8 @@ mod tests {
             Parser::new(source.clone()).parse_type(),
             Ok(Type::ByName(ByName {
                 name: Box::new(Type::ByName(ByName {
-                    name: Box::new(Type::Simple(SimpleType {
+                    name: Box::new(Type::Parametrized(ParametrizedType {
+                        path: vec![],
                         name: "B",
                         params: Vec::new(),
                         segment: find_in(content, "B"),
@@ -456,7 +471,8 @@ mod tests {
         let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source).parse_type(),
-            Ok(Type::Simple(SimpleType {
+            Ok(Type::Parametrized(ParametrizedType {
+                path: vec![],
                 name: "A",
                 params: Vec::new(),
                 segment: find_in(content, "A"),
@@ -472,7 +488,8 @@ mod tests {
             Parser::new(source.clone()).parse_type(),
             Ok(Type::Callable(CallableType {
                 params: vec![],
-                output: Box::new(Type::Simple(SimpleType {
+                output: Box::new(Type::Parametrized(ParametrizedType {
+                    path: vec![],
                     name: "B",
                     params: Vec::new(),
                     segment: find_in(content, "B"),
@@ -483,28 +500,24 @@ mod tests {
     }
 
     #[test]
-    fn unit_type() {
-        let res1 = Parser::new(Source::unknown("()")).parse_type();
-        let res2 = Parser::new(Source::unknown("Unit")).parse_type();
-        let res3 = Parser::new(Source::unknown("(\n   \n)")).parse_type();
-        assert_eq!(res1, Ok(Type::Unit(0..2)));
-        assert_eq!(res2, Ok(Type::Unit(0..4)));
-        assert_eq!(res3, Ok(Type::Unit(0..7)));
-    }
-
-    #[test]
     fn lambda_declaration_void_output() {
-        let content = "A => ()";
+        let content = "A => Unit";
         let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source.clone()).parse_type(),
             Ok(Type::Callable(CallableType {
-                params: vec![Type::Simple(SimpleType {
+                params: vec![Type::Parametrized(ParametrizedType {
+                    path: vec![],
                     name: "A",
                     params: Vec::new(),
                     segment: find_in(content, "A"),
                 })],
-                output: Box::new(Type::Unit(find_in(source.source, "()"))),
+                output: Box::new(Type::Parametrized(ParametrizedType {
+                    path: vec![],
+                    name: "Unit",
+                    params: Vec::new(),
+                    segment: find_in(content, "Unit"),
+                })),
                 segment: source.segment(),
             }))
         );
@@ -518,23 +531,27 @@ mod tests {
             Parser::new(source.clone()).parse_type(),
             Ok(Type::Callable(CallableType {
                 params: vec![
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
+                        path: vec![],
                         name: "A",
                         params: Vec::new(),
                         segment: find_in(content, "A"),
                     }),
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
+                        path: vec![],
                         name: "B",
                         params: Vec::new(),
                         segment: find_in(content, "B"),
                     }),
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
+                        path: vec![],
                         name: "C",
                         params: Vec::new(),
                         segment: find_in(content, "C"),
                     }),
                 ],
-                output: Box::new(Type::Simple(SimpleType {
+                output: Box::new(Type::Parametrized(ParametrizedType {
+                    path: vec![],
                     name: "D",
                     params: Vec::new(),
                     segment: find_in(content, "D"),
@@ -554,26 +571,30 @@ mod tests {
             Ok(Type::Callable(CallableType {
                 params: vec![Type::Callable(CallableType {
                     params: vec![Type::Callable(CallableType {
-                        params: vec![Type::Simple(SimpleType {
+                        params: vec![Type::Parametrized(ParametrizedType {
+                            path: vec![],
                             name: "A",
                             params: Vec::new(),
                             segment: find_in(content, "A"),
                         }),],
-                        output: Box::new(Type::Simple(SimpleType {
+                        output: Box::new(Type::Parametrized(ParametrizedType {
+                            path: vec![],
                             name: "B",
                             params: Vec::new(),
                             segment: find_in(content, "B"),
                         })),
                         segment: find_in(content, "A => B"),
                     })],
-                    output: Box::new(Type::Simple(SimpleType {
+                    output: Box::new(Type::Parametrized(ParametrizedType {
+                        path: vec![],
                         name: "C",
                         params: Vec::new(),
                         segment: find_in(content, "C"),
                     })),
                     segment: find_in(content, "(A => B) => C"),
                 })],
-                output: Box::new(Type::Simple(SimpleType {
+                output: Box::new(Type::Parametrized(ParametrizedType {
+                    path: vec![],
                     name: "D",
                     params: Vec::new(),
                     segment: find_in(content, "D"),
@@ -608,29 +629,34 @@ mod tests {
             ast,
             Ok(Type::Callable(CallableType {
                 params: vec![
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
+                        path: vec![],
                         name: "A",
                         params: Vec::new(),
                         segment: find_in(content, "A")
                     }),
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
+                        path: vec![],
                         name: "B",
                         params: Vec::new(),
                         segment: find_in(content, "B")
                     }),
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
+                        path: vec![],
                         name: "C",
                         params: Vec::new(),
                         segment: find_in(content, "C")
                     }),
                 ],
                 output: Box::new(Type::Callable(CallableType {
-                    params: vec![Type::Simple(SimpleType {
+                    params: vec![Type::Parametrized(ParametrizedType {
+                        path: vec![],
                         name: "D",
                         params: Vec::new(),
                         segment: find_in(content, "D")
                     })],
-                    output: Box::new(Type::Simple(SimpleType {
+                    output: Box::new(Type::Parametrized(ParametrizedType {
+                        path: vec![],
                         name: "E",
                         params: Vec::new(),
                         segment: find_in(content, "E")

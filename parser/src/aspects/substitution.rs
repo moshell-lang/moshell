@@ -123,11 +123,13 @@ mod tests {
                 underlying: Subshell {
                     expressions: vec![Expr::Block(Block {
                         expressions: vec![Expr::Call(Call {
+                            path: Vec::new(),
                             arguments: vec![
                                 literal(source.source, "ls"),
                                 Expr::Substitution(Substitution {
                                     underlying: Subshell {
                                         expressions: vec![Expr::Call(Call {
+                                            path: Vec::new(),
                                             arguments: vec![literal(source.source, "pwd")],
                                             type_parameters: vec![],
                                         })],

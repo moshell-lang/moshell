@@ -183,7 +183,7 @@ mod tests {
     use ast::call::Call;
     use ast::function::{FunctionDeclaration, FunctionParameter, Return};
     use ast::operation::{BinaryOperation, BinaryOperator};
-    use ast::r#type::{SimpleType, Type};
+    use ast::r#type::{ParametrizedType, Type};
     use ast::value::Literal;
     use ast::variable::{TypedVariable, VarReference};
     use ast::Expr;
@@ -307,6 +307,7 @@ mod tests {
                 parameters: vec![],
                 return_type: None,
                 body: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![literal(source.source, "x")],
                     type_parameters: vec![],
                 })),
@@ -351,7 +352,8 @@ mod tests {
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
-                        ty: Some(Type::Simple(SimpleType {
+                        ty: Some(Type::Parametrized(ParametrizedType {
+                            path: vec![],
                             name: "String",
                             params: vec![],
                             segment: find_in(source.source, "String")
@@ -360,7 +362,8 @@ mod tests {
                     }),
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
-                        ty: Some(Type::Simple(SimpleType {
+                        ty: Some(Type::Parametrized(ParametrizedType {
+                            path: vec![],
                             name: "Test",
                             params: vec![],
                             segment: find_in(source.source, "Test")
@@ -370,6 +373,7 @@ mod tests {
                 ],
                 return_type: None,
                 body: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![literal_nth(source.source, "x", 1)],
                     type_parameters: vec![],
                 })),
@@ -387,12 +391,14 @@ mod tests {
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "test",
                 type_parameters: vec![
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
+                        path: vec![],
                         name: "X",
                         params: Vec::new(),
                         segment: find_in(source.source, "X")
                     }),
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
+                        path: vec![],
                         name: "Y",
                         params: Vec::new(),
                         segment: find_in(source.source, "Y")
@@ -401,7 +407,8 @@ mod tests {
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
-                        ty: Some(Type::Simple(SimpleType {
+                        ty: Some(Type::Parametrized(ParametrizedType {
+                            path: vec![],
                             name: "X",
                             params: vec![],
                             segment: find_in_nth(source.source, "X", 1)
@@ -410,7 +417,8 @@ mod tests {
                     }),
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
-                        ty: Some(Type::Simple(SimpleType {
+                        ty: Some(Type::Parametrized(ParametrizedType {
+                            path: vec![],
                             name: "Y",
                             params: vec![],
                             segment: find_in_nth(source.source, "Y", 1)
@@ -420,6 +428,7 @@ mod tests {
                 ],
                 return_type: None,
                 body: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![literal_nth(source.source, "x", 1)],
                     type_parameters: vec![],
                 })),
@@ -437,8 +446,9 @@ mod tests {
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "test",
                 type_parameters: vec![],
-                parameters: vec![FunctionParameter::Variadic(Some(Type::Simple(
-                    SimpleType {
+                parameters: vec![FunctionParameter::Variadic(Some(Type::Parametrized(
+                    ParametrizedType {
+                        path: vec![],
                         name: "X",
                         params: Vec::new(),
                         segment: find_in(source.source, "X")
@@ -467,7 +477,8 @@ mod tests {
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
-                        ty: Some(Type::Simple(SimpleType {
+                        ty: Some(Type::Parametrized(ParametrizedType {
+                            path: vec![],
                             name: "int",
                             params: Vec::new(),
                             segment: find_in(source.source, "int")
@@ -496,12 +507,14 @@ mod tests {
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "test",
                 type_parameters: vec![
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
+                        path: vec![],
                         name: "X",
                         params: Vec::new(),
                         segment: find_in(source.source, "X")
                     }),
-                    Type::Simple(SimpleType {
+                    Type::Parametrized(ParametrizedType {
+                        path: vec![],
                         name: "Y",
                         params: Vec::new(),
                         segment: find_in(source.source, "Y")
@@ -510,7 +523,8 @@ mod tests {
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
-                        ty: Some(Type::Simple(SimpleType {
+                        ty: Some(Type::Parametrized(ParametrizedType {
+                            path: vec![],
                             name: "X",
                             params: vec![],
                             segment: find_in_nth(source.source, "X", 1)
@@ -519,7 +533,8 @@ mod tests {
                     }),
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
-                        ty: Some(Type::Simple(SimpleType {
+                        ty: Some(Type::Parametrized(ParametrizedType {
+                            path: vec![],
                             name: "Y",
                             params: vec![],
                             segment: find_in_nth(source.source, "Y", 1)
@@ -527,17 +542,19 @@ mod tests {
                         segment: find_in(source.source, "y : Y")
                     }),
                 ],
-                return_type: Some(Type::Simple(SimpleType {
+                return_type: Some(Type::Parametrized(ParametrizedType {
+                    path: vec![],
                     name: "X",
                     params: Vec::new(),
                     segment: find_in_nth(source.source, "X", 2)
                 })),
                 body: Box::new(Expr::Call(Call {
+                    path: Vec::new(),
                     arguments: vec![literal_nth(source.source, "x", 1)],
                     type_parameters: vec![],
                 })),
                 segment: source.segment()
             })]
-        )
+        );
     }
 }

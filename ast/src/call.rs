@@ -10,6 +10,9 @@ use src_macros::segment_holder;
 /// command name.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Call<'a> {
+    ///The relative path where this _function_ is stored.
+    pub path: Vec<&'a str>,
+
     /// The arguments of the command.
     ///
     /// A valid command must have at least one argument that is the command name.
@@ -33,7 +36,10 @@ impl SourceSegmentHolder for Call<'_> {
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ProgrammaticCall<'a> {
-    /// The function to call.
+    /// inclusion path
+    pub path: Vec<&'a str>,
+
+    /// The name of the function to call.
     pub name: &'a str,
 
     /// The arguments to pass to the function.
