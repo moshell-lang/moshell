@@ -161,7 +161,7 @@ impl<'a> Parser<'a> {
         self.repos("Expected expression statement")?;
 
         let pivot = self.cursor.peek().token_type;
-        match pivot {
+        let expr = match pivot {
             If => self.parse_if(Parser::statement).map(Expr::If),
             Match => self.parse_match(Parser::statement).map(Expr::Match),
             Identifier | Quote | DoubleQuote => self.any_call(),
@@ -169,7 +169,8 @@ impl<'a> Parser<'a> {
             _ if pivot.is_bin_operator() => self.call(),
 
             _ => self.next_expression(),
-        }
+        }?;
+        self.expand_call_chain(expr)
     }
 
     ///Parse the next expression
@@ -203,7 +204,7 @@ impl<'a> Parser<'a> {
         self.repos("Expected value")?;
 
         let pivot = self.cursor.peek().token_type;
-        let expr = match pivot {
+        let value = match pivot {
             RoundedLeftBracket => self.lambda_or_parentheses(),
             CurlyLeftBracket => self.block().map(Expr::Block),
             Not => self.not(Parser::next_value),
@@ -224,9 +225,9 @@ impl<'a> Parser<'a> {
             //test expressions has nothing to do in a value expression.
             SquaredLeftBracket => self.expected("Unexpected start of test expression", Unexpected),
             _ => self.literal(LiteralLeniency::Strict),
-        };
-
-        self.handle_cast(expr?)
+        }?;
+        let value = self.expand_call_chain(value)?;
+        self.handle_cast(value)
     }
 
     pub(crate) fn parse_next(&mut self) -> ParseResult<Expr<'a>> {

@@ -1,6 +1,7 @@
 use context::source::try_join_str;
 use lexer::token::TokenType::*;
 
+use crate::aspects::call::CallAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{any, blanks, like, lookahead, of_type, repeat, MoveOperations};
 use crate::parser::{ParseResult, Parser};
@@ -21,6 +22,9 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
             .advance(blanks().then(lookahead(any())))
             .unwrap();
         let bracket = self.cursor.advance(of_type(CurlyLeftBracket));
+        if let Some(bracket) = bracket.clone() {
+            self.delimiter_stack.push_back(bracket);
+        }
 
         let tokens = self
             .cursor
@@ -45,16 +49,25 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
         let mut segment = self.cursor.relative_pos_ctx(start.value..name);
         segment.start -= 1;
 
-        if let Some(bracket) = bracket {
-            self.cursor.force_with(
-                of_type(CurlyRightBracket),
-                "Expected closing curly bracket.",
-                ParseErrorKind::Unpaired(self.cursor.relative_pos(bracket)),
-            )?;
-            segment.end += 1;
-        }
+        let mut expr =
+            self.expand_call_chain(Expr::VarReference(VarReference { name, segment }))?;
 
-        Ok(Expr::VarReference(VarReference { name, segment }))
+        if let Some(bracket) = bracket {
+            if self.cursor.peek().token_type.is_closing_ponctuation() {
+                self.expect_delimiter(CurlyRightBracket)?;
+            } else {
+                self.cursor.force_with(
+                    of_type(CurlyRightBracket),
+                    "Expected closing curly bracket.",
+                    ParseErrorKind::Unpaired(self.cursor.relative_pos(bracket)),
+                )?;
+            }
+
+            if let Expr::VarReference(ref mut var) = expr {
+                var.segment.end += 1;
+            }
+        }
+        Ok(expr)
     }
 }
 
@@ -64,7 +77,8 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
-    use crate::source::literal;
+    use crate::source::{literal, literal_nth};
+    use ast::call::MethodCall;
     use ast::value::{Literal, TemplateString};
     use ast::variable::VarReference;
     use ast::Expr;
@@ -190,6 +204,44 @@ mod tests {
                     }),
                 ]
             })]
+        )
+    }
+
+    #[test]
+    fn call_ref() {
+        let source = Source::unknown("$callable(a, b, c)");
+        let ast = parse(source.clone()).expect("failed to parse");
+        assert_eq!(
+            ast,
+            vec![Expr::MethodCall(MethodCall {
+                source: Box::new(Expr::VarReference(VarReference {
+                    name: "callable",
+                    segment: find_in(source.source, "$callable")
+                })),
+                name: None,
+                arguments: vec![
+                    literal_nth(source.source, "a", 2),
+                    literal_nth(source.source, "b", 1),
+                    literal_nth(source.source, "c", 1),
+                ],
+                type_parameters: vec![],
+                segment: source.segment()
+            })]
+        )
+    }
+
+    #[test]
+    fn mismatched_delimiter() {
+        let content = "${VAR)}";
+        let source = Source::unknown(content);
+        let result: ParseResult<_> = parse(source).into();
+        assert_eq!(
+            result,
+            Err(ParseError {
+                message: "Mismatched closing delimiter.".to_owned(),
+                position: content.find(')').map(|p| p..p + 1).unwrap(),
+                kind: ParseErrorKind::Unpaired(content.find('{').map(|p| p..p + 1).unwrap()),
+            })
         )
     }
 }

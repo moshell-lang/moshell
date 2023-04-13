@@ -1,11 +1,11 @@
-use ast::call::{Call, ProgrammaticCall, Redir, RedirFd, RedirOp, Redirected};
+use ast::call::{Call, MethodCall, ProgrammaticCall, Redir, RedirFd, RedirOp, Redirected};
 use ast::control_flow::{For, ForKind, RangeFor};
-use ast::group::Parenthesis;
+use ast::group::{Block, Parenthesis};
 use ast::lambda::LambdaDef;
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::r#type::{CastedExpr, ParametrizedType, Type};
 use ast::range::{Iterable, NumericRange};
-use ast::value::{Literal, LiteralValue};
+use ast::value::{Literal, LiteralValue, TemplateString};
 use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
@@ -552,6 +552,116 @@ fn classic_call() {
             ],
             type_parameters: Vec::new()
         })]
+    );
+}
+
+#[test]
+fn method_and_function_calls_mixed() {
+    let source = Source::unknown("create().foo(dummy().truthy())\n.bar()");
+    let parsed = parse(source.clone()).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::MethodCall(MethodCall {
+            source: Box::new(Expr::MethodCall(MethodCall {
+                source: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
+                    path: Vec::new(),
+                    name: "create",
+                    arguments: Vec::new(),
+                    type_parameters: Vec::new(),
+                    segment: find_in(source.source, "create()")
+                })),
+                name: Some("foo"),
+                arguments: vec![Expr::MethodCall(MethodCall {
+                    source: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
+                        path: Vec::new(),
+                        name: "dummy",
+                        arguments: Vec::new(),
+                        type_parameters: Vec::new(),
+                        segment: find_in(source.source, "dummy()")
+                    })),
+                    name: Some("truthy"),
+                    arguments: Vec::new(),
+                    type_parameters: Vec::new(),
+                    segment: find_in(source.source, ".truthy()")
+                })],
+                type_parameters: Vec::new(),
+                segment: find_in(source.source, ".foo(dummy().truthy())")
+            })),
+            name: Some("bar"),
+            arguments: Vec::new(),
+            type_parameters: Vec::new(),
+            segment: find_in(source.source, ".bar()")
+        })]
+    );
+}
+
+#[test]
+fn block_method_call() {
+    let source = Source::unknown("{ $x }.foo('a')");
+    let parsed = parse(source.clone()).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::MethodCall(MethodCall {
+            source: Box::new(Expr::Block(Block {
+                expressions: vec![Expr::VarReference(VarReference {
+                    name: "x",
+                    segment: find_in(source.source, "$x")
+                })],
+                segment: find_between(source.source, "{", "}")
+            })),
+            name: Some("foo"),
+            arguments: vec![literal(source.source, "'a'")],
+            type_parameters: Vec::new(),
+            segment: find_between(source.source, ".", ")")
+        })]
+    );
+}
+
+#[test]
+fn method_call_with_type_params_and_ref() {
+    let source = Source::unknown("$a.foo($d);echo \"${c.bar[T]()}\"");
+    let parsed = parse(source.clone()).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![
+            Expr::MethodCall(MethodCall {
+                source: Box::new(Expr::VarReference(VarReference {
+                    name: "a",
+                    segment: find_in(source.source, "$a")
+                })),
+                name: Some("foo"),
+                arguments: vec![Expr::VarReference(VarReference {
+                    name: "d",
+                    segment: find_in(source.source, "$d")
+                })],
+                type_parameters: Vec::new(),
+                segment: find_between(source.source, ".", ")")
+            }),
+            Expr::Call(Call {
+                path: Vec::new(),
+                arguments: vec![
+                    literal(source.source, "echo"),
+                    Expr::TemplateString(TemplateString {
+                        parts: vec![Expr::MethodCall(MethodCall {
+                            source: Box::new(Expr::VarReference(VarReference {
+                                name: "c",
+                                segment: find_in(source.source, "${c")
+                            })),
+                            name: Some("bar"),
+                            arguments: Vec::new(),
+                            type_parameters: vec![Type::Parametrized(ParametrizedType {
+                                path: Vec::new(),
+                                name: "T",
+                                params: Vec::new(),
+                                segment: find_in(source.source, "T")
+                            })],
+                            segment: find_in(source.source, ".bar[T]()")
+                        })],
+                    }),
+                ],
+                type_parameters: Vec::new()
+            }),
+        ]
     );
 }
 

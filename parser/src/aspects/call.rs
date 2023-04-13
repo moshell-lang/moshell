@@ -6,9 +6,12 @@ use crate::aspects::modules::ModulesAspect;
 use crate::aspects::r#type::TypeAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::err::ParseErrorKind;
-use crate::moves::{eod, eox, like, lookahead, of_type, of_types, repeat, spaces, MoveOperations};
+use crate::moves::{
+    blanks, eod, eox, identifier_parenthesis, like, lookahead, of_type, of_types, repeat, spaces,
+    MoveOperations,
+};
 use crate::parser::{ParseResult, Parser};
-use ast::call::{Call, ProgrammaticCall};
+use ast::call::{Call, MethodCall, ProgrammaticCall};
 use ast::lambda::LambdaDef;
 use ast::r#type::Type;
 use ast::value::Literal;
@@ -27,6 +30,12 @@ pub trait CallAspect<'a> {
 
     /// Parses a programmatic call.
     fn programmatic_call(&mut self) -> ParseResult<Expr<'a>>;
+
+    /// Parses a method call.
+    fn method_call_on(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
+
+    /// Parse any function call or method call after an expression.
+    fn expand_call_chain(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
 
     /// Continues to parse a call expression from a known command name expression
     fn call_arguments(
@@ -117,15 +126,60 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         )?;
         self.delimiter_stack.push_back(open_parenthesis.clone());
         let (arguments, segment) = self.parse_comma_separated_arguments(open_parenthesis)?;
-
         let start = path.first().unwrap_or(&name.value).clone();
+        let segment = self.cursor.relative_pos(start).start..segment.end;
         Ok(Expr::ProgrammaticCall(ProgrammaticCall {
             path,
             name: name.value,
             arguments,
             type_parameters,
-            segment: self.cursor.relative_pos_ctx(start).start..segment.end,
+            segment,
         }))
+    }
+
+    fn method_call_on(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
+        let dot = self.cursor.advance(of_type(TokenType::Dot));
+        let name = if dot.is_some() {
+            Some(
+                self.cursor
+                    .force(of_type(TokenType::Identifier), "Expected function name.")?,
+            )
+        } else {
+            None
+        };
+        let type_parameters = self.parse_type_parameter_list()?.0;
+        let open_parenthesis = self.cursor.force(
+            of_type(TokenType::RoundedLeftBracket),
+            "Expected opening parenthesis.",
+        )?;
+        self.delimiter_stack.push_back(open_parenthesis.clone());
+        let (arguments, segment) = self.parse_comma_separated_arguments(open_parenthesis)?;
+        let segment = dot
+            .map(|d| self.cursor.relative_pos(d.value))
+            .unwrap_or(expr.segment())
+            .start..segment.end;
+        Ok(Expr::MethodCall(MethodCall {
+            source: Box::new(expr),
+            name: name.map(|n| n.value),
+            arguments,
+            type_parameters,
+            segment,
+        }))
+    }
+
+    fn expand_call_chain(&mut self, mut expr: Expr<'a>) -> ParseResult<Expr<'a>> {
+        while self
+            .cursor
+            .lookahead(
+                of_type(TokenType::RoundedLeftBracket)
+                    .or(blanks().then(of_type(TokenType::Dot).and_then(identifier_parenthesis()))),
+            )
+            .is_some()
+        {
+            self.cursor.advance(blanks());
+            expr = self.method_call_on(expr)?;
+        }
+        Ok(expr)
     }
 
     fn call_arguments(
@@ -167,11 +221,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         self.cursor
             .lookahead(
                 repeat(of_type(Identifier).and_then(of_type(ColonColon)))
-                    .then(of_type(Identifier))
-                    .and_then(of_types(&[
-                        TokenType::RoundedLeftBracket,
-                        TokenType::SquaredLeftBracket,
-                    ])),
+                    .then(identifier_parenthesis()),
             )
             .is_some()
     }
