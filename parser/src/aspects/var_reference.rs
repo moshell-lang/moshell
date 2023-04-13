@@ -78,7 +78,7 @@ mod tests {
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
     use crate::source::{literal, literal_nth};
-    use ast::call::ProgrammaticCall;
+    use ast::call::MethodCall;
     use ast::value::{Literal, TemplateString};
     use ast::variable::VarReference;
     use ast::Expr;
@@ -213,11 +213,12 @@ mod tests {
         let ast = parse(source.clone()).expect("failed to parse");
         assert_eq!(
             ast,
-            vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                expr: Box::new(Expr::VarReference(VarReference {
+            vec![Expr::MethodCall(MethodCall {
+                source: Box::new(Expr::VarReference(VarReference {
                     name: "callable",
                     segment: find_in(source.source, "$callable")
                 })),
+                name: None,
                 arguments: vec![
                     literal_nth(source.source, "a", 2),
                     literal_nth(source.source, "b", 1),

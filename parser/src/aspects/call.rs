@@ -29,9 +29,6 @@ pub trait CallAspect<'a> {
     /// Parses a programmatic call.
     fn programmatic_call(&mut self) -> ParseResult<Expr<'a>>;
 
-    /// Parses a programmatic call with a known command name expression.
-    fn programmatic_call_on(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
-
     /// Parses a method call.
     fn method_call_on(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
 
@@ -78,7 +75,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             self.delimiter_stack.push_back(open_parenthesis.clone());
             let (arguments, segment) = self.parse_comma_separated_arguments(open_parenthesis)?;
             Ok(Expr::ProgrammaticCall(ProgrammaticCall {
-                expr: Box::new(callee),
+                name: value,
                 arguments,
                 type_parameters,
                 segment: self.cursor.relative_pos(value).start..segment.end,
@@ -114,13 +111,6 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         let name = self
             .cursor
             .force(of_type(TokenType::Identifier), "Expected function name.")?;
-        self.programmatic_call_on(Expr::Literal(Literal {
-            parsed: name.value.into(),
-            segment: self.cursor.relative_pos(name),
-        }))
-    }
-
-    fn programmatic_call_on(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
         let type_parameters = self.parse_type_parameter_list()?.0;
         let open_parenthesis = self.cursor.force(
             of_type(TokenType::RoundedLeftBracket),
@@ -128,9 +118,9 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         )?;
         self.delimiter_stack.push_back(open_parenthesis.clone());
         let (arguments, segment) = self.parse_comma_separated_arguments(open_parenthesis)?;
-        let segment = expr.segment().start..segment.end;
+        let segment = self.cursor.relative_pos(name.value).start..segment.end;
         Ok(Expr::ProgrammaticCall(ProgrammaticCall {
-            expr: Box::new(expr),
+            name: name.value,
             arguments,
             type_parameters,
             segment,
@@ -138,12 +128,15 @@ impl<'a> CallAspect<'a> for Parser<'a> {
     }
 
     fn method_call_on(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
-        let dot = self
-            .cursor
-            .force(of_type(TokenType::Dot), "Expected dot.")?;
-        let name = self
-            .cursor
-            .force(of_type(TokenType::Identifier), "Expected function name.")?;
+        let dot = self.cursor.advance(of_type(TokenType::Dot));
+        let name = if dot.is_some() {
+            Some(
+                self.cursor
+                    .force(of_type(TokenType::Identifier), "Expected function name.")?,
+            )
+        } else {
+            None
+        };
         let type_parameters = self.parse_type_parameter_list()?.0;
         let open_parenthesis = self.cursor.force(
             of_type(TokenType::RoundedLeftBracket),
@@ -151,12 +144,16 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         )?;
         self.delimiter_stack.push_back(open_parenthesis.clone());
         let (arguments, segment) = self.parse_comma_separated_arguments(open_parenthesis)?;
+        let segment = dot
+            .map(|d| self.cursor.relative_pos(d.value))
+            .unwrap_or(expr.segment())
+            .start..segment.end;
         Ok(Expr::MethodCall(MethodCall {
             source: Box::new(expr),
-            name: name.value,
+            name: name.map(|n| n.value),
             arguments,
             type_parameters,
-            segment: self.cursor.relative_pos(dot).start..segment.end,
+            segment,
         }))
     }
 
@@ -164,7 +161,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         loop {
             match self.cursor.peek().token_type {
                 TokenType::RoundedLeftBracket => {
-                    expr = self.programmatic_call_on(expr)?;
+                    expr = self.method_call_on(expr)?;
                 }
                 _ if self
                     .cursor
@@ -419,7 +416,7 @@ mod tests {
         let expr = parse(source.clone()).expect("Failed to parse");
         let expr2 = parse(source2.clone()).expect("Failed to parse");
         let mut expected = ProgrammaticCall {
-            expr: Box::new(literal(source.source, "Foo")),
+            name: "Foo",
             arguments: vec![],
             type_parameters: vec![],
             segment: source.segment(),
@@ -436,7 +433,7 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                expr: Box::new(literal(source.source, "Foo")),
+                name: "Foo",
                 arguments: vec![
                     literal(source.source, "a"),
                     Expr::Literal(Literal {
@@ -458,7 +455,7 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                expr: Box::new(literal(source.source, "Foo")),
+                name: "Foo",
                 arguments: vec![
                     literal(source.source, "this"),
                     literal_nth(source.source, "is", 1),
@@ -477,7 +474,7 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                expr: Box::new(literal(source.source, "Foo")),
+                name: "Foo",
                 arguments: vec![
                     Expr::Literal(Literal {
                         parsed: "===\ntesting something\n===".into(),
@@ -498,7 +495,7 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                expr: Box::new(literal(source.source, "List")),
+                name: "List",
                 arguments: vec![Expr::Literal(Literal {
                     parsed: "hi".into(),
                     segment: find_in(source.source, "'hi'")

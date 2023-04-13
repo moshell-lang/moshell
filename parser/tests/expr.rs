@@ -188,7 +188,7 @@ fn lambda_one_arg() {
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
-            expr: Box::new(literal(source.source, "calc")),
+            name: "calc",
             arguments: vec![Expr::LambdaDef(LambdaDef {
                 args: vec![TypedVariable {
                     name: "n",
@@ -221,7 +221,7 @@ fn lambda_in_pfc() {
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
-            expr: Box::new(literal(source.source, "calc")),
+            name: "calc",
             arguments: vec![Expr::LambdaDef(LambdaDef {
                 args: vec![],
                 body: Box::new(Expr::Binary(BinaryOperation {
@@ -302,7 +302,7 @@ fn constructor_in_call() {
             arguments: vec![
                 literal(source.source, "echo"),
                 Expr::ProgrammaticCall(ProgrammaticCall {
-                    expr: Box::new(literal(source.source, "Foo")),
+                    name: "Foo",
                     arguments: vec![],
                     type_parameters: vec![],
                     segment: find_in(source.source, "Foo()"),
@@ -469,7 +469,7 @@ fn constructor_assign() {
         vec![Expr::Assign(Assign {
             name: "a",
             value: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
-                expr: Box::new(literal(source.source, "Foo")),
+                name: "Foo",
                 arguments: vec![Expr::Literal(Literal {
                     parsed: 5.into(),
                     segment: find_in(source.source, "5")
@@ -489,7 +489,7 @@ fn programmatic_call() {
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
-            expr: Box::new(literal(source.source, "ssh")),
+            name: "ssh",
             arguments: vec![
                 literal(source.source, "localhost"),
                 literal(source.source, "'ls -l'"),
@@ -547,20 +547,20 @@ fn method_and_function_calls_mixed() {
         vec![Expr::MethodCall(MethodCall {
             source: Box::new(Expr::MethodCall(MethodCall {
                 source: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
-                    expr: Box::new(literal(source.source, "create")),
+                    name: "create",
                     arguments: Vec::new(),
                     type_parameters: Vec::new(),
                     segment: find_in(source.source, "create()")
                 })),
-                name: "foo",
+                name: Some("foo"),
                 arguments: vec![Expr::MethodCall(MethodCall {
                     source: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
-                        expr: Box::new(literal(source.source, "dummy")),
+                        name: "dummy",
                         arguments: Vec::new(),
                         type_parameters: Vec::new(),
                         segment: find_in(source.source, "dummy()")
                     })),
-                    name: "truthy",
+                    name: Some("truthy"),
                     arguments: Vec::new(),
                     type_parameters: Vec::new(),
                     segment: find_in(source.source, ".truthy()")
@@ -568,7 +568,7 @@ fn method_and_function_calls_mixed() {
                 type_parameters: Vec::new(),
                 segment: find_in(source.source, ".foo(dummy().truthy())")
             })),
-            name: "bar",
+            name: Some("bar"),
             arguments: Vec::new(),
             type_parameters: Vec::new(),
             segment: find_in(source.source, ".bar()")
@@ -590,7 +590,7 @@ fn block_method_call() {
                 })],
                 segment: find_between(source.source, "{", "}")
             })),
-            name: "foo",
+            name: Some("foo"),
             arguments: vec![literal(source.source, "'a'")],
             type_parameters: Vec::new(),
             segment: find_between(source.source, ".", ")")
@@ -610,7 +610,7 @@ fn method_call_with_type_params_and_ref() {
                     name: "a",
                     segment: find_in(source.source, "$a")
                 })),
-                name: "foo",
+                name: Some("foo"),
                 arguments: vec![Expr::VarReference(VarReference {
                     name: "d",
                     segment: find_in(source.source, "$d")
@@ -627,7 +627,7 @@ fn method_call_with_type_params_and_ref() {
                                 name: "c",
                                 segment: find_in(source.source, "${c")
                             })),
-                            name: "bar",
+                            name: Some("bar"),
                             arguments: Vec::new(),
                             type_parameters: vec![Type::Simple(SimpleType {
                                 name: "T",

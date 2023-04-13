@@ -34,10 +34,7 @@ impl SourceSegmentHolder for Call<'_> {
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ProgrammaticCall<'a> {
     /// The function to call.
-    ///
-    /// This may or may not be a string literal, as it may a call on a variable, or a call on the
-    /// result of another call.
-    pub expr: Box<Expr<'a>>,
+    pub name: &'a str,
 
     /// The arguments to pass to the function.
     pub arguments: Vec<Expr<'a>>,
@@ -56,7 +53,7 @@ pub struct MethodCall<'a> {
     /// The name of the method to call.
     ///
     /// The name cannot be an expression, so it is always a constant string after the parsing phase.
-    pub name: &'a str,
+    pub name: Option<&'a str>,
 
     /// The arguments to pass to the method.
     pub arguments: Vec<Expr<'a>>,
