@@ -1,7 +1,7 @@
 mod report;
 
 use crate::report::print_flush;
-use context::source::{Location, Source};
+use context::source::{Source, SourceSegment};
 use dbg_pls::color;
 use miette::{Diagnostic, GraphicalReportHandler, SourceSpan};
 use parser::err::ParseErrorKind;
@@ -29,7 +29,7 @@ impl Display for FormattedError<'_> {
     }
 }
 
-fn offset_empty_span(span: Location) -> SourceSpan {
+fn offset_empty_span(span: SourceSegment) -> SourceSpan {
     if span.start == span.end {
         (span.start - 1..span.end).into()
     } else {

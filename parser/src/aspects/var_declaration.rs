@@ -1,6 +1,7 @@
 use crate::aspects::r#type::TypeAspect;
 use ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use ast::Expr;
+use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
 
 use crate::err::ParseErrorKind;
@@ -18,7 +19,8 @@ pub trait VarDeclarationAspect<'a> {
 impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
     /// Parses a variable declaration.
     fn var_declaration(&mut self) -> ParseResult<Expr<'a>> {
-        let kind = match self.cursor.next()?.token_type {
+        let start = self.cursor.next()?;
+        let kind = match start.token_type {
             TokenType::Var => VarKind::Var,
             TokenType::Val => VarKind::Val,
             _ => {
@@ -30,6 +32,7 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
         };
 
         let var = self.parse_typed_var()?;
+        let mut segment = self.cursor.relative_pos_ctx(start).start..var.segment.end;
 
         let initializer = match self
             .cursor
@@ -43,7 +46,11 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
                 None
             }
 
-            Some(_) => Some(self.value()?),
+            Some(_) => {
+                let value = self.value()?;
+                segment = segment.start..value.segment().end;
+                Some(value)
+            }
         }
         .map(Box::new);
 
@@ -51,24 +58,30 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
             kind,
             var,
             initializer,
+            segment,
         }))
     }
 
     fn parse_typed_var(&mut self) -> ParseResult<TypedVariable<'a>> {
-        let name = self
-            .cursor
-            .force(
-                blanks().then(of_type(TokenType::Identifier)),
-                "Expected name.",
-            )?
-            .value;
+        let name = self.cursor.force(
+            blanks().then(of_type(TokenType::Identifier)),
+            "Expected name.",
+        )?;
 
         let ty = self
             .cursor
             .advance(blanks().then(of_type(TokenType::Colon)))
             .map(|_| self.parse_type())
             .transpose()?;
-        Ok(TypedVariable { name, ty })
+        let mut segment = self.cursor.relative_pos_ctx(name.value);
+        if let Some(ty) = ty.as_ref() {
+            segment = segment.start..ty.segment().end;
+        }
+        Ok(TypedVariable {
+            name: name.value,
+            ty,
+            segment,
+        })
     }
 }
 
@@ -83,17 +96,19 @@ mod tests {
     use ast::r#type::{ParametrizedType, Type};
     use ast::value::{Literal, LiteralValue};
     use ast::Expr;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
+    use context::str_find::{find_in, find_in_nth};
 
     use crate::err::ParseError;
     use crate::parser::Parser;
+    use crate::source::literal;
 
     use super::*;
 
     #[test]
     fn val_declaration() {
         let source = Source::unknown("val variable");
-        let ast = Parser::new(source)
+        let ast = Parser::new(source.clone())
             .var_declaration()
             .expect("failed to parse");
         assert_eq!(
@@ -103,16 +118,18 @@ mod tests {
                 var: TypedVariable {
                     name: "variable",
                     ty: None,
+                    segment: find_in(&source.source, "variable")
                 },
                 initializer: None,
+                segment: source.segment(),
             })
         )
     }
 
     #[test]
     fn val_declaration_with_type() {
-        let source = Source::unknown("val variable: int");
-        let ast = Parser::new(source)
+        let source = Source::unknown("val variable: Int");
+        let ast = Parser::new(source.clone())
             .var_declaration()
             .expect("failed to parse");
         assert_eq!(
@@ -123,11 +140,14 @@ mod tests {
                     name: "variable",
                     ty: Some(Type::Parametrized(ParametrizedType {
                         path: vec![],
-                        name: "int",
+                        name: "Int",
                         params: Vec::new(),
+                        segment: find_in(&source.source, "Int"),
                     })),
+                    segment: find_in(&source.source, "variable: Int")
                 },
                 initializer: None,
+                segment: source.segment(),
             })
         )
     }
@@ -143,7 +163,7 @@ mod tests {
     #[test]
     fn val_declaration_inferred() {
         let source = Source::unknown("val variable = 'hello $test'");
-        let ast = Parser::new(source)
+        let ast = Parser::new(source.clone())
             .var_declaration()
             .expect("failed to parse");
         assert_eq!(
@@ -153,11 +173,10 @@ mod tests {
                 var: TypedVariable {
                     name: "variable",
                     ty: None,
+                    segment: find_in(&source.source, "variable")
                 },
-                initializer: Some(Box::from(Expr::Literal(Literal {
-                    lexeme: "'hello $test'",
-                    parsed: "hello $test".into(),
-                }))),
+                initializer: Some(Box::from(literal(source.source, "'hello $test'"))),
+                segment: 0..source.source.len(),
             })
         )
     }
@@ -180,7 +199,9 @@ mod tests {
     #[test]
     fn val_declaration_block_command() {
         let source = Source::unknown("val x = {echo a}");
-        let result = Parser::new(source).var_declaration().expect("parse fail");
+        let result = Parser::new(source.clone())
+            .var_declaration()
+            .expect("parse fail");
         assert_eq!(
             result,
             Expr::VarDeclaration(VarDeclaration {
@@ -188,23 +209,26 @@ mod tests {
                 var: TypedVariable {
                     name: "x",
                     ty: None,
+                    segment: find_in(&source.source, "x")
                 },
                 initializer: Some(Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
                         path: Vec::new(),
                         arguments: vec![
                             Expr::Literal(Literal {
-                                lexeme: "echo",
                                 parsed: "echo".into(),
+                                segment: find_in(&source.source, "echo")
                             }),
                             Expr::Literal(Literal {
-                                lexeme: "a",
                                 parsed: "a".into(),
+                                segment: find_in_nth(&source.source, "a", 1),
                             }),
                         ],
                         type_parameters: vec![],
-                    })]
+                    })],
+                    segment: find_in(&source.source, "{echo a}")
                 }))),
+                segment: source.segment(),
             })
         )
     }
@@ -212,7 +236,7 @@ mod tests {
     #[test]
     fn val_declaration_arithmetic_expr() {
         let source = Source::unknown("val variable = 7 + 2");
-        let ast = Parser::new(source)
+        let ast = Parser::new(source.clone())
             .var_declaration()
             .expect("failed to parse");
         assert_eq!(
@@ -222,18 +246,20 @@ mod tests {
                 var: TypedVariable {
                     name: "variable",
                     ty: None,
+                    segment: find_in(&source.source, "variable")
                 },
                 initializer: Some(Box::from(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Literal(Literal {
-                        lexeme: "7",
-                        parsed: LiteralValue::Int(7)
+                        parsed: LiteralValue::Int(7),
+                        segment: find_in(&source.source, "7")
                     })),
                     op: Plus,
                     right: Box::new(Expr::Literal(Literal {
-                        lexeme: "2",
-                        parsed: LiteralValue::Int(2)
+                        parsed: LiteralValue::Int(2),
+                        segment: find_in(&source.source, "2")
                     }))
                 }))),
+                segment: 0..source.source.len(),
             })
         )
     }

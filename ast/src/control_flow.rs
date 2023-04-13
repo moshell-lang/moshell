@@ -1,7 +1,9 @@
 use crate::Expr;
 use dbg_pls::DebugPls;
+use src_macros::segment_holder;
 
 ///An if statement
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct If<'a> {
     ///The if condition expression
@@ -13,6 +15,7 @@ pub struct If<'a> {
 }
 
 ///A while loop statement
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct While<'a> {
     ///The while condition expression
@@ -22,6 +25,7 @@ pub struct While<'a> {
 }
 
 ///A loop statement
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Loop<'a> {
     ///The loop's body expression
@@ -29,6 +33,7 @@ pub struct Loop<'a> {
 }
 
 /// A for loop.
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct For<'a> {
     /// The type of the for loop.
@@ -45,6 +50,7 @@ pub enum ForKind<'a> {
 }
 
 /// A for in range loop, e.g. `for i in 1..10; ...`.
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct RangeFor<'a> {
     /// The variable name that will be used in the loop to designate the current item.
@@ -54,6 +60,7 @@ pub struct RangeFor<'a> {
 }
 
 /// A for in conditional loop, e.g. `for (( i = 0; i < 10; i++ )); ...`.
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ConditionalFor<'a> {
     /// The initialization expression.

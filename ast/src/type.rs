@@ -1,6 +1,9 @@
 use crate::Expr;
+use context::display::fmt_comma_separated;
+use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
-use std::fmt::{Debug, Display, Formatter, Write};
+use src_macros::segment_holder;
+use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
@@ -15,7 +18,8 @@ pub enum Type<'a> {
     ByName(ByName<'a>),
 }
 
-///a casted expression
+/// A casted expression
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct CastedExpr<'a> {
     ///the underlying expression
@@ -25,6 +29,7 @@ pub struct CastedExpr<'a> {
     pub casted_type: Type<'a>,
 }
 
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ParametrizedType<'a> {
     /// inclusion path
@@ -37,11 +42,13 @@ pub struct ParametrizedType<'a> {
     pub params: Vec<Type<'a>>,
 }
 
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ByName<'a> {
     pub name: Box<Type<'a>>,
 }
 
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct CallableType<'a> {
     pub params: Vec<Type<'a>>,
@@ -58,21 +65,14 @@ impl<'a> Display for Type<'a> {
     }
 }
 
-///helper function to write a type list format in a given formatter
-fn display_type_list<'a>(
-    start: char,
-    end: char,
-    types: &Vec<Type<'a>>,
-    f: &mut Formatter<'_>,
-) -> std::fmt::Result {
-    f.write_char(start)?;
-    if let Some((first, rest)) = types.split_first() {
-        write!(f, "{first}")?;
-        for ty in rest {
-            write!(f, ", {ty}")?;
+impl SourceSegmentHolder for Type<'_> {
+    fn segment(&self) -> SourceSegment {
+        match self {
+            Type::Parametrized(m) => m.segment(),
+            Type::Callable(p) => p.segment(),
+            Type::ByName(n) => n.segment(),
         }
     }
-    f.write_char(end)
 }
 
 impl<'a> Display for CallableType<'a> {
@@ -81,7 +81,7 @@ impl<'a> Display for CallableType<'a> {
         if let Some(Type::Parametrized(first_in)) = inputs.first() {
             Display::fmt(first_in, f)?;
         } else {
-            display_type_list('(', ')', inputs, f)?;
+            fmt_comma_separated('(', ')', inputs, f)?;
         }
         f.write_str(" => ")?;
         Display::fmt(self.output.deref(), f)
@@ -95,7 +95,7 @@ impl<'a> Display for ParametrizedType<'a> {
             return Ok(());
         }
 
-        display_type_list('[', ']', &self.params, f)
+        fmt_comma_separated('[', ']', &self.params, f)
     }
 }
 

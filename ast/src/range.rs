@@ -1,11 +1,22 @@
 use crate::Expr;
+use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
+use src_macros::segment_holder;
 
 /// A range of values that can be iterated over.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub enum Iterable<'a> {
     Range(NumericRange<'a>),
-    Files(FilePattern<'a>),
+    Files(FilePattern),
+}
+
+impl SourceSegmentHolder for Iterable<'_> {
+    fn segment(&self) -> SourceSegment {
+        match self {
+            Iterable::Range(range) => range.segment(),
+            Iterable::Files(pattern) => pattern.segment.clone(),
+        }
+    }
 }
 
 /// A range of numeric values.
@@ -26,12 +37,19 @@ pub struct NumericRange<'a> {
     pub upper_inclusive: bool,
 }
 
-/// A pattern that can be used to match files.
-#[derive(Debug, Clone, PartialEq, DebugPls)]
-pub struct FilePattern<'a> {
-    /// The raw glob pattern that was used to create this pattern.
-    pub lexeme: &'a str,
+impl SourceSegmentHolder for NumericRange<'_> {
+    fn segment(&self) -> SourceSegment {
+        let start = self.start.segment().start;
+        let end = self.step.as_ref().unwrap_or(&self.end).segment().end;
 
+        start..end
+    }
+}
+
+/// A pattern that can be used to match files.
+#[segment_holder]
+#[derive(Debug, Clone, PartialEq, DebugPls)]
+pub struct FilePattern {
     /// The glob pattern that will be used to match files.
     ///
     /// For now, this is just a string that is passed to the libc.

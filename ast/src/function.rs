@@ -2,12 +2,15 @@ use crate::r#type::Type;
 use crate::variable::TypedVariable;
 use crate::Expr;
 use dbg_pls::DebugPls;
+use src_macros::segment_holder;
 
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Return<'a> {
     pub expr: Box<Expr<'a>>,
 }
 
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct FunctionDeclaration<'a> {
     pub name: &'a str,

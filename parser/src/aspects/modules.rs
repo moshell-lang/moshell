@@ -5,12 +5,12 @@ use crate::moves::{any, blanks, eox, of_type, of_types, repeat, spaces, MoveOper
 use crate::parser::{ParseResult, Parser};
 use ast::r#use::{Import, ImportList, ImportedSymbol, Use};
 use ast::Expr;
-use context::source::try_join_str;
-use lexer::token::TokenType;
+use context::source::{try_join_str, SourceSegmentHolder};
 use lexer::token::TokenType::{
     As, At, ColonColon, CurlyLeftBracket, CurlyRightBracket, Dot, DotDot, FloatLiteral, Identifier,
     IntLiteral, Slash, Star,
 };
+use lexer::token::{Token, TokenType};
 
 /// Parser aspect to parse all expressions in relation with modules.
 /// Which can be use statements, or module location prefix
@@ -25,7 +25,8 @@ pub trait ModulesAspect<'a> {
 
 impl<'a> ModulesAspect<'a> for Parser<'a> {
     fn parse_use(&mut self) -> ParseResult<Expr<'a>> {
-        self.cursor
+        let start = self
+            .cursor
             .force(of_type(TokenType::Use), "expected 'use'")?;
 
         let import = self.parse_import()?;
@@ -39,7 +40,11 @@ impl<'a> ModulesAspect<'a> for Parser<'a> {
             );
         };
 
-        Ok(Expr::Use(Use { import }))
+        let import_seg_end = import.segment().end;
+        Ok(Expr::Use(Use {
+            import,
+            segment: self.cursor.relative_pos_ctx(start).start..import_seg_end,
+        }))
     }
 
     fn parse_inclusion_path(&mut self) -> ParseResult<Vec<&'a str>> {
@@ -81,31 +86,36 @@ impl<'a> Parser<'a> {
             At => {
                 //handle '@ENV_VARIABLE` expression
                 self.cursor.next()?;
-                let env_variable = self
-                    .cursor
-                    .force_with(
-                        spaces().then(of_type(Identifier)),
-                        "Environment variable name expected.",
-                        ParseErrorKind::Expected("<identifier>".to_string()),
-                    )?
-                    .value;
-                Ok(Import::Environment(env_variable))
+                let env_variable = self.cursor.force_with(
+                    spaces().then(of_type(Identifier)),
+                    "Environment variable name expected.",
+                    ParseErrorKind::Expected("<identifier>".to_string()),
+                )?;
+                Ok(Import::Environment(
+                    env_variable.value,
+                    self.cursor.relative_pos_ctx(pivot..env_variable),
+                ))
             }
             Star => Err(self.mk_parse_error(
                 "import all statement needs a symbol prefix.",
                 pivot,
                 ParseErrorKind::Expected("module or file path".to_string()),
             )),
-            CurlyLeftBracket => self.parse_import_list(Vec::new()).map(Import::List),
+            CurlyLeftBracket => self
+                .parse_import_list(self.cursor.peek(), Vec::new())
+                .map(Import::List),
 
             _ => self.parse_import_with_path(),
         }
     }
 
-    fn parse_import_list(&mut self, path: Vec<&'a str>) -> ParseResult<ImportList<'a>> {
-        let start = self.cursor.peek();
+    fn parse_import_list(
+        &mut self,
+        start: Token<'a>,
+        path: Vec<&'a str>,
+    ) -> ParseResult<ImportList<'a>> {
         self.parse_explicit_list(CurlyLeftBracket, CurlyRightBracket, Self::parse_import)
-            .and_then(|imports| {
+            .and_then(|(imports, s)| {
                 if imports.is_empty() {
                     return Err(self.mk_parse_error(
                         "empty brackets",
@@ -113,7 +123,11 @@ impl<'a> Parser<'a> {
                         ParseErrorKind::Expected("non-empty brackets".to_string()),
                     ));
                 }
-                Ok(ImportList { path, imports })
+                Ok(ImportList {
+                    path,
+                    imports,
+                    segment: self.cursor.relative_pos_ctx(start).start..s.end,
+                })
             })
     }
 
@@ -130,25 +144,32 @@ impl<'a> Parser<'a> {
     }
 
     //parse an identifier or a file path.
-    fn parse_first_path_element(&mut self) -> ParseResult<&'a str> {
+    fn parse_first_path_element(&mut self) -> ParseResult<Option<&'a str>> {
         //collects all tokens that can form a file path until required `::`
-        let tokens = self.cursor.collect(repeat(of_types(&[
-            Identifier,
-            Slash,
-            IntLiteral,
-            FloatLiteral,
-            Dot,
-            DotDot,
-        ])));
+        let mut tokens = self.cursor.collect(
+            repeat(of_types(&[
+                Identifier,
+                Slash,
+                IntLiteral,
+                FloatLiteral,
+                Dot,
+                DotDot,
+            ]))
+            .and_then(of_type(ColonColon)),
+        );
 
-        self.cursor.advance(spaces().then(of_type(ColonColon)));
+        if tokens.is_empty() {
+            return Ok(None);
+        }
+
+        tokens.pop(); //remove trailing '::' token
 
         if let Some((head, tail)) = tokens.split_first() {
             let first_path_element = tail.into_iter().fold(head.value, |acc, t| {
                 try_join_str(self.source.source, acc, t.value).expect("collect should be adjacent")
             });
 
-            return Ok(first_path_element);
+            return Ok(Some(first_path_element));
         }
 
         self.expected(
@@ -158,39 +179,50 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_import_with_path(&mut self) -> ParseResult<Import<'a>> {
-        let mut path = vec![self.parse_first_path_element()?];
+        let start = self.cursor.peek();
+        let mut path = self
+            .parse_first_path_element()?
+            .map(|i| vec![i])
+            .unwrap_or_default();
+
         path = self.parse_prefix_modules_with(path)?;
 
         self.cursor.advance(spaces()); //consume spaces
         let token = self.cursor.peek();
         if token.token_type == Star {
             self.cursor.next()?;
-            return Ok(Import::AllIn(path));
+            return Ok(Import::AllIn(
+                path,
+                self.cursor.relative_pos_ctx(start..token),
+            ));
         } else if token.token_type == CurlyLeftBracket {
-            return self.parse_import_list(path).map(Import::List);
+            return self.parse_import_list(start, path).map(Import::List);
         }
 
         let name = if token.token_type == Identifier {
             self.cursor.next()?;
             token.value
         } else {
-            path.pop().unwrap() //cannot be empty;
+            return self.expected(
+                "identifier expected",
+                ParseErrorKind::Expected("<identifier>".to_string()),
+            );
         };
 
-        let alias = self
-            .cursor
-            .advance(
-                spaces()
-                    .then(of_type(As))
-                    .and_then(spaces())
-                    .then(of_type(Identifier)),
-            )
-            .map(|t| t.value);
+        let alias = self.cursor.advance(
+            spaces()
+                .then(of_type(As))
+                .and_then(spaces())
+                .then(of_type(Identifier)),
+        );
+
+        let end = alias.clone().unwrap_or(token);
 
         Ok(Import::Symbol(ImportedSymbol {
             path: path.to_vec(),
             name,
-            alias,
+            alias: alias.map(|t| t.value),
+            segment: self.cursor.relative_pos_ctx(start..end),
         }))
     }
 }
@@ -203,13 +235,14 @@ mod tests {
     use crate::parser::{ParseResult, Parser};
     use ast::r#use::{Import, ImportList, ImportedSymbol, Use};
     use ast::Expr;
-    use context::source::Source;
+    use context::source::{Source, SourceSegmentHolder};
+    use context::str_find::find_in;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn simple_use() {
         let source = Source::unknown("use std::foo::bar");
-        let result = parse(source).expect("parser failed");
+        let result = parse(source.clone()).expect("parser failed");
         assert_eq!(
             result,
             vec![Expr::Use(Use {
@@ -217,7 +250,9 @@ mod tests {
                     name: "bar",
                     alias: None,
                     path: vec!["std", "foo"],
-                })
+                    segment: find_in(source.source, "std::foo::bar"),
+                }),
+                segment: source.segment(),
             })]
         )
     }
@@ -225,7 +260,7 @@ mod tests {
     #[test]
     fn use_with_file() {
         let source = Source::unknown("use ../foo/bar/asm/std::foo::bar");
-        let result = parse(source).expect("parser failed");
+        let result = parse(source.clone()).expect("parser failed");
         assert_eq!(
             result,
             vec![Expr::Use(Use {
@@ -233,7 +268,9 @@ mod tests {
                     name: "bar",
                     alias: None,
                     path: vec!["../foo/bar/asm/std", "foo"],
-                })
+                    segment: find_in(source.source, "../foo/bar/asm/std::foo::bar"),
+                }),
+                segment: source.segment(),
             })]
         )
     }
@@ -309,7 +346,8 @@ mod tests {
         assert_eq!(
             result,
             Expr::Use(Use {
-                import: Import::AllIn(vec!["std"])
+                import: Import::AllIn(vec!["std"], find_in(source.source, "std::*"),),
+                segment: source.segment(),
             })
         )
     }
@@ -318,26 +356,34 @@ mod tests {
     fn uses() {
         let source =
             Source::unknown("use \n{std::TOKEN as X,    @A \n , @B \\\n , foo::{my_function}}");
-        let result = parse(source).expect("parser failed");
+        let result = parse(source.clone()).expect("parser failed");
         assert_eq!(
             result,
             vec![Expr::Use(Use {
+                segment: source.segment(),
                 import: Import::List(ImportList {
                     path: vec![],
+                    segment: find_in(
+                        source.source,
+                        "{std::TOKEN as X,    @A \n , @B \\\n , foo::{my_function}}"
+                    ),
                     imports: vec![
                         Import::Symbol(ImportedSymbol {
                             path: vec!["std"],
                             name: "TOKEN",
                             alias: Some("X"),
+                            segment: find_in(source.source, "std::TOKEN as X"),
                         }),
-                        Import::Environment("A"),
-                        Import::Environment("B"),
+                        Import::Environment("A", find_in(source.source, "@A")),
+                        Import::Environment("B", find_in(source.source, "@B")),
                         Import::List(ImportList {
                             path: vec!["foo"],
+                            segment: find_in(source.source, "foo::{my_function}"),
                             imports: vec![Import::Symbol(ImportedSymbol {
                                 path: vec![],
                                 name: "my_function",
                                 alias: None,
+                                segment: find_in(source.source, "my_function"),
                             }),],
                         }),
                     ],

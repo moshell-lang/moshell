@@ -1,13 +1,13 @@
 use crate::parser::ParseResult;
 use ast::Expr;
-use context::source::Location;
+use context::source::SourceSegment;
 use lexer::token::Token;
 
 /// An error that occurs during parsing.
 #[derive(Debug, PartialEq)]
 pub struct ParseError {
     pub message: String,
-    pub position: Location,
+    pub position: SourceSegment,
     pub kind: ParseErrorKind,
 }
 
@@ -51,6 +51,15 @@ impl<'a> From<&'a str> for ErrorContext<'a> {
     }
 }
 
+impl<'a> From<std::ops::Range<&'a str>> for ErrorContext<'a> {
+    fn from(range: std::ops::Range<&'a str>) -> Self {
+        Self {
+            from: range.start,
+            to: range.end,
+        }
+    }
+}
+
 /// The kind of error that occurred.
 ///
 /// This is used to categorize the error and to provide more information
@@ -72,7 +81,7 @@ pub enum ParseErrorKind {
     /// A group has been opened, but not closed.
     ///
     /// This reports the location of the opening token.
-    Unpaired(Location),
+    Unpaired(SourceSegment),
 
     /// An incorrectly formatted value.
     InvalidFormat,
