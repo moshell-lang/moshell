@@ -165,13 +165,6 @@ pub(crate) fn aerated<M: Move + Copy>(
     blanks().then(m).and_then(blanks())
 }
 
-pub(crate) fn identifier_parenthesis() -> AndThenMove<
-    PredicateMove<impl Fn(Token) -> bool + Copy + Sized>,
-    PredicateMove<impl Fn(Token) -> bool + Copy + Sized>,
-> {
-    of_type(Identifier).and_then(of_types(&[RoundedLeftBracket, SquaredLeftBracket]))
-}
-
 /// A Move to inverse the matching status of underlying move.
 /// If underlying succeeds: fail
 /// if underlying fails: succeed at given pos.
@@ -369,6 +362,13 @@ pub(crate) fn escapable() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) 
 ///a move that consumes a binary operation character
 pub(crate) fn bin_op() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
     like(TokenType::is_bin_operator)
+}
+
+pub(crate) fn identifier_parenthesis() -> AndThenMove<
+    PredicateMove<impl Fn(Token) -> bool + Copy + Sized>,
+    PredicateMove<impl Fn(Token) -> bool + Copy + Sized>,
+> {
+    of_type(Identifier).and_then(of_types(&[RoundedLeftBracket, SquaredLeftBracket]))
 }
 
 #[cfg(test)]

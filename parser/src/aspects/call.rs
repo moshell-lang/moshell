@@ -166,13 +166,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             )
             .is_some()
         {
-            if self
-                .cursor
-                .lookahead(of_type(TokenType::RoundedLeftBracket))
-                .is_none()
-            {
-                self.cursor.advance(blanks());
-            }
+            self.cursor.advance(blanks());
             expr = self.method_call_on(expr)?;
         }
         Ok(expr)
