@@ -5,9 +5,10 @@ use crate::source::SourceSegment;
 /// # Panics
 /// Panics if the needle is not found.
 pub fn find_in<'a>(source: &'a str, needle: &'a str) -> SourceSegment {
-    let start = source
-        .find(needle)
-        .expect(&format!("'{}' not found.", needle));
+    let start = match source.find(needle) {
+        Some(start) => start,
+        None => panic!("'{}' not found.", needle),
+    };
     start..start + needle.len()
 }
 

@@ -33,7 +33,7 @@ impl<'a> ModulesAspect<'a> for Parser<'a> {
 
         self.cursor.advance(spaces()); //consume spaces
 
-        if self.cursor.advance(spaces().then(eox())).is_none() {
+        if self.cursor.advance(eox()).is_none() {
             return self.expected(
                 "expected new line or semicolon",
                 ParseErrorKind::Expected("<new_line> or ';'".to_string()),
@@ -54,16 +54,7 @@ impl<'a> ModulesAspect<'a> for Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn parse_prefix_modules_with(&mut self, mut head: Vec<&'a str>) -> ParseResult<Vec<&'a str>> {
-        loop {
-            self.cursor.advance(spaces());
-            let identifier = self.cursor.peek();
-
-            if identifier.token_type != Identifier {
-                break;
-            }
-
-            let identifier = identifier.value;
-
+        while let Some(identifier) = self.cursor.lookahead(spaces().then(of_type(Identifier))) {
             if self
                 .cursor
                 .advance(any().then(spaces().then(of_type(ColonColon))))
@@ -71,7 +62,7 @@ impl<'a> Parser<'a> {
             {
                 break;
             }
-            head.push(identifier)
+            head.push(identifier.value);
         }
 
         Ok(head)
@@ -96,11 +87,11 @@ impl<'a> Parser<'a> {
                     self.cursor.relative_pos_ctx(pivot..env_variable),
                 ))
             }
-            Star => Err(self.mk_parse_error(
+            Star => self.expected_with(
                 "import all statement needs a symbol prefix.",
                 pivot,
                 ParseErrorKind::Expected("module or file path".to_string()),
-            )),
+            ),
             CurlyLeftBracket => self
                 .parse_import_list(self.cursor.peek(), Vec::new())
                 .map(Import::List),
@@ -117,11 +108,11 @@ impl<'a> Parser<'a> {
         self.parse_explicit_list(CurlyLeftBracket, CurlyRightBracket, Self::parse_import)
             .and_then(|(imports, s)| {
                 if imports.is_empty() {
-                    return Err(self.mk_parse_error(
+                    return self.expected_with(
                         "empty brackets",
                         start..self.cursor.peek(),
                         ParseErrorKind::Expected("non-empty brackets".to_string()),
-                    ));
+                    );
                 }
                 Ok(ImportList {
                     path,
