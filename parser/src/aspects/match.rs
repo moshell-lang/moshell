@@ -63,8 +63,12 @@ impl<'a> Parser<'a> {
         let mut arms: Vec<MatchArm<'a>> = Vec::new();
 
         while self.cursor.lookahead(blanks().then(eod())).is_none() {
-            let arm = self.parse_match_arm(parse_arm.clone())?;
-            arms.push(arm);
+            match self.parse_match_arm(parse_arm.clone()) {
+                Ok(arm) => arms.push(arm),
+                Err(err) => {
+                    self.recover_from(err);
+                }
+            }
         }
         let closing_bracket = self.cursor.force_with(
             blanks().then(of_type(CurlyRightBracket)),

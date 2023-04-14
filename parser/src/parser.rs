@@ -24,7 +24,9 @@ use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::cursor::ParserCursor;
 use crate::err::ParseErrorKind::Unexpected;
 use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
-use crate::moves::{any, bin_op, blanks, eod, eox, like, next, of_type, of_types, repeat, spaces, MoveOperations};
+use crate::moves::{
+    any, bin_op, blanks, eod, eox, like, next, of_type, of_types, repeat, spaces, MoveOperations,
+};
 use ast::range::Iterable;
 use ast::Expr;
 
@@ -73,8 +75,7 @@ impl<'a> Parser<'a> {
         while self.look_for_input() {
             match self.parse_next() {
                 Err(error) => {
-                    self.repos_to_next_expr();
-                    self.errors.push(error);
+                    self.recover_from(error);
                 }
                 Ok(statement) => statements.push(statement),
             }
@@ -421,28 +422,31 @@ impl<'a> Parser<'a> {
                 self.repos_to_next_expr();
             }
         }
+        self.report_error(error);
+    }
+
+    pub(crate) fn report_error(&mut self, error: ParseError) {
         self.errors.push(error);
     }
 
     //traverse current expression and go to next expression
     fn repos_to_next_expr(&mut self) {
         while !self.cursor.is_at_end() {
-            if let Some(last) = self.delimiter_stack.back() {
-                if let Some(token) = self.cursor.advance(next()) {
-                    if last
-                        .token_type
-                        .closing_pair()
-                        .expect("invalid delimiter passed to stack")
-                        == token.token_type
-                    {
-                        self.delimiter_stack.pop_back();
-                    }
-                }
-            } else if self.cursor.lookahead(eox()).is_none() {
-                self.cursor.advance(next());
-            } else {
+            if self.cursor.lookahead(eox()).is_some() {
                 break;
             }
+            let token = self.cursor.peek();
+            if let Some(last) = self.delimiter_stack.back() {
+                if last
+                    .token_type
+                    .closing_pair()
+                    .expect("invalid delimiter passed to stack")
+                    == token.token_type
+                {
+                    break;
+                }
+            }
+            self.cursor.next_opt();
         }
     }
 

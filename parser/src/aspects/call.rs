@@ -265,10 +265,20 @@ impl<'a> Parser<'a> {
                 segment.end = self.cursor.relative_pos(closing_parenthesis).end;
                 return Ok((args, segment));
             }
-            if self.cursor.lookahead(of_type(TokenType::Comma)).is_some() {
-                self.expected("Expected argument.", ParseErrorKind::Unexpected)?;
+            if let Some(comma) = self.cursor.advance(of_type(TokenType::Comma)) {
+                self.report_error(self.mk_parse_error(
+                    "Expected argument.",
+                    comma,
+                    ParseErrorKind::Unexpected,
+                ));
+                continue;
             }
-            args.push(self.value()?);
+            match self.value() {
+                Ok(arg) => args.push(arg),
+                Err(err) => {
+                    self.recover_from(err);
+                }
+            }
             self.cursor.advance(spaces());
 
             // Check if the arg list is abnormally terminated.

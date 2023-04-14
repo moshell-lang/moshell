@@ -1,6 +1,6 @@
-use ast::call::Call;
+use ast::call::{Call, ProgrammaticCall};
 use ast::Expr;
-use context::source::Source;
+use context::source::{Source, SourceSegmentHolder};
 use parser::err::{ParseError, ParseErrorKind, ParseReport};
 use parser::parse;
 use parser::source::{literal, literal_nth};
@@ -149,13 +149,19 @@ fn expected_double_delimiter_for() {
 
 #[test]
 fn double_comma_parentheses() {
-    let content = "Bar(4 , ,)";
+    let content = "Bar(m , ,)";
     let source = Source::unknown(content);
-    let report = parse(source);
+    let report = parse(source.clone());
     assert_eq!(
         report,
         ParseReport {
-            expr: vec![],
+            expr: vec![Expr::ProgrammaticCall(ProgrammaticCall {
+                path: vec![],
+                name: "Bar",
+                arguments: vec![literal(content, "m")],
+                type_parameters: Vec::new(),
+                segment: source.segment(),
+            })],
             errors: vec![ParseError {
                 message: "Expected argument.".to_string(),
                 position: content.rfind(',').map(|p| p..p + 1).unwrap(),
