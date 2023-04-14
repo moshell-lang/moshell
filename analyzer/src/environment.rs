@@ -55,3 +55,9 @@ impl Environment {
         }
     }
 }
+
+pub trait EnvironmentContext<V> {
+    fn from_env(env: &Environment) -> Rc<RefCell<Self>>;
+
+    fn find(&self, name: &str) -> Option<V>;
+}

@@ -282,13 +282,14 @@ mod tests {
     use crate::types::types::{DefinedType, Type};
     use pretty_assertions::assert_eq;
     use crate::identity::Identity;
-    use crate::types::imports::CtxImport;
+    use crate::import_engine::ImportEngine;
+    use crate::imports::ModuleImport;
 
     #[test]
     fn define_iterable() -> Result<(), String> {
         let lang = TypeContext::lang();
         let mut std = TypeContext::new(Identity::new("std")?);
-        std.add_import(CtxImport::all(lang));
+        std.add_import(ModuleImport::all(Identity::new("lang")?));
 
         let std = Rc::new(RefCell::new(std));
 
@@ -319,7 +320,7 @@ mod tests {
     fn define_list() -> Result<(), String> {
         let lang = TypeContext::lang();
         let mut std = TypeContext::new(Identity::new("std")?);
-        std.add_import(CtxImport::all(lang));
+        std.add_import(ModuleImport::all(Identity::new("lang")?));
 
         let std = Rc::new(RefCell::new(std));
         let iterable_cl = TypeContext::define_class(
@@ -360,7 +361,7 @@ mod tests {
     fn define_map() -> Result<(), String> {
         let lang = TypeContext::lang();
         let mut std = TypeContext::new(Identity::new("std")?);
-        std.add_import(CtxImport::all(lang.clone()));
+        std.add_import(ModuleImport::all(Identity::new("lang")?));
 
         let std = Rc::new(RefCell::new(std));
 
@@ -382,25 +383,28 @@ mod tests {
 
         assert_eq!(
             map_cl.context.borrow().clone(),
-            TypeContext::with_classes([(
-                "K".to_string(),
-                TypeClass {
-                    super_type: Some(any_cl.clone()),
-                    fqcn: map_cl.fqcn.child("K"),
-                    generic_parameters: vec![],
-                    super_params_associations: vec![],
-                    context: Rc::new(RefCell::new(Default::default())),
-                }
-            ), (
-                "V".to_string(),
-                TypeClass {
-                    super_type: Some(any_cl.clone()),
-                    fqcn: map_cl.fqcn.child("V"),
-                    generic_parameters: vec![],
-                    super_params_associations: vec![],
-                    context: Rc::new(RefCell::new(Default::default())),
-                }
-            )], Identity::new("std::Map")?, vec![CtxImport::all(std)]),
+            TypeContext::with_classes(
+                [(
+                    "K".to_string(),
+                    TypeClass {
+                        super_type: Some(any_cl.clone()),
+                        fqcn: map_cl.fqcn.child("K"),
+                        generic_parameters: vec![],
+                        super_params_associations: vec![],
+                        context: Rc::new(RefCell::new(Default::default())),
+                    }
+                ), (
+                    "V".to_string(),
+                    TypeClass {
+                        super_type: Some(any_cl.clone()),
+                        fqcn: map_cl.fqcn.child("V"),
+                        generic_parameters: vec![],
+                        super_params_associations: vec![],
+                        context: Rc::new(RefCell::new(Default::default())),
+                    }
+                )],
+                Identity::new("std::Map")?,
+                ImportEngine::new(vec![ModuleImport::all(Identity::new("lang")?)]), ),
         );
 
         assert_eq!(
@@ -434,7 +438,7 @@ mod tests {
     fn define_str_option() -> Result<(), String> {
         let lang = TypeContext::lang();
         let mut std = TypeContext::new(Identity::new("std")?);
-        std.add_import(CtxImport::all(lang.clone()));
+        std.add_import(ModuleImport::all(Identity::new("lang")?));
 
         let std = Rc::new(RefCell::new(std.clone()));
 
@@ -472,7 +476,7 @@ mod tests {
                     fqcn: Identity::new("std::Some::A")?,
                     context: Rc::new(RefCell::new(Default::default())),
                 }
-            )], Identity::new("std::Some")?, vec![CtxImport::all(std.clone())]),
+            )], Identity::new("std::Some")?, vec![ModuleImport::all(Identity::new("lang")?)]),
         );
         assert_eq!(
             none_cl.context.borrow().clone(),
@@ -515,7 +519,7 @@ mod tests {
     fn define_type_with_inter_referenced_generics() -> Result<(), String> {
         let lang = TypeContext::lang();
         let mut std = TypeContext::new(Identity::new("std")?);
-        std.add_import(CtxImport::all(lang));
+        std.add_import(ModuleImport::all(Identity::new("lang")?));
 
         let std = Rc::new(RefCell::new(std));
 
@@ -551,17 +555,17 @@ mod tests {
                         fqcn: Identity::new("std::Map::B")?,
                         context: Rc::new(RefCell::new(Default::default())),
                     }
-                ), (
-                    "A".to_string(),
-                    TypeClass {
-                        super_type: Some(str_cl),
-                        generic_parameters: vec![],
-                        super_params_associations: vec![],
-                        fqcn: Identity::new("std::Map::A")?,
-                        context: Rc::new(RefCell::new(Default::default())),
-                    }
-                )
-                ], Identity::new("std::Map")?, vec![CtxImport::all(std)]),
+            ), (
+                "A".to_string(),
+                TypeClass {
+                    super_type: Some(str_cl),
+                    generic_parameters: vec![],
+                    super_params_associations: vec![],
+                    fqcn: Identity::new("std::Map::A")?,
+                    context: Rc::new(RefCell::new(Default::default())),
+                }
+            )
+                                      ], Identity::new("std::Map")?, vec![ModuleImport::all(Identity::new("lang")?)]),
         );
 
         assert_eq!(
@@ -591,7 +595,7 @@ mod tests {
     fn define_incompatible_subtype() -> Result<(), String> {
         let lang = TypeContext::lang();
         let mut std = TypeContext::new(Identity::new("std")?);
-        std.add_import(CtxImport::all(lang));
+        std.add_import(ModuleImport::all(Identity::new("lang")?));
 
         let std = Rc::new(RefCell::new(std));
 

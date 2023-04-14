@@ -5,9 +5,11 @@ use std::collections::hash_map::{Entry};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::rc::Rc;
+use crate::environment::{Environment, EnvironmentContext};
 
 use crate::identity::Identity;
-use crate::types::imports::{CtxImport, Import};
+use crate::import_engine::ImportEngine;
+use crate::imports::ModuleImport;
 
 /// A type environment.
 ///
@@ -17,7 +19,7 @@ pub struct TypeContext {
     /// Records the type of each class by their basename.
     classes: HashMap<String, Rc<TypeClass>>,
 
-    imports: Vec<CtxImport>,
+    imports: ImportEngine,
 
     pub identity: Identity,
 }
@@ -28,10 +30,19 @@ impl PartialEq for TypeContext {
     }
 }
 
+impl EnvironmentContext<Rc<TypeClass>> for TypeContext {
+    fn from_env(env: &Environment) -> Rc<RefCell<Self>> {
+        env.type_context.clone()
+    }
+    fn find(&self, name: &str) -> Option<Rc<TypeClass>> {
+        self.classes.get(name).cloned()
+    }
+}
+
 impl TypeContext {
     pub(crate) fn with_classes<const T: usize>(classes: [(String, TypeClass); T],
-                                      identity: Identity,
-                                      imports: Vec<CtxImport>) -> Self {
+                                               identity: Identity,
+                                               imports: ImportEngine) -> Self {
         let classes = classes.into_iter().map(|(k, v)| (k, Rc::new(v))).collect();
         Self {
             classes,
@@ -42,9 +53,8 @@ impl TypeContext {
 
     pub(crate) fn new(identity: Identity) -> Self {
         Self {
-            classes: HashMap::new(),
-            imports: Vec::new(),
             identity,
+            ..Default::default()
         }
     }
 
@@ -90,7 +100,7 @@ impl TypeContext {
 
     pub(crate) fn fork(ctx: Rc<RefCell<Self>>, name: &str) -> Self {
         let mut fork_imports = ctx.borrow().imports.clone();
-        fork_imports.push(CtxImport::all(ctx.clone()));
+        fork_imports.add_import(ModuleImport::all(ctx.borrow().identity.clone()));
         Self {
             imports: fork_imports,
             identity: ctx.borrow().identity.child(name),
@@ -98,8 +108,8 @@ impl TypeContext {
         }
     }
 
-    pub fn add_import(&mut self, import: CtxImport) {
-        self.imports.push(import)
+    pub fn add_import(&mut self, import: ModuleImport) {
+        self.imports.add_import(import)
     }
 
     /// Creates and registers a new ClassType for given types, the given type must be subtype of given types
@@ -124,24 +134,15 @@ impl TypeContext {
         }
     }
 
-    pub fn find_class(&self, name: &str) -> Option<Rc<TypeClass>> {
-        self.classes.get(name).cloned()
-    }
-
     ///perform a class type lookup based on the defined types.
     /// If the type is not directly found in this context, then the context
     /// will lookup in parent's context.
     pub fn lookup_name(&self, name: &str) -> Result<Rc<TypeClass>, String> {
-        match self.find_class(name) {
+        match self.find(name) {
             Some(v) => Ok(v.clone()),
-            None => {
-                for import in self.imports.clone() {
-                    if let Some(found) = import.find_class(name) {
-                        return Ok(found);
-                    }
-                }
-                Err(format!("Unknown type {}", name))
-            }
+            None => self.imports
+                .lookup_element(self, name)
+                .ok_or(format!("Unknown type {}", name))
         }
     }
 
@@ -195,35 +196,35 @@ mod tests {
     use std::collections::{HashMap, HashSet};
     use std::rc::Rc;
     use crate::identity::Identity;
-    use crate::types::imports::CtxImport;
+    use crate::imports::ModuleImport;
 
     #[test]
     fn specific_imports() -> Result<(), String> {
         let lang = TypeContext::lang();
 
         let mut foo = TypeContext::new(Identity::new("foo")?);
-        foo.add_import(CtxImport::all(lang.clone()));
+        foo.add_import(ModuleImport::all(Identity::new("lang")?));
         let foo = Rc::new(RefCell::new(foo));
 
         let mut bar = TypeContext::new(Identity::new("bar")?);
-        bar.add_import(CtxImport::all(lang));
+        bar.add_import(ModuleImport::all(Identity::new("lang")?));
         let bar = Rc::new(RefCell::new(bar));
 
         let a = TypeContext::define_class(
             foo.clone(),
-            ClassTypeDefinition::new("A")
+            ClassTypeDefinition::new("A"),
         )?;
 
         let b = TypeContext::define_class(
             foo.clone(),
-            ClassTypeDefinition::new("B")
+            ClassTypeDefinition::new("B"),
         )?;
 
-        bar.borrow_mut().add_import(CtxImport::specifics(
-            foo,
+        bar.borrow_mut().add_import(ModuleImport::specifics(
+            Identity::new("foo")?,
             HashSet::from(["A"]),
-            HashMap::from([("AliasedB", "B")]) //Import B and alias it with AliasedB
-        )?);
+            HashMap::from([("AliasedB", "B")]), //Import B and alias it with AliasedB
+        ));
 
         assert_eq!(bar.borrow().lookup_name("A")?, a);
         assert_eq!(bar.borrow().lookup_name("AliasedB")?, b);
