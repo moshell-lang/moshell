@@ -40,17 +40,17 @@ impl TypeContext {
         }
     }
 
-    pub(crate) fn new(identity: Identity, imports: Vec<CtxImport>) -> Self {
+    pub(crate) fn new(identity: Identity) -> Self {
         Self {
             classes: HashMap::new(),
-            imports,
+            imports: Vec::new(),
             identity,
         }
     }
 
     ///Definitions of the lang type context.
     pub fn lang() -> Rc<RefCell<Self>> {
-        let ctx = TypeContext::new(Identity::new("lang").expect(""), vec![]);
+        let ctx = TypeContext::new(Identity::new("lang").expect(""));
         let ctx_rc = Rc::new(RefCell::new(ctx));
         let mut ctx = ctx_rc.borrow_mut();
 
@@ -94,8 +94,12 @@ impl TypeContext {
         Self {
             imports: fork_imports,
             identity: ctx.borrow().identity.child(name),
-            classes: HashMap::new()
+            classes: HashMap::new(),
         }
+    }
+
+    pub fn add_import(&mut self, import: CtxImport) {
+        self.imports.push(import)
     }
 
     /// Creates and registers a new ClassType for given types, the given type must be subtype of given types
@@ -136,7 +140,7 @@ impl TypeContext {
                         return Ok(found);
                     }
                 }
-                Err("Unknown types".to_owned())
+                Err(format!("Unknown type {}", name))
             }
         }
     }
@@ -188,7 +192,48 @@ mod tests {
     use crate::types::types::Type;
     use pretty_assertions::assert_eq;
     use std::cell::RefCell;
+    use std::collections::{HashMap, HashSet};
     use std::rc::Rc;
+    use crate::identity::Identity;
+    use crate::types::imports::CtxImport;
+
+    #[test]
+    fn specific_imports() -> Result<(), String> {
+        let lang = TypeContext::lang();
+
+        let mut foo = TypeContext::new(Identity::new("foo")?);
+        foo.add_import(CtxImport::all(lang.clone()));
+        let foo = Rc::new(RefCell::new(foo));
+
+        let mut bar = TypeContext::new(Identity::new("bar")?);
+        bar.add_import(CtxImport::all(lang));
+        let bar = Rc::new(RefCell::new(bar));
+
+        let a = TypeContext::define_class(
+            foo.clone(),
+            ClassTypeDefinition::new("A")
+        )?;
+
+        let b = TypeContext::define_class(
+            foo.clone(),
+            ClassTypeDefinition::new("B")
+        )?;
+
+        bar.borrow_mut().add_import(CtxImport::specifics(
+            foo,
+            HashSet::from(["A"]),
+            HashMap::from([("AliasedB", "B")]) //Import B and alias it with AliasedB
+        )?);
+
+        assert_eq!(bar.borrow().lookup_name("A")?, a);
+        assert_eq!(bar.borrow().lookup_name("AliasedB")?, b);
+        assert_eq!(
+            bar.borrow().lookup_name("B"),
+            Err("Unknown type B".to_string())
+        );
+
+        Ok(())
+    }
 
     #[test]
     fn simple_union() -> Result<(), String> {

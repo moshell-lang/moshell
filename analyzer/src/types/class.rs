@@ -287,10 +287,9 @@ mod tests {
     #[test]
     fn define_iterable() -> Result<(), String> {
         let lang = TypeContext::lang();
-        let std = TypeContext::new(
-            Identity::new("std")?,
-            vec![CtxImport::all(lang.clone())],
-        );
+        let mut std = TypeContext::new(Identity::new("std")?);
+        std.add_import(CtxImport::all(lang));
+
         let std = Rc::new(RefCell::new(std));
 
         let any_cl = std.borrow().lookup_defined(&any())?;
@@ -319,10 +318,9 @@ mod tests {
     #[test]
     fn define_list() -> Result<(), String> {
         let lang = TypeContext::lang();
-        let std = TypeContext::new(
-            Identity::new("std")?,
-            vec![CtxImport::all(lang.clone())],
-        );
+        let mut std = TypeContext::new(Identity::new("std")?);
+        std.add_import(CtxImport::all(lang));
+
         let std = Rc::new(RefCell::new(std));
         let iterable_cl = TypeContext::define_class(
             std.clone(),
@@ -361,10 +359,9 @@ mod tests {
     #[test]
     fn define_map() -> Result<(), String> {
         let lang = TypeContext::lang();
-        let std = TypeContext::new(
-            Identity::new("std")?,
-            vec![CtxImport::all(lang.clone())],
-        );
+        let mut std = TypeContext::new(Identity::new("std")?);
+        std.add_import(CtxImport::all(lang.clone()));
+
         let std = Rc::new(RefCell::new(std));
 
         let any_cl = lang.borrow().lookup_defined(&any())?;
@@ -436,10 +433,9 @@ mod tests {
     #[test]
     fn define_str_option() -> Result<(), String> {
         let lang = TypeContext::lang();
-        let std = TypeContext::new(
-            Identity::new("std")?,
-            vec![CtxImport::all(lang.clone())],
-        );
+        let mut std = TypeContext::new(Identity::new("std")?);
+        std.add_import(CtxImport::all(lang.clone()));
+
         let std = Rc::new(RefCell::new(std.clone()));
 
 
@@ -480,8 +476,7 @@ mod tests {
         );
         assert_eq!(
             none_cl.context.borrow().clone(),
-            TypeContext::new(Identity::new("std::None")?,
-                             vec![CtxImport::all(std.clone())])
+            TypeContext::new(Identity::new("std::None")?)
         );
 
         assert_eq!(
@@ -519,10 +514,9 @@ mod tests {
     #[test]
     fn define_type_with_inter_referenced_generics() -> Result<(), String> {
         let lang = TypeContext::lang();
-        let std = TypeContext::new(
-            Identity::new("std")?,
-            vec![CtxImport::all(lang)],
-        );
+        let mut std = TypeContext::new(Identity::new("std")?);
+        std.add_import(CtxImport::all(lang));
+
         let std = Rc::new(RefCell::new(std));
 
         let str_cl = std.borrow().lookup_defined(&str())?;
@@ -596,10 +590,9 @@ mod tests {
     #[test]
     fn define_incompatible_subtype() -> Result<(), String> {
         let lang = TypeContext::lang();
-        let std = TypeContext::new(
-            Identity::new("std")?,
-            vec![CtxImport::all(lang)],
-        );
+        let mut std = TypeContext::new(Identity::new("std")?);
+        std.add_import(CtxImport::all(lang));
+
         let std = Rc::new(RefCell::new(std));
 
         let str_iterable_cl = TypeContext::define_class(
