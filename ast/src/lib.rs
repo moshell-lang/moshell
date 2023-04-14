@@ -4,7 +4,7 @@
 use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
 
-use crate::call::{Call, Detached, Pipeline, ProgrammaticCall, Redirected};
+use crate::call::{Call, Detached, MethodCall, Pipeline, ProgrammaticCall, Redirected};
 use crate::control_flow::{For, If, Loop, While};
 use crate::function::{FunctionDeclaration, Return};
 use crate::group::{Block, Parenthesis, Subshell};
@@ -45,6 +45,7 @@ pub enum Expr<'a> {
 
     Call(Call<'a>),
     ProgrammaticCall(ProgrammaticCall<'a>),
+    MethodCall(MethodCall<'a>),
     Pipeline(Pipeline<'a>),
     Redirected(Redirected<'a>),
     Detached(Detached<'a>),
@@ -95,6 +96,7 @@ impl SourceSegmentHolder for Expr<'_> {
             Expr::Match(m) => m.segment.clone(),
             Expr::Call(call) => call.segment(),
             Expr::ProgrammaticCall(call) => call.segment.clone(),
+            Expr::MethodCall(method_call) => method_call.segment.clone(),
             Expr::Pipeline(pipeline) => pipeline.segment(),
             Expr::Redirected(redirected) => redirected.segment(),
             Expr::Detached(detached) => detached.segment.clone(),

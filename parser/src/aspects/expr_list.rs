@@ -64,6 +64,7 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         E: SourceSegmentHolder,
         F: FnMut(&mut Self) -> ParseResult<E>,
     {
+        self.cursor.advance(blanks());
         let start = self.cursor.force_with(
             of_type(start),
             "expected start of list expression",

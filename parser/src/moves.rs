@@ -364,6 +364,13 @@ pub(crate) fn bin_op() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + C
     like(TokenType::is_bin_operator)
 }
 
+pub(crate) fn identifier_parenthesis() -> AndThenMove<
+    PredicateMove<impl Fn(Token) -> bool + Copy + Sized>,
+    PredicateMove<impl Fn(Token) -> bool + Copy + Sized>,
+> {
+    of_type(Identifier).and_then(of_types(&[RoundedLeftBracket, SquaredLeftBracket]))
+}
+
 #[cfg(test)]
 mod tests {
     use crate::cursor::ParserCursor;
