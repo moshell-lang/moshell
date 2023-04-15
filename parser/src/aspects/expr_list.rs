@@ -74,13 +74,14 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         let mut elements = vec![];
 
         while self.cursor.lookahead(blanks().then(eod())).is_none() {
-            elements.push(match parse_element(self) {
+            match parse_element(self) {
                 Err(err) => {
-                    self.delimiter_stack.pop_back();
-                    return Err(err);
+                    self.recover_from(err);
                 }
-                Ok(val) => val,
-            });
+                Ok(val) => {
+                    elements.push(val);
+                }
+            };
             self.cursor.force_with(
                 blanks().then(of_type(Comma).or(lookahead(eod()))),
                 "A comma or a closing bracket was expected here",

@@ -88,6 +88,33 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Parses a statement with a given parser function.
+    ///
+    /// This function is intended to be only used in tests.
+    pub(crate) fn parse_specific<E>(
+        mut self,
+        mut next: impl FnMut(&mut Self) -> ParseResult<E>,
+    ) -> ParseResult<E> {
+        match next(&mut self) {
+            Ok(statement) => {
+                if let Some(err) = self.errors.pop() {
+                    if !self.errors.is_empty() {
+                        panic!("There is more than one error in the parser's error stack.");
+                    }
+                    Err(err)
+                } else {
+                    Ok(statement)
+                }
+            }
+            Err(err) => {
+                if !self.errors.is_empty() {
+                    panic!("There is more more than one error in the parser's error stack.");
+                }
+                Err(err)
+            }
+        }
+    }
+
     fn look_for_input(&mut self) -> bool {
         self.cursor.advance(repeat(spaces().or(eox())));
 
@@ -251,23 +278,53 @@ impl<'a> Parser<'a> {
     ///handle tricky case of lambda `(e) => x` and parentheses `(e)`
     fn lambda_or_parentheses(&mut self) -> ParseResult<Expr<'a>> {
         let initial = self.cursor.get_pos();
-        match self.parse_lambda_definition() {
-            Ok(def) => Ok(Expr::LambdaDef(def)),
-            Err(_) => {
-                self.cursor.repos(initial);
-                self.parenthesis().map(Expr::Parenthesis)
-            }
+        self.advance_to_parenthesis_end();
+        if self
+            .cursor
+            .lookahead(blanks().then(of_type(FatArrow)))
+            .is_some()
+        {
+            self.cursor.repos(initial);
+            self.parse_lambda_definition().map(Expr::LambdaDef)
+        } else {
+            self.cursor.repos(initial);
+            self.parenthesis().map(Expr::Parenthesis)
         }
     }
 
     ///handle tricky case of lambda `(e) => x` and subshell `(e)`
     fn subshell_or_parentheses(&mut self) -> ParseResult<Expr<'a>> {
         let initial = self.cursor.get_pos();
-        match self.parse_lambda_definition() {
-            Ok(def) => Ok(Expr::LambdaDef(def)),
-            Err(_) => {
-                self.cursor.repos(initial);
-                self.subshell().map(Expr::Subshell)
+        self.advance_to_parenthesis_end();
+        if self
+            .cursor
+            .lookahead(blanks().then(of_type(FatArrow)))
+            .is_some()
+        {
+            self.cursor.repos(initial);
+            self.parse_lambda_definition().map(Expr::LambdaDef)
+        } else {
+            self.cursor.repos(initial);
+            self.subshell().map(Expr::Subshell)
+        }
+    }
+
+    /// Advances the parser to the end of the current parenthesis pair, given that the cursor is
+    /// currently on the opening parenthesis.
+    ///
+    /// This is currently used to handle the case of `(e) => x` and `(e)`.
+    fn advance_to_parenthesis_end(&mut self) {
+        let mut parenthesis_count = -1;
+        while let Some(token) = self.cursor.next_opt() {
+            match token.token_type {
+                RoundedLeftBracket => parenthesis_count += 1,
+                RoundedRightBracket => {
+                    if parenthesis_count == 0 {
+                        break;
+                    }
+                    parenthesis_count -= 1;
+                }
+                _ => {}
             }
         }
     }
@@ -324,6 +381,17 @@ impl<'a> Parser<'a> {
         kind: ParseErrorKind,
     ) -> ParseError {
         self.cursor.mk_parse_error(message, context, kind)
+    }
+
+    /// Executes an operation on the parser, and returns the result and whether there were no errors that
+    /// were reported and already handled.
+    pub(crate) fn observe_error_reports<E>(
+        &mut self,
+        transaction: impl FnOnce(&mut Self) -> ParseResult<E>,
+    ) -> ParseResult<(E, bool)> {
+        let old_len = self.errors.len();
+        let result = transaction(self);
+        Ok((result?, self.errors.len() == old_len))
     }
 
     //parses any binary expression, considering given input expression

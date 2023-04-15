@@ -87,9 +87,10 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             return Ok((Vec::new(), self.cursor.relative_pos_ctx(self.cursor.peek())));
         }
         let start = self.cursor.peek();
-        let (tparams, segment) =
-            self.parse_explicit_list(SquaredLeftBracket, SquaredRightBracket, Self::parse_type)?;
-        if tparams.is_empty() {
+        let ((tparams, segment), no_nested_errors) = self.observe_error_reports(|p| {
+            p.parse_explicit_list(SquaredLeftBracket, SquaredRightBracket, Self::parse_type)
+        })?;
+        if no_nested_errors && tparams.is_empty() {
             return self.expected_with(
                 "unexpected empty type parameter list",
                 start..self.cursor.peek(),
@@ -241,7 +242,7 @@ mod tests {
         let content = "MyType";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source.clone()).parse_type(),
+            Parser::new(source.clone()).parse_specific(Parser::parse_type),
             Ok(Type::Parametrized(ParametrizedType {
                 path: vec![],
                 name: "MyType",
@@ -256,7 +257,7 @@ mod tests {
         let content = "std::MyType";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source.clone()).parse_type(),
+            Parser::new(source.clone()).parse_specific(Parser::parse_type),
             Ok(Type::Parametrized(ParametrizedType {
                 path: vec!["std"],
                 name: "MyType",
@@ -271,7 +272,7 @@ mod tests {
         let content = "Complex[    ]";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source).parse_type(),
+            Parser::new(source).parse_specific(Parser::parse_type),
             Err(ParseError {
                 message: "unexpected empty type parameter list".to_string(),
                 kind: Unexpected,
@@ -288,7 +289,7 @@ mod tests {
         let content = "MyType[A[X, Y[Any], foo::Z], B[std::C[D]]]";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source.clone()).parse_type(),
+            Parser::new(source.clone()).parse_specific(Parser::parse_type),
             Ok(Type::Parametrized(ParametrizedType {
                 path: vec![],
                 name: "MyType",
@@ -350,7 +351,7 @@ mod tests {
         let content = "MyType[X Y]";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source).parse_type(),
+            Parser::new(source).parse_specific(Parser::parse_type),
             Err(ParseError {
                 message: "A comma or a closing bracket was expected here".to_string(),
                 position: "MyType[X ".len().."MyType[X ".len() + 1,
@@ -363,7 +364,7 @@ mod tests {
     fn type_invalid_name() {
         let content = "Complex[  @  ]";
         let source = Source::unknown(content);
-        let res = Parser::new(source).parse_type();
+        let res = Parser::new(source).parse_specific(Parser::parse_type);
         assert_eq!(
             res,
             Err(ParseError {
@@ -379,7 +380,7 @@ mod tests {
         let content = "Complex[  x  }";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source).parse_type(),
+            Parser::new(source).parse_specific(Parser::parse_type),
             Err(ParseError {
                 message: "Mismatched closing delimiter.".to_string(),
                 kind: Unpaired(content.find('[').map(|i| i..i + 1).unwrap()),
@@ -393,7 +394,7 @@ mod tests {
         let content = "A => B";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source.clone()).parse_type(),
+            Parser::new(source.clone()).parse_specific(Parser::parse_type),
             Ok(Type::Callable(CallableType {
                 params: vec![Type::Parametrized(ParametrizedType {
                     path: vec![],
@@ -417,7 +418,7 @@ mod tests {
         let content = " => B";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source).parse_type(),
+            Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::ByName(ByName {
                 name: Box::new(Type::Parametrized(ParametrizedType {
                     path: vec![],
@@ -435,7 +436,7 @@ mod tests {
         let content = "=> => B";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source).parse_type(),
+            Parser::new(source).parse_specific(Parser::parse_type),
             Err(ParseError {
                 message: "unexpected '=>'".to_string(),
                 position: 3..5,
@@ -449,7 +450,7 @@ mod tests {
         let content = "=> (=> B)";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source.clone()).parse_type(),
+            Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::ByName(ByName {
                 name: Box::new(Type::ByName(ByName {
                     name: Box::new(Type::Parametrized(ParametrizedType {
@@ -470,7 +471,7 @@ mod tests {
         let content = "((((A))))";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source).parse_type(),
+            Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Parametrized(ParametrizedType {
                 path: vec![],
                 name: "A",
@@ -485,7 +486,7 @@ mod tests {
         let content = "() => B";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source.clone()).parse_type(),
+            Parser::new(source.clone()).parse_specific(Parser::parse_type),
             Ok(Type::Callable(CallableType {
                 params: vec![],
                 output: Box::new(Type::Parametrized(ParametrizedType {
@@ -504,7 +505,7 @@ mod tests {
         let content = "A => Unit";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source.clone()).parse_type(),
+            Parser::new(source.clone()).parse_specific(Parser::parse_type),
             Ok(Type::Callable(CallableType {
                 params: vec![Type::Parametrized(ParametrizedType {
                     path: vec![],
@@ -528,7 +529,7 @@ mod tests {
         let content = "(A, B, C) => D";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source.clone()).parse_type(),
+            Parser::new(source.clone()).parse_specific(Parser::parse_type),
             Ok(Type::Callable(CallableType {
                 params: vec![
                     Type::Parametrized(ParametrizedType {
@@ -565,7 +566,7 @@ mod tests {
     fn chained_lambdas() {
         let content = "((A => B) => C) => D";
         let source = Source::unknown(content);
-        let ast = Parser::new(source.clone()).parse_type();
+        let ast = Parser::new(source.clone()).parse_specific(Parser::parse_type);
         assert_eq!(
             ast,
             Ok(Type::Callable(CallableType {
@@ -608,7 +609,7 @@ mod tests {
     fn tuple_declaration() {
         let content = "(A, B, C)";
         let source = Source::unknown(content);
-        let ast = Parser::new(source).parse_type();
+        let ast = Parser::new(source).parse_specific(Parser::parse_type);
         assert_eq!(
             ast,
             Err(ParseError {
@@ -624,7 +625,7 @@ mod tests {
     fn parenthesised_lambda_input() {
         let content = "(A, B, C) => D => E";
         let source = Source::unknown(content);
-        let ast = Parser::new(source.clone()).parse_type();
+        let ast = Parser::new(source.clone()).parse_specific(Parser::parse_type);
         assert_eq!(
             ast,
             Ok(Type::Callable(CallableType {

@@ -51,6 +51,32 @@ fn repos_delimiter_stack() {
 }
 
 #[test]
+fn tolerance_in_multiple_groups() {
+    let content = "fun f[T, $](x: T, y: $) = x + y";
+    let source = Source::unknown(content);
+    let report = parse(source.clone());
+    assert_eq!(
+        report,
+        ParseReport {
+            expr: vec![],
+            errors: vec![
+                ParseError {
+                    message: "'$' is not a valid type identifier.".to_owned(),
+                    position: content.find('$').map(|p| p..p + 1).unwrap(),
+                    kind: ParseErrorKind::Unexpected
+                },
+                ParseError {
+                    message: "'$' is not a valid type identifier.".to_owned(),
+                    position: content.rfind('$').map(|p| p..p + 1).unwrap(),
+                    kind: ParseErrorKind::Unexpected
+                }
+            ],
+            stack_ended: true,
+        }
+    );
+}
+
+#[test]
 fn expected_value_found_eof() {
     let content = "val i =\n";
     let source = Source::unknown(content);

@@ -62,7 +62,11 @@ impl<'a> Parser<'a> {
 
         let mut arms: Vec<MatchArm<'a>> = Vec::new();
 
-        while self.cursor.lookahead(blanks().then(eod())).is_none() {
+        while self
+            .cursor
+            .lookahead(blanks().then(eox().or(eod())))
+            .is_none()
+        {
             match self.parse_match_arm(parse_arm.clone()) {
                 Ok(arm) => arms.push(arm),
                 Err(err) => {
