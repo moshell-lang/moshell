@@ -23,6 +23,7 @@ use std::cell::RefCell;
 use std::default::Default;
 use std::rc::Rc;
 use crate::identity::Identity;
+use crate::module::ModuleLayers;
 
 /// An environment.
 /// The Environment contains the defined types, variables, structure and function definitions of a certain scope.
@@ -37,21 +38,26 @@ pub struct Environment {
 }
 
 impl Environment {
-    pub fn lang() -> Self {
+    pub fn new(fqn: Identity, layers: Rc<RefCell<ModuleLayers>>) -> Self {
         Self {
-            type_context: TypeContext::lang(),
+            type_context: Rc::new(RefCell::new(TypeContext::new(fqn.clone(), layers))),
+            identity: fqn,
+        }
+    }
+    pub fn lang(layers: Rc<RefCell<ModuleLayers>>) -> Self {
+        Self {
+            type_context: TypeContext::lang(layers),
             identity: Identity {
                 absolute_path: Vec::new(),
                 name: "lang".to_string(),
             },
-            ..Self::default()
         }
     }
 
     pub(crate) fn fork(env: Rc<RefCell<Environment>>, name: &str) -> Environment {
         Self {
             type_context: Rc::new(RefCell::new(TypeContext::fork(env.borrow().type_context.clone(), name))),
-            ..Self::default()
+            identity: env.borrow().identity.child(name)
         }
     }
 }

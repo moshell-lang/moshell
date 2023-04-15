@@ -284,14 +284,17 @@ mod tests {
     use crate::identity::Identity;
     use crate::import_engine::ImportEngine;
     use crate::imports::ModuleImport;
+    use crate::module::ModuleLayers;
 
     #[test]
     fn define_iterable() -> Result<(), String> {
-        let lang = TypeContext::lang();
-        let mut std = TypeContext::new(Identity::new("std")?);
-        std.add_import(ModuleImport::all(Identity::new("lang")?));
+        let layers = ModuleLayers::new();
 
-        let std = Rc::new(RefCell::new(std));
+        let std = ModuleLayers::declare_env(layers.clone(), Identity::new("std")?)?
+            .borrow()
+            .type_context
+            .clone();
+        std.borrow_mut().add_import(ModuleImport::all(Identity::new("lang")?));
 
         let any_cl = std.borrow().lookup_defined(&any())?;
 
@@ -318,11 +321,14 @@ mod tests {
 
     #[test]
     fn define_list() -> Result<(), String> {
-        let lang = TypeContext::lang();
-        let mut std = TypeContext::new(Identity::new("std")?);
-        std.add_import(ModuleImport::all(Identity::new("lang")?));
+        let layers = ModuleLayers::new();
 
-        let std = Rc::new(RefCell::new(std));
+        let std = ModuleLayers::declare_env(layers.clone(), Identity::new("std")?)?
+            .borrow()
+            .type_context
+            .clone();
+        std.borrow_mut().add_import(ModuleImport::all(Identity::new("lang")?));
+
         let iterable_cl = TypeContext::define_class(
             std.clone(),
             ClassTypeDefinition::new("Iterable").with_generic("A", any()),
@@ -359,13 +365,17 @@ mod tests {
 
     #[test]
     fn define_map() -> Result<(), String> {
-        let lang = TypeContext::lang();
-        let mut std = TypeContext::new(Identity::new("std")?);
-        std.add_import(ModuleImport::all(Identity::new("lang")?));
+        let layers = ModuleLayers::new();
 
-        let std = Rc::new(RefCell::new(std));
+        let std = ModuleLayers::declare_env(layers.clone(), Identity::new("std")?)?
+            .borrow()
+            .type_context
+            .clone();
+        std.borrow_mut().add_import(ModuleImport::all(Identity::new("lang")?));
 
-        let any_cl = lang.borrow().lookup_defined(&any())?;
+        let lang = layers.borrow().get_env(Identity::new("lang")?).unwrap();
+
+        let any_cl = lang.borrow().type_context.borrow().lookup_defined(&any())?;
 
         let iterable_cl = TypeContext::define_class(
             std.clone(),
@@ -404,7 +414,7 @@ mod tests {
                     }
                 )],
                 Identity::new("std::Map")?,
-                ImportEngine::new(vec![ModuleImport::all(Identity::new("lang")?)]), ),
+                ImportEngine::new(vec![ModuleImport::all(Identity::new("lang")?)], layers)),
         );
 
         assert_eq!(
@@ -436,14 +446,17 @@ mod tests {
 
     #[test]
     fn define_str_option() -> Result<(), String> {
-        let lang = TypeContext::lang();
-        let mut std = TypeContext::new(Identity::new("std")?);
-        std.add_import(ModuleImport::all(Identity::new("lang")?));
+        let layers = ModuleLayers::new();
 
-        let std = Rc::new(RefCell::new(std.clone()));
+        let std = ModuleLayers::declare_env(layers.clone(), Identity::new("std")?)?
+            .borrow()
+            .type_context
+            .clone();
+        std.borrow_mut().add_import(ModuleImport::all(Identity::new("lang")?));
 
+        let lang = layers.borrow().get_env(Identity::new("lang")?).unwrap();
 
-        let str_cl = lang.borrow().lookup_defined(&str())?;
+        let str_cl = lang.borrow().type_context.borrow().lookup_defined(&str())?;
 
         let option_cl = TypeContext::define_class(
             std.clone(),
@@ -467,20 +480,24 @@ mod tests {
 
         assert_eq!(
             some_cl.context.borrow().clone(),
-            TypeContext::with_classes([(
-                "A".to_string(),
-                TypeClass {
-                    super_type: Some(str_cl.clone()),
-                    generic_parameters: vec![],
-                    super_params_associations: vec![],
-                    fqcn: Identity::new("std::Some::A")?,
-                    context: Rc::new(RefCell::new(Default::default())),
-                }
-            )], Identity::new("std::Some")?, vec![ModuleImport::all(Identity::new("lang")?)]),
+            TypeContext::with_classes(
+                [(
+                    "A".to_string(),
+                    TypeClass {
+                        super_type: Some(str_cl.clone()),
+                        generic_parameters: vec![],
+                        super_params_associations: vec![],
+                        fqcn: Identity::new("std::Some::A")?,
+                        context: Rc::new(RefCell::new(Default::default())),
+                    }
+                )],
+                Identity::new("std::Some")?,
+                ImportEngine::new(vec![ModuleImport::all(Identity::new("lang")?)], layers.clone()),
+            ),
         );
         assert_eq!(
             none_cl.context.borrow().clone(),
-            TypeContext::new(Identity::new("std::None")?)
+            TypeContext::new(Identity::new("std::None")?, layers)
         );
 
         assert_eq!(
@@ -517,14 +534,19 @@ mod tests {
 
     #[test]
     fn define_type_with_inter_referenced_generics() -> Result<(), String> {
-        let lang = TypeContext::lang();
-        let mut std = TypeContext::new(Identity::new("std")?);
-        std.add_import(ModuleImport::all(Identity::new("lang")?));
+        let layers = ModuleLayers::new();
 
-        let std = Rc::new(RefCell::new(std));
+        let std = ModuleLayers::declare_env(layers.clone(), Identity::new("std")?)?
+            .borrow()
+            .type_context
+            .clone();
+        std.borrow_mut().add_import(ModuleImport::all(Identity::new("lang")?));
 
-        let str_cl = std.borrow().lookup_defined(&str())?;
-        let any_cl = std.borrow().lookup_defined(&any())?;
+        let lang = layers.borrow().get_env(Identity::new("lang")?).unwrap();
+
+        let str_cl = lang.borrow().type_context.borrow().lookup_defined(&str())?;
+        let any_cl = lang.borrow().type_context.borrow().lookup_defined(&any())?;
+
 
         let list_cl = TypeContext::define_class(
             std.clone(),
@@ -541,7 +563,8 @@ mod tests {
 
         assert_eq!(
             map_list_cl.context.borrow().clone(),
-            TypeContext::with_classes([(
+            TypeContext::with_classes(
+                [(
                     "B".to_string(),
                     TypeClass {
                         super_type: Some(list_cl),
@@ -555,17 +578,18 @@ mod tests {
                         fqcn: Identity::new("std::Map::B")?,
                         context: Rc::new(RefCell::new(Default::default())),
                     }
-            ), (
-                "A".to_string(),
-                TypeClass {
-                    super_type: Some(str_cl),
-                    generic_parameters: vec![],
-                    super_params_associations: vec![],
-                    fqcn: Identity::new("std::Map::A")?,
-                    context: Rc::new(RefCell::new(Default::default())),
-                }
-            )
-                                      ], Identity::new("std::Map")?, vec![ModuleImport::all(Identity::new("lang")?)]),
+                ), (
+                    "A".to_string(),
+                    TypeClass {
+                        super_type: Some(str_cl),
+                        generic_parameters: vec![],
+                        super_params_associations: vec![],
+                        fqcn: Identity::new("std::Map::A")?,
+                        context: Rc::new(RefCell::new(Default::default())),
+                    }
+                )],
+                Identity::new("std::Map")?,
+                ImportEngine::new(vec![ModuleImport::all(Identity::new("lang")?)], layers)),
         );
 
         assert_eq!(
@@ -593,11 +617,13 @@ mod tests {
 
     #[test]
     fn define_incompatible_subtype() -> Result<(), String> {
-        let lang = TypeContext::lang();
-        let mut std = TypeContext::new(Identity::new("std")?);
-        std.add_import(ModuleImport::all(Identity::new("lang")?));
+        let layers = ModuleLayers::new();
 
-        let std = Rc::new(RefCell::new(std));
+        let std = ModuleLayers::declare_env(layers.clone(), Identity::new("std")?)?
+            .borrow()
+            .type_context
+            .clone();
+        std.borrow_mut().add_import(ModuleImport::all(Identity::new("lang")?));
 
         let str_iterable_cl = TypeContext::define_class(
             std.clone(),

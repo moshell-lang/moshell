@@ -10,6 +10,8 @@ use crate::environment::{Environment, EnvironmentContext};
 use crate::identity::Identity;
 use crate::import_engine::ImportEngine;
 use crate::imports::ModuleImport;
+use crate::module::ModuleLayers;
+
 
 /// A type environment.
 ///
@@ -34,10 +36,12 @@ impl EnvironmentContext<Rc<TypeClass>> for TypeContext {
     fn from_env(env: &Environment) -> Rc<RefCell<Self>> {
         env.type_context.clone()
     }
+
     fn find(&self, name: &str) -> Option<Rc<TypeClass>> {
         self.classes.get(name).cloned()
     }
 }
+
 
 impl TypeContext {
     pub(crate) fn with_classes<const T: usize>(classes: [(String, TypeClass); T],
@@ -51,16 +55,20 @@ impl TypeContext {
         }
     }
 
-    pub(crate) fn new(identity: Identity) -> Self {
+    pub(crate) fn new(identity: Identity, layers: Rc<RefCell<ModuleLayers>>) -> Self {
         Self {
             identity,
-            ..Default::default()
+            imports: ImportEngine::new(vec![], layers),
+            classes: HashMap::new(),
         }
     }
 
     ///Definitions of the lang type context.
-    pub fn lang() -> Rc<RefCell<Self>> {
-        let ctx = TypeContext::new(Identity::new("lang").expect(""));
+    pub fn lang(layers: Rc<RefCell<ModuleLayers>>) -> Rc<RefCell<Self>> {
+        let ctx = TypeContext::new(
+            Identity::new("lang").expect(""),
+            layers,
+        );
         let ctx_rc = Rc::new(RefCell::new(ctx));
         let mut ctx = ctx_rc.borrow_mut();
 
@@ -141,7 +149,7 @@ impl TypeContext {
         match self.find(name) {
             Some(v) => Ok(v.clone()),
             None => self.imports
-                .lookup_element(self, name)
+                .lookup_element::<Rc<TypeClass>, Self>(name)
                 .ok_or(format!("Unknown type {}", name))
         }
     }
@@ -192,23 +200,28 @@ mod tests {
     use crate::types::context::TypeContext;
     use crate::types::types::Type;
     use pretty_assertions::assert_eq;
-    use std::cell::RefCell;
     use std::collections::{HashMap, HashSet};
-    use std::rc::Rc;
     use crate::identity::Identity;
     use crate::imports::ModuleImport;
+    use crate::module::ModuleLayers;
 
     #[test]
     fn specific_imports() -> Result<(), String> {
-        let lang = TypeContext::lang();
+        let layers = ModuleLayers::new();
 
-        let mut foo = TypeContext::new(Identity::new("foo")?);
-        foo.add_import(ModuleImport::all(Identity::new("lang")?));
-        let foo = Rc::new(RefCell::new(foo));
+        let foo = ModuleLayers::declare_env(layers.clone(), Identity::new("foo")?)?
+            .borrow()
+            .type_context
+            .clone();
 
-        let mut bar = TypeContext::new(Identity::new("bar")?);
-        bar.add_import(ModuleImport::all(Identity::new("lang")?));
-        let bar = Rc::new(RefCell::new(bar));
+        foo.borrow_mut().add_import(ModuleImport::all(Identity::new("lang")?));
+
+        let bar = ModuleLayers::declare_env(layers, Identity::new("bar")?)?
+            .borrow()
+            .type_context
+            .clone();
+
+        bar.borrow_mut().add_import(ModuleImport::all(Identity::new("lang")?));
 
         let a = TypeContext::define_class(
             foo.clone(),
@@ -238,8 +251,12 @@ mod tests {
 
     #[test]
     fn simple_union() -> Result<(), String> {
-        let lang = TypeContext::lang();
-        let ctx = Rc::new(RefCell::new(TypeContext::fork(lang.clone(), "std")));
+        let layers = ModuleLayers::new();
+
+        let ctx = ModuleLayers::declare_env(layers.clone(), Identity::new("std")?)?
+            .borrow()
+            .type_context
+            .clone();
 
         //Iterable[A]
         let iterable_cl = TypeContext::define_class(

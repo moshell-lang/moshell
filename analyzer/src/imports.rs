@@ -48,19 +48,40 @@ impl ModuleImport {
 
 
 pub trait Import<V, E: EnvironmentContext<V>> {
+    fn module(&self) -> Identity;
+
     fn find_element(&self, ctx: &E, name: &str) -> Option<V>;
+
+    fn is_imported(&self, name: &str) -> bool;
 }
 
 impl<V, E: EnvironmentContext<V>> Import<V, E> for ModuleImport {
+    fn module(&self) -> Identity {
+        match self {
+            ModuleImport::Specifics(s) => <SpecificImports as Import<V, E>>::module(s),
+            ModuleImport::All(a) => <AllImports as Import<V, E>>::module(a)
+        }
+    }
     fn find_element(&self, ctx: &E, name: &str) -> Option<V> {
         match self {
             ModuleImport::Specifics(s) => s.find_element(ctx, name),
             ModuleImport::All(a) => a.find_element(ctx, name)
         }
     }
+
+    fn is_imported(&self, name: &str) -> bool {
+        match self {
+            ModuleImport::Specifics(s) => <SpecificImports as Import<V, E>>::is_imported(s, name),
+            ModuleImport::All(a) => <AllImports as Import<V, E>>::is_imported(a, name)
+        }
+    }
 }
 
 impl<V, E: EnvironmentContext<V>> Import<V, E> for SpecificImports {
+    fn module(&self) -> Identity {
+        self.module.clone()
+    }
+
     fn find_element(&self, ctx: &E, name: &str) -> Option<V> {
         if self.imported_classes.contains(name) {
             return ctx.find(name)
@@ -71,10 +92,22 @@ impl<V, E: EnvironmentContext<V>> Import<V, E> for SpecificImports {
         }
         None
     }
+
+    fn is_imported(&self, name: &str) -> bool {
+        self.imported_classes.contains(name) || self.aliased_classes.contains_key(name)
+    }
 }
 
 impl<V, E: EnvironmentContext<V>> Import<V, E> for AllImports {
+    fn module(&self) -> Identity {
+        self.module.clone()
+    }
+
     fn find_element(&self, ctx: &E, name: &str) -> Option<V> {
         ctx.find(name)
+    }
+
+    fn is_imported(&self, _name: &str) -> bool {
+        todo!()
     }
 }
