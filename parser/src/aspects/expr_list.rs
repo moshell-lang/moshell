@@ -1,3 +1,4 @@
+use crate::err::ParseErrorKind;
 use crate::err::ParseErrorKind::Expected;
 use crate::moves::{blanks, eod, lookahead, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
@@ -74,6 +75,13 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         let mut elements = vec![];
 
         while self.cursor.lookahead(blanks().then(eod())).is_none() {
+            while let Some(comma) = self.cursor.advance(of_type(Comma)) {
+                self.report_error(self.mk_parse_error(
+                    "Expected value.",
+                    comma,
+                    ParseErrorKind::Unexpected,
+                ));
+            }
             match parse_element(self) {
                 Err(err) => {
                     self.recover_from(err);

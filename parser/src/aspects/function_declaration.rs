@@ -109,31 +109,41 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_fn_parameter_list(&mut self) -> ParseResult<Vec<FunctionParameter<'a>>> {
-        self.cursor.force_with(
+        let parenthesis = self.cursor.force_with(
             of_type(RoundedLeftBracket),
             "expected start of parameter list",
             ParseErrorKind::Expected("(".to_string()),
         )?;
+        self.delimiter_stack.push_back(parenthesis);
 
         let mut params = Vec::new();
         loop {
             self.cursor.advance(blanks());
-            if self
-                .cursor
-                .lookahead(of_type(RoundedRightBracket))
-                .is_some()
-            {
+            while let Some(comma) = self.cursor.advance(of_type(Comma)) {
+                self.report_error(self.mk_parse_error(
+                    "Expected parameter.",
+                    comma,
+                    ParseErrorKind::Unexpected,
+                ));
+                self.cursor.advance(blanks());
+            }
+            if self.cursor.lookahead(eox().or(eod())).is_some() {
                 break;
             }
-            if self.cursor.lookahead(of_type(Comma)).is_some() {
-                self.expected("Expected parameter.", ParseErrorKind::Unexpected)?;
+            let param = self.parse_fn_parameter();
+            match param {
+                Ok(param) => params.push(param),
+                Err(err) => {
+                    self.recover_from(err);
+                }
             }
-            let param = self.parse_fn_parameter()?;
-            params.push(param);
-            self.cursor.force(
+            if let Err(err) = self.cursor.force(
                 blanks().then(of_type(Comma).or(lookahead(eod()))),
-                "expected ','",
-            )?;
+                "Expected ','",
+            ) {
+                self.cursor.advance(blanks());
+                self.report_error(err);
+            }
         }
 
         self.expect_delimiter(RoundedRightBracket)?;

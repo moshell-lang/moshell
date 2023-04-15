@@ -1,6 +1,11 @@
 use ast::call::{Call, ProgrammaticCall};
+use ast::function::{FunctionDeclaration, FunctionParameter};
+use ast::group::Block;
+use ast::r#type::{ParametrizedType, Type};
+use ast::variable::{TypedVariable, VarReference};
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
+use context::str_find::{find_in, find_in_nth};
 use parser::err::{ParseError, ParseErrorKind, ParseReport};
 use parser::parse;
 use parser::source::{literal, literal_nth};
@@ -52,7 +57,57 @@ fn repos_delimiter_stack() {
 
 #[test]
 fn tolerance_in_multiple_groups() {
-    let content = "fun f[T, $](x: T, y: $) = x + y";
+    let content = "fun f[T, $](x: T, y: +) = $x";
+    let source = Source::unknown(content);
+    let report = parse(source.clone());
+    assert_eq!(
+        report,
+        ParseReport {
+            expr: vec![Expr::FunctionDeclaration(FunctionDeclaration {
+                name: "f",
+                type_parameters: vec![Type::Parametrized(ParametrizedType {
+                    path: vec![],
+                    name: "T",
+                    params: vec![],
+                    segment: find_in(&source.source, "T")
+                })],
+                parameters: vec![FunctionParameter::Named(TypedVariable {
+                    name: "x",
+                    ty: Some(Type::Parametrized(ParametrizedType {
+                        path: vec![],
+                        name: "T",
+                        params: vec![],
+                        segment: find_in_nth(&source.source, "T", 1)
+                    })),
+                    segment: find_in(&source.source, "x: T")
+                })],
+                return_type: None,
+                body: Box::new(Expr::VarReference(VarReference {
+                    name: "x",
+                    segment: find_in(&source.source, "$x")
+                })),
+                segment: source.segment()
+            })],
+            errors: vec![
+                ParseError {
+                    message: "'$' is not a valid type identifier.".to_owned(),
+                    position: content.find('$').map(|p| p..p + 1).unwrap(),
+                    kind: ParseErrorKind::Unexpected
+                },
+                ParseError {
+                    message: "'+' is not a valid type identifier.".to_owned(),
+                    position: content.rfind('+').map(|p| p..p + 1).unwrap(),
+                    kind: ParseErrorKind::Unexpected
+                }
+            ],
+            stack_ended: true,
+        }
+    );
+}
+
+#[test]
+fn no_comma_or_two() {
+    let content = "fun test[@](a b,,c) = '";
     let source = Source::unknown(content);
     let report = parse(source.clone());
     assert_eq!(
@@ -61,16 +116,55 @@ fn tolerance_in_multiple_groups() {
             expr: vec![],
             errors: vec![
                 ParseError {
-                    message: "'$' is not a valid type identifier.".to_owned(),
-                    position: content.find('$').map(|p| p..p + 1).unwrap(),
+                    message: "'@' is not a valid type identifier.".to_owned(),
+                    position: content.find('@').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 },
                 ParseError {
-                    message: "'$' is not a valid type identifier.".to_owned(),
-                    position: content.rfind('$').map(|p| p..p + 1).unwrap(),
+                    message: "Expected ','".to_owned(),
+                    position: content.find(" b").map(|p| p + 1..p + 2).unwrap(),
                     kind: ParseErrorKind::Unexpected
+                },
+                ParseError {
+                    message: "Expected parameter.".to_owned(),
+                    position: content.rfind(',').map(|p| p..p + 1).unwrap(),
+                    kind: ParseErrorKind::Unexpected
+                },
+                ParseError {
+                    message: "Unterminated string literal.".to_owned(),
+                    position: content.len()..content.len(),
+                    kind: ParseErrorKind::Unpaired(content.find('\'').map(|p| p..p + 1).unwrap())
                 }
             ],
+            stack_ended: true,
+        }
+    );
+}
+
+#[test]
+fn do_not_self_lock() {
+    let content = "fun g(, ) = {}";
+    let source = Source::unknown(content);
+    let report = parse(source.clone());
+    assert_eq!(
+        report,
+        ParseReport {
+            expr: vec![Expr::FunctionDeclaration(FunctionDeclaration {
+                name: "g",
+                parameters: vec![],
+                type_parameters: vec![],
+                body: Box::new(Expr::Block(Block {
+                    expressions: vec![],
+                    segment: find_in(source.source, "{}")
+                })),
+                return_type: None,
+                segment: source.segment()
+            })],
+            errors: vec![ParseError {
+                message: "Expected parameter.".to_owned(),
+                position: content.find(',').map(|p| p..p + 1).unwrap(),
+                kind: ParseErrorKind::Unexpected
+            }],
             stack_ended: true,
         }
     );
@@ -200,18 +294,25 @@ fn double_comma_parentheses() {
 
 #[test]
 fn double_comma_function() {
-    let content = "fun foo(a: Int, , b: Int) = a + b";
+    let content = "fun foo(a: Int, , b: Int) = $a + $b";
     let source = Source::unknown(content);
     let report = parse(source);
     assert_eq!(
         report,
         ParseReport {
             expr: vec![],
-            errors: vec![ParseError {
-                message: "Expected parameter.".to_string(),
-                position: content.rfind(',').map(|p| p..p + 1).unwrap(),
-                kind: ParseErrorKind::Unexpected
-            }],
+            errors: vec![
+                ParseError {
+                    message: "Expected parameter.".to_string(),
+                    position: content.rfind(',').map(|p| p..p + 1).unwrap(),
+                    kind: ParseErrorKind::Unexpected
+                },
+                ParseError {
+                    message: "invalid expression operator".to_string(),
+                    position: content.rfind('+').map(|p| p..p + 1).unwrap(),
+                    kind: ParseErrorKind::Unexpected
+                }
+            ],
             stack_ended: true,
         }
     );
