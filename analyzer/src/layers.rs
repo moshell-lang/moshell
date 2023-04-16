@@ -3,7 +3,7 @@ use crate::identity::Identity;
 use std::cell::RefCell;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 
 #[derive(Default, Debug, Clone)]
 pub struct ModuleLayers {
@@ -18,7 +18,7 @@ impl ModuleLayers {
         let lang = Environment::lang(layers.clone());
         layers.borrow_mut()
             .roots
-            .insert(lang.identity.name.clone(), Module::new(lang.identity.clone()));
+            .insert(lang.identity.name.clone(), Module::with_env(lang));
 
         layers
     }
@@ -38,7 +38,7 @@ impl ModuleLayers {
             }
         }
 
-        module.and_then(|m| m.env.upgrade())
+        module.and_then(|m| m.env.clone())
     }
 
     pub fn declare_env(layers: Rc<RefCell<Self>>, name: Identity) -> Result<Rc<RefCell<Environment>>, String> {
@@ -47,8 +47,7 @@ impl ModuleLayers {
 
         let env = Rc::new(RefCell::new(Environment::new(name, layers.clone())));
 
-
-        module.env = Rc::downgrade(&env);
+        module.env = Some(env.clone());
         Ok(env)
     }
 
@@ -74,7 +73,7 @@ impl ModuleLayers {
 #[derive(Default, Debug, Clone)]
 pub struct Module {
     full_name: Identity,
-    env: Weak<RefCell<Environment>>,
+    env: Option<Rc<RefCell<Environment>>>,
     childs: HashMap<String, Module>,
 }
 
@@ -82,15 +81,15 @@ impl Module {
     fn new(full_name: Identity) -> Self {
         Self {
             full_name,
-            env: Weak::new(),
+            env: None,
             childs: HashMap::new(),
         }
     }
 
-    fn with_env(env: Rc<RefCell<Environment>>) -> Self {
+    fn with_env(env: Environment) -> Self {
         Self {
-            full_name: env.borrow().identity.clone(),
-            env: Rc::downgrade(&env),
+            full_name: env.identity.clone(),
+            env: Some(Rc::new(RefCell::new(env))),
             childs: HashMap::new()
         }
     }

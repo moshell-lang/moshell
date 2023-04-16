@@ -1,36 +1,41 @@
 use std::cell::RefCell;
+use std::collections::linked_list::LinkedList;
 use std::ops::Deref;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use crate::environment::EnvironmentContext;
+use crate::identity::Identity;
 use crate::imports::{Import, ModuleImport};
-use crate::module::ModuleLayers;
+use crate::layers::ModuleLayers;
 
 #[derive(Default, Debug, Clone)]
 pub struct ImportEngine {
-    imports: Vec<ModuleImport>,
-    layers: Rc<RefCell<ModuleLayers>>,
+    imports: LinkedList<ModuleImport>,
+    layers: Weak<RefCell<ModuleLayers>>,
 }
 
 impl ImportEngine {
 
-    pub(crate) fn new(imports: Vec<ModuleImport>, layers: Rc<RefCell<ModuleLayers>>) -> Self {
+    pub(crate) fn new<const N: usize>(imports: [ModuleImport; N], layers: Rc<RefCell<ModuleLayers>>) -> Self {
+        let mut imports = LinkedList::from(imports);
+        imports.push_back(ModuleImport::all(Identity::new("lang").unwrap()));
         Self {
             imports,
-            layers,
+            layers: Rc::downgrade(&layers),
         }
     }
 
     pub fn add_import(&mut self, import: ModuleImport) {
-        self.imports.push(import)
+        self.imports.push_front(import)
     }
 
     pub fn lookup_element<V, E: EnvironmentContext<V>>(&self, name: &str) -> Option<V> {
-        for import in &self.imports {
-            if !<ModuleImport as Import<V, E>>::is_imported(import, name) {
-                continue;
-            }
+        let layers = match self.layers.upgrade() {
+            None => return None,
+            Some(layers) => layers
+        };
 
-            let env = self.layers
+        for import in &self.imports {
+            let env = layers
                 .borrow()
                 .get_env(<ModuleImport as Import<V, E>>::module(&import))
                 //this is an internal error that should not occur thanks to the validity
@@ -38,7 +43,10 @@ impl ImportEngine {
                 .unwrap_or_else(|| panic!("import contains an unknown module {}", <ModuleImport as Import<V, E>>::module(&import)));
 
             let ctx = E::from_env(env.borrow().deref());
-            let value = ctx.borrow().find(name);
+            let value = import.find_element(ctx.borrow().deref(), name);
+            if value.is_none() {
+                continue
+            }
             return value
         }
 

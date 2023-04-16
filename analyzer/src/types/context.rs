@@ -10,7 +10,7 @@ use crate::environment::{Environment, EnvironmentContext};
 use crate::identity::Identity;
 use crate::import_engine::ImportEngine;
 use crate::imports::ModuleImport;
-use crate::module::ModuleLayers;
+use crate::layers::ModuleLayers;
 
 
 /// A type environment.
@@ -58,7 +58,7 @@ impl TypeContext {
     pub(crate) fn new(identity: Identity, layers: Rc<RefCell<ModuleLayers>>) -> Self {
         Self {
             identity,
-            imports: ImportEngine::new(vec![], layers),
+            imports: ImportEngine::new([], layers),
             classes: HashMap::new(),
         }
     }
@@ -203,7 +203,7 @@ mod tests {
     use std::collections::{HashMap, HashSet};
     use crate::identity::Identity;
     use crate::imports::ModuleImport;
-    use crate::module::ModuleLayers;
+    use crate::layers::ModuleLayers;
 
     #[test]
     fn specific_imports() -> Result<(), String> {
@@ -214,14 +214,11 @@ mod tests {
             .type_context
             .clone();
 
-        foo.borrow_mut().add_import(ModuleImport::all(Identity::new("lang")?));
 
-        let bar = ModuleLayers::declare_env(layers, Identity::new("bar")?)?
+        let bar = ModuleLayers::declare_env(layers.clone(), Identity::new("bar")?)?
             .borrow()
             .type_context
             .clone();
-
-        bar.borrow_mut().add_import(ModuleImport::all(Identity::new("lang")?));
 
         let a = TypeContext::define_class(
             foo.clone(),

@@ -23,7 +23,7 @@ use std::cell::RefCell;
 use std::default::Default;
 use std::rc::Rc;
 use crate::identity::Identity;
-use crate::module::ModuleLayers;
+use crate::layers::ModuleLayers;
 
 /// An environment.
 /// The Environment contains the defined types, variables, structure and function definitions of a certain scope.
