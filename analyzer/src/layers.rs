@@ -1,5 +1,5 @@
 use crate::environment::Environment;
-use crate::identity::Identity;
+use crate::identity::Name;
 use std::cell::RefCell;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -23,7 +23,7 @@ impl ModuleLayers {
         layers
     }
 
-    pub fn get_env(&self, name: Identity) -> Option<Rc<RefCell<Environment>>> {
+    pub fn get_env(&self, name: Name) -> Option<Rc<RefCell<Environment>>> {
         let mut names = name.absolute_path.into_iter().chain(vec![name.name].into_iter());
 
         //we can safely unwrap here as names has at least `name.name` as element
@@ -41,7 +41,7 @@ impl ModuleLayers {
         module.and_then(|m| m.env.clone())
     }
 
-    pub fn declare_env(layers: Rc<RefCell<Self>>, name: Identity) -> Result<Rc<RefCell<Environment>>, String> {
+    pub fn declare_env(layers: Rc<RefCell<Self>>, name: Name) -> Result<Rc<RefCell<Environment>>, String> {
         let mut layers_ref = layers.borrow_mut();
         let module = layers_ref.declare_module(name.clone())?;
 
@@ -51,7 +51,7 @@ impl ModuleLayers {
         Ok(env)
     }
 
-    fn declare_module(&mut self, name: Identity) -> Result<&mut Module, String> {
+    fn declare_module(&mut self, name: Name) -> Result<&mut Module, String> {
         let mut names = name.absolute_path.into_iter().chain(vec![name.name].into_iter());
 
         //we can safely unwrap here as names has at least `name.name` as element
@@ -59,7 +59,7 @@ impl ModuleLayers {
 
         let mut module= match self.roots.entry(root_name.clone()) {
             Entry::Occupied(o) => o.into_mut(),
-            Entry::Vacant(v) => v.insert(Module::new(Identity::new(&root_name)?))
+            Entry::Vacant(v) => v.insert(Module::new(Name::new(&root_name)))
         };
 
         for name in names {
@@ -72,13 +72,13 @@ impl ModuleLayers {
 
 #[derive(Default, Debug, Clone)]
 pub struct Module {
-    full_name: Identity,
+    full_name: Name,
     env: Option<Rc<RefCell<Environment>>>,
     childs: HashMap<String, Module>,
 }
 
 impl Module {
-    fn new(full_name: Identity) -> Self {
+    fn new(full_name: Name) -> Self {
         Self {
             full_name,
             env: None,

@@ -1,13 +1,13 @@
 use crate::types::class::{ClassTypeDefinition, TypeClass};
-use crate::types::types::{DefinedType, Type};
+use crate::types::types::{Type};
 use std::cell::RefCell;
 use std::collections::hash_map::{Entry};
 use std::collections::HashMap;
-use std::fmt::Debug;
+use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 use crate::environment::{Environment, EnvironmentContext};
 
-use crate::identity::Identity;
+use crate::identity::Name;
 use crate::import_engine::ImportEngine;
 use crate::imports::ModuleImport;
 use crate::layers::ModuleLayers;
@@ -16,14 +16,14 @@ use crate::layers::ModuleLayers;
 /// A type environment.
 ///
 /// Contexts track substitutions and generate fresh type variables.
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct TypeContext {
     /// Records the type of each class by their basename.
-    classes: HashMap<String, Rc<TypeClass>>,
+    classes: HashMap<Name, Rc<TypeClass>>,
 
     imports: ImportEngine,
 
-    pub identity: Identity,
+    pub identity: Name,
 }
 
 impl PartialEq for TypeContext {
@@ -37,17 +37,32 @@ impl EnvironmentContext<Rc<TypeClass>> for TypeContext {
         env.type_context.clone()
     }
 
-    fn find(&self, name: &str) -> Option<Rc<TypeClass>> {
+    fn find(&self, name: &Name) -> Option<Rc<TypeClass>> {
         self.classes.get(name).cloned()
+    }
+}
+
+impl Debug for TypeContext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut classes: Vec<_> = self.classes.iter().collect();
+        classes.sort_by_key(|(k, _)| k.clone());
+
+        f.debug_struct("TypeContext").field("identity", &self.identity)
+            .field("imports", &self.imports)
+            .field("classes", &classes)
+            .finish()
     }
 }
 
 
 impl TypeContext {
-    pub(crate) fn with_classes<const T: usize>(classes: [(String, TypeClass); T],
-                                               identity: Identity,
+    pub(crate) fn with_classes<const T: usize>(classes: [(Name, TypeClass); T],
+                                               identity: Name,
                                                imports: ImportEngine) -> Self {
-        let classes = classes.into_iter().map(|(k, v)| (k, Rc::new(v))).collect();
+        let classes = classes
+            .into_iter()
+            .map(|(k, v)| (k, Rc::new(v)))
+            .collect();
         Self {
             classes,
             imports,
@@ -55,10 +70,10 @@ impl TypeContext {
         }
     }
 
-    pub(crate) fn new(identity: Identity, layers: Rc<RefCell<ModuleLayers>>) -> Self {
+    pub(crate) fn new(identity: Name, layers: Rc<RefCell<ModuleLayers>>) -> Self {
         Self {
             identity,
-            imports: ImportEngine::new([], layers),
+            imports: ImportEngine::new(layers),
             classes: HashMap::new(),
         }
     }
@@ -66,7 +81,7 @@ impl TypeContext {
     ///Definitions of the lang type context.
     pub fn lang(layers: Rc<RefCell<ModuleLayers>>) -> Rc<RefCell<Self>> {
         let ctx = TypeContext::new(
-            Identity::new("lang").expect(""),
+            Name::new("lang"),
             layers,
         );
         let ctx_rc = Rc::new(RefCell::new(ctx));
@@ -79,27 +94,26 @@ impl TypeContext {
             generic_parameters: vec![],
             super_params_associations: vec![],
             fqcn: ctx.identity.child("Any"),
-            context: Rc::new(RefCell::default()),
         });
-        ctx.classes.insert(any_cl.fqcn.name.clone(), any_cl.clone());
+        ctx.classes.insert(Name::new(&any_cl.fqcn.name), any_cl.clone());
         drop(ctx);
 
         let float =
-            Self::define_class(ctx_rc.clone(), ClassTypeDefinition::new("Float")).expect(MSG);
+            Self::define_class(ctx_rc.clone(), ClassTypeDefinition::new(Name::new("Float"))).expect(MSG);
 
-        Self::define_class(ctx_rc.clone(), ClassTypeDefinition::new("Bool")).expect(MSG);
-        Self::define_class(ctx_rc.clone(), ClassTypeDefinition::new("Str")).expect(MSG);
-        Self::define_class(ctx_rc.clone(), ClassTypeDefinition::new("Unit")).expect(MSG);
+        Self::define_class(ctx_rc.clone(), ClassTypeDefinition::new(Name::new("Bool"))).expect(MSG);
+        Self::define_class(ctx_rc.clone(), ClassTypeDefinition::new(Name::new("Str"))).expect(MSG);
+        Self::define_class(ctx_rc.clone(), ClassTypeDefinition::new(Name::new("Unit"))).expect(MSG);
 
         let int = Self::define_class(
             ctx_rc.clone(),
-            ClassTypeDefinition::new("Int").with_super(float),
+            ClassTypeDefinition::new(Name::new("Int")).with_super(float),
         )
             .expect(MSG);
 
         Self::define_class(
             ctx_rc.clone(),
-            ClassTypeDefinition::new("Exitcode").with_super(int),
+            ClassTypeDefinition::new(Name::new("Exitcode")).with_super(int),
         )
             .expect(MSG);
 
@@ -125,14 +139,15 @@ impl TypeContext {
         ctx: Rc<RefCell<Self>>,
         def: ClassTypeDefinition,
     ) -> Result<Rc<TypeClass>, String> {
+
+        let name = def.name.clone();
         let defined = def.build(ctx.clone())?;
         let defined = Rc::new(defined);
 
         let mut ctx = ctx.borrow_mut();
-        let name = defined.fqcn.name.clone();
         match ctx.classes.entry(name.clone()) {
             Entry::Occupied(_) => Err(format!(
-                "type already contained in context {}",
+                "type {} already contained in context",
                 name
             )),
             Entry::Vacant(vacant) => {
@@ -145,21 +160,15 @@ impl TypeContext {
     ///perform a class type lookup based on the defined types.
     /// If the type is not directly found in this context, then the context
     /// will lookup in parent's context.
-    pub fn lookup_name(&self, name: &str) -> Result<Rc<TypeClass>, String> {
-        match self.find(name) {
+    pub fn lookup_class(&self, name: &str) -> Result<Rc<TypeClass>, String> {
+        let name = Name::new(name);
+        match self.find(&name) {
             Some(v) => Ok(v.clone()),
             None => self.imports
-                .lookup_element::<Rc<TypeClass>, Self>(name)
-                .ok_or(format!("Unknown type {}", name))
+                .lookup_element::<Rc<TypeClass>, Self>(&name)
+                .ok_or(format!("Unknown type {}", &name))
         }
     }
-
-    pub fn lookup_defined(&self, def: &DefinedType) -> Result<Rc<TypeClass>, String> {
-        match def {
-            DefinedType::Parameterized(p) => self.lookup_name(&p.name),
-        }
-    }
-
 
     /// Find nearest type between two class types.
     pub fn unify(&self, t1: &Type, t2: &Type) -> Result<Type, String> {
@@ -171,11 +180,11 @@ impl TypeContext {
             (_, Type::Unknown) => Ok(Type::Unknown),
 
             (
-                Type::Defined(DefinedType::Parameterized(p1)),
-                Type::Defined(DefinedType::Parameterized(p2)),
+                Type::Parametrized(p1),
+                Type::Parametrized(p2),
             ) => {
-                let cl1 = self.lookup_defined(&DefinedType::Parameterized(p1.clone()))?;
-                let cl2 = self.lookup_defined(&DefinedType::Parameterized(p2.clone()))?;
+                let cl1 = self.lookup_class(&p1.name)?;
+                let cl2 = self.lookup_class(&p2.name)?;
 
                 let common = cl1.get_common_parent(cl2);
 
@@ -186,8 +195,8 @@ impl TypeContext {
                     .map(|_| Type::Unknown)
                     .collect();
 
-                let name = &common.fqcn.name;
-                Ok(Type::parametrized(name, vec.as_slice()))
+                let name = common.fqcn.to_string();
+                Ok(Type::parametrized(&name, vec.as_slice()))
             }
         }
     }
@@ -201,7 +210,7 @@ mod tests {
     use crate::types::types::Type;
     use pretty_assertions::assert_eq;
     use std::collections::{HashMap, HashSet};
-    use crate::identity::Identity;
+    use crate::identity::Name;
     use crate::imports::ModuleImport;
     use crate::layers::ModuleLayers;
 
@@ -209,37 +218,37 @@ mod tests {
     fn specific_imports() -> Result<(), String> {
         let layers = ModuleLayers::new();
 
-        let foo = ModuleLayers::declare_env(layers.clone(), Identity::new("foo")?)?
+        let foo = ModuleLayers::declare_env(layers.clone(), Name::new("foo"))?
             .borrow()
             .type_context
             .clone();
 
 
-        let bar = ModuleLayers::declare_env(layers.clone(), Identity::new("bar")?)?
+        let bar = ModuleLayers::declare_env(layers.clone(), Name::new("bar"))?
             .borrow()
             .type_context
             .clone();
 
         let a = TypeContext::define_class(
             foo.clone(),
-            ClassTypeDefinition::new("A"),
+            ClassTypeDefinition::new(Name::new("A")),
         )?;
 
         let b = TypeContext::define_class(
             foo.clone(),
-            ClassTypeDefinition::new("B"),
+            ClassTypeDefinition::new(Name::new("B")),
         )?;
 
         bar.borrow_mut().add_import(ModuleImport::specifics(
-            Identity::new("foo")?,
+            Name::new("foo"),
             HashSet::from(["A"]),
             HashMap::from([("AliasedB", "B")]), //Import B and alias it with AliasedB
         ));
 
-        assert_eq!(bar.borrow().lookup_name("A")?, a);
-        assert_eq!(bar.borrow().lookup_name("AliasedB")?, b);
+        assert_eq!(bar.borrow().lookup_class("A")?, a);
+        assert_eq!(bar.borrow().lookup_class("AliasedB")?, b);
         assert_eq!(
-            bar.borrow().lookup_name("B"),
+            bar.borrow().lookup_class("B"),
             Err("Unknown type B".to_string())
         );
 
@@ -250,7 +259,7 @@ mod tests {
     fn simple_union() -> Result<(), String> {
         let layers = ModuleLayers::new();
 
-        let ctx = ModuleLayers::declare_env(layers.clone(), Identity::new("std")?)?
+        let ctx = ModuleLayers::declare_env(layers.clone(), Name::new("std"))?
             .borrow()
             .type_context
             .clone();
@@ -258,26 +267,27 @@ mod tests {
         //Iterable[A]
         let iterable_cl = TypeContext::define_class(
             ctx.clone(),
-            ClassTypeDefinition::new("Iterable").with_generic("A", any()),
+            ClassTypeDefinition::new(Name::new("Iterable"))
+                .with_generic("A", any()),
         )?;
 
         //Map[K, V]: Iterable[K]
         TypeContext::define_class(
             ctx.clone(),
-            ClassTypeDefinition::new("Map")
+            ClassTypeDefinition::new(Name::new("Map"))
                 .with_super(iterable_cl.clone())
                 .with_generic("K", any())
                 .with_generic("V", any())
-                .with_association(0, Type::cons("K")),
+                .with_association(0, Type::cons("Map::K")),
         )?;
 
         //List[A]: Iterable[A]
         TypeContext::define_class(
             ctx.clone(),
-            ClassTypeDefinition::new("List")
+            ClassTypeDefinition::new(Name::new("List"))
                 .with_super(iterable_cl.clone())
                 .with_generic("A", any())
-                .with_association(0, Type::cons("A")),
+                .with_association(0, Type::cons("List::A")),
         )?;
 
         let res1 = ctx.borrow().unify(
@@ -290,8 +300,8 @@ mod tests {
             &Type::parametrized("List", &[Type::cons("Str")]),
         )?;
 
-        assert_eq!(res1, Type::parametrized("Iterable", &[Type::Unknown]));
-        assert_eq!(res2, Type::parametrized("Iterable", &[Type::Unknown]));
+        assert_eq!(res1, Type::parametrized("std::Iterable", &[Type::Unknown]));
+        assert_eq!(res2, Type::parametrized("std::Iterable", &[Type::Unknown]));
 
         Ok(())
     }

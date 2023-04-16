@@ -3,7 +3,7 @@ use std::collections::linked_list::LinkedList;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 use crate::environment::EnvironmentContext;
-use crate::identity::Identity;
+use crate::identity::Name;
 use crate::imports::{Import, ModuleImport};
 use crate::layers::ModuleLayers;
 
@@ -15,9 +15,18 @@ pub struct ImportEngine {
 
 impl ImportEngine {
 
-    pub(crate) fn new<const N: usize>(imports: [ModuleImport; N], layers: Rc<RefCell<ModuleLayers>>) -> Self {
+    pub fn new(layers: Rc<RefCell<ModuleLayers>>) -> Self {
+        let mut imports = LinkedList::new();
+        imports.push_back(ModuleImport::all(Name::new("lang")));
+        Self {
+            imports,
+            layers: Rc::downgrade(&layers),
+        }
+    }
+
+    pub(crate) fn with_imports_unchecked<const N: usize>(imports: [ModuleImport; N], layers: Rc<RefCell<ModuleLayers>>) -> Self {
         let mut imports = LinkedList::from(imports);
-        imports.push_back(ModuleImport::all(Identity::new("lang").unwrap()));
+        imports.push_back(ModuleImport::all(Name::new("lang")));
         Self {
             imports,
             layers: Rc::downgrade(&layers),
@@ -28,7 +37,7 @@ impl ImportEngine {
         self.imports.push_front(import)
     }
 
-    pub fn lookup_element<V, E: EnvironmentContext<V>>(&self, name: &str) -> Option<V> {
+    pub fn lookup_element<V, E: EnvironmentContext<V>>(&self, name: &Name) -> Option<V> {
         let layers = match self.layers.upgrade() {
             None => return None,
             Some(layers) => layers

@@ -22,7 +22,7 @@ use crate::types::context::TypeContext;
 use std::cell::RefCell;
 use std::default::Default;
 use std::rc::Rc;
-use crate::identity::Identity;
+use crate::identity::Name;
 use crate::layers::ModuleLayers;
 
 /// An environment.
@@ -30,15 +30,14 @@ use crate::layers::ModuleLayers;
 /// It can have dependencies over other dependencies.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Environment {
-    pub identity: Identity,
+    pub identity: Name,
 
     /// The environment's type context.
     pub type_context: Rc<RefCell<TypeContext>>,
-
 }
 
 impl Environment {
-    pub fn new(fqn: Identity, layers: Rc<RefCell<ModuleLayers>>) -> Self {
+    pub fn new(fqn: Name, layers: Rc<RefCell<ModuleLayers>>) -> Self {
         Self {
             type_context: Rc::new(RefCell::new(TypeContext::new(fqn.clone(), layers))),
             identity: fqn,
@@ -47,7 +46,7 @@ impl Environment {
     pub fn lang(layers: Rc<RefCell<ModuleLayers>>) -> Self {
         Self {
             type_context: TypeContext::lang(layers),
-            identity: Identity {
+            identity: Name {
                 absolute_path: Vec::new(),
                 name: "lang".to_string(),
             },
@@ -65,5 +64,5 @@ impl Environment {
 pub trait EnvironmentContext<V> {
     fn from_env(env: &Environment) -> Rc<RefCell<Self>>;
 
-    fn find(&self, name: &str) -> Option<V>;
+    fn find(&self, name: &Name) -> Option<V>;
 }

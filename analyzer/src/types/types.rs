@@ -30,22 +30,6 @@ impl Display for ParameterizedType {
     }
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum DefinedType {
-    /// parametrized or constant type (`List[A]`, `Map[Str, List[B]]`, `Int`).
-    Parameterized(ParameterizedType),
-    //Callable ?
-}
-
-impl DefinedType {
-    pub fn cons(name: &str) -> Self {
-        Self::parametrized(name, &[])
-    }
-
-    pub fn parametrized(name: &str, params: &[Type]) -> Self {
-        DefinedType::Parameterized(ParameterizedType::parametrized(name, params))
-    }
-}
 
 /// Represents [monotypes][1] (fully instantiated, unquantified types).
 ///
@@ -53,7 +37,7 @@ impl DefinedType {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Type {
     ///A Defined, structured types
-    Defined(DefinedType),
+    Parametrized(ParameterizedType),
 
     ///Special handling for nothing types
     Nothing,
@@ -68,24 +52,16 @@ impl Type {
     }
 
     pub fn parametrized(name: &str, params: &[Type]) -> Self {
-        Type::Defined(DefinedType::parametrized(name, params))
+        Type::Parametrized(ParameterizedType::parametrized(name, params))
     }
 }
 
 impl Display for Type {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Type::Defined(d) => write!(f, "{d}"),
+            Type::Parametrized(d) => write!(f, "{d}"),
             Type::Unknown => write!(f, "<unknown>"),
             Type::Nothing => write!(f, "Nothing"),
-        }
-    }
-}
-
-impl Display for DefinedType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DefinedType::Parameterized(p) => write!(f, "{p}"),
         }
     }
 }

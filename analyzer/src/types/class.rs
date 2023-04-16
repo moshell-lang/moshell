@@ -1,12 +1,12 @@
 use crate::lang_types::any;
 use crate::types::context::TypeContext;
-use crate::types::types::{DefinedType, Type};
+use crate::types::types::{ParameterizedType, Type};
 use context::display::fmt_comma_separated;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::rc::Rc;
-use crate::identity::Identity;
+use crate::identity::Name;
 
 ///This structures hosts the definition of a types,
 #[derive(Clone, PartialEq)]
@@ -21,36 +21,29 @@ pub struct TypeClass {
     ///
     /// This vector must match the length of parent's type parameters.
     /// For instance:
-    /// - `class List[A]: Iterable[A]`   The generic param of the child (`List`) is associated with the generic param of the parent (`Iterable`),
-    ///                                  Thus, we have `List::A => Iterable::A`
+    /// - `class List[A]: Iterable[A]`      The generic param of the child (`List`) is associated with the generic param of the parent (`Iterable`),
+    ///                                     Thus, we have `List::A => Iterable::A`
     ///
-    /// - `class WeirdMap[A]: Map[A, A]` Here, we have `WeirdMap::A => Map::K` and `WeirdMap::A => Map::V`
+    /// - `class IdentityMap[A]: Map[A, A]` Here, we have `IdentityMap::A => Map::K` and `IdentityMap::A => Map::V`
     ///
-    /// - `class Map[K, V]: Iterable[A]` This defines a map that is iterable only over its keys, the first map's generic parameter `K`
-    ///                                  is then bound on lone iterable's generic parameter, and the generic param `V` has no links with the parent,
-    ///                                  Thus we only have `Map::K => Iterable::A` as an association set.
+    /// - `class Map[K, V]: Iterable[A]`    This defines a map that is iterable only over its keys, the first map's generic parameter `K`
+    ///                                     is then bound on lone iterable's generic parameter, and the generic param `V` has no links with the parent,
+    ///                                     Thus we only have `Map::K => Iterable::A` as an association set.
     ///
-    /// - `class StrMap[V]: Map[Str, V]` Here, the associations are `lang::Str => Map::K` and `StrMap::V => Map::V`
-    pub(in crate::types) super_params_associations: Vec<ParamAssociation>,
+    /// - `class StrMap[V]: Map[Str, V]`    Here, the associations are `lang::Str => Map::K` and `StrMap::V => Map::V`
+    pub(in crate::types) super_params_associations: Vec<TypeParamAssociation>,
 
     /// The fully qualified class name.
-    pub(crate) fqcn: Identity,
-
-    /// The type context of this type.
-    ///
-    /// The context is guaranteed to own the definition of the generic parameters.
-    pub context: Rc<RefCell<TypeContext>>,
+    pub(crate) fqcn: Name,
 }
 
 impl Debug for TypeClass {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TypeClass")
-            .field("identity", &self.fqcn)
+            .field("fqcn", &self.fqcn)
             .field("super_type", &self.super_type)
             .field("generic_parameters", &self.generic_parameters)
             .field("super_params_associations", &self.super_params_associations)
-            .field("identity", &self.fqcn)
-            .field("context", &"<not shown>")
             .finish()
     }
 }
@@ -64,7 +57,7 @@ impl Display for TypeClass {
 
 ///Different kind of associations between a children and its parent generic parameters
 #[derive(Debug, Clone, PartialEq)]
-pub enum ParamAssociation {
+pub enum TypeParamAssociation {
     ///The association is a known type class (can be a generic)
     Defined(Rc<TypeClass>),
     ///The association is nothing
@@ -74,7 +67,16 @@ pub enum ParamAssociation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenericParam {
     pub name: String,
-    pub bound: DefinedType,
+    pub bound: ParameterizedType,
+}
+
+impl GenericParam {
+    fn new(name: &str, bound: ParameterizedType) -> Self {
+        Self {
+            name: name.to_string(),
+            bound,
+        }
+    }
 }
 
 impl Display for GenericParam {
@@ -85,16 +87,16 @@ impl Display for GenericParam {
 
 pub struct ClassTypeDefinition {
     super_type: Option<Rc<TypeClass>>,
-    pub name: String,
+    pub name: Name,
     generic_parameters: Vec<GenericParam>,
     associations: HashMap<usize, Type>,
     identity: u64,
 }
 
 impl ClassTypeDefinition {
-    pub(crate) fn new(name: &str) -> Self {
+    pub(crate) fn new(name: Name) -> Self {
         Self {
-            name: name.to_owned(),
+            name,
             generic_parameters: Vec::new(),
             associations: HashMap::new(),
             super_type: None,
@@ -109,7 +111,7 @@ impl ClassTypeDefinition {
         }
     }
 
-    pub fn with_generic(mut self, name: &str, bound: DefinedType) -> Self {
+    pub fn with_generic(mut self, name: &str, bound: ParameterizedType) -> Self {
         self.generic_parameters.push(GenericParam {
             name: name.to_string(),
             bound,
@@ -130,23 +132,22 @@ impl ClassTypeDefinition {
 impl TypeClass {
     fn from_builder(
         definition: ClassTypeDefinition,
-        parent_ctx: Rc<RefCell<TypeContext>>,
+        ctx: Rc<RefCell<TypeContext>>,
     ) -> Result<Self, String> {
         let super_type = if let Some(st) = definition.super_type {
             st
         } else {
-            parent_ctx.borrow().lookup_defined(&any())?
+            ctx.borrow().lookup_class(&any().name)?
         };
 
-        let fqcn = parent_ctx.borrow().identity.child(&definition.name);
-        let class_context = Rc::new(RefCell::new(TypeContext::fork(parent_ctx.clone(), &fqcn.name)));
+        Self::contextualize_generics(definition.name.clone(), ctx.clone(), &definition.generic_parameters)?;
 
-        Self::contextualize_generics(class_context.clone(), &definition.generic_parameters)?;
+        let fqcn = ctx.borrow().identity.appended(definition.name);
 
         let associations = Self::verify_associations(
-            definition.name.clone(),
+            fqcn.clone(),
             super_type.clone(),
-            &class_context.borrow(),
+            &ctx.borrow(),
             definition.associations,
         )?;
 
@@ -156,7 +157,6 @@ impl TypeClass {
             generic_parameters: definition.generic_parameters,
             super_params_associations: associations,
             fqcn,
-            context: class_context,
         };
 
         Ok(def)
@@ -164,19 +164,19 @@ impl TypeClass {
 
     ///Defines in given context a class type for each given generic parameters
     fn contextualize_generics(
+        name_prefix: Name,
         ctx: Rc<RefCell<TypeContext>>,
         generic_parameters: &Vec<GenericParam>,
     ) -> Result<(), String> {
         for generic in generic_parameters {
-            let sup = ctx.borrow().lookup_defined(&generic.bound)?;
-            let mut builder = ClassTypeDefinition::new(&generic.name).with_super(sup);
+            let sup = ctx.borrow().lookup_class(&generic.bound.name)?;
+            let mut builder =
+                ClassTypeDefinition::new(name_prefix.child(&generic.name))
+                    .with_super(sup);
 
-            match &generic.bound {
-                DefinedType::Parameterized(p) => {
-                    for (idx, ty) in p.params.iter().enumerate() {
-                        builder = builder.with_association(idx, ty.clone());
-                    }
-                }
+
+            for (idx, ty) in generic.bound.params.iter().enumerate() {
+                builder = builder.with_association(idx, ty.clone());
             }
 
             TypeContext::define_class(ctx.clone(), builder)?;
@@ -185,11 +185,11 @@ impl TypeClass {
     }
 
     fn verify_associations(
-        self_name: String,
+        self_name: Name,
         parent: Rc<TypeClass>,
         class_ctx: &TypeContext,
         associations: HashMap<usize, Type>,
-    ) -> Result<Vec<ParamAssociation>, String> {
+    ) -> Result<Vec<TypeParamAssociation>, String> {
         //Ensure that all generic parameters are compatible with their associated parent's generics
         //This algorithm only look if the generics classes are subtype of parent's generics.
 
@@ -200,7 +200,7 @@ impl TypeClass {
                                self_name, parent.fqcn, parent.fqcn, associations.len(), parent_gparam_count));
         }
 
-        let mut validated_associations = vec![ParamAssociation::Nothing; parent_gparam_count];
+        let mut validated_associations = vec![TypeParamAssociation::Nothing; parent_gparam_count];
 
         for (idx, parent_gparam) in parent.generic_parameters.iter().enumerate() {
             let association = associations.get(&idx).ok_or(format!(
@@ -209,18 +209,18 @@ impl TypeClass {
             ))?;
 
             let association = match association {
-                Type::Nothing => ParamAssociation::Nothing,
+                Type::Nothing => TypeParamAssociation::Nothing,
 
-                Type::Defined(defined) => {
-                    let class = class_ctx.lookup_defined(&defined.clone())?;
-                    let bound_class = class_ctx.lookup_defined(&parent_gparam.bound.clone())?;
+                Type::Parametrized(defined) => {
+                    let class = class_ctx.lookup_class(&defined.name)?;
+                    let bound_class = class_ctx.lookup_class(&parent_gparam.bound.name.clone())?;
                     if !class.is_subtype_of(bound_class) {
                         return Err(format!(
                             "type {} is not compatible with parent's generic parameter `{}`",
                             class.fqcn, parent_gparam
                         ));
                     }
-                    ParamAssociation::Defined(class)
+                    TypeParamAssociation::Defined(class)
                 }
 
                 Type::Unknown => return Err("unexpected <unknown> type.".to_string()),
@@ -274,149 +274,178 @@ impl TypeClass {
 mod tests {
     use crate::lang_types::{any, str};
     use crate::types::context::{TypeContext};
-    use std::cell::RefCell;
     use std::ops::Deref;
-    use std::rc::Rc;
 
-    use crate::types::class::{ClassTypeDefinition, GenericParam, ParamAssociation, TypeClass};
-    use crate::types::types::{DefinedType, Type};
+    use crate::types::class::{ClassTypeDefinition, GenericParam, TypeParamAssociation, TypeClass};
+    use crate::types::types::{ParameterizedType, Type};
     use pretty_assertions::assert_eq;
-    use crate::identity::Identity;
+    use crate::identity::Name;
     use crate::import_engine::ImportEngine;
-    use crate::imports::ModuleImport;
     use crate::layers::ModuleLayers;
 
     #[test]
-    fn define_iterable() -> Result<(), String> {
+    fn define_iterable() {
         let layers = ModuleLayers::new();
 
-        let std = ModuleLayers::declare_env(layers.clone(), Identity::new("std")?)?
+        let std = ModuleLayers::declare_env(layers.clone(), Name::new("std")).expect("error")
             .borrow()
             .type_context
             .clone();
 
-        let any_cl = std.borrow().lookup_defined(&any())?;
+        let any_cl = std.borrow().lookup_class(&any().name).expect("error");
 
         let iterable_cl = TypeContext::define_class(
             std.clone(),
-            ClassTypeDefinition::new("Iterable").with_generic("A", any()),
-        )?;
+            ClassTypeDefinition::new(Name::new("Iterable")).with_generic("A", any()),
+        ).expect("error");
 
         assert_eq!(
             iterable_cl.deref(),
             &TypeClass {
                 super_type: Some(any_cl.clone()),
-                fqcn: Identity::new("std::Iterable")?,
+                fqcn: Name::new("std::Iterable"),
                 generic_parameters: vec![GenericParam {
                     bound: any(),
                     name: "A".to_string(),
                 }],
                 super_params_associations: vec![],
-                context: iterable_cl.context.clone(),
             }
         );
-        Ok(())
     }
 
     #[test]
-    fn define_list() -> Result<(), String> {
+    fn define_list() {
         let layers = ModuleLayers::new();
 
-        let std = ModuleLayers::declare_env(layers.clone(), Identity::new("std")?)?
+        let std = ModuleLayers::declare_env(layers.clone(), Name::new("std")).expect("error")
             .borrow()
             .type_context
             .clone();
 
         let iterable_cl = TypeContext::define_class(
             std.clone(),
-            ClassTypeDefinition::new("Iterable").with_generic("A", any()),
-        )?;
+            ClassTypeDefinition::new(Name::new("Iterable")).with_generic("A", any()),
+        ).expect("error");
 
         let list_cl = TypeContext::define_class(
             std.clone(),
-            ClassTypeDefinition::new("List")
+            ClassTypeDefinition::new(Name::new("List"))
                 .with_super(iterable_cl.clone())
                 .with_generic("B", any())
-                .with_association(0, Type::cons("B")),
-        )?;
+                .with_association(0, Type::cons("List::B")),
+        ).expect("error");
 
         assert_eq!(
             list_cl.deref(),
             &TypeClass {
                 super_type: Some(iterable_cl.clone()),
-                fqcn: Identity::new("std::List")?,
+                fqcn: Name::new("std::List"),
                 generic_parameters: vec![GenericParam {
                     bound: any(),
                     name: "B".to_string(),
                 }],
-                super_params_associations: vec![ParamAssociation::Defined(
-                    list_cl
-                        .context
+                super_params_associations: vec![TypeParamAssociation::Defined(
+                    std
                         .borrow()
-                        .lookup_defined(&DefinedType::cons("B"))?
+                        .lookup_class("List::B").expect("error")
                 )],
-                context: list_cl.context.clone(),
             }
         );
-        Ok(())
     }
 
     #[test]
-    fn define_map() -> Result<(), String> {
+    fn define_map() {
         let layers = ModuleLayers::new();
 
-        let std = ModuleLayers::declare_env(layers.clone(), Identity::new("std")?)?
+        let std = ModuleLayers::declare_env(layers.clone(), Name::new("std")).expect("error")
             .borrow()
             .type_context
             .clone();
 
-        let lang = layers.borrow().get_env(Identity::new("lang")?).unwrap();
+        let lang = layers.borrow().get_env(Name::new("lang")).unwrap();
 
-        let any_cl = lang.borrow().type_context.borrow().lookup_defined(&any())?;
+        let any_cl = lang.borrow().type_context.borrow().lookup_class(&any().name).expect("error");
 
         let iterable_cl = TypeContext::define_class(
             std.clone(),
-            ClassTypeDefinition::new("Iterable").with_generic("A", any()),
-        )?;
+            ClassTypeDefinition::new(Name::new("Iterable"))
+                .with_generic("A", any()),
+        ).expect("error");
 
         let map_cl = TypeContext::define_class(
             std.clone(),
-            ClassTypeDefinition::new("Map")
+            ClassTypeDefinition::new(Name::new("Map"))
                 .with_super(iterable_cl.clone())
                 .with_generic("K", any())
                 .with_generic("V", any())
-                .with_association(0, Type::cons("K")),
-        )?;
+                .with_association(0, Type::cons("Map::K")),
+        ).expect("error");
 
         assert_eq!(
-            map_cl.context.borrow().clone(),
+            std.borrow().clone(),
             TypeContext::with_classes(
                 [(
-                    "K".to_string(),
+                    Name::new("Iterable"),
+                    TypeClass {
+                        super_type: Some(any_cl.clone()),
+                        fqcn: Name::new("std::Iterable"),
+                        generic_parameters: vec![GenericParam {
+                            name: "A".to_string(),
+                            bound: any(),
+                        }],
+                        super_params_associations: vec![],
+                    }
+                ), (
+                    Name::new("Iterable::A"),
+                    TypeClass {
+                        super_type: Some(any_cl.clone()),
+                        fqcn: Name::new("std::Iterable::A"),
+                        generic_parameters: vec![],
+                        super_params_associations: vec![],
+                    }
+                ), (
+                    Name::new("Map"),
+                    TypeClass {
+                        super_type: Some(iterable_cl.clone()),
+                        fqcn: Name::new("std::Map"),
+                        generic_parameters: vec![
+                            GenericParam {
+                                name: "K".to_string(),
+                                bound: any(),
+                            },
+                            GenericParam {
+                                name: "V".to_string(),
+                                bound: any(),
+                            }],
+                        super_params_associations: vec![
+                            TypeParamAssociation::Defined(std.borrow().lookup_class("Map::K").expect("error"))
+                        ],
+                    }
+                ), (
+                    Name::new("Map::K"),
                     TypeClass {
                         super_type: Some(any_cl.clone()),
                         fqcn: map_cl.fqcn.child("K"),
                         generic_parameters: vec![],
                         super_params_associations: vec![],
-                        context: Rc::new(RefCell::new(Default::default())),
                     }
                 ), (
-                    "V".to_string(),
+                    Name::new("Map::V"),
                     TypeClass {
                         super_type: Some(any_cl.clone()),
                         fqcn: map_cl.fqcn.child("V"),
                         generic_parameters: vec![],
                         super_params_associations: vec![],
-                        context: Rc::new(RefCell::new(Default::default())),
                     }
                 )],
-                Identity::new("std::Map")?,
-                ImportEngine::new([ModuleImport::all(Identity::new("lang")?)], layers)),
+                Name::new("std"),
+                ImportEngine::new(layers)),
         );
 
         assert_eq!(
             map_cl.deref(),
             &TypeClass {
+                fqcn: Name::new("std::Map"),
                 super_type: Some(iterable_cl.clone()),
                 generic_parameters: vec![
                     GenericParam {
@@ -426,74 +455,103 @@ mod tests {
                     GenericParam {
                         bound: any(),
                         name: "V".to_string(),
-                    }
+                    },
                 ],
-                super_params_associations: vec![ParamAssociation::Defined(
-                    map_cl
-                        .context
+                super_params_associations: vec![TypeParamAssociation::Defined(
+                    std
                         .borrow()
-                        .lookup_defined(&DefinedType::cons("K"))?
+                        .lookup_class("Map::K").expect("error")
                 ), ],
-                fqcn: Identity::new("std::Map")?,
-                context: map_cl.context.clone(),
             }
         );
-        Ok(())
     }
 
     #[test]
-    fn define_str_option() -> Result<(), String> {
+    fn define_str_option() {
         let layers = ModuleLayers::new();
 
-        let std = ModuleLayers::declare_env(layers.clone(), Identity::new("std")?)?
+        let std = ModuleLayers::declare_env(layers.clone(), Name::new("std")).expect("error")
             .borrow()
             .type_context
             .clone();
 
-        let lang = layers.borrow().get_env(Identity::new("lang")?).unwrap();
+        let lang = layers.borrow().get_env(Name::new("lang")).unwrap();
 
-        let str_cl = lang.borrow().type_context.borrow().lookup_defined(&str())?;
+        let str_cl = lang.borrow().type_context.borrow().lookup_class(&str().name).expect("error");
+        let any_cl = lang.borrow().type_context.borrow().lookup_class(&any().name).expect("error");
 
         let option_cl = TypeContext::define_class(
             std.clone(),
-            ClassTypeDefinition::new("Option").with_generic("A", DefinedType::cons("Str")),
-        )?;
+            ClassTypeDefinition::new(Name::new("Option"))
+                .with_generic("A", str()),
+        ).expect("error");
 
         let some_cl = TypeContext::define_class(
             std.clone(),
-            ClassTypeDefinition::new("Some")
+            ClassTypeDefinition::new(Name::new("Some"))
                 .with_super(option_cl.clone())
-                .with_generic("A", DefinedType::cons("Str"))
-                .with_association(0, Type::cons("A")),
-        )?;
+                .with_generic("A", str())
+                .with_association(0, Type::cons("Some::A")),
+        ).expect("error");
 
         let none_cl = TypeContext::define_class(
             std.clone(),
-            ClassTypeDefinition::new("None")
+            ClassTypeDefinition::new(Name::new("None"))
                 .with_super(option_cl.clone())
                 .with_association(0, Type::Nothing),
-        )?;
+        ).expect("error");
 
         assert_eq!(
-            some_cl.context.borrow().clone(),
+            std.borrow().clone(),
             TypeContext::with_classes(
                 [(
-                    "A".to_string(),
+                    Name::new("Option::A"),
                     TypeClass {
                         super_type: Some(str_cl.clone()),
                         generic_parameters: vec![],
                         super_params_associations: vec![],
-                        fqcn: Identity::new("std::Some::A")?,
-                        context: Rc::new(RefCell::new(Default::default())),
+                        fqcn: Name::new("std::Option::A"),
+                    }
+                ), (
+                    Name::new("Option"),
+                    TypeClass {
+                        super_type: Some(any_cl.clone()),
+                        generic_parameters: vec![GenericParam::new("A", str())],
+                        super_params_associations: vec![],
+                        fqcn: Name::new("std::Option"),
+                    }
+                ), (
+                    Name::new("Some::A"),
+                    TypeClass {
+                        super_type: Some(str_cl.clone()),
+                        generic_parameters: vec![],
+                        super_params_associations: vec![],
+                        fqcn: Name::new("std::Some::A"),
+                    }
+                ), (
+                    Name::new("Some"),
+                    TypeClass {
+                        super_type: Some(option_cl.clone()),
+                        generic_parameters: vec![GenericParam::new("A", str())],
+                        super_params_associations: vec![
+                            TypeParamAssociation::Defined(std.borrow().lookup_class("Some::A").expect("error"))
+                        ],
+                        fqcn: Name::new("std::Some"),
+                    }
+                ), (
+                    Name::new("None"),
+                    TypeClass {
+                        super_type: Some(option_cl.clone()),
+                        generic_parameters: vec![],
+                        super_params_associations: vec![
+                            TypeParamAssociation::Nothing
+                        ],
+                        fqcn: Name::new("std::None"),
                     }
                 )],
-                Identity::new("std::Some")?,
-                ImportEngine::new([ModuleImport::all(Identity::new("lang")?)], layers.clone()),
+                Name::new("std"),
+                ImportEngine::new(layers.clone()),
             ),
-        );
-        assert_eq!(
-            none_cl.context.borrow().clone(),
-            TypeContext::new(Identity::new("std::None")?, layers)
         );
 
         assert_eq!(
@@ -502,16 +560,14 @@ mod tests {
                 super_type: Some(option_cl.clone()),
                 generic_parameters: vec![GenericParam {
                     name: "A".to_string(),
-                    bound: DefinedType::cons("Str"),
+                    bound: ParameterizedType::cons("Str"),
                 }],
-                super_params_associations: vec![ParamAssociation::Defined(
-                    some_cl
-                        .context
+                super_params_associations: vec![TypeParamAssociation::Defined(
+                    std
                         .borrow()
-                        .lookup_defined(&DefinedType::cons("A"))?
+                        .lookup_class("Some::A").expect("error")
                 ), ],
-                fqcn: Identity::new("std::Some")?,
-                context: some_cl.context.clone(),
+                fqcn: Name::new("std::Some"),
             }
         );
 
@@ -520,71 +576,101 @@ mod tests {
             &TypeClass {
                 super_type: Some(option_cl.clone()),
                 generic_parameters: vec![],
-                super_params_associations: vec![ParamAssociation::Nothing],
-                fqcn: Identity::new("std::None")?,
-                context: none_cl.context.clone(),
+                super_params_associations: vec![TypeParamAssociation::Nothing],
+                fqcn: Name::new("std::None"),
             }
         );
-        Ok(())
     }
 
     #[test]
-    fn define_type_with_inter_referenced_generics() -> Result<(), String> {
+    fn define_type_with_inter_referenced_generics() {
         let layers = ModuleLayers::new();
 
-        let std = ModuleLayers::declare_env(layers.clone(), Identity::new("std")?)?
+        let std = ModuleLayers::declare_env(layers.clone(), Name::new("std")).expect("error")
             .borrow()
             .type_context
             .clone();
 
-        let lang = layers.borrow().get_env(Identity::new("lang")?).unwrap();
+        let lang = layers.borrow().get_env(Name::new("lang")).unwrap();
 
-        let str_cl = lang.borrow().type_context.borrow().lookup_defined(&str())?;
-        let any_cl = lang.borrow().type_context.borrow().lookup_defined(&any())?;
+        let str_cl = lang.borrow().type_context.borrow().lookup_class(&str().name).expect("error");
+        let any_cl = lang.borrow().type_context.borrow().lookup_class(&any().name).expect("error");
 
 
         let list_cl = TypeContext::define_class(
             std.clone(),
-            ClassTypeDefinition::new("List").with_generic("B", any()),
-        )?;
+            ClassTypeDefinition::new(Name::new("List")).with_generic("B", any()),
+        ).expect("error");
 
         //Equivalent to a `class Map[A: Str, B: List[A]] {}` statement
         let map_list_cl = TypeContext::define_class(
             std.clone(),
-            ClassTypeDefinition::new("Map")
-                .with_generic("A", DefinedType::cons("Str"))
-                .with_generic("B", DefinedType::parametrized("List", &[Type::cons("A")])),
-        )?;
+            ClassTypeDefinition::new(Name::new("Map"))
+                .with_generic("A", ParameterizedType::cons("Str"))
+                .with_generic("B", ParameterizedType::parametrized("List", &[Type::cons("Map::A")])),
+        ).expect("error");
 
         assert_eq!(
-            map_list_cl.context.borrow().clone(),
+            std.borrow().clone(),
             TypeContext::with_classes(
                 [(
-                    "B".to_string(),
+                    Name::new("List::B"),
+                    TypeClass {
+                        super_type: Some(any_cl.clone()),
+                        generic_parameters: vec![],
+                        super_params_associations: vec![],
+                        fqcn: Name::new("std::List::B"),
+                    }
+                ), (
+                    Name::new("List"),
+                    TypeClass {
+                        fqcn: Name::new("std::List"),
+                        super_type: Some(any_cl.clone()),
+                        generic_parameters: vec![GenericParam {
+                            name: "B".to_string(),
+                            bound: any(),
+                        }],
+                        super_params_associations: vec![],
+                    }
+                ), (
+                    Name::new("Map::B"),
                     TypeClass {
                         super_type: Some(list_cl),
                         generic_parameters: vec![],
-                        super_params_associations: vec![ParamAssociation::Defined(
-                            map_list_cl
-                                .context
+                        super_params_associations: vec![TypeParamAssociation::Defined(
+                            std
                                 .borrow()
-                                .lookup_defined(&DefinedType::cons("A"))?
+                                .lookup_class("Map::A").expect("error")
                         )],
-                        fqcn: Identity::new("std::Map::B")?,
-                        context: Rc::new(RefCell::new(Default::default())),
+                        fqcn: Name::new("std::Map::B"),
                     }
                 ), (
-                    "A".to_string(),
+                    Name::new("Map::A"),
                     TypeClass {
+                        fqcn: Name::new("std::Map::A"),
                         super_type: Some(str_cl),
                         generic_parameters: vec![],
                         super_params_associations: vec![],
-                        fqcn: Identity::new("std::Map::A")?,
-                        context: Rc::new(RefCell::new(Default::default())),
+                    }
+                ), (
+                    Name::new("Map"),
+                    TypeClass {
+                        fqcn: Name::new("std::Map"),
+                        super_type: Some(any_cl.clone()),
+                        generic_parameters: vec![
+                            GenericParam {
+                                name: "A".to_string(),
+                                bound: str(),
+                            },
+                            GenericParam {
+                                name: "B".to_string(),
+                                bound: ParameterizedType::parametrized("List", &[Type::cons("Map::A")]),
+                            }],
+                        super_params_associations: vec![],
                     }
                 )],
-                Identity::new("std::Map")?,
-                ImportEngine::new([ModuleImport::all(Identity::new("lang")?)], layers)),
+                Name::new("std"),
+                ImportEngine::new(layers)),
         );
 
         assert_eq!(
@@ -594,39 +680,36 @@ mod tests {
                 generic_parameters: vec![
                     GenericParam {
                         name: "A".to_string(),
-                        bound: DefinedType::cons("Str"),
+                        bound: ParameterizedType::cons("Str"),
                     },
                     GenericParam {
                         name: "B".to_string(),
-                        bound: DefinedType::parametrized("List", &[Type::cons("A")]),
+                        bound: ParameterizedType::parametrized("List", &[Type::cons("Map::A")]),
                     },
                 ],
                 super_params_associations: vec![],
-                fqcn: Identity::new("std::Map")?,
-                context: map_list_cl.context.clone(),
+                fqcn: Name::new("std::Map"),
             }
         );
-
-        Ok(())
     }
 
     #[test]
     fn define_incompatible_subtype() -> Result<(), String> {
         let layers = ModuleLayers::new();
 
-        let std = ModuleLayers::declare_env(layers.clone(), Identity::new("std")?)?
+        let std = ModuleLayers::declare_env(layers.clone(), Name::new("std")).expect("error")
             .borrow()
             .type_context
             .clone();
 
         let str_iterable_cl = TypeContext::define_class(
             std.clone(),
-            ClassTypeDefinition::new("StrIterable").with_generic("A", str()),
-        )?;
+            ClassTypeDefinition::new(Name::new("StrIterable")).with_generic("A", str()),
+        ).expect("error");
 
         let int_list_cl_res = TypeContext::define_class(
             std.clone(),
-            ClassTypeDefinition::new("IntList")
+            ClassTypeDefinition::new(Name::new("IntList"))
                 .with_super(str_iterable_cl.clone())
                 .with_association(0, Type::cons("Int")),
         );
