@@ -4,7 +4,7 @@ use crate::moves::{blanks, eod, lookahead, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use context::source::{SourceSegment, SourceSegmentHolder};
 use lexer::token::TokenType;
-use lexer::token::TokenType::Comma;
+use lexer::token::TokenType::{Comma, EndOfFile};
 
 ///An aspect to parse expression lists
 pub(super) trait ExpressionListAspect<'a> {
@@ -74,7 +74,12 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         self.delimiter_stack.push_back(start.clone());
         let mut elements = vec![];
 
-        while self.cursor.lookahead(blanks().then(eod())).is_none() {
+        while self
+            .cursor
+            .lookahead(blanks().then(eod().or(of_type(EndOfFile))))
+            .is_none()
+        {
+            self.cursor.advance(blanks());
             while let Some(comma) = self.cursor.advance(of_type(Comma)) {
                 self.report_error(self.mk_parse_error(
                     "Expected value.",

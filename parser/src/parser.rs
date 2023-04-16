@@ -333,7 +333,11 @@ impl<'a> Parser<'a> {
     /// Raise an error on the current token.
     ///
     /// Use [Parser::expected_with] if the error is not on the current token.
-    pub(crate) fn expected<T>(&self, message: &str, kind: ParseErrorKind) -> ParseResult<T> {
+    pub(crate) fn expected<T>(
+        &self,
+        message: impl Into<String>,
+        kind: ParseErrorKind,
+    ) -> ParseResult<T> {
         Err(self.mk_parse_error(message, self.cursor.peek(), kind))
     }
 
@@ -343,7 +347,7 @@ impl<'a> Parser<'a> {
     /// A context can be a single token or a range of tokens.
     pub(crate) fn expected_with<T>(
         &self,
-        message: &str,
+        message: impl Into<String>,
         context: impl Into<ErrorContext<'a>>,
         kind: ParseErrorKind,
     ) -> ParseResult<T> {
@@ -355,8 +359,19 @@ impl<'a> Parser<'a> {
         if let Some(token) = self.cursor.advance(of_type(eog)) {
             self.delimiter_stack.pop_back();
             Ok(token)
-        } else {
+        } else if self.cursor.peek().token_type.is_closing_ponctuation() {
             self.mismatched_delimiter(eog)
+        } else {
+            self.expected(
+                format!(
+                    "Expected '{}' delimiter.",
+                    eog.str().unwrap_or("specific token")
+                ),
+                self.delimiter_stack
+                    .back()
+                    .map(|last| ParseErrorKind::Unpaired(self.cursor.relative_pos(last)))
+                    .unwrap_or(Unexpected),
+            )
         }
     }
 

@@ -174,7 +174,7 @@ fn multiple_errors_in_parameters() {
 
 #[test]
 fn do_not_self_lock() {
-    let content = "fun g[, ](, ) = {}";
+    let content = "fun g[\n, ](, ) = {}";
     let source = Source::unknown(content);
     let report = parse(source.clone());
     assert_eq!(
@@ -209,6 +209,25 @@ fn do_not_self_lock() {
                 }
             ],
             stack_ended: true,
+        }
+    );
+}
+
+#[test]
+fn list_are_not_tricked_by_blanks() {
+    let content = "fun pow[\n";
+    let source = Source::unknown(content);
+    let report = parse(source.clone());
+    assert_eq!(
+        report,
+        ParseReport {
+            expr: vec![],
+            errors: vec![ParseError {
+                message: "Expected ']' delimiter.".to_owned(),
+                position: content.len()..content.len(),
+                kind: ParseErrorKind::Unpaired(content.find('[').map(|p| p..p + 1).unwrap())
+            }],
+            stack_ended: false,
         }
     );
 }
