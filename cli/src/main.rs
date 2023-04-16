@@ -1,104 +1,49 @@
+mod cli;
+mod repl;
 mod report;
 
-use crate::report::print_flush;
-use context::source::{Source, SourceSegment};
+use crate::cli::Cli;
+use crate::repl::prompt;
+use crate::report::FormattedError;
+use clap::Parser;
+use context::source::Source;
 use dbg_pls::color;
-use miette::{Diagnostic, GraphicalReportHandler, SourceSpan};
-use parser::err::ParseErrorKind;
+use miette::GraphicalReportHandler;
 use parser::parse;
-use std::fmt::Display;
-use std::io::{self, BufRead, Write};
-use thiserror::Error;
-
-#[derive(Error, Debug, Diagnostic)]
-struct FormattedError<'s> {
-    #[source_code]
-    src: &'s Source<'s>,
-    #[label("Here")]
-    cursor: SourceSpan,
-    #[label("Start")]
-    related: Option<SourceSpan>,
-    message: String,
-    #[help]
-    help: Option<String>,
-}
-
-impl Display for FormattedError<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.message)
-    }
-}
-
-fn offset_empty_span(span: SourceSegment) -> SourceSpan {
-    if span.start == span.end {
-        (span.start - 1..span.end).into()
-    } else {
-        span.into()
-    }
-}
+use std::io;
+use std::process::exit;
 
 fn main() -> io::Result<()> {
-    let stdin = io::stdin();
-    let mut lines = stdin.lock().lines();
+    let cli = Cli::parse();
 
     let handler = GraphicalReportHandler::default();
 
-    print_flush!("=> ");
-    let mut content = String::new();
-    while let Some(line) = lines.next() {
-        let line = line?;
-        content.push_str(&line);
-        if line.ends_with('\\') {
-            content.push('\n');
-            print_flush!(".. ");
-            continue;
-        }
-
-        let source = Source::new(&content, "stdin");
+    if let Some(source) = cli.source {
+        let content = std::fs::read_to_string(&source)?;
+        let source = Source::new(&content, source.to_string_lossy().as_ref());
         let report = parse(source.clone());
-        if !report.stack_ended {
-            content.push('\n');
-            print_flush!(".. ");
-            continue; // Silently ignore incomplete input
-        }
-
         let errors = report
             .errors
             .into_iter()
-            .map(|err| FormattedError {
-                src: &source,
-                cursor: offset_empty_span(err.position),
-                related: match &err.kind {
-                    ParseErrorKind::Unpaired(pos) => Some(pos.clone().into()),
-                    _ => None,
-                },
-                message: err.message,
-                help: match &err.kind {
-                    ParseErrorKind::Expected(expected) => Some(format!("Expected: {:?}", expected)),
-                    ParseErrorKind::UnexpectedInContext(help) => Some(help.clone()),
-                    _ => None,
-                },
-            })
+            .map(|err| FormattedError::from(err, &source))
             .collect::<Vec<_>>();
-
         if errors.is_empty() {
-            print_flush!("{}\n=> ", color(&report.expr));
-            content.clear();
-            continue;
+            println!("{}", color(&report.expr));
+            return Ok(());
         }
-
         let mut msg = String::new();
         for err in &errors {
             if let Err(fmt_err) = handler.render_report(&mut msg, err) {
                 eprintln!("{fmt_err}");
-            } else {
-                eprintln!("{msg}");
+                msg.clear();
             }
-            msg.clear();
         }
-        content.clear();
-        print_flush!("=> ");
+        if !msg.is_empty() {
+            eprintln!("{msg}");
+        }
+        exit(1);
+    } else {
+        prompt(handler)?;
     }
-
     Ok(())
 }
