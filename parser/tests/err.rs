@@ -143,7 +143,7 @@ fn no_comma_or_two() {
 
 #[test]
 fn do_not_self_lock() {
-    let content = "fun g(, ) = {}";
+    let content = "fun g[, ](, ) = {}";
     let source = Source::unknown(content);
     let report = parse(source.clone());
     assert_eq!(
@@ -160,11 +160,23 @@ fn do_not_self_lock() {
                 return_type: None,
                 segment: source.segment()
             })],
-            errors: vec![ParseError {
-                message: "Expected parameter.".to_owned(),
-                position: content.find(',').map(|p| p..p + 1).unwrap(),
-                kind: ParseErrorKind::Unexpected
-            }],
+            errors: vec![
+                ParseError {
+                    message: "Expected value.".to_owned(),
+                    position: content.find(',').map(|p| p..p + 1).unwrap(),
+                    kind: ParseErrorKind::Unexpected
+                },
+                ParseError {
+                    message: "expected types".to_owned(),
+                    position: content.find(']').map(|p| p..p + 1).unwrap(),
+                    kind: ParseErrorKind::Expected("<types>".to_owned())
+                },
+                ParseError {
+                    message: "Expected parameter.".to_owned(),
+                    position: content.rfind(',').map(|p| p..p + 1).unwrap(),
+                    kind: ParseErrorKind::Unexpected
+                }
+            ],
             stack_ended: true,
         }
     );

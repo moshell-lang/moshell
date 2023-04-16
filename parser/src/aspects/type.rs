@@ -1,7 +1,7 @@
 use crate::aspects::expr_list::ExpressionListAspect;
 use crate::aspects::modules::ModulesAspect;
 use crate::err::ParseErrorKind::{Expected, Unexpected};
-use crate::moves::{any, blanks, not, of_type, spaces, MoveOperations};
+use crate::moves::{blanks, not, of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 use context::source::{SourceSegment, SourceSegmentHolder};
@@ -188,11 +188,13 @@ impl<'a> Parser<'a> {
         self.cursor.advance(spaces());
         let start = self.cursor.peek();
         let path = self.parse_inclusion_path()?;
-        let name_token = self.cursor.advance(spaces().then(any())).unwrap();
+        self.cursor.advance(spaces());
+        let name_token = self.cursor.peek();
         let mut segment = self.cursor.relative_pos_ctx(start..name_token.clone());
 
         return match name_token.token_type {
             Identifier => {
+                self.cursor.next_opt();
                 let (params, params_segment) = self.parse_type_parameter_list()?;
                 if !params.is_empty() {
                     segment.end = params_segment.end;
