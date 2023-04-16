@@ -140,8 +140,8 @@ pub(crate) fn none() -> PredicateMove<fn(Token) -> bool> {
 }
 
 ///repeats until it finds a token that's not a space
-pub(crate) fn spaces() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
-    of_type(Space)
+pub(crate) fn spaces() -> RepeatedMove<PredicateMove<impl Fn(Token) -> bool + Copy>> {
+    repeat_n(1, of_type(Space))
 }
 
 ///a move to consume any space or any newline
