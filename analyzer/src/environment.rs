@@ -22,7 +22,7 @@ use crate::types::context::TypeContext;
 use std::cell::RefCell;
 use std::default::Default;
 use std::rc::Rc;
-use crate::identity::Name;
+use crate::name::Name;
 use crate::layers::ModuleLayers;
 
 /// An environment.
@@ -47,17 +47,18 @@ impl Environment {
         Self {
             type_context: TypeContext::lang(layers),
             identity: Name {
-                absolute_path: Vec::new(),
+                path: Vec::new(),
                 name: "lang".to_string(),
             },
         }
     }
 
-    pub(crate) fn fork(env: Rc<RefCell<Environment>>, name: &str) -> Environment {
-        Self {
-            type_context: Rc::new(RefCell::new(TypeContext::fork(env.borrow().type_context.clone(), name))),
+    pub(crate) fn fork(env: Rc<RefCell<Environment>>, name: &str) -> Result<Environment, String> {
+        let type_context = Rc::new(RefCell::new(TypeContext::fork(env.borrow().type_context.clone(), name)?));
+        Ok(Self {
+            type_context,
             identity: env.borrow().identity.child(name)
-        }
+        })
     }
 }
 

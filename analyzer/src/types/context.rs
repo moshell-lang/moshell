@@ -7,9 +7,8 @@ use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 use crate::environment::{Environment, EnvironmentContext};
 
-use crate::identity::Name;
-use crate::import_engine::ImportEngine;
-use crate::imports::ModuleImport;
+use crate::name::Name;
+use crate::import_engine::{ImportEngine, SymbolImportKind};
 use crate::layers::ModuleLayers;
 
 
@@ -120,18 +119,19 @@ impl TypeContext {
         ctx_rc
     }
 
-    pub(crate) fn fork(ctx: Rc<RefCell<Self>>, name: &str) -> Self {
+    pub(crate) fn fork(ctx: Rc<RefCell<Self>>, name: &str) -> Result<Self, String> {
         let mut fork_imports = ctx.borrow().imports.clone();
-        fork_imports.add_import(ModuleImport::all(ctx.borrow().identity.clone()));
-        Self {
+        fork_imports.import(ctx.borrow().identity.clone(), SymbolImportKind::AllChildren)?;
+        Ok(Self {
             imports: fork_imports,
             identity: ctx.borrow().identity.child(name),
             classes: HashMap::new(),
-        }
+        })
     }
 
-    pub fn add_import(&mut self, import: ModuleImport) {
-        self.imports.add_import(import)
+    pub fn add_import(&mut self, fqn: Name, kind: SymbolImportKind) -> Result<(), String> {
+        self.imports.import(fqn, kind)?;
+        Ok(())
     }
 
     /// Creates and registers a new ClassType for given types, the given type must be subtype of given types
@@ -160,7 +160,7 @@ impl TypeContext {
     ///perform a class type lookup based on the defined types.
     /// If the type is not directly found in this context, then the context
     /// will lookup in parent's context.
-    pub fn lookup_class(&self, name: &str) -> Result<Rc<TypeClass>, String> {
+    pub fn lookup_class(& self, name: &str) -> Result<Rc<TypeClass>, String> {
         let name = Name::new(name);
         match self.find(&name) {
             Some(v) => Ok(v.clone()),
@@ -209,22 +209,20 @@ mod tests {
     use crate::types::context::TypeContext;
     use crate::types::types::Type;
     use pretty_assertions::assert_eq;
-    use std::collections::{HashMap, HashSet};
-    use crate::identity::Name;
-    use crate::imports::ModuleImport;
+    use crate::import_engine::SymbolImportKind::{AliasOf, Symbol};
+    use crate::name::Name;
     use crate::layers::ModuleLayers;
 
     #[test]
     fn specific_imports() -> Result<(), String> {
         let layers = ModuleLayers::new();
 
-        let foo = ModuleLayers::declare_env(layers.clone(), Name::new("foo"))?
+        let foo = ModuleLayers::declare_env(layers.clone(), Name::new("bar::foo"))?
             .borrow()
             .type_context
             .clone();
 
-
-        let bar = ModuleLayers::declare_env(layers.clone(), Name::new("bar"))?
+        let test = ModuleLayers::declare_env(layers.clone(), Name::new("my_module"))?
             .borrow()
             .type_context
             .clone();
@@ -239,16 +237,22 @@ mod tests {
             ClassTypeDefinition::new(Name::new("B")),
         )?;
 
-        bar.borrow_mut().add_import(ModuleImport::specifics(
-            Name::new("foo"),
-            HashSet::from(["A"]),
-            HashMap::from([("AliasedB", "B")]), //Import B and alias it with AliasedB
-        ));
+        let mut bar = test.borrow_mut();
+        bar.add_import(Name::new("bar::foo::A"), Symbol)?;
+        bar.add_import(Name::new("bar::foo::AliasedB"), AliasOf("B".to_string()))?;
+        bar.add_import(Name::new("bar::foo"), Symbol)?;
 
-        assert_eq!(bar.borrow().lookup_class("A")?, a);
-        assert_eq!(bar.borrow().lookup_class("AliasedB")?, b);
+        assert_eq!(bar.lookup_class("A")?, a);
+        assert_eq!(bar.lookup_class("foo::A")?, a);
+        assert_eq!(bar.lookup_class("AliasedB")?, b);
+        assert_eq!(bar.lookup_class("foo::AliasedB")?, b);
         assert_eq!(
-            bar.borrow().lookup_class("B"),
+            bar.lookup_class("B"),
+            Err("Unknown type B".to_string())
+        );
+
+        assert_eq!(
+            bar.lookup_class("foo::B"),
             Err("Unknown type B".to_string())
         );
 

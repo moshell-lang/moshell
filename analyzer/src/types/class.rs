@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::rc::Rc;
-use crate::identity::Name;
+use crate::name::Name;
 
 ///This structures hosts the definition of a types,
 #[derive(Clone, PartialEq)]
@@ -279,7 +279,7 @@ mod tests {
     use crate::types::class::{ClassTypeDefinition, GenericParam, TypeParamAssociation, TypeClass};
     use crate::types::types::{ParameterizedType, Type};
     use pretty_assertions::assert_eq;
-    use crate::identity::Name;
+    use crate::name::Name;
     use crate::import_engine::ImportEngine;
     use crate::layers::ModuleLayers;
 

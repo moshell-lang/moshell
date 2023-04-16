@@ -1,5 +1,5 @@
 use crate::environment::Environment;
-use crate::identity::Name;
+use crate::name::Name;
 use std::cell::RefCell;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -24,7 +24,7 @@ impl ModuleLayers {
     }
 
     pub fn get_env(&self, name: Name) -> Option<Rc<RefCell<Environment>>> {
-        let mut names = name.absolute_path.into_iter().chain(vec![name.name].into_iter());
+        let mut names = name.path.into_iter().chain(vec![name.name].into_iter());
 
         //we can safely unwrap here as names has at least `name.name` as element
         let root_name = names.next().unwrap();
@@ -52,7 +52,7 @@ impl ModuleLayers {
     }
 
     fn declare_module(&mut self, name: Name) -> Result<&mut Module, String> {
-        let mut names = name.absolute_path.into_iter().chain(vec![name.name].into_iter());
+        let mut names = name.path.into_iter().chain(vec![name.name].into_iter());
 
         //we can safely unwrap here as names has at least `name.name` as element
         let root_name = names.next().unwrap();
