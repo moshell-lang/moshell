@@ -142,6 +142,37 @@ fn no_comma_or_two() {
 }
 
 #[test]
+fn multiple_errors_in_parameters() {
+    let content = "f(1 + , if true; $, (2 + 3)";
+    let source = Source::unknown(content);
+    let report = parse(source.clone());
+    assert_eq!(
+        report,
+        ParseReport {
+            expr: vec![],
+            errors: vec![
+                ParseError {
+                    message: "Unexpected token ','.".to_owned(),
+                    position: content.find(',').map(|p| p..p + 1).unwrap(),
+                    kind: ParseErrorKind::Unexpected
+                },
+                ParseError {
+                    message: "variable reference with empty name".to_owned(),
+                    position: content.find('$').map(|p| p + 1..p + 2).unwrap(),
+                    kind: ParseErrorKind::Unexpected
+                },
+                ParseError {
+                    message: "Expected closing parenthesis.".to_owned(),
+                    position: content.len()..content.len(),
+                    kind: ParseErrorKind::Unpaired(content.find('(').map(|p| p..p + 1).unwrap())
+                }
+            ],
+            stack_ended: false,
+        }
+    );
+}
+
+#[test]
 fn do_not_self_lock() {
     let content = "fun g[, ](, ) = {}";
     let source = Source::unknown(content);

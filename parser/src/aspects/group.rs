@@ -113,7 +113,7 @@ impl<'a> Parser<'a> {
                     statements.push(statement);
                 }
                 Err(err) => {
-                    self.recover_from(err);
+                    self.recover_from(err, eox());
                 }
             }
 

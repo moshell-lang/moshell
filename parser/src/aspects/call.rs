@@ -276,7 +276,7 @@ impl<'a> Parser<'a> {
             match self.value() {
                 Ok(arg) => args.push(arg),
                 Err(err) => {
-                    self.recover_from(err);
+                    self.recover_from(err, of_type(TokenType::Comma));
                 }
             }
             self.cursor.advance(spaces());

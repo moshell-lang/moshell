@@ -70,7 +70,7 @@ impl<'a> Parser<'a> {
             match self.parse_match_arm(parse_arm.clone()) {
                 Ok(arm) => arms.push(arm),
                 Err(err) => {
-                    self.recover_from(err);
+                    self.recover_from(err, eox());
                 }
             }
         }

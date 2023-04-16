@@ -134,7 +134,7 @@ impl<'a> Parser<'a> {
             match param {
                 Ok(param) => params.push(param),
                 Err(err) => {
-                    self.recover_from(err);
+                    self.recover_from(err, of_type(Comma));
                 }
             }
             if let Err(err) = self.cursor.force(

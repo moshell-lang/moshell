@@ -84,7 +84,7 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
             }
             match parse_element(self) {
                 Err(err) => {
-                    self.recover_from(err);
+                    self.recover_from(err, of_type(Comma));
                 }
                 Ok(val) => {
                     elements.push(val);

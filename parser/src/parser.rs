@@ -25,7 +25,8 @@ use crate::cursor::ParserCursor;
 use crate::err::ParseErrorKind::Unexpected;
 use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
 use crate::moves::{
-    any, bin_op, blanks, eod, eox, like, next, of_type, of_types, repeat, spaces, MoveOperations,
+    any, bin_op, blanks, eod, eox, like, next, of_type, of_types, repeat, spaces, Move,
+    MoveOperations,
 };
 use ast::range::Iterable;
 use ast::Expr;
@@ -75,7 +76,7 @@ impl<'a> Parser<'a> {
         while self.look_for_input() {
             match self.parse_next() {
                 Err(error) => {
-                    self.recover_from(error);
+                    self.recover_from(error, eox());
                 }
                 Ok(statement) => statements.push(statement),
             }
@@ -481,28 +482,39 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    pub(crate) fn recover_from(&mut self, error: ParseError) {
+    /// Advances the cursor after an error, and reports it.
+    ///
+    /// The base behavior is to go to the end of the file or the next valid closing delimiter,
+    /// but this can be further configured by the `break_on` parameter.
+    pub(crate) fn recover_from(&mut self, error: ParseError, break_on: impl Move + Copy) {
         match error.kind {
             ParseErrorKind::Unpaired(_) => {
                 self.repos_to_top_delimiter();
             }
             _ => {
-                self.repos_to_next_expr();
+                self.repos_to_next_expr(break_on);
             }
         }
         self.report_error(error);
     }
 
+    /// Adds an error to the parser's error vector.
+    ///
+    /// This assumes that any recovery has already been done.
+    /// Prefer using [`Parser::recover_from`] instead if it's not the case.
     pub(crate) fn report_error(&mut self, error: ParseError) {
         self.errors.push(error);
     }
 
-    //traverse current expression and go to next expression
-    fn repos_to_next_expr(&mut self) {
+    /// Goes to the next expression, where the move can be specialized.
+    fn repos_to_next_expr(&mut self, break_on: impl Move + Copy) {
         while !self.cursor.is_at_end() {
-            if self.cursor.lookahead(eox()).is_some() {
+            // Stop before a break_on token.
+            if self.cursor.lookahead(break_on).is_some() {
                 break;
             }
+
+            // See if we're at a closing delimiter.
             let token = self.cursor.peek();
             if let Some(last) = self.delimiter_stack.back() {
                 if last
@@ -511,13 +523,19 @@ impl<'a> Parser<'a> {
                     .expect("invalid delimiter passed to stack")
                     == token.token_type
                 {
+                    // Do not consume it to avoid breaking the stack.
+                    // The caller will consume it.
                     break;
                 }
             }
+            // Otherwise, just advance.
             self.cursor.next_opt();
         }
     }
 
+    /// Goes to the next closing delimiter of the top delimiter on the stack.
+    ///
+    /// If the stack is empty, this does nothing.
     fn repos_to_top_delimiter(&mut self) {
         while !self.cursor.is_at_end() {
             if let Some(last) = self.delimiter_stack.back() {
