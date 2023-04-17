@@ -23,22 +23,35 @@ impl ModuleLayers {
         layers
     }
 
-    pub fn get_env(&self, name: Name) -> Option<Rc<RefCell<Environment>>> {
-        let mut names = name.path.into_iter().chain(vec![name.name].into_iter());
+    pub fn get_module(&self, mod_fqn: Name) -> Option<&Module> {
+        self.retrieve_mod(mod_fqn, false)
+    }
+
+    pub fn get_module_of(&self, symbol_fqn: Name) -> Option<&Module> {
+        self.retrieve_mod(symbol_fqn, true)
+    }
+
+    fn retrieve_mod(&self, name: Name, of_symbol: bool) -> Option<&Module> {
+        let mut parts = name.parts().into_iter();
 
         //we can safely unwrap here as names has at least `name.name` as element
-        let root_name = names.next().unwrap();
+        let root_name = parts.next().unwrap();
 
         let mut module = self.roots.get(&root_name);
 
-        for name in names {
+        for name in parts {
             match module {
                 Some(m) => module = m.childs.get(&name),
-                None => return None
+                None => {
+                    if of_symbol {
+                        break
+                    }
+                    return None
+                }
             }
         }
 
-        module.and_then(|m| m.env.clone())
+        module
     }
 
     pub fn declare_env(layers: Rc<RefCell<Self>>, name: Name) -> Result<Rc<RefCell<Environment>>, String> {
@@ -72,8 +85,8 @@ impl ModuleLayers {
 
 #[derive(Default, Debug, Clone)]
 pub struct Module {
-    full_name: Name,
-    env: Option<Rc<RefCell<Environment>>>,
+    pub full_name: Name,
+    pub env: Option<Rc<RefCell<Environment>>>,
     childs: HashMap<String, Module>,
 }
 
@@ -109,6 +122,37 @@ impl Module {
                 Ok(self.childs.get_mut(&name).unwrap())
             }
         }
+    }
+
+    pub fn get_env(&self, env_fqn: Name) -> Option<Rc<RefCell<Environment>>> {
+        self.retrieve_env(env_fqn, false)
+    }
+
+    pub fn get_env_of(&self, symbol_fqn: Name) -> Option<Rc<RefCell<Environment>>> {
+        self.retrieve_env(symbol_fqn, true)
+    }
+
+    fn retrieve_env(&self, name: Name, of_symbol: bool) -> Option<Rc<RefCell<Environment>>> {
+        let mut parts = name.parts().into_iter();
+
+        //we can safely unwrap here as names has at least `name.name` as element
+        let root_name = parts.next().unwrap();
+
+        let mut module = self.childs.get(&root_name);
+
+        for name in parts {
+            match module {
+                Some(m) => module = m.childs.get(&name),
+                None => {
+                    if of_symbol {
+                        break
+                    }
+                    return None
+                }
+            }
+        }
+
+        module.and_then(|m| m.env.clone())
     }
 
 }

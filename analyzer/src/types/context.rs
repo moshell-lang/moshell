@@ -119,19 +119,18 @@ impl TypeContext {
         ctx_rc
     }
 
-    pub(crate) fn fork(ctx: Rc<RefCell<Self>>, name: &str) -> Result<Self, String> {
+    pub(crate) fn fork(ctx: Rc<RefCell<Self>>, name: &str) -> Self {
         let mut fork_imports = ctx.borrow().imports.clone();
-        fork_imports.import(ctx.borrow().identity.clone(), SymbolImportKind::AllChildren)?;
-        Ok(Self {
+        fork_imports.import(ctx.borrow().identity.clone(), SymbolImportKind::AllChildren);
+        Self {
             imports: fork_imports,
             identity: ctx.borrow().identity.child(name),
             classes: HashMap::new(),
-        })
+        }
     }
 
-    pub fn add_import(&mut self, fqn: Name, kind: SymbolImportKind) -> Result<(), String> {
-        self.imports.import(fqn, kind)?;
-        Ok(())
+    pub fn add_import(&mut self, fqn: Name, kind: SymbolImportKind) {
+        self.imports.import(fqn, kind);
     }
 
     /// Creates and registers a new ClassType for given types, the given type must be subtype of given types
@@ -160,18 +159,18 @@ impl TypeContext {
     ///perform a class type lookup based on the defined types.
     /// If the type is not directly found in this context, then the context
     /// will lookup in parent's context.
-    pub fn lookup_class(& self, name: &str) -> Result<Rc<TypeClass>, String> {
+    pub fn use_class(&mut self, name: &str) -> Result<Rc<TypeClass>, String> {
         let name = Name::new(name);
         match self.find(&name) {
             Some(v) => Ok(v.clone()),
             None => self.imports
-                .lookup_element::<Rc<TypeClass>, Self>(&name)
+                .use_element::<Rc<TypeClass>, Self>(&name)
                 .ok_or(format!("Unknown type {}", &name))
         }
     }
 
     /// Find nearest type between two class types.
-    pub fn unify(&self, t1: &Type, t2: &Type) -> Result<Type, String> {
+    pub fn unify(&mut self, t1: &Type, t2: &Type) -> Result<Type, String> {
         match (t1, t2) {
             (any, Type::Nothing) => Ok(any.clone()),
             (Type::Nothing, any) => Ok(any.clone()),
@@ -183,8 +182,8 @@ impl TypeContext {
                 Type::Parametrized(p1),
                 Type::Parametrized(p2),
             ) => {
-                let cl1 = self.lookup_class(&p1.name)?;
-                let cl2 = self.lookup_class(&p2.name)?;
+                let cl1 = self.use_class(&p1.name)?;
+                let cl2 = self.use_class(&p2.name)?;
 
                 let common = cl1.get_common_parent(cl2);
 
@@ -214,15 +213,15 @@ mod tests {
     use crate::layers::ModuleLayers;
 
     #[test]
-    fn specific_imports() -> Result<(), String> {
+    fn specific_imports()  {
         let layers = ModuleLayers::new();
 
-        let foo = ModuleLayers::declare_env(layers.clone(), Name::new("bar::foo"))?
+        let foo = ModuleLayers::declare_env(layers.clone(), Name::new("bar::foo")).expect("error")
             .borrow()
             .type_context
             .clone();
 
-        let test = ModuleLayers::declare_env(layers.clone(), Name::new("my_module"))?
+        let test = ModuleLayers::declare_env(layers.clone(), Name::new("my_module")).expect("error")
             .borrow()
             .type_context
             .clone();
@@ -230,50 +229,50 @@ mod tests {
         let a = TypeContext::define_class(
             foo.clone(),
             ClassTypeDefinition::new(Name::new("A")),
-        )?;
+        ).expect("error");
 
         let b = TypeContext::define_class(
             foo.clone(),
             ClassTypeDefinition::new(Name::new("B")),
-        )?;
+        ).expect("error");
 
         let mut bar = test.borrow_mut();
-        bar.add_import(Name::new("bar::foo::A"), Symbol)?;
-        bar.add_import(Name::new("bar::foo::AliasedB"), AliasOf("B".to_string()))?;
-        bar.add_import(Name::new("bar::foo"), Symbol)?;
+        bar.add_import(Name::new("bar::foo::A"), Symbol);
+        bar.add_import(Name::new("bar::foo::AliasedB"), AliasOf("B".to_string()));
+        bar.add_import(Name::new("bar::foo"), Symbol);
 
-        assert_eq!(bar.lookup_class("A")?, a);
-        assert_eq!(bar.lookup_class("foo::A")?, a);
-        assert_eq!(bar.lookup_class("AliasedB")?, b);
-        assert_eq!(bar.lookup_class("foo::AliasedB")?, b);
+        assert_eq!(bar.use_class("A").expect("error"), a);
+        assert_eq!(bar.use_class("foo::A").expect("error"), a);
+        assert_eq!(bar.use_class("AliasedB").expect("error"), b);
+        assert_eq!(bar.use_class("foo::AliasedB").expect("error"), b);
         assert_eq!(
-            bar.lookup_class("B"),
+            bar.use_class("B"),
             Err("Unknown type B".to_string())
         );
 
         assert_eq!(
-            bar.lookup_class("foo::B"),
+            bar.use_class("foo::B"),
             Err("Unknown type B".to_string())
         );
 
-        Ok(())
     }
 
     #[test]
-    fn simple_union() -> Result<(), String> {
+    fn simple_union()  {
         let layers = ModuleLayers::new();
 
-        let ctx = ModuleLayers::declare_env(layers.clone(), Name::new("std"))?
+        let ctx = ModuleLayers::declare_env(layers.clone(), Name::new("std")).expect("error")
             .borrow()
             .type_context
             .clone();
+
 
         //Iterable[A]
         let iterable_cl = TypeContext::define_class(
             ctx.clone(),
             ClassTypeDefinition::new(Name::new("Iterable"))
                 .with_generic("A", any()),
-        )?;
+        ).expect("error");
 
         //Map[K, V]: Iterable[K]
         TypeContext::define_class(
@@ -283,7 +282,7 @@ mod tests {
                 .with_generic("K", any())
                 .with_generic("V", any())
                 .with_association(0, Type::cons("Map::K")),
-        )?;
+        ).expect("error");
 
         //List[A]: Iterable[A]
         TypeContext::define_class(
@@ -292,21 +291,22 @@ mod tests {
                 .with_super(iterable_cl.clone())
                 .with_generic("A", any())
                 .with_association(0, Type::cons("List::A")),
-        )?;
+        ).expect("error");
 
-        let res1 = ctx.borrow().unify(
+        let mut ctx = ctx.borrow_mut();
+
+        let res1 = ctx.unify(
             &Type::parametrized("List", &[Type::cons("Str")]),
             &Type::parametrized("Map", &[Type::cons("Str"), Type::cons("Int")]),
-        )?;
+        ).expect("error");
 
-        let res2 = ctx.borrow().unify(
+        let res2 = ctx.unify(
             &Type::parametrized("Map", &[Type::cons("Str"), Type::cons("Int")]),
             &Type::parametrized("List", &[Type::cons("Str")]),
-        )?;
+        ).expect("error");
 
         assert_eq!(res1, Type::parametrized("std::Iterable", &[Type::Unknown]));
         assert_eq!(res2, Type::parametrized("std::Iterable", &[Type::Unknown]));
 
-        Ok(())
     }
 }

@@ -7,15 +7,40 @@ pub struct Name {
 }
 
 impl Name {
-
     pub fn new(name: &str) -> Self {
         let elements: Vec<String> = name.split("::").into_iter().map(|s| s.to_string()).collect();
         let (name, path) = elements.split_last().unwrap();
 
         Self {
             path: path.into(),
-            name: name.clone()
+            name: name.clone(),
         }
+    }
+
+    pub fn part_count(&self) -> usize {
+        self.path.len() + 1
+    }
+
+    pub fn with_name(self, name: &str) -> Self {
+        Self {
+            path: self.path,
+            name: name.to_string()
+        }
+    }
+
+    pub fn relative_to(&self, other: Name) -> Option<Name> {
+        let parts: Vec<_> = other.parts()
+            .clone()
+            .into_iter()
+            .zip(self.parts())
+            .skip_while(|(a, b)| a == b)
+            .map(|(a, _)| a)
+            .collect();
+
+        if parts.is_empty() {
+            return None
+        }
+        Some(Name::from(parts))
     }
 
     pub fn parts(&self) -> Vec<String> {
@@ -65,7 +90,7 @@ impl From<Vec<String>> for Name {
                 name: name.to_string()
             }
         }
-        panic!()
+        panic!("empty vec input")
     }
 }
 

@@ -53,12 +53,12 @@ impl Environment {
         }
     }
 
-    pub(crate) fn fork(env: Rc<RefCell<Environment>>, name: &str) -> Result<Environment, String> {
-        let type_context = Rc::new(RefCell::new(TypeContext::fork(env.borrow().type_context.clone(), name)?));
-        Ok(Self {
+    pub(crate) fn fork(env: Rc<RefCell<Environment>>, name: &str) -> Environment {
+        let type_context = Rc::new(RefCell::new(TypeContext::fork(env.borrow().type_context.clone(), name)));
+        Self {
             type_context,
             identity: env.borrow().identity.child(name)
-        })
+        }
     }
 }
 

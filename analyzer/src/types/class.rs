@@ -5,6 +5,7 @@ use context::display::fmt_comma_separated;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
+use std::ops::DerefMut;
 use std::rc::Rc;
 use crate::name::Name;
 
@@ -137,7 +138,7 @@ impl TypeClass {
         let super_type = if let Some(st) = definition.super_type {
             st
         } else {
-            ctx.borrow().lookup_class(&any().name)?
+            ctx.borrow_mut().use_class(&any().name)?
         };
 
         Self::contextualize_generics(definition.name.clone(), ctx.clone(), &definition.generic_parameters)?;
@@ -147,7 +148,7 @@ impl TypeClass {
         let associations = Self::verify_associations(
             fqcn.clone(),
             super_type.clone(),
-            &ctx.borrow(),
+            ctx.borrow_mut().deref_mut(),
             definition.associations,
         )?;
 
@@ -169,7 +170,7 @@ impl TypeClass {
         generic_parameters: &Vec<GenericParam>,
     ) -> Result<(), String> {
         for generic in generic_parameters {
-            let sup = ctx.borrow().lookup_class(&generic.bound.name)?;
+            let sup = ctx.borrow_mut().use_class(&generic.bound.name)?;
             let mut builder =
                 ClassTypeDefinition::new(name_prefix.child(&generic.name))
                     .with_super(sup);
@@ -187,7 +188,7 @@ impl TypeClass {
     fn verify_associations(
         self_name: Name,
         parent: Rc<TypeClass>,
-        class_ctx: &TypeContext,
+        class_ctx: &mut TypeContext,
         associations: HashMap<usize, Type>,
     ) -> Result<Vec<TypeParamAssociation>, String> {
         //Ensure that all generic parameters are compatible with their associated parent's generics
@@ -212,8 +213,8 @@ impl TypeClass {
                 Type::Nothing => TypeParamAssociation::Nothing,
 
                 Type::Parametrized(defined) => {
-                    let class = class_ctx.lookup_class(&defined.name)?;
-                    let bound_class = class_ctx.lookup_class(&parent_gparam.bound.name.clone())?;
+                    let class = class_ctx.use_class(&defined.name)?;
+                    let bound_class = class_ctx.use_class(&parent_gparam.bound.name.clone())?;
                     if !class.is_subtype_of(bound_class) {
                         return Err(format!(
                             "type {} is not compatible with parent's generic parameter `{}`",
@@ -292,7 +293,7 @@ mod tests {
             .type_context
             .clone();
 
-        let any_cl = std.borrow().lookup_class(&any().name).expect("error");
+        let any_cl = std.borrow_mut().use_class(&any().name).expect("error");
 
         let iterable_cl = TypeContext::define_class(
             std.clone(),
@@ -346,8 +347,8 @@ mod tests {
                 }],
                 super_params_associations: vec![TypeParamAssociation::Defined(
                     std
-                        .borrow()
-                        .lookup_class("List::B").expect("error")
+                        .borrow_mut()
+                        .use_class("List::B").expect("error")
                 )],
             }
         );
@@ -362,9 +363,9 @@ mod tests {
             .type_context
             .clone();
 
-        let lang = layers.borrow().get_env(Name::new("lang")).unwrap();
+        let lang = layers.borrow().get_module(Name::new("lang")).unwrap().env.clone().unwrap();
 
-        let any_cl = lang.borrow().type_context.borrow().lookup_class(&any().name).expect("error");
+        let any_cl = lang.borrow().type_context.borrow_mut().use_class(&any().name).expect("error");
 
         let iterable_cl = TypeContext::define_class(
             std.clone(),
@@ -418,7 +419,7 @@ mod tests {
                                 bound: any(),
                             }],
                         super_params_associations: vec![
-                            TypeParamAssociation::Defined(std.borrow().lookup_class("Map::K").expect("error"))
+                            TypeParamAssociation::Defined(std.borrow_mut().use_class("Map::K").expect("error"))
                         ],
                     }
                 ), (
@@ -459,8 +460,8 @@ mod tests {
                 ],
                 super_params_associations: vec![TypeParamAssociation::Defined(
                     std
-                        .borrow()
-                        .lookup_class("Map::K").expect("error")
+                        .borrow_mut()
+                        .use_class("Map::K").expect("error")
                 ), ],
             }
         );
@@ -475,10 +476,10 @@ mod tests {
             .type_context
             .clone();
 
-        let lang = layers.borrow().get_env(Name::new("lang")).unwrap();
+        let lang = layers.borrow().get_module(Name::new("lang")).unwrap().env.clone().unwrap();
 
-        let str_cl = lang.borrow().type_context.borrow().lookup_class(&str().name).expect("error");
-        let any_cl = lang.borrow().type_context.borrow().lookup_class(&any().name).expect("error");
+        let str_cl = lang.borrow().type_context.borrow_mut().use_class(&str().name).expect("error");
+        let any_cl = lang.borrow().type_context.borrow_mut().use_class(&any().name).expect("error");
 
         let option_cl = TypeContext::define_class(
             std.clone(),
@@ -534,7 +535,7 @@ mod tests {
                         super_type: Some(option_cl.clone()),
                         generic_parameters: vec![GenericParam::new("A", str())],
                         super_params_associations: vec![
-                            TypeParamAssociation::Defined(std.borrow().lookup_class("Some::A").expect("error"))
+                            TypeParamAssociation::Defined(std.borrow_mut().use_class("Some::A").expect("error"))
                         ],
                         fqcn: Name::new("std::Some"),
                     }
@@ -564,8 +565,8 @@ mod tests {
                 }],
                 super_params_associations: vec![TypeParamAssociation::Defined(
                     std
-                        .borrow()
-                        .lookup_class("Some::A").expect("error")
+                        .borrow_mut()
+                        .use_class("Some::A").expect("error")
                 ), ],
                 fqcn: Name::new("std::Some"),
             }
@@ -591,10 +592,10 @@ mod tests {
             .type_context
             .clone();
 
-        let lang = layers.borrow().get_env(Name::new("lang")).unwrap();
+        let lang = layers.borrow().get_module_of(Name::new("lang")).unwrap().env.clone().unwrap();
 
-        let str_cl = lang.borrow().type_context.borrow().lookup_class(&str().name).expect("error");
-        let any_cl = lang.borrow().type_context.borrow().lookup_class(&any().name).expect("error");
+        let str_cl = lang.borrow().type_context.borrow_mut().use_class(&str().name).expect("error");
+        let any_cl = lang.borrow().type_context.borrow_mut().use_class(&any().name).expect("error");
 
 
         let list_cl = TypeContext::define_class(
@@ -639,8 +640,8 @@ mod tests {
                         generic_parameters: vec![],
                         super_params_associations: vec![TypeParamAssociation::Defined(
                             std
-                                .borrow()
-                                .lookup_class("Map::A").expect("error")
+                                .borrow_mut()
+                                .use_class("Map::A").expect("error")
                         )],
                         fqcn: Name::new("std::Map::B"),
                     }

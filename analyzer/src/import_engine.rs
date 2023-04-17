@@ -1,14 +1,16 @@
 use std::cell::RefCell;
 use std::collections::{HashMap};
 use std::collections::hash_map::Entry;
+use std::ops::Deref;
 use std::rc::{Rc, Weak};
 use crate::environment::EnvironmentContext;
+use crate::import_engine::SymbolImportKind::{AliasOf, AllChildren};
 use crate::name::Name;
-use crate::layers::ModuleLayers;
+use crate::layers::{Module, ModuleLayers};
 
 #[derive(Default, Debug, Clone)]
 pub struct ImportEngine {
-    tree: ImportTree,
+    imports: ImportTree,
     layers: Weak<RefCell<ModuleLayers>>,
 }
 
@@ -18,22 +20,21 @@ struct ImportTree {
 }
 
 impl ImportTree {
-    fn add(&mut self, child: Name, kind: SymbolImportKind) -> Result<(), String> {
-        match self.roots.entry(child.root().to_string()) {
-            Entry::Occupied(mut o) => {
-                let tail = child.tail().unwrap_or(child.clone());
-                o.get_mut().add(tail, kind)
-            }
-            Entry::Vacant(v) => {
-                v.insert(ImportNode {
-                    fqn: child,
-                    import: Some(kind),
-                    childs: HashMap::new(),
-                    used: false,
-                });
-                Ok(())
+    fn insert(&mut self, child: Name, kind: SymbolImportKind) {
+        push_import(child, kind, &mut self.roots)
+    }
+
+    fn use_import<V, E: EnvironmentContext<V>>(&mut self, layers: &ModuleLayers, name: Name) -> Option<V> {
+        for node in self.roots.values_mut() {
+            let env = layers
+                .get_module_of(node.fqn.clone())
+                .expect(&format!("symbol {} links to an unknown module but is imported", node.fqn));
+            let result = node.use_import::<V, E>(env, name.clone());
+            if result.is_some() {
+                return result
             }
         }
+        None
     }
 }
 
@@ -47,8 +48,18 @@ struct ImportNode {
 
 
 impl ImportNode {
-    fn add(&mut self, mut child: Name, kind: SymbolImportKind) -> Result<(), String> {
-        let self_tail_parts = self.fqn.tail().unwrap_or(self.fqn.clone()).parts();
+    fn insert(&mut self, mut child: Name, kind: SymbolImportKind) {
+        if self.fqn.name == child.name && child.path.is_empty() {
+            self.import = Some(kind);
+            return;
+        }
+
+        if self.fqn.path.is_empty() {
+            push_import(child, kind, &mut self.childs);
+            return;
+        }
+
+        let self_tail_parts = self.fqn.tail().map(|n| n.parts()).unwrap_or_default();
         let common_path: Vec<_> = self_tail_parts
             .clone()
             .into_iter()
@@ -61,7 +72,7 @@ impl ImportNode {
         if common_path_count != self_tail_parts.len() {
             //redistribute branch nodes
             let uncommon_path_self: Vec<_> = self_tail_parts.into_iter().skip(common_path_count).collect();
-            let current_node = Self {
+            let axis = Self {
                 fqn: Name::from(uncommon_path_self),
                 import: self.import.clone(),
                 used: self.used,
@@ -70,34 +81,74 @@ impl ImportNode {
             let new_fqn_parts: Vec<_> = vec![self.fqn.root().to_string()].into_iter().chain(common_path).collect();
             self.fqn = Name::from(new_fqn_parts);
             self.import = None;
-            self.childs = HashMap::from([(current_node.fqn.root().to_string(), current_node)]);
+            self.childs = HashMap::from([(axis.fqn.root().to_string(), axis)]);
+        }
 
-            if common_path_count != 0 {
-                let uncommon_path_child: Vec<_> = child.parts().into_iter().skip(common_path_count).collect();
-                child = Name::from(uncommon_path_child)
+        if common_path_count < child.part_count() {
+            let uncommon_path_child: Vec<_> = child.parts()
+                .into_iter()
+                .skip(common_path_count)
+                .collect();
+            child = Name::from(uncommon_path_child)
+        }
+
+        push_import(child, kind, &mut self.childs)
+    }
+
+    fn use_import<V, E: EnvironmentContext<V>>(&mut self, module: &Module, name: Name) -> Option<V> {
+        for node in self.childs.values_mut() {
+            match node.use_import::<V, E>(module, name.clone()) {
+                Some(val) => return Some(val),
+                None => ()
             }
         }
 
+        let import = match self.import.clone() {
+            None => return None,
+            Some(import) => import
+        };
 
-        match self.childs.entry(child.root().to_string()) {
-            Entry::Occupied(mut o) => {
-                let tail = child.tail().unwrap_or(child.clone());
-                o.get_mut().add(tail, kind)
-            },
-            Entry::Vacant(v) => {
-                v.insert(ImportNode {
-                    fqn: child,
-                    import: Some(kind),
-                    childs: HashMap::new(),
-                    used: false,
-                });
-                Ok(())
-            }
+        if import != AllChildren && self.fqn.name != name.root() {
+            return None
+        }
+
+        let env = module.env.clone()
+            .expect(&format!("symbol {} links to an unknown module {} but is imported", self.fqn, module.full_name));
+        let ctx = E::from_env(env.borrow().deref());
+        let ctx = ctx.borrow();
+
+        let name = name.tail().unwrap_or(name);
+
+        let result = match import {
+            AliasOf(aliased) => ctx.find(&name.with_name(&aliased)),
+            _ => ctx.find(&name),
+        };
+
+        if result.is_some() {
+            self.used = true;
+        }
+        result
+    }
+}
+
+fn push_import(child: Name, kind: SymbolImportKind, map: &mut HashMap<String, ImportNode>) {
+    match map.entry(child.root().to_string()) {
+        Entry::Occupied(mut o) => {
+            let tail = child.tail().unwrap_or(child.clone());
+            o.get_mut().insert(tail, kind)
+        },
+        Entry::Vacant(v) => {
+            v.insert(ImportNode {
+                fqn: child,
+                import: Some(kind),
+                childs: HashMap::new(),
+                used: false,
+            });
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SymbolImportKind {
     Symbol,
     AllChildren,
@@ -110,8 +161,7 @@ impl ImportEngine {
             tree: ImportTree::default(),
             layers: Rc::downgrade(&layers),
         };
-        s.import(Name::new("lang"), SymbolImportKind::AllChildren)
-            .expect("lang import in empty engine cannot fail");
+        s.import(Name::new("lang"), SymbolImportKind::AllChildren);
         s
     }
 
@@ -119,42 +169,24 @@ impl ImportEngine {
         let mut s = Self::new(layers);
         for (fqn, kind) in imports {
             let symbol_fqn = Name::new(fqn);
-            s.tree.add(symbol_fqn, kind).expect("unchecked");
+            s.tree.insert(symbol_fqn, kind);
         }
         s
     }
 
-    pub fn import(&mut self, fqn: Name, kind: SymbolImportKind) -> Result<&mut Self, String> {
-        self.tree.add(fqn, kind)?;
-        Ok(self)
+    pub fn import(&mut self, fqn: Name, kind: SymbolImportKind) -> &mut Self {
+        self.tree.insert(fqn, kind);
+        self
     }
 
-    pub fn lookup_element<V, E: EnvironmentContext<V>>(&self, _name: &Name) -> Option<V> {
-        /*let layers = match self.layers.upgrade() {
+    pub fn use_element<V, E: EnvironmentContext<V>>(&mut self, name: &Name) -> Option<V> {
+        let layers = match self.layers.upgrade() {
             None => return None,
             Some(layers) => layers
         };
+        let layers = layers.borrow();
 
-        self.tree
-
-        for import in &self.imports {
-            let env = layers
-                .borrow()
-                .get_env(<ModuleImport as Import<V, E>>::module(&import))
-                //this is an internal error that should not occur thanks to the validity
-                // checks of the imports in `add_import`
-                .unwrap_or_else(|| panic!("import contains an unknown module {}", <ModuleImport as Import<V, E>>::module(&import)));
-
-            let ctx = E::from_env(env.borrow().deref());
-            let value = import.find_element(ctx.borrow().deref(), name);
-            if value.is_none() {
-                continue
-            }
-            return value
-        }
-
-        None*/
-        todo!()
+        self.tree.use_import::<V, E>(layers.deref(), name.clone())
     }
 }
 
@@ -166,10 +198,12 @@ mod tests {
     #[test]
     fn tree_insertion() {
         let mut tree = ImportTree::default();
-        tree.add(Name::new("a::b::c::d"), SymbolImportKind::Symbol).expect("error");
-        tree.add(Name::new("a::b::c::e"), SymbolImportKind::Symbol).expect("error");
-        tree.add(Name::new("a::x::y::z"), SymbolImportKind::Symbol).expect("error");
+        tree.insert(Name::new("a::b::c::d"), SymbolImportKind::Symbol);
+        tree.insert(Name::new("a::b::c::e"), SymbolImportKind::Symbol);
+        tree.insert(Name::new("a::x::y::z"), SymbolImportKind::Symbol);
+        tree.insert(Name::new("a::x::y::f"), SymbolImportKind::Symbol);
+        tree.insert(Name::new("a::x::y::g"), SymbolImportKind::Symbol);
 
-        print!("");
+        println!();
     }
 }
