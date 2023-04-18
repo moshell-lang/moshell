@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter};
 
+
 #[derive(Debug, PartialOrd, Ord, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Name {
     pub path: Vec<String>,
@@ -21,25 +22,26 @@ impl Name {
         self.path.len() + 1
     }
 
-    pub fn with_name(self, name: &str) -> Self {
+    pub fn with_name(&self, name: &str) -> Self {
         Self {
-            path: self.path,
+            path: self.path.clone(),
             name: name.to_string()
         }
     }
 
-    pub fn relative_to(&self, other: Name) -> Option<Name> {
-        let parts: Vec<_> = other.parts()
+    pub fn relative_to(&self, other: &Name) -> Option<Name> {
+        let self_parts = self.parts();
+        let common_parts_len = other.parts()
             .clone()
             .into_iter()
-            .zip(self.parts())
-            .skip_while(|(a, b)| a == b)
-            .map(|(a, _)| a)
-            .collect();
+            .zip(self_parts.clone())
+            .take_while(|(a, b)| a == b)
+            .count();
 
-        if parts.is_empty() {
+        if common_parts_len == self_parts.len() {
             return None
         }
+        let parts: Vec<_> = self_parts.into_iter().skip(common_parts_len).collect();
         Some(Name::from(parts))
     }
 

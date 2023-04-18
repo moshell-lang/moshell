@@ -8,14 +8,14 @@ use std::rc::Rc;
 use crate::environment::{Environment, EnvironmentContext};
 
 use crate::name::Name;
-use crate::import_engine::{ImportEngine, SymbolImportKind};
+use crate::import_engine::{ImportEngine};
 use crate::layers::ModuleLayers;
 
 
 /// A type environment.
 ///
 /// Contexts track substitutions and generate fresh type variables.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct TypeContext {
     /// Records the type of each class by their basename.
     classes: HashMap<Name, Rc<TypeClass>>,
@@ -36,8 +36,20 @@ impl EnvironmentContext<Rc<TypeClass>> for TypeContext {
         env.type_context.clone()
     }
 
-    fn find(&self, name: &Name) -> Option<Rc<TypeClass>> {
+    fn find_exported(&self, name: &Name) -> Option<Rc<TypeClass>> {
         self.classes.get(name).cloned()
+    }
+
+    fn list_exported_names(&self, symbol: Option<Name>) -> Vec<Name> {
+        self.classes
+            .clone()
+            .into_iter()
+            .filter(|(k, _)| {
+                let parts = symbol.clone().map(|s| s.parts()).unwrap_or_default().leak();
+                k.parts().starts_with(parts)
+            })
+            .map(|(_, v)| v.fqcn.relative_to(&self.identity).unwrap())
+            .collect()
     }
 }
 
@@ -72,17 +84,18 @@ impl TypeContext {
     pub(crate) fn new(identity: Name, layers: Rc<RefCell<ModuleLayers>>) -> Self {
         Self {
             identity,
-            imports: ImportEngine::new(layers),
+            imports: ImportEngine::new::<Rc<TypeClass>, Self>(layers),
             classes: HashMap::new(),
         }
     }
 
     ///Definitions of the lang type context.
     pub fn lang(layers: Rc<RefCell<ModuleLayers>>) -> Rc<RefCell<Self>> {
-        let ctx = TypeContext::new(
-            Name::new("lang"),
-            layers,
-        );
+        let ctx = Self {
+            identity: Name::new("lang"),
+            imports: ImportEngine::empty(layers),
+            classes: Default::default(),
+        };
         let ctx_rc = Rc::new(RefCell::new(ctx));
         let mut ctx = ctx_rc.borrow_mut();
 
@@ -119,19 +132,16 @@ impl TypeContext {
         ctx_rc
     }
 
-    pub(crate) fn fork(ctx: Rc<RefCell<Self>>, name: &str) -> Self {
+    pub(crate) fn fork(ctx: Rc<RefCell<Self>>, name: &str) -> Result<Self, String> {
         let mut fork_imports = ctx.borrow().imports.clone();
-        fork_imports.import(ctx.borrow().identity.clone(), SymbolImportKind::AllChildren);
-        Self {
+        fork_imports.import_all_in::<Rc<TypeClass>, Self>(ctx.borrow().identity.clone())?;
+        Ok(Self {
             imports: fork_imports,
             identity: ctx.borrow().identity.child(name),
             classes: HashMap::new(),
-        }
+        })
     }
 
-    pub fn add_import(&mut self, fqn: Name, kind: SymbolImportKind) {
-        self.imports.import(fqn, kind);
-    }
 
     /// Creates and registers a new ClassType for given types, the given type must be subtype of given types
     pub fn define_class(
@@ -161,7 +171,7 @@ impl TypeContext {
     /// will lookup in parent's context.
     pub fn use_class(&mut self, name: &str) -> Result<Rc<TypeClass>, String> {
         let name = Name::new(name);
-        match self.find(&name) {
+        match self.classes.get(&name) {
             Some(v) => Ok(v.clone()),
             None => self.imports
                 .use_element::<Rc<TypeClass>, Self>(&name)
@@ -203,12 +213,13 @@ impl TypeContext {
 
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
     use crate::lang_types::any;
-    use crate::types::class::ClassTypeDefinition;
+    use crate::types::class::{ClassTypeDefinition, TypeClass};
     use crate::types::context::TypeContext;
     use crate::types::types::Type;
     use pretty_assertions::assert_eq;
-    use crate::import_engine::SymbolImportKind::{AliasOf, Symbol};
+    use crate::import_engine::UnusedSymbol;
     use crate::name::Name;
     use crate::layers::ModuleLayers;
 
@@ -236,25 +247,71 @@ mod tests {
             ClassTypeDefinition::new(Name::new("B")),
         ).expect("error");
 
+        TypeContext::define_class(
+            foo.clone(),
+            ClassTypeDefinition::new(Name::new("Unused1")),
+        ).expect("error");
+
+        TypeContext::define_class(
+            foo.clone(),
+            ClassTypeDefinition::new(Name::new("Unused2")),
+        ).expect("error");
+
         let mut bar = test.borrow_mut();
-        bar.add_import(Name::new("bar::foo::A"), Symbol);
-        bar.add_import(Name::new("bar::foo::AliasedB"), AliasOf("B".to_string()));
-        bar.add_import(Name::new("bar::foo"), Symbol);
+        bar.imports.import::<Rc<TypeClass>, TypeContext>(Name::new("bar::foo::A")).expect("error");
+        bar.imports.import_aliased::<Rc<TypeClass>, TypeContext>(Name::new("bar::foo::B"), "AliasedB").expect("error");
+        bar.imports.import_aliased::<Rc<TypeClass>, TypeContext>(Name::new("bar::foo"), "foo_alias").expect("error");
 
         assert_eq!(bar.use_class("A").expect("error"), a);
-        assert_eq!(bar.use_class("foo::A").expect("error"), a);
-        assert_eq!(bar.use_class("AliasedB").expect("error"), b);
-        assert_eq!(bar.use_class("foo::AliasedB").expect("error"), b);
+        assert_eq!(bar.use_class("foo_alias::A").expect("error"), a);
+        assert_eq!(bar.use_class("foo_alias::B").expect("error"), b);
+        assert_eq!(
+            bar.use_class("foo::A"),
+            Err("Unknown type foo::A".to_string())
+        );
+        assert_eq!(
+            bar.use_class("foo_alias::AliasedB"),
+            Err("Unknown type foo_alias::AliasedB".to_string())
+        );
         assert_eq!(
             bar.use_class("B"),
             Err("Unknown type B".to_string())
         );
 
+        assert_eq!(bar.use_class("AliasedB").expect("error"), b);
+
+        //import all in a module should mask previous aliases in the same module
+        bar.imports.import_all_in::<Rc<TypeClass>, TypeContext>(Name::new("bar::foo")).expect("error");
+        bar.imports.import::<Rc<TypeClass>, TypeContext>(Name::new("bar::foo::Unused2")).expect("error");
+
+        let mut unused_symbols = bar.imports.list_unused();
+        unused_symbols.sort_by_key(|import| import.symbol_fqn.clone());
         assert_eq!(
-            bar.use_class("foo::B"),
-            Err("Unknown type B".to_string())
+            unused_symbols,
+            vec![
+                UnusedSymbol {
+                    explicitly_imported: false,
+                    symbol_fqn: Name::new("bar::foo::A")
+                },
+                UnusedSymbol {
+                    explicitly_imported: false,
+                    symbol_fqn: Name::new("bar::foo::B")
+                },
+                UnusedSymbol {
+                    explicitly_imported: false,
+                    symbol_fqn: Name::new("bar::foo::Unused1")
+                },
+                UnusedSymbol {
+                    explicitly_imported: true,
+                    symbol_fqn: Name::new("bar::foo::Unused2")
+                }
+            ]
         );
 
+        assert_eq!(
+            bar.use_class("AliasedB"),
+            Err("Unknown type AliasedB".to_string())
+        );
     }
 
     #[test]

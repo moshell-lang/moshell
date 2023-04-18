@@ -20,7 +20,6 @@
 ///! ```
 use crate::types::context::TypeContext;
 use std::cell::RefCell;
-use std::default::Default;
 use std::rc::Rc;
 use crate::name::Name;
 use crate::layers::ModuleLayers;
@@ -28,7 +27,7 @@ use crate::layers::ModuleLayers;
 /// An environment.
 /// The Environment contains the defined types, variables, structure and function definitions of a certain scope.
 /// It can have dependencies over other dependencies.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Environment {
     pub identity: Name,
 
@@ -53,17 +52,19 @@ impl Environment {
         }
     }
 
-    pub(crate) fn fork(env: Rc<RefCell<Environment>>, name: &str) -> Environment {
-        let type_context = Rc::new(RefCell::new(TypeContext::fork(env.borrow().type_context.clone(), name)));
-        Self {
+    pub(crate) fn fork(env: Rc<RefCell<Environment>>, name: &str) -> Result<Environment, String> {
+        let type_context = Rc::new(RefCell::new(TypeContext::fork(env.borrow().type_context.clone(), name)?));
+        Ok(Self {
             type_context,
             identity: env.borrow().identity.child(name)
-        }
+        })
     }
 }
 
 pub trait EnvironmentContext<V> {
     fn from_env(env: &Environment) -> Rc<RefCell<Self>>;
 
-    fn find(&self, name: &Name) -> Option<V>;
+    fn find_exported(&self, name: &Name) -> Option<V>;
+
+    fn list_exported_names(&self, symbol: Option<Name>) -> Vec<Name>;
 }

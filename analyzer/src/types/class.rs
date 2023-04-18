@@ -276,6 +276,7 @@ mod tests {
     use crate::lang_types::{any, str};
     use crate::types::context::{TypeContext};
     use std::ops::Deref;
+    use std::rc::Rc;
 
     use crate::types::class::{ClassTypeDefinition, GenericParam, TypeParamAssociation, TypeClass};
     use crate::types::types::{ParameterizedType, Type};
@@ -363,7 +364,7 @@ mod tests {
             .type_context
             .clone();
 
-        let lang = layers.borrow().get_module(Name::new("lang")).unwrap().env.clone().unwrap();
+        let lang = layers.borrow().get_env(&Name::new("lang")).unwrap();
 
         let any_cl = lang.borrow().type_context.borrow_mut().use_class(&any().name).expect("error");
 
@@ -382,8 +383,9 @@ mod tests {
                 .with_association(0, Type::cons("Map::K")),
         ).expect("error");
 
+        let std_clone = std.clone().borrow().clone();
         assert_eq!(
-            std.borrow().clone(),
+            std_clone,
             TypeContext::with_classes(
                 [(
                     Name::new("Iterable"),
@@ -440,7 +442,7 @@ mod tests {
                     }
                 )],
                 Name::new("std"),
-                ImportEngine::new(layers)),
+                ImportEngine::new::<Rc<TypeClass>, TypeContext>(layers)),
         );
 
         assert_eq!(
@@ -476,7 +478,7 @@ mod tests {
             .type_context
             .clone();
 
-        let lang = layers.borrow().get_module(Name::new("lang")).unwrap().env.clone().unwrap();
+        let lang = layers.borrow().get_env(&Name::new("lang")).unwrap();
 
         let str_cl = lang.borrow().type_context.borrow_mut().use_class(&str().name).expect("error");
         let any_cl = lang.borrow().type_context.borrow_mut().use_class(&any().name).expect("error");
@@ -502,8 +504,10 @@ mod tests {
                 .with_association(0, Type::Nothing),
         ).expect("error");
 
+        let std_clone = std.clone().borrow().clone();
+
         assert_eq!(
-            std.borrow().clone(),
+            std_clone,
             TypeContext::with_classes(
                 [(
                     Name::new("Option::A"),
@@ -551,7 +555,7 @@ mod tests {
                     }
                 )],
                 Name::new("std"),
-                ImportEngine::new(layers.clone()),
+                ImportEngine::new::<Rc<TypeClass>, TypeContext>(layers.clone()),
             ),
         );
 
@@ -592,7 +596,7 @@ mod tests {
             .type_context
             .clone();
 
-        let lang = layers.borrow().get_module_of(Name::new("lang")).unwrap().env.clone().unwrap();
+        let lang = layers.borrow().get_env(&Name::new("lang")).unwrap();
 
         let str_cl = lang.borrow().type_context.borrow_mut().use_class(&str().name).expect("error");
         let any_cl = lang.borrow().type_context.borrow_mut().use_class(&any().name).expect("error");
@@ -610,9 +614,11 @@ mod tests {
                 .with_generic("A", ParameterizedType::cons("Str"))
                 .with_generic("B", ParameterizedType::parametrized("List", &[Type::cons("Map::A")])),
         ).expect("error");
+        
+        let std_clone = std.clone().borrow().clone();
 
         assert_eq!(
-            std.borrow().clone(),
+            std_clone,
             TypeContext::with_classes(
                 [(
                     Name::new("List::B"),
@@ -671,7 +677,7 @@ mod tests {
                     }
                 )],
                 Name::new("std"),
-                ImportEngine::new(layers)),
+                ImportEngine::new::<Rc<TypeClass>, TypeContext>(layers)),
         );
 
         assert_eq!(

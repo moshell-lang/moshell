@@ -23,15 +23,15 @@ impl ModuleLayers {
         layers
     }
 
-    pub fn get_module(&self, mod_fqn: Name) -> Option<&Module> {
-        self.retrieve_mod(mod_fqn, false)
+    pub fn get_env(&self, env_fqn: &Name) -> Option<Rc<RefCell<Environment>>> {
+        self.retrieve_env(env_fqn, false)
     }
 
-    pub fn get_module_of(&self, symbol_fqn: Name) -> Option<&Module> {
-        self.retrieve_mod(symbol_fqn, true)
+    pub fn get_env_of(&self, symbol_fqn: &Name) -> Option<Rc<RefCell<Environment>>> {
+        self.retrieve_env(symbol_fqn, true)
     }
 
-    fn retrieve_mod(&self, name: Name, of_symbol: bool) -> Option<&Module> {
+    fn retrieve_env(&self, name: &Name, of_symbol: bool) -> Option<Rc<RefCell<Environment>>> {
         let mut parts = name.parts().into_iter();
 
         //we can safely unwrap here as names has at least `name.name` as element
@@ -41,24 +41,28 @@ impl ModuleLayers {
 
         for name in parts {
             match module {
-                Some(m) => module = m.childs.get(&name),
-                None => {
-                    if of_symbol {
-                        break
+                Some(m) => {
+                    let m = m.childs.get(&name);
+                    if m.is_none() {
+                        if of_symbol {
+                            break
+                        }
+                        return None
                     }
-                    return None
-                }
+                    module = m
+                },
+                None => break
             }
         }
 
-        module
+        module.and_then(|m| m.env.clone())
     }
 
     pub fn declare_env(layers: Rc<RefCell<Self>>, name: Name) -> Result<Rc<RefCell<Environment>>, String> {
-        let mut layers_ref = layers.borrow_mut();
-        let module = layers_ref.declare_module(name.clone())?;
+        let env = Rc::new(RefCell::new(Environment::new(name.clone(), layers.clone())));
 
-        let env = Rc::new(RefCell::new(Environment::new(name, layers.clone())));
+        let mut layers_ref = layers.borrow_mut();
+        let module = layers_ref.declare_module(name)?;
 
         module.env = Some(env.clone());
         Ok(env)
@@ -124,35 +128,6 @@ impl Module {
         }
     }
 
-    pub fn get_env(&self, env_fqn: Name) -> Option<Rc<RefCell<Environment>>> {
-        self.retrieve_env(env_fqn, false)
-    }
 
-    pub fn get_env_of(&self, symbol_fqn: Name) -> Option<Rc<RefCell<Environment>>> {
-        self.retrieve_env(symbol_fqn, true)
-    }
-
-    fn retrieve_env(&self, name: Name, of_symbol: bool) -> Option<Rc<RefCell<Environment>>> {
-        let mut parts = name.parts().into_iter();
-
-        //we can safely unwrap here as names has at least `name.name` as element
-        let root_name = parts.next().unwrap();
-
-        let mut module = self.childs.get(&root_name);
-
-        for name in parts {
-            match module {
-                Some(m) => module = m.childs.get(&name),
-                None => {
-                    if of_symbol {
-                        break
-                    }
-                    return None
-                }
-            }
-        }
-
-        module.and_then(|m| m.env.clone())
-    }
 
 }
