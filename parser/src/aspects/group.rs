@@ -1,7 +1,7 @@
 use lexer::token::{Token, TokenType};
 
 use crate::err::ParseErrorKind;
-use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations};
+use crate::moves::{eox, of_type, of_types, repeat, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::group::{Block, Parenthesis, Subshell};
 use ast::Expr;
@@ -101,12 +101,16 @@ impl<'a> Parser<'a> {
         let mut segment = self.cursor.relative_pos(start_token.value);
 
         //consume all heading spaces and end of expressions (\n or ;)
-        self.cursor.advance(repeat(spaces().then(eox())));
+        self.cursor.advance(repeat(of_types(&[
+            TokenType::Space,
+            TokenType::NewLine,
+            TokenType::SemiColon,
+        ])));
 
         //if we directly hit end of group, return an empty block.
-        if self.cursor.advance(of_type(eog)).is_some() {
+        if let Some(eog) = self.cursor.advance(of_type(eog)) {
             self.delimiter_stack.pop_back();
-            return Ok((statements, segment.start..segment.end + 1));
+            return Ok((statements, segment.start..self.cursor.relative_pos(eog).end));
         }
 
         loop {
@@ -212,15 +216,28 @@ mod tests {
                     expressions: vec![
                         Expr::Block(Block {
                             expressions: vec![],
-                            segment: 7..9
+                            segment: 7..11
                         }),
                         Expr::Block(Block {
                             expressions: vec![],
-                            segment: 13..15
+                            segment: 13..17
                         }),
                     ],
                     segment: 3..source.source.len() - 1
                 })],
+                segment: source.segment()
+            }
+        );
+    }
+
+    #[test]
+    fn blank_block() {
+        let source = Source::unknown("{ }");
+        let result = Parser::new(source.clone()).parse_specific(|parser| parser.block());
+        assert_eq!(
+            result.expect("failed to parse block"),
+            Block {
+                expressions: vec![],
                 segment: source.segment()
             }
         );
