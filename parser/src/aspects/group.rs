@@ -131,10 +131,7 @@ impl<'a> Parser<'a> {
             }
 
             //expects at least one newline or ';'
-            let eox_res = self.cursor.force(
-                repeat_n(1, spaces().then(eox())),
-                "expected new line or semicolon",
-            );
+            let eox_res = self.cursor.advance(repeat_n(1, spaces().then(eox())));
 
             //checks if this group expression is closed after the parsed expression
             let closed = self.cursor.advance(spaces().then(of_type(eog)));
@@ -146,12 +143,15 @@ impl<'a> Parser<'a> {
                 break;
             }
 
-            if eox_res.is_err() && self.cursor.peek().token_type.is_closing_ponctuation() {
-                self.mismatched_delimiter(eog)?;
+            // Since it is not closed, expect the cursor to hit EOX.
+            if eox_res.is_some() {
+                continue;
             }
-
-            //but if not closed, expect the cursor to hit EOX.
-            eox_res?;
+            if self.cursor.peek().token_type.is_closing_ponctuation() {
+                self.mismatched_delimiter(eog)?;
+            } else {
+                self.expected("expected new line or semicolon", ParseErrorKind::Unexpected)?;
+            }
         }
         Ok((statements, segment))
     }
