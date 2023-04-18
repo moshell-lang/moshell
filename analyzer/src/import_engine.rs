@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::{HashMap};
 use std::rc::{Rc, Weak};
-use crate::environment::{EnvironmentContext};
+use crate::environment::{ContextExports};
 use crate::name::Name;
 use crate::layers::{ModuleLayers};
 
@@ -62,7 +62,7 @@ pub struct UnusedSymbol {
 
 impl ReadOnlyImportEngine {
     ///See [[ImportEngineContent::use_symbol]]
-    pub fn use_element<V, E: EnvironmentContext<V>>(&mut self, name: &Name) -> Option<V> {
+    pub fn use_element<V, E: ContextExports<V>>(&mut self, name: &Name) -> Option<V> {
         self.content.borrow_mut().use_symbol::<V, E>(name)
     }
 
@@ -93,7 +93,7 @@ impl ImportEngine {
         s
     }
 
-    ///Creates a new engine with lang pre-imported
+    ///Creates a new engine with no import (not even lang)
     pub(crate) fn empty(layers: Rc<RefCell<ModuleLayers>>) -> Self {
         Self {
             content: Rc::new(RefCell::new(ImportEngineContent {
@@ -134,7 +134,7 @@ impl ImportEngine {
     }
 
     ///See [[ImportEngineContent::use_symbol]]
-    pub fn use_element<V, E: EnvironmentContext<V>>(&mut self, name: &Name) -> Option<V> {
+    pub fn use_element<V, E: ContextExports<V>>(&mut self, name: &Name) -> Option<V> {
         self.content.borrow_mut().use_symbol::<V, E>(name)
     }
 
@@ -146,11 +146,13 @@ impl ImportEngine {
 
 impl ImportEngineContent {
 
-    ///Lists all unused symbols imported in the engine
+    ///Lists all unused symbols imported in the engine.
+    /// All symbols from the lang environment are filtered out.
     fn list_unused(&self) -> Vec<UnusedSymbol> {
         self.imported_symbols
             .iter()
-            .filter(|(_, import)| !import.used && import.env_fqn != Name::new("lang"))
+            .filter(|(_, import)|
+                !import.used && import.env_fqn != Name::new("lang"))
             .map(|(alias, import)| {
                 //merge env and symbol names
                 let mut parts = import.env_fqn.parts();
@@ -230,7 +232,7 @@ impl ImportEngineContent {
     }
 
     ///Lookups a symbol of type `V` from given context `E` and marks the imported symbol as used if it was found.
-    fn use_symbol<V, E: EnvironmentContext<V>>(&mut self, name: &Name) -> Option<V> {
+    fn use_symbol<V, E: ContextExports<V>>(&mut self, name: &Name) -> Option<V> {
         let layers = match self.layers.upgrade() {
             None => return None,
             Some(layers) => layers

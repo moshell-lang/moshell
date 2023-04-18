@@ -5,7 +5,7 @@ use std::collections::hash_map::{Entry};
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
-use crate::environment::{Environment, EnvironmentContext};
+use crate::environment::{Environment, ContextExports};
 
 use crate::name::Name;
 use crate::import_engine::{ReadOnlyImportEngine};
@@ -34,7 +34,7 @@ impl PartialEq for TypeContext {
     }
 }
 
-impl EnvironmentContext<Rc<TypeClass>> for TypeContext {
+impl ContextExports<Rc<TypeClass>> for TypeContext {
     fn from_env(env: Rc<RefCell<Environment>>) -> Rc<RefCell<Self>> {
         env.borrow().type_context.clone()
     }
@@ -147,6 +147,7 @@ impl TypeContext {
         let defined = Rc::new(defined);
 
         let mut ctx = ctx.borrow_mut();
+
         match ctx.classes.entry(name.clone()) {
             Entry::Occupied(_) => Err(format!(
                 "type {} already contained in context",
@@ -215,7 +216,7 @@ mod tests {
     use crate::layers::ModuleLayers;
 
     #[test]
-    fn simple_union()  {
+    fn simple_union() {
         let layers = ModuleLayers::new();
 
         let ctx = ModuleLayers::declare_env(layers.clone(), Name::new("std")).expect("error")

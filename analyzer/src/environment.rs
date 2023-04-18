@@ -48,7 +48,7 @@ pub enum Symbol {
 }
 
 /// Top level context implementation for the environment.
-impl EnvironmentContext<Symbol> for Environment {
+impl ContextExports<Symbol> for Environment {
     fn from_env(env: Rc<RefCell<Environment>>) -> Rc<RefCell<Self>> {
         env
     }
@@ -108,7 +108,7 @@ impl Environment {
 
 }
 
-pub trait EnvironmentContext<V> {
+pub trait ContextExports<V> {
     fn from_env(env: Rc<RefCell<Environment>>) -> Rc<RefCell<Self>>;
 
     fn find_exported(&self, name: &Name) -> Option<V>;
