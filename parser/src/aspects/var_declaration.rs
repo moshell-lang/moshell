@@ -100,6 +100,7 @@ mod tests {
     use context::str_find::{find_in, find_in_nth};
 
     use crate::err::ParseError;
+    use crate::parse;
     use crate::parser::Parser;
     use crate::source::literal;
 
@@ -108,12 +109,10 @@ mod tests {
     #[test]
     fn val_declaration() {
         let source = Source::unknown("val variable");
-        let ast = Parser::new(source.clone())
-            .var_declaration()
-            .expect("failed to parse");
+        let ast = parse(source.clone()).expect("failed to parse");
         assert_eq!(
             ast,
-            Expr::VarDeclaration(VarDeclaration {
+            vec![Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
                 var: TypedVariable {
                     name: "variable",
@@ -122,19 +121,17 @@ mod tests {
                 },
                 initializer: None,
                 segment: source.segment(),
-            })
+            })]
         )
     }
 
     #[test]
     fn val_declaration_with_type() {
         let source = Source::unknown("val variable: Int");
-        let ast = Parser::new(source.clone())
-            .var_declaration()
-            .expect("failed to parse");
+        let ast = parse(source.clone()).expect("failed to parse");
         assert_eq!(
             ast,
-            Expr::VarDeclaration(VarDeclaration {
+            vec![Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
                 var: TypedVariable {
                     name: "variable",
@@ -148,7 +145,7 @@ mod tests {
                 },
                 initializer: None,
                 segment: source.segment(),
-            })
+            })],
         )
     }
 
@@ -163,21 +160,19 @@ mod tests {
     #[test]
     fn val_declaration_inferred() {
         let source = Source::unknown("val variable = 'hello $test'");
-        let ast = Parser::new(source.clone())
-            .var_declaration()
-            .expect("failed to parse");
+        let ast = parse(source.clone()).expect("failed to parse");
         assert_eq!(
             ast,
-            Expr::VarDeclaration(VarDeclaration {
+            vec![Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
                 var: TypedVariable {
                     name: "variable",
                     ty: None,
-                    segment: find_in(&source.source, "variable")
+                    segment: find_in(source.source, "variable")
                 },
                 initializer: Some(Box::from(literal(source.source, "'hello $test'"))),
-                segment: 0..source.source.len(),
-            })
+                segment: source.segment(),
+            })]
         )
     }
 
@@ -185,26 +180,40 @@ mod tests {
     fn val_declaration_parenthesis_command() {
         let content = "val x = (echo a)";
         let source = Source::unknown(content);
-        let err = Parser::new(source).var_declaration();
+        let err = parse(source);
         assert_eq!(
-            err,
-            Err(ParseError {
+            err.errors,
+            vec![ParseError {
                 message: "invalid infix operator".to_string(),
                 position: content.rfind('a').map(|p| (p..p + 1)).unwrap(),
                 kind: ParseErrorKind::Unexpected,
-            })
+            }]
+        )
+    }
+
+    #[test]
+    fn val_declaration_more_expressions() {
+        let content = "val x = (1 + 2\n3+ 1)";
+        let source = Source::unknown(content);
+        let err = parse(source);
+        assert_eq!(
+            err.errors,
+            vec![ParseError {
+                message: "parenthesis in value expression can only contain one expression"
+                    .to_string(),
+                position: content.rfind('3').map(|p| (p..p + 1)).unwrap(),
+                kind: ParseErrorKind::Unexpected,
+            }]
         )
     }
 
     #[test]
     fn val_declaration_block_command() {
         let source = Source::unknown("val x = {echo a}");
-        let result = Parser::new(source.clone())
-            .var_declaration()
-            .expect("parse fail");
+        let result = parse(source.clone()).expect("parse fail");
         assert_eq!(
             result,
-            Expr::VarDeclaration(VarDeclaration {
+            vec![Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
                 var: TypedVariable {
                     name: "x",
@@ -229,38 +238,36 @@ mod tests {
                     segment: find_in(&source.source, "{echo a}")
                 }))),
                 segment: source.segment(),
-            })
+            })],
         )
     }
 
     #[test]
     fn val_declaration_arithmetic_expr() {
         let source = Source::unknown("val variable = 7 + 2");
-        let ast = Parser::new(source.clone())
-            .var_declaration()
-            .expect("failed to parse");
+        let ast = parse(source.clone()).expect("failed to parse");
         assert_eq!(
             ast,
-            Expr::VarDeclaration(VarDeclaration {
+            vec![Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
                 var: TypedVariable {
                     name: "variable",
                     ty: None,
-                    segment: find_in(&source.source, "variable")
+                    segment: find_in(source.source, "variable")
                 },
                 initializer: Some(Box::from(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Literal(Literal {
                         parsed: LiteralValue::Int(7),
-                        segment: find_in(&source.source, "7")
+                        segment: find_in(source.source, "7")
                     })),
                     op: Plus,
                     right: Box::new(Expr::Literal(Literal {
                         parsed: LiteralValue::Int(2),
-                        segment: find_in(&source.source, "2")
+                        segment: find_in(source.source, "2")
                     }))
                 }))),
-                segment: 0..source.source.len(),
-            })
+                segment: source.segment(),
+            })]
         )
     }
 }

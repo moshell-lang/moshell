@@ -551,7 +551,7 @@ impl<'a> Parser<'a> {
     /// Goes to the next closing delimiter of the top delimiter on the stack.
     ///
     /// If the stack is empty, this does nothing.
-    fn repos_to_top_delimiter(&mut self) {
+    pub(crate) fn repos_to_top_delimiter(&mut self) {
         while !self.cursor.is_at_end() {
             if let Some(last) = self.delimiter_stack.back() {
                 if let Some(token) = self.cursor.advance(next()) {

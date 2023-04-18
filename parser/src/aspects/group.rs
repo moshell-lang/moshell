@@ -52,12 +52,21 @@ impl<'a> GroupAspect<'a> for Parser<'a> {
 
     fn parenthesis(&mut self) -> ParseResult<Parenthesis<'a>> {
         let start = self.ensure_at_group_start(TokenType::RoundedLeftBracket)?;
-        let expr = self.value()?;
-        let end = self.cursor.force(
-            repeat(spaces().then(eox())) //consume possible end of expressions
-                .then(spaces().then(of_type(TokenType::RoundedRightBracket))), //expect closing ')' token
-            "parenthesis in value expression can only contain one expression",
-        )?;
+        let expr = self.value().map_err(|err| {
+            self.repos_to_top_delimiter();
+            err
+        })?;
+        let end = self
+            .cursor
+            .force(
+                repeat(spaces().then(eox())) //consume possible end of expressions
+                    .then(spaces().then(of_type(TokenType::RoundedRightBracket))), //expect closing ')' token
+                "parenthesis in value expression can only contain one expression",
+            )
+            .map_err(|err| {
+                self.repos_to_top_delimiter();
+                err
+            })?;
         self.delimiter_stack.pop_back();
 
         Ok(Parenthesis {
