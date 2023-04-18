@@ -9,6 +9,8 @@ use crate::environment::{Environment, EnvironmentContext};
 
 use crate::name::Name;
 use crate::import_engine::{ReadOnlyImportEngine};
+use crate::visibility::ScopeVisibility;
+use crate::visibility::ScopeVisibility::Public;
 
 
 /// A type environment.
@@ -28,7 +30,7 @@ pub struct TypeContext {
 
 impl PartialEq for TypeContext {
     fn eq(&self, other: &Self) -> bool {
-        self.classes == other.classes
+        self.fqn == other.fqn && self.classes == other.classes
     }
 }
 
@@ -38,7 +40,7 @@ impl EnvironmentContext<Rc<TypeClass>> for TypeContext {
     }
 
     fn find_exported(&self, name: &Name) -> Option<Rc<TypeClass>> {
-        self.classes.get(name).cloned()
+        self.classes.get(name).filter(|tc| tc.visibility == Public).cloned()
     }
 
     fn list_exported_names(&self, symbol: Option<Name>) -> Vec<Name> {
@@ -104,6 +106,7 @@ impl TypeContext {
 
         let any_cl = &Rc::new(TypeClass {
             super_type: None,
+            visibility: ScopeVisibility::Public,
             generic_parameters: vec![],
             super_params_associations: vec![],
             fqcn: ctx.fqn.child("Any"),

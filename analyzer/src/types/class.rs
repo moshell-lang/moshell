@@ -8,6 +8,7 @@ use std::fmt::{Debug, Display, Formatter};
 use std::ops::DerefMut;
 use std::rc::Rc;
 use crate::name::Name;
+use crate::visibility::ScopeVisibility;
 
 ///This structures hosts the definition of a types,
 #[derive(Clone, PartialEq)]
@@ -17,6 +18,8 @@ pub struct TypeClass {
 
     /// The bounds of the generic parameters of the class.
     pub generic_parameters: Vec<GenericParam>,
+
+    pub visibility: ScopeVisibility,
 
     /// The associations between the child and parent type parameters.
     ///
@@ -43,6 +46,7 @@ impl Debug for TypeClass {
         f.debug_struct("TypeClass")
             .field("fqcn", &self.fqcn)
             .field("super_type", &self.super_type)
+            .field("visibility", &self.visibility)
             .field("generic_parameters", &self.generic_parameters)
             .field("super_params_associations", &self.super_params_associations)
             .finish()
@@ -90,18 +94,25 @@ pub struct ClassTypeDefinition {
     super_type: Option<Rc<TypeClass>>,
     pub name: Name,
     generic_parameters: Vec<GenericParam>,
+    visibility: ScopeVisibility,
     associations: HashMap<usize, Type>,
-    identity: u64,
 }
 
 impl ClassTypeDefinition {
     pub(crate) fn new(name: Name) -> Self {
         Self {
-            name,
+            name: name.clone(),
             generic_parameters: Vec::new(),
             associations: HashMap::new(),
+            visibility: ScopeVisibility::Public,
             super_type: None,
-            identity: 0,
+        }
+    }
+
+    pub fn with_visibility(self, visibility: ScopeVisibility) -> Self {
+        Self {
+            visibility,
+            ..self
         }
     }
 
@@ -152,11 +163,11 @@ impl TypeClass {
             definition.associations,
         )?;
 
-
         let def = Self {
             super_type: Some(super_type),
             generic_parameters: definition.generic_parameters,
             super_params_associations: associations,
+            visibility: definition.visibility,
             fqcn,
         };
 
@@ -170,10 +181,11 @@ impl TypeClass {
         generic_parameters: &Vec<GenericParam>,
     ) -> Result<(), String> {
         for generic in generic_parameters {
-            let sup = ctx.borrow_mut().use_class(&generic.bound.name)?;
+            let bound_cl = ctx.borrow_mut().use_class(&generic.bound.name)?;
             let mut builder =
                 ClassTypeDefinition::new(name_prefix.child(&generic.name))
-                    .with_super(sup);
+                    .with_super(bound_cl)
+                    .with_visibility(ScopeVisibility::SymbolOnly {symbol: name_prefix.clone()});
 
 
             for (idx, ty) in generic.bound.params.iter().enumerate() {
@@ -283,6 +295,8 @@ mod tests {
     use crate::name::Name;
     use crate::import_engine::ImportEngine;
     use crate::layers::ModuleLayers;
+    use crate::visibility::ScopeVisibility;
+    use crate::visibility::ScopeVisibility::{Public, SymbolOnly};
 
     #[test]
     fn define_iterable() {
@@ -293,11 +307,15 @@ mod tests {
             .type_context
             .clone();
 
-        let any_cl = std.borrow_mut().use_class(&any().name).expect("error");
+        let any_cl = std.borrow_mut()
+            .use_class(&any().name)
+            .expect("error");
 
         let iterable_cl = TypeContext::define_class(
             std.clone(),
-            ClassTypeDefinition::new(Name::new("Iterable")).with_generic("A", any()),
+            ClassTypeDefinition::new(Name::new("Iterable"))
+                .with_generic("A", any())
+                .with_visibility(Public),
         ).expect("error");
 
         assert_eq!(
@@ -309,6 +327,7 @@ mod tests {
                     bound: any(),
                     name: "A".to_string(),
                 }],
+                visibility: Public,
                 super_params_associations: vec![],
             }
         );
@@ -345,6 +364,7 @@ mod tests {
                     bound: any(),
                     name: "B".to_string(),
                 }],
+                visibility: Public,
                 super_params_associations: vec![TypeParamAssociation::Defined(
                     std
                         .borrow_mut()
@@ -395,6 +415,7 @@ mod tests {
                             name: "A".to_string(),
                             bound: any(),
                         }],
+                        visibility: Public,
                         super_params_associations: vec![],
                     }
                 ), (
@@ -403,6 +424,7 @@ mod tests {
                         super_type: Some(any_cl.clone()),
                         fqcn: Name::new("std::Iterable::A"),
                         generic_parameters: vec![],
+                        visibility: ScopeVisibility::SymbolOnly {symbol: Name::new("Iterable")},
                         super_params_associations: vec![],
                     }
                 ), (
@@ -419,6 +441,7 @@ mod tests {
                                 name: "V".to_string(),
                                 bound: any(),
                             }],
+                        visibility: Public,
                         super_params_associations: vec![
                             TypeParamAssociation::Defined(std.borrow_mut().use_class("Map::K").expect("error"))
                         ],
@@ -429,6 +452,7 @@ mod tests {
                         super_type: Some(any_cl.clone()),
                         fqcn: map_cl.fqcn.child("K"),
                         generic_parameters: vec![],
+                        visibility: ScopeVisibility::SymbolOnly {symbol: Name::new("Map")},
                         super_params_associations: vec![],
                     }
                 ), (
@@ -437,6 +461,7 @@ mod tests {
                         super_type: Some(any_cl.clone()),
                         fqcn: map_cl.fqcn.child("V"),
                         generic_parameters: vec![],
+                        visibility: ScopeVisibility::SymbolOnly {symbol: Name::new("Map")},
                         super_params_associations: vec![],
                     }
                 )],
@@ -459,6 +484,7 @@ mod tests {
                         name: "V".to_string(),
                     },
                 ],
+                visibility: Public,
                 super_params_associations: vec![TypeParamAssociation::Defined(
                     std
                         .borrow_mut()
@@ -514,6 +540,7 @@ mod tests {
                         super_type: Some(str_cl.clone()),
                         generic_parameters: vec![],
                         super_params_associations: vec![],
+                        visibility: SymbolOnly {symbol: Name::new("Option")},
                         fqcn: Name::new("std::Option::A"),
                     }
                 ), (
@@ -522,6 +549,7 @@ mod tests {
                         super_type: Some(any_cl.clone()),
                         generic_parameters: vec![GenericParam::new("A", str())],
                         super_params_associations: vec![],
+                        visibility: Public,
                         fqcn: Name::new("std::Option"),
                     }
                 ), (
@@ -530,6 +558,7 @@ mod tests {
                         super_type: Some(str_cl.clone()),
                         generic_parameters: vec![],
                         super_params_associations: vec![],
+                        visibility: SymbolOnly {symbol: Name::new("Some")},
                         fqcn: Name::new("std::Some::A"),
                     }
                 ), (
@@ -540,6 +569,7 @@ mod tests {
                         super_params_associations: vec![
                             TypeParamAssociation::Defined(std.borrow_mut().use_class("Some::A").expect("error"))
                         ],
+                        visibility: Public,
                         fqcn: Name::new("std::Some"),
                     }
                 ), (
@@ -550,6 +580,7 @@ mod tests {
                         super_params_associations: vec![
                             TypeParamAssociation::Nothing
                         ],
+                        visibility: Public,
                         fqcn: Name::new("std::None"),
                     }
                 )],
@@ -570,7 +601,8 @@ mod tests {
                     std
                         .borrow_mut()
                         .use_class("Some::A").expect("error")
-                ), ],
+                )],
+                visibility: Public,
                 fqcn: Name::new("std::Some"),
             }
         );
@@ -581,6 +613,7 @@ mod tests {
                 super_type: Some(option_cl.clone()),
                 generic_parameters: vec![],
                 super_params_associations: vec![TypeParamAssociation::Nothing],
+                visibility: Public,
                 fqcn: Name::new("std::None"),
             }
         );
@@ -625,6 +658,7 @@ mod tests {
                         super_type: Some(any_cl.clone()),
                         generic_parameters: vec![],
                         super_params_associations: vec![],
+                        visibility: SymbolOnly {symbol: Name::new("List")},
                         fqcn: Name::new("std::List::B"),
                     }
                 ), (
@@ -636,6 +670,7 @@ mod tests {
                             name: "B".to_string(),
                             bound: any(),
                         }],
+                        visibility: Public,
                         super_params_associations: vec![],
                     }
                 ), (
@@ -648,6 +683,7 @@ mod tests {
                                 .borrow_mut()
                                 .use_class("Map::A").expect("error")
                         )],
+                        visibility: SymbolOnly {symbol: Name::new("Map")},
                         fqcn: Name::new("std::Map::B"),
                     }
                 ), (
@@ -656,6 +692,7 @@ mod tests {
                         fqcn: Name::new("std::Map::A"),
                         super_type: Some(str_cl),
                         generic_parameters: vec![],
+                        visibility: SymbolOnly {symbol: Name::new("Map")},
                         super_params_associations: vec![],
                     }
                 ), (
@@ -672,6 +709,7 @@ mod tests {
                                 name: "B".to_string(),
                                 bound: ParameterizedType::parametrized("List", &[Type::cons("Map::A")]),
                             }],
+                        visibility: Public,
                         super_params_associations: vec![],
                     }
                 )],
@@ -693,6 +731,7 @@ mod tests {
                         bound: ParameterizedType::parametrized("List", &[Type::cons("Map::A")]),
                     },
                 ],
+                visibility: Public,
                 super_params_associations: vec![],
                 fqcn: Name::new("std::Map"),
             }
