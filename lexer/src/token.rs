@@ -262,6 +262,12 @@ impl TokenType {
         matches!(self, Comma | DotDot | Arrow | FatArrow | Not)
     }
 
+    ///is this lexeme a opening punctuation
+    pub fn is_opening_ponctuation(self) -> bool {
+        matches!(self, |SquaredLeftBracket| RoundedLeftBracket
+            | CurlyLeftBracket)
+    }
+
     ///is this lexeme a closing punctuation
     pub fn is_closing_ponctuation(self) -> bool {
         matches!(self, |SquaredRightBracket| RoundedRightBracket

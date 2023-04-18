@@ -150,6 +150,36 @@ fn invalid_binary_operator_cause_one_error() {
 }
 
 #[test]
+fn do_not_accumulate_delimiters() {
+    let content = "fun cube(x: List[/[\nStr, Str]]) = {}";
+    let source = Source::unknown(content);
+    let report = parse(source);
+    assert_eq!(
+        report.errors,
+        vec![ParseError {
+            message: "'/' is not a valid type identifier.".to_owned(),
+            position: content.find('/').map(|p| p..p + 1).unwrap(),
+            kind: ParseErrorKind::Unexpected
+        }]
+    );
+}
+
+#[test]
+fn do_not_accumulate_delimiters2() {
+    let content = "fun cube(x: List[)[\nStr, Str]]) = {}";
+    let source = Source::unknown(content);
+    let report = parse(source);
+    assert_eq!(
+        report.errors,
+        vec![ParseError {
+            message: "Mismatched closing delimiter.".to_owned(),
+            position: content.find(')').map(|p| p..p + 1).unwrap(),
+            kind: ParseErrorKind::Unpaired(content.find('[').map(|p| p..p + 1).unwrap())
+        }]
+    );
+}
+
+#[test]
 fn no_comma_or_two() {
     let content = "fun test[@](a b,,c) = '";
     let source = Source::unknown(content);

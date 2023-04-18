@@ -536,14 +536,21 @@ impl<'a> Parser<'a> {
 
     /// Goes to the next expression, where the move can be specialized.
     pub(crate) fn repos_to_next_expr(&mut self, break_on: impl Move + Copy) {
+        // If delimiters are encountered while moving, they must be removed from the stack first,
+        // before repositioning.
+        let start_len = self.delimiter_stack.len();
         while !self.cursor.is_at_end() {
             // Stop before a break_on token.
-            if self.cursor.lookahead(break_on).is_some() {
+            if self.delimiter_stack.len() == start_len && self.cursor.lookahead(break_on).is_some()
+            {
                 break;
             }
 
             // See if we're at a closing delimiter.
             let token = self.cursor.peek();
+            if token.token_type.is_opening_ponctuation() {
+                self.delimiter_stack.push_back(token.clone());
+            }
             if let Some(last) = self.delimiter_stack.back() {
                 if last
                     .token_type
@@ -551,9 +558,13 @@ impl<'a> Parser<'a> {
                     .expect("invalid delimiter passed to stack")
                     == token.token_type
                 {
-                    // Do not consume it to avoid breaking the stack.
-                    // The caller will consume it.
-                    break;
+                    if self.delimiter_stack.len() > start_len {
+                        self.delimiter_stack.pop_back();
+                    } else {
+                        // Do not consume it to avoid breaking the stack.
+                        // The caller will consume it.
+                        break;
+                    }
                 }
             }
             // Otherwise, just advance.
@@ -565,16 +576,19 @@ impl<'a> Parser<'a> {
     ///
     /// If the stack is empty, this does nothing.
     pub(crate) fn repos_to_top_delimiter(&mut self) {
-        while !self.cursor.is_at_end() {
-            if let Some(last) = self.delimiter_stack.back() {
-                if let Some(token) = self.cursor.advance(next()) {
-                    if last
-                        .token_type
-                        .closing_pair()
-                        .expect("invalid delimiter passed to stack")
-                        == token.token_type
-                    {
-                        self.delimiter_stack.pop_back();
+        let start_len = self.delimiter_stack.len();
+        while let Some(token) = self.cursor.next_opt() {
+            if token.token_type.is_opening_ponctuation() {
+                self.delimiter_stack.push_back(token.clone());
+            } else if let Some(last) = self.delimiter_stack.back() {
+                if last
+                    .token_type
+                    .closing_pair()
+                    .expect("invalid delimiter passed to stack")
+                    == token.token_type
+                {
+                    self.delimiter_stack.pop_back();
+                    if self.delimiter_stack.len() < start_len {
                         break;
                     }
                 }
