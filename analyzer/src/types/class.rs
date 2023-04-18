@@ -143,7 +143,7 @@ impl TypeClass {
 
         Self::contextualize_generics(definition.name.clone(), ctx.clone(), &definition.generic_parameters)?;
 
-        let fqcn = ctx.borrow().identity.appended(definition.name);
+        let fqcn = ctx.borrow().fqn.appended(definition.name);
 
         let associations = Self::verify_associations(
             fqcn.clone(),
@@ -276,7 +276,6 @@ mod tests {
     use crate::lang_types::{any, str};
     use crate::types::context::{TypeContext};
     use std::ops::Deref;
-    use std::rc::Rc;
 
     use crate::types::class::{ClassTypeDefinition, GenericParam, TypeParamAssociation, TypeClass};
     use crate::types::types::{ParameterizedType, Type};
@@ -442,7 +441,7 @@ mod tests {
                     }
                 )],
                 Name::new("std"),
-                ImportEngine::new::<Rc<TypeClass>, TypeContext>(layers)),
+                ImportEngine::new(layers).read_only()),
         );
 
         assert_eq!(
@@ -555,7 +554,7 @@ mod tests {
                     }
                 )],
                 Name::new("std"),
-                ImportEngine::new::<Rc<TypeClass>, TypeContext>(layers.clone()),
+                ImportEngine::new(layers.clone()).read_only(),
             ),
         );
 
@@ -614,7 +613,7 @@ mod tests {
                 .with_generic("A", ParameterizedType::cons("Str"))
                 .with_generic("B", ParameterizedType::parametrized("List", &[Type::cons("Map::A")])),
         ).expect("error");
-        
+
         let std_clone = std.clone().borrow().clone();
 
         assert_eq!(
@@ -677,7 +676,7 @@ mod tests {
                     }
                 )],
                 Name::new("std"),
-                ImportEngine::new::<Rc<TypeClass>, TypeContext>(layers)),
+                ImportEngine::new(layers).read_only()),
         );
 
         assert_eq!(
