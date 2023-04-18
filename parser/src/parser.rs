@@ -484,7 +484,20 @@ impl<'a> Parser<'a> {
         }
 
         //else, we hit an invalid binary expression.
-        self.expected("invalid infix operator", Unexpected)
+        let token = self.cursor.next()?;
+        let err = self.mk_parse_error("invalid infix operator", token, Unexpected);
+        // Avoid recovering here to block the cursor on the closing delimiter token
+        if self
+            .cursor
+            .lookahead(spaces().then(eox().or(eod())))
+            .is_some()
+        {
+            return Err(err);
+        }
+
+        // We can try something here...
+        self.report_error(err);
+        self.value().map(|_| expr)
     }
 
     ///Skips spaces and verify that this parser is not parsing the end of an expression
@@ -522,7 +535,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Goes to the next expression, where the move can be specialized.
-    fn repos_to_next_expr(&mut self, break_on: impl Move + Copy) {
+    pub(crate) fn repos_to_next_expr(&mut self, break_on: impl Move + Copy) {
         while !self.cursor.is_at_end() {
             // Stop before a break_on token.
             if self.cursor.lookahead(break_on).is_some() {

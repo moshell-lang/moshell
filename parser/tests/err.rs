@@ -2,7 +2,8 @@ use ast::call::{Call, ProgrammaticCall};
 use ast::function::{FunctionDeclaration, FunctionParameter};
 use ast::group::Block;
 use ast::r#type::{ParametrizedType, Type};
-use ast::variable::{TypedVariable, VarReference};
+use ast::value::Literal;
+use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
 use context::str_find::{find_in, find_in_nth};
@@ -18,21 +19,35 @@ fn repos_delimiter_stack() {
     echo invalid ]\n\
     }\n\
     echo end\n\
-    val n=9!3";
+    val x=9!3";
     let source = Source::unknown(content);
     let report = parse(source.clone());
     assert_eq!(
         report,
         ParseReport {
-            expr: vec![Expr::Call(Call {
-                path: Vec::new(),
-
-                arguments: vec![
-                    literal_nth(source.source, "echo", 1),
-                    literal(source.source, "end")
-                ],
-                type_parameters: Vec::new()
-            })],
+            expr: vec![
+                Expr::Call(Call {
+                    path: Vec::new(),
+                    arguments: vec![
+                        literal_nth(source.source, "echo", 1),
+                        literal(source.source, "end")
+                    ],
+                    type_parameters: Vec::new()
+                }),
+                Expr::VarDeclaration(VarDeclaration {
+                    kind: VarKind::Val,
+                    var: TypedVariable {
+                        name: "x",
+                        ty: None,
+                        segment: find_in(source.source, "x")
+                    },
+                    initializer: Some(Box::new(Expr::Literal(Literal {
+                        parsed: 9.into(),
+                        segment: find_in(source.source, "9")
+                    }))),
+                    segment: find_in(source.source, "val x=9")
+                })
+            ],
             errors: vec![
                 ParseError {
                     message: "Mismatched closing delimiter.".to_string(),
@@ -100,6 +115,35 @@ fn tolerance_in_multiple_groups() {
                     kind: ParseErrorKind::Unexpected
                 }
             ],
+            stack_ended: true,
+        }
+    );
+}
+
+#[test]
+fn invalid_binary_operator_cause_one_error() {
+    let content = "val incorrect = 'a' ! 5 + {\n
+    }";
+    let source = Source::unknown(content);
+    let report = parse(source);
+    assert_eq!(
+        report,
+        ParseReport {
+            expr: vec![Expr::VarDeclaration(VarDeclaration {
+                kind: VarKind::Val,
+                var: TypedVariable {
+                    name: "incorrect",
+                    ty: None,
+                    segment: find_in(content, "incorrect")
+                },
+                initializer: Some(Box::new(literal(content, "'a'"))),
+                segment: find_in(content, "val incorrect = 'a'")
+            })],
+            errors: vec![ParseError {
+                message: "invalid infix operator".to_owned(),
+                position: content.find('!').map(|p| p..p + 1).unwrap(),
+                kind: ParseErrorKind::Unexpected
+            }],
             stack_ended: true,
         }
     );
