@@ -53,7 +53,7 @@ impl EnvironmentContext<Symbol> for Environment {
         env
     }
 
-    ///Finds the exported symbol. 
+    ///Finds the exported symbol.
     /// Types haves priority over other symbols (function, global)
     fn find_exported(&self, name: &Name) -> Option<Symbol> {
         self.type_context
@@ -94,7 +94,7 @@ impl Environment {
         let env = env.borrow();
         let identity = env.fqn.child(name);
         let mut imports = env.imports.clone();
-        imports.import_all_in::<Symbol, Environment>(identity.clone())?;
+        imports.import_all_in(identity.clone())?;
 
         let type_context = TypeContext::new(identity.clone(), imports.read_only());
         let type_context = Rc::new(RefCell::new(type_context));

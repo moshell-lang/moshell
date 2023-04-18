@@ -206,111 +206,13 @@ impl TypeContext {
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
     use crate::lang_types::any;
-    use crate::types::class::{ClassTypeDefinition, TypeClass};
+    use crate::types::class::{ClassTypeDefinition};
     use crate::types::context::TypeContext;
     use crate::types::types::Type;
     use pretty_assertions::assert_eq;
-    use crate::import_engine::UnusedSymbol;
     use crate::name::Name;
     use crate::layers::ModuleLayers;
-
-    #[test]
-    fn specific_imports()  {
-        let layers = ModuleLayers::new();
-
-        let foo_env = ModuleLayers::declare_env(layers.clone(), Name::new("bar::foo")).expect("error");
-
-        let foo_tcx = foo_env
-            .borrow()
-            .type_context
-            .clone();
-
-        let test_env = ModuleLayers::declare_env(layers.clone(), Name::new("my_module")).expect("error");
-
-        let test_tcx = test_env
-            .borrow()
-            .type_context
-            .clone();
-
-        let a = TypeContext::define_class(
-            foo_tcx.clone(),
-            ClassTypeDefinition::new(Name::new("A")),
-        ).expect("error");
-
-        let b = TypeContext::define_class(
-            foo_tcx.clone(),
-            ClassTypeDefinition::new(Name::new("B")),
-        ).expect("error");
-
-        TypeContext::define_class(
-            foo_tcx.clone(),
-            ClassTypeDefinition::new(Name::new("Unused1")),
-        ).expect("error");
-
-        TypeContext::define_class(
-            foo_tcx.clone(),
-            ClassTypeDefinition::new(Name::new("Unused2")),
-        ).expect("error");
-
-        let mut test_env = test_env.borrow_mut();
-        let mut test_ctx = test_tcx.borrow_mut();
-        test_env.imports.import::<Rc<TypeClass>, TypeContext>(Name::new("bar::foo::A")).expect("error");
-        test_env.imports.import_aliased::<Rc<TypeClass>, TypeContext>(Name::new("bar::foo::B"), "AliasedB").expect("error");
-        test_env.imports.import_aliased::<Rc<TypeClass>, TypeContext>(Name::new("bar::foo"), "foo_alias").expect("error");
-
-        assert_eq!(test_ctx.use_class("A").expect("error"), a);
-        assert_eq!(test_ctx.use_class("foo_alias::A").expect("error"), a);
-        assert_eq!(test_ctx.use_class("foo_alias::B").expect("error"), b);
-        assert_eq!(
-            test_ctx.use_class("foo::A"),
-            Err("Unknown type foo::A".to_string())
-        );
-        assert_eq!(
-            test_ctx.use_class("foo_alias::AliasedB"),
-            Err("Unknown type foo_alias::AliasedB".to_string())
-        );
-        assert_eq!(
-            test_ctx.use_class("B"),
-            Err("Unknown type B".to_string())
-        );
-
-        assert_eq!(test_ctx.use_class("AliasedB").expect("error"), b);
-
-        //import all in a module should mask previous aliases in the same module
-        test_env.imports.import_all_in::<Rc<TypeClass>, TypeContext>(Name::new("bar::foo")).expect("error");
-        test_env.imports.import::<Rc<TypeClass>, TypeContext>(Name::new("bar::foo::Unused2")).expect("error");
-
-        let mut unused_symbols = test_env.imports.list_unused();
-        unused_symbols.sort_by_key(|import| import.symbol_fqn.clone());
-        assert_eq!(
-            unused_symbols,
-            vec![
-                UnusedSymbol {
-                    explicitly_imported: false,
-                    symbol_fqn: Name::new("bar::foo::A")
-                },
-                UnusedSymbol {
-                    explicitly_imported: false,
-                    symbol_fqn: Name::new("bar::foo::B")
-                },
-                UnusedSymbol {
-                    explicitly_imported: false,
-                    symbol_fqn: Name::new("bar::foo::Unused1")
-                },
-                UnusedSymbol {
-                    explicitly_imported: true,
-                    symbol_fqn: Name::new("bar::foo::Unused2")
-                }
-            ]
-        );
-
-        assert_eq!(
-            test_ctx.use_class("AliasedB"),
-            Err("Unknown type AliasedB".to_string())
-        );
-    }
 
     #[test]
     fn simple_union()  {
