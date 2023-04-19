@@ -156,7 +156,7 @@ impl<'a> Parser<'a> {
         tokens.pop(); //remove trailing '::' token
 
         if let Some((head, tail)) = tokens.split_first() {
-            let first_path_element = tail.into_iter().fold(head.value, |acc, t| {
+            let first_path_element = tail.iter().fold(head.value, |acc, t| {
                 try_join_str(self.source.source, acc, t.value).expect("collect should be adjacent")
             });
 

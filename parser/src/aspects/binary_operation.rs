@@ -2,6 +2,7 @@ use crate::moves::{bin_op, eox, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::Expr;
+use std::cmp::Ordering;
 
 /// a parser aspect to parse any kind of binary operations
 pub trait BinaryOperationsAspect<'p> {
@@ -109,39 +110,48 @@ impl<'p> Parser<'p> {
             .cursor
             .lookahead(spaces().then(bin_op()))
             .map(|t| {
-                operator_priority
-                    - BinaryOperator::try_from(t.token_type)
+                operator_priority.cmp(
+                    &BinaryOperator::try_from(t.token_type)
                         .expect("not a valid operator")
-                        .priority()
+                        .priority(),
+                )
             })
-            .unwrap_or(0);
+            .unwrap_or(Ordering::Equal);
 
-        let result = if priority_comparison > 0 {
+        let result = match priority_comparison {
             //current binary operator has most priority so we directly return it
-            Expr::Binary(BinaryOperation {
+            Ordering::Greater => Expr::Binary(BinaryOperation {
                 left: Box::new(left),
                 op: operator,
                 right: Box::new(right),
-            })
-        } else if priority_comparison == 0 {
+            }),
+            Ordering::Equal =>
             //same priority so we can continue to parse to the right,
             // passing current binary operation as the left operation.
-            self.binary_op_right_internal(
-                operator_priority,
+            {
+                self.binary_op_right_internal(
+                    operator_priority,
+                    Expr::Binary(BinaryOperation {
+                        left: Box::new(left),
+                        op: operator,
+                        right: Box::new(right),
+                    }),
+                    parse,
+                )?
+            }
+            Ordering::Less =>
+            //priority is fewer, so we let the priority to the right by continuing to parse
+            {
                 Expr::Binary(BinaryOperation {
                     left: Box::new(left),
                     op: operator,
-                    right: Box::new(right),
-                }),
-                parse,
-            )?
-        } else {
-            //priority is fewer, so we let the priority to the right by continuing to parse
-            Expr::Binary(BinaryOperation {
-                left: Box::new(left),
-                op: operator,
-                right: Box::new(self.binary_op_right_internal(operator_priority, right, parse)?),
-            })
+                    right: Box::new(self.binary_op_right_internal(
+                        operator_priority,
+                        right,
+                        parse,
+                    )?),
+                })
+            }
         };
 
         Ok(result)

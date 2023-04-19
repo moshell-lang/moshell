@@ -180,7 +180,7 @@ impl<'a> Parser<'a> {
         if !is_at_pattern_end!() {
             let token = self.cursor.lookahead(blanks().then(any())).unwrap().value;
             return self.expected(
-                &format!("unexpected token, expected '|', 'if' or '=>', found '{token}'"),
+                format!("unexpected token, expected '|', 'if' or '=>', found '{token}'"),
                 ParseErrorKind::Unexpected,
             );
         }

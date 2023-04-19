@@ -80,7 +80,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             self.delimiter_stack.push_back(open_parenthesis.clone());
             let (arguments, segment) = self.parse_comma_separated_arguments(open_parenthesis)?;
 
-            let start = path.first().unwrap_or(&value).clone();
+            let start = *path.first().unwrap_or(&value);
             Ok(Expr::ProgrammaticCall(ProgrammaticCall {
                 path,
                 name: value,
@@ -126,7 +126,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         )?;
         self.delimiter_stack.push_back(open_parenthesis.clone());
         let (arguments, segment) = self.parse_comma_separated_arguments(open_parenthesis)?;
-        let start = path.first().unwrap_or(&name.value).clone();
+        let start = *path.first().unwrap_or(&name.value);
         let segment = self.cursor.relative_pos(start).start..segment.end;
         Ok(Expr::ProgrammaticCall(ProgrammaticCall {
             path,
