@@ -112,7 +112,7 @@ impl TypeContext {
             fqcn: ctx.fqn.child("Any"),
         });
         ctx.classes
-            .insert(Name::new(any_cl.fqcn.name()), any_cl.clone());
+            .insert(Name::new(any_cl.fqcn.simple_name()), any_cl.clone());
         drop(ctx);
 
         let float =

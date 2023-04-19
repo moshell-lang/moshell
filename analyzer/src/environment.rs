@@ -87,18 +87,17 @@ impl Environment {
         }
     }
 
-    pub(crate) fn fork(env: Rc<RefCell<Environment>>, name: &str) -> Result<Environment, String> {
-        let env = env.borrow();
-        let identity = env.fqn.child(name);
-        let mut imports = env.imports.clone();
-        imports.import_all_in(&identity)?;
+    pub(crate) fn fork(&self, name: &str) -> Result<Environment, String> {
+        let env_fqn = self.fqn.child(name);
+        let mut imports = self.imports.clone();
+        imports.import_all_in(&env_fqn)?;
 
-        let type_context = TypeContext::new(identity.clone(), imports.fixed());
+        let type_context = TypeContext::new(env_fqn.clone(), imports.fixed());
         let type_context = Rc::new(RefCell::new(type_context));
         Ok(Self {
             imports,
             type_context,
-            fqn: identity,
+            fqn: env_fqn,
         })
     }
 }

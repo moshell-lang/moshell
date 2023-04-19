@@ -18,7 +18,7 @@ impl ModuleLayers {
         layers
             .borrow_mut()
             .roots
-            .insert(lang.fqn.name().to_string(), Module::with_env(lang));
+            .insert(lang.fqn.simple_name().to_string(), Module::with_env(lang));
 
         layers
     }

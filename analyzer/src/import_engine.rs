@@ -50,7 +50,7 @@ struct ImportedSymbol {
     explicitly_imported: bool,
 }
 
-///An unused symbol.
+///An unused symbol. (returned by list_unused methods)
 #[derive(Debug, PartialEq, Eq)]
 pub struct UnusedSymbol {
     ///The full name of the symbol, environment's name included.
@@ -164,7 +164,7 @@ impl ImportEngineContent {
     fn list_unused(&self) -> Vec<UnusedSymbol> {
         self.imported_symbols
             .iter()
-            .filter(|(_, import)| !import.used && import.env_fqn != Name::new("lang"))
+            .filter(|(_, import)| !import.used && import.env_fqn.root() != "lang")
             .map(|(alias, import)| {
                 //merge env and symbol names
                 let parts = import.env_fqn.appended(import.symbol_name.clone());
@@ -181,7 +181,7 @@ impl ImportEngineContent {
     /// Can fail if the symbols or its environment is not found.
     /// This import will shadow any alias of the same symbol if it was previously imported
     fn import(&mut self, fqn: &Name) -> Result<(), String> {
-        self.import_aliased(fqn, fqn.name())
+        self.import_aliased(fqn, fqn.simple_name())
     }
 
     ///Imports the provided symbol with an alias.
@@ -225,7 +225,6 @@ impl ImportEngineContent {
                 let import_fqn = v.env_fqn.appended(v.symbol_name.clone());
                 fqn == &import_fqn
             })
-            .map(|(k, v)| (k.clone(), v.clone()))
             .collect()
     }
 
@@ -244,7 +243,7 @@ impl ImportEngineContent {
 
         for symbol_name in env.borrow().list_exported_names(inner_name) {
             self.imported_symbols.insert(
-                symbol_name.name().to_string(),
+                symbol_name.simple_name().to_string(),
                 ImportedSymbol {
                     symbol_name,
                     env_fqn: env_fqn.clone(),
@@ -279,8 +278,8 @@ impl ImportEngineContent {
 
                 let mut name = name.clone();
 
-                if name.parts().len() <= 1 {
-                    name = name.with_name(import.symbol_name.name());
+                if name.parts().len() <= 1 { //if the name has no prefixed path
+                    name = name.with_name(import.symbol_name.simple_name());
                 }
                 let result = ctx.find_exported(&name.tail().unwrap_or(name));
                 if result.is_some() {
