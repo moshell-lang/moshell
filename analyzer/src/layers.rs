@@ -5,7 +5,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct ModuleLayers {
     roots: HashMap<String, Module>,
 }
@@ -83,7 +83,7 @@ impl ModuleLayers {
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Module {
     pub full_name: Name,
     pub env: Option<Rc<RefCell<Environment>>>,
