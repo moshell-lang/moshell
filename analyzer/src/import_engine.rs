@@ -225,7 +225,6 @@ impl ImportEngineContent {
                 let import_fqn = v.env_fqn.appended(v.symbol_name.clone());
                 fqn == &import_fqn
             })
-            .map(|(k, v)| (k.clone(), v.clone()))
             .collect()
     }
 
@@ -236,7 +235,7 @@ impl ImportEngineContent {
         let env = layers
             .borrow()
             .get_env_of(fqn)
-            .ok_or(format!("unknown module {fqn}"))?;
+            .ok_or_else(|| format!("unknown module {fqn}"))?;
         let env_fqn = env.borrow().fqn.clone();
         let inner_name = fqn.relative_to(&env_fqn);
 
@@ -279,7 +278,7 @@ impl ImportEngineContent {
 
                 let mut name = name.clone();
 
-                if name.parts().len() <= 1 {
+                if name.path().is_empty() {
                     name = name.with_name(import.symbol_name.name());
                 }
                 let result = ctx.find_exported(&name.tail().unwrap_or(name));

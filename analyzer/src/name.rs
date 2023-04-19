@@ -9,7 +9,6 @@ impl Name {
     pub fn new(name: &str) -> Self {
         let parts: Vec<String> = name
             .split("::")
-            .into_iter()
             .map(|s| s.to_string())
             .collect();
 
@@ -51,8 +50,8 @@ impl Name {
         Some(Name::from(parts))
     }
 
-    pub fn path(&self) -> impl Iterator<Item = &String> {
-        self.parts.iter().take(self.parts.len() - 1)
+    pub fn path(&self) -> &[String] {
+        self.parts.split_last().unwrap().1 //Names cannot be empty
     }
 
     pub fn root(&self) -> &str {
@@ -70,7 +69,7 @@ impl Name {
     }
 
     pub fn tail(&self) -> Option<Self> {
-        if self.parts.len() == 1 {
+        if self.path().is_empty() {
             return None;
         }
         self.parts

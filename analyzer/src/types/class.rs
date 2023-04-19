@@ -101,7 +101,7 @@ pub struct ClassTypeDefinition {
 impl ClassTypeDefinition {
     pub(crate) fn new(name: Name) -> Self {
         Self {
-            name: name.clone(),
+            name,
             generic_parameters: Vec::new(),
             associations: HashMap::new(),
             visibility: ScopeVisibility::Public,
