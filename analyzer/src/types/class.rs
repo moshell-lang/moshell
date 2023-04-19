@@ -303,7 +303,7 @@ mod tests {
     fn define_iterable() {
         let layers = ModuleLayers::new();
 
-        let std = ModuleLayers::declare_env(layers.clone(), Name::new("std"))
+        let std = ModuleLayers::declare_env(layers.clone(), &Name::new("std"))
             .expect("error")
             .borrow()
             .type_context
@@ -338,7 +338,7 @@ mod tests {
     fn define_list() {
         let layers = ModuleLayers::new();
 
-        let std = ModuleLayers::declare_env(layers.clone(), Name::new("std"))
+        let std = ModuleLayers::declare_env(layers.clone(), &Name::new("std"))
             .expect("error")
             .borrow()
             .type_context
@@ -380,7 +380,7 @@ mod tests {
     fn define_map() {
         let layers = ModuleLayers::new();
 
-        let std = ModuleLayers::declare_env(layers.clone(), Name::new("std"))
+        let std = ModuleLayers::declare_env(layers.clone(), &Name::new("std"))
             .expect("error")
             .borrow()
             .type_context
@@ -519,7 +519,7 @@ mod tests {
     fn define_str_option() {
         let layers = ModuleLayers::new();
 
-        let std = ModuleLayers::declare_env(layers.clone(), Name::new("std"))
+        let std = ModuleLayers::declare_env(layers.clone(), &Name::new("std"))
             .expect("error")
             .borrow()
             .type_context
@@ -663,7 +663,7 @@ mod tests {
     fn define_type_with_inter_referenced_generics() {
         let layers = ModuleLayers::new();
 
-        let std = ModuleLayers::declare_env(layers.clone(), Name::new("std"))
+        let std = ModuleLayers::declare_env(layers.clone(), &Name::new("std"))
             .expect("error")
             .borrow()
             .type_context
@@ -812,7 +812,7 @@ mod tests {
     fn define_incompatible_subtype() -> Result<(), String> {
         let layers = ModuleLayers::new();
 
-        let std = ModuleLayers::declare_env(layers.clone(), Name::new("std"))
+        let std = ModuleLayers::declare_env(layers.clone(), &Name::new("std"))
             .expect("error")
             .borrow()
             .type_context

@@ -215,7 +215,7 @@ mod tests {
     fn simple_union() {
         let layers = ModuleLayers::new();
 
-        let ctx = ModuleLayers::declare_env(layers.clone(), Name::new("std"))
+        let ctx = ModuleLayers::declare_env(layers.clone(), &Name::new("std"))
             .expect("error")
             .borrow()
             .type_context

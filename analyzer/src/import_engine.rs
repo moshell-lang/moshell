@@ -100,7 +100,7 @@ impl ImportEngine {
                 layers: Rc::downgrade(&layers),
             })),
         };
-        s.import_all_in(Name::new("lang"))
+        s.import_all_in(&Name::new("lang"))
             .expect("required lang module not found in provided layers");
         s
     }
@@ -124,25 +124,25 @@ impl ImportEngine {
         let mut s = Self::new(layers);
         for fqn in imports {
             let symbol_fqn = Name::new(fqn);
-            s.import(symbol_fqn).expect("unchecked");
+            s.import(&symbol_fqn).expect("unchecked");
         }
         s
     }
 
     ///See [[ImportEngineContent::import]]
-    pub fn import(&mut self, fqn: Name) -> Result<&mut Self, String> {
+    pub fn import(&mut self, fqn: &Name) -> Result<&mut Self, String> {
         self.content.borrow_mut().import(fqn)?;
         Ok(self)
     }
 
     ///See [[ImportEngineContent::import_aliased]]
-    pub fn import_aliased(&mut self, fqn: Name, alias: &str) -> Result<&mut Self, String> {
+    pub fn import_aliased(&mut self, fqn: &Name, alias: &str) -> Result<&mut Self, String> {
         self.content.borrow_mut().import_aliased(fqn, alias)?;
         Ok(self)
     }
 
     ///See [[ImportEngineContent::import_all_in]]
-    pub fn import_all_in(&mut self, fqn: Name) -> Result<&mut Self, String> {
+    pub fn import_all_in(&mut self, fqn: &Name) -> Result<&mut Self, String> {
         self.content.borrow_mut().import_all_in(fqn)?;
         Ok(self)
     }
@@ -180,19 +180,19 @@ impl ImportEngineContent {
     ///Imports the provided symbol.
     /// Can fail if the symbols or its environment is not found.
     /// This import will shadow any alias of the same symbol if it was previously imported
-    fn import(&mut self, fqn: Name) -> Result<(), String> {
-        self.import_aliased(fqn.clone(), fqn.name())
+    fn import(&mut self, fqn: &Name) -> Result<(), String> {
+        self.import_aliased(fqn, fqn.name())
     }
 
     ///Imports the provided symbol with an alias.
     /// Can fail if the symbols or its environment is not found.
     /// This import will shadow any alias of the same symbol if it was previously imported
     /// Accessing the symbol with its original name will not work if not explicitly or implicitly re-imported
-    fn import_aliased(&mut self, fqn: Name, alias: &str) -> Result<(), String> {
+    fn import_aliased(&mut self, fqn: &Name, alias: &str) -> Result<(), String> {
         let layers = self.layers.upgrade().expect("used layers got cleaned up");
         let env = layers
             .borrow()
-            .get_env_of(&fqn)
+            .get_env_of(fqn)
             .ok_or_else(|| format!("unknown module {fqn}"))?;
         let env_fqn = env.borrow().fqn.clone();
         let inner_name = fqn.relative_to(&env_fqn);
@@ -218,25 +218,24 @@ impl ImportEngineContent {
     }
 
     //remove all the symbols childrens of given symbol fqn
-    fn remove_all_in(&mut self, fqn: Name) {
-        self.imported_symbols = HashMap::from_iter(
-            self.imported_symbols
-                .iter()
-                .filter(|(_, v)| {
-                    let import_fqn = v.env_fqn.appended(v.symbol_name.clone());
-                    fqn == import_fqn
-                })
-                .map(|(k, v)| (k.clone(), v.clone())),
-        )
+    fn remove_all_in(&mut self, fqn: &Name) {
+        self.imported_symbols = self.imported_symbols
+            .drain()
+            .filter(|(_, v)| {
+                let import_fqn = v.env_fqn.appended(v.symbol_name.clone());
+                fqn == &import_fqn
+            })
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
     }
 
     ///Imports all direct childs of the symbol fqn.
     /// The imported symbols will then be considered as implicitely imported.
-    fn import_all_in(&mut self, fqn: Name) -> Result<(), String> {
+    fn import_all_in(&mut self, fqn: &Name) -> Result<(), String> {
         let layers = self.layers.upgrade().expect("used layers got cleaned up");
         let env = layers
             .borrow()
-            .get_env_of(&fqn)
+            .get_env_of(fqn)
             .ok_or(format!("unknown module {fqn}"))?;
         let env_fqn = env.borrow().fqn.clone();
         let inner_name = fqn.relative_to(&env_fqn);
@@ -306,12 +305,12 @@ mod test {
         let layers = ModuleLayers::new();
 
         let foo_env =
-            ModuleLayers::declare_env(layers.clone(), Name::new("bar::foo")).expect("error");
+            ModuleLayers::declare_env(layers.clone(), &Name::new("bar::foo")).expect("error");
 
         let foo_tcx = foo_env.borrow().type_context.clone();
 
         let test_env =
-            ModuleLayers::declare_env(layers.clone(), Name::new("my_module")).expect("error");
+            ModuleLayers::declare_env(layers.clone(), &Name::new("my_module")).expect("error");
 
         let test_tcx = test_env.borrow().type_context.clone();
 
@@ -339,15 +338,15 @@ mod test {
         let mut test_ctx = test_tcx.borrow_mut();
         test_env
             .imports
-            .import(Name::new("bar::foo::A"))
+            .import(&Name::new("bar::foo::A"))
             .expect("error");
         test_env
             .imports
-            .import_aliased(Name::new("bar::foo::B"), "AliasedB")
+            .import_aliased(&Name::new("bar::foo::B"), "AliasedB")
             .expect("error");
         test_env
             .imports
-            .import_aliased(Name::new("bar::foo"), "foo_alias")
+            .import_aliased(&Name::new("bar::foo"), "foo_alias")
             .expect("error");
 
         assert_eq!(test_ctx.use_class("A").expect("error"), a);
@@ -368,11 +367,11 @@ mod test {
         //import all in a module should mask previous aliases in the same module
         test_env
             .imports
-            .import_all_in(Name::new("bar::foo"))
+            .import_all_in(&Name::new("bar::foo"))
             .expect("error");
         test_env
             .imports
-            .import(Name::new("bar::foo::Unused2"))
+            .import(&Name::new("bar::foo::Unused2"))
             .expect("error");
 
         let mut unused_symbols = test_env.imports.list_unused();

@@ -91,7 +91,7 @@ impl Environment {
         let env = env.borrow();
         let identity = env.fqn.child(name);
         let mut imports = env.imports.clone();
-        imports.import_all_in(identity.clone())?;
+        imports.import_all_in(&identity)?;
 
         let type_context = TypeContext::new(identity.clone(), imports.fixed());
         let type_context = Rc::new(RefCell::new(type_context));

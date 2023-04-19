@@ -57,7 +57,7 @@ impl ModuleLayers {
 
     pub fn declare_env(
         layers: Rc<RefCell<Self>>,
-        name: Name,
+        name: &Name,
     ) -> Result<Rc<RefCell<Environment>>, String> {
         let env = Rc::new(RefCell::new(Environment::new(name.clone(), layers.clone())));
 
@@ -68,7 +68,7 @@ impl ModuleLayers {
         Ok(env)
     }
 
-    fn declare_module(&mut self, name: Name) -> Result<&mut Module, String> {
+    fn declare_module(&mut self, name: &Name) -> Result<&mut Module, String> {
         let root_name = name.root();
 
         let mut module = match self.roots.entry(root_name.to_string()) {
