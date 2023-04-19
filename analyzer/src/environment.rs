@@ -83,10 +83,7 @@ impl Environment {
         Self {
             imports: imports.clone(),
             type_context: TypeContext::lang(imports.read_only()),
-            fqn: Name {
-                path: Vec::new(),
-                name: "lang".to_string(),
-            },
+            fqn: Name::new("lang"),
         }
     }
 

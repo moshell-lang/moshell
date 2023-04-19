@@ -3,105 +3,98 @@ use std::fmt::{Display, Formatter};
 
 #[derive(Debug, PartialOrd, Ord, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Name {
-    pub path: Vec<String>,
-    pub name: String
+    pub parts: Vec<String>,
 }
 
 impl Name {
     pub fn new(name: &str) -> Self {
-        let elements: Vec<String> = name.split("::").into_iter().map(|s| s.to_string()).collect();
-        let (name, path) = elements.split_last().unwrap();
+        let parts: Vec<String> = name.split("::").into_iter().map(|s| s.to_string()).collect();
 
         Self {
-            path: path.into(),
-            name: name.clone(),
+            parts,
         }
     }
 
-    pub fn part_count(&self) -> usize {
-        self.path.len() + 1
-    }
-
-    pub fn with_name(&self, name: &str) -> Self {
-        Self {
-            path: self.path.clone(),
-            name: name.to_string()
-        }
+    pub fn with_name(mut self, name: &str) -> Self {
+        let last_idx = self.parts.len() - 1;
+        self.parts[last_idx] = name.to_string();
+        self
     }
 
     pub fn relative_to(&self, other: &Name) -> Option<Name> {
-        let self_parts = self.parts();
-        let common_parts_len = other.parts()
+        let common_parts_len = other.parts
             .clone()
             .into_iter()
-            .zip(self_parts.clone())
-            .take_while(|(a, b)| a == b)
+            .zip(&self.parts)
+            .take_while(|(a, b)| a == *b)
             .count();
 
-        if common_parts_len == self_parts.len() {
+        if common_parts_len == self.parts.len() {
             return None
         }
-        let parts: Vec<_> = self_parts.into_iter().skip(common_parts_len).collect();
+        let parts: Vec<_> = self.parts.clone().into_iter().skip(common_parts_len).collect();
         Some(Name::from(parts))
     }
 
-    pub fn parts(&self) -> Vec<String> {
-        let mut vec = self.path.clone();
-        vec.push(self.name.clone());
-        vec
+    pub fn path(&self) -> impl Iterator<Item=&String> {
+        self.parts
+            .iter()
+            .take(self.parts.len() - 1)
     }
 
     pub fn root(&self) -> &str {
-        self.path.first().unwrap_or(&self.name)
+        self.parts.first().unwrap() //Names cannot be empty
+    }
+
+    pub fn name(&self) -> &str {
+        self.parts.last().unwrap() //Names cannot be empty
     }
 
     pub fn child(&self, name: &str) -> Self {
-        let mut path = self.path.clone();
-        path.push(self.name.to_string());
+        let mut parts = self.parts.clone();
+        parts.push(name.to_string());
         Self {
-            path: path,
-            name: name.to_string()
+            parts
         }
     }
 
     pub fn tail(&self) -> Option<Self> {
-        if self.path.is_empty() {
+        if self.parts.len() == 1 {
             return None
         }
-        self.parts()
+        self.parts
             .split_first()
             .map(|(_, tail)| Name::from(tail.to_vec()))
     }
 
     pub fn appended(&self, mut name: Self) -> Self {
-        let mut path = self.path.clone();
-        path.push(self.name.to_string());
-        path.append(&mut name.path);
+        let mut parts = self.parts.clone();
+        parts.append(&mut name.parts);
         Self {
-            path,
-            name: name.name
+            parts,
         }
     }
 }
 
 impl From<Vec<String>> for Name {
     fn from(value: Vec<String>) -> Self {
-        if let Some((name, path)) = value.split_last() {
-            return Self {
-                path: path.to_vec(),
-                name: name.to_string()
-            }
+        if value.is_empty() {
+            panic!("empty vec input")
         }
-        panic!("empty vec input")
+        Self {
+            parts: value
+        }
     }
 }
 
 impl Display for Name {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        for module in &self.path {
-            write!(f, "{}::", module)?;
+        if let Some((name, tail)) = self.parts.split_last() {
+            for module in tail {
+                write!(f, "{}::", module)?;
+            }
+            write!(f, "{}", name)?;
         }
-        write!(f, "{}", self.name)?;
         Ok(())
     }
 }

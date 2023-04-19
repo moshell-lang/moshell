@@ -18,7 +18,7 @@ impl ModuleLayers {
         let lang = Environment::lang(layers.clone());
         layers.borrow_mut()
             .roots
-            .insert(lang.fqn.name.clone(), Module::with_env(lang));
+            .insert(lang.fqn.name().to_string(), Module::with_env(lang));
 
         layers
     }
@@ -32,17 +32,15 @@ impl ModuleLayers {
     }
 
     fn retrieve_env(&self, name: &Name, of_symbol: bool) -> Option<Rc<RefCell<Environment>>> {
-        let mut parts = name.parts().into_iter();
 
-        //we can safely unwrap here as names has at least `name.name` as element
-        let root_name = parts.next().unwrap();
+        let root_name = name.root();
 
-        let mut module = self.roots.get(&root_name);
+        let mut module = self.roots.get(root_name);
 
-        for name in parts {
+        for name in name.path() {
             match module {
                 Some(m) => {
-                    let m = m.childs.get(&name);
+                    let m = m.childs.get(name);
                     if m.is_none() {
                         if of_symbol {
                             break
@@ -69,18 +67,16 @@ impl ModuleLayers {
     }
 
     fn declare_module(&mut self, name: Name) -> Result<&mut Module, String> {
-        let mut names = name.path.into_iter().chain(vec![name.name].into_iter());
 
-        //we can safely unwrap here as names has at least `name.name` as element
-        let root_name = names.next().unwrap();
+        let root_name = name.root();
 
-        let mut module= match self.roots.entry(root_name.clone()) {
+        let mut module= match self.roots.entry(root_name.to_string()) {
             Entry::Occupied(o) => o.into_mut(),
             Entry::Vacant(v) => v.insert(Module::new(Name::new(&root_name)))
         };
 
-        for name in names {
-            module = module.declare_module(name)?
+        for name in name.path() {
+            module = module.declare_module(name.clone())?
         }
 
         Ok(module)

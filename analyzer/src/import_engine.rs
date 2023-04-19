@@ -155,8 +155,7 @@ impl ImportEngineContent {
                 !import.used && import.env_fqn != Name::new("lang"))
             .map(|(alias, import)| {
                 //merge env and symbol names
-                let mut parts = import.env_fqn.parts();
-                parts.append(&mut import.symbol_name.parts());
+                let parts = import.env_fqn.appended(import.symbol_name.clone());
                 let symbol_fqn = Name::from(parts).with_name(alias);
                 UnusedSymbol {
                     symbol_fqn,
@@ -170,7 +169,7 @@ impl ImportEngineContent {
     /// Can fail if the symbols or its environment is not found.
     /// This import will shadow any alias of the same symbol if it was previously imported
     fn import(&mut self, fqn: Name) -> Result<(), String> {
-        self.import_aliased(fqn.clone(), &fqn.name)
+        self.import_aliased(fqn.clone(), fqn.name())
     }
 
     ///Imports the provided symbol with an alias.
@@ -203,9 +202,8 @@ impl ImportEngineContent {
         self.imported_symbols = HashMap::from_iter(self.imported_symbols
             .iter()
             .filter(|(_, v)| {
-                let mut parts = v.env_fqn.parts();
-                parts.append(&mut v.symbol_name.parts());
-                fqn.path == parts
+                let import_fqn = v.env_fqn.appended(v.symbol_name.clone());
+                fqn == import_fqn
             })
             .map(|(k, v)| (k.clone(), v.clone())))
     }
@@ -221,7 +219,7 @@ impl ImportEngineContent {
         self.remove_all_in(fqn);
 
         for symbol_name in env.borrow().list_exported_names(inner_name) {
-            self.imported_symbols.insert(symbol_name.name.clone(), ImportedSymbol {
+            self.imported_symbols.insert(symbol_name.name().to_string(), ImportedSymbol {
                 symbol_name,
                 env_fqn: env_fqn.clone(),
                 used: false,
@@ -251,8 +249,8 @@ impl ImportEngineContent {
 
                 let mut name = name.clone();
 
-                if name.path.is_empty() {
-                    name.name = import.symbol_name.name.clone();
+                if name.parts.len() <= 1 {
+                    name = name.with_name(import.symbol_name.name());
                 }
                 let result = ctx.find_exported(&name.tail().unwrap_or(name.clone()));
                 if result.is_some() {

@@ -48,8 +48,8 @@ impl ContextExports<Rc<TypeClass>> for TypeContext {
             .clone()
             .into_iter()
             .filter(|(k, _)| {
-                let parts = symbol.clone().map(|s| s.parts()).unwrap_or_default().leak();
-                k.parts().starts_with(parts)
+                let parts = symbol.clone().map(|s| s.parts).unwrap_or_default().leak();
+                k.parts.starts_with(parts)
             })
             .map(|(_, v)| v.fqcn.relative_to(&self.fqn).unwrap())
             .collect()
@@ -111,7 +111,7 @@ impl TypeContext {
             super_params_associations: vec![],
             fqcn: ctx.fqn.child("Any"),
         });
-        ctx.classes.insert(Name::new(&any_cl.fqcn.name), any_cl.clone());
+        ctx.classes.insert(Name::new(&any_cl.fqcn.name()), any_cl.clone());
         drop(ctx);
 
         let float =
