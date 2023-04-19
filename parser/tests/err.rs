@@ -19,7 +19,7 @@ fn repos_delimiter_stack() {
     assert_eq!(
         report,
         ParseReport {
-            expr: vec![Expr::Call(Call {
+            ast: vec![Expr::Call(Call {
                 path: Vec::new(),
 
                 arguments: vec![
@@ -53,7 +53,7 @@ fn expected_value_found_eof() {
     assert_eq!(
         report,
         ParseReport {
-            expr: vec![],
+            ast: vec![],
             errors: vec![ParseError {
                 message: "Expected value".to_string(),
                 position: content.find('=').map(|p| p + 1..p + 2).unwrap(),
@@ -72,7 +72,7 @@ fn expected_value_found_semicolon() {
     assert_eq!(
         report,
         ParseReport {
-            expr: vec![],
+            ast: vec![],
             errors: vec![ParseError {
                 message: "Expected value".to_string(),
                 position: content.find(';').map(|p| p..p + 1).unwrap(),
@@ -91,7 +91,7 @@ fn arithmetic_help() {
     assert_eq!(
         report,
         ParseReport {
-            expr: vec![],
+            ast: vec![],
             errors: vec![ParseError {
                 message: "Binary operations must be enclosed in a value expression.".to_string(),
                 position: 0..content.len(),
@@ -110,7 +110,7 @@ fn for_no_dollar_help() {
     assert_eq!(
         report,
         ParseReport {
-            expr: vec![],
+            ast: vec![],
             errors: vec![ParseError {
                 message: "Receiver variables do not start with '$'.".to_string(),
                 position: content.find('$').map(|p| p..p + 1).unwrap(),
@@ -131,7 +131,7 @@ fn expected_double_delimiter_for() {
     assert_eq!(
         report,
         ParseReport {
-            expr: vec![],
+            ast: vec![],
             errors: vec![ParseError {
                 message: "Expected '))' at end of conditional for".to_string(),
                 position: content.find(')').map(|p| p + 1..p + 2).unwrap(),
@@ -150,7 +150,7 @@ fn double_comma_parentheses() {
     assert_eq!(
         report,
         ParseReport {
-            expr: vec![],
+            ast: vec![],
             errors: vec![ParseError {
                 message: "Expected argument.".to_string(),
                 position: content.rfind(',').map(|p| p..p + 1).unwrap(),
@@ -169,7 +169,7 @@ fn double_comma_function() {
     assert_eq!(
         report,
         ParseReport {
-            expr: vec![],
+            ast: vec![],
             errors: vec![ParseError {
                 message: "Expected parameter.".to_string(),
                 position: content.rfind(',').map(|p| p..p + 1).unwrap(),

@@ -45,8 +45,8 @@ struct ImportedSymbol {
     ///A flag to track if the import was already used.
     used: bool,
     ///True if this symbol was explicitly imported.
-    /// A symbol is explicitly imported if it was imported by [[ImportEngine::import]] or [[ImportEngine::import_aliased]].
-    /// Implicitly imported symbols are symbols imported by [[ImportEngine::import_all_in]]
+    /// A symbol is explicitly imported if it was imported by [ImportEngine::import] or [ImportEngine::import_aliased].
+    /// Implicitly imported symbols are symbols imported by [ImportEngine::import_all_in]
     explicitly_imported: bool,
 }
 
@@ -56,7 +56,7 @@ pub struct UnusedSymbol {
     ///The full name of the symbol, environment's name included.
     pub symbol_fqn: Name,
     ///True if this symbol was explicitly imported.
-    /// See [[ImportedSymbol.explicitly_imported]]
+    /// See [ImportedSymbol.explicitly_imported]
     pub explicitly_imported: bool,
 }
 
@@ -73,12 +73,12 @@ pub trait ContextExports<S> {
 }
 
 impl FixedImportEngine {
-    ///See [[ImportEngineContent::use_symbol]]
+    ///See [ImportEngineContent::use_symbol]
     pub fn use_element<V, E: ContextExports<V>>(&mut self, name: &Name) -> Option<V> {
         self.content.borrow_mut().use_symbol::<V, E>(name)
     }
 
-    ///See [[ImportEngineContent::list_unused]]
+    ///See [ImportEngineContent::list_unused]
     pub fn list_unused(&self) -> Vec<UnusedSymbol> {
         self.content.borrow().list_unused()
     }
@@ -129,30 +129,30 @@ impl ImportEngine {
         s
     }
 
-    ///See [[ImportEngineContent::import]]
+    ///See [ImportEngineContent::import]
     pub fn import(&mut self, fqn: &Name) -> Result<&mut Self, String> {
         self.content.borrow_mut().import(fqn)?;
         Ok(self)
     }
 
-    ///See [[ImportEngineContent::import_aliased]]
+    ///See [ImportEngineContent::import_aliased]
     pub fn import_aliased(&mut self, fqn: &Name, alias: &str) -> Result<&mut Self, String> {
         self.content.borrow_mut().import_aliased(fqn, alias)?;
         Ok(self)
     }
 
-    ///See [[ImportEngineContent::import_all_in]]
+    ///See [ImportEngineContent::import_all_in]
     pub fn import_all_in(&mut self, fqn: &Name) -> Result<&mut Self, String> {
         self.content.borrow_mut().import_all_in(fqn)?;
         Ok(self)
     }
 
-    ///See [[ImportEngineContent::use_symbol]]
+    ///See [ImportEngineContent::use_symbol]
     pub fn use_element<V, E: ContextExports<V>>(&mut self, name: &Name) -> Option<V> {
         self.content.borrow_mut().use_symbol::<V, E>(name)
     }
 
-    ///See [[ImportEngineContent::list_unused]]
+    ///See [ImportEngineContent::list_unused]
     pub fn list_unused(&self) -> Vec<UnusedSymbol> {
         self.content.borrow().list_unused()
     }
@@ -307,7 +307,7 @@ mod test {
         let foo_env =
             ModuleLayers::declare_env(layers, &Name::new("bar::foo")).expect("error");
 
-        let foo_tcx = foo_env.borrow().type_context.clone();
+        let foo_tcx = &foo_env.borrow().type_context.clone();
 
         let test_env =
             ModuleLayers::declare_env(layers, &Name::new("my_module")).expect("error");
@@ -315,21 +315,21 @@ mod test {
         let test_tcx = test_env.borrow().type_context.clone();
 
         let a =
-            TypeContext::define_class(foo_tcx.clone(), ClassTypeDefinition::new(Name::new("A")))
+            TypeContext::define_class(foo_tcx, ClassTypeDefinition::new(Name::new("A")))
                 .expect("error");
 
         let b =
-            TypeContext::define_class(foo_tcx.clone(), ClassTypeDefinition::new(Name::new("B")))
+            TypeContext::define_class(foo_tcx, ClassTypeDefinition::new(Name::new("B")))
                 .expect("error");
 
         TypeContext::define_class(
-            foo_tcx.clone(),
+            foo_tcx,
             ClassTypeDefinition::new(Name::new("Unused1")),
         )
         .expect("error");
 
         TypeContext::define_class(
-            foo_tcx.clone(),
+            foo_tcx,
             ClassTypeDefinition::new(Name::new("Unused2")),
         )
         .expect("error");

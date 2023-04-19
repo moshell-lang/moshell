@@ -88,8 +88,8 @@ pub enum Expr<'a> {
 }
 
 pub struct AST<'a> {
-    root: Expr<'a>,
-    file: String
+    pub root: Block<'a>,
+    pub file_path: String
 }
 
 impl SourceSegmentHolder for Expr<'_> {

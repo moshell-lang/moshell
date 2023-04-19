@@ -84,8 +84,9 @@ impl ModuleLayers {
     }
 }
 
+
 #[derive(Debug, Clone, PartialEq)]
-pub struct Module {
+struct Module {
     pub full_name: Name,
     pub env: Option<Rc<RefCell<Environment>>>,
     childs: HashMap<String, Module>,

@@ -82,7 +82,7 @@ fn main() -> io::Result<()> {
             .collect::<Vec<_>>();
 
         if errors.is_empty() {
-            print_flush!("{}\n=> ", color(&report.expr));
+            print_flush!("{}\n=> ", color(&report.ast));
             content.clear();
             continue;
         }

@@ -8,7 +8,11 @@ use analyzer_system::types::class::ClassTypeDefinition;
 use analyzer_system::types::context::TypeContext;
 use analyzer_system::types::types::Type;
 
-pub(crate) fn define_ast(layers: &Rc<RefCell<ModuleLayers>>) -> Result<(), String> {
+pub fn define_ast(layers: &Rc<RefCell<ModuleLayers>>) {
+    define_ast_internal(layers).expect("error when defining standard library types")
+}
+
+fn define_ast_internal(layers: &Rc<RefCell<ModuleLayers>>) -> Result<(), String> {
     let std = ModuleLayers::declare_env(layers, &Name::new("std"))?;
 
     let std = std.borrow();
