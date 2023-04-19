@@ -9,7 +9,6 @@ use std::rc::Rc;
 
 use crate::import_engine::{ContextExports, FixedImportEngine};
 use crate::name::Name;
-use crate::visibility::ScopeVisibility::Public;
 
 /// A type environment.
 ///
@@ -40,7 +39,7 @@ impl ContextExports<Rc<TypeClass>> for TypeContext {
     fn find_exported(&self, name: &Name) -> Option<Rc<TypeClass>> {
         self.classes
             .get(name)
-            .filter(|tc| tc.visibility == Public)
+            .filter(|tc| tc.is_exported)
             .cloned()
     }
 
@@ -106,7 +105,7 @@ impl TypeContext {
 
         let any_cl = &Rc::new(TypeClass {
             super_type: None,
-            visibility: Public,
+            is_exported: true,
             generic_parameters: vec![],
             super_params_associations: vec![],
             fqcn: ctx.fqn.child("Any"),
