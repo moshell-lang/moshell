@@ -20,7 +20,7 @@ pub fn segment_holder(args: TokenStream, input: TokenStream) -> TokenStream {
     let type_name = &item_struct.ident;
     let where_clause = &item_struct.generics.where_clause;
 
-    return quote! {
+    quote! {
         #item_struct
 
         impl #generics context::source::SourceSegmentHolder for #type_name #generics #where_clause {
@@ -29,5 +29,5 @@ pub fn segment_holder(args: TokenStream, input: TokenStream) -> TokenStream {
             }
         }
     }
-    .into();
+    .into()
 }
