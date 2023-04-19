@@ -1,3 +1,7 @@
+use crate::import_engine::{ContextExports, ImportEngine};
+use crate::layers::ModuleLayers;
+use crate::name::Name;
+use crate::types::class::TypeClass;
 ///! The type environment of the analyzer.
 ///!
 ///! An environment maps local variable names to their type and keep tracks of scopes.
@@ -21,10 +25,6 @@
 use crate::types::context::TypeContext;
 use std::cell::RefCell;
 use std::rc::Rc;
-use crate::import_engine::{ContextExports, ImportEngine};
-use crate::name::Name;
-use crate::layers::ModuleLayers;
-use crate::types::class::TypeClass;
 
 /// An environment.
 /// The Environment contains the defined types, variables, structure and function definitions of a certain scope.
@@ -44,7 +44,7 @@ pub struct Environment {
 ///All kind of symbols in the environment
 pub enum Symbol {
     /// The type class symbol from the type context
-    TypeClass(Rc<TypeClass>)
+    TypeClass(Rc<TypeClass>),
 }
 
 /// Top level context implementation for the environment.
@@ -98,10 +98,7 @@ impl Environment {
         Ok(Self {
             imports,
             type_context,
-            fqn: identity
+            fqn: identity,
         })
     }
-
-
 }
-

@@ -1,21 +1,21 @@
-use std::cell::RefCell;
-use std::collections::{HashMap};
-use std::rc::{Rc, Weak};
-use crate::environment::{Environment};
+use crate::environment::Environment;
+use crate::layers::ModuleLayers;
 use crate::name::Name;
-use crate::layers::{ModuleLayers};
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::{Rc, Weak};
 
 ///The import engine is a structure that hosts all the imported symbols of an environement.
 /// Its implementation allows to insert new imports in the engine
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImportEngine {
-    content: Rc<RefCell<ImportEngineContent>>
+    content: Rc<RefCell<ImportEngineContent>>,
 }
 
 ///The read only engine is a view of the ImportEngine that cannot import new symbols
 #[derive(Debug, Clone, PartialEq)]
 pub struct FixedImportEngine {
-    content: Rc<RefCell<ImportEngineContent>>
+    content: Rc<RefCell<ImportEngineContent>>,
 }
 
 /// The content of the ImportEngines
@@ -47,9 +47,8 @@ struct ImportedSymbol {
     ///True if this symbol was explicitly imported.
     /// A symbol is explicitly imported if it was imported by [[ImportEngine::import]] or [[ImportEngine::import_aliased]].
     /// Implicitly imported symbols are symbols imported by [[ImportEngine::import_all_in]]
-    explicitly_imported: bool
+    explicitly_imported: bool,
 }
-
 
 ///An unused symbol.
 #[derive(Debug, PartialEq, Eq)]
@@ -58,7 +57,7 @@ pub struct UnusedSymbol {
     pub symbol_fqn: Name,
     ///True if this symbol was explicitly imported.
     /// See [[ImportedSymbol.explicitly_imported]]
-    pub explicitly_imported: bool
+    pub explicitly_imported: bool,
 }
 
 ///A trait to access exported symbols of a context.
@@ -72,7 +71,6 @@ pub trait ContextExports<S> {
     ///List direct childrens of given symbol's name that are exported.
     fn list_exported_names(&self, symbol: Option<Name>) -> Vec<Name>;
 }
-
 
 impl FixedImportEngine {
     ///See [[ImportEngineContent::use_symbol]]
@@ -90,7 +88,7 @@ impl ImportEngine {
     ///Creates a read only view of this engine
     pub fn fixed(&self) -> FixedImportEngine {
         FixedImportEngine {
-            content: self.content.clone()
+            content: self.content.clone(),
         }
     }
 
@@ -100,7 +98,7 @@ impl ImportEngine {
             content: Rc::new(RefCell::new(ImportEngineContent {
                 imported_symbols: HashMap::default(),
                 layers: Rc::downgrade(&layers),
-            }))
+            })),
         };
         s.import_all_in(Name::new("lang"))
             .expect("required lang module not found in provided layers");
@@ -112,14 +110,17 @@ impl ImportEngine {
         Self {
             content: Rc::new(RefCell::new(ImportEngineContent {
                 imported_symbols: HashMap::new(),
-                layers: Rc::downgrade(&layers)
-            }))
+                layers: Rc::downgrade(&layers),
+            })),
         }
     }
 
     ///Creates a new engine with lang pre-imported
     ///This function panics if the given imports are invalid.
-    pub(crate) fn with_imports_unchecked<const N: usize>(imports: [&str; N], layers: Rc<RefCell<ModuleLayers>>) -> Self {
+    pub(crate) fn with_imports_unchecked<const N: usize>(
+        imports: [&str; N],
+        layers: Rc<RefCell<ModuleLayers>>,
+    ) -> Self {
         let mut s = Self::new(layers);
         for fqn in imports {
             let symbol_fqn = Name::new(fqn);
@@ -127,7 +128,6 @@ impl ImportEngine {
         }
         s
     }
-
 
     ///See [[ImportEngineContent::import]]
     pub fn import(&mut self, fqn: Name) -> Result<&mut Self, String> {
@@ -159,21 +159,19 @@ impl ImportEngine {
 }
 
 impl ImportEngineContent {
-
     ///Lists all unused symbols imported in the engine.
     /// All symbols from the lang environment are filtered out.
     fn list_unused(&self) -> Vec<UnusedSymbol> {
         self.imported_symbols
             .iter()
-            .filter(|(_, import)|
-                !import.used && import.env_fqn != Name::new("lang"))
+            .filter(|(_, import)| !import.used && import.env_fqn != Name::new("lang"))
             .map(|(alias, import)| {
                 //merge env and symbol names
                 let parts = import.env_fqn.appended(import.symbol_name.clone());
-                let symbol_fqn = Name::from(parts).with_name(alias);
+                let symbol_fqn = parts.with_name(alias);
                 UnusedSymbol {
                     symbol_fqn,
-                    explicitly_imported: import.explicitly_imported
+                    explicitly_imported: import.explicitly_imported,
                 }
             })
             .collect()
@@ -192,53 +190,69 @@ impl ImportEngineContent {
     /// Accessing the symbol with its original name will not work if not explicitly or implicitly re-imported
     fn import_aliased(&mut self, fqn: Name, alias: &str) -> Result<(), String> {
         let layers = self.layers.upgrade().expect("used layers got cleaned up");
-        let env = layers.borrow().get_env_of(&fqn).ok_or(format!("unknown module {}", fqn))?;
+        let env = layers
+            .borrow()
+            .get_env_of(&fqn)
+            .ok_or_else(|| format!("unknown module {fqn}"))?;
         let env_fqn = env.borrow().fqn.clone();
         let inner_name = fqn.relative_to(&env_fqn);
 
         if let Some(inner_name) = &inner_name {
             if env.borrow().find_exported(inner_name).is_none() {
-                return Err(format!("symbol {} in module {} not found.", inner_name, env_fqn))
+                return Err(format!(
+                    "symbol {inner_name} in module {env_fqn} not found."
+                ));
             }
         }
 
-        self.imported_symbols.insert(alias.to_string(), ImportedSymbol {
-            symbol_name: inner_name.unwrap_or(env_fqn.clone()),
-            env_fqn,
-            used: false,
-            explicitly_imported: true,
-        });
+        self.imported_symbols.insert(
+            alias.to_string(),
+            ImportedSymbol {
+                symbol_name: inner_name.unwrap_or(env_fqn.clone()),
+                env_fqn,
+                used: false,
+                explicitly_imported: true,
+            },
+        );
         Ok(())
     }
 
     //remove all the symbols childrens of given symbol fqn
     fn remove_all_in(&mut self, fqn: Name) {
-        self.imported_symbols = HashMap::from_iter(self.imported_symbols
-            .iter()
-            .filter(|(_, v)| {
-                let import_fqn = v.env_fqn.appended(v.symbol_name.clone());
-                fqn == import_fqn
-            })
-            .map(|(k, v)| (k.clone(), v.clone())))
+        self.imported_symbols = HashMap::from_iter(
+            self.imported_symbols
+                .iter()
+                .filter(|(_, v)| {
+                    let import_fqn = v.env_fqn.appended(v.symbol_name.clone());
+                    fqn == import_fqn
+                })
+                .map(|(k, v)| (k.clone(), v.clone())),
+        )
     }
 
     ///Imports all direct childs of the symbol fqn.
     /// The imported symbols will then be considered as implicitely imported.
     fn import_all_in(&mut self, fqn: Name) -> Result<(), String> {
         let layers = self.layers.upgrade().expect("used layers got cleaned up");
-        let env = layers.borrow().get_env_of(&fqn).ok_or(format!("unknown module {}", fqn))?;
+        let env = layers
+            .borrow()
+            .get_env_of(&fqn)
+            .ok_or(format!("unknown module {fqn}"))?;
         let env_fqn = env.borrow().fqn.clone();
         let inner_name = fqn.relative_to(&env_fqn);
 
         self.remove_all_in(fqn);
 
         for symbol_name in env.borrow().list_exported_names(inner_name) {
-            self.imported_symbols.insert(symbol_name.name().to_string(), ImportedSymbol {
-                symbol_name,
-                env_fqn: env_fqn.clone(),
-                used: false,
-                explicitly_imported: false,
-            });
+            self.imported_symbols.insert(
+                symbol_name.name().to_string(),
+                ImportedSymbol {
+                    symbol_name,
+                    env_fqn: env_fqn.clone(),
+                    used: false,
+                    explicitly_imported: false,
+                },
+            );
         }
         Ok(())
     }
@@ -247,16 +261,19 @@ impl ImportEngineContent {
     fn use_symbol<V, E: ContextExports<V>>(&mut self, name: &Name) -> Option<V> {
         let layers = match self.layers.upgrade() {
             None => return None,
-            Some(layers) => layers
+            Some(layers) => layers,
         };
         let layers = layers.borrow();
 
         match self.imported_symbols.get_mut(name.root()) {
             None => None,
             Some(import) => {
-                let env = layers
-                    .get_env_of(&import.env_fqn)
-                    .expect(&format!("symbol {} maps to an unknown module {} but is imported", name, import.env_fqn));
+                let env = layers.get_env_of(&import.env_fqn).unwrap_or_else(|| {
+                    panic!(
+                        "symbol {} maps to an unknown module {} but is imported",
+                        name, import.env_fqn
+                    )
+                });
 
                 let ctx = E::from_env(env);
                 let ctx = ctx.borrow();
@@ -266,7 +283,7 @@ impl ImportEngineContent {
                 if name.parts().len() <= 1 {
                     name = name.with_name(import.symbol_name.name());
                 }
-                let result = ctx.find_exported(&name.tail().unwrap_or(name.clone()));
+                let result = ctx.find_exported(&name.tail().unwrap_or(name));
                 if result.is_some() {
                     import.used = true;
                 }
@@ -285,48 +302,53 @@ mod test {
     use crate::types::context::TypeContext;
 
     #[test]
-    fn specific_imports()  {
+    fn specific_imports() {
         let layers = ModuleLayers::new();
 
-        let foo_env = ModuleLayers::declare_env(layers.clone(), Name::new("bar::foo")).expect("error");
+        let foo_env =
+            ModuleLayers::declare_env(layers.clone(), Name::new("bar::foo")).expect("error");
 
-        let foo_tcx = foo_env
-            .borrow()
-            .type_context
-            .clone();
+        let foo_tcx = foo_env.borrow().type_context.clone();
 
-        let test_env = ModuleLayers::declare_env(layers.clone(), Name::new("my_module")).expect("error");
+        let test_env =
+            ModuleLayers::declare_env(layers.clone(), Name::new("my_module")).expect("error");
 
-        let test_tcx = test_env
-            .borrow()
-            .type_context
-            .clone();
+        let test_tcx = test_env.borrow().type_context.clone();
 
-        let a = TypeContext::define_class(
-            foo_tcx.clone(),
-            ClassTypeDefinition::new(Name::new("A")),
-        ).expect("error");
+        let a =
+            TypeContext::define_class(foo_tcx.clone(), ClassTypeDefinition::new(Name::new("A")))
+                .expect("error");
 
-        let b = TypeContext::define_class(
-            foo_tcx.clone(),
-            ClassTypeDefinition::new(Name::new("B")),
-        ).expect("error");
+        let b =
+            TypeContext::define_class(foo_tcx.clone(), ClassTypeDefinition::new(Name::new("B")))
+                .expect("error");
 
         TypeContext::define_class(
             foo_tcx.clone(),
             ClassTypeDefinition::new(Name::new("Unused1")),
-        ).expect("error");
+        )
+        .expect("error");
 
         TypeContext::define_class(
             foo_tcx.clone(),
             ClassTypeDefinition::new(Name::new("Unused2")),
-        ).expect("error");
+        )
+        .expect("error");
 
         let mut test_env = test_env.borrow_mut();
         let mut test_ctx = test_tcx.borrow_mut();
-        test_env.imports.import(Name::new("bar::foo::A")).expect("error");
-        test_env.imports.import_aliased(Name::new("bar::foo::B"), "AliasedB").expect("error");
-        test_env.imports.import_aliased(Name::new("bar::foo"), "foo_alias").expect("error");
+        test_env
+            .imports
+            .import(Name::new("bar::foo::A"))
+            .expect("error");
+        test_env
+            .imports
+            .import_aliased(Name::new("bar::foo::B"), "AliasedB")
+            .expect("error");
+        test_env
+            .imports
+            .import_aliased(Name::new("bar::foo"), "foo_alias")
+            .expect("error");
 
         assert_eq!(test_ctx.use_class("A").expect("error"), a);
         assert_eq!(test_ctx.use_class("foo_alias::A").expect("error"), a);
@@ -339,16 +361,19 @@ mod test {
             test_ctx.use_class("foo_alias::AliasedB"),
             Err("Unknown type foo_alias::AliasedB".to_string())
         );
-        assert_eq!(
-            test_ctx.use_class("B"),
-            Err("Unknown type B".to_string())
-        );
+        assert_eq!(test_ctx.use_class("B"), Err("Unknown type B".to_string()));
 
         assert_eq!(test_ctx.use_class("AliasedB").expect("error"), b);
 
         //import all in a module should mask previous aliases in the same module
-        test_env.imports.import_all_in(Name::new("bar::foo")).expect("error");
-        test_env.imports.import(Name::new("bar::foo::Unused2")).expect("error");
+        test_env
+            .imports
+            .import_all_in(Name::new("bar::foo"))
+            .expect("error");
+        test_env
+            .imports
+            .import(Name::new("bar::foo::Unused2"))
+            .expect("error");
 
         let mut unused_symbols = test_env.imports.list_unused();
         unused_symbols.sort_by_key(|import| import.symbol_fqn.clone());

@@ -30,7 +30,6 @@ impl Display for ParameterizedType {
     }
 }
 
-
 /// Represents [monotypes][1] (fully instantiated, unquantified types).
 ///
 /// [1]: https://en.wikipedia.org/wiki/Hindley–Milner_type_system#Monotypes

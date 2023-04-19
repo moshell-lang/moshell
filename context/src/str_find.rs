@@ -7,7 +7,7 @@ use crate::source::SourceSegment;
 pub fn find_in<'a>(source: &'a str, needle: &'a str) -> SourceSegment {
     let start = match source.find(needle) {
         Some(start) => start,
-        None => panic!("'{}' not found.", needle),
+        None => panic!("'{needle}' not found."),
     };
     start..start + needle.len()
 }

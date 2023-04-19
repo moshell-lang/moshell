@@ -11,12 +11,12 @@ pub struct ModuleLayers {
 }
 
 impl ModuleLayers {
-
     //declares a new ModuleLayers that contains the lang environment
     pub fn new() -> Rc<RefCell<Self>> {
         let layers = Rc::new(RefCell::new(ModuleLayers::default()));
         let lang = Environment::lang(layers.clone());
-        layers.borrow_mut()
+        layers
+            .borrow_mut()
             .roots
             .insert(lang.fqn.name().to_string(), Module::with_env(lang));
 
@@ -32,7 +32,6 @@ impl ModuleLayers {
     }
 
     fn retrieve_env(&self, name: &Name, of_symbol: bool) -> Option<Rc<RefCell<Environment>>> {
-
         let root_name = name.root();
 
         let mut module = self.roots.get(root_name);
@@ -43,20 +42,23 @@ impl ModuleLayers {
                     let m = m.childs.get(name);
                     if m.is_none() {
                         if of_symbol {
-                            break
+                            break;
                         }
-                        return None
+                        return None;
                     }
                     module = m
-                },
-                None => break
+                }
+                None => break,
             }
         }
 
         module.and_then(|m| m.env.clone())
     }
 
-    pub fn declare_env(layers: Rc<RefCell<Self>>, name: Name) -> Result<Rc<RefCell<Environment>>, String> {
+    pub fn declare_env(
+        layers: Rc<RefCell<Self>>,
+        name: Name,
+    ) -> Result<Rc<RefCell<Environment>>, String> {
         let env = Rc::new(RefCell::new(Environment::new(name.clone(), layers.clone())));
 
         let mut layers_ref = layers.borrow_mut();
@@ -67,12 +69,11 @@ impl ModuleLayers {
     }
 
     fn declare_module(&mut self, name: Name) -> Result<&mut Module, String> {
-
         let root_name = name.root();
 
-        let mut module= match self.roots.entry(root_name.to_string()) {
+        let mut module = match self.roots.entry(root_name.to_string()) {
             Entry::Occupied(o) => o.into_mut(),
-            Entry::Vacant(v) => v.insert(Module::new(Name::new(&root_name)))
+            Entry::Vacant(v) => v.insert(Module::new(Name::new(root_name))),
         };
 
         for name in name.path() {
@@ -103,27 +104,22 @@ impl Module {
         Self {
             full_name: env.fqn.clone(),
             env: Some(Rc::new(RefCell::new(env))),
-            childs: HashMap::new()
+            childs: HashMap::new(),
         }
     }
 
     fn declare_module(&mut self, name: String) -> Result<&mut Module, String> {
         match self.childs.entry(name.clone()) {
-            Entry::Occupied(_) => {
-                Err(format!(
-                    "cannot declare a new module: {}::{} already exists",
-                    self.full_name, name
-                ))
-            }
+            Entry::Occupied(_) => Err(format!(
+                "cannot declare a new module: {}::{} already exists",
+                self.full_name, name
+            )),
             Entry::Vacant(v) => {
                 let module = Module::new(self.full_name.child(&name));
-                v.insert(module.clone());
+                v.insert(module);
                 //we can safely unwrap as we just inserted the module
                 Ok(self.childs.get_mut(&name).unwrap())
             }
         }
     }
-
-
-
 }

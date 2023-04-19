@@ -1,6 +1,5 @@
 use std::fmt::{Display, Formatter};
 
-
 #[derive(Debug, PartialOrd, Ord, Clone, PartialEq, Eq, Hash)]
 pub struct Name {
     parts: Vec<String>,
@@ -8,11 +7,13 @@ pub struct Name {
 
 impl Name {
     pub fn new(name: &str) -> Self {
-        let parts: Vec<String> = name.split("::").into_iter().map(|s| s.to_string()).collect();
+        let parts: Vec<String> = name
+            .split("::")
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect();
 
-        Self {
-            parts,
-        }
+        Self { parts }
     }
 
     pub fn with_name(mut self, name: &str) -> Self {
@@ -30,7 +31,8 @@ impl Name {
     }
 
     pub fn relative_to(&self, other: &Name) -> Option<Name> {
-        let common_parts_len = other.parts
+        let common_parts_len = other
+            .parts
             .clone()
             .into_iter()
             .zip(&self.parts)
@@ -38,16 +40,19 @@ impl Name {
             .count();
 
         if common_parts_len == self.parts.len() {
-            return None
+            return None;
         }
-        let parts: Vec<_> = self.parts.clone().into_iter().skip(common_parts_len).collect();
+        let parts: Vec<_> = self
+            .parts
+            .clone()
+            .into_iter()
+            .skip(common_parts_len)
+            .collect();
         Some(Name::from(parts))
     }
 
-    pub fn path(&self) -> impl Iterator<Item=&String> {
-        self.parts
-            .iter()
-            .take(self.parts.len() - 1)
+    pub fn path(&self) -> impl Iterator<Item = &String> {
+        self.parts.iter().take(self.parts.len() - 1)
     }
 
     pub fn root(&self) -> &str {
@@ -61,14 +66,12 @@ impl Name {
     pub fn child(&self, name: &str) -> Self {
         let mut parts = self.parts.clone();
         parts.push(name.to_string());
-        Self {
-            parts
-        }
+        Self { parts }
     }
 
     pub fn tail(&self) -> Option<Self> {
         if self.parts.len() == 1 {
-            return None
+            return None;
         }
         self.parts
             .split_first()
@@ -78,9 +81,7 @@ impl Name {
     pub fn appended(&self, mut name: Self) -> Self {
         let mut parts = self.parts.clone();
         parts.append(&mut name.parts);
-        Self {
-            parts,
-        }
+        Self { parts }
     }
 }
 
@@ -89,9 +90,7 @@ impl From<Vec<String>> for Name {
         if value.is_empty() {
             panic!("empty vec input")
         }
-        Self {
-            parts: value
-        }
+        Self { parts: value }
     }
 }
 
@@ -99,9 +98,9 @@ impl Display for Name {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if let Some((name, tail)) = self.parts.split_last() {
             for module in tail {
-                write!(f, "{}::", module)?;
+                write!(f, "{module}::")?;
             }
-            write!(f, "{}", name)?;
+            write!(f, "{name}")?;
         }
         Ok(())
     }
