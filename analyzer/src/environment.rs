@@ -1,4 +1,4 @@
-///! The type environment of the analyser.
+///! The type environment of the analyzer.
 ///!
 ///! An environment maps local variable names to their type and keep tracks of scopes.
 ///! The same variable name can be accessed in different scopes, and can have different type in
@@ -21,7 +21,7 @@
 use crate::types::context::TypeContext;
 use std::cell::RefCell;
 use std::rc::Rc;
-use crate::import_engine::ImportEngine;
+use crate::import_engine::{ContextExports, ImportEngine};
 use crate::name::Name;
 use crate::layers::ModuleLayers;
 use crate::types::class::TypeClass;
@@ -73,8 +73,8 @@ impl Environment {
         let imports = ImportEngine::new(layers);
         Self {
             imports: imports.clone(),
-            type_context: Rc::new(RefCell::new(TypeContext::new(fqn.clone(), imports.read_only()))),
-            fqn: fqn,
+            type_context: Rc::new(RefCell::new(TypeContext::new(fqn.clone(), imports.fixed()))),
+            fqn,
         }
     }
 
@@ -82,7 +82,7 @@ impl Environment {
         let imports = ImportEngine::empty(layers);
         Self {
             imports: imports.clone(),
-            type_context: TypeContext::lang(imports.read_only()),
+            type_context: TypeContext::lang(imports.fixed()),
             fqn: Name::new("lang"),
         }
     }
@@ -93,7 +93,7 @@ impl Environment {
         let mut imports = env.imports.clone();
         imports.import_all_in(identity.clone())?;
 
-        let type_context = TypeContext::new(identity.clone(), imports.read_only());
+        let type_context = TypeContext::new(identity.clone(), imports.fixed());
         let type_context = Rc::new(RefCell::new(type_context));
         Ok(Self {
             imports,
@@ -105,10 +105,3 @@ impl Environment {
 
 }
 
-pub trait ContextExports<V> {
-    fn from_env(env: Rc<RefCell<Environment>>) -> Rc<RefCell<Self>>;
-
-    fn find_exported(&self, name: &Name) -> Option<V>;
-
-    fn list_exported_names(&self, symbol: Option<Name>) -> Vec<Name>;
-}

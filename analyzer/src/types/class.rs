@@ -28,7 +28,7 @@ pub struct TypeClass {
     /// - `class List[A]: Iterable[A]`      The generic param of the child (`List`) is associated with the generic param of the parent (`Iterable`),
     ///                                     Thus, we have `List::A => Iterable::A`
     ///
-    /// - `class IdentityMap[A]: Map[A, A]` Here, we have `IdentityMap::A => Map::K` and `IdentityMap::A => Map::V`
+    /// - `class IndexMap[A]: Map[A, A]` Here, we have `IndexMap::A => Map::K` and `IndexMap::A => Map::V`
     ///
     /// - `class Map[K, V]: Iterable[A]`    This defines a map that is iterable only over its keys, the first map's generic parameter `K`
     ///                                     is then bound on lone iterable's generic parameter, and the generic param `V` has no links with the parent,
@@ -466,7 +466,7 @@ mod tests {
                     }
                 )],
                 Name::new("std"),
-                ImportEngine::new(layers).read_only()),
+                ImportEngine::new(layers).fixed()),
         );
 
         assert_eq!(
@@ -585,7 +585,7 @@ mod tests {
                     }
                 )],
                 Name::new("std"),
-                ImportEngine::new(layers.clone()).read_only(),
+                ImportEngine::new(layers.clone()).fixed(),
             ),
         );
 
@@ -714,7 +714,7 @@ mod tests {
                     }
                 )],
                 Name::new("std"),
-                ImportEngine::new(layers).read_only()),
+                ImportEngine::new(layers).fixed()),
         );
 
         assert_eq!(

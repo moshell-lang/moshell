@@ -1,9 +1,9 @@
 use std::fmt::{Display, Formatter};
 
 
-#[derive(Debug, PartialOrd, Ord, Clone, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, PartialOrd, Ord, Clone, PartialEq, Eq, Hash)]
 pub struct Name {
-    pub parts: Vec<String>,
+    parts: Vec<String>,
 }
 
 impl Name {
@@ -19,6 +19,14 @@ impl Name {
         let last_idx = self.parts.len() - 1;
         self.parts[last_idx] = name.to_string();
         self
+    }
+
+    pub fn parts(&self) -> &[String] {
+        &self.parts
+    }
+
+    pub fn into_vec(self) -> Vec<String> {
+        self.parts
     }
 
     pub fn relative_to(&self, other: &Name) -> Option<Name> {

@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::{HashMap};
 use std::rc::{Rc, Weak};
-use crate::environment::{ContextExports};
+use crate::environment::{Environment};
 use crate::name::Name;
 use crate::layers::{ModuleLayers};
 
@@ -14,7 +14,7 @@ pub struct ImportEngine {
 
 ///The read only engine is a view of the ImportEngine that cannot import new symbols
 #[derive(Debug, Clone, PartialEq)]
-pub struct ReadOnlyImportEngine {
+pub struct FixedImportEngine {
     content: Rc<RefCell<ImportEngineContent>>
 }
 
@@ -50,6 +50,7 @@ struct ImportedSymbol {
     explicitly_imported: bool
 }
 
+
 ///An unused symbol.
 #[derive(Debug, PartialEq, Eq)]
 pub struct UnusedSymbol {
@@ -60,7 +61,20 @@ pub struct UnusedSymbol {
     pub explicitly_imported: bool
 }
 
-impl ReadOnlyImportEngine {
+///A trait to access exported symbols of a context.
+pub trait ContextExports<S> {
+    ///Retrieve the context from given environment.
+    fn from_env(env: Rc<RefCell<Environment>>) -> Rc<RefCell<Self>>;
+
+    ///Find an exported symbol of type S in this context with given relative name
+    fn find_exported(&self, name: &Name) -> Option<S>;
+
+    ///List direct childrens of given symbol's name that are exported.
+    fn list_exported_names(&self, symbol: Option<Name>) -> Vec<Name>;
+}
+
+
+impl FixedImportEngine {
     ///See [[ImportEngineContent::use_symbol]]
     pub fn use_element<V, E: ContextExports<V>>(&mut self, name: &Name) -> Option<V> {
         self.content.borrow_mut().use_symbol::<V, E>(name)
@@ -68,14 +82,14 @@ impl ReadOnlyImportEngine {
 
     ///See [[ImportEngineContent::list_unused]]
     pub fn list_unused(&self) -> Vec<UnusedSymbol> {
-        self.content.borrow_mut().list_unused()
+        self.content.borrow().list_unused()
     }
 }
 
 impl ImportEngine {
     ///Creates a read only view of this engine
-    pub fn read_only(&self) -> ReadOnlyImportEngine {
-        ReadOnlyImportEngine {
+    pub fn fixed(&self) -> FixedImportEngine {
+        FixedImportEngine {
             content: self.content.clone()
         }
     }
@@ -140,7 +154,7 @@ impl ImportEngine {
 
     ///See [[ImportEngineContent::list_unused]]
     pub fn list_unused(&self) -> Vec<UnusedSymbol> {
-        self.content.borrow_mut().list_unused()
+        self.content.borrow().list_unused()
     }
 }
 
@@ -249,7 +263,7 @@ impl ImportEngineContent {
 
                 let mut name = name.clone();
 
-                if name.parts.len() <= 1 {
+                if name.parts().len() <= 1 {
                     name = name.with_name(import.symbol_name.name());
                 }
                 let result = ctx.find_exported(&name.tail().unwrap_or(name.clone()));

@@ -5,10 +5,10 @@ use std::collections::hash_map::{Entry};
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
-use crate::environment::{Environment, ContextExports};
+use crate::environment::{Environment};
 
 use crate::name::Name;
-use crate::import_engine::{ReadOnlyImportEngine};
+use crate::import_engine::{ContextExports, FixedImportEngine};
 use crate::visibility::ScopeVisibility;
 use crate::visibility::ScopeVisibility::Public;
 
@@ -22,7 +22,7 @@ pub struct TypeContext {
     classes: HashMap<Name, Rc<TypeClass>>,
 
     ///View of the environment's engine.
-    imports: ReadOnlyImportEngine,
+    imports: FixedImportEngine,
 
     ///Environment's fully qualified name
     pub fqn: Name,
@@ -48,8 +48,8 @@ impl ContextExports<Rc<TypeClass>> for TypeContext {
             .clone()
             .into_iter()
             .filter(|(k, _)| {
-                let parts = symbol.clone().map(|s| s.parts).unwrap_or_default().leak();
-                k.parts.starts_with(parts)
+                let parts = symbol.clone().map(|s| s.into_vec()).unwrap_or_default();
+                k.parts().starts_with(parts.as_slice())
             })
             .map(|(_, v)| v.fqcn.relative_to(&self.fqn).unwrap())
             .collect()
@@ -72,7 +72,7 @@ impl Debug for TypeContext {
 impl TypeContext {
     pub(crate) fn with_classes<const T: usize>(classes: [(Name, TypeClass); T],
                                                identity: Name,
-                                               imports: ReadOnlyImportEngine) -> Self {
+                                               imports: FixedImportEngine) -> Self {
         let classes = classes
             .into_iter()
             .map(|(k, v)| (k, Rc::new(v)))
@@ -84,7 +84,7 @@ impl TypeContext {
         }
     }
 
-    pub(crate) fn new(identity: Name, imports: ReadOnlyImportEngine) -> Self {
+    pub(crate) fn new(identity: Name, imports: FixedImportEngine) -> Self {
         Self {
             fqn: identity,
             imports,
@@ -93,7 +93,7 @@ impl TypeContext {
     }
 
     ///Definitions of the lang type context.
-    pub fn lang(imports: ReadOnlyImportEngine) -> Rc<RefCell<Self>> {
+    pub fn lang(imports: FixedImportEngine) -> Rc<RefCell<Self>> {
         let ctx = Self {
             fqn: Name::new("lang"),
             imports,
