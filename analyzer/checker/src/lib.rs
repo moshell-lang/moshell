@@ -1,14 +1,14 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
+mod define_std;
+
+use analyzer_system::layers::ModuleLayers;
+use ast::AST;
+
+pub fn checker(files: Vec<AST>) -> Result<(), String> {
+    let layers = ModuleLayers::rc_new();
+    
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
 }

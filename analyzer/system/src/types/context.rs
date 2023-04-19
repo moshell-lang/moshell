@@ -97,7 +97,7 @@ impl TypeContext {
             imports,
             classes: Default::default(),
         };
-        let ctx_rc = Rc::new(RefCell::new(ctx));
+        let ctx_rc = &Rc::new(RefCell::new(ctx));
         let mut ctx = ctx_rc.borrow_mut();
 
         const MSG: &str = "lang type registration";
@@ -114,35 +114,35 @@ impl TypeContext {
         drop(ctx);
 
         let float =
-            Self::define_class(ctx_rc.clone(), ClassTypeDefinition::new(Name::new("Float")))
+            Self::define_class(ctx_rc, ClassTypeDefinition::new(Name::new("Float")))
                 .expect(MSG);
 
-        Self::define_class(ctx_rc.clone(), ClassTypeDefinition::new(Name::new("Bool"))).expect(MSG);
-        Self::define_class(ctx_rc.clone(), ClassTypeDefinition::new(Name::new("Str"))).expect(MSG);
-        Self::define_class(ctx_rc.clone(), ClassTypeDefinition::new(Name::new("Unit"))).expect(MSG);
+        Self::define_class(ctx_rc, ClassTypeDefinition::new(Name::new("Bool"))).expect(MSG);
+        Self::define_class(ctx_rc, ClassTypeDefinition::new(Name::new("Str"))).expect(MSG);
+        Self::define_class(ctx_rc, ClassTypeDefinition::new(Name::new("Unit"))).expect(MSG);
 
         let int = Self::define_class(
-            ctx_rc.clone(),
+            ctx_rc,
             ClassTypeDefinition::new(Name::new("Int")).with_super(float),
         )
         .expect(MSG);
 
         Self::define_class(
-            ctx_rc.clone(),
+            ctx_rc,
             ClassTypeDefinition::new(Name::new("Exitcode")).with_super(int),
         )
         .expect(MSG);
 
-        ctx_rc
+        ctx_rc.clone()
     }
 
     /// Creates and registers a new ClassType for given types, the given type must be subtype of given types
     pub fn define_class(
-        ctx: Rc<RefCell<Self>>,
+        ctx: &Rc<RefCell<Self>>,
         def: ClassTypeDefinition,
     ) -> Result<Rc<TypeClass>, String> {
         let name = def.name.clone();
-        let defined = def.build(ctx.clone())?;
+        let defined = def.build(ctx)?;
         let defined = Rc::new(defined);
 
         let mut ctx = ctx.borrow_mut();
@@ -211,9 +211,9 @@ mod tests {
 
     #[test]
     fn simple_union() {
-        let layers = ModuleLayers::new();
+        let layers = ModuleLayers::rc_new();
 
-        let ctx = ModuleLayers::declare_env(layers.clone(), &Name::new("std"))
+        let ctx = &ModuleLayers::declare_env(&layers, &Name::new("std"))
             .expect("error")
             .borrow()
             .type_context
@@ -221,14 +221,14 @@ mod tests {
 
         //Iterable[A]
         let iterable_cl = TypeContext::define_class(
-            ctx.clone(),
+            ctx,
             ClassTypeDefinition::new(Name::new("Iterable")).with_generic("A", any()),
         )
         .expect("error");
 
         //Map[K, V]: Iterable[K]
         TypeContext::define_class(
-            ctx.clone(),
+            ctx,
             ClassTypeDefinition::new(Name::new("Map"))
                 .with_super(iterable_cl.clone())
                 .with_generic("K", any())
@@ -239,7 +239,7 @@ mod tests {
 
         //List[A]: Iterable[A]
         TypeContext::define_class(
-            ctx.clone(),
+            ctx,
             ClassTypeDefinition::new(Name::new("List"))
                 .with_super(iterable_cl.clone())
                 .with_generic("A", any())

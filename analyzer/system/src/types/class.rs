@@ -98,7 +98,7 @@ pub struct ClassTypeDefinition {
 }
 
 impl ClassTypeDefinition {
-    pub(crate) fn new(name: Name) -> Self {
+    pub fn new(name: Name) -> Self {
         Self {
             name,
             generic_parameters: Vec::new(),
@@ -122,6 +122,7 @@ impl ClassTypeDefinition {
         }
     }
 
+    ///Returns a builder with a new generic parameter definition appended
     pub fn with_generic(mut self, name: &str, bound: ParameterizedType) -> Self {
         self.generic_parameters.push(GenericParam {
             name: name.to_string(),
@@ -130,12 +131,13 @@ impl ClassTypeDefinition {
         self
     }
 
+    ///Returns a builder with the type super type's parameter at given index associated with given type
     pub fn with_association(mut self, parent_param_idx: usize, ty: Type) -> Self {
         self.associations.insert(parent_param_idx, ty);
         self
     }
 
-    pub fn build(self, ctx: Rc<RefCell<TypeContext>>) -> Result<TypeClass, String> {
+    pub fn build(self, ctx: &Rc<RefCell<TypeContext>>) -> Result<TypeClass, String> {
         TypeClass::from_builder(self, ctx)
     }
 }
@@ -143,7 +145,7 @@ impl ClassTypeDefinition {
 impl TypeClass {
     fn from_builder(
         definition: ClassTypeDefinition,
-        ctx: Rc<RefCell<TypeContext>>,
+        ctx: &Rc<RefCell<TypeContext>>,
     ) -> Result<Self, String> {
         let super_type = if let Some(st) = definition.super_type {
             st
@@ -153,7 +155,7 @@ impl TypeClass {
 
         Self::contextualize_generics(
             definition.name.clone(),
-            ctx.clone(),
+            ctx,
             &definition.generic_parameters,
         )?;
 
@@ -180,7 +182,7 @@ impl TypeClass {
     ///Defines in given context a class type for each given generic parameters
     fn contextualize_generics(
         name_prefix: Name,
-        ctx: Rc<RefCell<TypeContext>>,
+        ctx: &Rc<RefCell<TypeContext>>,
         generic_parameters: &Vec<GenericParam>,
     ) -> Result<(), String> {
         for generic in generic_parameters {
@@ -193,7 +195,7 @@ impl TypeClass {
                 builder = builder.with_association(idx, ty.clone());
             }
 
-            TypeContext::define_class(ctx.clone(), builder)?;
+            TypeContext::define_class(ctx, builder)?;
         }
         Ok(())
     }
@@ -299,9 +301,9 @@ mod tests {
 
     #[test]
     fn define_iterable() {
-        let layers = ModuleLayers::new();
+        let layers = ModuleLayers::rc_new();
 
-        let std = ModuleLayers::declare_env(layers.clone(), &Name::new("std"))
+        let std = &ModuleLayers::declare_env(&layers, &Name::new("std"))
             .expect("error")
             .borrow()
             .type_context
@@ -310,7 +312,7 @@ mod tests {
         let any_cl = std.borrow_mut().use_class(&any().name).expect("error");
 
         let iterable_cl = TypeContext::define_class(
-            std.clone(),
+            std,
             ClassTypeDefinition::new(Name::new("Iterable")).with_generic("A", any()),
         )
         .expect("error");
@@ -332,22 +334,22 @@ mod tests {
 
     #[test]
     fn define_list() {
-        let layers = ModuleLayers::new();
+        let layers = ModuleLayers::rc_new();
 
-        let std = ModuleLayers::declare_env(layers.clone(), &Name::new("std"))
+        let std = &ModuleLayers::declare_env(&layers, &Name::new("std"))
             .expect("error")
             .borrow()
             .type_context
             .clone();
 
         let iterable_cl = TypeContext::define_class(
-            std.clone(),
+            std,
             ClassTypeDefinition::new(Name::new("Iterable")).with_generic("A", any()),
         )
         .expect("error");
 
         let list_cl = TypeContext::define_class(
-            std.clone(),
+            std,
             ClassTypeDefinition::new(Name::new("List"))
                 .with_super(iterable_cl.clone())
                 .with_generic("B", any())
@@ -374,9 +376,9 @@ mod tests {
 
     #[test]
     fn define_map() {
-        let layers = ModuleLayers::new();
+        let layers = ModuleLayers::rc_new();
 
-        let std = ModuleLayers::declare_env(layers.clone(), &Name::new("std"))
+        let std = &ModuleLayers::declare_env(&layers, &Name::new("std"))
             .expect("error")
             .borrow()
             .type_context
@@ -392,13 +394,13 @@ mod tests {
             .expect("error");
 
         let iterable_cl = TypeContext::define_class(
-            std.clone(),
+            std,
             ClassTypeDefinition::new(Name::new("Iterable")).with_generic("A", any()),
         )
         .expect("error");
 
         let map_cl = TypeContext::define_class(
-            std.clone(),
+            std,
             ClassTypeDefinition::new(Name::new("Map"))
                 .with_super(iterable_cl.clone())
                 .with_generic("K", any())
@@ -407,7 +409,7 @@ mod tests {
         )
         .expect("error");
 
-        let std_clone = std.clone().borrow().clone();
+        let std_clone = std.borrow().clone();
         assert_eq!(
             std_clone,
             TypeContext::with_classes(
@@ -478,7 +480,7 @@ mod tests {
                     )
                 ],
                 Name::new("std"),
-                ImportEngine::new(layers).fixed()
+                ImportEngine::new(&layers).fixed()
             ),
         );
 
@@ -507,9 +509,9 @@ mod tests {
 
     #[test]
     fn define_str_option() {
-        let layers = ModuleLayers::new();
+        let layers = ModuleLayers::rc_new();
 
-        let std = ModuleLayers::declare_env(layers.clone(), &Name::new("std"))
+        let std = &ModuleLayers::declare_env(&layers, &Name::new("std"))
             .expect("error")
             .borrow()
             .type_context
@@ -531,13 +533,13 @@ mod tests {
             .expect("error");
 
         let option_cl = TypeContext::define_class(
-            std.clone(),
+            std,
             ClassTypeDefinition::new(Name::new("Option")).with_generic("A", str()),
         )
         .expect("error");
 
         let some_cl = TypeContext::define_class(
-            std.clone(),
+            std,
             ClassTypeDefinition::new(Name::new("Some"))
                 .with_super(option_cl.clone())
                 .with_generic("A", str())
@@ -546,7 +548,7 @@ mod tests {
         .expect("error");
 
         let none_cl = TypeContext::define_class(
-            std.clone(),
+            std,
             ClassTypeDefinition::new(Name::new("None"))
                 .with_super(option_cl.clone())
                 .with_association(0, Type::Nothing),
@@ -613,7 +615,7 @@ mod tests {
                     )
                 ],
                 Name::new("std"),
-                ImportEngine::new(layers.clone()).fixed(),
+                ImportEngine::new(&layers).fixed(),
             ),
         );
 
@@ -647,9 +649,9 @@ mod tests {
 
     #[test]
     fn define_type_with_inter_referenced_generics() {
-        let layers = ModuleLayers::new();
+        let layers = ModuleLayers::rc_new();
 
-        let std = ModuleLayers::declare_env(layers.clone(), &Name::new("std"))
+        let std = &ModuleLayers::declare_env(&layers, &Name::new("std"))
             .expect("error")
             .borrow()
             .type_context
@@ -671,14 +673,14 @@ mod tests {
             .expect("error");
 
         let list_cl = TypeContext::define_class(
-            std.clone(),
+            std,
             ClassTypeDefinition::new(Name::new("List")).with_generic("B", any()),
         )
         .expect("error");
 
         //Equivalent to a `class Map[A: Str, B: List[A]] {}` statement
         let map_list_cl = TypeContext::define_class(
-            std.clone(),
+            std,
             ClassTypeDefinition::new(Name::new("Map"))
                 .with_generic("A", ParameterizedType::cons("Str"))
                 .with_generic(
@@ -693,28 +695,26 @@ mod tests {
         assert_eq!(
             std_clone,
             TypeContext::with_classes(
-                [
-                    (
-                        Name::new("List::B"),
-                        TypeClass {
-                            super_type: Some(any_cl.clone()),
-                            generic_parameters: vec![],
-                            super_params_associations: vec![],
-                            is_exported: false,
-                            fqcn: Name::new("std::List::B"),
-                        }
-                    ),
-                    (
-                        Name::new("List"),
-                        TypeClass {
-                            fqcn: Name::new("std::List"),
-                            super_type: Some(any_cl.clone()),
-                            generic_parameters: vec![GenericParam {
-                                name: "B".to_string(),
-                                bound: any(),
-                            }],
-                            is_exported: true,
-                            super_params_associations: vec![],
+                [(
+                    Name::new("List::B"),
+                    TypeClass {
+                        super_type: Some(any_cl.clone()),
+                        generic_parameters: vec![],
+                        super_params_associations: vec![],
+                        is_exported: false,
+                        fqcn: Name::new("std::List::B"),
+                    }
+                ), (
+                    Name::new("List"),
+                    TypeClass {
+                        fqcn: Name::new("std::List"),
+                        super_type: Some(any_cl.clone()),
+                        generic_parameters: vec![GenericParam {
+                            name: "B".to_string(),
+                            bound: any(),
+                        }],
+                        is_exported: true,
+                        super_params_associations: vec![],
                         }
                     ),
                     (
@@ -763,7 +763,7 @@ mod tests {
                     )
                 ],
                 Name::new("std"),
-                ImportEngine::new(layers).fixed()
+                ImportEngine::new(&layers).fixed()
             ),
         );
 
@@ -790,22 +790,22 @@ mod tests {
 
     #[test]
     fn define_incompatible_subtype() -> Result<(), String> {
-        let layers = ModuleLayers::new();
+        let layers = ModuleLayers::rc_new();
 
-        let std = ModuleLayers::declare_env(layers.clone(), &Name::new("std"))
+        let std = &ModuleLayers::declare_env(&layers, &Name::new("std"))
             .expect("error")
             .borrow()
             .type_context
             .clone();
 
         let str_iterable_cl = TypeContext::define_class(
-            std.clone(),
+            std,
             ClassTypeDefinition::new(Name::new("StrIterable")).with_generic("A", str()),
         )
         .expect("error");
 
         let int_list_cl_res = TypeContext::define_class(
-            std.clone(),
+            std,
             ClassTypeDefinition::new(Name::new("IntList"))
                 .with_super(str_iterable_cl.clone())
                 .with_association(0, Type::cons("Int")),

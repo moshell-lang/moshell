@@ -93,7 +93,7 @@ impl ImportEngine {
     }
 
     ///Creates a new engine with all symbols in lang pre-imported.
-    pub fn new(layers: Rc<RefCell<ModuleLayers>>) -> Self {
+    pub fn new(layers: &Rc<RefCell<ModuleLayers>>) -> Self {
         let mut s = Self {
             content: Rc::new(RefCell::new(ImportEngineContent {
                 imported_symbols: HashMap::default(),
@@ -119,7 +119,7 @@ impl ImportEngine {
     ///This function panics if the given imports are invalid.
     pub(crate) fn with_imports_unchecked<const N: usize>(
         imports: [&str; N],
-        layers: Rc<RefCell<ModuleLayers>>,
+        layers: &Rc<RefCell<ModuleLayers>>,
     ) -> Self {
         let mut s = Self::new(layers);
         for fqn in imports {
@@ -302,15 +302,15 @@ mod test {
 
     #[test]
     fn specific_imports() {
-        let layers = ModuleLayers::new();
+        let layers = &ModuleLayers::rc_new();
 
         let foo_env =
-            ModuleLayers::declare_env(layers.clone(), &Name::new("bar::foo")).expect("error");
+            ModuleLayers::declare_env(layers, &Name::new("bar::foo")).expect("error");
 
         let foo_tcx = foo_env.borrow().type_context.clone();
 
         let test_env =
-            ModuleLayers::declare_env(layers.clone(), &Name::new("my_module")).expect("error");
+            ModuleLayers::declare_env(layers, &Name::new("my_module")).expect("error");
 
         let test_tcx = test_env.borrow().type_context.clone();
 

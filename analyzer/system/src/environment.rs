@@ -69,7 +69,7 @@ impl ContextExports<Symbol> for Environment {
 }
 
 impl Environment {
-    pub fn new(fqn: Name, layers: Rc<RefCell<ModuleLayers>>) -> Self {
+    pub fn new(fqn: Name, layers: &Rc<RefCell<ModuleLayers>>) -> Self {
         let imports = ImportEngine::new(layers);
         Self {
             imports: imports.clone(),

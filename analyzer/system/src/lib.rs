@@ -4,6 +4,6 @@
 pub mod environment;
 mod import_engine;
 pub mod lang_types;
-mod layers;
-mod name;
+pub mod layers;
+pub mod name;
 pub mod types;
