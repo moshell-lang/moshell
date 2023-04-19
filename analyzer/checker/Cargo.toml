@@ -1,14 +1,9 @@
 [package]
-name = "sandbox"
+name = "checker"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-parser = { path = "../parser" }
-context = { path = "../context" }
-
-
-miette = { version = "5.5.0", features = ["fancy"] }
-thiserror = "1.0.38"
+system = { path = "../system" }
