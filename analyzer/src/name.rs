@@ -95,9 +95,7 @@ impl Name {
 
 impl From<Vec<String>> for Name {
     fn from(value: Vec<String>) -> Self {
-        if value.is_empty() {
-            panic!("empty vec input")
-        }
+        assert!(!value.is_empty(), "cannot create a name from an empty vec");
         Self { parts: value }
     }
 }

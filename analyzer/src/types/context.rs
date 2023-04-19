@@ -45,7 +45,7 @@ impl ContextExports<Rc<TypeClass>> for TypeContext {
         self.classes
             .iter()
             .filter_map(|(k, v)| {
-                if k.parts().starts_with(parts.as_slice()) {
+                if k.path() == parts.as_slice() {
                     Some(v.fqcn.relative_to(&self.fqn).unwrap())
                 } else {
                     None
@@ -166,7 +166,7 @@ impl TypeContext {
             None => self
                 .imports
                 .use_element::<Rc<TypeClass>, Self>(&name)
-                .ok_or(format!("Unknown type {}", &name)),
+                .ok_or_else(|| format!("Unknown type {name}")),
         }
     }
 
