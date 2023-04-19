@@ -219,7 +219,8 @@ impl ImportEngineContent {
 
     //remove all the symbols childrens of given symbol fqn
     fn remove_all_in(&mut self, fqn: &Name) {
-        self.imported_symbols = self.imported_symbols
+        self.imported_symbols = self
+            .imported_symbols
             .drain()
             .filter(|(_, v)| {
                 let import_fqn = v.env_fqn.appended(v.symbol_name.clone());
@@ -235,7 +236,7 @@ impl ImportEngineContent {
         let env = layers
             .borrow()
             .get_env_of(fqn)
-            .ok_or(format!("unknown module {fqn}"))?;
+            .ok_or_else(|| format!("unknown module {fqn}"))?;
         let env_fqn = env.borrow().fqn.clone();
         let inner_name = fqn.relative_to(&env_fqn);
 
@@ -278,7 +279,7 @@ impl ImportEngineContent {
 
                 let mut name = name.clone();
 
-                if name.parts().len() <= 1 { //if the name has no prefixed path
+                if name.path().is_empty() {
                     name = name.with_name(import.symbol_name.simple_name());
                 }
                 let result = ctx.find_exported(&name.tail().unwrap_or(name));

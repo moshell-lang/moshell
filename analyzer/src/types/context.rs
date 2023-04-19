@@ -37,21 +37,20 @@ impl ContextExports<Rc<TypeClass>> for TypeContext {
     }
 
     fn find_exported(&self, name: &Name) -> Option<Rc<TypeClass>> {
-        self.classes
-            .get(name)
-            .filter(|tc| tc.is_exported)
-            .cloned()
+        self.classes.get(name).filter(|tc| tc.is_exported).cloned()
     }
 
     fn list_exported_names(&self, symbol: Option<Name>) -> Vec<Name> {
+        let parts = symbol.map(Name::into_vec).unwrap_or_default();
         self.classes
-            .clone()
-            .into_iter()
-            .filter(|(k, _)| {
-                let parts = symbol.clone().map(|s| s.into_vec()).unwrap_or_default();
-                k.parts().starts_with(parts.as_slice())
+            .iter()
+            .filter_map(|(k, v)| {
+                if k.parts().starts_with(parts.as_slice()) {
+                    Some(v.fqcn.relative_to(&self.fqn).unwrap())
+                } else {
+                    None
+                }
             })
-            .map(|(_, v)| v.fqcn.relative_to(&self.fqn).unwrap())
             .collect()
     }
 }

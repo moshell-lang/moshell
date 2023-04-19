@@ -17,7 +17,7 @@ pub struct TypeClass {
 
     /// The bounds of the generic parameters of the class.
     pub generic_parameters: Vec<GenericParam>,
-    
+
     pub is_exported: bool,
 
     /// The associations between the child and parent type parameters.
@@ -100,7 +100,7 @@ pub struct ClassTypeDefinition {
 impl ClassTypeDefinition {
     pub(crate) fn new(name: Name) -> Self {
         Self {
-            name: name.clone(),
+            name,
             generic_parameters: Vec::new(),
             associations: HashMap::new(),
             is_exported: true,
@@ -109,7 +109,10 @@ impl ClassTypeDefinition {
     }
 
     pub fn with_exported(self, is_exported: bool) -> Self {
-        Self { is_exported, ..self }
+        Self {
+            is_exported,
+            ..self
+        }
     }
 
     pub fn with_super(self, parent: Rc<TypeClass>) -> Self {
@@ -308,8 +311,7 @@ mod tests {
 
         let iterable_cl = TypeContext::define_class(
             std.clone(),
-            ClassTypeDefinition::new(Name::new("Iterable"))
-                .with_generic("A", any())
+            ClassTypeDefinition::new(Name::new("Iterable")).with_generic("A", any()),
         )
         .expect("error");
 

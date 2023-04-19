@@ -9,11 +9,7 @@ pub struct Name {
 impl Name {
     ///Parses a new name from the given string.
     pub fn new(name: &str) -> Self {
-        let parts: Vec<String> = name
-            .split("::")
-            .into_iter()
-            .map(|s| s.to_string())
-            .collect();
+        let parts: Vec<String> = name.split("::").map(|s| s.to_string()).collect();
 
         Self { parts }
     }
@@ -58,8 +54,8 @@ impl Name {
     }
 
     ///returns an iterator over the prefixed path of the name
-    pub fn path(&self) -> impl Iterator<Item = &String> {
-        self.parts.iter().take(self.parts.len() - 1)
+    pub fn path(&self) -> &[String] {
+        self.parts.split_last().unwrap().1 //Names cannot be empty
     }
 
     ///returns the name's root (its very first part)
@@ -81,7 +77,7 @@ impl Name {
 
     ///Returns the tail of the name (the name without it's root part, or None if this name have only one part)
     pub fn tail(&self) -> Option<Self> {
-        if self.parts.len() == 1 {
+        if self.path().is_empty() {
             return None;
         }
         self.parts
