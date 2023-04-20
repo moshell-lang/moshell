@@ -71,6 +71,39 @@ fn repos_delimiter_stack() {
 }
 
 #[test]
+fn what_is_an_import() {
+    let content = "{
+        use {a, b}
+        loop {
+            val n =42 as
+            break
+        } %
+        var res = match 42 {
+            42 => 21
+        }
+        res = List(5..;, $a)
+    }";
+    let source = Source::unknown(content);
+    let report = parse(source.clone());
+    assert_eq!(
+        report.errors,
+        vec![ParseError {
+            message: "'break' is not a valid type identifier.".to_owned(),
+            position: content.find("break").map(|p| p..p + 5).unwrap(),
+            kind: ParseErrorKind::Unexpected
+        }, ParseError {
+            message: "invalid expression operator".to_owned(),
+            position: content.find('%').map(|p| p..p + 1).unwrap(),
+            kind: ParseErrorKind::Unexpected
+        }, ParseError {
+            message: "Expected value".to_owned(),
+            position: content.find(';').map(|p| p..p + 1).unwrap(),
+            kind: ParseErrorKind::Unexpected
+        }]
+    );
+}
+
+#[test]
 fn tolerance_in_multiple_groups() {
     let content = "fun f[T, $](x: T, y: +) = $x";
     let source = Source::unknown(content);

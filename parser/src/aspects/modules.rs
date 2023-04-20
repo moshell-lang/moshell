@@ -33,7 +33,7 @@ impl<'a> ModulesAspect<'a> for Parser<'a> {
 
         self.cursor.advance(spaces()); //consume spaces
 
-        if self.cursor.advance(eox()).is_none() {
+        if self.cursor.lookahead(eox()).is_none() {
             return self.expected(
                 "expected new line or semicolon",
                 ParseErrorKind::Expected("<new_line> or ';'".to_string()),
@@ -220,15 +220,15 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::aspects::modules::ModulesAspect;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
-    use crate::parser::{ParseResult, Parser};
+    use crate::parser::ParseResult;
     use ast::r#use::{Import, ImportList, ImportedSymbol, Use};
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::find_in;
     use pretty_assertions::assert_eq;
+    use std::vec;
 
     #[test]
     fn simple_use() {
@@ -269,77 +269,69 @@ mod tests {
     #[test]
     fn wrong_env_name() {
         let source = Source::unknown("use @9");
-        let result = Parser::new(source.clone())
-            .parse_use()
-            .expect_err("no error thrown");
+        let result: ParseResult<_> = parse(source.clone()).into();
         assert_eq!(
             result,
-            ParseError {
+            Err(ParseError {
                 message: "Environment variable name expected.".to_string(),
                 kind: ParseErrorKind::Expected("<identifier>".to_string()),
                 position: source.source.len()..source.source.len(),
-            }
+            })
         )
     }
 
     #[test]
     fn list_use_aliased() {
         let source = Source::unknown("use std::foo::{bar} as X");
-        let result = Parser::new(source.clone())
-            .parse_use()
-            .expect_err("no error thrown");
+        let result: ParseResult<_> = parse(source.clone()).into();
         assert_eq!(
             result,
-            ParseError {
+            Err(ParseError {
                 message: "expected new line or semicolon".to_string(),
                 kind: ParseErrorKind::Expected("<new_line> or ';'".to_string()),
                 position: source.source.find("as").map(|i| i..i + 2).unwrap(),
-            }
+            })
         )
     }
 
     #[test]
     fn use_empty_list() {
         let source = Source::unknown("use {}");
-        let result = Parser::new(source.clone())
-            .parse_use()
-            .expect_err("no error raised");
+        let result: ParseResult<_> = parse(source.clone()).into();
         assert_eq!(
             result,
-            ParseError {
+            Err(ParseError {
                 message: "empty brackets".to_string(),
                 kind: ParseErrorKind::Expected("non-empty brackets".to_string()),
                 position: source.source.find("{}").map(|i| i..i + 2).unwrap(),
-            }
+            })
         )
     }
 
     #[test]
     fn use_all() {
         let source = Source::unknown("use *");
-        let result = Parser::new(source.clone())
-            .parse_use()
-            .expect_err("no error raised");
+        let result: ParseResult<_> = parse(source.clone()).into();
         assert_eq!(
             result,
-            ParseError {
+            Err(ParseError {
                 message: "import all statement needs a symbol prefix.".to_string(),
                 kind: ParseErrorKind::Expected("module or file path".to_string()),
                 position: source.source.find("*").map(|i| i..i + 1).unwrap(),
-            }
+            })
         )
     }
 
     #[test]
     fn use_all_in() {
         let source = Source::unknown("use std::*");
-        let result = Parser::new(source.clone()).parse_use().expect("parse fail");
+        let result = parse(source.clone()).expect("parser failed");
         assert_eq!(
             result,
-            Expr::Use(Use {
+            vec![Expr::Use(Use {
                 import: Import::AllIn(vec!["std"], find_in(source.source, "std::*"),),
                 segment: source.segment(),
-            })
+            })]
         )
     }
 
