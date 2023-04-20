@@ -87,7 +87,7 @@ impl Environment {
         }
     }
 
-    pub(crate) fn fork(&self, name: &str) -> Result<Environment, String> {
+    pub fn fork(&self, name: &str) -> Result<Environment, String> {
         let env_fqn = self.fqn.child(name);
         let mut imports = self.imports.clone();
         imports.import_all_in(&env_fqn)?;

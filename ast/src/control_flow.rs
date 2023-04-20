@@ -67,6 +67,6 @@ pub struct ConditionalFor<'a> {
     pub initializer: Expr<'a>,
     /// The condition expression.
     pub condition: Expr<'a>,
-    /// The increment expression.
-    pub increment: Expr<'a>,
+    /// The update expression.
+    pub update: Expr<'a>,
 }

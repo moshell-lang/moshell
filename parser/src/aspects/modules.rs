@@ -33,7 +33,7 @@ impl<'a> ModulesAspect<'a> for Parser<'a> {
 
         self.cursor.advance(spaces()); //consume spaces
 
-        if self.cursor.advance(eox()).is_none() {
+        if self.cursor.lookahead(eox()).is_none() {
             return self.expected(
                 "expected new line or semicolon",
                 ParseErrorKind::Expected("<new_line> or ';'".to_string()),

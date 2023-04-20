@@ -158,7 +158,7 @@ impl<'a> Parser<'a> {
             blanks().then(of_type(TokenType::SemiColon)),
             "expected ';' after condition in conditional for",
         )?;
-        let increment = self.statement()?;
+        let update = self.statement()?;
 
         let mut end: Option<Token<'a>> = None;
         for _ in 0..2 {
@@ -179,7 +179,7 @@ impl<'a> Parser<'a> {
         Ok(ConditionalFor {
             initializer,
             condition,
-            increment,
+            update,
             segment,
         })
     }
@@ -530,7 +530,7 @@ mod tests {
                             segment: find_in(source.source, "10")
                         })),
                     }),
-                    increment: Expr::Assign(Assign {
+                    update: Expr::Assign(Assign {
                         name: "i",
                         value: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::VarReference(VarReference {
