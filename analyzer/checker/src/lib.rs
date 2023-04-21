@@ -3,20 +3,24 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::ops::Deref;
 use std::path::Path;
 use std::rc::Rc;
-use analyzer_system::environment::Environment;
+use std::vec;
 
+use analyzer_system::environment::Environment;
 use analyzer_system::layers::ModuleLayers;
 use analyzer_system::name::Name;
 use ast::{AST, Expr};
-use ast::control_flow::ForKind;
+use ast::control_flow::{For, ForKind, If, Loop, While};
+use ast::function::FunctionDeclaration;
 use ast::group::Block;
+use ast::lambda::LambdaDef;
+use ast::r#match::Match;
 use ast::r#use::Use;
 use ast::range::Iterable;
 
 use crate::define_std::define_ast;
+use crate::ScopeExpr::{ForExpr, FunctionDeclarationExpr, IfExpr, LambdaDefExpr, LoopExpr, MatchExpr, WhileExpr};
 
 mod define_std;
 
@@ -30,9 +34,15 @@ pub fn checker(files: Vec<AST>) -> Result<(), String> {
         let module_name = module_path.file_name().ok_or("invalid file name")?.to_str().unwrap();
 
         let env = ModuleLayers::declare_env(&layers, &Name::new(module_name))?;
+        let scope = Scope {
+            uses: HashMap::new(),
+            root: ScopeExpr::BlockExpr(ast.root.clone()),
+            inner_scopes: resolve_scopes(&env, Expr::Block(ast.root)),
+            env,
+        };
         let _module = Module {
             name: module_name.to_string(),
-            scope: resolve_scope(env, ScopeExpr::BlockExpr(ast.root))
+            scope,
         };
 
         println!("test");
@@ -41,36 +51,34 @@ pub fn checker(files: Vec<AST>) -> Result<(), String> {
     Ok(())
 }
 
-fn resolve_scope(scope_env: Rc<RefCell<Environment>>, scope_expr: ScopeExpr) -> Scope {
-    let mut inner_scopes = Vec::new();
-    for scope_candidate in direct_scopeable_expressions(scope_expr.clone().into_expr()) {
-        let inner_scope_expr = match ScopeExpr::from_expr(&scope_candidate) {
-            Some(inner_scope) => inner_scope,
-            None => inner_scopes.push(resolve_scope())
+fn resolve_scopes<'a>(parent_env: &Rc<RefCell<Environment>>, expr: Expr<'a>) -> Vec<Scope<'a>> {
+    let mut scopes = Vec::new();
+    for inner_expr in direct_expressions(expr) {
+        match ScopeExpr::from_expr(&inner_expr) {
+            Some(inner_scope) => {
+                let env = parent_env.borrow().fork("inner_scope").expect("fork didn't work :(");
+                let env = Rc::new(RefCell::new(env));
+
+                let inner_scopes = resolve_scopes(&env, inner_scope.clone().into_expr());
+
+                scopes.push(Scope {
+                    inner_scopes,
+                    uses: HashMap::new(),
+                    root: inner_scope,
+                    env,
+                });
+            },
+            None => {
+                scopes.append(&mut resolve_scopes(&parent_env, inner_expr));
+                continue
+            }
         };
-
-        let env = scope_env.borrow().fork("inner_scope").expect("fork didn't work :(");
-        let env = Rc::new(RefCell::new(env));
-
-        inner_scopes.push(resolve_scope(env, inner_scope_expr))
     }
-
-    Scope {
-        env: scope_env,
-        uses: HashMap::new(),
-        inner_scopes,
-        block: scope_expr
-    }
+    scopes
 }
 
-fn find_indirect_scope(parent_env: &Rc<RefCell<Environment>>, expr: &Expr) -> Option<Expr> {
-    for sub_expr in direct_scopeable_expressions(scope_expr.clone().into_expr()) {
-
-    }
-}
-
-//Lists all sub expressions of given expr that can directly or indirectly contain Scoped expressions.
-fn direct_scopeable_expressions(expr: Expr) -> Vec<Expr> {
+//Lists all sub expressions of given expr
+fn direct_expressions(expr: Expr) -> Vec<Expr> {
     match expr {
         Expr::Assign(q) => vec![*q.value.clone()],
         Expr::Binary(b) => vec![*b.right, *b.left],
@@ -105,7 +113,7 @@ fn direct_scopeable_expressions(expr: Expr) -> Vec<Expr> {
             };
             vec.push(*f.body);
             vec
-        }
+        },
         Expr::Continue(_) => vec![],
         Expr::Break(_) => vec![],
         Expr::Return(_) => vec![],
@@ -140,29 +148,47 @@ struct Module<'a> {
 struct Scope<'a> {
     env: Rc<RefCell<Environment>>,
     uses: HashMap<Name, Use<'a>>,
-    block: ScopeExpr<'a>,
-    inner_scopes: Vec<Scope<'a>>
+    root: ScopeExpr<'a>,
+    inner_scopes: Vec<Scope<'a>>,
 }
 
 #[derive(Clone)]
 enum ScopeExpr<'a> {
     BlockExpr(Block<'a>),
-    FunctionBody(Expr<'a>)
+    IfExpr(If<'a>),
+    FunctionDeclarationExpr(FunctionDeclaration<'a>),
+    ForExpr(For<'a>),
+    LambdaDefExpr(LambdaDef<'a>),
+    LoopExpr(Loop<'a>),
+    WhileExpr(While<'a>),
+    MatchExpr(Match<'a>),
 }
 
 impl<'a> ScopeExpr<'a> {
     fn from_expr(expr: &Expr<'a>) -> Option<ScopeExpr<'a>> {
-        match expr {
+        match expr.clone() {
             Expr::Block(b) => Some(ScopeExpr::BlockExpr(b.clone())),
-            Expr::FunctionDeclaration(f) => Some(ScopeExpr::FunctionBody(f.body.deref().clone())),
+            Expr::FunctionDeclaration(f) => Some(FunctionDeclarationExpr(f)),
+            Expr::For(f) => Some(ForExpr(f)),
+            Expr::If(i) => Some(IfExpr(i)),
+            Expr::LambdaDef(l) => Some(LambdaDefExpr(l)),
+            Expr::Loop(l) => Some(LoopExpr(l)),
+            Expr::While(w) => Some(WhileExpr(w)),
+            Expr::Match(m) => Some(MatchExpr(m)),
             _ => None,
         }
     }
 
     fn into_expr(self) -> Expr<'a> {
         match self {
-            ScopeExpr::BlockExpr(b) => Expr::Block(b),
-            ScopeExpr::FunctionBody(expr) => expr
+            ScopeExpr::BlockExpr(e) => Expr::Block(e),
+            IfExpr(e) => Expr::If(e),
+            FunctionDeclarationExpr(e) => Expr::FunctionDeclaration(e),
+            ForExpr(e) => Expr::For(e),
+            LambdaDefExpr(e) => Expr::LambdaDef(e),
+            LoopExpr(e) => Expr::Loop(e),
+            WhileExpr(e) => Expr::While(e),
+            MatchExpr(e) => Expr::Match(e)
         }
     }
 }
@@ -173,6 +199,7 @@ mod tests {
     use ast::group::Block;
     use context::source::Source;
     use parser::parse;
+
     use crate::checker;
 
     #[test]
@@ -185,7 +212,7 @@ fun foo[A](param: A) = {
     val a = $a * 2
     val x = { echo hey this is a sample code; $b }
     for i in { val l = List(param); $l }
-        echo \"$(echo $x)\"
+        let x: Int = \"$(echo $x)\"
 }
 
 fun bar(a: Str, b: Str) = foo($a + $b)
