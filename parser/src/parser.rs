@@ -25,7 +25,8 @@ use crate::cursor::ParserCursor;
 use crate::err::ParseErrorKind::Unexpected;
 use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
 use crate::moves::{
-    any, bin_op, blanks, eod, eox, like, next, of_type, of_types, repeat, spaces, MoveOperations,
+    any, bin_op, blanks, eod, eox, like, next, of_type, of_types, repeat, spaces, Move,
+    MoveOperations,
 };
 use ast::range::Iterable;
 use ast::Expr;
@@ -37,6 +38,7 @@ pub(crate) struct Parser<'a> {
     pub(crate) cursor: ParserCursor<'a>,
     pub(crate) source: Source<'a>,
     pub(crate) delimiter_stack: VecDeque<Token<'a>>,
+    errors: Vec<ParseError>,
 }
 
 //all tokens that can't be an infix operator
@@ -63,19 +65,18 @@ impl<'a> Parser<'a> {
             cursor: ParserCursor::new_with_source(lex(source.source), source.source),
             source,
             delimiter_stack: VecDeque::new(),
+            errors: Vec::new(),
         }
     }
 
     /// Parses input tokens into an abstract syntax tree representation.
-    pub fn parse(&mut self) -> ParseReport<'a> {
+    pub fn parse(mut self) -> ParseReport<'a> {
         let mut statements = Vec::new();
-        let mut errors = Vec::new();
 
         while self.look_for_input() {
             match self.parse_next() {
                 Err(error) => {
-                    self.repos_to_next_expr();
-                    errors.push(error);
+                    self.recover_from(error, eox());
                 }
                 Ok(statement) => statements.push(statement),
             }
@@ -83,8 +84,35 @@ impl<'a> Parser<'a> {
 
         ParseReport {
             expr: statements,
-            errors,
+            errors: self.errors,
             stack_ended: self.delimiter_stack.is_empty(),
+        }
+    }
+
+    /// Parses a statement with a given parser function.
+    ///
+    /// This function is intended to be only used in tests.
+    pub(crate) fn parse_specific<E>(
+        mut self,
+        mut next: impl FnMut(&mut Self) -> ParseResult<E>,
+    ) -> ParseResult<E> {
+        match next(&mut self) {
+            Ok(statement) => {
+                if let Some(err) = self.errors.pop() {
+                    if !self.errors.is_empty() {
+                        panic!("There is more than one error in the parser's error stack.");
+                    }
+                    Err(err)
+                } else {
+                    Ok(statement)
+                }
+            }
+            Err(err) => {
+                if !self.errors.is_empty() {
+                    panic!("There is more more than one error in the parser's error stack.");
+                }
+                Err(err)
+            }
         }
     }
 
@@ -251,23 +279,53 @@ impl<'a> Parser<'a> {
     ///handle tricky case of lambda `(e) => x` and parentheses `(e)`
     fn lambda_or_parentheses(&mut self) -> ParseResult<Expr<'a>> {
         let initial = self.cursor.get_pos();
-        match self.parse_lambda_definition() {
-            Ok(def) => Ok(Expr::LambdaDef(def)),
-            Err(_) => {
-                self.cursor.repos(initial);
-                self.parenthesis().map(Expr::Parenthesis)
-            }
+        self.advance_to_parenthesis_end();
+        if self
+            .cursor
+            .lookahead(blanks().then(of_type(FatArrow)))
+            .is_some()
+        {
+            self.cursor.repos(initial);
+            self.parse_lambda_definition().map(Expr::LambdaDef)
+        } else {
+            self.cursor.repos(initial);
+            self.parenthesis().map(Expr::Parenthesis)
         }
     }
 
     ///handle tricky case of lambda `(e) => x` and subshell `(e)`
     fn subshell_or_parentheses(&mut self) -> ParseResult<Expr<'a>> {
         let initial = self.cursor.get_pos();
-        match self.parse_lambda_definition() {
-            Ok(def) => Ok(Expr::LambdaDef(def)),
-            Err(_) => {
-                self.cursor.repos(initial);
-                self.subshell().map(Expr::Subshell)
+        self.advance_to_parenthesis_end();
+        if self
+            .cursor
+            .lookahead(blanks().then(of_type(FatArrow)))
+            .is_some()
+        {
+            self.cursor.repos(initial);
+            self.parse_lambda_definition().map(Expr::LambdaDef)
+        } else {
+            self.cursor.repos(initial);
+            self.subshell().map(Expr::Subshell)
+        }
+    }
+
+    /// Advances the parser to the end of the current parenthesis pair, given that the cursor is
+    /// currently on the opening parenthesis.
+    ///
+    /// This is currently used to handle the case of `(e) => x` and `(e)`.
+    fn advance_to_parenthesis_end(&mut self) {
+        let mut parenthesis_count = -1;
+        while let Some(token) = self.cursor.next_opt() {
+            match token.token_type {
+                RoundedLeftBracket => parenthesis_count += 1,
+                RoundedRightBracket => {
+                    if parenthesis_count == 0 {
+                        break;
+                    }
+                    parenthesis_count -= 1;
+                }
+                _ => {}
             }
         }
     }
@@ -275,7 +333,11 @@ impl<'a> Parser<'a> {
     /// Raise an error on the current token.
     ///
     /// Use [Parser::expected_with] if the error is not on the current token.
-    pub(crate) fn expected<T>(&self, message: &str, kind: ParseErrorKind) -> ParseResult<T> {
+    pub(crate) fn expected<T>(
+        &self,
+        message: impl Into<String>,
+        kind: ParseErrorKind,
+    ) -> ParseResult<T> {
         Err(self.mk_parse_error(message, self.cursor.peek(), kind))
     }
 
@@ -285,7 +347,7 @@ impl<'a> Parser<'a> {
     /// A context can be a single token or a range of tokens.
     pub(crate) fn expected_with<T>(
         &self,
-        message: &str,
+        message: impl Into<String>,
         context: impl Into<ErrorContext<'a>>,
         kind: ParseErrorKind,
     ) -> ParseResult<T> {
@@ -297,8 +359,19 @@ impl<'a> Parser<'a> {
         if let Some(token) = self.cursor.advance(of_type(eog)) {
             self.delimiter_stack.pop_back();
             Ok(token)
-        } else {
+        } else if self.cursor.peek().token_type.is_closing_ponctuation() {
             self.mismatched_delimiter(eog)
+        } else {
+            self.expected(
+                format!(
+                    "Expected '{}' delimiter.",
+                    eog.str().unwrap_or("specific token")
+                ),
+                self.delimiter_stack
+                    .back()
+                    .map(|last| ParseErrorKind::Unpaired(self.cursor.relative_pos(last)))
+                    .unwrap_or(Unexpected),
+            )
         }
     }
 
@@ -324,6 +397,17 @@ impl<'a> Parser<'a> {
         kind: ParseErrorKind,
     ) -> ParseError {
         self.cursor.mk_parse_error(message, context, kind)
+    }
+
+    /// Executes an operation on the parser, and returns the result and whether there were no errors that
+    /// were reported and already handled.
+    pub(crate) fn observe_error_reports<E>(
+        &mut self,
+        transaction: impl FnOnce(&mut Self) -> ParseResult<E>,
+    ) -> ParseResult<(E, bool)> {
+        let old_len = self.errors.len();
+        let result = transaction(self);
+        Ok((result?, self.errors.len() == old_len))
     }
 
     //parses any binary expression, considering given input expression
@@ -400,7 +484,20 @@ impl<'a> Parser<'a> {
         }
 
         //else, we hit an invalid binary expression.
-        self.expected("invalid infix operator", Unexpected)
+        let token = self.cursor.next()?;
+        let err = self.mk_parse_error("invalid infix operator", token, Unexpected);
+        // Avoid recovering here to block the cursor on the closing delimiter token
+        if self
+            .cursor
+            .lookahead(spaces().then(eox().or(eod())))
+            .is_some()
+        {
+            return Err(err);
+        }
+
+        // We can try something here...
+        self.report_error(err);
+        self.value().map(|_| expr)
     }
 
     ///Skips spaces and verify that this parser is not parsing the end of an expression
@@ -413,22 +510,102 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    //traverse current expression and go to next expression
-    fn repos_to_next_expr(&mut self) {
+    /// Advances the cursor after an error, and reports it.
+    ///
+    /// The base behavior is to go to the end of the file or the next valid closing delimiter,
+    /// but this can be further configured by the `break_on` parameter.
+    pub(crate) fn recover_from(&mut self, error: ParseError, break_on: impl Move + Copy) {
+        match error.kind {
+            ParseErrorKind::Unpaired(_) => {
+                self.repos_to_top_delimiter();
+            }
+            _ => {
+                self.repos_to_next_expr(break_on);
+            }
+        }
+        self.report_error(error);
+    }
+
+    /// Advances the cursor due to an error, but does not report it.
+    ///
+    /// In most cases, [`Parser::recover_from`] should be used instead.
+    ///
+    /// This should be used when a delimiter has been pushed to the stack,
+    /// but an error occurred before the corresponding closing delimiter was found.
+    pub(crate) fn repos_delimiter_due_to(&mut self, error: &ParseError) {
+        // Unpaired delimiters already look for the next valid closing delimiter.
+        // Only handle other errors that would leave the delimiter stack in an invalid state.
+        if !matches!(error.kind, ParseErrorKind::Unpaired(_)) {
+            self.repos_to_top_delimiter();
+        }
+    }
+
+    /// Adds an error to the parser's error vector.
+    ///
+    /// This assumes that any recovery has already been done.
+    /// Prefer using [`Parser::recover_from`] instead if it's not the case.
+    pub(crate) fn report_error(&mut self, error: ParseError) {
+        self.errors.push(error);
+    }
+
+    /// Goes to the next expression, where the move can be specialized.
+    fn repos_to_next_expr(&mut self, break_on: impl Move + Copy) {
+        // If delimiters are encountered while moving, they must be removed from the stack first,
+        // before repositioning.
+        let start_len = self.delimiter_stack.len();
         while !self.cursor.is_at_end() {
+            // Stop before a break_on token.
+            if self.delimiter_stack.len() == start_len && self.cursor.lookahead(break_on).is_some()
+            {
+                break;
+            }
+
+            // See if we're at a closing delimiter.
+            let token = self.cursor.peek();
+            if token.token_type.is_opening_ponctuation() {
+                self.delimiter_stack.push_back(token.clone());
+            }
             if let Some(last) = self.delimiter_stack.back() {
-                if let Some(token) = self.cursor.advance(next()) {
-                    if last
-                        .token_type
-                        .closing_pair()
-                        .expect("invalid delimiter passed to stack")
-                        == token.token_type
-                    {
+                if last
+                    .token_type
+                    .closing_pair()
+                    .expect("invalid delimiter passed to stack")
+                    == token.token_type
+                {
+                    if self.delimiter_stack.len() > start_len {
                         self.delimiter_stack.pop_back();
+                    } else {
+                        // Do not consume it to avoid breaking the stack.
+                        // The caller will consume it.
+                        break;
                     }
                 }
-            } else if self.cursor.lookahead(eox()).is_none() {
-                self.cursor.advance(next());
+            }
+            // Otherwise, just advance.
+            self.cursor.next_opt();
+        }
+    }
+
+    /// Goes to the next closing delimiter of the top delimiter on the stack.
+    ///
+    /// If the stack is empty, this does nothing.
+    fn repos_to_top_delimiter(&mut self) {
+        let start_len = self.delimiter_stack.len();
+        while let Some(token) = self.cursor.next_opt() {
+            if token.token_type.is_opening_ponctuation() {
+                self.delimiter_stack.push_back(token.clone());
+            } else if let Some(last) = self.delimiter_stack.back() {
+                if last
+                    .token_type
+                    .closing_pair()
+                    .expect("invalid delimiter passed to stack")
+                    == token.token_type
+                {
+                    self.delimiter_stack.pop_back();
+                    if self.delimiter_stack.len() < start_len {
+                        break;
+                    }
+                }
             } else {
                 break;
             }

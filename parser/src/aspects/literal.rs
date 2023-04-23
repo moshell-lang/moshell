@@ -61,14 +61,14 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             DoubleQuote => self.templated_string_literal().map(Expr::TemplateString),
 
             _ if pivot.is_keyword() => self.expected(
-                &format!("Unexpected keyword '{}'", token.value),
+                format!("Unexpected keyword '{}'", token.value),
                 ParseErrorKind::Unexpected,
             ),
             _ if pivot.is_ponctuation()
                 || (leniency == LiteralLeniency::Strict && pivot.is_extended_ponctuation()) =>
             {
                 self.expected(
-                    &format!("Unexpected token '{}'.", token.value),
+                    format!("Unexpected token '{}'.", token.value),
                     ParseErrorKind::Unexpected,
                 )
             }

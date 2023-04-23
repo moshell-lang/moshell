@@ -1,9 +1,10 @@
+use crate::err::ParseErrorKind;
 use crate::err::ParseErrorKind::Expected;
 use crate::moves::{blanks, eod, lookahead, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use context::source::{SourceSegment, SourceSegmentHolder};
 use lexer::token::TokenType;
-use lexer::token::TokenType::Comma;
+use lexer::token::TokenType::{Comma, EndOfFile};
 
 ///An aspect to parse expression lists
 pub(super) trait ExpressionListAspect<'a> {
@@ -73,14 +74,27 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         self.delimiter_stack.push_back(start.clone());
         let mut elements = vec![];
 
-        while self.cursor.lookahead(blanks().then(eod())).is_none() {
-            elements.push(match parse_element(self) {
+        while self
+            .cursor
+            .lookahead(blanks().then(eod().or(of_type(EndOfFile))))
+            .is_none()
+        {
+            self.cursor.advance(blanks());
+            while let Some(comma) = self.cursor.advance(of_type(Comma)) {
+                self.report_error(self.mk_parse_error(
+                    "Expected value.",
+                    comma,
+                    ParseErrorKind::Unexpected,
+                ));
+            }
+            match parse_element(self) {
                 Err(err) => {
-                    self.delimiter_stack.pop_back();
-                    return Err(err);
+                    self.recover_from(err, of_type(Comma));
                 }
-                Ok(val) => val,
-            });
+                Ok(val) => {
+                    elements.push(val);
+                }
+            };
             self.cursor.force_with(
                 blanks().then(of_type(Comma).or(lookahead(eod()))),
                 "A comma or a closing bracket was expected here",

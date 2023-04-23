@@ -1,7 +1,7 @@
 use lexer::token::{Token, TokenType};
 
 use crate::err::ParseErrorKind;
-use crate::moves::{eox, of_type, repeat, repeat_n, spaces, MoveOperations};
+use crate::moves::{eox, of_type, of_types, repeat, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::group::{Block, Parenthesis, Subshell};
 use ast::Expr;
@@ -52,13 +52,22 @@ impl<'a> GroupAspect<'a> for Parser<'a> {
 
     fn parenthesis(&mut self) -> ParseResult<Parenthesis<'a>> {
         let start = self.ensure_at_group_start(TokenType::RoundedLeftBracket)?;
-        let expr = self.value()?;
-        let end = self.cursor.force(
-            repeat(spaces().then(eox())) //consume possible end of expressions
-                .then(spaces().then(of_type(TokenType::RoundedRightBracket))), //expect closing ')' token
-            "parenthesis in value expression can only contain one expression",
-        )?;
-        self.delimiter_stack.pop_back();
+        let expr = self.value().map_err(|err| {
+            self.repos_delimiter_due_to(&err);
+            err
+        })?;
+        self.cursor.advance(spaces());
+        if !self.cursor.peek().token_type.is_closing_ponctuation() {
+            self.expected(
+                "parenthesis in value expression can only contain one expression",
+                ParseErrorKind::Unexpected,
+            )
+            .map_err(|err| {
+                self.repos_delimiter_due_to(&err);
+                err
+            })?
+        }
+        let end = self.expect_delimiter(TokenType::RoundedRightBracket)?;
 
         Ok(Parenthesis {
             expression: Box::new(expr),
@@ -78,7 +87,10 @@ impl<'a> Parser<'a> {
         Ok(token)
     }
 
-    ///parses sub expressions of a grouping expression
+    /// Parses sub expressions of a grouping expression.
+    ///
+    /// This parser will always ends by consuming the closing delimiter of the group,
+    /// so it is not necessary to call [`Parser::repos_delimiter_due_to`] on errors.
     fn sub_exprs<F>(
         &mut self,
         start_token: Token,
@@ -92,12 +104,16 @@ impl<'a> Parser<'a> {
         let mut segment = self.cursor.relative_pos(start_token.value);
 
         //consume all heading spaces and end of expressions (\n or ;)
-        self.cursor.advance(repeat(spaces().then(eox())));
+        self.cursor.advance(repeat(of_types(&[
+            TokenType::Space,
+            TokenType::NewLine,
+            TokenType::SemiColon,
+        ])));
 
         //if we directly hit end of group, return an empty block.
-        if self.cursor.advance(of_type(eog)).is_some() {
+        if let Some(eog) = self.cursor.advance(of_type(eog)) {
             self.delimiter_stack.pop_back();
-            return Ok((statements, segment.start..segment.end + 1));
+            return Ok((statements, segment.start..self.cursor.relative_pos(eog).end));
         }
 
         loop {
@@ -107,14 +123,18 @@ impl<'a> Parser<'a> {
                     ParseErrorKind::Unpaired(self.cursor.relative_pos(&start_token)),
                 )?;
             }
-            let statement = parser(self)?;
-            statements.push(statement);
+            let statement = parser(self);
+            match statement {
+                Ok(statement) => {
+                    statements.push(statement);
+                }
+                Err(err) => {
+                    self.recover_from(err, eox());
+                }
+            }
 
             //expects at least one newline or ';'
-            let eox_res = self.cursor.force(
-                repeat_n(1, spaces().then(eox())),
-                "expected new line or semicolon",
-            );
+            let eox_res = self.cursor.advance(repeat_n(1, spaces().then(eox())));
 
             //checks if this group expression is closed after the parsed expression
             let closed = self.cursor.advance(spaces().then(of_type(eog)));
@@ -126,12 +146,21 @@ impl<'a> Parser<'a> {
                 break;
             }
 
-            if eox_res.is_err() && self.cursor.peek().token_type.is_closing_ponctuation() {
-                self.mismatched_delimiter(eog)?;
+            // Since it is not closed, expect the cursor to hit EOX.
+            if eox_res.is_some() {
+                continue;
             }
-
-            //but if not closed, expect the cursor to hit EOX.
-            eox_res?;
+            if self.cursor.peek().token_type.is_closing_ponctuation() {
+                self.mismatched_delimiter(eog)?;
+            } else {
+                let error = self.mk_parse_error(
+                    "expected new line or semicolon",
+                    self.cursor.peek(),
+                    ParseErrorKind::Unexpected,
+                );
+                self.repos_delimiter_due_to(&error);
+                return Err(error);
+            }
         }
         Ok((statements, segment))
     }
@@ -140,7 +169,9 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::aspects::group::GroupAspect;
-    use crate::parser::Parser;
+    use crate::err::{ParseError, ParseErrorKind};
+    use crate::parse;
+    use crate::parser::{ParseResult, Parser};
     use crate::source::literal;
     use ast::call::Call;
     use ast::group::{Block, Subshell};
@@ -196,11 +227,11 @@ mod tests {
                     expressions: vec![
                         Expr::Block(Block {
                             expressions: vec![],
-                            segment: 7..9
+                            segment: 7..11
                         }),
                         Expr::Block(Block {
                             expressions: vec![],
-                            segment: 13..15
+                            segment: 13..17
                         }),
                     ],
                     segment: 3..source.source.len() - 1
@@ -211,17 +242,44 @@ mod tests {
     }
 
     #[test]
+    fn blank_block() {
+        let source = Source::unknown("{ }");
+        let result = Parser::new(source.clone()).parse_specific(|parser| parser.block());
+        assert_eq!(
+            result.expect("failed to parse block"),
+            Block {
+                expressions: vec![],
+                segment: source.segment()
+            }
+        );
+    }
+
+    #[test]
     fn block_not_ended() {
-        let source = Source::unknown("{ val test = 2 ");
-        let mut parser = Parser::new(source);
-        parser.block().expect_err("block parse did not failed");
+        let content = "{ val test = 2 ";
+        let result: ParseResult<_> = parse(Source::unknown(content)).into();
+        assert_eq!(
+            result,
+            Err(ParseError {
+                message: "Expected closing bracket.".to_string(),
+                position: content.len()..content.len(),
+                kind: ParseErrorKind::Unpaired(0..1),
+            })
+        );
     }
 
     #[test]
     fn neighbour_parenthesis() {
-        let source = Source::unknown("{ {} {} }");
-        let mut parser = Parser::new(source);
-        parser.block().expect_err("block parse did not failed");
+        let content = "{ {} {} }";
+        let result: ParseResult<_> = parse(Source::unknown(content)).into();
+        assert_eq!(
+            result,
+            Err(ParseError {
+                message: "expected new line or semicolon".to_string(),
+                position: find_in_nth(content, "{", 2),
+                kind: ParseErrorKind::Unexpected,
+            })
+        );
     }
 
     #[test]
@@ -229,6 +287,21 @@ mod tests {
         let source = Source::unknown(" val test = 2 }");
         let mut parser = Parser::new(source);
         parser.block().expect_err("block parse did not failed");
+    }
+
+    #[test]
+    fn unexpected_token_in_block() {
+        let content = "{val x = 5 match}";
+        let source = Source::unknown(content);
+        let result: ParseResult<_> = parse(source).into();
+        assert_eq!(
+            result,
+            Err(ParseError {
+                message: "expected new line or semicolon".to_string(),
+                position: find_in(content, "match"),
+                kind: ParseErrorKind::Unexpected,
+            })
+        );
     }
 
     #[test]
