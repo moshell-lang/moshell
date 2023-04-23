@@ -526,6 +526,20 @@ impl<'a> Parser<'a> {
         self.report_error(error);
     }
 
+    /// Advances the cursor due to an error, but does not report it.
+    ///
+    /// In most cases, [`Parser::recover_from`] should be used instead.
+    ///
+    /// This should be used when a delimiter has been pushed to the stack,
+    /// but an error occurred before the corresponding closing delimiter was found.
+    pub(crate) fn repos_delimiter_due_to(&mut self, error: &ParseError) {
+        // Unpaired delimiters already look for the next valid closing delimiter.
+        // Only handle other errors that would leave the delimiter stack in an invalid state.
+        if !matches!(error.kind, ParseErrorKind::Unpaired(_)) {
+            self.repos_to_top_delimiter();
+        }
+    }
+
     /// Adds an error to the parser's error vector.
     ///
     /// This assumes that any recovery has already been done.
@@ -535,7 +549,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Goes to the next expression, where the move can be specialized.
-    pub(crate) fn repos_to_next_expr(&mut self, break_on: impl Move + Copy) {
+    fn repos_to_next_expr(&mut self, break_on: impl Move + Copy) {
         // If delimiters are encountered while moving, they must be removed from the stack first,
         // before repositioning.
         let start_len = self.delimiter_stack.len();
@@ -575,7 +589,7 @@ impl<'a> Parser<'a> {
     /// Goes to the next closing delimiter of the top delimiter on the stack.
     ///
     /// If the stack is empty, this does nothing.
-    pub(crate) fn repos_to_top_delimiter(&mut self) {
+    fn repos_to_top_delimiter(&mut self) {
         let start_len = self.delimiter_stack.len();
         while let Some(token) = self.cursor.next_opt() {
             if token.token_type.is_opening_ponctuation() {

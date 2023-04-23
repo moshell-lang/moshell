@@ -53,7 +53,7 @@ impl<'a> GroupAspect<'a> for Parser<'a> {
     fn parenthesis(&mut self) -> ParseResult<Parenthesis<'a>> {
         let start = self.ensure_at_group_start(TokenType::RoundedLeftBracket)?;
         let expr = self.value().map_err(|err| {
-            self.repos_to_top_delimiter();
+            self.repos_delimiter_due_to(&err);
             err
         })?;
         self.cursor.advance(spaces());
@@ -63,7 +63,7 @@ impl<'a> GroupAspect<'a> for Parser<'a> {
                 ParseErrorKind::Unexpected,
             )
             .map_err(|err| {
-                self.repos_to_top_delimiter();
+                self.repos_delimiter_due_to(&err);
                 err
             })?
         }
@@ -87,7 +87,10 @@ impl<'a> Parser<'a> {
         Ok(token)
     }
 
-    ///parses sub expressions of a grouping expression
+    /// Parses sub expressions of a grouping expression.
+    ///
+    /// This parser will always ends by consuming the closing delimiter of the group,
+    /// so it is not necessary to call [`Parser::repos_delimiter_due_to`] on errors.
     fn sub_exprs<F>(
         &mut self,
         start_token: Token,
@@ -150,10 +153,13 @@ impl<'a> Parser<'a> {
             if self.cursor.peek().token_type.is_closing_ponctuation() {
                 self.mismatched_delimiter(eog)?;
             } else {
-                let error =
-                    self.expected("expected new line or semicolon", ParseErrorKind::Unexpected);
-                self.repos_to_top_delimiter();
-                error?;
+                let error = self.mk_parse_error(
+                    "expected new line or semicolon",
+                    self.cursor.peek(),
+                    ParseErrorKind::Unexpected,
+                );
+                self.repos_delimiter_due_to(&error);
+                return Err(error);
             }
         }
         Ok((statements, segment))

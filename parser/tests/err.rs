@@ -71,6 +71,21 @@ fn repos_delimiter_stack() {
 }
 
 #[test]
+fn repos_delimiter_in_var_reference() {
+    let content = "echo $(var m = ${..}); echo b";
+    let source = Source::unknown(content);
+    let report = parse(source);
+    assert_eq!(
+        report.errors,
+        vec![ParseError {
+            message: "variable reference with empty name".to_string(),
+            position: find_in(content, "..",),
+            kind: ParseErrorKind::Unexpected
+        }]
+    )
+}
+
+#[test]
 fn what_is_an_import() {
     let content = "{
         use {a, b}

@@ -35,10 +35,15 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
             .leak();
 
         if tokens.is_empty() {
-            return self.expected(
+            let err = self.mk_parse_error(
                 "variable reference with empty name",
+                self.cursor.peek(),
                 ParseErrorKind::Unexpected,
             );
+            if bracket.is_some() {
+                self.repos_delimiter_due_to(&err);
+            }
+            return Err(err);
         }
 
         let first = tokens[0].value;
