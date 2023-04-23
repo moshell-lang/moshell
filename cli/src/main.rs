@@ -42,8 +42,6 @@ fn main() -> io::Result<()> {
             eprintln!("{msg}");
         }
         exit(1);
-    } else {
-        prompt(handler)?;
     }
-    Ok(())
+    prompt(handler)
 }
