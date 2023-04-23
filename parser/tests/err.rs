@@ -87,19 +87,23 @@ fn what_is_an_import() {
     let report = parse(source.clone());
     assert_eq!(
         report.errors,
-        vec![ParseError {
-            message: "'break' is not a valid type identifier.".to_owned(),
-            position: content.find("break").map(|p| p..p + 5).unwrap(),
-            kind: ParseErrorKind::Unexpected
-        }, ParseError {
-            message: "invalid expression operator".to_owned(),
-            position: content.find('%').map(|p| p..p + 1).unwrap(),
-            kind: ParseErrorKind::Unexpected
-        }, ParseError {
-            message: "Expected value".to_owned(),
-            position: content.find(';').map(|p| p..p + 1).unwrap(),
-            kind: ParseErrorKind::Unexpected
-        }]
+        vec![
+            ParseError {
+                message: "'break' is not a valid type identifier.".to_owned(),
+                position: content.find("break").map(|p| p..p + 5).unwrap(),
+                kind: ParseErrorKind::Unexpected
+            },
+            ParseError {
+                message: "invalid expression operator".to_owned(),
+                position: content.find('%').map(|p| p..p + 1).unwrap(),
+                kind: ParseErrorKind::Unexpected
+            },
+            ParseError {
+                message: "Expected value".to_owned(),
+                position: content.find(';').map(|p| p..p + 1).unwrap(),
+                kind: ParseErrorKind::Unexpected
+            }
+        ]
     );
 }
 

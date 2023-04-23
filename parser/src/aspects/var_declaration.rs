@@ -195,15 +195,15 @@ mod tests {
     fn val_declaration_more_expressions() {
         let content = "val x = (1 + 2\n3+ 1)";
         let source = Source::unknown(content);
-        let err = parse(source);
+        let result: ParseResult<_> = parse(source).into();
         assert_eq!(
-            err.errors,
-            vec![ParseError {
+            result,
+            Err(ParseError {
                 message: "parenthesis in value expression can only contain one expression"
                     .to_string(),
-                position: content.rfind('3').map(|p| (p..p + 1)).unwrap(),
+                position: content.find('\n').map(|p| (p..p + 1)).unwrap(),
                 kind: ParseErrorKind::Unexpected,
-            }]
+            })
         )
     }
 

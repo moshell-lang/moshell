@@ -56,18 +56,18 @@ impl<'a> GroupAspect<'a> for Parser<'a> {
             self.repos_to_top_delimiter();
             err
         })?;
-        let end = self
-            .cursor
-            .force(
-                repeat(spaces().then(eox())) //consume possible end of expressions
-                    .then(spaces().then(of_type(TokenType::RoundedRightBracket))), //expect closing ')' token
+        self.cursor.advance(spaces());
+        if !self.cursor.peek().token_type.is_closing_ponctuation() {
+            self.expected(
                 "parenthesis in value expression can only contain one expression",
+                ParseErrorKind::Unexpected,
             )
             .map_err(|err| {
                 self.repos_to_top_delimiter();
                 err
-            })?;
-        self.delimiter_stack.pop_back();
+            })?
+        }
+        let end = self.expect_delimiter(TokenType::RoundedRightBracket)?;
 
         Ok(Parenthesis {
             expression: Box::new(expr),
@@ -150,7 +150,10 @@ impl<'a> Parser<'a> {
             if self.cursor.peek().token_type.is_closing_ponctuation() {
                 self.mismatched_delimiter(eog)?;
             } else {
-                self.expected("expected new line or semicolon", ParseErrorKind::Unexpected)?;
+                let error =
+                    self.expected("expected new line or semicolon", ParseErrorKind::Unexpected);
+                self.repos_to_top_delimiter();
+                error?;
             }
         }
         Ok((statements, segment))
@@ -160,7 +163,9 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::aspects::group::GroupAspect;
-    use crate::parser::Parser;
+    use crate::err::{ParseError, ParseErrorKind};
+    use crate::parse;
+    use crate::parser::{ParseResult, Parser};
     use crate::source::literal;
     use ast::call::Call;
     use ast::group::{Block, Subshell};
@@ -245,16 +250,30 @@ mod tests {
 
     #[test]
     fn block_not_ended() {
-        let source = Source::unknown("{ val test = 2 ");
-        let mut parser = Parser::new(source);
-        parser.block().expect_err("block parse did not failed");
+        let content = "{ val test = 2 ";
+        let result: ParseResult<_> = parse(Source::unknown(content)).into();
+        assert_eq!(
+            result,
+            Err(ParseError {
+                message: "Expected closing bracket.".to_string(),
+                position: content.len()..content.len(),
+                kind: ParseErrorKind::Unpaired(0..1),
+            })
+        );
     }
 
     #[test]
     fn neighbour_parenthesis() {
-        let source = Source::unknown("{ {} {} }");
-        let mut parser = Parser::new(source);
-        parser.block().expect_err("block parse did not failed");
+        let content = "{ {} {} }";
+        let result: ParseResult<_> = parse(Source::unknown(content)).into();
+        assert_eq!(
+            result,
+            Err(ParseError {
+                message: "expected new line or semicolon".to_string(),
+                position: find_in_nth(content, "{", 2),
+                kind: ParseErrorKind::Unexpected,
+            })
+        );
     }
 
     #[test]
@@ -262,6 +281,21 @@ mod tests {
         let source = Source::unknown(" val test = 2 }");
         let mut parser = Parser::new(source);
         parser.block().expect_err("block parse did not failed");
+    }
+
+    #[test]
+    fn unexpected_token_in_block() {
+        let content = "{val x = 5 match}";
+        let source = Source::unknown(content);
+        let result: ParseResult<_> = parse(source).into();
+        assert_eq!(
+            result,
+            Err(ParseError {
+                message: "expected new line or semicolon".to_string(),
+                position: find_in(content, "match"),
+                kind: ParseErrorKind::Unexpected,
+            })
+        );
     }
 
     #[test]
