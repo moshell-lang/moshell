@@ -265,13 +265,17 @@ impl TokenType {
     ///is this lexeme a opening punctuation
     pub fn is_opening_ponctuation(self) -> bool {
         matches!(self, |SquaredLeftBracket| RoundedLeftBracket
-            | CurlyLeftBracket)
+            | CurlyLeftBracket
+            | Quote
+            | DoubleQuote)
     }
 
     ///is this lexeme a closing punctuation
     pub fn is_closing_ponctuation(self) -> bool {
         matches!(self, |SquaredRightBracket| RoundedRightBracket
-            | CurlyRightBracket)
+            | CurlyRightBracket
+            | Quote
+            | DoubleQuote)
     }
 
     pub fn closing_pair(self) -> Option<TokenType> {
@@ -279,6 +283,8 @@ impl TokenType {
             SquaredLeftBracket => Some(SquaredRightBracket),
             RoundedLeftBracket => Some(RoundedRightBracket),
             CurlyLeftBracket => Some(CurlyRightBracket),
+            Quote => Some(Quote),
+            DoubleQuote => Some(DoubleQuote),
             _ => None,
         }
     }

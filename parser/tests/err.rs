@@ -524,3 +524,22 @@ fn double_comma_function() {
         }
     );
 }
+
+#[test]
+fn quotes_are_delimiters() {
+    let content = "LD_PRELOAD=$(dirname $(readlink -f $0))/lib.so \"$@\"";
+    let source = Source::unknown(content);
+    let report = parse(source.clone());
+    assert_eq!(
+        report,
+        ParseReport {
+            expr: vec![],
+            errors: vec![ParseError {
+                message: "expected end of expression or file".to_owned(),
+                position: content.rfind('$').map(|p| p..p + 1).unwrap(),
+                kind: ParseErrorKind::Unexpected
+            }],
+            stack_ended: true,
+        }
+    );
+}
