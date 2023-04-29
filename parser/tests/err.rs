@@ -456,6 +456,25 @@ fn expected_double_delimiter_for() {
 }
 
 #[test]
+fn expected_double_delimiter_mismatched() {
+    let content = "for ((i = 0; ]; i++)); continue";
+    let source = Source::unknown(content);
+    let report = parse(source);
+    assert_eq!(
+        report,
+        ParseReport {
+            expr: vec![Expr::Continue(find_in(content, "continue"))],
+            errors: vec![ParseError {
+                message: "Mismatched closing delimiter.".to_string(),
+                position: content.find(']').map(|p| p..p + 1).unwrap(),
+                kind: ParseErrorKind::Unpaired(content.find('(').map(|p| p + 1..p + 2).unwrap())
+            }],
+            stack_ended: true,
+        }
+    );
+}
+
+#[test]
 fn double_comma_parentheses() {
     let content = "Bar(m , ,)";
     let source = Source::unknown(content);

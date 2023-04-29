@@ -589,7 +589,8 @@ impl<'a> Parser<'a> {
     /// Goes to the next closing delimiter of the top delimiter on the stack.
     ///
     /// If the stack is empty, this does nothing.
-    fn repos_to_top_delimiter(&mut self) {
+    /// Always prefer using [`Parser::recover_from`] instead.
+    pub(crate) fn repos_to_top_delimiter(&mut self) {
         let start_len = self.delimiter_stack.len();
         while let Some(token) = self.cursor.next_opt() {
             if token.token_type.is_opening_ponctuation() {
