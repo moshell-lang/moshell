@@ -2,6 +2,11 @@ use crate::import_engine::{ContextExports, ImportEngine};
 use crate::layers::ModuleLayers;
 use crate::name::Name;
 use crate::types::class::TypeClass;
+use crate::types::context::TypeContext;
+use crate::variables::Variables;
+use std::cell::RefCell;
+use std::rc::Rc;
+
 ///! The type environment of the analyzer.
 ///!
 ///! An environment maps local variable names to their type and keep tracks of scopes.
@@ -22,14 +27,11 @@ use crate::types::class::TypeClass;
 ///!     echo $n;
 ///! }
 ///! ```
-use crate::types::context::TypeContext;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 /// An environment.
 /// The Environment contains the defined types, variables, structure and function definitions of a certain scope.
 /// It can have dependencies over other environments.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Environment {
     ///Fully qualified name of the environment
     pub fqn: Name,
@@ -39,6 +41,8 @@ pub struct Environment {
 
     /// The environment's type context.
     pub type_context: Rc<RefCell<TypeContext>>,
+
+    pub variables: Variables,
 }
 
 ///All kind of symbols in the environment
@@ -69,12 +73,18 @@ impl ContextExports<Symbol> for Environment {
 }
 
 impl Environment {
+    pub fn named(name: Name) -> Self {
+        let layers = ModuleLayers::rc_new();
+        Self::new(name, &layers)
+    }
+
     pub fn new(fqn: Name, layers: &Rc<RefCell<ModuleLayers>>) -> Self {
         let imports = ImportEngine::new(layers);
         Self {
             imports: imports.clone(),
             type_context: Rc::new(RefCell::new(TypeContext::new(fqn.clone(), imports.fixed()))),
             fqn,
+            variables: Default::default(),
         }
     }
 
@@ -84,6 +94,7 @@ impl Environment {
             imports: imports.clone(),
             type_context: TypeContext::lang(imports.fixed()),
             fqn: Name::new("lang"),
+            variables: Default::default(),
         }
     }
 
@@ -98,6 +109,15 @@ impl Environment {
             imports,
             type_context,
             fqn: env_fqn,
+            variables: Default::default(),
         })
+    }
+
+    pub fn begin_scope(&mut self) {
+        self.variables.begin_scope();
+    }
+
+    pub fn end_scope(&mut self) {
+        self.variables.end_scope();
     }
 }

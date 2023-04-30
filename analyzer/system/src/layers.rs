@@ -5,7 +5,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct ModuleLayers {
     roots: HashMap<String, Module>,
 }
@@ -13,7 +13,9 @@ pub struct ModuleLayers {
 impl ModuleLayers {
     //declares a new ModuleLayers that contains the lang environment
     pub fn rc_new() -> Rc<RefCell<Self>> {
-        let layers = Rc::new(RefCell::new(Self { roots: HashMap::new() }));
+        let layers = Rc::new(RefCell::new(Self {
+            roots: HashMap::new(),
+        }));
         let lang = Environment::lang(layers.clone());
         layers
             .borrow_mut()
@@ -84,8 +86,7 @@ impl ModuleLayers {
     }
 }
 
-
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 struct Module {
     pub full_name: Name,
     pub env: Option<Rc<RefCell<Environment>>>,

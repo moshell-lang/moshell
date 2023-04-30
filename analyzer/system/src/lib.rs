@@ -7,4 +7,5 @@ pub mod lang_types;
 pub mod layers;
 pub mod name;
 pub mod types;
-pub mod locals;
+pub mod variables;
+pub mod resolver;

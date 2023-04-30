@@ -23,6 +23,7 @@ use crate::define_std::define_ast;
 use crate::ScopeExpr::{ForExpr, FunctionDeclarationExpr, IfExpr, LambdaDefExpr, LoopExpr, MatchExpr, WhileExpr};
 
 mod define_std;
+mod first_pass;
 
 //playground
 pub fn checker(files: Vec<AST>) -> Result<(), String> {
