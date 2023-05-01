@@ -8,31 +8,25 @@ pub trait SourceSegmentHolder {
 }
 
 /// Defines a named source code from which tokens can be produced.
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Source<'a> {
     /// The source code.
     pub source: &'a str,
     /// The name of the source code.
-    pub name: String,
+    pub name: &'a str,
 }
 
 impl<'a> Source<'a> {
     /// Creates a new named source from a string.
-    pub fn new(source: &'a str, name: impl Into<String>) -> Self {
-        Self {
-            source,
-            name: name.into(),
-        }
+    pub fn new(source: &'a str, name: &'a str) -> Self {
+        Self { source, name }
     }
 
     /// Creates a new source of unknown origin.
     ///
     /// This value should normally be used only for quick testing.
     pub fn unknown(source: &'a str) -> Self {
-        Self {
-            source,
-            name: "unknown".to_string(),
-        }
+        Self::new(source, "unknown")
     }
 
     /// Gets the length in bytes of the source.
@@ -67,13 +61,28 @@ impl<'s> SourceCode for &'s Source<'_> {
             .source
             .read_span(span, context_lines_before, context_lines_after)?;
         Ok(Box::new(MietteSpanContents::new_named(
-            self.name.clone(),
+            self.name.to_owned(),
             contents.data(),
             *contents.span(),
             contents.line(),
             contents.column(),
             contents.line_count(),
         )))
+    }
+}
+
+pub struct OwnedSource {
+    pub source: String,
+    pub name: String,
+}
+
+impl OwnedSource {
+    pub fn new(source: String, name: String) -> Self {
+        Self { source, name }
+    }
+
+    pub fn as_source(&self) -> Source {
+        Source::new(&self.source, &self.name)
     }
 }
 

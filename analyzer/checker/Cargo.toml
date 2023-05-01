@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 analyzer-system = { path = "../system" }
 ast = { path = "../../ast" }
-
-[dev-dependencies]
 parser = { path = "../../parser" }
 context = { path = "../../context" }
+
+[dev-dependencies]

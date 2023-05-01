@@ -1,6 +1,6 @@
+use crate::resolver::{GlobalObjectId, ObjectId, Resolver, Symbol};
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
-use crate::resolver::{GlobalObjectId, ObjectId, Resolver, Symbol};
 
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
 enum TypeInfo {
@@ -13,7 +13,7 @@ enum TypeInfo {
 #[derive(Debug, Clone, Default)]
 pub struct Variables {
     locals: Locals,
-    globals: HashMap<String, GlobalObjectId>
+    globals: HashMap<String, GlobalObjectId>,
 }
 
 impl Variables {
@@ -27,11 +27,11 @@ impl Variables {
     pub fn identify(&mut self, resolver: &mut Resolver, name: &str) -> Symbol {
         match self.locals.position_reachable_local(name) {
             Some(var) => Symbol::Local(var),
-            None => {
-                (*self.globals.entry(name.to_owned()).or_insert_with(|| {
-                    resolver.track_new_object()
-                })).into()
-            }
+            None => (*self
+                .globals
+                .entry(name.to_owned())
+                .or_insert_with(|| resolver.track_new_object()))
+            .into(),
         }
     }
 
@@ -89,7 +89,8 @@ impl Locals {
                 var.depth.take();
             });
 
-        self.current_depth = NonZeroUsize::new(self.current_depth.get() - 1).expect("Cannot end the root scope");
+        self.current_depth =
+            NonZeroUsize::new(self.current_depth.get() - 1).expect("Cannot end the root scope");
     }
 
     /// Looks up a variable by name that is reachable from the current scope.

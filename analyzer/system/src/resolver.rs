@@ -1,3 +1,5 @@
+use crate::name::Name;
+
 /// The object identifier base.
 ///
 /// Note that this type doesn't convey if it is a local or global object, i.e. in which scope it is stored.
@@ -50,6 +52,9 @@ pub struct Resolver {
     /// binding happens across modules, and an environment cannot guarantee that it will be able to generate
     /// unique identifiers for all the symbols that do not conflicts with the ones from other modules.
     pub objects: Vec<Option<ResolvedSymbol>>,
+
+    /// The list of modules that are yet to be visited.
+    pub visitable: Vec<Name>,
 }
 
 impl Resolver {
