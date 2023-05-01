@@ -111,7 +111,7 @@ fn direct_expressions(expr: Expr) -> Vec<Expr> {
         Expr::For(f) => {
             let mut vec = match *f.kind {
                 ForKind::Range(r) => vec![r.iterable],
-                ForKind::Conditional(c) => vec![c.initializer, c.condition, c.update],
+                ForKind::Conditional(c) => vec![c.initializer, c.condition, c.increment],
             };
             vec.push(*f.body);
             vec

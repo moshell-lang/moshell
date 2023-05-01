@@ -1,7 +1,7 @@
 use lexer::token::{Token, TokenType};
 
 use crate::err::ParseErrorKind;
-use crate::moves::{blanks, eod, eox, of_type, times, MoveOperations};
+use crate::moves::{blanks, eod, eox, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::control_flow::{ConditionalFor, For, ForKind, Loop, RangeFor, While};
 use ast::range::FilePattern;
@@ -137,17 +137,48 @@ impl<'a> Parser<'a> {
 
     /// Parses a "traditional" conditional for, with a initializer, a condition and an increment.
     fn parse_conditional_for(&mut self) -> ParseResult<ConditionalFor<'a>> {
-        let start = self
-            .cursor
-            .collect(times(2, of_type(TokenType::RoundedLeftBracket)));
-        if start.is_empty() {
-            return self.expected(
-                "Expected '((' at start of conditional for",
-                ParseErrorKind::Unexpected,
-            );
-        }
-        self.delimiter_stack.extend(start.clone());
+        let outer_opening_parenthesis = self.cursor.force(
+            of_type(TokenType::RoundedLeftBracket),
+            "expected '((' at start of conditional for",
+        )?;
+        self.delimiter_stack
+            .push_back(outer_opening_parenthesis.clone());
+        let kind = self.parse_inner_conditional_for(outer_opening_parenthesis.clone());
 
+        match kind {
+            Ok(mut kind) => {
+                let end =
+                    self.expect_one_closing_parentheses_in_for(outer_opening_parenthesis.clone())?;
+                kind.segment = self.cursor.relative_pos_ctx(outer_opening_parenthesis..end);
+                Ok(kind)
+            }
+            Err(err) => {
+                self.repos_delimiter_due_to(&err);
+                Err(err)
+            }
+        }
+    }
+    fn parse_inner_conditional_for(&mut self, start: Token<'a>) -> ParseResult<ConditionalFor<'a>> {
+        let inner_opening_parenthesis = self.cursor.force(
+            of_type(TokenType::RoundedLeftBracket),
+            "expected '((' at start of conditional for",
+        )?;
+        self.delimiter_stack
+            .push_back(inner_opening_parenthesis.clone());
+        match self.parse_three_parts_for() {
+            Ok(kind) => {
+                self.expect_one_closing_parentheses_in_for(start)?;
+                Ok(kind)
+            }
+            Err(err) => {
+                // Errors always recover from only one delimiter, so we force also removing the inner delimiter.
+                self.repos_to_top_delimiter();
+                Err(err)
+            }
+        }
+    }
+
+    fn parse_three_parts_for(&mut self) -> ParseResult<ConditionalFor<'a>> {
         let initializer = self.statement()?;
         self.cursor.force(
             blanks().then(of_type(TokenType::SemiColon)),
@@ -158,30 +189,30 @@ impl<'a> Parser<'a> {
             blanks().then(of_type(TokenType::SemiColon)),
             "expected ';' after condition in conditional for",
         )?;
-        let update = self.statement()?;
-
-        let mut end: Option<Token<'a>> = None;
-        for _ in 0..2 {
-            if self.cursor.lookahead(eod()).is_some() {
-                end = Some(self.expect_delimiter(TokenType::RoundedRightBracket)?);
-            } else {
-                self.expected(
-                    "Expected '))' at end of conditional for",
-                    ParseErrorKind::Unpaired(self.cursor.relative_pos_ctx(&start[..])),
-                )?;
-            }
-        }
-
-        let segment = self
-            .cursor
-            .relative_pos_ctx(start.first().unwrap().clone()..end.unwrap());
-
+        let increment = self.statement()?;
+        let segment = initializer.segment().start..increment.segment().end;
         Ok(ConditionalFor {
             initializer,
             condition,
-            update,
+            increment,
             segment,
         })
+    }
+
+    fn expect_one_closing_parentheses_in_for(
+        &mut self,
+        outer_opening_parenthesis: Token<'a>,
+    ) -> ParseResult<Token<'a>> {
+        if self.cursor.lookahead(eod()).is_some() {
+            self.expect_delimiter(TokenType::RoundedRightBracket)
+        } else {
+            let mut segment = self.cursor.relative_pos(outer_opening_parenthesis.value);
+            segment.end += 1;
+            self.expected(
+                "Expected '))' at end of conditional for",
+                ParseErrorKind::Unpaired(segment),
+            )
+        }
     }
 
     /// Parse a file pattern.
@@ -530,7 +561,7 @@ mod tests {
                             segment: find_in(source.source, "10")
                         })),
                     }),
-                    update: Expr::Assign(Assign {
+                    increment: Expr::Assign(Assign {
                         name: "i",
                         value: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::VarReference(VarReference {

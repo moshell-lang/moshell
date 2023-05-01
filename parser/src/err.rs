@@ -100,7 +100,7 @@ pub struct ParseReport<'a> {
     /// This may be empty if the input is empty or if all read expressions
     /// were invalid. Note that a parse error may have occurred between two
     /// valid expressions, so always check for errors first.
-    pub ast: Vec<Expr<'a>>,
+    pub expr: Vec<Expr<'a>>,
 
     /// Lists all errors that occurred during parsing.
     ///
@@ -126,7 +126,7 @@ impl<'a> ParseReport<'a> {
 
     pub fn expect(self, msg: &str) -> Vec<Expr<'a>> {
         if self.is_ok() {
-            self.ast
+            self.expr
         } else if !self.errors.is_empty() {
             panic!("{msg} {:?}", self.errors)
         } else {
@@ -136,7 +136,7 @@ impl<'a> ParseReport<'a> {
 
     pub fn unwrap(self) -> Vec<Expr<'a>> {
         if self.is_ok() {
-            self.ast
+            self.expr
         } else if !self.errors.is_empty() {
             panic!("ParseReport contains errors: {:?}", self.errors)
         } else {
@@ -149,12 +149,12 @@ impl<'a> From<ParseResult<Vec<Expr<'a>>>> for ParseReport<'a> {
     fn from(result: ParseResult<Vec<Expr<'a>>>) -> Self {
         match result {
             Ok(expr) => Self {
-                ast: expr,
+                expr,
                 errors: Vec::new(),
                 stack_ended: true,
             },
             Err(err) => Self {
-                ast: Vec::new(),
+                expr: Vec::new(),
                 errors: vec![err],
                 stack_ended: true,
             },
@@ -167,7 +167,7 @@ impl<'a> From<ParseReport<'a>> for ParseResult<Vec<Expr<'a>>> {
         if report.is_err() {
             Err(report.errors.remove(0))
         } else {
-            Ok(report.ast)
+            Ok(report.expr)
         }
     }
 }

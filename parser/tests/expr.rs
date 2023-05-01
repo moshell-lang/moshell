@@ -666,6 +666,32 @@ fn method_call_with_type_params_and_ref() {
 }
 
 #[test]
+fn comments_mix_with_spaces() {
+    let source = Source::unknown(
+        "{
+    //
+    //
+    ping localhost
+}",
+    );
+    let parsed = parse(source.clone()).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Block(Block {
+            expressions: vec![Expr::Call(Call {
+                path: Vec::new(),
+                arguments: vec![
+                    literal(source.source, "ping"),
+                    literal(source.source, "localhost")
+                ],
+                type_parameters: Vec::new()
+            })],
+            segment: source.segment()
+        })]
+    );
+}
+
+#[test]
 fn classic_call_no_regression() {
     let source = Source::unknown("test '=>' ,,here, ->..3 54a2 => 1..=9");
     let parsed = parse(source.clone()).expect("Failed to parse");
