@@ -42,6 +42,15 @@ impl From<GlobalObjectId> for Symbol {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Object {
+    /// The symbol that is being resolved, where it is used.
+    origin: GlobalObjectId,
+
+    /// The link to the resolved symbol.
+    resolved: Option<ResolvedSymbol>,
+}
+
 /// A collection of objects that are tracked globally and may link to each other.
 #[derive(Debug, Clone, Default)]
 pub struct Resolver {
@@ -51,7 +60,7 @@ pub struct Resolver {
     /// The reason that the resolution information is lifted out of the environment is that identifiers
     /// binding happens across modules, and an environment cannot guarantee that it will be able to generate
     /// unique identifiers for all the symbols that do not conflicts with the ones from other modules.
-    pub objects: Vec<Option<ResolvedSymbol>>,
+    pub objects: Vec<Object>,
 
     /// The list of modules that are yet to be visited.
     pub visitable: Vec<Name>,
@@ -59,9 +68,16 @@ pub struct Resolver {
 
 impl Resolver {
     /// Tracks a new object and returns its identifier.
-    pub fn track_new_object(&mut self) -> GlobalObjectId {
+    pub fn track_new_object(&mut self, origin: GlobalObjectId) -> GlobalObjectId {
         let id = self.objects.len();
-        self.objects.push(None);
+        self.objects.push(Object {
+            origin,
+            resolved: None,
+        });
         GlobalObjectId(id)
+    }
+
+    pub fn track_new_root_object(&mut self) -> GlobalObjectId {
+        self.track_new_object(GlobalObjectId(self.objects.len()))
     }
 }

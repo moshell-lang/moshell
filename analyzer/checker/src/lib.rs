@@ -23,6 +23,7 @@ use crate::define_std::define_ast;
 use crate::ScopeExpr::{ForExpr, FunctionDeclarationExpr, IfExpr, LambdaDefExpr, LoopExpr, MatchExpr, WhileExpr};
 
 mod define_std;
+pub mod engine;
 pub mod first_pass;
 pub mod import;
 

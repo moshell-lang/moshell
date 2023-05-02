@@ -24,13 +24,18 @@ impl Variables {
     /// Identifies a named variable to a binding.
     ///
     /// If the variable is not reachable from the current scope, it is considered a global variable.
-    pub fn identify(&mut self, resolver: &mut Resolver, name: &str) -> Symbol {
+    pub fn identify(
+        &mut self,
+        state: GlobalObjectId,
+        resolver: &mut Resolver,
+        name: &str,
+    ) -> Symbol {
         match self.locals.position_reachable_local(name) {
             Some(var) => Symbol::Local(var),
             None => (*self
                 .globals
                 .entry(name.to_owned())
-                .or_insert_with(|| resolver.track_new_object()))
+                .or_insert_with(|| resolver.track_new_object(state)))
             .into(),
         }
     }

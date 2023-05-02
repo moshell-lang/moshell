@@ -1,3 +1,4 @@
+use crate::engine::Engine;
 use crate::import::Importer;
 use analyzer_system::environment::Environment;
 use analyzer_system::name::Name;
@@ -5,6 +6,7 @@ use analyzer_system::resolver::{GlobalObjectId, Resolver};
 use ast::group::Block;
 use ast::r#use::Import;
 use ast::Expr;
+use context::source::{Source, SourceSegmentHolder};
 use parser::err::ParseError;
 use parser::parse;
 use std::collections::HashSet;
@@ -28,9 +30,10 @@ impl From<io::Error> for GatherError {
 }
 
 pub fn first_pass<'a>(
+    engine: &mut Engine<'a>,
     resolver: &mut Resolver,
     entry_point: Name,
-    mut importer: impl Importer<'a>,
+    importer: &mut impl Importer<'a>,
 ) -> Result<(), GatherError> {
     resolver.visitable.push(entry_point);
     let mut visited: HashSet<Name> = HashSet::new();
@@ -39,29 +42,42 @@ pub fn first_pass<'a>(
             continue;
         }
         let source = importer.import(&name)?;
+        let source = unsafe {
+            // SAFETY: Source is not modified by this access.
+            // Drop the mutable borrow of the importer.
+            std::mem::transmute::<_, Source>(source)
+        };
         let report = parse(source);
         if report.is_err() {
             return Err(GatherError::Parse(report.errors));
         }
 
-        let expr = report.unwrap();
-        let state = ResolutionState {
-            module: resolver.track_new_object(),
-        };
-        tree_walk(
-            resolver,
-            &mut Environment::named(name),
-            state,
-            &Expr::Block(Block {
+        let root_block = {
+            let expr = report.unwrap();
+            let root_block = Expr::Block(Block {
                 expressions: expr,
-                segment: Default::default(),
-            }),
-        );
+                segment: source.segment(),
+            });
+            engine.take(root_block)
+        };
+
+        let mut env = Environment::named(name);
+        let state = ResolutionState {
+            module: resolver.track_new_root_object(),
+        };
+        tree_walk(engine, resolver, &mut env, state, root_block);
+        engine.track(state.module, root_block, env);
     }
     Ok(())
 }
 
-fn tree_walk(resolver: &mut Resolver, env: &mut Environment, state: ResolutionState, expr: &Expr) {
+fn tree_walk<'a>(
+    engine: &mut Engine<'a>,
+    resolver: &mut Resolver,
+    env: &mut Environment,
+    state: ResolutionState,
+    expr: &Expr,
+) {
     match expr {
         Expr::Use(use_expr) => match &use_expr.import {
             Import::Symbol(symbol) => {
@@ -80,25 +96,25 @@ fn tree_walk(resolver: &mut Resolver, env: &mut Environment, state: ResolutionSt
             env.variables.declare_local(var.var.name.to_owned());
         }
         Expr::VarReference(var) => {
-            env.variables.identify(resolver, var.name);
+            env.variables.identify(state.module, resolver, var.name);
         }
         Expr::Block(block) => {
             env.begin_scope();
             for expr in &block.expressions {
-                tree_walk(resolver, env, state, expr);
+                tree_walk(engine, resolver, env, state, expr);
             }
             env.end_scope();
         }
         Expr::If(if_expr) => {
             env.begin_scope();
-            tree_walk(resolver, env, state, &if_expr.condition);
+            tree_walk(engine, resolver, env, state, &if_expr.condition);
             env.end_scope();
             env.begin_scope();
-            tree_walk(resolver, env, state, &if_expr.success_branch);
+            tree_walk(engine, resolver, env, state, &if_expr.success_branch);
             env.end_scope();
             if let Some(else_branch) = &if_expr.fail_branch {
                 env.begin_scope();
-                tree_walk(resolver, env, state, else_branch);
+                tree_walk(engine, resolver, env, state, else_branch);
                 env.end_scope();
             }
         }
@@ -133,12 +149,13 @@ mod tests {
             ],
             segment: 0..3,
         });
+        let mut engine = Engine::default();
         let mut resolver = Resolver::default();
         let mut env = Environment::named(Name::new("test"));
         let state = ResolutionState {
-            module: resolver.track_new_object(),
+            module: resolver.track_new_root_object(),
         };
-        tree_walk(&mut resolver, &mut env, state, &expr);
+        tree_walk(&mut engine, &mut resolver, &mut env, state, &expr);
         assert_eq!(resolver.objects.len(), 1);
     }
 }
