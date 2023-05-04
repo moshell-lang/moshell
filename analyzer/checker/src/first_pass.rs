@@ -6,7 +6,7 @@ use analyzer_system::resolver::{GlobalObjectId, Resolver};
 use ast::group::Block;
 use ast::r#use::Import;
 use ast::Expr;
-use context::source::{Source, SourceSegmentHolder};
+use context::source::SourceSegmentHolder;
 use parser::err::ParseError;
 use parser::parse;
 use std::collections::HashSet;
@@ -42,11 +42,6 @@ pub fn first_pass<'a>(
             continue;
         }
         let source = importer.import(&name)?;
-        let source = unsafe {
-            // SAFETY: Source is not modified by this access.
-            // Drop the mutable borrow of the importer.
-            std::mem::transmute::<_, Source>(source)
-        };
         let report = parse(source);
         if report.is_err() {
             return Err(GatherError::Parse(report.errors));

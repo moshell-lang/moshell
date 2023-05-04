@@ -9,7 +9,7 @@ use std::path::PathBuf;
 /// An importer is responsible for holding source code from a given import name.
 pub trait Importer<'a> {
     /// Gets a source reference from the given import name.
-    fn import(&mut self, name: &Name) -> Result<Source, io::Error>;
+    fn import(&mut self, name: &Name) -> Result<Source<'a>, io::Error>;
 }
 
 /// An importer that reads files from a given root directory.
@@ -34,13 +34,13 @@ impl FileImporter {
 }
 
 impl<'a> Importer<'a> for FileImporter {
-    fn import(&mut self, name: &Name) -> Result<Source, io::Error> {
-        match self.cache.entry(name.clone()) {
-            Entry::Occupied(entry) => Ok(unsafe {
-                // SAFETY: A source is only removed from the cache when the importer is dropped.
-                // Because a source is never dropped before, the reference is valid for Self's lifetime.
-                std::mem::transmute::<Source, Source>(entry.get().as_source())
-            }),
+    fn import(&mut self, name: &Name) -> Result<Source<'a>, io::Error> {
+        let source = match self.cache.entry(name.clone()) {
+            Entry::Occupied(entry) => unsafe {
+                // SAFETY: Source refers to the String behind the entry.
+                // It is owned by the importer and is such not bound by the lifetime of the entry.
+                std::mem::transmute::<Source, Source<'a>>(entry.get().as_source())
+            },
             Entry::Vacant(entry) => {
                 let mut path = self.root.clone();
                 path.push(name.parts().to_owned().join("/"));
@@ -52,8 +52,13 @@ impl<'a> Importer<'a> for FileImporter {
                         read_to_string(&path)
                     })
                     .map(|content| OwnedSource::new(content, path.to_string_lossy().to_string()))?;
-                Ok(entry.insert(source).as_source())
+                entry.insert(source).as_source()
             }
-        }
+        };
+        Ok(unsafe {
+            // SAFETY: A source is owned by the importer.
+            // 'a is used here to disambiguate the lifetime of the source and the mutable borrow.
+            std::mem::transmute::<Source, Source<'a>>(source)
+        })
     }
 }
