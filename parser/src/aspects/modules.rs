@@ -153,7 +153,7 @@ impl<'a> Parser<'a> {
             return Ok(None);
         }
 
-        tokens.pop(); //remove trailing '::' token
+        tokens = &tokens[..tokens.len() - 1]; //remove trailing '::' token
 
         if let Some((head, tail)) = tokens.split_first() {
             let first_path_element = tail.iter().fold(head.value, |acc, t| {

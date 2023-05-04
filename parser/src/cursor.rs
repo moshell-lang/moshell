@@ -96,13 +96,13 @@ impl<'a> ParserCursor<'a> {
 
     ///Advance and returns a selection of token.
     /// The returned vector is a selection between current position and the position of where this move ended.
-    pub fn collect(&mut self, mov: impl Move) -> Vec<Token<'a>> {
+    pub fn collect(&mut self, mov: impl Move) -> &[Token<'a>] {
         let from = self.pos;
         if self.advance(mov).is_some() {
-            let slice = &self.tokens.as_slice()[from..self.pos];
-            return Vec::from(slice);
+            &self.tokens[from..self.pos]
+        } else {
+            &[]
         }
-        Vec::new()
     }
 
     ///returns the token at current position

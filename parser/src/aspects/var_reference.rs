@@ -26,13 +26,10 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
             self.delimiter_stack.push_back(bracket);
         }
 
-        let tokens = self
-            .cursor
-            .collect(
-                of_type(Dollar) //only allow one occurrence of $
-                    .or(repeat(like(TokenType::is_valid_var_ref_name))),
-            )
-            .leak();
+        let tokens = self.cursor.collect(
+            of_type(Dollar) //only allow one occurrence of $
+                .or(repeat(like(TokenType::is_valid_var_ref_name))),
+        );
 
         if tokens.is_empty() {
             let err = self.mk_parse_error(
