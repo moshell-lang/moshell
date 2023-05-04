@@ -1,4 +1,4 @@
-use crate::resolver::{GlobalObjectId, ObjectId, Resolver, Symbol};
+use crate::resolver::{GlobalObjectId, ObjectId, Resolver, SourceObjectId, Symbol};
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
 
@@ -26,7 +26,7 @@ impl Variables {
     /// If the variable is not reachable from the current scope, it is considered a global variable.
     pub fn identify(
         &mut self,
-        state: GlobalObjectId,
+        state: SourceObjectId,
         resolver: &mut Resolver,
         name: &str,
     ) -> Symbol {

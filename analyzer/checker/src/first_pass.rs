@@ -2,7 +2,7 @@ use crate::engine::Engine;
 use crate::import::Importer;
 use analyzer_system::environment::Environment;
 use analyzer_system::name::Name;
-use analyzer_system::resolver::{GlobalObjectId, Resolver};
+use analyzer_system::resolver::{Resolver, SourceObjectId};
 use ast::group::Block;
 use ast::r#use::Import;
 use ast::Expr;
@@ -14,7 +14,7 @@ use std::io;
 
 #[derive(Debug, Clone, Copy)]
 struct ResolutionState {
-    module: GlobalObjectId,
+    module: SourceObjectId,
 }
 
 #[derive(Debug)]
@@ -58,10 +58,10 @@ pub fn first_pass<'a>(
 
         let mut env = Environment::named(name);
         let state = ResolutionState {
-            module: resolver.track_new_root_object(),
+            module: engine.track(&root_block),
         };
         tree_walk(engine, resolver, &mut env, state, root_block);
-        engine.track(state.module, root_block, env);
+        engine.attach(state.module, env)
     }
     Ok(())
 }
@@ -148,9 +148,10 @@ mod tests {
         let mut resolver = Resolver::default();
         let mut env = Environment::named(Name::new("test"));
         let state = ResolutionState {
-            module: resolver.track_new_root_object(),
+            module: engine.track(&expr),
         };
         tree_walk(&mut engine, &mut resolver, &mut env, state, &expr);
-        assert_eq!(resolver.objects.len(), 1);
+        assert_eq!(engine.origins.len(), 1);
+        assert_eq!(resolver.objects.len(), 0);
     }
 }

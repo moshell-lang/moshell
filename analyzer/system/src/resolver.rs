@@ -5,7 +5,8 @@ use crate::name::Name;
 /// Note that this type doesn't convey if it is a local or global object, i.e. in which scope it is stored.
 ///
 /// To further indicate the provenance of the object, use specific types:
-/// - [`GlobalObjectId`] points to a global object.
+/// - [`GlobalObjectId`] points to a global object that needs to be resolved.
+/// - [`SourceObjectId`] points to a object whose environment may contain actual symbol sources.
 /// - [`ResolvedSymbol`] is used to point globally to a nested environment.
 /// - [`Symbol`] refers differentiate a id that is local or not.
 pub type ObjectId = usize;
@@ -13,6 +14,10 @@ pub type ObjectId = usize;
 /// A global object identifier, that points to a specific object in the [`Resolver`].
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct GlobalObjectId(pub ObjectId);
+
+/// A source object identifier, that can be the target of a global resolution.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct SourceObjectId(pub ObjectId);
 
 /// An indication where an object is located.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -45,7 +50,7 @@ impl From<GlobalObjectId> for Symbol {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Object {
     /// The symbol that is being resolved, where it is used.
-    origin: GlobalObjectId,
+    origin: SourceObjectId,
 
     /// The link to the resolved symbol.
     resolved: Option<ResolvedSymbol>,
@@ -54,7 +59,7 @@ pub struct Object {
 /// A collection of objects that are tracked globally and may link to each other.
 #[derive(Debug, Clone, Default)]
 pub struct Resolver {
-    /// The objects that are tracked globally.
+    /// The objects that need resolution that are tracked globally.
     ///
     /// The actual [`String`] -> [`ObjectId`] mapping is left to the [`crate::environment::Environment`].
     /// The reason that the resolution information is lifted out of the environment is that identifiers
@@ -68,16 +73,12 @@ pub struct Resolver {
 
 impl Resolver {
     /// Tracks a new object and returns its identifier.
-    pub fn track_new_object(&mut self, origin: GlobalObjectId) -> GlobalObjectId {
+    pub fn track_new_object(&mut self, origin: SourceObjectId) -> GlobalObjectId {
         let id = self.objects.len();
         self.objects.push(Object {
             origin,
             resolved: None,
         });
         GlobalObjectId(id)
-    }
-
-    pub fn track_new_root_object(&mut self) -> GlobalObjectId {
-        self.track_new_object(GlobalObjectId(self.objects.len()))
     }
 }
