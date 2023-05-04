@@ -35,18 +35,23 @@ pub fn first_pass<'a>(
     entry_point: Name,
     importer: &mut impl Importer<'a>,
 ) -> Result<(), GatherError> {
+    // Start by importing the entry point.
     resolver.visitable.push(entry_point);
+    // Prevent re-importing the same names.
     let mut visited: HashSet<Name> = HashSet::new();
+
     while let Some(name) = resolver.visitable.pop() {
         if !visited.insert(name.clone()) {
             continue;
         }
+        // Start by parsing the source read from the importer.
         let source = importer.import(&name)?;
         let report = parse(source);
         if report.is_err() {
             return Err(GatherError::Parse(report.errors));
         }
 
+        // Immediately transfer the ownership of the AST to the engine.
         let root_block = {
             let expr = report.unwrap();
             let root_block = Expr::Block(Block {

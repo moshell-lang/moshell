@@ -87,11 +87,6 @@ pub enum Expr<'a> {
     Block(Block<'a>),
 }
 
-pub struct AST<'a> {
-    pub root: Block<'a>,
-    pub file_path: String
-}
-
 impl SourceSegmentHolder for Expr<'_> {
     fn segment(&self) -> SourceSegment {
         match self {
