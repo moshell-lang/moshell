@@ -6,7 +6,7 @@ use std::num::NonZeroUsize;
 enum TypeInfo {
     #[default]
     Unknown,
-    Ref(usize),
+    Ref(Symbol),
 }
 
 /// A collection of variables
@@ -134,7 +134,7 @@ struct Variable {
     ///
     /// This is used to keep track if the variable is still reachable during the first
     /// pass of the analyzer. The value is guaranteed to be relevant only if the scope
-    /// has not ended yet. If not, the value is `None`.
+    /// has not ended yet. If not, the value is undefined.
     ///
     /// Using an [`Option<NonZeroUsize>`] allows to bake the scope depth and the
     /// variable reachability in the same 8 bytes on a 64-bit architecture.
@@ -144,7 +144,7 @@ struct Variable {
 impl Variable {
     /// Creates a new variable.
     ///
-    /// This convenience method accept zero as a depth, which is the internal
+    /// This convenience method accepts zero as a depth, which is the internal
     /// representation of a non reachable variable.
     fn scoped(name: String, depth: usize) -> Self {
         Self {

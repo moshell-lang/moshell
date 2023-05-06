@@ -25,7 +25,7 @@ pub enum Symbol {
     /// A local object, referenced by its index in the [`crate::environment::Environment`] it is defined in.
     Local(ObjectId),
 
-    /// A global object, referenced by its index in the [`Resolver`] it is defined in.
+    /// A global object, referenced by its index in the [`Resolver`] it is linked to.
     Global(ObjectId),
 }
 
@@ -35,7 +35,7 @@ pub struct ResolvedSymbol {
     /// The module where the symbol is defined.
     ///
     /// This is used to route the symbol to the correct environment.
-    pub module: ObjectId,
+    pub module: SourceObjectId,
 
     /// The object identifier of the symbol, local to the module.
     pub object_id: ObjectId,

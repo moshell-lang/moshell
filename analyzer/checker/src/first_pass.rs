@@ -29,6 +29,9 @@ impl From<io::Error> for GatherError {
     }
 }
 
+/// Explores the entry point and all its recursive dependencies.
+///
+/// This collects all the symbols that are used, locally or not yet resolved if they are global.
 pub fn first_pass<'a>(
     engine: &mut Engine<'a>,
     resolver: &mut Resolver,
