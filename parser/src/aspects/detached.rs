@@ -70,7 +70,7 @@ mod tests {
     #[test]
     fn twice_derived_workaround() {
         let source = Source::unknown("{date &}&");
-        let res = parse(source.clone()).expect("Failed to parse");
+        let res = parse(source).expect("Failed to parse");
         assert_eq!(
             res,
             vec![Expr::Detached(Detached {

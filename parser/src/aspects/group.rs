@@ -189,7 +189,7 @@ mod tests {
     #[test]
     fn empty_blocks() {
         let source = Source::unknown("{{{}; {}}}");
-        let mut parser = Parser::new(source.clone());
+        let mut parser = Parser::new(source);
         let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
@@ -217,7 +217,7 @@ mod tests {
     #[test]
     fn empty_blocks_empty_content() {
         let source = Source::unknown("{;;{;;;{;;}; {\n\n};}}");
-        let mut parser = Parser::new(source.clone());
+        let mut parser = Parser::new(source);
         let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(
@@ -244,7 +244,7 @@ mod tests {
     #[test]
     fn blank_block() {
         let source = Source::unknown("{ }");
-        let result = Parser::new(source.clone()).parse_specific(|parser| parser.block());
+        let result = Parser::new(source).parse_specific(|parser| parser.block());
         assert_eq!(
             result.expect("failed to parse block"),
             Block {
@@ -315,7 +315,7 @@ mod tests {
             (val x = 89; command call; 7)\
         }",
         );
-        let mut parser = Parser::new(source.clone());
+        let mut parser = Parser::new(source);
         let ast = parser
             .block()
             .expect("failed to parse block with nested blocks");
@@ -404,7 +404,7 @@ mod tests {
             val x = 8\
         }",
         );
-        let mut parser = Parser::new(source.clone());
+        let mut parser = Parser::new(source);
         let ast = parser.block().expect("failed to parse block");
         assert!(parser.cursor.is_at_end());
         assert_eq!(

@@ -378,9 +378,7 @@ mod tests {
     #[test]
     fn int_but_str() {
         let source = Source::unknown("5@5");
-        let parsed = Parser::new(source.clone())
-            .expression()
-            .expect("Failed to parse.");
+        let parsed = Parser::new(source).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
@@ -393,9 +391,7 @@ mod tests {
     #[test]
     fn string_literal() {
         let source = Source::unknown("'hello $world! $(this is a test) @(of course)'");
-        let parsed = Parser::new(source.clone())
-            .expression()
-            .expect("Failed to parse.");
+        let parsed = Parser::new(source).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
@@ -408,9 +404,7 @@ mod tests {
     #[test]
     fn escaped_literal() {
         let source = Source::unknown("a\\a");
-        let parsed = Parser::new(source.clone())
-            .expression()
-            .expect("Failed to parse.");
+        let parsed = Parser::new(source).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
@@ -423,9 +417,7 @@ mod tests {
     #[test]
     fn escaped_string_literal() {
         let source = Source::unknown("'a\\'a'");
-        let parsed = Parser::new(source.clone())
-            .expression()
-            .expect("Failed to parse.");
+        let parsed = Parser::new(source).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
@@ -438,9 +430,7 @@ mod tests {
     #[test]
     fn escaped_template_string_literal() {
         let source = Source::unknown("\"a\\\"a'\"");
-        let parsed = Parser::new(source.clone())
-            .expression()
-            .expect("Failed to parse.");
+        let parsed = Parser::new(source).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::TemplateString(TemplateString {
@@ -470,9 +460,7 @@ mod tests {
     #[test]
     fn prefixed_arg() {
         let source = Source::unknown("+'hello'");
-        let parsed = Parser::new(source.clone())
-            .expression()
-            .expect("Failed to parse.");
+        let parsed = Parser::new(source).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::TemplateString(TemplateString {
@@ -487,9 +475,7 @@ mod tests {
     #[test]
     fn url_placeholder() {
         let source = Source::unknown("\"http://localhost:$NGINX_PORT\"");
-        let parsed = Parser::new(source.clone())
-            .expression()
-            .expect("Failed to parse.");
+        let parsed = Parser::new(source).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::TemplateString(TemplateString {

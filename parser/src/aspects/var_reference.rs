@@ -91,9 +91,7 @@ mod tests {
     #[test]
     fn simple_ref() {
         let source = Source::unknown("$VARIABLE");
-        let ast = Parser::new(source.clone())
-            .substitution()
-            .expect("failed to parse");
+        let ast = Parser::new(source).substitution().expect("failed to parse");
         assert_eq!(
             ast,
             Expr::VarReference(VarReference {
@@ -106,7 +104,7 @@ mod tests {
     #[test]
     fn dollar_is_literal() {
         let source = Source::unknown("$");
-        let ast = parse(source.clone()).expect("failed to parse");
+        let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,
             vec![Expr::Literal(Literal {
@@ -119,7 +117,7 @@ mod tests {
     #[test]
     fn special_refs() {
         let source = Source::unknown("$@;$^;$!;$!!;$$");
-        let ast = parse(source.clone()).expect("failed to parse");
+        let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,
             vec![
@@ -150,7 +148,7 @@ mod tests {
     #[test]
     fn wrapped_ref() {
         let source = Source::unknown("${VAR}IABLE");
-        let ast = parse(source.clone()).expect("failed to parse");
+        let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,
             vec![Expr::TemplateString(TemplateString {
@@ -186,7 +184,7 @@ mod tests {
     #[test]
     fn multiple_wrapped_ref() {
         let source = Source::unknown("${VAR}IABLE${LONG}${VERY_LONG}");
-        let ast = parse(source.clone()).expect("failed to parse");
+        let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,
             vec![Expr::TemplateString(TemplateString {
@@ -212,7 +210,7 @@ mod tests {
     #[test]
     fn call_ref() {
         let source = Source::unknown("$callable(a, b, c)");
-        let ast = parse(source.clone()).expect("failed to parse");
+        let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,
             vec![Expr::MethodCall(MethodCall {

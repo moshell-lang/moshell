@@ -179,7 +179,7 @@ mod tests {
     #[test]
     fn is_left_associative() {
         let source = Source::unknown("1 && 2 || \\\n 3 || 4 && 5");
-        let mut parser = Parser::new(source.clone());
+        let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_statement)
             .expect("parsing error");
@@ -223,7 +223,7 @@ mod tests {
     #[test]
     fn explicit_priority() {
         let source = Source::unknown("1 \\\n+\\\n (2 + 3)");
-        let mut parser = Parser::new(source.clone());
+        let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_value)
             .expect("parsing error");
@@ -256,7 +256,7 @@ mod tests {
     #[test]
     fn arithmetic_priority() {
         let source = Source::unknown("1 + 2 * 3");
-        let mut parser = Parser::new(source.clone());
+        let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_value)
             .expect("parsing error");
@@ -286,7 +286,7 @@ mod tests {
     #[test]
     fn complete_prioritization_test() {
         let source = Source::unknown("1 +\\\n 2 \\\n*\\\n 3\\\n < 874\\\n / 78 \\\n||\\\n 7\\\n % 4 \\\n== 3 \\\n&& \\\n7 ==\\\n 1");
-        let mut parser = Parser::new(source.clone());
+        let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_value)
             .expect("parsing error");
@@ -381,7 +381,7 @@ mod tests {
     #[test]
     fn bin_expression_in_group() {
         let source = Source::unknown("(1 + 2 * 3)");
-        let mut parser = Parser::new(source.clone());
+        let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_value)
             .expect("parsing error");
@@ -414,7 +414,7 @@ mod tests {
     #[test]
     fn exitcode_operators() {
         let source = Source::unknown("(echo hello && echo world ) || echo damn");
-        let mut parser = Parser::new(source.clone());
+        let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_statement)
             .expect("parsing error");
@@ -459,7 +459,7 @@ mod tests {
     #[test]
     fn escaped_operators() {
         let source = Source::unknown("(echo hello \\& world \\);) || echo damn");
-        let mut parser = Parser::new(source.clone());
+        let mut parser = Parser::new(source);
         let ast = parser
             .binary_operation(Parser::next_statement)
             .expect("parsing error");

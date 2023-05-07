@@ -56,7 +56,7 @@ mod tests {
     #[test]
     fn simple_lambda_definition() {
         let source = Source::unknown("(a, b: Int) => $a + $b");
-        let parsed = Parser::new(source.clone())
+        let parsed = Parser::new(source)
             .parse_lambda_definition()
             .expect("Failed to parse.");
         assert_eq!(
@@ -98,7 +98,7 @@ mod tests {
     #[test]
     fn simple_lambda_definition_one_arg() {
         let source = Source::unknown("a => $a + $b");
-        let parsed = Parser::new(source.clone())
+        let parsed = Parser::new(source)
             .parse_lambda_definition()
             .expect("Failed to parse.");
         assert_eq!(
@@ -129,7 +129,7 @@ mod tests {
     fn simple_lambda_definition_one_arg_typed_wrapped() {
         let src = "(a: Int) => $a + $b";
         let source = Source::unknown(src);
-        let parsed = Parser::new(source.clone())
+        let parsed = Parser::new(source)
             .parse_lambda_definition()
             .expect("parse fail");
         assert_eq!(
@@ -164,7 +164,7 @@ mod tests {
     #[test]
     fn simple_lambda_definition_emptyargs() {
         let source = Source::unknown("() => {echo hey}");
-        let parsed = Parser::new(source.clone())
+        let parsed = Parser::new(source)
             .parse_lambda_definition()
             .expect("Failed to parse.");
         assert_eq!(

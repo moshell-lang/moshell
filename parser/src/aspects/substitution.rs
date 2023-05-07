@@ -114,9 +114,7 @@ mod tests {
     #[test]
     fn mix_blocks() {
         let source = Source::unknown("$({ls $(pwd)})");
-        let ast = Parser::new(source.clone())
-            .substitution()
-            .expect("Failed to parse");
+        let ast = Parser::new(source).substitution().expect("Failed to parse");
         assert_eq!(
             ast,
             Expr::Substitution(Substitution {
@@ -182,9 +180,7 @@ mod tests {
     #[test]
     fn arithmetic() {
         let source = Source::unknown("$(($a + 1))");
-        let ast = Parser::new(source.clone())
-            .substitution()
-            .expect("Failed to parse");
+        let ast = Parser::new(source).substitution().expect("Failed to parse");
         assert_eq!(
             ast,
             Expr::Parenthesis(Parenthesis {

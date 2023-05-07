@@ -58,7 +58,7 @@ mod tests {
     #[test]
     fn assign() {
         let source = Source::unknown("a = 1");
-        let ast = parse(source.clone()).expect("Failed to parse");
+        let ast = parse(source).expect("Failed to parse");
         assert_eq!(
             ast,
             vec![Expr::Assign(Assign {

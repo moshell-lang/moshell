@@ -233,7 +233,7 @@ mod tests {
     #[test]
     fn simple_use() {
         let source = Source::unknown("use std::foo::bar");
-        let result = parse(source.clone()).expect("parser failed");
+        let result = parse(source).expect("parser failed");
         assert_eq!(
             result,
             vec![Expr::Use(Use {
@@ -251,7 +251,7 @@ mod tests {
     #[test]
     fn use_with_file() {
         let source = Source::unknown("use ../foo/bar/asm/std::foo::bar");
-        let result = parse(source.clone()).expect("parser failed");
+        let result = parse(source).expect("parser failed");
         assert_eq!(
             result,
             vec![Expr::Use(Use {
@@ -269,7 +269,7 @@ mod tests {
     #[test]
     fn wrong_env_name() {
         let source = Source::unknown("use @9");
-        let result: ParseResult<_> = parse(source.clone()).into();
+        let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Err(ParseError {
@@ -283,7 +283,7 @@ mod tests {
     #[test]
     fn list_use_aliased() {
         let source = Source::unknown("use std::foo::{bar} as X");
-        let result: ParseResult<_> = parse(source.clone()).into();
+        let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Err(ParseError {
@@ -297,7 +297,7 @@ mod tests {
     #[test]
     fn use_empty_list() {
         let source = Source::unknown("use {}");
-        let result: ParseResult<_> = parse(source.clone()).into();
+        let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Err(ParseError {
@@ -311,7 +311,7 @@ mod tests {
     #[test]
     fn use_all() {
         let source = Source::unknown("use *");
-        let result: ParseResult<_> = parse(source.clone()).into();
+        let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Err(ParseError {
@@ -325,7 +325,7 @@ mod tests {
     #[test]
     fn use_all_in() {
         let source = Source::unknown("use std::*");
-        let result = parse(source.clone()).expect("parser failed");
+        let result = parse(source).expect("parser failed");
         assert_eq!(
             result,
             vec![Expr::Use(Use {
@@ -339,7 +339,7 @@ mod tests {
     fn uses() {
         let source =
             Source::unknown("use \n{std::TOKEN as X,    @A \n , @B \\\n , foo::{my_function}}");
-        let result = parse(source.clone()).expect("parser failed");
+        let result = parse(source).expect("parser failed");
         assert_eq!(
             result,
             vec![Expr::Use(Use {

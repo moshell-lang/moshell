@@ -21,7 +21,7 @@ fn repos_delimiter_stack() {
     echo end\n\
     val x=9!3";
     let source = Source::unknown(content);
-    let report = parse(source.clone());
+    let report = parse(source);
     assert_eq!(
         report,
         ParseReport {
@@ -99,7 +99,7 @@ fn what_is_an_import() {
         res = List(5..;, $a)
     }";
     let source = Source::unknown(content);
-    let report = parse(source.clone());
+    let report = parse(source);
     assert_eq!(
         report.errors,
         vec![
@@ -126,7 +126,7 @@ fn what_is_an_import() {
 fn tolerance_in_multiple_groups() {
     let content = "fun f[T, $](x: T, y: +) = $x";
     let source = Source::unknown(content);
-    let report = parse(source.clone());
+    let report = parse(source);
     assert_eq!(
         report,
         ParseReport {
@@ -235,7 +235,7 @@ fn do_not_accumulate_delimiters2() {
 fn no_comma_or_two() {
     let content = "fun test[@](a b,,c) = '";
     let source = Source::unknown(content);
-    let report = parse(source.clone());
+    let report = parse(source);
     assert_eq!(
         report,
         ParseReport {
@@ -271,7 +271,7 @@ fn no_comma_or_two() {
 fn multiple_errors_in_parameters() {
     let content = "f(1 + , if true; $, (2 + 3)";
     let source = Source::unknown(content);
-    let report = parse(source.clone());
+    let report = parse(source);
     assert_eq!(
         report,
         ParseReport {
@@ -302,7 +302,7 @@ fn multiple_errors_in_parameters() {
 fn do_not_self_lock() {
     let content = "fun g[\n, ](, ) = {}";
     let source = Source::unknown(content);
-    let report = parse(source.clone());
+    let report = parse(source);
     assert_eq!(
         report,
         ParseReport {
@@ -343,7 +343,7 @@ fn do_not_self_lock() {
 fn list_are_not_tricked_by_blanks() {
     let content = "fun pow[\n";
     let source = Source::unknown(content);
-    let report = parse(source.clone());
+    let report = parse(source);
     assert_eq!(
         report,
         ParseReport {
@@ -478,7 +478,7 @@ fn expected_double_delimiter_mismatched() {
 fn double_comma_parentheses() {
     let content = "Bar(m , ,)";
     let source = Source::unknown(content);
-    let report = parse(source.clone());
+    let report = parse(source);
     assert_eq!(
         report,
         ParseReport {
@@ -529,7 +529,7 @@ fn double_comma_function() {
 fn quotes_are_delimiters() {
     let content = "LD_PRELOAD=$(dirname $(readlink -f $0))/lib.so \"$@\"";
     let source = Source::unknown(content);
-    let report = parse(source.clone());
+    let report = parse(source);
     assert_eq!(
         report,
         ParseReport {

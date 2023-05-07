@@ -254,7 +254,7 @@ mod tests {
            y@\"test $2\" | 2 | $USER | 't x' => 4 - 7
         }",
         );
-        let ast = parse(source.clone()).expect("parser failed");
+        let ast = parse(source).expect("parser failed");
 
         assert_eq!(
             ast,
@@ -449,7 +449,7 @@ mod tests {
         }\
         ",
         );
-        let ast = parse(source.clone()).expect("parse fail");
+        let ast = parse(source).expect("parse fail");
 
         assert_eq!(
             ast,
@@ -492,7 +492,7 @@ mod tests {
         \n\n }\
         ";
         let source = Source::unknown(content);
-        let ast = parse(source.clone()).expect("parse fail");
+        let ast = parse(source).expect("parse fail");
 
         assert_eq!(
             ast,

@@ -194,7 +194,7 @@ mod test {
     fn expr_redirection() {
         let content = "{ls; cd;} > /tmp/out";
         let source = Source::unknown(content);
-        let parsed = parse(source.clone()).expect("Failed to parse");
+        let parsed = parse(source).expect("Failed to parse");
         assert_eq!(
             parsed,
             vec![Expr::Redirected(Redirected {
@@ -227,7 +227,7 @@ mod test {
     fn call_redirection() {
         let content = "ls> /tmp/out";
         let source = Source::unknown(content);
-        let parsed = Parser::new(source.clone()).call().expect("Failed to parse");
+        let parsed = Parser::new(source).call().expect("Failed to parse");
         assert_eq!(
             parsed,
             Expr::Redirected(Redirected {

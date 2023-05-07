@@ -258,7 +258,7 @@ mod tests {
             continue; break;
             }",
         );
-        let res = parse(source.clone()).expect("parse failed");
+        let res = parse(source).expect("parse failed");
         assert_eq!(
             res,
             vec![Expr::Loop(Loop {
@@ -277,7 +277,7 @@ mod tests {
     #[test]
     fn loop_with_break_and_continues_inline() {
         let source = Source::unknown("loop ssh mabatista1@iut && break");
-        let res = parse(source.clone()).expect("parse failed");
+        let res = parse(source).expect("parse failed");
         assert_eq!(
             res,
             vec![Expr::Loop(Loop {
@@ -307,7 +307,7 @@ mod tests {
     #[test]
     fn test_loop() {
         let source = Source::unknown("loop \n\n \n \n date");
-        let res = parse(source.clone()).expect("parse failed");
+        let res = parse(source).expect("parse failed");
         assert_eq!(
             res,
             vec![Expr::Loop(Loop {
@@ -341,7 +341,7 @@ mod tests {
     #[test]
     fn test_while() {
         let source = Source::unknown("while \n\n \n \n $1 \n\n \n{ echo test }");
-        let res = parse(source.clone()).expect("parse failed");
+        let res = parse(source).expect("parse failed");
         assert_eq!(
             res,
             vec![Expr::While(While {
@@ -368,7 +368,7 @@ mod tests {
     #[test]
     fn for_in_int_range() {
         let source = Source::unknown("for i in 1..10 {\n\techo $i\n}");
-        let expr = parse(source.clone()).expect("Failed to parse");
+        let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::For(For {
@@ -413,7 +413,7 @@ mod tests {
     #[test]
     fn for_in_variable_range() {
         let source = Source::unknown("for n in $a..$b; cat");
-        let expr = parse(source.clone()).expect("Failed to parse");
+        let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::For(For {
@@ -449,7 +449,7 @@ mod tests {
     #[test]
     fn for_in_calculated_range() {
         let source = Source::unknown("for i in (1 + 2)..5; ls");
-        let expr = parse(source.clone()).expect("Failed to parse");
+        let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::For(For {
@@ -495,7 +495,7 @@ mod tests {
     #[test]
     fn for_in_files_range() {
         let source = Source::unknown("for f in * {\n\tfile $f\n}");
-        let expr = parse(source.clone()).expect("Failed to parse");
+        let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::For(For {
@@ -532,7 +532,7 @@ mod tests {
     #[test]
     fn classical_for() {
         let source = Source::unknown("for (( var i=0; $i<10; i=$i + 1 ))\necho $i");
-        let expr = parse(source.clone()).expect("Failed to parse");
+        let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::For(For {

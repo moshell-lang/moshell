@@ -24,7 +24,7 @@ fn empty() {
 #[test]
 fn variable_type_and_initializer() {
     let source = Source::unknown("var a:int=1");
-    let parsed = parse(source.clone()).expect("Failed to parse");
+    let parsed = parse(source).expect("Failed to parse");
 
     let expected = vec![Expr::VarDeclaration(VarDeclaration {
         kind: VarKind::Var,
@@ -51,7 +51,7 @@ fn variable_type_and_initializer() {
 fn expr_cast() {
     let content = "$((1 as Exitcode + 1 as Int)) as Float";
     let source = Source::unknown(content);
-    let result = parse(source.clone()).expect("parse error");
+    let result = parse(source).expect("parse error");
     assert_eq!(
         result,
         vec![Expr::Casted(CastedExpr {
@@ -101,7 +101,7 @@ fn expr_cast() {
 #[test]
 fn lambda_in_val() {
     let source = Source::unknown("val x = (a) => $a + $b");
-    let parsed = parse(source.clone()).expect("Failed to parse.");
+    let parsed = parse(source).expect("Failed to parse.");
     assert_eq!(
         parsed,
         vec![Expr::VarDeclaration(VarDeclaration {
@@ -138,7 +138,7 @@ fn lambda_in_val() {
 #[test]
 fn lambda_empty_params() {
     let source = Source::unknown("() => $a + $b");
-    let parsed = parse(source.clone()).expect("Failed to parse.");
+    let parsed = parse(source).expect("Failed to parse.");
     assert_eq!(
         parsed,
         vec![Expr::LambdaDef(LambdaDef {
@@ -162,7 +162,7 @@ fn lambda_empty_params() {
 #[test]
 fn lambda_in_classic_call() {
     let source = Source::unknown("echo a => $a + $b");
-    let parsed = parse(source.clone()).expect("Failed to parse.");
+    let parsed = parse(source).expect("Failed to parse.");
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
@@ -189,7 +189,7 @@ fn lambda_in_classic_call() {
 #[test]
 fn lambda_one_arg() {
     let source = Source::unknown("calc(n => $n * $n)");
-    let parsed = parse(source.clone()).expect("Failed to parse.");
+    let parsed = parse(source).expect("Failed to parse.");
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
@@ -223,7 +223,7 @@ fn lambda_one_arg() {
 #[test]
 fn lambda_in_pfc() {
     let source = Source::unknown("calc(() => $a + $b)");
-    let parsed = parse(source.clone()).expect("Failed to parse.");
+    let parsed = parse(source).expect("Failed to parse.");
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
@@ -253,7 +253,7 @@ fn lambda_in_pfc() {
 #[test]
 fn identity_lambda() {
     let source = Source::unknown("a => $a");
-    let parsed = parse(source.clone()).expect("Failed to parse.");
+    let parsed = parse(source).expect("Failed to parse.");
     assert_eq!(
         parsed,
         vec![Expr::LambdaDef(LambdaDef {
@@ -274,7 +274,7 @@ fn identity_lambda() {
 #[test]
 fn command_echo() {
     let source = Source::unknown("echo hello");
-    let parsed = parse(source.clone()).expect("Failed to parse");
+    let parsed = parse(source).expect("Failed to parse");
 
     let expected = vec![Expr::Call(Call {
         path: Vec::new(),
@@ -290,7 +290,7 @@ fn command_echo() {
 #[test]
 fn command_starting_with_arg() {
     let source = Source::unknown("- W");
-    let parsed = parse(source.clone()).expect("Failed to parse");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
@@ -304,7 +304,7 @@ fn command_starting_with_arg() {
 #[test]
 fn constructor_in_call() {
     let source = Source::unknown("echo Foo() Bar\\(\\)");
-    let parsed = parse(source.clone()).expect("Failed to parse");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
@@ -331,7 +331,7 @@ fn constructor_in_call() {
 #[test]
 fn arithmetic_multiple_lines() {
     let source = Source::unknown("val n = 1\\\n + 2");
-    let parsed = parse(source.clone()).expect("Failed to parse");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::VarDeclaration(VarDeclaration {
@@ -399,7 +399,7 @@ fn wildcard_redirect_or() {
 #[test]
 fn assign_iterable() {
     let source = Source::unknown("it = 1..10");
-    let parsed = parse(source.clone()).expect("Failed to parse");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Assign(Assign {
@@ -424,7 +424,7 @@ fn assign_iterable() {
 #[test]
 fn for_in_step_2_range() {
     let source = Source::unknown("for i in 1..=10..2; break");
-    let parsed = parse(source.clone()).expect("Failed to parse");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::For(For {
@@ -456,7 +456,7 @@ fn for_in_step_2_range() {
 #[test]
 fn call_not_assign() {
     let source = Source::unknown("a '=' 5");
-    let parsed = parse(source.clone()).expect("Failed to parse");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
@@ -477,7 +477,7 @@ fn call_not_assign() {
 #[test]
 fn constructor_assign() {
     let source = Source::unknown("a = Foo(5)");
-    let parsed = parse(source.clone()).expect("Failed to parse");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Assign(Assign {
@@ -500,7 +500,7 @@ fn constructor_assign() {
 #[test]
 fn programmatic_call() {
     let source = Source::unknown("ssh(localhost, 'ls -l', 8 / 2)");
-    let parsed = parse(source.clone()).expect("Failed to parse");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
@@ -530,7 +530,7 @@ fn programmatic_call() {
 #[test]
 fn classic_call() {
     let source = Source::unknown("ssh localhost , 'ls -l' 8 / 2");
-    let parsed = parse(source.clone()).expect("Failed to parse");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
@@ -558,7 +558,7 @@ fn classic_call() {
 #[test]
 fn method_and_function_calls_mixed() {
     let source = Source::unknown("create().foo(dummy().truthy())\n.bar()");
-    let parsed = parse(source.clone()).expect("Failed to parse");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::MethodCall(MethodCall {
@@ -598,7 +598,7 @@ fn method_and_function_calls_mixed() {
 #[test]
 fn block_method_call() {
     let source = Source::unknown("{ $x }.foo('a')");
-    let parsed = parse(source.clone()).expect("Failed to parse");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::MethodCall(MethodCall {
@@ -620,7 +620,7 @@ fn block_method_call() {
 #[test]
 fn method_call_with_type_params_and_ref() {
     let source = Source::unknown("$a.foo($d);echo \"${c.bar[T]()}\"");
-    let parsed = parse(source.clone()).expect("Failed to parse");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![
@@ -674,7 +674,7 @@ fn comments_mix_with_spaces() {
     ping localhost
 }",
     );
-    let parsed = parse(source.clone()).expect("Failed to parse");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Block(Block {
@@ -694,7 +694,7 @@ fn comments_mix_with_spaces() {
 #[test]
 fn classic_call_no_regression() {
     let source = Source::unknown("test '=>' ,,here, ->..3 54a2 => 1..=9");
-    let parsed = parse(source.clone()).expect("Failed to parse");
+    let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {

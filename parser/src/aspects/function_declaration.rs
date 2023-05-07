@@ -236,7 +236,7 @@ mod tests {
     #[test]
     fn function_with_return() {
         let source = Source::unknown("fun foo() = return 4 + 5");
-        let errs = parse(source.clone()).expect("parse fail");
+        let errs = parse(source).expect("parse fail");
         assert_eq!(
             errs,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
@@ -308,7 +308,7 @@ mod tests {
     #[test]
     fn function_declaration() {
         let source = Source::unknown("fun test() = x");
-        let ast = parse(source.clone()).expect("parse failed");
+        let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
@@ -329,7 +329,7 @@ mod tests {
     #[test]
     fn function_declaration_param() {
         let source = Source::unknown("fun test(x) = $x");
-        let ast = parse(source.clone()).expect("parse failed");
+        let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
@@ -353,7 +353,7 @@ mod tests {
     #[test]
     fn function_declaration_params() {
         let source = Source::unknown("fun test(  x : String  ,  y : Test   ) = x");
-        let ast = parse(source.clone()).expect("parse failed");
+        let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
@@ -395,7 +395,7 @@ mod tests {
     #[test]
     fn function_declaration_tparams() {
         let source = Source::unknown("fun test[X, Y](  x : X  ,  y : Y   ) = x");
-        let ast = parse(source.clone()).expect("parse failed");
+        let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
@@ -450,7 +450,7 @@ mod tests {
     #[test]
     fn function_declaration_vararg() {
         let source = Source::unknown("fun test(X...) = $x");
-        let ast = parse(source.clone()).expect("parse failed");
+        let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
@@ -477,7 +477,7 @@ mod tests {
     #[test]
     fn function_declaration_vararg_notype() {
         let source = Source::unknown("fun test(x: int, ...) = $x");
-        let ast = parse(source.clone()).expect("parse failed");
+        let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
@@ -511,7 +511,7 @@ mod tests {
     #[test]
     fn function_declaration_complete() {
         let source = Source::unknown("fun test[X, Y](  x : X  ,  y : Y   ) -> X = x");
-        let ast = parse(source.clone()).expect("parse failed");
+        let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {

@@ -87,7 +87,7 @@ mod tests {
     fn simple_if() {
         let content = "if [ $1 ]; echo test";
         let source = Source::unknown(content);
-        let ast = parse(source.clone()).expect("parse failed");
+        let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::If(If {
@@ -117,7 +117,7 @@ mod tests {
         let content =
             "if echo a && [[ -f /file/exe ]]; echo test\n\n\nelse if [ $a ] \n;\n { $7 }; else $5";
         let source = Source::unknown(content.clone());
-        let ast = parse(source.clone()).expect("parse failed");
+        let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::If(If {
@@ -176,7 +176,7 @@ mod tests {
     fn if_else_if_separations() {
         let content = "if [ $1 ]; echo test; else if [ $a ]; $7 else $5";
         let source = Source::unknown(content);
-        let ast = parse(source.clone()).expect("parse failed");
+        let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::If(If {
@@ -218,7 +218,7 @@ mod tests {
     #[test]
     fn no_separation_else() {
         let source = Source::unknown("if $x {} else {}");
-        let ast = parse(source.clone()).expect("parse fail");
+        let ast = parse(source).expect("parse fail");
         assert_eq!(
             ast,
             vec![Expr::If(If {
@@ -243,7 +243,7 @@ mod tests {
     fn if_else_as_value() {
         let content = "val x = if [ {date +\"%Y\"} < 2023 ]; \"bash\" else \"moshell\"";
         let source = Source::unknown(content);
-        let ast = parse(source.clone()).expect("parse failed");
+        let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
             vec![Expr::VarDeclaration(VarDeclaration {

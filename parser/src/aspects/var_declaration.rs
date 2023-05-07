@@ -109,7 +109,7 @@ mod tests {
     #[test]
     fn val_declaration() {
         let source = Source::unknown("val variable");
-        let ast = parse(source.clone()).expect("failed to parse");
+        let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,
             vec![Expr::VarDeclaration(VarDeclaration {
@@ -128,7 +128,7 @@ mod tests {
     #[test]
     fn val_declaration_with_type() {
         let source = Source::unknown("val variable: Int");
-        let ast = parse(source.clone()).expect("failed to parse");
+        let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,
             vec![Expr::VarDeclaration(VarDeclaration {
@@ -160,7 +160,7 @@ mod tests {
     #[test]
     fn val_declaration_inferred() {
         let source = Source::unknown("val variable = 'hello $test'");
-        let ast = parse(source.clone()).expect("failed to parse");
+        let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,
             vec![Expr::VarDeclaration(VarDeclaration {
@@ -210,7 +210,7 @@ mod tests {
     #[test]
     fn val_declaration_block_command() {
         let source = Source::unknown("val x = {echo a}");
-        let result = parse(source.clone()).expect("parse fail");
+        let result = parse(source).expect("parse fail");
         assert_eq!(
             result,
             vec![Expr::VarDeclaration(VarDeclaration {
@@ -245,7 +245,7 @@ mod tests {
     #[test]
     fn val_declaration_arithmetic_expr() {
         let source = Source::unknown("val variable = 7 + 2");
-        let ast = parse(source.clone()).expect("failed to parse");
+        let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,
             vec![Expr::VarDeclaration(VarDeclaration {

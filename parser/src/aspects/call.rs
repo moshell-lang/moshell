@@ -336,7 +336,7 @@ mod tests {
     fn call_with_type_parameter() {
         let source = Source::unknown("parse[Int] x y");
         assert_eq!(
-            Parser::new(source.clone()).parse_next(),
+            Parser::new(source).parse_next(),
             Ok(Expr::Call(Call {
                 path: Vec::new(),
                 arguments: vec![
@@ -359,7 +359,7 @@ mod tests {
         let content = "a::b::parse[Int] x y";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source.clone()).parse_next(),
+            Parser::new(source).parse_next(),
             Ok(Expr::Call(Call {
                 path: vec!["a", "b"],
                 arguments: vec![
@@ -402,7 +402,7 @@ mod tests {
     #[test]
     fn multiple_calls() {
         let source = Source::unknown("grep -E regex; echo test");
-        let parsed = parse(source.clone()).expect("Failed to parse");
+        let parsed = parse(source).expect("Failed to parse");
         assert_eq!(
             parsed,
             vec![
@@ -430,7 +430,7 @@ mod tests {
     #[test]
     fn multiline_call() {
         let source = Source::unknown("g++ -std=c++20 \\\n-Wall \\\n-Wextra\\\n-Wpedantic");
-        let parsed = parse(source.clone()).expect("Failed to parse");
+        let parsed = parse(source).expect("Failed to parse");
         assert_eq!(
             parsed,
             vec![Expr::Call(Call {
@@ -450,7 +450,7 @@ mod tests {
     #[test]
     fn escaped_call() {
         let source = Source::unknown("grep -E regex \\; echo test");
-        let parsed = parse(source.clone()).expect("Failed to parse");
+        let parsed = parse(source).expect("Failed to parse");
         assert_eq!(
             parsed,
             vec![Expr::Call(Call {
@@ -472,7 +472,7 @@ mod tests {
     fn empty_constructor() {
         let source = Source::unknown("Foo()");
         let source2 = Source::unknown("Foo( )");
-        let expr = parse(source.clone()).expect("Failed to parse");
+        let expr = parse(source).expect("Failed to parse");
         let expr2 = parse(source2.clone()).expect("Failed to parse");
         let mut expected = ProgrammaticCall {
             path: Vec::new(),
@@ -489,7 +489,7 @@ mod tests {
     #[test]
     fn parse_constructor() {
         let source = Source::unknown("Foo(a, 2, c)");
-        let expr = parse(source.clone()).expect("Failed to parse");
+        let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
@@ -512,7 +512,7 @@ mod tests {
     #[test]
     fn constructor_with_newlines_and_space() {
         let source = Source::unknown("Foo( \\\nthis , \\\n  is,\\\nfine)");
-        let expr = parse(source.clone()).expect("Failed to parse");
+        let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
@@ -532,7 +532,7 @@ mod tests {
     #[test]
     fn constructor_accept_string_literals() {
         let source = Source::unknown("Foo('===\ntesting something\n===', c)");
-        let expr = parse(source.clone()).expect("Failed to parse");
+        let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
@@ -554,7 +554,7 @@ mod tests {
     #[test]
     fn generic_constructor() {
         let source = Source::unknown("List[Str]('hi')");
-        let expr = parse(source.clone()).expect("Failed to parse");
+        let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
@@ -578,7 +578,7 @@ mod tests {
     #[test]
     fn pfc_within_pfc() {
         let source = Source::unknown("foo[Str](bar(), other[A]())");
-        let expr = parse(source.clone()).expect("Failed to parse");
+        let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
@@ -619,7 +619,7 @@ mod tests {
     #[test]
     fn pfc_within_pfc_with_path() {
         let source = Source::unknown("a::b::foo[Str](std::bar(), foo::other[A]())");
-        let expr = parse(source.clone()).expect("Failed to parse");
+        let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
@@ -660,7 +660,7 @@ mod tests {
     #[test]
     fn generic_constructor_with_include_path() {
         let source = Source::unknown("foo::bar::List[Str]('hi')");
-        let expr = parse(source.clone()).expect("Failed to parse");
+        let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {

@@ -244,7 +244,7 @@ mod tests {
         let content = "MyType";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source.clone()).parse_specific(Parser::parse_type),
+            Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Parametrized(ParametrizedType {
                 path: vec![],
                 name: "MyType",
@@ -259,7 +259,7 @@ mod tests {
         let content = "std::MyType";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source.clone()).parse_specific(Parser::parse_type),
+            Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Parametrized(ParametrizedType {
                 path: vec!["std"],
                 name: "MyType",
@@ -291,7 +291,7 @@ mod tests {
         let content = "MyType[A[X, Y[Any], foo::Z], B[std::C[D]]]";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source.clone()).parse_specific(Parser::parse_type),
+            Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Parametrized(ParametrizedType {
                 path: vec![],
                 name: "MyType",
@@ -396,7 +396,7 @@ mod tests {
         let content = "A => B";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source.clone()).parse_specific(Parser::parse_type),
+            Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Callable(CallableType {
                 params: vec![Type::Parametrized(ParametrizedType {
                     path: vec![],
@@ -488,7 +488,7 @@ mod tests {
         let content = "() => B";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source.clone()).parse_specific(Parser::parse_type),
+            Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Callable(CallableType {
                 params: vec![],
                 output: Box::new(Type::Parametrized(ParametrizedType {
@@ -507,7 +507,7 @@ mod tests {
         let content = "A => Unit";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source.clone()).parse_specific(Parser::parse_type),
+            Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Callable(CallableType {
                 params: vec![Type::Parametrized(ParametrizedType {
                     path: vec![],
@@ -531,7 +531,7 @@ mod tests {
         let content = "(A, B, C) => D";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source.clone()).parse_specific(Parser::parse_type),
+            Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Callable(CallableType {
                 params: vec![
                     Type::Parametrized(ParametrizedType {
@@ -568,7 +568,7 @@ mod tests {
     fn chained_lambdas() {
         let content = "((A => B) => C) => D";
         let source = Source::unknown(content);
-        let ast = Parser::new(source.clone()).parse_specific(Parser::parse_type);
+        let ast = Parser::new(source).parse_specific(Parser::parse_type);
         assert_eq!(
             ast,
             Ok(Type::Callable(CallableType {
@@ -627,7 +627,7 @@ mod tests {
     fn parenthesised_lambda_input() {
         let content = "(A, B, C) => D => E";
         let source = Source::unknown(content);
-        let ast = Parser::new(source.clone()).parse_specific(Parser::parse_type);
+        let ast = Parser::new(source).parse_specific(Parser::parse_type);
         assert_eq!(
             ast,
             Ok(Type::Callable(CallableType {

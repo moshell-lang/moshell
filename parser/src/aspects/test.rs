@@ -115,7 +115,7 @@ mod tests {
     #[test]
     fn native_empty() {
         let source = Source::unknown("[]");
-        let result: ParseResult<_> = parse(source.clone()).into();
+        let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Err(ParseError {
@@ -144,7 +144,7 @@ mod tests {
     #[test]
     fn call_empty() {
         let source = Source::unknown("[[]]");
-        let result = parse(source.clone()).expect("parsing failed");
+        let result = parse(source).expect("parsing failed");
         assert_eq!(
             result,
             vec![Expr::Call(Call {
@@ -161,7 +161,7 @@ mod tests {
     #[test]
     fn call_with_content() {
         let source = Source::unknown("[[48 -gt 100]]");
-        let result = parse(source.clone()).expect("parsing failed");
+        let result = parse(source).expect("parsing failed");
         assert_eq!(
             result,
             vec![Expr::Call(Call {
@@ -289,7 +289,7 @@ mod tests {
     #[test]
     fn not_call() {
         let source = Source::unknown("!grep -E '^[0-9]+$'");
-        let result = parse(source.clone()).expect("parse fail");
+        let result = parse(source).expect("parse fail");
         assert_eq!(
             result,
             vec![Expr::Not(Not {
@@ -310,7 +310,7 @@ mod tests {
     #[test]
     fn not() {
         let source = Source::unknown("! ($a && $b) || ! $2 == 78");
-        let result = parse(source.clone()).expect("parse error");
+        let result = parse(source).expect("parse error");
         assert_eq!(
             result,
             vec![Expr::Binary(BinaryOperation {
