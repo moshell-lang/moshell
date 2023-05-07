@@ -1,7 +1,4 @@
-use crate::environment::Environment;
 use crate::types::class::{ClassTypeDefinition, TypeClass};
-use crate::types::types::Type;
-use std::cell::RefCell;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
@@ -9,6 +6,7 @@ use std::rc::Rc;
 
 use crate::import_engine::ContextExports;
 use crate::name::Name;
+use crate::types::Type;
 
 /// A type environment.
 ///
@@ -29,10 +27,6 @@ impl PartialEq for TypeContext {
 }
 
 impl ContextExports<Rc<TypeClass>> for TypeContext {
-    fn from_env(env: Rc<RefCell<Environment>>) -> Rc<RefCell<Self>> {
-        env.borrow().type_context.clone()
-    }
-
     fn find_exported(&self, name: &Name) -> Option<Rc<TypeClass>> {
         self.classes.get(name).filter(|tc| tc.is_exported).cloned()
     }
@@ -180,7 +174,7 @@ mod tests {
     use crate::name::Name;
     use crate::types::class::ClassTypeDefinition;
     use crate::types::context::TypeContext;
-    use crate::types::types::Type;
+    use crate::types::Type;
     use pretty_assertions::assert_eq;
 
     #[test]

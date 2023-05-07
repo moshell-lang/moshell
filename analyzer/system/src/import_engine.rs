@@ -1,8 +1,5 @@
-use crate::environment::Environment;
 use crate::name::Name;
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 ///The import engine is a structure that hosts all the imported symbols of an environment.
 /// Its implementation allows to insert new imports in the engine
@@ -53,9 +50,6 @@ pub struct UnusedSymbol {
 
 ///A trait to access exported symbols of a context.
 pub trait ContextExports<S> {
-    ///Retrieve the context from given environment.
-    fn from_env(env: Rc<RefCell<Environment>>) -> Rc<RefCell<Self>>;
-
     ///Find an exported symbol of type S in this context with given relative name
     fn find_exported(&self, name: &Name) -> Option<S>;
 

@@ -3,7 +3,6 @@ use crate::name::Name;
 use crate::types::class::TypeClass;
 use crate::types::context::TypeContext;
 use crate::variables::Variables;
-use std::cell::RefCell;
 use std::rc::Rc;
 
 ///! The type environment of the analyzer.
@@ -36,7 +35,7 @@ pub struct Environment {
     pub fqn: Name,
 
     /// The environment's type context.
-    pub type_context: Rc<RefCell<TypeContext>>,
+    pub type_context: TypeContext,
 
     /// The variables that are declared in the environment.
     pub variables: Variables,
@@ -50,22 +49,15 @@ pub enum Symbol {
 
 /// Top level context implementation for the environment.
 impl ContextExports<Symbol> for Environment {
-    fn from_env(env: Rc<RefCell<Environment>>) -> Rc<RefCell<Self>> {
-        env
-    }
-
     ///Finds the exported symbol.
     /// Types haves priority over other symbols (function, global)
     fn find_exported(&self, name: &Name) -> Option<Symbol> {
-        self.type_context
-            .borrow()
-            .find_exported(name)
-            .map(Symbol::TypeClass)
+        self.type_context.find_exported(name).map(Symbol::TypeClass)
     }
 
     ///Appends all exported names from the different sub contexts of the environment.
     fn list_exported_names(&self, symbol: Option<Name>) -> Vec<Name> {
-        self.type_context.borrow().list_exported_names(symbol)
+        self.type_context.list_exported_names(symbol)
     }
 }
 
@@ -73,7 +65,7 @@ impl Environment {
     pub fn named(name: Name) -> Self {
         Self {
             fqn: name.clone(),
-            type_context: Rc::new(RefCell::new(TypeContext::new(name))),
+            type_context: TypeContext::new(name),
             variables: Variables::default(),
         }
     }
@@ -82,7 +74,6 @@ impl Environment {
         let env_fqn = self.fqn.child(name);
 
         let type_context = TypeContext::new(env_fqn.clone());
-        let type_context = Rc::new(RefCell::new(type_context));
         Self {
             type_context,
             fqn: env_fqn,

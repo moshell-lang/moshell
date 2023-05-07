@@ -169,11 +169,11 @@ impl<'a> Parser<'a> {
                 let start = self.cursor.relative_pos(start).start;
                 let end = self.cursor.relative_pos(self.cursor.peek()).end;
                 let selection = start..end;
-                Err(self.mk_parse_error(
+                return self.expected_with(
                     "wildcard pattern cannot be followed by other patterns",
                     &self.source.source[selection],
                     ParseErrorKind::Unexpected,
-                ))
+                );
             };
         }
 

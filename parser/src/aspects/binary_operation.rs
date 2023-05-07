@@ -50,13 +50,13 @@ impl<'p> Parser<'p> {
         P: FnMut(&mut Self) -> ParseResult<Expr<'p>>,
     {
         let mut operation = self.binary_operation_internal(left, parse)?;
-        macro_rules! hit_eox {
+        macro_rules! has_content {
             () => {
-                self.cursor.lookahead(spaces().then(eox())).is_some()
+                self.cursor.lookahead(spaces().then(eox())).is_none()
             };
         }
 
-        while !hit_eox!() && self.has_priority(priority) {
+        while has_content!() && self.has_priority(priority) {
             operation = self.binary_operation_internal(operation, parse)?;
         }
 

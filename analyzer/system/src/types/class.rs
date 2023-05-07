@@ -1,7 +1,7 @@
 use crate::lang_types::any;
 use crate::name::Name;
 use crate::types::context::TypeContext;
-use crate::types::types::{ParameterizedType, Type};
+use crate::types::{ParameterizedType, Type};
 use context::display::fmt_comma_separated;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
@@ -288,7 +288,7 @@ mod tests {
 
     use crate::name::Name;
     use crate::types::class::{ClassTypeDefinition, GenericParam, TypeClass, TypeParamAssociation};
-    use crate::types::types::{ParameterizedType, Type};
+    use crate::types::{ParameterizedType, Type};
     use pretty_assertions::assert_eq;
 
     #[test]

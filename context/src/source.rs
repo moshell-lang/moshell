@@ -33,6 +33,11 @@ impl<'a> Source<'a> {
     pub fn len(&self) -> usize {
         self.source.len()
     }
+
+    /// Tests if the source is empty.
+    pub fn is_empty(&self) -> bool {
+        self.source.is_empty()
+    }
 }
 
 impl Debug for Source<'_> {
