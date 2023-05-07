@@ -1,7 +1,11 @@
-use crate::import_engine::{ContextExports, ImportEngine};
-use crate::layers::ModuleLayers;
+use crate::import_engine::ContextExports;
 use crate::name::Name;
 use crate::types::class::TypeClass;
+use crate::types::context::TypeContext;
+use crate::variables::Variables;
+use std::cell::RefCell;
+use std::rc::Rc;
+
 ///! The type environment of the analyzer.
 ///!
 ///! An environment maps local variable names to their type and keep tracks of scopes.
@@ -22,23 +26,20 @@ use crate::types::class::TypeClass;
 ///!     echo $n;
 ///! }
 ///! ```
-use crate::types::context::TypeContext;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 /// An environment.
 /// The Environment contains the defined types, variables, structure and function definitions of a certain scope.
 /// It can have dependencies over other environments.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Environment {
     ///Fully qualified name of the environment
     pub fqn: Name,
 
-    ///The import engine, see [[ImportEngine]] for further details.
-    pub imports: ImportEngine,
-
     /// The environment's type context.
     pub type_context: Rc<RefCell<TypeContext>>,
+
+    /// The variables that are declared in the environment.
+    pub variables: Variables,
 }
 
 ///All kind of symbols in the environment
@@ -69,35 +70,31 @@ impl ContextExports<Symbol> for Environment {
 }
 
 impl Environment {
-    pub fn new(fqn: Name, layers: Rc<RefCell<ModuleLayers>>) -> Self {
-        let imports = ImportEngine::new(layers);
+    pub fn named(name: Name) -> Self {
         Self {
-            imports: imports.clone(),
-            type_context: Rc::new(RefCell::new(TypeContext::new(fqn.clone(), imports.fixed()))),
-            fqn,
+            fqn: name.clone(),
+            type_context: Rc::new(RefCell::new(TypeContext::new(name))),
+            variables: Variables::default(),
         }
     }
 
-    pub fn lang(layers: Rc<RefCell<ModuleLayers>>) -> Self {
-        let imports = ImportEngine::empty(layers);
-        Self {
-            imports: imports.clone(),
-            type_context: TypeContext::lang(imports.fixed()),
-            fqn: Name::new("lang"),
-        }
-    }
-
-    pub(crate) fn fork(&self, name: &str) -> Result<Environment, String> {
+    pub fn fork(&self, name: &str) -> Environment {
         let env_fqn = self.fqn.child(name);
-        let mut imports = self.imports.clone();
-        imports.import_all_in(&env_fqn)?;
 
-        let type_context = TypeContext::new(env_fqn.clone(), imports.fixed());
+        let type_context = TypeContext::new(env_fqn.clone());
         let type_context = Rc::new(RefCell::new(type_context));
-        Ok(Self {
-            imports,
+        Self {
             type_context,
             fqn: env_fqn,
-        })
+            variables: Variables::default(),
+        }
+    }
+
+    pub fn begin_scope(&mut self) {
+        self.variables.begin_scope();
+    }
+
+    pub fn end_scope(&mut self) {
+        self.variables.end_scope();
     }
 }

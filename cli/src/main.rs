@@ -20,7 +20,8 @@ fn main() -> io::Result<()> {
 
     if let Some(source) = cli.source {
         let content = std::fs::read_to_string(&source)?;
-        let source = Source::new(&content, source.to_string_lossy().as_ref());
+        let name = source.to_string_lossy();
+        let source = Source::new(&content, &name);
         let report = parse(source.clone());
         let errors = report
             .errors
