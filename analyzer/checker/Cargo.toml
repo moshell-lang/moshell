@@ -12,3 +12,4 @@ parser = { path = "../../parser" }
 context = { path = "../../context" }
 
 [dev-dependencies]
+parser = { path = "../../parser" }

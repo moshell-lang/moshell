@@ -1,4 +1,5 @@
 use analyzer_system::environment::Environment;
+use analyzer_system::name::Name;
 use analyzer_system::resolver::SourceObjectId;
 use ast::Expr;
 
@@ -36,8 +37,35 @@ impl<'a> Engine<'a> {
         SourceObjectId(id)
     }
 
-    /// Attaches an environment to an origin.
-    pub fn attach(&mut self, id: SourceObjectId, env: Environment) {
+    /// Attaches an environment to an origin if the origin does not already have an attached environment.
+    pub fn attach(&mut self, id: SourceObjectId, env: Environment) -> Result<(), String> {
+        if self.origins[id.0].1.is_some() {
+            return Err(format!("Could not attach environment to {}: an environment is already attached", id.0))
+        }
         self.origins[id.0].1 = Some(env);
+        Ok(())
+    }
+
+    pub fn find_environment_by_name(&self, name: &Name) -> Option<SourceObjectId> {
+        let mut index: usize = 0;
+        for (_, env) in &self.origins {
+            if let Some(env) = env {
+                if &env.fqn == name {
+                    return Some(SourceObjectId(index))
+                }
+            }
+            index += 1;
+        }
+        return None
+    }
+
+    pub fn find_environment(&self, id: SourceObjectId) -> Option<&'a Environment> {
+        self.origins.get(id.0).and_then(|(_, env)| {
+            // SAFETY: As the Engine hosts the Environments and may not remove or replace an environment,
+            //The reference behind Environment does not change and is valid for the lifetime of the engine.
+            unsafe {
+                std::mem::transmute::<Option<&Environment>, Option<&'a Environment>>(env.as_ref())
+            }
+        })
     }
 }

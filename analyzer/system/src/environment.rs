@@ -1,4 +1,3 @@
-use crate::import_engine::ContextExports;
 use crate::name::Name;
 use crate::types::class::TypeClass;
 use crate::types::context::TypeContext;
@@ -45,20 +44,6 @@ pub struct Environment {
 pub enum Symbol {
     /// The type class symbol from the type context
     TypeClass(Rc<TypeClass>),
-}
-
-/// Top level context implementation for the environment.
-impl ContextExports<Symbol> for Environment {
-    ///Finds the exported symbol.
-    /// Types haves priority over other symbols (function, global)
-    fn find_exported(&self, name: &Name) -> Option<Symbol> {
-        self.type_context.find_exported(name).map(Symbol::TypeClass)
-    }
-
-    ///Appends all exported names from the different sub contexts of the environment.
-    fn list_exported_names(&self, symbol: Option<Name>) -> Vec<Name> {
-        self.type_context.list_exported_names(symbol)
-    }
 }
 
 impl Environment {

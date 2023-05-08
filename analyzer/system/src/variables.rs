@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::num::NonZeroUsize;
 
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
-enum TypeInfo {
+pub enum TypeInfo {
     #[default]
     Unknown,
     Ref(Symbol),
@@ -38,6 +38,16 @@ impl Variables {
                 .or_insert_with(|| resolver.track_new_object(state)))
             .into(),
         }
+    }
+
+    pub fn position_exported_var(&self, name: &str) -> Option<ObjectId> {
+        self.locals.position_reachable_local(name)
+    }
+    
+    
+    pub fn list_exported_vars(&self) -> impl Iterator<Item=&Variable> {
+        //consider for now that all local vars are exported.
+        self.locals.vars.iter()
     }
 
     pub fn begin_scope(&mut self) {
@@ -124,11 +134,11 @@ impl Default for Locals {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct Variable {
+pub struct Variable {
     /// The name identifier of the variable.
-    name: String,
+    pub name: String,
 
-    ty: TypeInfo,
+    pub ty: TypeInfo,
 
     /// The depth of the variable.
     ///

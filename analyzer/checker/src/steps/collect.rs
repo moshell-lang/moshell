@@ -6,33 +6,20 @@ use analyzer_system::resolver::{Resolver, SourceObjectId};
 use ast::group::Block;
 use ast::r#use::Import;
 use ast::Expr;
-use context::source::SourceSegmentHolder;
-use parser::err::ParseError;
 use parser::parse;
 use std::collections::HashSet;
-use std::io;
+use context::source::SourceSegmentHolder;
+use crate::steps::lib::GatherError;
 
 #[derive(Debug, Clone, Copy)]
 struct ResolutionState {
     module: SourceObjectId,
 }
 
-#[derive(Debug)]
-pub enum GatherError {
-    Import(io::Error),
-    Parse(Vec<ParseError>),
-}
-
-impl From<io::Error> for GatherError {
-    fn from(err: io::Error) -> Self {
-        Self::Import(err)
-    }
-}
-
 /// Explores the entry point and all its recursive dependencies.
 ///
 /// This collects all the symbols that are used, locally or not yet resolved if they are global.
-pub fn first_pass<'a>(
+pub fn collect_symbols<'a>(
     engine: &mut Engine<'a>,
     resolver: &mut Resolver,
     entry_point: Name,
@@ -69,7 +56,7 @@ pub fn first_pass<'a>(
             module: engine.track(&root_block),
         };
         tree_walk(engine, resolver, &mut env, state, root_block);
-        engine.attach(state.module, env)
+        engine.attach(state.module, env).map_err(GatherError::Internal)?
     }
     Ok(())
 }

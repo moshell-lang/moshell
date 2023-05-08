@@ -6,10 +6,16 @@ use std::fs::read_to_string;
 use std::io;
 use std::path::PathBuf;
 
+#[derive(Debug)]
+pub enum ImportError {
+    IO(io::Error),
+    Message(String)
+}
+
 /// An importer is responsible for holding source code from a given import name.
 pub trait Importer<'a> {
     /// Gets a source reference from the given import name.
-    fn import(&mut self, name: &Name) -> Result<Source<'a>, io::Error>;
+    fn import(&mut self, name: &Name) -> Result<Source<'a>, ImportError>;
 }
 
 /// An importer that reads files from a given root directory.
@@ -34,7 +40,8 @@ impl FileImporter {
 }
 
 impl<'a> Importer<'a> for FileImporter {
-    fn import(&mut self, name: &Name) -> Result<Source<'a>, io::Error> {
+
+    fn import(&mut self, name: &Name) -> Result<Source<'a>, ImportError> {
         let source = match self.cache.entry(name.clone()) {
             Entry::Occupied(entry) => unsafe {
                 // SAFETY: Source refers to the String behind the entry.
@@ -51,7 +58,8 @@ impl<'a> Importer<'a> for FileImporter {
                         path.set_extension("msh");
                         read_to_string(&path)
                     })
-                    .map(|content| OwnedSource::new(content, path.to_string_lossy().to_string()))?;
+                    .map(|content| OwnedSource::new(content, path.to_string_lossy().to_string()))
+                    .map_err(ImportError::IO)?;
                 entry.insert(source).as_source()
             }
         };
@@ -62,3 +70,26 @@ impl<'a> Importer<'a> for FileImporter {
         })
     }
 }
+
+pub struct CachedImporter<'a> {
+    map: HashMap<Name, Source<'a>>,
+}
+
+impl<'a> CachedImporter<'a> {
+    pub fn new<const N: usize>(sources: [(Name, Source<'a>); N]) -> Self {
+        Self {
+            map: HashMap::from(sources)
+        }
+    }
+}
+
+impl<'a> Importer<'a> for CachedImporter<'a> {
+
+    fn import(&mut self, name: &Name) -> Result<Source<'a>, ImportError> {
+        self.map
+            .get(name)
+            .cloned()
+            .ok_or_else(|| ImportError::Message(format!("unknown cached source {name}.")))
+    }
+}
+

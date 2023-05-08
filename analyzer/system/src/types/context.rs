@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
-use crate::import_engine::ContextExports;
 use crate::name::Name;
 use crate::types::Type;
 
@@ -23,26 +22,6 @@ pub struct TypeContext {
 impl PartialEq for TypeContext {
     fn eq(&self, other: &Self) -> bool {
         self.fqn == other.fqn && self.classes == other.classes
-    }
-}
-
-impl ContextExports<Rc<TypeClass>> for TypeContext {
-    fn find_exported(&self, name: &Name) -> Option<Rc<TypeClass>> {
-        self.classes.get(name).filter(|tc| tc.is_exported).cloned()
-    }
-
-    fn list_exported_names(&self, symbol: Option<Name>) -> Vec<Name> {
-        let parts = symbol.map(Name::into_vec).unwrap_or_default();
-        self.classes
-            .iter()
-            .filter_map(|(k, v)| {
-                if k.path() == parts.as_slice() {
-                    Some(v.fqcn.relative_to(&self.fqn).unwrap())
-                } else {
-                    None
-                }
-            })
-            .collect()
     }
 }
 

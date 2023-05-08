@@ -29,6 +29,12 @@ pub enum Symbol {
     Global(ObjectId),
 }
 
+impl From<GlobalObjectId> for Symbol {
+    fn from(id: GlobalObjectId) -> Self {
+        Symbol::Global(id.0)
+    }
+}
+
 /// The resolved information about a symbol.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct ResolvedSymbol {
@@ -41,19 +47,22 @@ pub struct ResolvedSymbol {
     pub object_id: ObjectId,
 }
 
-impl From<GlobalObjectId> for Symbol {
-    fn from(id: GlobalObjectId) -> Self {
-        Symbol::Global(id.0)
+impl ResolvedSymbol {
+    pub fn new(module: SourceObjectId, object_id: ObjectId) -> Self {
+        Self {
+            module,
+            object_id
+        }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Object {
     /// The symbol that is being resolved, where it is used.
-    origin: SourceObjectId,
+    pub origin: SourceObjectId,
 
     /// The link to the resolved symbol.
-    resolved: Option<ResolvedSymbol>,
+    pub resolved: Option<ResolvedSymbol>,
 }
 
 /// A collection of objects that are tracked globally and may link to each other.
