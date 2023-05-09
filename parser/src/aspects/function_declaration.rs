@@ -8,7 +8,8 @@ use crate::aspects::r#type::TypeAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{
-    blank, blanks, eod, eox, like, lookahead, next, not, of_type, of_types, repeat, MoveOperations,
+    blank, blanks, eod, eox, like, lookahead, next, not, of_type, of_types, repeat, spaces,
+    MoveOperations,
 };
 use crate::parser::{ParseResult, Parser};
 
@@ -59,9 +60,18 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
         let start = self
             .cursor
             .force(of_type(Return), "'return' keyword expected here")?;
+        if self.cursor.advance(spaces()).is_none() {
+            return Ok(Return {
+                expr: None,
+                segment: self.cursor.relative_pos(start),
+            });
+        }
         let expr = Box::new(self.value()?);
         let segment = self.cursor.relative_pos(start).start..expr.segment().end;
-        Ok(Return { expr, segment })
+        Ok(Return {
+            expr: Some(expr),
+            segment,
+        })
     }
 }
 
@@ -245,7 +255,7 @@ mod tests {
                 parameters: vec![],
                 return_type: None,
                 body: Box::new(Expr::Return(Return {
-                    expr: Box::new(Expr::Binary(BinaryOperation {
+                    expr: Some(Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Literal(Literal {
                             parsed: 4.into(),
                             segment: source.source.find('4').map(|p| p..p + 1).unwrap(),
@@ -254,10 +264,23 @@ mod tests {
                         right: Box::new(Expr::Literal(Literal {
                             parsed: 5.into(),
                             segment: source.source.find('5').map(|p| p..p + 1).unwrap(),
-                        }),),
-                    })),
+                        })),
+                    }))),
                     segment: find_between(source.source, "return", "4 + 5")
                 })),
+                segment: source.segment()
+            })]
+        );
+    }
+
+    #[test]
+    fn early_return() {
+        let source = Source::unknown("return");
+        let exprs = parse(source).expect("parse fail");
+        assert_eq!(
+            exprs,
+            vec![Expr::Return(Return {
+                expr: None,
                 segment: source.segment()
             })]
         );

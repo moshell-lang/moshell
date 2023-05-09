@@ -7,7 +7,7 @@ use src_macros::segment_holder;
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Return<'a> {
-    pub expr: Box<Expr<'a>>,
+    pub expr: Option<Box<Expr<'a>>>,
 }
 
 #[segment_holder]
