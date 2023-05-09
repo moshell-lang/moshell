@@ -2,11 +2,10 @@ use crate::resolver::{GlobalObjectId, ObjectId, Resolver, SourceObjectId, Symbol
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
 
-#[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
-enum TypeInfo {
-    #[default]
-    Unknown,
-    Ref(Symbol),
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum TypeInfo {
+    Variable,
+    Function,
 }
 
 /// A collection of variables
@@ -17,8 +16,8 @@ pub struct Variables {
 }
 
 impl Variables {
-    pub fn declare_local(&mut self, name: String) {
-        self.locals.declare(name);
+    pub fn declare_local(&mut self, name: String, ty: TypeInfo) -> Symbol {
+        self.locals.declare(name, ty)
     }
 
     /// Identifies a named variable to a binding.
@@ -63,12 +62,18 @@ struct Locals {
 
 impl Locals {
     /// Adds a new variable and binds it to the current scope.
-    fn declare(&mut self, name: String) {
+    fn declare(&mut self, name: String, ty: TypeInfo) -> Symbol {
+        let id = self.vars.len();
         self.vars.push(Variable {
             name,
             depth: Some(self.current_depth),
-            ty: TypeInfo::Unknown,
+            ty,
         });
+        Symbol::Local(id)
+    }
+
+    fn declare_variable(&mut self, name: String) {
+        self.declare(name, TypeInfo::Variable);
     }
 
     /// Moves into a new scope.
@@ -150,7 +155,7 @@ impl Variable {
         Self {
             name,
             depth: NonZeroUsize::try_from(depth).ok(),
-            ty: TypeInfo::Unknown,
+            ty: TypeInfo::Variable,
         }
     }
 }
@@ -162,9 +167,9 @@ mod tests {
     #[test]
     fn access_by_name() {
         let mut locals = Locals::default();
-        locals.declare("foo".to_owned());
+        locals.declare_variable("foo".to_owned());
         locals.begin_scope();
-        locals.declare("bar".to_owned());
+        locals.declare_variable("bar".to_owned());
         assert_eq!(
             locals.lookup_reachable_local("foo"),
             Some(&Variable::scoped("foo".to_owned(), 1))
@@ -179,7 +184,7 @@ mod tests {
     fn access_out_of_scope() {
         let mut locals = Locals::default();
         locals.begin_scope();
-        locals.declare("bar".to_owned());
+        locals.declare_variable("bar".to_owned());
         locals.end_scope();
         assert_eq!(locals.lookup_reachable_local("bar"), None);
         locals.begin_scope();
@@ -189,10 +194,10 @@ mod tests {
     #[test]
     fn shadow_nested() {
         let mut locals = Locals::default();
-        locals.declare("foo".to_owned());
+        locals.declare_variable("foo".to_owned());
         locals.begin_scope();
         locals.begin_scope();
-        locals.declare("foo".to_owned());
+        locals.declare_variable("foo".to_owned());
         assert_eq!(
             locals.lookup_reachable_local("foo"),
             Some(&Variable::scoped("foo".to_owned(), 3))

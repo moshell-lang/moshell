@@ -1,9 +1,9 @@
-use crate::import_engine::ContextExports;
 use crate::name::Name;
-use crate::types::class::TypeClass;
+use crate::resolver::{SourceObjectId, Symbol};
 use crate::types::context::TypeContext;
 use crate::variables::Variables;
-use std::rc::Rc;
+use context::source::{SourceSegment, SourceSegmentHolder};
+use std::collections::HashMap;
 
 ///! The type environment of the analyzer.
 ///!
@@ -31,6 +31,9 @@ use std::rc::Rc;
 /// It can have dependencies over other environments.
 #[derive(Debug, Clone)]
 pub struct Environment {
+    /// The source object id of the parent environment, if the environment is nested.
+    pub parent: Option<SourceObjectId>,
+
     ///Fully qualified name of the environment
     pub fqn: Name,
 
@@ -39,45 +42,32 @@ pub struct Environment {
 
     /// The variables that are declared in the environment.
     pub variables: Variables,
-}
 
-///All kind of symbols in the environment
-pub enum Symbol {
-    /// The type class symbol from the type context
-    TypeClass(Rc<TypeClass>),
-}
-
-/// Top level context implementation for the environment.
-impl ContextExports<Symbol> for Environment {
-    ///Finds the exported symbol.
-    /// Types haves priority over other symbols (function, global)
-    fn find_exported(&self, name: &Name) -> Option<Symbol> {
-        self.type_context.find_exported(name).map(Symbol::TypeClass)
-    }
-
-    ///Appends all exported names from the different sub contexts of the environment.
-    fn list_exported_names(&self, symbol: Option<Name>) -> Vec<Name> {
-        self.type_context.list_exported_names(symbol)
-    }
+    /// A mapping of expression segments to symbols.
+    pub definitions: HashMap<SourceSegment, Symbol>,
 }
 
 impl Environment {
     pub fn named(name: Name) -> Self {
         Self {
+            parent: None,
             fqn: name.clone(),
             type_context: TypeContext::new(name),
             variables: Variables::default(),
+            definitions: HashMap::new(),
         }
     }
 
-    pub fn fork(&self, name: &str) -> Environment {
+    pub fn fork(&self, source_id: SourceObjectId, name: &str) -> Environment {
         let env_fqn = self.fqn.child(name);
 
         let type_context = TypeContext::new(env_fqn.clone());
         Self {
+            parent: Some(source_id),
             type_context,
             fqn: env_fqn,
             variables: Variables::default(),
+            definitions: HashMap::new(),
         }
     }
 
@@ -87,5 +77,17 @@ impl Environment {
 
     pub fn end_scope(&mut self) {
         self.variables.end_scope();
+    }
+
+    /// Adds an annotation to any segment.
+    ///
+    /// This method exposes a low level API to add annotations to segments, preferably use the
+    /// wrapper methods defined in traits in the `checker` crate.
+    pub fn annotate(&mut self, segment: &impl SourceSegmentHolder, symbol: Symbol) {
+        self.definitions.insert(segment.segment(), symbol);
+    }
+
+    pub fn get_raw_symbol(&self, segment: SourceSegment) -> Option<Symbol> {
+        self.definitions.get(&segment).copied()
     }
 }
