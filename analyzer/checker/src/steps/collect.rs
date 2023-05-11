@@ -4,16 +4,29 @@ use analyzer_system::environment::Environment;
 use analyzer_system::name::Name;
 use analyzer_system::resolver::{Resolver, SourceObjectId};
 use ast::group::Block;
-use ast::r#use::Import;
+use ast::r#use::Import as AstImport;
 use ast::Expr;
 use parser::parse;
 use std::collections::HashSet;
-use context::source::SourceSegmentHolder;
+use analyzer_system::import::{UnresolvedImport};
+use context::source::{Source, SourceSegmentHolder};
 use crate::steps::lib::GatherError;
 
 #[derive(Debug, Clone, Copy)]
 struct ResolutionState {
     module: SourceObjectId,
+}
+
+fn import_source<'a>(name: Name, importer: &mut impl Importer<'a>) -> Result<(Source<'a>, Name), String> {
+    let mut parts = name.parts().to_vec();
+    while !parts.is_empty() {
+        let name = Name::from(parts.clone());
+        match importer.import(&name) {
+            Ok(source) => return Ok((source, name)),
+            Err(_) => { parts.pop(); }
+        }
+    }
+    Err(format!("Could not import {name}"))
 }
 
 /// Explores the entry point and all its recursive dependencies.
@@ -25,17 +38,20 @@ pub fn collect_symbols<'a>(
     entry_point: Name,
     importer: &mut impl Importer<'a>,
 ) -> Result<(), GatherError> {
-    // Start by importing the entry point.
-    resolver.visitable.push(entry_point);
+
     // Prevent re-importing the same names.
     let mut visited: HashSet<Name> = HashSet::new();
 
-    while let Some(name) = resolver.visitable.pop() {
+    //Store all names that still needs to be visited.
+    let mut visitable: Vec<Name> = Vec::new();
+    // Start by importing the entry point.
+    visitable.push(entry_point);
+    while let Some(name) = visitable.pop() {
         if !visited.insert(name.clone()) {
             continue;
         }
         // Start by parsing the source read from the importer.
-        let source = importer.import(&name)?;
+        let (source, name) = import_source(name, importer).map_err(GatherError::Internal)?;
         let report = parse(source);
         if report.is_err() {
             return Err(GatherError::Parse(report.errors));
@@ -55,58 +71,101 @@ pub fn collect_symbols<'a>(
         let state = ResolutionState {
             module: engine.track(&root_block),
         };
-        tree_walk(engine, resolver, &mut env, state, root_block);
+        tree_walk(engine, resolver, &mut env, &mut visitable, state, root_block).map_err(GatherError::Internal)?;
         engine.attach(state.module, env).map_err(GatherError::Internal)?
     }
     Ok(())
+}
+
+
+fn collect_import(
+    import: &AstImport,
+    relative_path: Vec<String>,
+    resolver: &mut Resolver,
+    visitable: &mut Vec<Name>,
+    mod_id: SourceObjectId,
+    engine: &Engine,
+) -> Result<(), String> {
+    match import {
+        AstImport::Symbol(s) => {
+            let mut symbol_name = relative_path.clone();
+            symbol_name.extend(s.path.iter().map(|s| s.to_string()));
+            symbol_name.push(s.name.to_string());
+
+            let name = Name::from(symbol_name);
+            let alias = s.alias.map(|s| s.to_string());
+
+            visitable.push(name.clone());
+            let import = UnresolvedImport::Symbol { alias, name };
+
+            resolver.add_import(mod_id, import);
+            Ok(())
+        }
+        AstImport::AllIn(path, _) => {
+            let mut symbol_name = relative_path.clone();
+            symbol_name.extend(path.iter().map(|s| s.to_string()));
+
+            let name = Name::from(symbol_name);
+            visitable.push(name.clone());
+            resolver.add_import(mod_id, UnresolvedImport::AllIn(name));
+            Ok(())
+        }
+
+        AstImport::Environment(_, _) => {
+            Err("import of environment variables and commands are not yet supported.".to_owned())
+        }
+        AstImport::List(list) => {
+            for list_import in &list.imports {
+                //append ImportList's path to current relative path
+                let mut relative = relative_path.clone();
+                relative.extend(list.path.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+
+                collect_import(&list_import, relative, resolver, visitable, mod_id, engine)?
+            }
+            Ok(())
+        }
+    }
 }
 
 fn tree_walk<'a>(
     engine: &mut Engine<'a>,
     resolver: &mut Resolver,
     env: &mut Environment,
+    visitable: &mut Vec<Name>,
     state: ResolutionState,
     expr: &Expr,
-) {
+) -> Result<(), String> {
     match expr {
-        Expr::Use(use_expr) => match &use_expr.import {
-            Import::Symbol(symbol) => {
-                let mut name = symbol
-                    .path
-                    .iter()
-                    .copied()
-                    .map(ToOwned::to_owned)
-                    .collect::<Vec<String>>();
-                name.push(symbol.name.to_owned());
-                resolver.visitable.push(Name::from(name));
-            }
-            _ => todo!("first pass for {:?}", expr),
-        },
+        Expr::Use(use_expr) => collect_import(&use_expr.import, Vec::new(), resolver, visitable, state.module, engine),
         Expr::VarDeclaration(var) => {
             env.variables.declare_local(var.var.name.to_owned());
+            Ok(())
         }
         Expr::VarReference(var) => {
             env.variables.identify(state.module, resolver, var.name);
+            Ok(())
         }
         Expr::Block(block) => {
             env.begin_scope();
             for expr in &block.expressions {
-                tree_walk(engine, resolver, env, state, expr);
+                tree_walk(engine, resolver, env, visitable, state, expr)?;
             }
             env.end_scope();
+            Ok(())
         }
         Expr::If(if_expr) => {
             env.begin_scope();
-            tree_walk(engine, resolver, env, state, &if_expr.condition);
+            tree_walk(engine, resolver, env, visitable, state, &if_expr.condition)?;
             env.end_scope();
             env.begin_scope();
-            tree_walk(engine, resolver, env, state, &if_expr.success_branch);
+            tree_walk(engine, resolver, env, visitable, state, &if_expr.success_branch)?;
             env.end_scope();
             if let Some(else_branch) = &if_expr.fail_branch {
                 env.begin_scope();
-                tree_walk(engine, resolver, env, state, else_branch);
+                tree_walk(engine, resolver, env, visitable, state, else_branch)?;
                 env.end_scope();
             }
+            Ok(())
         }
         _ => todo!("first pass for {:?}", expr),
     }
@@ -145,7 +204,8 @@ mod tests {
         let state = ResolutionState {
             module: engine.track(&expr),
         };
-        tree_walk(&mut engine, &mut resolver, &mut env, state, &expr);
+
+        tree_walk(&mut engine, &mut resolver, &mut env, &mut vec![], state, &expr).expect("tree walk");
         assert_eq!(engine.origins.len(), 1);
         assert_eq!(resolver.objects.len(), 0);
     }

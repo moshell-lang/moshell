@@ -81,7 +81,7 @@ impl Name {
             return None;
         }
         self.parts
-            .split_first()
+            .split_last()
             .map(|(_, tail)| Name::from(tail.to_vec()))
     }
 

@@ -39,11 +39,6 @@ impl Variables {
             .into(),
         }
     }
-
-    pub fn position_exported_var(&self, name: &str) -> Option<ObjectId> {
-        self.locals.position_reachable_local(name)
-    }
-    
     
     pub fn list_exported_vars(&self) -> impl Iterator<Item=&Variable> {
         //consider for now that all local vars are exported.
@@ -122,6 +117,10 @@ impl Locals {
             .rev()
             .position(|var| var.name == name && var.depth.is_some())
     }
+
+    fn iter_locals(&self) -> impl Iterator<Item=&Variable> {
+        self.vars.iter().rev()
+    }
 }
 
 impl Default for Locals {
@@ -179,6 +178,7 @@ mod tests {
             locals.lookup_reachable_local("foo"),
             Some(&Variable::scoped("foo".to_owned(), 1))
         );
+
         assert_eq!(
             locals.lookup_reachable_local("bar"),
             Some(&Variable::scoped("bar".to_owned(), 2))

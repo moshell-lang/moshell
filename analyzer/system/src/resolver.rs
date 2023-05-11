@@ -1,4 +1,5 @@
-use crate::name::Name;
+use std::collections::HashMap;
+use crate::import::{UnresolvedImport, UnresolvedImports};
 
 /// The object identifier base.
 ///
@@ -18,6 +19,8 @@ pub struct GlobalObjectId(pub ObjectId);
 /// A source object identifier, that can be the target of a global resolution.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct SourceObjectId(pub ObjectId);
+
+pub struct ImportsId(pub ObjectId);
 
 /// An indication where an object is located.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -76,11 +79,20 @@ pub struct Resolver {
     /// unique identifiers for all the symbols that do not conflicts with the ones from other modules.
     pub objects: Vec<Object>,
 
-    /// The list of modules that are yet to be visited.
-    pub visitable: Vec<Name>,
+    pub imports: HashMap<SourceObjectId, UnresolvedImports>,
 }
 
 impl Resolver {
+
+    pub fn get_imports_of(&mut self, source: SourceObjectId) -> Option<UnresolvedImports> {
+        self.imports.get(&source).cloned()
+    }
+
+    pub fn add_import(&mut self, source: SourceObjectId, import: UnresolvedImport) {
+        let imports = self.imports.entry(source).or_insert_with(|| UnresolvedImports::new(source));
+        imports.add_unresolved_import(import)
+    }
+
     /// Tracks a new object and returns its identifier.
     pub fn track_new_object(&mut self, origin: SourceObjectId) -> GlobalObjectId {
         let id = self.objects.len();
@@ -90,4 +102,6 @@ impl Resolver {
         });
         GlobalObjectId(id)
     }
+
+
 }
