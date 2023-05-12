@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use crate::name::Name;
+use std::collections::HashMap;
 
 /// The object identifier base.
 ///
@@ -40,13 +40,13 @@ impl From<GlobalObjectId> for Symbol {
 
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct UnresolvedImports {
-    pub imports: Vec<UnresolvedImport>
+    pub imports: Vec<UnresolvedImport>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum UnresolvedImport {
     Symbol { alias: Option<String>, name: Name },
-    AllIn(Name)
+    AllIn(Name),
 }
 
 /// The resolved information about a symbol.
@@ -63,20 +63,13 @@ pub struct ResolvedSymbol {
 
 impl ResolvedSymbol {
     pub fn new(module: SourceObjectId, object_id: ObjectId) -> Self {
-        Self {
-            module,
-            object_id
-        }
+        Self { module, object_id }
     }
 }
 
-
 impl UnresolvedImports {
-
     pub fn new(imports: Vec<UnresolvedImport>) -> Self {
-        Self {
-            imports
-        }
+        Self { imports }
     }
 
     pub fn add_unresolved_import(&mut self, import: UnresolvedImport) {
@@ -97,14 +90,14 @@ impl Object {
     pub fn unresolved(origin: SourceObjectId) -> Self {
         Self {
             origin,
-            resolved: None
+            resolved: None,
         }
     }
-    
+
     pub fn resolved(origin: SourceObjectId, resolved: ResolvedSymbol) -> Self {
         Self {
             origin,
-            resolved: Some(resolved)
+            resolved: Some(resolved),
         }
     }
 }
@@ -124,13 +117,15 @@ pub struct Resolver {
 }
 
 impl Resolver {
-
     pub fn get_imports_of(&mut self, source: SourceObjectId) -> Option<UnresolvedImports> {
         self.imports.get(&source).cloned()
     }
 
     pub fn add_import(&mut self, source: SourceObjectId, import: UnresolvedImport) {
-        let imports = self.imports.entry(source).or_insert_with(UnresolvedImports::default);
+        let imports = self
+            .imports
+            .entry(source)
+            .or_insert_with(UnresolvedImports::default);
         imports.add_unresolved_import(import)
     }
 
@@ -143,6 +138,4 @@ impl Resolver {
         });
         GlobalObjectId(id)
     }
-
-
 }

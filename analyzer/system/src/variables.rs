@@ -40,13 +40,13 @@ impl Variables {
             .into(),
         }
     }
-    
-    pub fn exported_vars(&self) -> impl Iterator<Item=&Variable> {
+
+    pub fn exported_vars(&self) -> impl Iterator<Item = &Variable> {
         //consider for now that all local vars are exported.
         self.locals.vars.iter()
     }
 
-    pub fn global_vars(&self) -> impl Iterator<Item=(&String, &GlobalObjectId)> {
+    pub fn global_vars(&self) -> impl Iterator<Item = (&String, &GlobalObjectId)> {
         self.globals.iter()
     }
 
@@ -123,7 +123,7 @@ impl Locals {
             .position(|var| var.name == name && var.depth.is_some())
     }
 
-    fn iter_locals(&self) -> impl Iterator<Item=&Variable> {
+    fn iter_locals(&self) -> impl Iterator<Item = &Variable> {
         self.vars.iter().rev()
     }
 }

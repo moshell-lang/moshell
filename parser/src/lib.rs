@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 #![deny(warnings)]
 
-use ast::Expr;
 use crate::err::ParseReport;
+use ast::Expr;
 
 use crate::parser::Parser;
 use ast::group::Block;

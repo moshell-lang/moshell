@@ -1,11 +1,11 @@
-use parser::err::ParseError;
 use crate::import::ImportError;
+use parser::err::ParseError;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum GatherError {
     Import(ImportError),
     Parse(Vec<ParseError>),
-    Internal(String),
+    Other(String),
 }
 
 impl From<ImportError> for GatherError {

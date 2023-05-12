@@ -9,7 +9,18 @@ use std::path::PathBuf;
 #[derive(Debug)]
 pub enum ImportError {
     IO(io::Error),
-    Message(String)
+    Message(String),
+}
+
+impl PartialEq for ImportError {
+    fn eq(&self, other: &Self) -> bool {
+        if let ImportError::Message(m1) = other {
+            if let ImportError::Message(m2) = self {
+                return m1 == m2;
+            }
+        }
+        false
+    }
 }
 
 /// An importer is responsible for holding source code from a given import name.
@@ -40,7 +51,6 @@ impl FileImporter {
 }
 
 impl<'a> Importer<'a> for FileImporter {
-
     fn import(&mut self, name: &Name) -> Result<Source<'a>, ImportError> {
         let source = match self.cache.entry(name.clone()) {
             Entry::Occupied(entry) => unsafe {
@@ -78,13 +88,12 @@ pub struct CachedImporter<'a> {
 impl<'a> CachedImporter<'a> {
     pub fn new<const N: usize>(sources: [(Name, Source<'a>); N]) -> Self {
         Self {
-            map: HashMap::from(sources)
+            map: HashMap::from(sources),
         }
     }
 }
 
 impl<'a> Importer<'a> for CachedImporter<'a> {
-
     fn import(&mut self, name: &Name) -> Result<Source<'a>, ImportError> {
         self.map
             .get(name)
@@ -92,4 +101,3 @@ impl<'a> Importer<'a> for CachedImporter<'a> {
             .ok_or_else(|| ImportError::Message(format!("unknown cached source {name}.")))
     }
 }
-

@@ -1,28 +1,33 @@
 use crate::engine::Engine;
 use crate::import::Importer;
+use crate::steps::lib::GatherError;
 use analyzer_system::environment::Environment;
 use analyzer_system::name::Name;
 use analyzer_system::resolver::{Resolver, SourceObjectId, UnresolvedImport};
 use ast::group::Block;
 use ast::r#use::Import as AstImport;
 use ast::Expr;
+use context::source::{Source, SourceSegmentHolder};
 use parser::parse;
 use std::collections::HashSet;
-use context::source::{Source, SourceSegmentHolder};
-use crate::steps::lib::GatherError;
 
 #[derive(Debug, Clone, Copy)]
 struct ResolutionState {
     module: SourceObjectId,
 }
 
-fn import_source<'a>(name: Name, importer: &mut impl Importer<'a>) -> Result<(Source<'a>, Name), String> {
+fn import_source<'a>(
+    name: Name,
+    importer: &mut impl Importer<'a>,
+) -> Result<(Source<'a>, Name), String> {
     let mut parts = name.parts().to_vec();
     while !parts.is_empty() {
         let name = Name::from(parts.clone());
         match importer.import(&name) {
             Ok(source) => return Ok((source, name)),
-            Err(_) => { parts.pop(); }
+            Err(_) => {
+                parts.pop();
+            }
         }
     }
     Err(format!("Could not import {name}"))
@@ -37,7 +42,6 @@ pub fn collect_symbols<'a>(
     entry_point: Name,
     importer: &mut impl Importer<'a>,
 ) -> Result<(), GatherError> {
-
     // Prevent re-importing the same names.
     let mut visited: HashSet<Name> = HashSet::new();
 
@@ -50,7 +54,7 @@ pub fn collect_symbols<'a>(
             continue;
         }
         // Start by parsing the source read from the importer.
-        let (source, name) = import_source(name, importer).map_err(GatherError::Internal)?;
+        let (source, name) = import_source(name, importer).map_err(GatherError::Other)?;
         let report = parse(source);
         if report.is_err() {
             return Err(GatherError::Parse(report.errors));
@@ -58,9 +62,9 @@ pub fn collect_symbols<'a>(
 
         // Immediately transfer the ownership of the AST to the engine.
         let root_block = {
-            let expr = report.unwrap();
+            let expressions = report.unwrap();
             let root_block = Expr::Block(Block {
-                expressions: expr,
+                expressions,
                 segment: source.segment(),
             });
             engine.take(root_block)
@@ -70,14 +74,64 @@ pub fn collect_symbols<'a>(
         let state = ResolutionState {
             module: engine.track(&root_block),
         };
-        tree_walk(engine, resolver, &mut env, &mut visitable, state, root_block).map_err(GatherError::Internal)?;
-        engine.attach(state.module, env).map_err(GatherError::Internal)?
+
+        let expressions = if let Expr::Block(b) = root_block {
+            &b.expressions
+        } else {
+            panic!("root block isn't a Block")
+        };
+
+        let first_expr_pos =
+            collect_heading_uses(&expressions, resolver, &mut visitable, state.module, engine)
+                .map_err(GatherError::Other)?;
+
+        for expr_idx in first_expr_pos..expressions.len() {
+            tree_walk(
+                engine,
+                resolver,
+                &mut env,
+                &mut visitable,
+                state,
+                &expressions[expr_idx],
+            )
+            .map_err(GatherError::Other)?;
+        }
+        engine
+            .attach(state.module, env)
+            .map_err(GatherError::Other)?
     }
     Ok(())
 }
 
+fn collect_heading_uses(
+    exprs: &Vec<Expr>,
+    resolver: &mut Resolver,
+    visitable: &mut Vec<Name>,
+    mod_id: SourceObjectId,
+    engine: &Engine,
+) -> Result<usize, String> {
+    let mut first_expr_pos = 0;
 
-fn collect_import(
+    for expr in exprs {
+        match expr {
+            Expr::Use(use_expr) => {
+                first_expr_pos += 1;
+                collect_use(
+                    &use_expr.import,
+                    Vec::new(),
+                    resolver,
+                    visitable,
+                    mod_id,
+                    engine,
+                )?
+            }
+            _ => break,
+        }
+    }
+    Ok(first_expr_pos)
+}
+
+fn collect_use(
     import: &AstImport,
     relative_path: Vec<String>,
     resolver: &mut Resolver,
@@ -119,7 +173,7 @@ fn collect_import(
                 let mut relative = relative_path.clone();
                 relative.extend(list.path.iter().map(|s| s.to_string()).collect::<Vec<_>>());
 
-                collect_import(&list_import, relative, resolver, visitable, mod_id, engine)?
+                collect_use(&list_import, relative, resolver, visitable, mod_id, engine)?
             }
             Ok(())
         }
@@ -135,7 +189,7 @@ fn tree_walk<'a>(
     expr: &Expr,
 ) -> Result<(), String> {
     match expr {
-        Expr::Use(use_expr) => collect_import(&use_expr.import, Vec::new(), resolver, visitable, state.module, engine)?,
+        Expr::Use(_) => return Err(format!("Unexpected use statement between expressions. use statements can only be declared on top of environment")),
         Expr::VarDeclaration(var) => {
             var.initializer
                 .as_ref()
@@ -146,7 +200,7 @@ fn tree_walk<'a>(
         Expr::VarReference(var) => {
             env.variables.identify(state.module, resolver, var.name);
         }
-        Expr::Literal(_) => {},
+        Expr::Literal(_) => {}
         Expr::Block(block) => {
             env.begin_scope();
             for expr in &block.expressions {
@@ -159,7 +213,14 @@ fn tree_walk<'a>(
             tree_walk(engine, resolver, env, visitable, state, &if_expr.condition)?;
             env.end_scope();
             env.begin_scope();
-            tree_walk(engine, resolver, env, visitable, state, &if_expr.success_branch)?;
+            tree_walk(
+                engine,
+                resolver,
+                env,
+                visitable,
+                state,
+                &if_expr.success_branch,
+            )?;
             env.end_scope();
             if let Some(else_branch) = &if_expr.fail_branch {
                 env.begin_scope();
@@ -175,8 +236,20 @@ fn tree_walk<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::import::CachedImporter;
     use ast::group::Block;
     use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
+
+    #[test]
+    fn use_between_expressions() {
+        let mut engine = Engine::default();
+        let mut resolver = Resolver::default();
+        let mut importer =
+            CachedImporter::new([(Name::new("test"), Source::unknown("use a; $a; use c; $c"))]);
+        let res = collect_symbols(&mut engine, &mut resolver, Name::new("test"), &mut importer);
+        assert_eq!(res,
+                   Err(GatherError::Other("Unexpected use statement between expressions. use statements can only be declared on top of environment".to_string())))
+    }
 
     #[test]
     fn bind_local_variables() {
@@ -206,7 +279,15 @@ mod tests {
             module: engine.track(&expr),
         };
 
-        tree_walk(&mut engine, &mut resolver, &mut env, &mut vec![], state, &expr).expect("tree walk");
+        tree_walk(
+            &mut engine,
+            &mut resolver,
+            &mut env,
+            &mut vec![],
+            state,
+            &expr,
+        )
+        .expect("tree walk");
         assert_eq!(engine.origins.len(), 1);
         assert_eq!(resolver.objects.len(), 0);
     }
