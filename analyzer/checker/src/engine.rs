@@ -7,7 +7,7 @@ use ast::Expr;
 #[derive(Debug, Default)]
 pub struct Engine<'a> {
     /// The engine has the ownership of the AST.
-    asts: Vec<Box<Expr<'a>>>,
+    asts: Vec<Expr<'a>>,
 
     /// Associates a module id to the corresponding environment.
     ///
@@ -19,7 +19,7 @@ pub struct Engine<'a> {
 impl<'a> Engine<'a> {
     /// Takes ownership of an expression and returns a reference to it.
     pub fn take(&mut self, ast: Expr<'a>) -> &'a Expr<'a> {
-        self.asts.push(Box::new(ast));
+        self.asts.push(ast);
         unsafe {
             // SAFETY: Assume for now that expressions are never removed from the engine.
             // The reference behind Box does not change and is valid for the lifetime of the engine.
@@ -51,16 +51,14 @@ impl<'a> Engine<'a> {
 
     ///Finds an environment by its fully qualified name.
     pub fn find_environment_by_name(&self, name: &Name) -> Option<SourceObjectId> {
-        let mut index: usize = 0;
-        for (_, env) in &self.origins {
+        for (index, (_, env)) in self.origins.iter().enumerate() {
             if let Some(env) = env {
                 if &env.fqn == name {
                     return Some(SourceObjectId(index));
                 }
             }
-            index += 1;
         }
-        return None;
+        None
     }
 
     ///Finds an environment by its identifier.

@@ -72,7 +72,7 @@ pub fn collect_symbols<'a>(
 
         let mut env = Environment::named(name);
         let state = ResolutionState {
-            module: engine.track(&root_block),
+            module: engine.track(root_block),
         };
 
         let expressions = if let Expr::Block(b) = root_block {
@@ -82,17 +82,15 @@ pub fn collect_symbols<'a>(
         };
 
         let first_expr_pos =
-            collect_heading_uses(&expressions, resolver, &mut visitable, state.module, engine)
+            collect_heading_uses(expressions, resolver, &mut visitable, state.module)
                 .map_err(GatherError::Other)?;
 
-        for expr_idx in first_expr_pos..expressions.len() {
+        for expr_idx in expressions.iter().skip(first_expr_pos) {
             tree_walk(
-                engine,
                 resolver,
                 &mut env,
-                &mut visitable,
                 state,
-                &expressions[expr_idx],
+                expr_idx,
             )
             .map_err(GatherError::Other)?;
         }
@@ -108,7 +106,6 @@ fn collect_heading_uses(
     resolver: &mut Resolver,
     visitable: &mut Vec<Name>,
     mod_id: SourceObjectId,
-    engine: &Engine,
 ) -> Result<usize, String> {
     let mut first_expr_pos = 0;
 
@@ -122,7 +119,6 @@ fn collect_heading_uses(
                     resolver,
                     visitable,
                     mod_id,
-                    engine,
                 )?
             }
             _ => break,
@@ -137,11 +133,10 @@ fn collect_use(
     resolver: &mut Resolver,
     visitable: &mut Vec<Name>,
     mod_id: SourceObjectId,
-    engine: &Engine,
 ) -> Result<(), String> {
     match import {
         AstImport::Symbol(s) => {
-            let mut symbol_name = relative_path.clone();
+            let mut symbol_name = relative_path;
             symbol_name.extend(s.path.iter().map(|s| s.to_string()));
             symbol_name.push(s.name.to_string());
 
@@ -155,7 +150,7 @@ fn collect_use(
             Ok(())
         }
         AstImport::AllIn(path, _) => {
-            let mut symbol_name = relative_path.clone();
+            let mut symbol_name = relative_path;
             symbol_name.extend(path.iter().map(|s| s.to_string()));
 
             let name = Name::from(symbol_name);
@@ -173,27 +168,25 @@ fn collect_use(
                 let mut relative = relative_path.clone();
                 relative.extend(list.path.iter().map(|s| s.to_string()).collect::<Vec<_>>());
 
-                collect_use(&list_import, relative, resolver, visitable, mod_id, engine)?
+                collect_use(list_import, relative, resolver, visitable, mod_id)?
             }
             Ok(())
         }
     }
 }
 
-fn tree_walk<'a>(
-    engine: &mut Engine<'a>,
+fn tree_walk(
     resolver: &mut Resolver,
     env: &mut Environment,
-    visitable: &mut Vec<Name>,
     state: ResolutionState,
     expr: &Expr,
 ) -> Result<(), String> {
     match expr {
-        Expr::Use(_) => return Err(format!("Unexpected use statement between expressions. use statements can only be declared on top of environment")),
+        Expr::Use(_) => return Err("Unexpected use statement between expressions. use statements can only be declared on top of environment".to_string()),
         Expr::VarDeclaration(var) => {
             var.initializer
                 .as_ref()
-                .map(|expr| tree_walk(engine, resolver, env, visitable, state, expr))
+                .map(|expr| tree_walk(resolver, env, state, expr))
                 .transpose()?;
             env.variables.declare_local(var.var.name.to_owned());
         }
@@ -204,27 +197,20 @@ fn tree_walk<'a>(
         Expr::Block(block) => {
             env.begin_scope();
             for expr in &block.expressions {
-                tree_walk(engine, resolver, env, visitable, state, expr)?;
+                tree_walk(resolver, env, state, expr)?;
             }
             env.end_scope();
         }
         Expr::If(if_expr) => {
             env.begin_scope();
-            tree_walk(engine, resolver, env, visitable, state, &if_expr.condition)?;
+            tree_walk(resolver, env, state, &if_expr.condition)?;
             env.end_scope();
             env.begin_scope();
-            tree_walk(
-                engine,
-                resolver,
-                env,
-                visitable,
-                state,
-                &if_expr.success_branch,
-            )?;
+            tree_walk(resolver, env, state, &if_expr.success_branch)?;
             env.end_scope();
             if let Some(else_branch) = &if_expr.fail_branch {
                 env.begin_scope();
-                tree_walk(engine, resolver, env, visitable, state, else_branch)?;
+                tree_walk(resolver, env, state, else_branch)?;
                 env.end_scope();
             }
         }
@@ -280,10 +266,8 @@ mod tests {
         };
 
         tree_walk(
-            &mut engine,
             &mut resolver,
             &mut env,
-            &mut vec![],
             state,
             &expr,
         )
