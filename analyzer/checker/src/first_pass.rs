@@ -4,12 +4,14 @@ use analyzer_system::environment::Environment;
 use analyzer_system::name::Name;
 use analyzer_system::resolver::{Resolver, SourceObjectId};
 use analyzer_system::variables::TypeInfo;
+use ast::call::Call;
 use ast::control_flow::ForKind;
 use ast::function::FunctionParameter;
 use ast::group::Block;
 use ast::r#match::MatchPattern;
 use ast::r#use::Import;
 use ast::range::Iterable;
+use ast::value::LiteralValue;
 use ast::Expr;
 use context::source::SourceSegmentHolder;
 use parser::err::ParseError;
@@ -141,6 +143,7 @@ fn tree_walk<'a>(
             }
         }
         Expr::Call(call) => {
+            resolve_primitive(env, call);
             for arg in &call.arguments {
                 tree_walk(engine, resolver, env, state, arg);
             }
@@ -319,12 +322,38 @@ fn tree_walk<'a>(
     }
 }
 
+fn extract_literal_argument<'a>(call: &'a Call, nth: usize) -> Option<&'a str> {
+    match call.arguments.get(nth)? {
+        Expr::Literal(lit) => match &lit.parsed {
+            LiteralValue::String(str) => Some(str),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn resolve_primitive(env: &mut Environment, call: &Call) -> Option<()> {
+    let command = extract_literal_argument(call, 0)?;
+    match command {
+        "read" => {
+            let var = extract_literal_argument(call, 1)?;
+            let symbol = env
+                .variables
+                .declare_local(var.to_owned(), TypeInfo::Variable);
+            env.annotate(&call.arguments[1], symbol);
+            Some(())
+        }
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use analyzer_system::resolver::Symbol;
     use ast::function::{FunctionDeclaration, Return};
     use ast::group::Block;
+    use ast::value::Literal;
     use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 
     #[test]
@@ -396,5 +425,34 @@ mod tests {
         let func_env = engine.origins[1].1.as_ref().unwrap();
         assert_eq!(func_env.get_raw_symbol(3..4), Some(Symbol::Local(0)));
         assert_eq!(func_env.get_raw_symbol(13..15), Some(Symbol::Local(0)));
+    }
+
+    #[test]
+    fn bind_primitive() {
+        let expr = Expr::Call(Call {
+            path: vec![],
+            arguments: vec![
+                Expr::Literal(Literal {
+                    parsed: "read".into(),
+                    segment: 0..5,
+                }),
+                Expr::Literal(Literal {
+                    parsed: "foo".into(),
+                    segment: 6..9,
+                }),
+            ],
+            type_parameters: vec![],
+        });
+        let mut engine = Engine::default();
+        let mut resolver = Resolver::default();
+        let mut env = Environment::named(Name::new("test"));
+        let state = ResolutionState {
+            module: engine.track(&expr),
+        };
+        tree_walk(&mut engine, &mut resolver, &mut env, state, &expr);
+        assert_eq!(engine.origins.len(), 1);
+        assert_eq!(resolver.objects.len(), 0);
+        assert_eq!(env.get_raw_symbol(0..5), None);
+        assert_eq!(env.get_raw_symbol(6..9), Some(Symbol::Local(0)));
     }
 }
