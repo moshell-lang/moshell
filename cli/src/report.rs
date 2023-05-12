@@ -54,7 +54,7 @@ impl<'a> FormattedError<'a> {
             },
             message: err.message,
             help: match &err.kind {
-                ParseErrorKind::Expected(expected) => Some(format!("Expected: {:?}", expected)),
+                ParseErrorKind::Expected(expected) => Some(format!("Expected: {expected:?}")),
                 ParseErrorKind::UnexpectedInContext(help) => Some(help.clone()),
                 _ => None,
             },

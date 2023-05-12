@@ -444,7 +444,7 @@ impl<'a> Parser<'a> {
                     return self.expected_with(
                         "Binary operations must be enclosed in a value expression.",
                         slice,
-                        ParseErrorKind::UnexpectedInContext(format!("$(( {} ))", slice)),
+                        ParseErrorKind::UnexpectedInContext(format!("$(( {slice} ))")),
                     );
                 }
             }
