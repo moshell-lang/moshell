@@ -13,6 +13,7 @@ pub enum TypeInfo {
 #[derive(Debug, Clone, Default)]
 pub struct Variables {
     locals: Locals,
+
     globals: HashMap<String, GlobalObjectId>,
 }
 
@@ -40,9 +41,13 @@ impl Variables {
         }
     }
     
-    pub fn list_exported_vars(&self) -> impl Iterator<Item=&Variable> {
+    pub fn exported_vars(&self) -> impl Iterator<Item=&Variable> {
         //consider for now that all local vars are exported.
         self.locals.vars.iter()
+    }
+
+    pub fn global_vars(&self) -> impl Iterator<Item=(&String, &GlobalObjectId)> {
+        self.globals.iter()
     }
 
     pub fn begin_scope(&mut self) {

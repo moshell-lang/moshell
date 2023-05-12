@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::import::{UnresolvedImport, UnresolvedImports};
+use crate::name::Name;
 
 /// The object identifier base.
 ///
@@ -38,6 +38,17 @@ impl From<GlobalObjectId> for Symbol {
     }
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
+pub struct UnresolvedImports {
+    pub imports: Vec<UnresolvedImport>
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum UnresolvedImport {
+    Symbol { alias: Option<String>, name: Name },
+    AllIn(Name)
+}
+
 /// The resolved information about a symbol.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct ResolvedSymbol {
@@ -59,6 +70,20 @@ impl ResolvedSymbol {
     }
 }
 
+
+impl UnresolvedImports {
+
+    pub fn new(imports: Vec<UnresolvedImport>) -> Self {
+        Self {
+            imports
+        }
+    }
+
+    pub fn add_unresolved_import(&mut self, import: UnresolvedImport) {
+        self.imports.push(import)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Object {
     /// The symbol that is being resolved, where it is used.
@@ -66,6 +91,22 @@ pub struct Object {
 
     /// The link to the resolved symbol.
     pub resolved: Option<ResolvedSymbol>,
+}
+
+impl Object {
+    pub fn unresolved(origin: SourceObjectId) -> Self {
+        Self {
+            origin,
+            resolved: None
+        }
+    }
+    
+    pub fn resolved(origin: SourceObjectId, resolved: ResolvedSymbol) -> Self {
+        Self {
+            origin,
+            resolved: Some(resolved)
+        }
+    }
 }
 
 /// A collection of objects that are tracked globally and may link to each other.
@@ -89,7 +130,7 @@ impl Resolver {
     }
 
     pub fn add_import(&mut self, source: SourceObjectId, import: UnresolvedImport) {
-        let imports = self.imports.entry(source).or_insert_with(|| UnresolvedImports::new(source));
+        let imports = self.imports.entry(source).or_insert_with(UnresolvedImports::default);
         imports.add_unresolved_import(import)
     }
 

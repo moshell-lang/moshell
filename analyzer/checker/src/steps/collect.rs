@@ -2,13 +2,12 @@ use crate::engine::Engine;
 use crate::import::Importer;
 use analyzer_system::environment::Environment;
 use analyzer_system::name::Name;
-use analyzer_system::resolver::{Resolver, SourceObjectId};
+use analyzer_system::resolver::{Resolver, SourceObjectId, UnresolvedImport};
 use ast::group::Block;
 use ast::r#use::Import as AstImport;
 use ast::Expr;
 use parser::parse;
 use std::collections::HashSet;
-use analyzer_system::import::{UnresolvedImport};
 use context::source::{Source, SourceSegmentHolder};
 use crate::steps::lib::GatherError;
 
@@ -136,22 +135,24 @@ fn tree_walk<'a>(
     expr: &Expr,
 ) -> Result<(), String> {
     match expr {
-        Expr::Use(use_expr) => collect_import(&use_expr.import, Vec::new(), resolver, visitable, state.module, engine),
+        Expr::Use(use_expr) => collect_import(&use_expr.import, Vec::new(), resolver, visitable, state.module, engine)?,
         Expr::VarDeclaration(var) => {
+            var.initializer
+                .as_ref()
+                .map(|expr| tree_walk(engine, resolver, env, visitable, state, expr))
+                .transpose()?;
             env.variables.declare_local(var.var.name.to_owned());
-            Ok(())
         }
         Expr::VarReference(var) => {
             env.variables.identify(state.module, resolver, var.name);
-            Ok(())
         }
+        Expr::Literal(_) => {},
         Expr::Block(block) => {
             env.begin_scope();
             for expr in &block.expressions {
                 tree_walk(engine, resolver, env, visitable, state, expr)?;
             }
             env.end_scope();
-            Ok(())
         }
         Expr::If(if_expr) => {
             env.begin_scope();
@@ -165,10 +166,10 @@ fn tree_walk<'a>(
                 tree_walk(engine, resolver, env, visitable, state, else_branch)?;
                 env.end_scope();
             }
-            Ok(())
         }
         _ => todo!("first pass for {:?}", expr),
-    }
+    };
+    Ok(())
 }
 
 #[cfg(test)]

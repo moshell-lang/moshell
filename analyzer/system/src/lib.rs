@@ -7,4 +7,3 @@ pub mod name;
 pub mod resolver;
 pub mod types;
 pub mod variables;
-pub mod import;
