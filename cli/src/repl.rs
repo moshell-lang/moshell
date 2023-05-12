@@ -9,11 +9,11 @@ use std::io::Write;
 
 pub fn prompt(handler: GraphicalReportHandler) -> io::Result<()> {
     let stdin = io::stdin();
-    let mut lines = stdin.lock().lines();
+    let lines = stdin.lock().lines();
 
     print_flush!("=> ");
     let mut content = String::new();
-    while let Some(line) = lines.next() {
+    for line in lines {
         let line = line?;
         content.push_str(&line);
         if line.ends_with('\\') {
@@ -23,7 +23,7 @@ pub fn prompt(handler: GraphicalReportHandler) -> io::Result<()> {
         }
 
         let source = Source::new(&content, "stdin");
-        let report = parse(source.clone());
+        let report = parse(source);
         if !report.stack_ended {
             content.push('\n');
             print_flush!(".. ");

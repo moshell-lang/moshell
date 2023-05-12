@@ -135,16 +135,14 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_patterns(&mut self) -> ParseResult<Vec<MatchPattern<'a>>> {
-        macro_rules! is_at_pattern_end {
-            () => {
-                self.cursor
-                    .lookahead(blanks().then(of_types(&[If, FatArrow])))
-                    .is_some()
-            };
-        }
+    fn is_at_pattern_end(&self) -> bool {
+        self.cursor
+            .lookahead(blanks().then(of_types(&[If, FatArrow])))
+            .is_some()
+    }
 
-        if is_at_pattern_end!() {
+    fn parse_patterns(&mut self) -> ParseResult<Vec<MatchPattern<'a>>> {
+        if self.is_at_pattern_end() {
             return self.expected("required pattern", ParseErrorKind::Unexpected);
         }
 
@@ -177,7 +175,7 @@ impl<'a> Parser<'a> {
             };
         }
 
-        if !is_at_pattern_end!() {
+        if !self.is_at_pattern_end() {
             let token = self.cursor.lookahead(blanks().then(any())).unwrap().value;
             return self.expected(
                 format!("unexpected token, expected '|', 'if' or '=>', found '{token}'"),
