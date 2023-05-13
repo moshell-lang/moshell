@@ -7,7 +7,7 @@ use ast::Expr;
 #[derive(Debug, Default)]
 pub struct Engine<'a> {
     /// The engine has the ownership of the AST.
-    #[allow(clippy::vec_box)] // Add a layer of indirection to avoid address changes.
+    #[allow(clippy::vec_box)] // Box is used to ensure that the reference behind is still valid after vector's realloc
     asts: Vec<Box<Expr<'a>>>,
 
     /// Associates a module id to the corresponding environment.
@@ -20,7 +20,7 @@ pub struct Engine<'a> {
 impl<'a> Engine<'a> {
     /// Takes ownership of an expression and returns a reference to it.
     pub fn take(&mut self, ast: Expr<'a>) -> &'a Expr<'a> {
-        self.asts.push(ast);
+        self.asts.push(Box::new(ast));
         unsafe {
             // SAFETY: Assume for now that expressions are never removed from the engine.
             // The reference behind Box does not change and is valid for the lifetime of the engine.
@@ -55,7 +55,7 @@ impl<'a> Engine<'a> {
                     false
                 }
             })
-            .map(|index| SourceObjectId(index))
+            .map(SourceObjectId)
     }
 
     ///Finds an environment by its identifier.

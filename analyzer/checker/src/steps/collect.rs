@@ -86,13 +86,7 @@ pub fn collect_symbols<'a>(
                 .map_err(GatherError::Other)?;
 
         for expr_idx in expressions.iter().skip(first_expr_pos) {
-            tree_walk(
-                resolver,
-                &mut env,
-                state,
-                expr_idx,
-            )
-            .map_err(GatherError::Other)?;
+            tree_walk(resolver, &mut env, state, expr_idx).map_err(GatherError::Other)?;
         }
         engine
             .attach(state.module, env)
@@ -112,13 +106,7 @@ fn collect_heading_uses(
         match expr {
             Expr::Use(use_expr) => {
                 first_expr_pos += 1;
-                collect_use(
-                    &use_expr.import,
-                    Vec::new(),
-                    resolver,
-                    visitable,
-                    mod_id,
-                )?
+                collect_use(&use_expr.import, Vec::new(), resolver, visitable, mod_id)?
             }
             _ => break,
         }
@@ -264,13 +252,7 @@ mod tests {
             module: engine.track(&expr),
         };
 
-        tree_walk(
-            &mut resolver,
-            &mut env,
-            state,
-            &expr,
-        )
-        .expect("tree walk");
+        tree_walk(&mut resolver, &mut env, state, &expr).expect("tree walk");
         assert_eq!(engine.origins.len(), 1);
         assert_eq!(resolver.objects.len(), 0);
     }
