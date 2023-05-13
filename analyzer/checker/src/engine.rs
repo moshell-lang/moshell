@@ -7,7 +7,8 @@ use ast::Expr;
 #[derive(Debug, Default)]
 pub struct Engine<'a> {
     /// The engine has the ownership of the AST.
-    asts: Vec<Expr<'a>>,
+    #[allow(clippy::vec_box)] // Add a layer of indirection to avoid address changes.
+    asts: Vec<Box<Expr<'a>>>,
 
     /// Associates a module id to the corresponding environment.
     ///
@@ -38,37 +39,27 @@ impl<'a> Engine<'a> {
     }
 
     /// Attaches an environment to an origin if the origin does not already have an attached environment.
-    pub fn attach(&mut self, id: SourceObjectId, env: Environment) -> Result<(), String> {
-        if self.origins[id.0].1.is_some() {
-            return Err(format!(
-                "Could not attach environment to {}: an environment is already attached",
-                id.0
-            ));
-        }
-        self.origins[id.0].1 = Some(env);
-        Ok(())
+    pub fn attach(&mut self, id: SourceObjectId, env: Environment) {
+        debug_assert!(self.origins[id.0].1.is_none(), "Could not attach environment to a source that is already attached");
+        self.origins[id.0].1.replace(env);
     }
 
     ///Finds an environment by its fully qualified name.
     pub fn find_environment_by_name(&self, name: &Name) -> Option<SourceObjectId> {
-        for (index, (_, env)) in self.origins.iter().enumerate() {
-            if let Some(env) = env {
-                if &env.fqn == name {
-                    return Some(SourceObjectId(index));
+        self.origins
+            .iter()
+            .position(|(_, env)| {
+                if let Some(env) = env {
+                    &env.fqn == name
+                } else {
+                    false
                 }
-            }
-        }
-        None
+            })
+            .map(|index| SourceObjectId(index))
     }
 
     ///Finds an environment by its identifier.
-    pub fn find_environment(&self, id: SourceObjectId) -> Option<&'a Environment> {
-        self.origins.get(id.0).and_then(|(_, env)| {
-            // SAFETY: As the Engine hosts the Environments and may not remove or replace an environment,
-            //The reference behind Environment does not change and is valid for the lifetime of the engine.
-            unsafe {
-                std::mem::transmute::<Option<&Environment>, Option<&'a Environment>>(env.as_ref())
-            }
-        })
+    pub fn find_environment(&self, id: SourceObjectId) -> Option<&Environment> {
+        self.origins.get(id.0).and_then(|(_, env)| env.as_ref())
     }
 }

@@ -96,7 +96,6 @@ pub fn collect_symbols<'a>(
         }
         engine
             .attach(state.module, env)
-            .map_err(GatherError::Other)?
     }
     Ok(())
 }
