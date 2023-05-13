@@ -2,5 +2,5 @@
 #![deny(warnings)]
 
 pub mod engine;
-pub mod import;
+pub mod importer;
 mod steps;

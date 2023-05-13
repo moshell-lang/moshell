@@ -7,6 +7,7 @@ use analyzer_system::resolver::{
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 
+/// Used by the resolve step to store resolved imports of an environment.
 #[derive(Default, Eq, PartialEq)]
 struct ResolvedImports {
     imported_symbols: HashMap<String, ResolvedSymbol>,
@@ -36,17 +37,13 @@ impl ResolvedImports {
 
 ///Attempts to resolve the unresolved symbols contained in the Resolver.
 pub fn resolve_symbols(engine: &Engine, resolver: &mut Resolver) -> Result<(), String> {
-    let env_count = resolver.imports.len();
-
     let mut unresolved_imports = resolver.take_imports();
-    for env_id in 0..env_count {
-        let unresolved_imports = unresolved_imports.remove(&SourceObjectId(env_id))
+
+    for (env_id, env) in engine.environments() {
+        let unresolved_imports = unresolved_imports.remove(&env_id)
             .unwrap_or_default();
 
         let resolved_imports = resolve_imports(engine, unresolved_imports)?;
-        let env = engine
-            .find_environment(SourceObjectId(env_id))
-            .expect("Could not find environment during resolution");
 
         resolve_symbols_of(env, resolved_imports, resolver)?
     }
@@ -54,16 +51,16 @@ pub fn resolve_symbols(engine: &Engine, resolver: &mut Resolver) -> Result<(), S
     Ok(())
 }
 
+/// resolves the symbols of an environment
 fn resolve_symbols_of(
     env: &Environment,
     imports: ResolvedImports,
     resolver: &mut Resolver,
 ) -> Result<(), String> {
-    //iterate over the global variables and
     for (symbol_name, resolver_pos) in env.variables.global_vars() {
         let object = &mut resolver.objects[resolver_pos.0];
 
-        let resolved_symbol = imports.imported_symbols.get(symbol_name).ok_or(format!(
+        let resolved_symbol = imports.imported_symbols.get(symbol_name).ok_or_else(|| format!(
             "could not resolve symbol {symbol_name} in {}",
             env.fqn
         ))?;
@@ -72,6 +69,8 @@ fn resolve_symbols_of(
     Ok(())
 }
 
+/// Gets an environment from his fully qualified name,
+/// if an environment could not be found
 fn get_env_from<'a>(
     name: &Name,
     engine: &'a Engine,
@@ -86,8 +85,10 @@ fn get_env_from<'a>(
     Err(format!("Unknown module {name}"))
 }
 
+/// Resolves given imports and return a structure containing all the imported/aliased imports.
 fn resolve_imports(engine: &Engine, imports: UnresolvedImports) -> Result<ResolvedImports, String> {
-    let mut resolveds = ResolvedImports::default();
+    let mut resolved_imports = ResolvedImports::default();
+
     for unresolved in imports.imports {
         match unresolved {
             UnresolvedImport::Symbol { alias, name } => {
@@ -99,7 +100,7 @@ fn resolve_imports(engine: &Engine, imports: UnresolvedImports) -> Result<Resolv
                     .position(|var| var.name == symbol_name)
                     .ok_or_else(|| format!("unknown symbol {symbol_name} in module {}", env.fqn))?;
                 let resolved = ResolvedSymbol::new(env_id, symbol_id);
-                resolveds.set_import(alias.unwrap_or(symbol_name), resolved)
+                resolved_imports.set_import(alias.unwrap_or(symbol_name), resolved)
             }
 
             UnresolvedImport::AllIn(name) => {
@@ -113,18 +114,18 @@ fn resolve_imports(engine: &Engine, imports: UnresolvedImports) -> Result<Resolv
                         .unwrap();
 
                     let import_symbol = ResolvedSymbol::new(env_id, var_id);
-                    resolveds.set_import(var.name.clone(), import_symbol);
+                    resolved_imports.set_import(var.name.clone(), import_symbol);
                 }
             }
         }
     }
-    Ok(resolveds)
+    Ok(resolved_imports)
 }
 
 #[cfg(test)]
 mod tests {
     use crate::engine::Engine;
-    use crate::import::StaticImporter;
+    use crate::importer::StaticImporter;
     use crate::steps::collect::collect_symbols;
     use crate::steps::resolve::{resolve_imports, resolve_symbols, ResolvedImports};
     use analyzer_system::name::Name;

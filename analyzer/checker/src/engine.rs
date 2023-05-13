@@ -14,7 +14,7 @@ pub struct Engine<'a> {
     ///
     /// Those are origins of symbols that are available locally in the environment,
     /// which may also be the source of unresolved symbols, tracked in the resolver.
-    pub origins: Vec<(&'a Expr<'a>, Option<Environment>)>,
+    origins: Vec<(&'a Expr<'a>, Option<Environment>)>,
 }
 
 impl<'a> Engine<'a> {
@@ -26,6 +26,15 @@ impl<'a> Engine<'a> {
             // The reference behind Box does not change and is valid for the lifetime of the engine.
             std::mem::transmute::<&Expr<'a>, &'a Expr<'a>>(self.asts.last().unwrap())
         }
+    }
+
+    ///Returns an iterator over environments contained in engine
+    pub fn environments(&self) -> impl Iterator<Item=(SourceObjectId, &Environment)> {
+        self.origins.iter()
+            .enumerate()
+            .filter_map(|(id, (_, env))| env
+                .as_ref()
+                .map(|env| (SourceObjectId(id), env)))
     }
 
     /// Adds a new origin to the engine and returns its given id.

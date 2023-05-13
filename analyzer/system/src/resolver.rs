@@ -20,8 +20,6 @@ pub struct GlobalObjectId(pub ObjectId);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct SourceObjectId(pub ObjectId);
 
-pub struct ImportsId(pub ObjectId);
-
 /// An indication where an object is located.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Symbol {
@@ -49,6 +47,18 @@ pub enum UnresolvedImport {
     AllIn(Name),
 }
 
+
+impl UnresolvedImports {
+    pub fn new(imports: Vec<UnresolvedImport>) -> Self {
+        Self { imports }
+    }
+
+    pub fn add_unresolved_import(&mut self, import: UnresolvedImport) {
+        self.imports.push(import)
+    }
+}
+
+
 /// The resolved information about a symbol.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct ResolvedSymbol {
@@ -67,15 +77,6 @@ impl ResolvedSymbol {
     }
 }
 
-impl UnresolvedImports {
-    pub fn new(imports: Vec<UnresolvedImport>) -> Self {
-        Self { imports }
-    }
-
-    pub fn add_unresolved_import(&mut self, import: UnresolvedImport) {
-        self.imports.push(import)
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Object {
@@ -123,9 +124,11 @@ pub struct Resolver {
 }
 
 impl Resolver {
+    /// Take the imports
     pub fn take_imports(&mut self) -> HashMap<SourceObjectId, UnresolvedImports> {
         std::mem::take(&mut self.imports)
     }
+
     /// References a new import directive in the given source.
     ///
     /// This directive may be used later to resolve the import.

@@ -1,5 +1,5 @@
 use crate::engine::Engine;
-use crate::import::Importer;
+use crate::importer::Importer;
 use crate::steps::lib::GatherError;
 use analyzer_system::environment::Environment;
 use analyzer_system::name::Name;
@@ -100,7 +100,8 @@ pub fn collect_symbols<'a>(
     Ok(())
 }
 
-fn collect_use(
+/// Collects the symbol import and place it as an [UnresolvedImport] in the resolver.
+fn collect_symbol_import(
     import: &AstImport,
     relative_path: Vec<String>,
     resolver: &mut Resolver,
@@ -141,7 +142,7 @@ fn collect_use(
                 let mut relative = relative_path.clone();
                 relative.extend(list.path.iter().map(|s| s.to_string()).collect::<Vec<_>>());
 
-                collect_use(list_import, relative, resolver, visitable, mod_id)?
+                collect_symbol_import(list_import, relative, resolver, visitable, mod_id)?
             }
             Ok(())
         }
@@ -161,7 +162,7 @@ fn tree_walk(
             if !state.accept_imports {
                 return Err("Unexpected use statement between expressions. use statements can only be declared on top of environment".to_owned());
             }
-            collect_use(
+            collect_symbol_import(
                 &import.import,
                 Vec::new(),
                 resolver,
@@ -216,7 +217,7 @@ fn tree_walk(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::import::StaticImporter;
+    use crate::importer::StaticImporter;
     use ast::group::Block;
     use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 
