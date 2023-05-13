@@ -123,10 +123,9 @@ pub struct Resolver {
 }
 
 impl Resolver {
-    pub fn get_imports_of(&mut self, source: SourceObjectId) -> Option<UnresolvedImports> {
-        self.imports.get(&source).cloned()
+    pub fn take_imports(&mut self) -> HashMap<SourceObjectId, UnresolvedImports> {
+        std::mem::take(&mut self.imports)
     }
-
     /// References a new import directive in the given source.
     ///
     /// This directive may be used later to resolve the import.

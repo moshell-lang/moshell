@@ -14,12 +14,10 @@ pub enum ImportError {
 
 impl PartialEq for ImportError {
     fn eq(&self, other: &Self) -> bool {
-        if let ImportError::Message(m1) = other {
-            if let ImportError::Message(m2) = self {
-                return m1 == m2;
-            }
+        match (self, other) {
+            (ImportError::Message(m1), ImportError::Message(m2)) => m1 == m2,
+            _ => false
         }
-        false
     }
 }
 

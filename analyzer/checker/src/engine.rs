@@ -49,11 +49,9 @@ impl<'a> Engine<'a> {
         self.origins
             .iter()
             .position(|(_, env)| {
-                if let Some(env) = env {
-                    &env.fqn == name
-                } else {
-                    false
-                }
+                env.as_ref()
+                    .map(|env| &env.fqn == name)
+                    .unwrap_or(false)
             })
             .map(SourceObjectId)
     }

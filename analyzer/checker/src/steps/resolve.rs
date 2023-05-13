@@ -38,9 +38,9 @@ impl ResolvedImports {
 pub fn resolve_symbols(engine: &Engine, resolver: &mut Resolver) -> Result<(), String> {
     let env_count = resolver.imports.len();
 
+    let mut unresolved_imports = resolver.take_imports();
     for env_id in 0..env_count {
-        let unresolved_imports = resolver
-            .get_imports_of(SourceObjectId(env_id))
+        let unresolved_imports = unresolved_imports.remove(&SourceObjectId(env_id))
             .unwrap_or_default();
 
         let resolved_imports = resolve_imports(engine, unresolved_imports)?;
@@ -176,8 +176,9 @@ mod tests {
             )])
         );
 
+        let mut unresolved_imports = resolver.take_imports();
         let resolved =
-            resolve_imports(&engine, resolver.get_imports_of(SourceObjectId(0)).unwrap())
+            resolve_imports(&engine, unresolved_imports.remove(&SourceObjectId(0)).unwrap())
                 .expect("resolution errors");
         assert_eq!(
             resolved,
