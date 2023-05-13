@@ -1,5 +1,6 @@
 use ast::call::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
-use ast::group::Subshell;
+use ast::control_flow::While;
+use ast::group::{Block, Subshell};
 use ast::substitution::{Substitution, SubstitutionKind};
 use ast::value::TemplateString;
 use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
@@ -337,6 +338,50 @@ fn with_lexer_substitution_in_substitution() {
                 }),
             ],
             type_parameters: Vec::new()
+        })]
+    );
+}
+
+#[test]
+fn pipe_expressions() {
+    let source = Source::unknown("find . | while read -r filename { echo $filename }");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Pipeline(Pipeline {
+            commands: vec![
+                Expr::Call(Call {
+                    path: Vec::new(),
+                    arguments: vec![literal(source.source, "find"), literal(source.source, "."),],
+                    type_parameters: Vec::new(),
+                }),
+                Expr::While(While {
+                    condition: Box::new(Expr::Call(Call {
+                        path: Vec::new(),
+                        arguments: vec![
+                            literal(source.source, "read"),
+                            literal(source.source, "-r"),
+                            literal(source.source, "filename"),
+                        ],
+                        type_parameters: Vec::new(),
+                    })),
+                    body: Box::new(Expr::Block(Block {
+                        expressions: vec![Expr::Call(Call {
+                            path: Vec::new(),
+                            arguments: vec![
+                                literal(source.source, "echo"),
+                                Expr::VarReference(VarReference {
+                                    name: "filename",
+                                    segment: find_in(source.source, "$filename"),
+                                }),
+                            ],
+                            type_parameters: Vec::new(),
+                        })],
+                        segment: find_in(source.source, "{ echo $filename }"),
+                    })),
+                    segment: find_in(source.source, "while read -r filename { echo $filename }"),
+                })
+            ],
         })]
     );
 }

@@ -1,4 +1,3 @@
-use crate::aspects::call::CallAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{eox, like, next, of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
@@ -30,7 +29,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
             .advance(spaces().then(of_type(TokenType::Bar)))
             .is_some()
         {
-            match self.call()? {
+            match self.statement()? {
                 Expr::Pipeline(pipeline) => commands.extend(pipeline.commands),
                 call => commands.push(call),
             }
