@@ -385,3 +385,32 @@ fn pipe_expressions() {
         })]
     );
 }
+
+#[test]
+fn pipe_to_command() {
+    let source = Source::unknown("{ echo '1\n2' } | cat");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Pipeline(Pipeline {
+            commands: vec![
+                Expr::Block(Block {
+                    expressions: vec![Expr::Call(Call {
+                        path: Vec::new(),
+                        arguments: vec![
+                            literal(source.source, "echo"),
+                            literal(source.source, "'1\n2'")
+                        ],
+                        type_parameters: Vec::new(),
+                    })],
+                    segment: find_in(source.source, "{ echo '1\n2' }"),
+                }),
+                Expr::Call(Call {
+                    path: Vec::new(),
+                    arguments: vec![literal(source.source, "cat")],
+                    type_parameters: Vec::new(),
+                }),
+            ],
+        })]
+    );
+}

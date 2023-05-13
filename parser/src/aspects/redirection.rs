@@ -5,7 +5,6 @@ use ast::call::{Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use ast::Expr;
 use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
-use lexer::token::TokenType::{BackSlash, DoubleQuote, Quote};
 
 pub(crate) trait RedirectionAspect<'a> {
     /// Attempts to parse the next pipeline expression
@@ -153,16 +152,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
     }
 
     fn is_at_redirection_sign(&self) -> bool {
-        //handle escaped redirection signs (can be \\ for one-character signs or quoted signs)
-        if self
-            .cursor
-            .lookahead(of_types(&[BackSlash, Quote, DoubleQuote]))
-            .is_some()
-        {
-            return false;
-        }
-
-        let pivot = self.cursor.peek(); //repeat() always succeeds
+        let pivot = self.cursor.peek();
         match pivot.token_type {
             TokenType::Ampersand | TokenType::Less | TokenType::Greater | TokenType::Bar => true,
             //search for '>' or '<' in case of std-determined redirection sign (ex: 2>>)
