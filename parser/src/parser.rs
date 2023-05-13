@@ -51,7 +51,6 @@ macro_rules! non_infix {
                 RoundedLeftBracket,
                 CurlyLeftBracket,
                 SquaredLeftBracket,
-                Bar,
                 Comma,
                 FatArrow,
             ]))
