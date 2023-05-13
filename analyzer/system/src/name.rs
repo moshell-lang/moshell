@@ -14,6 +14,11 @@ impl Name {
         Self { parts }
     }
 
+    pub fn prefixed(mut path: Vec<String>, name: String) -> Self {
+        path.push(name);
+        Self::from(path)
+    }
+
     ///Creates a new Name with the simple name changed with given input
     pub fn with_name(mut self, simple_name: &str) -> Self {
         let last_idx = self.parts.len() - 1;
@@ -81,7 +86,7 @@ impl Name {
             return None;
         }
         self.parts
-            .split_first()
+            .split_last()
             .map(|(_, tail)| Name::from(tail.to_vec()))
     }
 

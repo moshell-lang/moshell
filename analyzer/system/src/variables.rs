@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::num::NonZeroUsize;
 
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
-enum TypeInfo {
+pub enum TypeInfo {
     #[default]
     Unknown,
     Ref(Symbol),
@@ -13,6 +13,7 @@ enum TypeInfo {
 #[derive(Debug, Clone, Default)]
 pub struct Variables {
     locals: Locals,
+
     globals: HashMap<String, GlobalObjectId>,
 }
 
@@ -38,6 +39,15 @@ impl Variables {
                 .or_insert_with(|| resolver.track_new_object(state)))
             .into(),
         }
+    }
+
+    pub fn exported_vars(&self) -> impl Iterator<Item = &Variable> {
+        //consider for now that all local vars are exported.
+        self.locals.vars.iter()
+    }
+
+    pub fn global_vars(&self) -> impl Iterator<Item = (&String, GlobalObjectId)> {
+        self.globals.iter().map(|(name, id)| (name, *id))
     }
 
     pub fn begin_scope(&mut self) {
@@ -124,11 +134,11 @@ impl Default for Locals {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct Variable {
+pub struct Variable {
     /// The name identifier of the variable.
-    name: String,
+    pub name: String,
 
-    ty: TypeInfo,
+    pub ty: TypeInfo,
 
     /// The depth of the variable.
     ///
@@ -169,6 +179,7 @@ mod tests {
             locals.lookup_reachable_local("foo"),
             Some(&Variable::scoped("foo".to_owned(), 1))
         );
+
         assert_eq!(
             locals.lookup_reachable_local("bar"),
             Some(&Variable::scoped("bar".to_owned(), 2))
