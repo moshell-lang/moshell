@@ -11,9 +11,23 @@ use context::source::{Source, SourceSegmentHolder};
 use parser::parse;
 use std::collections::HashSet;
 
+/// Defines the current state of the tree exploration.
 #[derive(Debug, Clone, Copy)]
 struct ResolutionState {
+    /// The module id that is currently being explored.
     module: SourceObjectId,
+
+    /// Whether the current module accepts imports.
+    accept_imports: bool,
+}
+
+impl ResolutionState {
+    fn new(module: SourceObjectId) -> Self {
+        Self {
+            module,
+            accept_imports: true,
+        }
+    }
 }
 
 fn import_source<'a>(
@@ -71,47 +85,19 @@ pub fn collect_symbols<'a>(
         };
 
         let mut env = Environment::named(name);
-        let state = ResolutionState {
-            module: engine.track(root_block),
-        };
-
-        let expressions = if let Expr::Block(b) = root_block {
-            &b.expressions
-        } else {
-            panic!("root block isn't a Block")
-        };
-
-        let first_expr_pos =
-            collect_heading_uses(expressions, resolver, &mut visitable, state.module)
-                .map_err(GatherError::Other)?;
-
-        for expr_idx in expressions.iter().skip(first_expr_pos) {
-            tree_walk(resolver, &mut env, state, expr_idx).map_err(GatherError::Other)?;
-        }
-        engine
-            .attach(state.module, env)
+        let mut state = ResolutionState::new(engine.track(root_block));
+        tree_walk(
+            engine,
+            resolver,
+            &mut env,
+            &mut state,
+            &mut visitable,
+            root_block,
+        )
+        .map_err(GatherError::Other)?;
+        engine.attach(state.module, env)
     }
     Ok(())
-}
-
-fn collect_heading_uses(
-    exprs: &Vec<Expr>,
-    resolver: &mut Resolver,
-    visitable: &mut Vec<Name>,
-    mod_id: SourceObjectId,
-) -> Result<usize, String> {
-    let mut first_expr_pos = 0;
-
-    for expr in exprs {
-        match expr {
-            Expr::Use(use_expr) => {
-                first_expr_pos += 1;
-                collect_use(&use_expr.import, Vec::new(), resolver, visitable, mod_id)?
-            }
-            _ => break,
-        }
-    }
-    Ok(first_expr_pos)
 }
 
 fn collect_use(
@@ -163,18 +149,31 @@ fn collect_use(
 }
 
 fn tree_walk(
+    engine: &mut Engine,
     resolver: &mut Resolver,
     env: &mut Environment,
-    state: ResolutionState,
+    state: &mut ResolutionState,
+    visitable: &mut Vec<Name>,
     expr: &Expr,
 ) -> Result<(), String> {
     match expr {
-        Expr::Use(_) => return Err("Unexpected use statement between expressions. use statements can only be declared on top of environment".to_string()),
+        Expr::Use(import) => {
+            if !state.accept_imports {
+                return Err("Unexpected use statement between expressions. use statements can only be declared on top of environment".to_owned());
+            }
+            collect_use(
+                &import.import,
+                Vec::new(),
+                resolver,
+                visitable,
+                state.module,
+            )?;
+            return Ok(());
+        }
         Expr::VarDeclaration(var) => {
-            var.initializer
-                .as_ref()
-                .map(|expr| tree_walk(resolver, env, state, expr))
-                .transpose()?;
+            if let Some(initializer) = &var.initializer {
+                tree_walk(engine, resolver, env, state, visitable, initializer)?;
+            }
             env.variables.declare_local(var.var.name.to_owned());
         }
         Expr::VarReference(var) => {
@@ -184,25 +183,33 @@ fn tree_walk(
         Expr::Block(block) => {
             env.begin_scope();
             for expr in &block.expressions {
-                tree_walk(resolver, env, state, expr)?;
+                tree_walk(engine, resolver, env, state, visitable, expr)?;
             }
             env.end_scope();
         }
         Expr::If(if_expr) => {
             env.begin_scope();
-            tree_walk(resolver, env, state, &if_expr.condition)?;
+            tree_walk(engine, resolver, env, state, visitable, &if_expr.condition)?;
             env.end_scope();
             env.begin_scope();
-            tree_walk(resolver, env, state, &if_expr.success_branch)?;
+            tree_walk(
+                engine,
+                resolver,
+                env,
+                state,
+                visitable,
+                &if_expr.success_branch,
+            )?;
             env.end_scope();
             if let Some(else_branch) = &if_expr.fail_branch {
                 env.begin_scope();
-                tree_walk(resolver, env, state, else_branch)?;
+                tree_walk(engine, resolver, env, state, visitable, else_branch)?;
                 env.end_scope();
             }
         }
         _ => todo!("first pass for {:?}", expr),
     };
+    state.accept_imports = false;
     Ok(())
 }
 
@@ -248,11 +255,17 @@ mod tests {
         let mut engine = Engine::default();
         let mut resolver = Resolver::default();
         let mut env = Environment::named(Name::new("test"));
-        let state = ResolutionState {
-            module: engine.track(&expr),
-        };
+        let mut state = ResolutionState::new(engine.track(&expr));
 
-        tree_walk(&mut resolver, &mut env, state, &expr).expect("tree walk");
+        tree_walk(
+            &mut engine,
+            &mut resolver,
+            &mut env,
+            &mut state,
+            &mut Vec::new(),
+            &expr,
+        )
+        .expect("tree walk");
         assert_eq!(engine.origins.len(), 1);
         assert_eq!(resolver.objects.len(), 0);
     }
