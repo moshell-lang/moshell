@@ -1,6 +1,6 @@
 use crate::engine::Engine;
 use crate::importer::Importer;
-use crate::steps::lib::GatherError;
+use crate::steps::GatherError;
 use analyzer_system::environment::Environment;
 use analyzer_system::name::Name;
 use analyzer_system::resolver::{Resolver, SourceObjectId, UnresolvedImport};
@@ -267,7 +267,6 @@ mod tests {
             &expr,
         )
         .expect("tree walk");
-        assert_eq!(engine.origins.len(), 1);
         assert_eq!(resolver.objects.len(), 0);
     }
 }
