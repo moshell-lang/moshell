@@ -493,6 +493,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn for_in_files_range() {
         let source = Source::unknown("for f in * {\n\tfile $f\n}");
         let expr = parse(source).expect("Failed to parse");

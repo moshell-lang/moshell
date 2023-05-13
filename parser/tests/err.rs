@@ -438,7 +438,7 @@ fn for_no_dollar_help() {
 
 #[test]
 fn expected_double_delimiter_for() {
-    let content = "for ((i = 0; i < 10; i++); break";
+    let content = "for ((i = 0; $i < 10; i+=1); break";
     let source = Source::unknown(content);
     let report = parse(source);
     assert_eq!(
@@ -476,7 +476,7 @@ fn expected_double_delimiter_mismatched() {
 
 #[test]
 fn double_comma_parentheses() {
-    let content = "Bar(m , ,)";
+    let content = "Bar('m' , ,)";
     let source = Source::unknown(content);
     let report = parse(source);
     assert_eq!(
@@ -485,7 +485,7 @@ fn double_comma_parentheses() {
             expr: vec![Expr::ProgrammaticCall(ProgrammaticCall {
                 path: vec![],
                 name: "Bar",
-                arguments: vec![literal(content, "m")],
+                arguments: vec![literal(content, "'m'")],
                 type_parameters: Vec::new(),
                 segment: source.segment(),
             })],
@@ -527,7 +527,7 @@ fn double_comma_function() {
 
 #[test]
 fn quotes_are_delimiters() {
-    let content = "LD_PRELOAD=$(dirname $(readlink -f $0))/lib.so \"$@\"";
+    let content = "LD_PRELOAD=\"$(dirname $(readlink -f $0))/lib.so\" \"$@\"";
     let source = Source::unknown(content);
     let report = parse(source);
     assert_eq!(
@@ -536,7 +536,11 @@ fn quotes_are_delimiters() {
             expr: vec![],
             errors: vec![ParseError {
                 message: "expected end of expression or file".to_owned(),
-                position: content.find('"').map(|p| p..p + 1).unwrap(),
+                position: content
+                    .match_indices('"')
+                    .nth(2)
+                    .map(|(p, _)| p..p + 1)
+                    .unwrap(),
                 kind: ParseErrorKind::Unexpected
             }],
             stack_ended: true,

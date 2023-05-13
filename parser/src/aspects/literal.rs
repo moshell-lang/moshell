@@ -34,7 +34,7 @@ pub(crate) trait LiteralAspect<'a> {
     fn literal(&mut self, leniency: LiteralLeniency) -> ParseResult<Expr<'a>>;
 
     /// Parses a number-like literal expression.
-    fn number_literal(&self) -> ParseResult<Literal>;
+    fn number_literal(&mut self) -> ParseResult<Literal>;
 
     /// Parses a string literal expression.
     ///
@@ -88,12 +88,15 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 }
             }
 
-            _ => self.argument(leniency),
+            _ if leniency == LiteralLeniency::Lenient => self.argument(leniency),
+            IntLiteral | FloatLiteral => self.number_literal().map(Expr::Literal),
+            Dollar => self.substitution(),
+            _ => self.expected("Unexpected word literal", ParseErrorKind::Unexpected),
         }
     }
 
-    fn number_literal(&self) -> ParseResult<Literal> {
-        let start = self.cursor.peek();
+    fn number_literal(&mut self) -> ParseResult<Literal> {
+        let start = self.cursor.next()?;
         let value = start.value;
         Ok(Literal {
             parsed: self.parse_number_value(start)?,
@@ -383,7 +386,9 @@ mod tests {
     #[test]
     fn int_but_str() {
         let source = Source::unknown("5@5");
-        let parsed = Parser::new(source).expression().expect("Failed to parse.");
+        let parsed = Parser::new(source)
+            .parse_specific(Parser::call_argument)
+            .expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
@@ -409,7 +414,9 @@ mod tests {
     #[test]
     fn escaped_literal() {
         let source = Source::unknown("a\\a");
-        let parsed = Parser::new(source).expression().expect("Failed to parse.");
+        let parsed = Parser::new(source)
+            .call_argument()
+            .expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Literal(Literal {
@@ -479,7 +486,9 @@ mod tests {
     #[test]
     fn prefixed_arg() {
         let source = Source::unknown("+'hello'");
-        let parsed = Parser::new(source).expression().expect("Failed to parse.");
+        let parsed = Parser::new(source)
+            .parse_specific(Parser::call_argument)
+            .expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::TemplateString(TemplateString {

@@ -229,13 +229,13 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn call_with_path(&mut self, path: Vec<&'a str>) -> ParseResult<Expr<'a>> {
-        let callee = self.next_value()?;
+        let callee = self.call_argument()?;
         let tparams = self.parse_type_parameter_list()?.0;
         self.call_arguments(path, callee, tparams)
     }
 
     /// special pivot method for argument methods
-    fn call_argument(&mut self) -> ParseResult<Expr<'a>> {
+    pub(crate) fn call_argument(&mut self) -> ParseResult<Expr<'a>> {
         self.repos("Expected value")?;
 
         let pivot = self.cursor.peek().token_type;
@@ -488,7 +488,7 @@ mod tests {
 
     #[test]
     fn parse_constructor() {
-        let source = Source::unknown("Foo(a, 2, c)");
+        let source = Source::unknown("Foo('a', 2, 'c')");
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
@@ -496,12 +496,12 @@ mod tests {
                 path: vec![],
                 name: "Foo",
                 arguments: vec![
-                    literal(source.source, "a"),
+                    literal(source.source, "'a'"),
                     Expr::Literal(Literal {
                         parsed: 2.into(),
                         segment: find_in(source.source, "2")
                     }),
-                    literal(source.source, "c"),
+                    literal(source.source, "'c'"),
                 ],
                 type_parameters: vec![],
                 segment: source.segment(),
@@ -511,7 +511,7 @@ mod tests {
 
     #[test]
     fn constructor_with_newlines_and_space() {
-        let source = Source::unknown("Foo( \\\nthis , \\\n  is,\\\nfine)");
+        let source = Source::unknown("Foo( \\\n'this' , \\\n  'is',\\\n'fine')");
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
@@ -519,9 +519,9 @@ mod tests {
                 path: vec![],
                 name: "Foo",
                 arguments: vec![
-                    literal(source.source, "this"),
-                    literal_nth(source.source, "is", 1),
-                    literal(source.source, "fine"),
+                    literal(source.source, "'this'"),
+                    literal(source.source, "'is'"),
+                    literal(source.source, "'fine'"),
                 ],
                 type_parameters: vec![],
                 segment: source.segment(),
@@ -531,7 +531,7 @@ mod tests {
 
     #[test]
     fn constructor_accept_string_literals() {
-        let source = Source::unknown("Foo('===\ntesting something\n===', c)");
+        let source = Source::unknown("Foo('===\ntesting something\n===', 'c')");
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
@@ -543,7 +543,7 @@ mod tests {
                         parsed: "===\ntesting something\n===".into(),
                         segment: find_between(source.source, "'", "'")
                     }),
-                    literal(source.source, "c"),
+                    literal(source.source, "'c'"),
                 ],
                 type_parameters: vec![],
                 segment: source.segment()
@@ -683,7 +683,7 @@ mod tests {
 
     #[test]
     fn constructor_with_unpaired_parenthesis() {
-        let content = "Foo(a, 2, c\n)";
+        let content = "Foo('a', 2, \"c\"\n)";
         let source = Source::unknown(content);
         let expr: ParseResult<_> = parse(source).into();
         assert_eq!(

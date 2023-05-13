@@ -503,7 +503,7 @@ fn constructor_assign() {
 
 #[test]
 fn programmatic_call() {
-    let source = Source::unknown("ssh(localhost, 'ls -l', 8 / 2)");
+    let source = Source::unknown("ssh('localhost', 'ls -l', 8 / 2)");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
@@ -511,7 +511,7 @@ fn programmatic_call() {
             path: vec![],
             name: "ssh",
             arguments: vec![
-                literal(source.source, "localhost"),
+                literal(source.source, "'localhost'"),
                 literal(source.source, "'ls -l'"),
                 Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Literal(Literal {
