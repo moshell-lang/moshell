@@ -209,7 +209,7 @@ fn tree_walk(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::import::CachedImporter;
+    use crate::import::StaticImporter;
     use ast::group::Block;
     use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 
@@ -218,7 +218,7 @@ mod tests {
         let mut engine = Engine::default();
         let mut resolver = Resolver::default();
         let mut importer =
-            CachedImporter::new([(Name::new("test"), Source::unknown("use a; $a; use c; $c"))]);
+            StaticImporter::new([(Name::new("test"), Source::unknown("use a; $a; use c; $c"))]);
         let res = collect_symbols(&mut engine, &mut resolver, Name::new("test"), &mut importer);
         assert_eq!(res,
                    Err(GatherError::Other("Unexpected use statement between expressions. use statements can only be declared on top of environment".to_string())))

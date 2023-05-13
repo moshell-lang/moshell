@@ -20,8 +20,8 @@ pub fn parse(src: Source) -> ParseReport {
     Parser::new(src).parse()
 }
 
-//parse a supposedly valid string expression
-pub fn parse_trusted_str(src: &str) -> Expr {
+/// Parses a supposedly valid string expression
+pub fn parse_trusted(src: &str) -> Expr {
     let source = Source::unknown(src);
     let expressions = parse(source).expect("trusted str contained invalid expressions");
     Expr::Block(Block {

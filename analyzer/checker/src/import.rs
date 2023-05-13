@@ -81,21 +81,21 @@ impl<'a> Importer<'a> for FileImporter {
     }
 }
 
-pub struct CachedImporter<'a> {
-    map: HashMap<Name, Source<'a>>,
+pub struct StaticImporter<'a> {
+    sources: HashMap<Name, Source<'a>>,
 }
 
-impl<'a> CachedImporter<'a> {
+impl<'a> StaticImporter<'a> {
     pub fn new<const N: usize>(sources: [(Name, Source<'a>); N]) -> Self {
         Self {
-            map: HashMap::from(sources),
+            sources: HashMap::from(sources),
         }
     }
 }
 
-impl<'a> Importer<'a> for CachedImporter<'a> {
+impl<'a> Importer<'a> for StaticImporter<'a> {
     fn import(&mut self, name: &Name) -> Result<Source<'a>, ImportError> {
-        self.map
+        self.sources
             .get(name)
             .cloned()
             .ok_or_else(|| ImportError::Message(format!("unknown cached source {name}.")))

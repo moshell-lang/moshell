@@ -113,6 +113,12 @@ pub struct Resolver {
     /// unique identifiers for all the symbols that do not conflicts with the ones from other modules.
     pub objects: Vec<Object>,
 
+    /// Associates a source object with its unresolved imports.
+    ///
+    /// Imports may only be declared at the top level of a source. This lets us track the unresolved imports
+    /// per [`crate::environment::Environment`]. If a source is not tracked here, it means that it has no
+    /// imports. This is only used to create find the link between environments and sources, and should not
+    /// be used after the resolution is done.
     pub imports: HashMap<SourceObjectId, UnresolvedImports>,
 }
 
@@ -121,6 +127,9 @@ impl Resolver {
         self.imports.get(&source).cloned()
     }
 
+    /// References a new import directive in the given source.
+    ///
+    /// This directive may be used later to resolve the import.
     pub fn add_import(&mut self, source: SourceObjectId, import: UnresolvedImport) {
         let imports = self
             .imports

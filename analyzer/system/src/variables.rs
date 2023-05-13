@@ -46,8 +46,8 @@ impl Variables {
         self.locals.vars.iter()
     }
 
-    pub fn global_vars(&self) -> impl Iterator<Item = (&String, &GlobalObjectId)> {
-        self.globals.iter()
+    pub fn global_vars(&self) -> impl Iterator<Item = (&String, GlobalObjectId)> {
+        self.globals.iter().map(|(name, id)| (name, *id))
     }
 
     pub fn begin_scope(&mut self) {
@@ -121,10 +121,6 @@ impl Locals {
             .iter()
             .rev()
             .position(|var| var.name == name && var.depth.is_some())
-    }
-
-    fn iter_locals(&self) -> impl Iterator<Item = &Variable> {
-        self.vars.iter().rev()
     }
 }
 

@@ -124,7 +124,7 @@ fn resolve_imports(engine: &Engine, imports: UnresolvedImports) -> Result<Resolv
 #[cfg(test)]
 mod tests {
     use crate::engine::Engine;
-    use crate::import::CachedImporter;
+    use crate::import::StaticImporter;
     use crate::steps::collect::collect_symbols;
     use crate::steps::resolve::{resolve_imports, resolve_symbols, ResolvedImports};
     use analyzer_system::name::Name;
@@ -149,7 +149,7 @@ mod tests {
 
         let mut engine = Engine::default();
         let mut resolver = Resolver::default();
-        let mut importer = CachedImporter::new([
+        let mut importer = StaticImporter::new([
             (Name::new("math"), math_ast),
             (Name::new("std"), std_ast),
             (Name::new("std::io"), io_ast),
@@ -217,7 +217,7 @@ mod tests {
 
         let mut engine = Engine::default();
         let mut resolver = Resolver::default();
-        let mut importer = CachedImporter::new([
+        let mut importer = StaticImporter::new([
             (Name::new("math"), math_ast),
             (Name::new("std"), std_ast),
             (Name::new("std::io"), io_ast),
