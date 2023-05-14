@@ -4,3 +4,5 @@
 pub mod engine;
 pub mod importer;
 mod steps;
+mod diagnostic;
+

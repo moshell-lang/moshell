@@ -8,8 +8,8 @@ edition = "2021"
 [dependencies]
 analyzer-system = { path = "../system" }
 ast = { path = "../../ast" }
-parser = { path = "../../parser" }
 context = { path = "../../context" }
+enum-assoc = "1.0.0"
 
 [dev-dependencies]
 parser = { path = "../../parser" }

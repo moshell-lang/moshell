@@ -1,7 +1,7 @@
 use analyzer_system::environment::Environment;
 use analyzer_system::name::Name;
 use analyzer_system::resolver::SourceObjectId;
-use ast::Expr;
+use ast::{Expr};
 
 /// Owns references to the global AST and its environments.
 #[derive(Debug, Default)]

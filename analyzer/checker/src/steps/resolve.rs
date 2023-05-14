@@ -135,6 +135,7 @@ mod tests {
     use context::source::Source;
     use pretty_assertions::assert_eq;
     use std::collections::HashMap;
+    use parser::{parse_trusted};
 
     #[test]
     fn test_imports_resolution() {
@@ -155,7 +156,7 @@ mod tests {
             (Name::new("std"), std_ast),
             (Name::new("std::io"), io_ast),
             (Name::new("test"), test_ast),
-        ]);
+        ], parse_trusted);
         collect_symbols(&mut engine, &mut resolver, Name::new("test"), &mut importer)
             .expect("collect errors");
 
@@ -224,7 +225,7 @@ mod tests {
             (Name::new("std"), std_ast),
             (Name::new("std::io"), io_ast),
             (Name::new("test"), test_ast),
-        ]);
+        ], parse_trusted);
 
         collect_symbols(&mut engine, &mut resolver, Name::new("test"), &mut importer)
             .expect("collect errors");
