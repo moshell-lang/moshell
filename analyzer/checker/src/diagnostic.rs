@@ -14,6 +14,12 @@ pub enum ErrorID {
     CannotImport,
 
     #[assoc(code = "E003")]
+    ImportResolution,
+
+    #[assoc(code = "E004")]
+    UnknownSymbol,
+
+    #[assoc(code = "E005")]
     UseBetweenExprs,
 }
 
