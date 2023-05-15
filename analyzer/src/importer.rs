@@ -7,9 +7,9 @@ use ast::Expr;
 
 /// An importer is responsible for importing an AST from a given name
 /// The user of the analyzer must provide its own implementation
-pub trait ASTImporter {
+pub trait ASTImporter<'a> {
     /// Gets a source reference from the given import name.
-    fn import(&mut self, name: &Name) -> Option<Expr<'static>>;
+    fn import(&mut self, name: &Name) -> Option<Expr<'a>>;
 }
 
 /// An importer that reads files from a given root directory.
@@ -38,11 +38,10 @@ impl<'a, P> StaticImporter<'a, P> where P: Fn(Source<'a>) -> Expr<'a> {
     }
 }
 
-impl<'a, P> ASTImporter for StaticImporter<'a, P> where P: Fn(Source<'a>) -> Expr<'a> {
-    fn import(&mut self, name: &Name) -> Option<Expr<'static>> {
-        let expr = self.sources
+impl<'a, P> ASTImporter<'a> for StaticImporter<'a, P> where P: Fn(Source<'a>) -> Expr<'a> {
+    fn import(&mut self, name: &Name) -> Option<Expr<'a>> {
+        self.sources
             .get(name)
-            .map(|src| (self.ast_supplier)(*src));
-        unsafe { std::mem::transmute::<Option<Expr<'a>>, Option<Expr<'static>>>(expr) }
+            .map(|src| (self.ast_supplier)(*src))
     }
 }

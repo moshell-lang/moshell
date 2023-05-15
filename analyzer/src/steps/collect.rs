@@ -39,7 +39,7 @@ pub fn collect_symbols<'a, 'b>(
     engine: &mut Engine<'a>,
     relations: &mut Relations,
     entry_point: Name,
-    importer: &mut impl ASTImporter,
+    importer: &mut impl ASTImporter<'a>,
 ) -> Result<(), Vec<Diagnostic>> {
     // Prevent re-importing the same names.
     let mut visited: HashSet<Name> = HashSet::new();
@@ -92,7 +92,7 @@ fn collect_ast_symbols<'a>(ast: Expr<'a>,
 
 fn import_ast<'a, 'b>(
     name: Name,
-    importer: &'b mut impl ASTImporter,
+    importer: &'b mut impl ASTImporter<'a>,
 ) -> Result<(Expr<'a>, Name), Diagnostic> {
     let mut parts = name.parts().to_vec();
     while !parts.is_empty() {
