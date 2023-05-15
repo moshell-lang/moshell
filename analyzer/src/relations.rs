@@ -23,7 +23,7 @@ pub struct SourceObjectId(pub ObjectId);
 /// An indication where an object is located.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Symbol {
-    /// A local object, referenced by its index in the [`crate::environment::Environment`] it is defined in.
+    /// A local object, referenced by its index in the [`checker::environment::Environment`] it is defined in.
     Local(ObjectId),
 
     /// A global object, referenced by its index in the [`Relations`] it is linked to.
@@ -108,7 +108,7 @@ impl Object {
 pub struct Relations {
     /// The objects that need resolution that are tracked globally.
     ///
-    /// The actual [`String`] -> [`ObjectId`] mapping is left to the [`crate::environment::Environment`].
+    /// The actual [`String`] -> [`ObjectId`] mapping is left to the [`checker::environment::Environment`].
     /// The reason that the resolution information is lifted out of the environment is that identifiers
     /// binding happens across modules, and an environment cannot guarantee that it will be able to generate
     /// unique identifiers for all the symbols that do not conflicts with the ones from other modules.
@@ -117,7 +117,7 @@ pub struct Relations {
     /// Associates a source object with its unresolved imports.
     ///
     /// Imports may only be declared at the top level of a source. This lets us track the unresolved imports
-    /// per [`crate::environment::Environment`]. If a source is not tracked here, it means that it has no
+    /// per [`checker::environment::Environment`]. If a source is not tracked here, it means that it has no
     /// imports. This is only used to create find the link between environments and sources, and should not
     /// be used after the resolution is done.
     pub imports: HashMap<SourceObjectId, UnresolvedImports>,

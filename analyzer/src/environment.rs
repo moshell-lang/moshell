@@ -3,6 +3,7 @@ pub mod variables;
 use crate::name::Name;
 use crate::environment::variables::Variables;
 
+
 ///! The type environment of the analyzer.
 ///!
 ///! An environment maps local variable names to their type and keep tracks of scopes.

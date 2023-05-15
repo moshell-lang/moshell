@@ -1,7 +1,8 @@
 use crate::environment::Environment;
 use crate::name::Name;
+
+use ast::Expr;
 use crate::relations::SourceObjectId;
-use ast::{Expr};
 
 /// Owns references to the global AST and its environments.
 #[derive(Debug, Default)]
