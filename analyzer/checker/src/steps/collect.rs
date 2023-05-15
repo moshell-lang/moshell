@@ -2,7 +2,7 @@ use crate::engine::Engine;
 use crate::importer::ASTImporter;
 use analyzer_system::environment::Environment;
 use analyzer_system::name::Name;
-use analyzer_system::resolver::{Resolver, SourceObjectId, UnresolvedImport};
+use analyzer_system::relations::{Relations, SourceObjectId, UnresolvedImport};
 use ast::r#use::Import as AstImport;
 use ast::{Expr};
 use std::collections::HashSet;
@@ -37,7 +37,7 @@ struct SymbolCollector {
 /// This collects all the symbols that are used, locally or not yet resolved if they are global.
 pub fn collect_symbols<'a, 'b>(
     engine: &mut Engine<'a>,
-    resolver: &mut Resolver,
+    relations: &mut Relations,
     entry_point: Name,
     importer: &mut impl ASTImporter,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -56,7 +56,7 @@ pub fn collect_symbols<'a, 'b>(
         }
         // Start by parsing the source read from the importer.
         match import_ast(name, importer) {
-            Ok((ast, name)) => collect_ast_symbols(ast, engine, name, resolver, &mut visitable, &mut diagnostics),
+            Ok((ast, name)) => collect_ast_symbols(ast, engine, name, relations, &mut visitable, &mut diagnostics),
             Err(diagnostic) => diagnostics.push(diagnostic)
         }
     }
@@ -70,7 +70,7 @@ pub fn collect_symbols<'a, 'b>(
 fn collect_ast_symbols<'a>(ast: Expr<'a>,
                            engine: &mut Engine<'a>,
                            module_name: Name,
-                           resolver: &mut Resolver,
+                           relations: &mut Relations,
                            visitable: &mut Vec<Name>,
                            diagnostics: &mut Vec<Diagnostic>) {
     // Immediately transfer the ownership of the AST to the engine.
@@ -80,7 +80,7 @@ fn collect_ast_symbols<'a>(ast: Expr<'a>,
     let mut state = ResolutionState::new(engine.track(root_block));
     tree_walk(
         engine,
-        resolver,
+        relations,
         &mut env,
         &mut state,
         visitable,
@@ -108,11 +108,11 @@ fn import_ast<'a, 'b>(
     Err(Diagnostic::error(ErrorID::CannotImport, &format!("Unable to import AST for module {name}")))
 }
 
-/// Collects the symbol import and place it as an [UnresolvedImport] in the resolver.
+/// Collects the symbol import and place it as an [UnresolvedImport] in the relations.
 fn collect_symbol_import(
     import: &AstImport,
     relative_path: Vec<String>,
-    resolver: &mut Resolver,
+    relations: &mut Relations,
     visitable: &mut Vec<Name>,
     mod_id: SourceObjectId,
     diagnostics: &mut Vec<Diagnostic>,
@@ -129,7 +129,7 @@ fn collect_symbol_import(
             visitable.push(name.clone());
             let import = UnresolvedImport::Symbol { alias, name };
 
-            resolver.add_import(mod_id, import);
+            relations.add_import(mod_id, import);
         }
         AstImport::AllIn(path, _) => {
             let mut symbol_name = relative_path;
@@ -137,7 +137,7 @@ fn collect_symbol_import(
 
             let name = Name::from(symbol_name);
             visitable.push(name.clone());
-            resolver.add_import(mod_id, UnresolvedImport::AllIn(name));
+            relations.add_import(mod_id, UnresolvedImport::AllIn(name));
         }
 
         AstImport::Environment(_, _) => {
@@ -150,7 +150,7 @@ fn collect_symbol_import(
                 let mut relative = relative_path.clone();
                 relative.extend(list.path.iter().map(|s| s.to_string()).collect::<Vec<_>>());
 
-                collect_symbol_import(list_import, relative, resolver, visitable, mod_id, diagnostics)
+                collect_symbol_import(list_import, relative, relations, visitable, mod_id, diagnostics)
             }
         }
     }
@@ -158,7 +158,7 @@ fn collect_symbol_import(
 
 fn tree_walk(
     engine: &mut Engine,
-    resolver: &mut Resolver,
+    relations: &mut Relations,
     env: &mut Environment,
     state: &mut ResolutionState,
     visitable: &mut Vec<Name>,
@@ -174,7 +174,7 @@ fn tree_walk(
             collect_symbol_import(
                 &import.import,
                 Vec::new(),
-                resolver,
+                relations,
                 visitable,
                 state.module,
                 diagnostics,
@@ -183,29 +183,29 @@ fn tree_walk(
         }
         Expr::VarDeclaration(var) => {
             if let Some(initializer) = &var.initializer {
-                tree_walk(engine, resolver, env, state, visitable, initializer, diagnostics);
+                tree_walk(engine, relations, env, state, visitable, initializer, diagnostics);
             }
             env.variables.declare_local(var.var.name.to_owned());
         }
         Expr::VarReference(var) => {
-            env.variables.identify(state.module, resolver, var.name);
+            env.variables.identify(state.module, relations, var.name);
         }
         Expr::Literal(_) => {}
         Expr::Block(block) => {
             env.begin_scope();
             for expr in &block.expressions {
-                tree_walk(engine, resolver, env, state, visitable, expr, diagnostics);
+                tree_walk(engine, relations, env, state, visitable, expr, diagnostics);
             }
             env.end_scope();
         }
         Expr::If(if_expr) => {
             env.begin_scope();
-            tree_walk(engine, resolver, env, state, visitable, &if_expr.condition, diagnostics);
+            tree_walk(engine, relations, env, state, visitable, &if_expr.condition, diagnostics);
             env.end_scope();
             env.begin_scope();
             tree_walk(
                 engine,
-                resolver,
+                relations,
                 env,
                 state,
                 visitable,
@@ -215,7 +215,7 @@ fn tree_walk(
             env.end_scope();
             if let Some(else_branch) = &if_expr.fail_branch {
                 env.begin_scope();
-                tree_walk(engine, resolver, env, state, visitable, else_branch, diagnostics);
+                tree_walk(engine, relations, env, state, visitable, else_branch, diagnostics);
                 env.end_scope();
             }
         }
@@ -237,11 +237,11 @@ mod tests {
     #[test]
     fn use_between_expressions() {
         let mut engine = Engine::default();
-        let mut resolver = Resolver::default();
+        let mut relations = Relations::default();
         let mut importer =
             StaticImporter::new([(Name::new("test"), Source::unknown("use a; $a; use c; $c"))], parse_trusted);
         let entry_point = Name::new("test");
-        let res = collect_symbols(&mut engine, &mut resolver, entry_point, &mut importer).expect_err("collection did not raise errors");
+        let res = collect_symbols(&mut engine, &mut relations, entry_point, &mut importer).expect_err("collection did not raise errors");
         assert_eq!(
             res,
             vec![
@@ -273,14 +273,14 @@ mod tests {
             segment: 0..3,
         });
         let mut engine = Engine::default();
-        let mut resolver = Resolver::default();
+        let mut relations = Relations::default();
         let mut env = Environment::named(Name::new("test"));
         let mut state = ResolutionState::new(engine.track(&expr));
         let mut diagnostics = Vec::new();
 
         tree_walk(
             &mut engine,
-            &mut resolver,
+            &mut relations,
             &mut env,
             &mut state,
             &mut Vec::new(),
@@ -288,6 +288,6 @@ mod tests {
             &mut diagnostics,
         );
         assert_eq!(diagnostics, vec![]);
-        assert_eq!(resolver.objects.len(), 0);
+        assert_eq!(relations.objects.len(), 0);
     }
 }

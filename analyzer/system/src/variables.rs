@@ -1,4 +1,4 @@
-use crate::resolver::{GlobalObjectId, ObjectId, Resolver, SourceObjectId, Symbol};
+use crate::relations::{GlobalObjectId, ObjectId, Relations, SourceObjectId, Symbol};
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
 
@@ -28,7 +28,7 @@ impl Variables {
     pub fn identify(
         &mut self,
         state: SourceObjectId,
-        resolver: &mut Resolver,
+        resolver: &mut Relations,
         name: &str,
     ) -> Symbol {
         match self.locals.position_reachable_local(name) {

@@ -12,7 +12,7 @@ use std::collections::HashMap;
 /// - [`Symbol`] refers differentiate a id that is local or not.
 pub type ObjectId = usize;
 
-/// A global object identifier, that points to a specific object in the [`Resolver`].
+/// A global object identifier, that points to a specific object in the [`Relations`].
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct GlobalObjectId(pub ObjectId);
 
@@ -26,7 +26,7 @@ pub enum Symbol {
     /// A local object, referenced by its index in the [`crate::environment::Environment`] it is defined in.
     Local(ObjectId),
 
-    /// A global object, referenced by its index in the [`Resolver`] it is linked to.
+    /// A global object, referenced by its index in the [`Relations`] it is linked to.
     Global(ObjectId),
 }
 
@@ -105,7 +105,7 @@ impl Object {
 
 /// A collection of objects that are tracked globally and may link to each other.
 #[derive(Debug, Clone, Default)]
-pub struct Resolver {
+pub struct Relations {
     /// The objects that need resolution that are tracked globally.
     ///
     /// The actual [`String`] -> [`ObjectId`] mapping is left to the [`crate::environment::Environment`].
@@ -123,7 +123,7 @@ pub struct Resolver {
     pub imports: HashMap<SourceObjectId, UnresolvedImports>,
 }
 
-impl Resolver {
+impl Relations {
     /// Take the imports
     pub fn take_imports(&mut self) -> HashMap<SourceObjectId, UnresolvedImports> {
         std::mem::take(&mut self.imports)
