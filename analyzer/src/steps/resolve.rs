@@ -1,7 +1,7 @@
 use crate::engine::Engine;
-use analyzer_system::environment::Environment;
-use analyzer_system::name::Name;
-use analyzer_system::resolver::{
+use crate::environment::Environment;
+use crate::name::Name;
+use crate::resolver::{
     ResolvedSymbol, Resolver, SourceObjectId, UnresolvedImport, UnresolvedImports,
 };
 use std::collections::HashMap;
@@ -128,8 +128,8 @@ mod tests {
     use crate::importer::StaticImporter;
     use crate::steps::collect::collect_symbols;
     use crate::steps::resolve::{resolve_imports, resolve_symbols, ResolvedImports};
-    use analyzer_system::name::Name;
-    use analyzer_system::resolver::{
+    use crate::name::Name;
+    use crate::resolver::{
         Object, ResolvedSymbol, Resolver, SourceObjectId, UnresolvedImport, UnresolvedImports,
     };
     use context::source::Source;

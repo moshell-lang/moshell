@@ -4,3 +4,6 @@
 pub mod engine;
 pub mod importer;
 mod steps;
+pub mod environment;
+pub mod name;
+pub mod resolver;
