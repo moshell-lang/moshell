@@ -1,5 +1,5 @@
 use enum_assoc::Assoc;
-use analyzer_system::relations::{SourceObjectId};
+use crate::relations::{SourceObjectId};
 use context::source::{SourceSegment, SourceSegmentHolder};
 use crate::diagnostic::DiagnosticType::{Error, Warn};
 

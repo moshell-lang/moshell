@@ -1,12 +1,12 @@
 use crate::engine::Engine;
 use crate::importer::ASTImporter;
-use analyzer_system::environment::Environment;
-use analyzer_system::name::Name;
-use analyzer_system::relations::{Relations, SourceObjectId, UnresolvedImport};
+use crate::name::Name;
+use crate::relations::{Relations, SourceObjectId, UnresolvedImport};
 use ast::r#use::Import as AstImport;
 use ast::{Expr};
 use std::collections::HashSet;
 use crate::diagnostic::{Diagnostic, ErrorID, Observation};
+use crate::environment::Environment;
 
 /// Defines the current state of the tree exploration.
 #[derive(Debug, Clone, Copy)]

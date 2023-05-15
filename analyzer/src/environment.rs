@@ -1,8 +1,7 @@
+pub mod variables;
+
 use crate::name::Name;
-use crate::types::class::TypeClass;
-use crate::types::context::TypeContext;
-use crate::variables::Variables;
-use std::rc::Rc;
+use crate::environment::variables::Variables;
 
 ///! The type environment of the analyzer.
 ///!
@@ -33,24 +32,14 @@ pub struct Environment {
     ///Fully qualified name of the environment
     pub fqn: Name,
 
-    /// The environment's type context.
-    pub type_context: TypeContext,
-
     /// The variables that are declared in the environment.
     pub variables: Variables,
-}
-
-///All kind of symbols in the environment
-pub enum Symbol {
-    /// The type class symbol from the type context
-    TypeClass(Rc<TypeClass>),
 }
 
 impl Environment {
     pub fn named(name: Name) -> Self {
         Self {
             fqn: name.clone(),
-            type_context: TypeContext::new(name),
             variables: Variables::default(),
         }
     }
@@ -58,9 +47,7 @@ impl Environment {
     pub fn fork(&self, name: &str) -> Environment {
         let env_fqn = self.fqn.child(name);
 
-        let type_context = TypeContext::new(env_fqn.clone());
         Self {
-            type_context,
             fqn: env_fqn,
             variables: Variables::default(),
         }

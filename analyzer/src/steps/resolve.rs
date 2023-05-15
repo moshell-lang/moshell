@@ -1,7 +1,7 @@
 use crate::engine::Engine;
-use analyzer_system::environment::Environment;
-use analyzer_system::name::Name;
-use analyzer_system::relations::{
+use crate::environment::Environment;
+use crate::name::Name;
+use crate::relations::{
     ResolvedSymbol, Relations, SourceObjectId, UnresolvedImport, UnresolvedImports,
 };
 use std::collections::HashMap;
@@ -159,8 +159,8 @@ mod tests {
     use crate::engine::Engine;
     use crate::importer::StaticImporter;
     use crate::steps::collect::collect_symbols;
-    use analyzer_system::name::Name;
-    use analyzer_system::relations::{
+    use crate::name::Name;
+    use crate::relations::{
         Object, ResolvedSymbol, Relations, SourceObjectId, UnresolvedImport, UnresolvedImports,
     };
     use context::source::Source;
