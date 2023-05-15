@@ -1,9 +1,9 @@
 use crate::engine::Engine;
 use crate::importer::Importer;
 use crate::steps::GatherError;
-use analyzer_system::environment::Environment;
-use analyzer_system::name::Name;
-use analyzer_system::resolver::{Resolver, SourceObjectId, UnresolvedImport};
+use crate::environment::Environment;
+use crate::name::Name;
+use crate::resolver::{Resolver, SourceObjectId, UnresolvedImport};
 use ast::group::Block;
 use ast::r#use::Import as AstImport;
 use ast::Expr;

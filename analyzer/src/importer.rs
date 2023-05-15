@@ -1,4 +1,4 @@
-use analyzer_system::name::Name;
+use crate::name::Name;
 use context::source::{OwnedSource, Source};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;

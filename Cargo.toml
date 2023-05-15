@@ -6,6 +6,5 @@ members = [
 	"context",
 	"context/macros",
 	"cli",
-	"analyzer/system",
-	"analyzer/checker",
+	"analyzer",
 ]
