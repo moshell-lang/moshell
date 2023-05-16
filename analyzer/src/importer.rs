@@ -1,14 +1,29 @@
-use analyzer_system::name::Name;
+use crate::name::Name;
 use context::source::{OwnedSource, Source};
 use std::collections::HashMap;
 use std::fs::read_to_string;
 use std::io;
 use std::path::PathBuf;
 
+#[derive(Debug)]
+pub enum ImportError {
+    IO(io::Error),
+    Message(String),
+}
+
+impl PartialEq for ImportError {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (ImportError::Message(m1), ImportError::Message(m2)) => m1 == m2,
+            _ => false,
+        }
+    }
+}
+
 /// An importer is responsible for holding source code from a given import name.
 pub trait Importer<'a> {
     /// Gets a source reference from the given import name.
-    fn import(&mut self, name: &Name) -> Result<Source<'a>, io::Error>;
+    fn import(&mut self, name: &Name) -> Result<Source<'a>, ImportError>;
 }
 
 /// An importer that reads files from a given root directory.
@@ -33,7 +48,7 @@ impl FileImporter {
 }
 
 impl<'a> Importer<'a> for FileImporter {
-    fn import(&mut self, name: &Name) -> Result<Source<'a>, io::Error> {
+    fn import(&mut self, name: &Name) -> Result<Source<'a>, ImportError> {
         let mut path = self.root.clone();
         path.push(name.parts().to_owned().join("/"));
         path.set_extension("msh");
@@ -50,7 +65,8 @@ impl<'a> Importer<'a> for FileImporter {
                 path.set_extension("msh");
                 read_to_string(&path)
             })
-            .map(|content| OwnedSource::new(content, path.to_string_lossy().to_string()))?;
+            .map(|content| OwnedSource::new(content, path.to_string_lossy().to_string()))
+            .map_err(ImportError::IO)?;
 
         let source = self.cache.entry(path.clone()).or_insert(source).as_source();
         Ok(unsafe {
@@ -68,5 +84,26 @@ impl<'a> FileImporter {
             path.set_extension("msh");
             self.cache.get(&path)
         })
+    }
+}
+
+pub struct StaticImporter<'a> {
+    sources: HashMap<Name, Source<'a>>,
+}
+
+impl<'a> StaticImporter<'a> {
+    pub fn new<const N: usize>(sources: [(Name, Source<'a>); N]) -> Self {
+        Self {
+            sources: HashMap::from(sources),
+        }
+    }
+}
+
+impl<'a> Importer<'a> for StaticImporter<'a> {
+    fn import(&mut self, name: &Name) -> Result<Source<'a>, ImportError> {
+        self.sources
+            .get(name)
+            .cloned()
+            .ok_or_else(|| ImportError::Message(format!("unknown cached source {name}.")))
     }
 }

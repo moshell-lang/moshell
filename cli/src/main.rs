@@ -22,7 +22,7 @@ fn main() -> io::Result<()> {
         let content = std::fs::read_to_string(&source)?;
         let name = source.to_string_lossy();
         let source = Source::new(&content, &name);
-        let report = parse(source.clone());
+        let report = parse(source);
         let errors = report
             .errors
             .into_iter()

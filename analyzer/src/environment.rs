@@ -1,9 +1,10 @@
 use crate::name::Name;
 use crate::resolver::{SourceObjectId, Symbol};
-use crate::types::context::TypeContext;
-use crate::variables::Variables;
 use context::source::{SourceSegment, SourceSegmentHolder};
 use std::collections::HashMap;
+use variables::Variables;
+
+pub mod variables;
 
 ///! The type environment of the analyzer.
 ///!
@@ -37,9 +38,6 @@ pub struct Environment {
     ///Fully qualified name of the environment
     pub fqn: Name,
 
-    /// The environment's type context.
-    pub type_context: TypeContext,
-
     /// The variables that are declared in the environment.
     pub variables: Variables,
 
@@ -52,7 +50,6 @@ impl Environment {
         Self {
             parent: None,
             fqn: name.clone(),
-            type_context: TypeContext::new(name),
             variables: Variables::default(),
             definitions: HashMap::new(),
         }
@@ -61,10 +58,8 @@ impl Environment {
     pub fn fork(&self, source_id: SourceObjectId, name: &str) -> Environment {
         let env_fqn = self.fqn.child(name);
 
-        let type_context = TypeContext::new(env_fqn.clone());
         Self {
             parent: Some(source_id),
-            type_context,
             fqn: env_fqn,
             variables: Variables::default(),
             definitions: HashMap::new(),
