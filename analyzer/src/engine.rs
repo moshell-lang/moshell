@@ -15,7 +15,7 @@ pub struct Engine<'a> {
     ///
     /// Those are origins of symbols that are available locally in the environment,
     /// which may also be the source of unresolved symbols, tracked in the resolver.
-    origins: Vec<(&'a Expr<'a>, Option<Environment>)>,
+    origins: Vec<(&'a Expr<'a>, Option<Environment<'a>>)>,
 }
 
 impl<'a> Engine<'a> {
@@ -30,7 +30,7 @@ impl<'a> Engine<'a> {
     }
 
     ///Returns an iterator over environments contained in engine
-    pub fn environments(&self) -> impl Iterator<Item=(SourceObjectId, &Environment)> {
+    pub fn environments(&self) -> impl Iterator<Item=(SourceObjectId, &Environment<'a>)> {
         self.origins.iter()
             .enumerate()
             .filter_map(|(id, (_, env))| env
@@ -49,7 +49,7 @@ impl<'a> Engine<'a> {
     }
 
     /// Attaches an environment to an origin if the origin does not already have an attached environment.
-    pub fn attach(&mut self, id: SourceObjectId, env: Environment) {
+    pub fn attach(&mut self, id: SourceObjectId, env: Environment<'a>) {
         debug_assert!(self.origins[id.0].1.is_none(), "Could not attach environment to a source that is already attached");
         self.origins[id.0].1.replace(env);
     }
@@ -67,7 +67,7 @@ impl<'a> Engine<'a> {
     }
 
     ///Finds an environment by its identifier.
-    pub fn find_environment(&self, id: SourceObjectId) -> Option<&Environment> {
+    pub fn find_environment(&self, id: SourceObjectId) -> Option<&Environment<'a>> {
         self.origins.get(id.0).and_then(|(_, env)| env.as_ref())
     }
 }

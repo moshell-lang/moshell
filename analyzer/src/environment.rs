@@ -29,15 +29,15 @@ use crate::environment::variables::Variables;
 /// The Environment contains the defined types, variables, structure and function definitions of a certain scope.
 /// It can have dependencies over other environments.
 #[derive(Debug, Clone)]
-pub struct Environment {
+pub struct Environment<'a> {
     ///Fully qualified name of the environment
     pub fqn: Name,
 
     /// The variables that are declared in the environment.
-    pub variables: Variables,
+    pub variables: Variables<'a>,
 }
 
-impl Environment {
+impl<'a> Environment<'a> {
     pub fn named(name: Name) -> Self {
         Self {
             fqn: name.clone(),

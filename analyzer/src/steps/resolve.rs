@@ -6,15 +6,16 @@ use crate::relations::{
 };
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
-use crate::diagnostic::{Diagnostic, ErrorID};
+use crate::diagnostic::{Diagnostic, ErrorID, Observation};
+use crate::environment::variables::ExternalVariableReference;
 
 /// Used by the resolve step to store resolved imports of an environment.
-#[derive(Default, Eq, PartialEq)]
-struct ResolvedImports {
-    imported_symbols: HashMap<String, ResolvedSymbol>,
+#[derive(Default, PartialEq)]
+struct ResolvedImports<'a> {
+    imported_symbols: HashMap<String, ResolvedSymbol<'a>>,
 }
 
-impl Debug for ResolvedImports {
+impl<'a> Debug for ResolvedImports<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut imports: Vec<_> = self.imported_symbols.iter().collect();
         imports.sort_by_key(|(k, _)| *k);
@@ -24,36 +25,37 @@ impl Debug for ResolvedImports {
     }
 }
 
-impl ResolvedImports {
-    fn set_import(&mut self, symbol_name: String, symbol: ResolvedSymbol) {
+impl<'a> ResolvedImports<'a> {
+    fn set_import(&mut self, symbol_name: String, symbol: ResolvedSymbol<'a>) {
         self.imported_symbols.insert(symbol_name, symbol);
     }
 
-    fn with(symbols: HashMap<String, ResolvedSymbol>) -> Self {
+    fn with(symbols: HashMap<String, ResolvedSymbol<'a>>) -> Self {
         Self {
             imported_symbols: symbols,
         }
     }
 }
 
-struct SymbolResolver<'a> {
-    engine: &'a Engine<'a>,
+struct SymbolResolver<'a, 'e> {
+    engine: &'a Engine<'e>,
     diagnostics: Vec<Diagnostic>,
-    relations: &'a mut Relations,
+    relations: &'a mut Relations<'e>,
 }
 
-impl<'a> SymbolResolver<'a> {
+impl<'a, 'e> SymbolResolver<'a, 'e> {
     ///Attempts to resolve the unresolved symbols contained in the Resolver.
-    pub fn resolve_symbols(engine: &'a Engine, relations: &'a mut Relations) -> Result<(), Vec<Diagnostic>> {
+    pub fn resolve_symbols(engine: &'a Engine<'e>,
+                           relations: &'a mut Relations<'e>) -> Result<(), Vec<Diagnostic>> {
         let mut resolver = Self::new(engine, relations);
-        resolver.start();
+        resolver.resolve();
         if resolver.diagnostics.is_empty() {
             return Ok(())
         }
         Err(resolver.diagnostics)
     }
 
-    fn new(engine: &'a Engine, relations: &'a mut Relations) -> Self {
+    fn new(engine: &'a Engine<'e>, relations: &'a mut Relations<'e>) -> Self {
         Self {
             engine,
             relations,
@@ -61,79 +63,102 @@ impl<'a> SymbolResolver<'a> {
         }
     }
 
-    fn start(&mut self) {
+    fn resolve(&mut self) {
         let mut unresolved_imports = self.relations.take_imports();
 
         for (env_id, env) in self.engine.environments() {
             let unresolved_imports = unresolved_imports.remove(&env_id)
                 .unwrap_or_default();
 
-            let resolved_imports = self.resolve_imports(unresolved_imports);
-            self.resolve_symbols_of(env, resolved_imports)
+            let resolved_imports = self.resolve_imports(env_id, unresolved_imports);
+            self.resolve_symbols_of(env_id, env, resolved_imports);
         }
     }
 
-
     /// resolves the symbols of an environment
-    fn resolve_symbols_of(&mut self, env: &Environment, imports: ResolvedImports) {
-        for (symbol_name, resolver_pos) in env.variables.global_vars() {
-            let object = &mut self.relations.objects[resolver_pos.0];
+    fn resolve_symbols_of(&mut self, env_id: SourceObjectId, env: &Environment<'e>, imports: ResolvedImports<'e>) {
+        for (symbol_name, external_var) in env.variables.external_vars() {
+            let object = &mut self.relations.objects[external_var.relation_tracking_pos.0];
 
             match imports.imported_symbols.get(symbol_name) {
                 Some(resolved_symbol) => object.resolved = Some(*resolved_symbol),
-                None => self.diagnostics.push(
-                    Diagnostic::error(ErrorID::UnknownSymbol, &format!("Could not resolve symbol {symbol_name} in {}", env.fqn))
-                    //TODO add origin of resolution in Resolver's objects .with_observation(Observation::new())
-                )
+                None => self.diagnose_unresolved_external_var_ref(env_id, &symbol_name, external_var)
             };
         }
     }
 
-    ///Finds the
-    fn supply_env<F>(&mut self, name: &Name, consumer: F) where F: FnOnce(&mut Self, SourceObjectId, &Environment) {
-        match self.get_env_from(&name) {
-            Err(parent) => {
-                let msg = &format!("unable to find symbol {name} {}.", parent.map_or(String::new(), |p| format!("in module {p}")));
-                self.diagnostics.push(Diagnostic::error(ErrorID::ImportResolution, msg));
-            },
-            Ok((env_id, env)) => consumer(self, env_id, env)
+    fn diagnose_unresolved_external_var_ref(&mut self, env_id: SourceObjectId, name: &str, ext: &ExternalVariableReference<'e>) {
+        let mut diagnosic = Diagnostic::error(ErrorID::UnknownSymbol, env_id, &format!("Could not resolve symbol {}.", name));
+        for reference_expr in &ext.references_expr {
+            diagnosic.observations.push(Observation::new(*reference_expr))
         }
+        self.diagnostics.push(diagnosic);
     }
 
     /// Resolves given imports and return a structure containing all the imported/aliased imports.
-    fn resolve_imports(&mut self, imports: UnresolvedImports) -> ResolvedImports {
+    fn resolve_imports(&mut self, env_id: SourceObjectId, imports: UnresolvedImports) -> ResolvedImports<'e> {
         let mut resolved_imports = ResolvedImports::default();
 
+        //iterate over unresolved imports
         for unresolved in imports.imports {
             match unresolved {
-                UnresolvedImport::Symbol { alias, name } => self.supply_env(&name , |s, env_id, env| {
-                    let symbol_name = name.simple_name().to_string();
-                    let symbol_id = env
-                        .variables
-                        .exported_vars()
-                        .position(|var| var.name == symbol_name);
+                // If the unresolved import is a symbol
+                UnresolvedImport::Symbol { alias, name } => {
+                    // try to get referenced environment of the import
+                    match self.get_env_from(&name) {
+                        // if the environment wasn't found, push a diagnostic
+                        Err(parent) => {
+                            let msg = &format!(
+                                "unable to find symbol {}{}.",
+                                parent.as_ref().and_then(|p| name.relative_to(p)).unwrap_or(name),
+                                parent.map(|p| format!(" in module {p}")).unwrap_or_default()
+                            );
+                            self.diagnostics.push(Diagnostic::error(ErrorID::ImportResolution, env_id, msg));
+                        },
+                        Ok((env_id, env)) => {
+                            let symbol_name = name.simple_name().to_string();
+                            let symbol_id = env
+                                .variables
+                                .exported_vars()
+                                .position(|var| var.name == symbol_name);
 
-                    match symbol_id {
-                        Some(symbol_id) => {
-                            let resolved = ResolvedSymbol::new(env_id, symbol_id);
-                            resolved_imports.set_import(alias.unwrap_or(symbol_name), resolved);
+                            if let Some(symbol_id) = symbol_id {
+                                let resolved = ResolvedSymbol::new(env_id, symbol_id, None);
+                                resolved_imports.set_import(alias.unwrap_or(symbol_name), resolved);
+                                continue;
+                            }
+                            self.diagnostics.push(Diagnostic::error(ErrorID::UnknownSymbol, env_id, &format!("unknown symbol {symbol_name} in import")))
                         }
-                        None => s.diagnostics.push(Diagnostic::error(ErrorID::UnknownSymbol, &format!("unknown symbol {symbol_name} in module {}", env.fqn)))
                     }
-                }),
+                },
 
-                UnresolvedImport::AllIn(name) => self.supply_env(&name, |_, env_id, env| {
-                    for var in env.variables.exported_vars() {
-                        let var_id = env
-                            .variables
-                            .exported_vars()
-                            .position(|v| v.name == var.name)
-                            .unwrap();
+                //if the unreseloved import is an 'AllIn' import, meaning that it imports all symbols from given module
+                UnresolvedImport::AllIn(name) => {
+                    // try to get referenced environment of the import
+                    match self.get_env_from(&name) {
+                        // if the environment wasn't found, push a diagnostic
+                        Err(parent) => {
+                            let msg = &format!(
+                                "unable to find symbol {}{}.",
+                                parent.as_ref().and_then(|p| name.relative_to(p)).unwrap_or(name),
+                                parent.map(|p| format!(" in module {p}")).unwrap_or_default()
+                            );
+                            self.diagnostics.push(Diagnostic::error(ErrorID::ImportResolution, env_id, msg));
+                        },
+                        Ok((env_id, env)) => {
+                            for var in env.variables.exported_vars() {
+                                let var_id = env
+                                    .variables
+                                    .exported_vars()
+                                    .position(|v| v.name == var.name)
+                                    .unwrap();
 
-                        let import_symbol = ResolvedSymbol::new(env_id, var_id);
-                        resolved_imports.set_import(var.name.clone(), import_symbol);
+                                let import_symbol = ResolvedSymbol::new(env_id, var_id, None);
+                                resolved_imports.set_import(var.name.clone(), import_symbol);
+                            }
+                        }
                     }
-                })
+                }
             }
         }
         resolved_imports
@@ -141,7 +166,7 @@ impl<'a> SymbolResolver<'a> {
 
     /// Gets an environment from the given fully qualified name, then pop the name until it finds a valid environment.
     ///
-    fn get_env_from(&self, name: &Name) -> Result<(SourceObjectId, &'a Environment), Option<Name>> {
+    fn get_env_from(&self, name: &Name) -> Result<(SourceObjectId, &'a Environment<'e>), Option<Name>> {
         let mut env_name = Some(name.clone());
         while let Some(name) = env_name {
             if let Some(env_id) = self.engine.find_environment_by_name(&name) {
@@ -158,15 +183,16 @@ impl<'a> SymbolResolver<'a> {
 mod tests {
     use crate::engine::Engine;
     use crate::importer::StaticImporter;
-    use crate::steps::collect::collect_symbols;
     use crate::name::Name;
     use crate::relations::{
         Object, ResolvedSymbol, Relations, SourceObjectId, UnresolvedImport, UnresolvedImports,
     };
-    use context::source::Source;
+    use context::source::{Source, StaticSegmentHolder};
     use pretty_assertions::assert_eq;
     use std::collections::HashMap;
     use parser::{parse_trusted};
+    use crate::diagnostic::{Diagnostic, ErrorID, Observation};
+    use crate::steps::collect::SymbolCollector;
     use crate::steps::resolve::{ResolvedImports, SymbolResolver};
 
     #[test]
@@ -189,7 +215,7 @@ mod tests {
                                                    (Name::new("std::io"), io_ast),
                                                    (Name::new("test"), test_ast),
                                                ], parse_trusted);
-        collect_symbols(&mut engine, &mut relations, Name::new("test"), &mut importer)
+        SymbolCollector::collect_symbols(&mut engine, &mut relations, Name::new("test"), &mut importer)
             .expect("collect errors");
 
         assert_eq!(
@@ -212,20 +238,20 @@ mod tests {
 
         let unresolved_imports = relations.take_imports().remove(&SourceObjectId(0)).unwrap();
         let mut resolver = SymbolResolver::new(&engine, &mut relations);
-        let resolved_imports = resolver.resolve_imports(unresolved_imports);
+        let resolved_imports = resolver.resolve_imports(SourceObjectId(0), unresolved_imports);
 
         assert_eq!(
             resolved_imports,
             ResolvedImports::with(HashMap::from([
-                ("PI".to_string(), ResolvedSymbol::new(SourceObjectId(3), 0)),
-                ("Bar".to_string(), ResolvedSymbol::new(SourceObjectId(2), 1)),
+                ("PI".to_string(), ResolvedSymbol::new(SourceObjectId(3), 0, None)),
+                ("Bar".to_string(), ResolvedSymbol::new(SourceObjectId(2), 1, None)),
                 (
                     "output".to_string(),
-                    ResolvedSymbol::new(SourceObjectId(1), 0)
+                    ResolvedSymbol::new(SourceObjectId(1), 0, None)
                 ),
                 (
                     "input".to_string(),
-                    ResolvedSymbol::new(SourceObjectId(1), 1)
+                    ResolvedSymbol::new(SourceObjectId(1), 1, None)
                 ),
             ]))
         );
@@ -263,17 +289,55 @@ mod tests {
                                                    (Name::new("test"), test_ast),
                                                ], parse_trusted);
 
-        collect_symbols(&mut engine, &mut relations, Name::new("test"), &mut importer)
+        SymbolCollector::collect_symbols(&mut engine, &mut relations, Name::new("test"), &mut importer)
             .expect("collect errors");
-
-        SymbolResolver::resolve_symbols(&engine, &mut relations).expect("resolution errors");
+        SymbolResolver::resolve_symbols(&engine, &mut relations)
+            .expect("resolution errors");
 
         assert_eq!(
             relations.objects,
             vec![
-                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(1), 0)),
-                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(2), 1)),
-                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(3), 0)),
+                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(1), 0, None)),
+                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(2), 1, None)),
+                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(3), 0, None)),
+            ]
+        )
+    }
+
+    #[test]
+    fn test_unknown_symbols() {
+        let test_ast = Source::unknown("\
+        use A::B
+        use B::C
+        use C::*
+
+        $a; $a; $a
+        $C; $B;
+        ");
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
+        let mut importer = StaticImporter::new([
+                                                   (Name::new("test"), test_ast),
+                                               ], parse_trusted);
+        SymbolCollector::collect_symbols(&mut engine, &mut relations, Name::new("test"), &mut importer)
+            .expect("collect errors");
+
+        let diagnostic = SymbolResolver::resolve_symbols(&engine, &mut relations).expect_err("resolution has no errors");
+
+        assert_eq!(
+            diagnostic,
+            vec![
+                Diagnostic::error(ErrorID::ImportResolution, SourceObjectId(0), "unable to find symbol A::B."),
+                Diagnostic::error(ErrorID::ImportResolution, SourceObjectId(0), "unable to find symbol B::C."),
+                Diagnostic::error(ErrorID::ImportResolution, SourceObjectId(0), "unable to find symbol C."),
+                Diagnostic::error(ErrorID::UnknownSymbol, SourceObjectId(0), "Could not resolve symbol a.")
+                    .with_observation(Observation::new(&StaticSegmentHolder::new(52..54)))
+                    .with_observation(Observation::new(&StaticSegmentHolder::new(56..58)))
+                    .with_observation(Observation::new(&StaticSegmentHolder::new(60..62))),
+                Diagnostic::error(ErrorID::UnknownSymbol, SourceObjectId(0), "Could not resolve symbol C.")
+                    .with_observation(Observation::new(&StaticSegmentHolder::new(71..73))),
+                Diagnostic::error(ErrorID::UnknownSymbol, SourceObjectId(0), "Could not resolve symbol B.")
+                    .with_observation(Observation::new(&StaticSegmentHolder::new(75..77))),
             ]
         )
     }

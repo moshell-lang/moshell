@@ -36,24 +36,21 @@ pub enum DiagnosticType {
 
 #[derive(PartialEq, Debug)]
 pub struct Observation {
-    pub expr_origin: SourceObjectId,
     pub segment: SourceSegment,
     pub help: Option<String>,
 }
 
 impl Observation {
-    pub fn new(holder: &impl SourceSegmentHolder, origin: SourceObjectId) -> Self {
+    pub fn new(segment_holder: &impl SourceSegmentHolder) -> Self {
         Self {
-            expr_origin: origin,
-            segment: holder.segment(),
+            segment: segment_holder.segment(),
             help: None,
         }
     }
 
-    pub fn with_help<'a>(holder: &impl SourceSegmentHolder, origin: SourceObjectId, help: &str) -> Self {
+    pub fn with_help<'a>(segment_holder: &impl SourceSegmentHolder,help: &str) -> Self {
         Self {
-            expr_origin: origin,
-            segment: holder.segment(),
+            segment: segment_holder.segment(),
             help: Some(help.to_string())
         }
     }
@@ -61,6 +58,7 @@ impl Observation {
 
 #[derive(PartialEq, Debug)]
 pub struct Diagnostic {
+    pub module: SourceObjectId,
     pub ty: DiagnosticType,
     pub global_message: String,
     pub observations: Vec<Observation>,
@@ -68,8 +66,9 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
-    pub fn warn(id: WarnID, msg: &str) -> Self {
+    pub fn warn(id: WarnID, module: SourceObjectId, msg: &str) -> Self {
         Self {
+            module,
             ty: Warn(id),
             global_message: msg.to_string(),
             observations: Vec::new(),
@@ -77,8 +76,9 @@ impl Diagnostic {
         }
     }
 
-    pub fn error(id: ErrorID, msg: &str) -> Self {
+    pub fn error(id: ErrorID, module: SourceObjectId, msg: &str) -> Self {
         Self {
+            module,
             ty: Error(id),
             global_message: msg.to_string(),
             observations: Vec::new(),

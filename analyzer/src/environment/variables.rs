@@ -1,6 +1,7 @@
 use crate::relations::{GlobalObjectId, ObjectId, Relations, SourceObjectId, Symbol};
-use std::collections::HashMap;
 use std::num::NonZeroUsize;
+use ast::variable::{VarReference as VarReferenceExpr, VarReference};
+use indexmap::IndexMap;
 
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
 pub enum TypeInfo {
@@ -11,13 +12,33 @@ pub enum TypeInfo {
 
 /// A collection of variables
 #[derive(Debug, Clone, Default)]
-pub struct Variables {
+pub struct Variables<'a> {
     locals: Locals,
 
-    globals: HashMap<String, GlobalObjectId>,
+    external_references: ExternalVariableReferences<'a>,
 }
 
-impl Variables {
+#[derive(Debug, Clone, Default)]
+pub struct ExternalVariableReferences<'a> {
+    references: IndexMap<String, ExternalVariableReference<'a>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExternalVariableReference<'a> {
+    pub relation_tracking_pos: GlobalObjectId,
+    pub references_expr: Vec<&'a VarReferenceExpr<'a>>,
+}
+
+impl<'a> ExternalVariableReference<'a> {
+    pub fn new(relation: GlobalObjectId) -> Self {
+        Self {
+            relation_tracking_pos: relation,
+            references_expr: Vec::new(),
+        }
+    }
+}
+
+impl<'a> Variables<'a> {
     pub fn declare_local(&mut self, name: String) {
         self.locals.declare(name);
     }
@@ -28,26 +49,31 @@ impl Variables {
     pub fn identify(
         &mut self,
         state: SourceObjectId,
-        resolver: &mut Relations,
-        name: &str,
+        relations: &mut Relations<'a>,
+        var: &'a VarReference<'a>,
     ) -> Symbol {
-        match self.locals.position_reachable_local(name) {
+        match self.locals.position_reachable_local(var.name) {
             Some(var) => Symbol::Local(var),
-            None => (*self
-                .globals
-                .entry(name.to_owned())
-                .or_insert_with(|| resolver.track_new_object(state)))
-            .into(),
+            None => {
+                let ext = self
+                    .external_references
+                    .references
+                    .entry(var.name.to_string())
+                    .or_insert_with(|| ExternalVariableReference::new(relations.track_new_object(state)));
+                ext.references_expr.push(var);
+                ext.relation_tracking_pos
+                    .into()
+            }
         }
     }
 
-    pub fn exported_vars(&self) -> impl Iterator<Item = &Variable> {
+    pub fn exported_vars(&self) -> impl Iterator<Item=&LocalVariable> {
         //consider for now that all local vars are exported.
         self.locals.vars.iter()
     }
 
-    pub fn global_vars(&self) -> impl Iterator<Item = (&String, GlobalObjectId)> {
-        self.globals.iter().map(|(name, id)| (name, *id))
+    pub fn external_vars(&self) -> impl Iterator<Item=(&String, &ExternalVariableReference<'a>)> {
+        self.external_references.references.iter().map(|(name, id)| (name, id))
     }
 
     pub fn begin_scope(&mut self) {
@@ -62,7 +88,7 @@ impl Variables {
 #[derive(Debug, Clone)]
 struct Locals {
     /// The actual list of seen and unique variables.
-    vars: Vec<Variable>,
+    vars: Vec<LocalVariable>,
 
     /// The current depth of the scope.
     ///
@@ -74,7 +100,7 @@ struct Locals {
 impl Locals {
     /// Adds a new variable and binds it to the current scope.
     fn declare(&mut self, name: String) {
-        self.vars.push(Variable {
+        self.vars.push(LocalVariable {
             name,
             depth: Some(self.current_depth),
             ty: TypeInfo::Unknown,
@@ -109,7 +135,7 @@ impl Locals {
     }
 
     /// Looks up a variable by name that is reachable from the current scope.
-    fn lookup_reachable_local(&self, name: &str) -> Option<&Variable> {
+    fn lookup_reachable_local(&self, name: &str) -> Option<&LocalVariable> {
         self.vars
             .iter()
             .rev()
@@ -134,7 +160,7 @@ impl Default for Locals {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Variable {
+pub struct LocalVariable {
     /// The name identifier of the variable.
     pub name: String,
 
@@ -151,7 +177,7 @@ pub struct Variable {
     depth: Option<NonZeroUsize>,
 }
 
-impl Variable {
+impl LocalVariable {
     /// Creates a new variable.
     ///
     /// This convenience method accepts zero as a depth, which is the internal
@@ -177,12 +203,12 @@ mod tests {
         locals.declare("bar".to_owned());
         assert_eq!(
             locals.lookup_reachable_local("foo"),
-            Some(&Variable::scoped("foo".to_owned(), 1))
+            Some(&LocalVariable::scoped("foo".to_owned(), 1))
         );
 
         assert_eq!(
             locals.lookup_reachable_local("bar"),
-            Some(&Variable::scoped("bar".to_owned(), 2))
+            Some(&LocalVariable::scoped("bar".to_owned(), 2))
         );
     }
 
@@ -206,17 +232,17 @@ mod tests {
         locals.declare("foo".to_owned());
         assert_eq!(
             locals.lookup_reachable_local("foo"),
-            Some(&Variable::scoped("foo".to_owned(), 3))
+            Some(&LocalVariable::scoped("foo".to_owned(), 3))
         );
         locals.end_scope();
         assert_eq!(
             locals.lookup_reachable_local("foo"),
-            Some(&Variable::scoped("foo".to_owned(), 1))
+            Some(&LocalVariable::scoped("foo".to_owned(), 1))
         );
         locals.end_scope();
         assert_eq!(
             locals.lookup_reachable_local("foo"),
-            Some(&Variable::scoped("foo".to_owned(), 1))
+            Some(&LocalVariable::scoped("foo".to_owned(), 1))
         );
     }
 }

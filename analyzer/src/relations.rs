@@ -1,5 +1,7 @@
 use crate::name::Name;
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use ast::Expr;
 
 /// The object identifier base.
 ///
@@ -60,8 +62,8 @@ impl UnresolvedImports {
 
 
 /// The resolved information about a symbol.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct ResolvedSymbol {
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct ResolvedSymbol<'a> {
     /// The module where the symbol is defined.
     ///
     /// This is used to route the symbol to the correct environment.
@@ -69,25 +71,51 @@ pub struct ResolvedSymbol {
 
     /// The object identifier of the symbol, local to the module.
     pub object_id: ObjectId,
+
+    pub origin_expr: Option<&'a Expr<'a>>,
 }
 
-impl ResolvedSymbol {
-    pub fn new(module: SourceObjectId, object_id: ObjectId) -> Self {
-        Self { module, object_id }
+impl<'a> Hash for ResolvedSymbol<'a> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.module.hash(state);
+        self.object_id.hash(state);
     }
 }
 
+impl<'a> ResolvedSymbol<'a> {
+    pub fn new(module: SourceObjectId, object_id: ObjectId, origin: Option<&'a Expr<'a>>) -> Self {
+        Self {
+            module,
+            object_id,
+            origin_expr: origin
+        }
+    }
+}
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Object {
+#[derive(Debug, Clone)]
+pub struct Object<'a> {
     /// The symbol that is being resolved, where it is used.
     pub origin: SourceObjectId,
 
     /// The link to the resolved symbol.
-    pub resolved: Option<ResolvedSymbol>,
+    pub resolved: Option<ResolvedSymbol<'a>>,
 }
 
-impl Object {
+
+impl<'a> Hash for Object<'a> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.origin.hash(state);
+        self.resolved.hash(state);
+    }
+}
+
+impl<'a> PartialEq for Object<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.origin == other.origin && self.resolved == other.resolved
+    }
+}
+
+impl<'a> Object<'a> {
     pub fn unresolved(origin: SourceObjectId) -> Self {
         Self {
             origin,
@@ -95,7 +123,7 @@ impl Object {
         }
     }
 
-    pub fn resolved(origin: SourceObjectId, resolved: ResolvedSymbol) -> Self {
+    pub fn resolved(origin: SourceObjectId, resolved: ResolvedSymbol<'a>) -> Self {
         Self {
             origin,
             resolved: Some(resolved),
@@ -105,14 +133,14 @@ impl Object {
 
 /// A collection of objects that are tracked globally and may link to each other.
 #[derive(Debug, Clone, Default)]
-pub struct Relations {
+pub struct Relations<'a> {
     /// The objects that need resolution that are tracked globally.
     ///
     /// The actual [`String`] -> [`ObjectId`] mapping is left to the [`checker::environment::Environment`].
     /// The reason that the resolution information is lifted out of the environment is that identifiers
     /// binding happens across modules, and an environment cannot guarantee that it will be able to generate
     /// unique identifiers for all the symbols that do not conflicts with the ones from other modules.
-    pub objects: Vec<Object>,
+    pub objects: Vec<Object<'a>>,
 
     /// Associates a source object with its unresolved imports.
     ///
@@ -123,7 +151,7 @@ pub struct Relations {
     pub imports: HashMap<SourceObjectId, UnresolvedImports>,
 }
 
-impl Relations {
+impl<'a> Relations<'a> {
     /// Take the imports
     pub fn take_imports(&mut self) -> HashMap<SourceObjectId, UnresolvedImports> {
         std::mem::take(&mut self.imports)
