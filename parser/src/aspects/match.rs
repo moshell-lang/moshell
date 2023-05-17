@@ -191,7 +191,7 @@ impl<'a> Parser<'a> {
                 let segment = self.cursor.relative_pos(star.value);
                 Ok(Wildcard(segment))
             }
-            _ => match self.literal(LiteralLeniency::Lenient)? {
+            _ => match self.literal(LiteralLeniency::Strict)? {
                 Expr::Literal(literal) => Ok(Literal(literal)),
                 Expr::TemplateString(template) => Ok(Template(template)),
                 Expr::VarReference(var_ref) => Ok(VarRef(var_ref)),
@@ -244,7 +244,7 @@ mod tests {
     fn parse_match_as_value() {
         let source = Source::unknown(
             "val x = match $1 {
-           -e => 75
+           '-e' => 75
            y@\"test $2\" | 2 | $USER | 't x' => 4 - 7
         }",
         );
@@ -269,14 +269,14 @@ mod tests {
                             val_name: None,
                             patterns: vec![MatchPattern::Literal(Literal {
                                 parsed: "-e".into(),
-                                segment: find_in(source.source, "-e"),
+                                segment: find_in(source.source, "'-e'"),
                             })],
                             guard: None,
                             body: Expr::Literal(Literal {
                                 parsed: 75.into(),
                                 segment: find_in(source.source, "75"),
                             }),
-                            segment: find_in(source.source, "-e => 75"),
+                            segment: find_in(source.source, "'-e' => 75"),
                         },
                         MatchArm {
                             val_name: Some("y"),
@@ -332,7 +332,7 @@ mod tests {
     #[test]
     fn parse_complete_match() {
         let content = "match $1 {\
-           -e => ();;;;;\n;;\n;;;;;\
+           '-e' => ();;;;;\n;;\n;;;;;\
            y@\"test $2\" | 2 | $USER | 't x' => ()
            x@* if [ $a == 1 ] => ();\
            * => echo $it
@@ -349,13 +349,13 @@ mod tests {
                 arms: vec![
                     MatchArm {
                         val_name: None,
-                        patterns: vec![MatchPattern::Literal(literal_expr(content, "-e"))],
+                        patterns: vec![MatchPattern::Literal(literal_expr(content, "'-e'"))],
                         guard: None,
                         body: Expr::Subshell(Subshell {
                             expressions: Vec::new(),
                             segment: find_in(content, "()"),
                         }),
-                        segment: find_in(content, "-e => ()"),
+                        segment: find_in(content, "'-e' => ()"),
                     },
                     MatchArm {
                         val_name: Some("y"),
@@ -481,7 +481,7 @@ mod tests {
     fn parse_complete_match_blanks() {
         let content = "\
         match \n\n $1 \n\n {\n\n\
-           \n\n -e \n\n => \n\n () \n\n\
+           \n\n '-e' \n\n => \n\n () \n\n\
            \n\n y \n\n @ \n\n \"test $2\" \n\n | 2 \n\n | \n\n $USER \n\n | \n\n 't x' \n\n =>\n\n  () \n\n\
            \n\n x@* \n\n if \n\n [ $a == 1 ]\n\n  =>\n\n  () \n\n\
            \n\n * \n\n => \n\n echo $it \n\n\
@@ -502,14 +502,14 @@ mod tests {
                         val_name: None,
                         patterns: vec![MatchPattern::Literal(Literal {
                             parsed: "-e".into(),
-                            segment: find_in(content, "-e"),
+                            segment: find_in(content, "'-e'"),
                         })],
                         guard: None,
                         body: Expr::Subshell(Subshell {
                             expressions: Vec::new(),
                             segment: find_in(content, "()"),
                         }),
-                        segment: find_in(content, "-e \n\n => \n\n ()"),
+                        segment: find_in(content, "'-e' \n\n => \n\n ()"),
                     },
                     MatchArm {
                         val_name: Some("y"),
@@ -591,7 +591,7 @@ mod tests {
     fn match_patterns_with_wildcard() {
         let src = "\
         match $1 {\
-           -e | * => ()\
+           '-e' | * => ()\
         }\
         ";
         let res = parse(Source::unknown(src)).errors;
@@ -609,7 +609,7 @@ mod tests {
     fn match_wildcard_with_patterns() {
         let src = "\
         match $1 {\
-           * | x | y => ()\
+           * | 'x' | 'y' => ()\
         }\
         ";
         let res = parse(Source::unknown(src)).errors;
@@ -618,10 +618,7 @@ mod tests {
             vec![ParseError {
                 message: "wildcard pattern cannot be followed by other patterns".to_string(),
                 kind: Unexpected,
-                position: src
-                    .find("* | x | y ")
-                    .map(|i| i..i + "* | x | y ".len())
-                    .unwrap(),
+                position: find_in(src, "* | 'x' | 'y' "),
             }]
         )
     }
@@ -630,26 +627,25 @@ mod tests {
     fn match_patterns_missing_bar() {
         let src = "\
         match $1 {\
-           x y => ()\
+           'x' 'y' => ()\
         }\
         ";
         let res = parse(Source::unknown(src)).errors;
         assert_eq!(
             res,
             vec![ParseError {
-                message: "unexpected token, expected '|', 'if' or '=>', found 'y'".to_string(),
+                message: "unexpected token, expected '|', 'if' or '=>', found '''".to_string(),
                 kind: Unexpected,
-                position: src.find('y').map(|i| i - 1..i).unwrap(),
+                position: src.find('y').map(|i| i - 2..i - 1).unwrap(),
             }]
         )
     }
 
     #[test]
-    #[ignore]
     fn match_patterns_trailing_bar() {
         let src = "\
         match $1 {\
-           x | => ()\
+           'x' | => ()\
         }\
         ";
         let res = parse(Source::unknown(src)).errors;
@@ -667,7 +663,7 @@ mod tests {
     fn match_patterns_missing_fatarrow() {
         let src = "\
         match $1 {\
-           x | y ()\
+           'x' | 'y' ()\
         }\
         ";
         let res = parse(Source::unknown(src)).errors;

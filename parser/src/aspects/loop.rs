@@ -493,9 +493,8 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn for_in_files_range() {
-        let source = Source::unknown("for f in * {\n\tfile $f\n}");
+        let source = Source::unknown("for f in p'*' {\n\tfile $f\n}");
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
@@ -504,9 +503,9 @@ mod tests {
                     receiver: "f",
                     iterable: Expr::Range(Iterable::Files(FilePattern {
                         pattern: "*".to_owned(),
-                        segment: find_in(source.source, "*")
+                        segment: find_in(source.source, "p'*'")
                     })),
-                    segment: find_in(source.source, "f in *"),
+                    segment: find_in(source.source, "f in p'*'"),
                 })),
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {

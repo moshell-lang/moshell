@@ -5,7 +5,7 @@ use crate::aspects::substitution::SubstitutionAspect;
 use lexer::token::TokenType::*;
 
 use crate::err::ParseErrorKind;
-use crate::moves::{next, of_type};
+use crate::moves::{next, of_type, of_types, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::range::{FilePattern, Iterable};
 use ast::value::{Literal, LiteralValue, TemplateString};
@@ -91,6 +91,27 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             _ if leniency == LiteralLeniency::Lenient => self.argument(leniency),
             IntLiteral | FloatLiteral => self.number_literal().map(Expr::Literal),
             Dollar => self.substitution(),
+            Identifier
+                if self
+                    .cursor
+                    .lookahead(next().then(of_types(&[Quote, DoubleQuote])))
+                    .is_some() =>
+            {
+                if token.value == "p" {
+                    self.cursor.next_opt();
+                    let literal = self.string_literal()?;
+                    let segment = self.cursor.relative_pos(token).start..literal.segment.end;
+                    Ok(Expr::Range(Iterable::Files(FilePattern {
+                        pattern: match literal.parsed {
+                            LiteralValue::String(s) => s,
+                            _ => unreachable!(),
+                        },
+                        segment,
+                    })))
+                } else {
+                    self.expected("Unexpected string format", ParseErrorKind::Unexpected)
+                }
+            }
             _ => self.expected("Unexpected word literal", ParseErrorKind::Unexpected),
         }
     }
