@@ -12,7 +12,7 @@ use ast::range::Iterable;
 use ast::value::LiteralValue;
 use ast::Expr;
 use std::collections::HashSet;
-use crate::diagnostic::{Diagnostic, ErrorID, Observation};
+use crate::diagnostic::{Diagnostic, ErrorID, Observation, WarnID};
 use crate::environment::Environment;
 use crate::relations::{Relations, SourceObjectId, UnresolvedImport};
 
@@ -106,6 +106,18 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         self.engine.attach(state.module, env)
     }
 
+    fn add_checked_import(&mut self,
+                          mod_id: SourceObjectId,
+                          import: UnresolvedImport,
+                          import_expr: &'e ImportExpr<'e>,
+                          import_fqn: Name) {
+        if let Some(shadowed) = self.relations.add_import(mod_id, import, import_expr) {
+            let diagnostic = Diagnostic::warn(WarnID::ShadowedImport, mod_id, &format!("{import_fqn} is imported twice."))
+                .with_observation(Observation::with_help(shadowed, "useless import here"))
+                .with_observation(Observation::with_help(import_expr, "This statement shadows previous import"));
+            self.diagnostics.push(diagnostic)
+        }
+    }
 
     /// Collects the symbol import and place it as an [UnresolvedImport] in the relations.
     fn collect_symbol_import(
@@ -125,8 +137,8 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 let alias = s.alias.map(|s| s.to_string());
 
                 visitable.push(name.clone());
-                let unresolved = UnresolvedImport::Symbol { alias, name };
-                self.relations.add_import(mod_id, unresolved, import);
+                let unresolved = UnresolvedImport::Symbol { alias, fqn: name.clone() };
+                self.add_checked_import(mod_id, unresolved, import, name)
             }
             ImportExpr::AllIn(path, _) => {
                 let mut symbol_name = relative_path;
@@ -134,7 +146,8 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
 
                 let name = Name::from(symbol_name);
                 visitable.push(name.clone());
-                self.relations.add_import(mod_id, UnresolvedImport::AllIn(name), import);
+                let unresolved = UnresolvedImport::AllIn(name.clone());
+                self.add_checked_import(mod_id, unresolved, import, name)
             }
 
             ImportExpr::Environment(_, _) => {
@@ -474,9 +487,7 @@ fn import_ast<'a, 'b>(
 mod tests {
     use super::*;
     use crate::importer::StaticImporter;
-    use ast::group::Block;
-    use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
-    use context::source::Source;
+    use context::source::{Source, StaticSegmentHolder};
     use parser::parse_trusted;
     use pretty_assertions::assert_eq;
 
@@ -499,25 +510,7 @@ mod tests {
 
     #[test]
     fn bind_local_variables() {
-        let expr = Expr::Block(Block {
-            expressions: vec![
-                Expr::VarDeclaration(VarDeclaration {
-                    kind: VarKind::Var,
-                    var: TypedVariable {
-                        name: "bar",
-                        ty: None,
-                        segment: 0..1,
-                    },
-                    initializer: None,
-                    segment: 0..2,
-                }),
-                Expr::VarReference(VarReference {
-                    name: "bar",
-                    segment: 0..1,
-                }),
-            ],
-            segment: 0..3,
-        });
+        let expr = parse_trusted(Source::unknown("var bar = 4; $bar"));
         let mut engine = Engine::default();
         let mut relations = Relations::default();
         let mut env = Environment::named(Name::new("test"));
@@ -531,6 +524,29 @@ mod tests {
             &expr,
         );
         assert_eq!(collector.diagnostics, vec![]);
-        assert_eq!(relations.objects.len(), 0);
+        assert_eq!(relations.objects, vec![]);
     }
+
+    #[test]
+    fn shadowed_imports() {
+        let test_src = Source::unknown("use A; use B; use A; use B");
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
+        let mut importer = StaticImporter::new([(Name::new("test"), test_src)], parse_trusted);
+        let diagnostics = SymbolCollector::collect_symbols(&mut engine, &mut relations, Name::new("test"), &mut importer)
+            .expect_err("did not raised diagnostics");
+
+        assert_eq!(
+            diagnostics,
+            vec![
+                Diagnostic::warn(WarnID::ShadowedImport, SourceObjectId(0), "A is imported twice.")
+                    .with_observation(Observation::with_help(&StaticSegmentHolder::new(4..5), "useless import here"))
+                    .with_observation(Observation::with_help(&StaticSegmentHolder::new(18..19), "This statement shadows previous import")),
+                Diagnostic::warn(WarnID::ShadowedImport, SourceObjectId(0), "B is imported twice.")
+                    .with_observation(Observation::with_help(&StaticSegmentHolder::new(11..12), "useless import here"))
+                    .with_observation(Observation::with_help(&StaticSegmentHolder::new(25..26), "This statement shadows previous import")),
+            ]
+        )
+    }
+
 }

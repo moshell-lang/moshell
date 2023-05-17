@@ -23,6 +23,12 @@ impl StaticSegmentHolder {
     }
 }
 
+impl From<SourceSegment> for StaticSegmentHolder {
+    fn from(value: SourceSegment) -> Self {
+        StaticSegmentHolder::new(value)
+    }
+}
+
 /// Defines a named source code from which tokens can be produced.
 #[derive(Clone, Copy)]
 pub struct Source<'a> {

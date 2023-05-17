@@ -23,9 +23,11 @@ pub enum ErrorID {
     UseBetweenExprs,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Assoc)]
+#[func(pub fn code(&self) -> &'static str)]
 pub enum WarnID {
-
+    #[assoc(code = "W001")]
+    ShadowedImport
 }
 
 #[derive(PartialEq, Debug)]

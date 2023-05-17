@@ -2,7 +2,7 @@ use crate::name::Name;
 use std::collections::{HashMap};
 use std::hash::{Hash, Hasher};
 use indexmap::IndexMap;
-use ast::r#use::Import as ImportExpr;
+use ast::r#use::{Import as ImportExpr};
 
 /// The object identifier base.
 ///
@@ -39,26 +39,29 @@ impl From<GlobalObjectId> for Symbol {
     }
 }
 
+/// The structure that hosts the unresolved imports of the Relations
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct UnresolvedImports<'a> {
-    pub imports: IndexMap<UnresolvedImport, Vec<&'a ImportExpr<'a>>>,
+    /// Binds an UnresolvedImport to all the [ImportExpr] that refers to the import resolution.
+    pub imports: IndexMap<UnresolvedImport, &'a ImportExpr<'a>>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum UnresolvedImport {
-    Symbol { alias: Option<String>, name: Name },
+    /// A symbol import with an optional alias.
+    Symbol { alias: Option<String>, fqn: Name },
+    /// Variant to target all the exported symbols of a symbol
     AllIn(Name),
 }
 
 impl<'a> UnresolvedImports<'a> {
-    pub fn new(imports: IndexMap<UnresolvedImport, Vec<&'a ImportExpr<'a>>>) -> Self {
+    pub fn new(imports: IndexMap<UnresolvedImport, &'a ImportExpr<'a>>) -> Self {
         Self { imports }
     }
 
-    pub fn add_unresolved_import(&mut self, import: UnresolvedImport, import_expr: &'a ImportExpr<'a>) {
-        self.imports.entry(import)
-            .or_insert_with(Vec::new)
-            .push(import_expr)
+    ///Adds an unresolved import, placing the given `import_expr` as the dependent .
+    pub fn add_unresolved_import(&mut self, import: UnresolvedImport, import_expr: &'a ImportExpr<'a>) -> Option<&'a ImportExpr<'a>> {
+        self.imports.insert(import, import_expr)
     }
 }
 
@@ -150,7 +153,7 @@ pub struct Relations<'a> {
 }
 
 impl<'a> Relations<'a> {
-    /// Take the imports
+    /// Takes the unresolved imports
     pub fn take_imports(&mut self) -> HashMap<SourceObjectId, UnresolvedImports<'a>> {
         std::mem::take(&mut self.imports)
     }
@@ -158,7 +161,7 @@ impl<'a> Relations<'a> {
     /// References a new import directive in the given source.
     ///
     /// This directive may be used later to resolve the import.
-    pub fn add_import(&mut self, source: SourceObjectId, import: UnresolvedImport, import_expr: &'a ImportExpr<'a>) {
+    pub fn add_import(&mut self, source: SourceObjectId, import: UnresolvedImport, import_expr: &'a ImportExpr<'a>) -> Option<&'a ImportExpr<'a>> {
         let imports = self
             .imports
             .entry(source)

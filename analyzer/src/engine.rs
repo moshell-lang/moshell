@@ -58,15 +58,11 @@ impl<'a> Engine<'a> {
     }
 
     ///Finds an environment by its fully qualified name.
-    pub fn find_environment_by_name(&self, name: &Name) -> Option<SourceObjectId> {
+    pub fn find_environment_by_name(&self, name: &Name) -> Option<(SourceObjectId, &Environment)> {
         self.origins
             .iter()
-            .position(|(_, env)| env.as_ref().map(|env| &env.fqn == name).unwrap_or(false))
-            .map(SourceObjectId)
-    }
-
-    ///Finds an environment by its identifier.
-    pub fn find_environment(&self, id: SourceObjectId) -> Option<&Environment> {
-        self.origins.get(id.0).and_then(|(_, env)| env.as_ref())
+            .enumerate()
+            .find(|(_, (_, env))| env.as_ref().map(|env| &env.fqn == name).unwrap_or(false))
+            .and_then(|(idx, (_, env))| env.as_ref().map(|env| (SourceObjectId(idx), env)))
     }
 }

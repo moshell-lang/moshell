@@ -1,7 +1,6 @@
 use crate::name::Name;
-use context::source::{OwnedSource, Source};
+use context::source::{Source};
 use std::collections::HashMap;
-use std::path::PathBuf;
 use ast::Expr;
 
 /// An importer is responsible for importing an AST from a given name
@@ -9,18 +8,6 @@ use ast::Expr;
 pub trait ASTImporter<'a> {
     /// Gets a source reference from the given import name.
     fn import(&mut self, name: &Name) -> Option<Expr<'a>>;
-}
-
-/// An importer that reads files from a given root directory.
-pub struct FileASTImporter {
-    /// The root directory from which to read files.
-    root: PathBuf,
-
-    /// A cache that holds the source code of files that have already been read.
-    ///
-    /// The main purpose the importer is to be the owner of the source, so it should be
-    /// assumed that entries are never removed from the cache.
-    cache: HashMap<PathBuf, OwnedSource>,
 }
 
 pub struct StaticImporter<'a, P> where P: Fn(Source<'a>) -> Expr<'a> {
