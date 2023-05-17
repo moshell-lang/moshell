@@ -1,6 +1,8 @@
 use crate::name::Name;
-use std::collections::HashMap;
+use std::collections::{HashMap};
 use std::hash::{Hash, Hasher};
+use indexmap::IndexMap;
+use ast::r#use::Import as ImportExpr;
 
 /// The object identifier base.
 ///
@@ -37,24 +39,26 @@ impl From<GlobalObjectId> for Symbol {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
-pub struct UnresolvedImports {
-    pub imports: Vec<UnresolvedImport>,
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct UnresolvedImports<'a> {
+    pub imports: IndexMap<UnresolvedImport, Vec<&'a ImportExpr<'a>>>,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum UnresolvedImport {
     Symbol { alias: Option<String>, name: Name },
     AllIn(Name),
 }
 
-impl UnresolvedImports {
-    pub fn new(imports: Vec<UnresolvedImport>) -> Self {
+impl<'a> UnresolvedImports<'a> {
+    pub fn new(imports: IndexMap<UnresolvedImport, Vec<&'a ImportExpr<'a>>>) -> Self {
         Self { imports }
     }
 
-    pub fn add_unresolved_import(&mut self, import: UnresolvedImport) {
-        self.imports.push(import)
+    pub fn add_unresolved_import(&mut self, import: UnresolvedImport, import_expr: &'a ImportExpr<'a>) {
+        self.imports.entry(import)
+            .or_insert_with(Vec::new)
+            .push(import_expr)
     }
 }
 
@@ -127,7 +131,7 @@ impl Object {
 
 /// A collection of objects that are tracked globally and may link to each other.
 #[derive(Debug, Clone, Default)]
-pub struct Relations {
+pub struct Relations<'a> {
     /// The objects that need resolution that are tracked globally.
     ///
     /// The actual [`String`] -> [`ObjectId`] mapping is left to the [`checker::environment::Environment`].
@@ -142,24 +146,24 @@ pub struct Relations {
     /// per [`checker::environment::Environment`]. If a source is not tracked here, it means that it has no
     /// imports. This is only used to create find the link between environments and sources, and should not
     /// be used after the resolution is done.
-    pub imports: HashMap<SourceObjectId, UnresolvedImports>,
+    pub imports: HashMap<SourceObjectId, UnresolvedImports<'a>>,
 }
 
-impl Relations {
+impl<'a> Relations<'a> {
     /// Take the imports
-    pub fn take_imports(&mut self) -> HashMap<SourceObjectId, UnresolvedImports> {
+    pub fn take_imports(&mut self) -> HashMap<SourceObjectId, UnresolvedImports<'a>> {
         std::mem::take(&mut self.imports)
     }
 
     /// References a new import directive in the given source.
     ///
     /// This directive may be used later to resolve the import.
-    pub fn add_import(&mut self, source: SourceObjectId, import: UnresolvedImport) {
+    pub fn add_import(&mut self, source: SourceObjectId, import: UnresolvedImport, import_expr: &'a ImportExpr<'a>) {
         let imports = self
             .imports
             .entry(source)
             .or_insert_with(UnresolvedImports::default);
-        imports.add_unresolved_import(import)
+        imports.add_unresolved_import(import, import_expr)
     }
 
     /// Tracks a new object and returns its identifier.

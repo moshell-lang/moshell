@@ -7,12 +7,11 @@ use ast::call::Call;
 use ast::control_flow::ForKind;
 use ast::function::FunctionParameter;
 use ast::r#match::MatchPattern;
-use ast::r#use::Import as AstImport;
+use ast::r#use::Import as ImportExpr;
 use ast::range::Iterable;
 use ast::value::LiteralValue;
 use ast::Expr;
 use std::collections::HashSet;
-use context::source::SourceSegmentHolder;
 use crate::diagnostic::{Diagnostic, ErrorID, Observation};
 use crate::environment::Environment;
 use crate::relations::{Relations, SourceObjectId, UnresolvedImport};
@@ -38,7 +37,7 @@ impl ResolutionState {
 
 pub struct SymbolCollector<'a, 'e> {
     engine: &'a mut Engine<'e>,
-    relations: &'a mut Relations,
+    relations: &'a mut Relations<'e>,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -48,7 +47,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
     /// This collects all the symbols that are used, locally or not yet resolved if they are global.
     pub fn collect_symbols(
         engine: &'a mut Engine<'e>,
-        relations: &'a mut Relations,
+        relations: &'a mut Relations<'e>,
         entry_point: Name,
         importer: &mut impl ASTImporter<'e>,
     ) -> Result<(), Vec<Diagnostic>> {
@@ -60,7 +59,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         Err(collector.diagnostics)
     }
 
-    fn new(engine: &'a mut Engine<'e>, relations: &'a mut Relations) -> Self {
+    fn new(engine: &'a mut Engine<'e>, relations: &'a mut Relations<'e>) -> Self {
         Self {
             engine,
             relations,
@@ -89,7 +88,6 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         }
     }
 
-
     fn collect_ast_symbols(&mut self,
                            ast: Expr<'e>,
                            module_name: Name,
@@ -112,13 +110,13 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
     /// Collects the symbol import and place it as an [UnresolvedImport] in the relations.
     fn collect_symbol_import(
         &mut self,
-        import: &AstImport,
+        import: &'e ImportExpr<'e>,
         relative_path: Vec<String>,
         visitable: &mut Vec<Name>,
         mod_id: SourceObjectId,
     ) {
         match import {
-            AstImport::Symbol(s) => {
+            ImportExpr::Symbol(s) => {
                 let mut symbol_name = relative_path;
                 symbol_name.extend(s.path.iter().map(|s| s.to_string()));
                 symbol_name.push(s.name.to_string());
@@ -127,30 +125,29 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 let alias = s.alias.map(|s| s.to_string());
 
                 visitable.push(name.clone());
-                let import = UnresolvedImport::Symbol { alias, name };
-
-                self.relations.add_import(mod_id, import);
+                let unresolved = UnresolvedImport::Symbol { alias, name };
+                self.relations.add_import(mod_id, unresolved, import);
             }
-            AstImport::AllIn(path, _) => {
+            ImportExpr::AllIn(path, _) => {
                 let mut symbol_name = relative_path;
                 symbol_name.extend(path.iter().map(|s| s.to_string()));
 
                 let name = Name::from(symbol_name);
                 visitable.push(name.clone());
-                self.relations.add_import(mod_id, UnresolvedImport::AllIn(name));
+                self.relations.add_import(mod_id, UnresolvedImport::AllIn(name), import);
             }
 
-            AstImport::Environment(_, _) => {
+            ImportExpr::Environment(_, _) => {
                 let diagnostic = Diagnostic::error(
                     ErrorID::UnsupportedFeature,
                     mod_id,
                     "import of environment variables and commands are not yet supported.",
                 )
-                    .with_observation(Observation::new(import.segment()));
+                    .with_observation(Observation::new(import));
 
                 self.diagnostics.push(diagnostic);
             }
-            AstImport::List(list) => {
+            ImportExpr::List(list) => {
                 for list_import in &list.imports {
                     //append ImportList's path to current relative path
                     let mut relative = relative_path.clone();
