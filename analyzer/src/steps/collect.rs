@@ -50,13 +50,10 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         relations: &'a mut Relations<'e>,
         entry_point: Name,
         importer: &mut impl ASTImporter<'e>,
-    ) -> Result<(), Vec<Diagnostic>> {
+    ) -> Vec<Diagnostic> {
         let mut collector = Self::new(engine, relations);
         collector.collect(entry_point, importer);
-        if collector.diagnostics.is_empty() {
-            return Ok(())
-        }
-        Err(collector.diagnostics)
+        collector.diagnostics
     }
 
     fn new(engine: &'a mut Engine<'e>, relations: &'a mut Relations<'e>) -> Self {
@@ -498,8 +495,7 @@ mod tests {
         let mut importer =
             StaticImporter::new([(Name::new("test"), Source::unknown("use a; $a; use c; $c"))], parse_trusted);
         let entry_point = Name::new("test");
-        let res = SymbolCollector::collect_symbols(&mut engine, &mut relations, entry_point, &mut importer)
-            .expect_err("collection did not raise errors");
+        let res = SymbolCollector::collect_symbols(&mut engine, &mut relations, entry_point, &mut importer);
         assert_eq!(
             res,
             vec![
@@ -533,8 +529,7 @@ mod tests {
         let mut engine = Engine::default();
         let mut relations = Relations::default();
         let mut importer = StaticImporter::new([(Name::new("test"), test_src)], parse_trusted);
-        let diagnostics = SymbolCollector::collect_symbols(&mut engine, &mut relations, Name::new("test"), &mut importer)
-            .expect_err("did not raised diagnostics");
+        let diagnostics = SymbolCollector::collect_symbols(&mut engine, &mut relations, Name::new("test"), &mut importer);
 
         assert_eq!(
             diagnostics,

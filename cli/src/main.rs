@@ -4,7 +4,7 @@ mod report;
 
 use crate::cli::Cli;
 use crate::repl::prompt;
-use crate::report::FormattedError;
+use crate::report::FormattedParseError;
 use clap::Parser;
 use context::source::Source;
 use dbg_pls::color;
@@ -26,8 +26,9 @@ fn main() -> io::Result<()> {
         let errors = report
             .errors
             .into_iter()
-            .map(|err| FormattedError::from(err, &source))
+            .map(|err| FormattedParseError::from(err, &source))
             .collect::<Vec<_>>();
+
         if errors.is_empty() {
             println!("{}", color(&report.expr));
             return Ok(());
@@ -44,5 +45,6 @@ fn main() -> io::Result<()> {
         }
         exit(1);
     }
-    prompt(handler)
+    prompt(handler);
+    Ok(())
 }

@@ -41,7 +41,7 @@ impl ResolvedImports {
 /// - lifetime 'a is the structure's lifetime
 /// - lifetime 'e is the expressions' lifetime, the Engine and Relations needed a special lifetime
 ///   as both of them contains references to AST expressions.
-struct SymbolResolver<'a, 'e> {
+pub struct SymbolResolver<'a, 'e> {
     engine: &'a Engine<'e>,
     diagnostics: Vec<Diagnostic>,
     relations: &'a mut Relations<'e>,
@@ -51,13 +51,10 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
     ///Attempts to resolve the unresolved Engine's symbols contained in the given Relations.
     /// Returns a vector of diagnostics if the resolution did reported at least one diagnostic.
     pub fn resolve_symbols(engine: &'a Engine<'e>,
-                           relations: &'a mut Relations<'e>) -> Result<(), Vec<Diagnostic>> {
+                           relations: &'a mut Relations<'e>) -> Vec<Diagnostic> {
         let mut resolver = Self::new(engine, relations);
         resolver.resolve();
-        if resolver.diagnostics.is_empty() {
-            return Ok(())
-        }
-        Err(resolver.diagnostics)
+        resolver.diagnostics
     }
 
     fn new(engine: &'a Engine<'e>, relations: &'a mut Relations<'e>) -> Self {
@@ -250,8 +247,8 @@ mod tests {
                                                    (Name::new("std::io"), io_ast),
                                                    (Name::new("test"), test_ast),
                                                ], parse_trusted);
-        SymbolCollector::collect_symbols(&mut engine, &mut relations, Name::new("test"), &mut importer)
-            .expect("collect errors");
+        let diagnostics = SymbolCollector::collect_symbols(&mut engine, &mut relations, Name::new("test"), &mut importer);
+        assert_eq!(diagnostics, vec![]);
 
         assert_eq!(
             relations.imports,
@@ -334,10 +331,11 @@ mod tests {
                                                    (Name::new("test"), test_ast),
                                                ], parse_trusted);
 
-        SymbolCollector::collect_symbols(&mut engine, &mut relations, Name::new("test"), &mut importer)
-            .expect("collect errors");
-        SymbolResolver::resolve_symbols(&engine, &mut relations)
-            .expect("resolution errors");
+        let diagnostics = SymbolCollector::collect_symbols(&mut engine, &mut relations, Name::new("test"), &mut importer);
+        assert_eq!(diagnostics, vec![]);
+        let diagnostics = SymbolResolver::resolve_symbols(&engine, &mut relations);
+        assert_eq!(diagnostics, vec![]);
+
 
         assert_eq!(
             relations.objects,
@@ -368,13 +366,13 @@ mod tests {
                                                    (Name::new("test"), test_ast),
                                                    (Name::new("A"), a_ast)
                                                ], parse_trusted);
-        SymbolCollector::collect_symbols(&mut engine, &mut relations, Name::new("test"), &mut importer)
-            .expect("collect errors");
+        let diagnostics = SymbolCollector::collect_symbols(&mut engine, &mut relations, Name::new("test"), &mut importer);
+        assert_eq!(diagnostics, vec![]);
 
-        let diagnostic = SymbolResolver::resolve_symbols(&engine, &mut relations).expect_err("resolution has no errors");
+        let diagnostics = SymbolResolver::resolve_symbols(&engine, &mut relations);
 
         assert_eq!(
-            diagnostic,
+            diagnostics,
             vec![
                 Diagnostic::error(ErrorID::ImportResolution, SourceObjectId(0), "unable to find imported symbol B in module A.")
                     .with_observation(Observation::new(&StaticSegmentHolder::new(4..8))),
@@ -409,10 +407,10 @@ mod tests {
         let mut importer = StaticImporter::new([
                                                    (Name::new("test"), test_ast),
                                                ], parse_trusted);
-        SymbolCollector::collect_symbols(&mut engine, &mut relations, Name::new("test"), &mut importer)
-            .expect("collect errors");
+        let diagnostics = SymbolCollector::collect_symbols(&mut engine, &mut relations, Name::new("test"), &mut importer);
+        assert_eq!(diagnostics, vec![]);
 
-        let diagnostic = SymbolResolver::resolve_symbols(&engine, &mut relations).expect_err("resolution has no errors");
+        let diagnostic = SymbolResolver::resolve_symbols(&engine, &mut relations);
 
         assert_eq!(
             diagnostic,

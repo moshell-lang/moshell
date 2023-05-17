@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 context = { path = "../context" }
 parser = { path = "../parser" }
+analyzer = { path = "../analyzer" }
+ast = { path = "../ast" }
 
 miette = { version = "5.5.0", features = ["fancy"] }
 thiserror = "1.0.38"

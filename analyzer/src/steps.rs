@@ -1,3 +1,3 @@
 
 pub mod collect;
-mod resolve;
+pub mod resolve;

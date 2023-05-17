@@ -17,7 +17,7 @@ macro_rules! print_flush {
 pub(crate) use print_flush;
 
 #[derive(Error, Debug, Diagnostic)]
-pub struct FormattedError<'s> {
+pub struct FormattedParseError<'s> {
     #[source_code]
     src: &'s Source<'s>,
     #[label("Here")]
@@ -29,7 +29,7 @@ pub struct FormattedError<'s> {
     help: Option<String>,
 }
 
-impl Display for FormattedError<'_> {
+impl Display for FormattedParseError<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.message)
     }
@@ -43,7 +43,7 @@ fn offset_empty_span(span: SourceSegment) -> SourceSpan {
     }
 }
 
-impl<'a> FormattedError<'a> {
+impl<'a> FormattedParseError<'a> {
     pub fn from(err: ParseError, source: &'a Source<'a>) -> Self {
         Self {
             src: source,
