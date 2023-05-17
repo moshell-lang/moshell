@@ -1,46 +1,25 @@
 use crate::relations::{GlobalObjectId, ObjectId, Relations, SourceObjectId, Symbol};
 use std::num::NonZeroUsize;
-use ast::variable::{VarReference as VarReferenceExpr, VarReference};
 use indexmap::IndexMap;
 
-#[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TypeInfo {
-    #[default]
-    Unknown,
-    Ref(Symbol),
+    Variable,
+    Function,
 }
 
 /// A collection of variables
 #[derive(Debug, Clone, Default)]
-pub struct Variables<'a> {
+pub struct Variables {
     locals: Locals,
 
-    external_references: ExternalVariableReferences<'a>,
+    globals: IndexMap<String, GlobalObjectId>,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct ExternalVariableReferences<'a> {
-    references: IndexMap<String, ExternalVariableReference<'a>>,
-}
 
-#[derive(Debug, Clone)]
-pub struct ExternalVariableReference<'a> {
-    pub relation_tracking_pos: GlobalObjectId,
-    pub references_expr: Vec<&'a VarReferenceExpr<'a>>,
-}
-
-impl<'a> ExternalVariableReference<'a> {
-    pub fn new(relation: GlobalObjectId) -> Self {
-        Self {
-            relation_tracking_pos: relation,
-            references_expr: Vec::new(),
-        }
-    }
-}
-
-impl<'a> Variables<'a> {
-    pub fn declare_local(&mut self, name: String) {
-        self.locals.declare(name);
+impl Variables {
+    pub fn declare_local(&mut self, name: String, ty: TypeInfo) -> Symbol {
+        self.locals.declare(name, ty)
     }
 
     /// Identifies a named variable to a binding.
@@ -49,20 +28,17 @@ impl<'a> Variables<'a> {
     pub fn identify(
         &mut self,
         state: SourceObjectId,
-        relations: &mut Relations<'a>,
-        var: &'a VarReference<'a>,
+        relations: &mut Relations,
+        name: String,
     ) -> Symbol {
-        match self.locals.position_reachable_local(var.name) {
+        match self.locals.position_reachable_local(&name) {
             Some(var) => Symbol::Local(var),
             None => {
-                let ext = self
-                    .external_references
-                    .references
-                    .entry(var.name.to_string())
-                    .or_insert_with(|| ExternalVariableReference::new(relations.track_new_object(state)));
-                ext.references_expr.push(var);
-                ext.relation_tracking_pos
-                    .into()
+                let id = *self
+                    .globals
+                    .entry(name.to_string())
+                    .or_insert_with(|| relations.track_new_object(state));
+                id.into()
             }
         }
     }
@@ -72,8 +48,8 @@ impl<'a> Variables<'a> {
         self.locals.vars.iter()
     }
 
-    pub fn external_vars(&self) -> impl Iterator<Item=(&String, &ExternalVariableReference<'a>)> {
-        self.external_references.references.iter().map(|(name, id)| (name, id))
+    pub fn external_vars(&self) -> impl Iterator<Item=(&String, &GlobalObjectId)> {
+        self.globals.iter().map(|(name, id)| (name, id))
     }
 
     pub fn begin_scope(&mut self) {
@@ -99,12 +75,18 @@ struct Locals {
 
 impl Locals {
     /// Adds a new variable and binds it to the current scope.
-    fn declare(&mut self, name: String) {
+    fn declare(&mut self, name: String, ty: TypeInfo) -> Symbol {
+        let id = self.vars.len();
         self.vars.push(LocalVariable {
             name,
             depth: Some(self.current_depth),
-            ty: TypeInfo::Unknown,
+            ty,
         });
+        Symbol::Local(id)
+    }
+
+    fn declare_variable(&mut self, name: String) {
+        self.declare(name, TypeInfo::Variable);
     }
 
     /// Moves into a new scope.
@@ -186,7 +168,7 @@ impl LocalVariable {
         Self {
             name,
             depth: NonZeroUsize::try_from(depth).ok(),
-            ty: TypeInfo::Unknown,
+            ty: TypeInfo::Variable,
         }
     }
 }
@@ -198,9 +180,9 @@ mod tests {
     #[test]
     fn access_by_name() {
         let mut locals = Locals::default();
-        locals.declare("foo".to_owned());
+        locals.declare_variable("foo".to_owned());
         locals.begin_scope();
-        locals.declare("bar".to_owned());
+        locals.declare_variable("bar".to_owned());
         assert_eq!(
             locals.lookup_reachable_local("foo"),
             Some(&LocalVariable::scoped("foo".to_owned(), 1))
@@ -216,7 +198,7 @@ mod tests {
     fn access_out_of_scope() {
         let mut locals = Locals::default();
         locals.begin_scope();
-        locals.declare("bar".to_owned());
+        locals.declare_variable("bar".to_owned());
         locals.end_scope();
         assert_eq!(locals.lookup_reachable_local("bar"), None);
         locals.begin_scope();
@@ -226,10 +208,10 @@ mod tests {
     #[test]
     fn shadow_nested() {
         let mut locals = Locals::default();
-        locals.declare("foo".to_owned());
+        locals.declare_variable("foo".to_owned());
         locals.begin_scope();
         locals.begin_scope();
-        locals.declare("foo".to_owned());
+        locals.declare_variable("foo".to_owned());
         assert_eq!(
             locals.lookup_reachable_local("foo"),
             Some(&LocalVariable::scoped("foo".to_owned(), 3))

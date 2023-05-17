@@ -1,7 +1,11 @@
-pub mod variables;
 
 use crate::name::Name;
-use crate::environment::variables::Variables;
+use crate::relations::{SourceObjectId, Symbol};
+use context::source::{SourceSegment, SourceSegmentHolder};
+use std::collections::HashMap;
+use variables::Variables;
+
+pub mod variables;
 
 
 ///! The type environment of the analyzer.
@@ -29,28 +33,39 @@ use crate::environment::variables::Variables;
 /// The Environment contains the defined types, variables, structure and function definitions of a certain scope.
 /// It can have dependencies over other environments.
 #[derive(Debug, Clone)]
-pub struct Environment<'a> {
+pub struct Environment {
+
+    /// The source object id of the parent environment, if the environment is nested.
+    pub parent: Option<SourceObjectId>,
+
     ///Fully qualified name of the environment
     pub fqn: Name,
 
     /// The variables that are declared in the environment.
-    pub variables: Variables<'a>,
+    pub variables: Variables,
+
+    /// A mapping of expression segments to symbols.
+    pub definitions: HashMap<SourceSegment, Symbol>,
 }
 
-impl<'a> Environment<'a> {
+impl Environment {
     pub fn named(name: Name) -> Self {
         Self {
+            parent: None,
             fqn: name.clone(),
             variables: Variables::default(),
+            definitions: HashMap::new(),
         }
     }
 
-    pub fn fork(&self, name: &str) -> Environment {
+    pub fn fork(&self, source_id: SourceObjectId, name: &str) -> Environment {
         let env_fqn = self.fqn.child(name);
 
         Self {
+            parent: Some(source_id),
             fqn: env_fqn,
             variables: Variables::default(),
+            definitions: HashMap::new(),
         }
     }
 
@@ -60,5 +75,21 @@ impl<'a> Environment<'a> {
 
     pub fn end_scope(&mut self) {
         self.variables.end_scope();
+    }
+
+    /// Adds an annotation to any segment.
+    ///
+    /// This method exposes a low level API to add annotations to segments, preferably use the
+    /// wrapper methods defined in traits in the `checker` crate.
+    pub fn annotate(&mut self, segment: &impl SourceSegmentHolder, symbol: Symbol) {
+        self.definitions.insert(segment.segment(), symbol);
+    }
+
+    pub fn list_annotations(&self) -> impl Iterator<Item=(&SourceSegment, &Symbol)> {
+        self.definitions.iter()
+    }
+
+    pub fn get_raw_symbol(&self, segment: SourceSegment) -> Option<Symbol> {
+        self.definitions.get(&segment).copied()
     }
 }

@@ -1,12 +1,21 @@
 use crate::engine::Engine;
+
+use crate::environment::variables::TypeInfo;
 use crate::importer::ASTImporter;
 use crate::name::Name;
-use crate::relations::{Relations, SourceObjectId, UnresolvedImport};
+use ast::call::Call;
+use ast::control_flow::ForKind;
+use ast::function::FunctionParameter;
+use ast::r#match::MatchPattern;
 use ast::r#use::Import as AstImport;
-use ast::{Expr};
+use ast::range::Iterable;
+use ast::value::LiteralValue;
+use ast::Expr;
 use std::collections::HashSet;
+use context::source::SourceSegmentHolder;
 use crate::diagnostic::{Diagnostic, ErrorID, Observation};
 use crate::environment::Environment;
+use crate::relations::{Relations, SourceObjectId, UnresolvedImport};
 
 /// Defines the current state of the tree exploration.
 #[derive(Debug, Clone, Copy)]
@@ -29,7 +38,7 @@ impl ResolutionState {
 
 pub struct SymbolCollector<'a, 'e> {
     engine: &'a mut Engine<'e>,
-    relations: &'a mut Relations<'e>,
+    relations: &'a mut Relations,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -39,7 +48,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
     /// This collects all the symbols that are used, locally or not yet resolved if they are global.
     pub fn collect_symbols(
         engine: &'a mut Engine<'e>,
-        relations: &'a mut Relations<'e>,
+        relations: &'a mut Relations,
         entry_point: Name,
         importer: &mut impl ASTImporter<'e>,
     ) -> Result<(), Vec<Diagnostic>> {
@@ -51,7 +60,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         Err(collector.diagnostics)
     }
 
-    fn new(engine: &'a mut Engine<'e>, relations: &'a mut Relations<'e>) -> Self {
+    fn new(engine: &'a mut Engine<'e>, relations: &'a mut Relations) -> Self {
         Self {
             engine,
             relations,
@@ -137,7 +146,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     mod_id,
                     "import of environment variables and commands are not yet supported.",
                 )
-                    .with_observation(Observation::new(import));
+                    .with_observation(Observation::new(import.segment()));
 
                 self.diagnostics.push(diagnostic);
             }
@@ -153,13 +162,11 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         }
     }
 
-
-    fn tree_walk(
-        &mut self,
-        env: &mut Environment<'e>,
-        state: &mut ResolutionState,
-        visitable: &mut Vec<Name>,
-        expr: &'e Expr<'e>,
+    fn tree_walk(&mut self,
+                 env: &mut Environment,
+                 state: &mut ResolutionState,
+                 visitable: &mut Vec<Name>,
+                 expr: &'e Expr<'e>,
     ) {
         match expr {
             Expr::Use(import) => {
@@ -180,16 +187,134 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 );
                 return;
             }
+            Expr::Assign(assign) => {
+                self.tree_walk(env, state, visitable, &assign.value);
+            }
+            Expr::Binary(binary) => {
+                self.tree_walk(env, state, visitable, &binary.left);
+                self.tree_walk(env, state, visitable, &binary.right);
+            }
+            Expr::Match(match_expr) => {
+                self.tree_walk(env, state, visitable, &match_expr.operand);
+                for arm in &match_expr.arms {
+                    for pattern in &arm.patterns {
+                        match pattern {
+                            MatchPattern::VarRef(reference) => {
+                                let symbol =
+                                    env.variables.identify(state.module, self.relations, reference.name.to_string());
+                                env.annotate(reference, symbol);
+                            }
+                            MatchPattern::Template(template) => {
+                                for part in &template.parts {
+                                    self.tree_walk(env, state, visitable, part);
+                                }
+                            }
+                            MatchPattern::Literal(_) | MatchPattern::Wildcard(_) => {}
+                        }
+                    }
+                    if let Some(guard) = &arm.guard {
+                        env.begin_scope();
+                        self.tree_walk(env, state, visitable, guard);
+                        env.end_scope();
+                    }
+                    env.begin_scope();
+                    if let Some(name) = arm.val_name {
+                        env.variables
+                            .declare_local(name.to_owned(), TypeInfo::Variable);
+                    }
+                    self.tree_walk(env, state, visitable, &arm.body);
+                    env.end_scope();
+                }
+            }
+            Expr::Call(call) => {
+                self.resolve_primitive(env, call);
+                for arg in &call.arguments {
+                    self.tree_walk(env, state, visitable, arg);
+                }
+            }
+            Expr::ProgrammaticCall(call) => {
+                let symbol = env.variables.identify(state.module, self.relations, call.name.to_string());
+                env.annotate(call, symbol);
+                for arg in &call.arguments {
+                    self.tree_walk(env, state, visitable, arg);
+                }
+            }
+            Expr::MethodCall(call) => {
+                self.tree_walk(env, state, visitable, &call.source);
+                for arg in &call.arguments {
+                    self.tree_walk(env, state, visitable, arg);
+                }
+            }
+            Expr::Pipeline(pipeline) => {
+                for expr in &pipeline.commands {
+                    self.tree_walk(env, state, visitable, expr);
+                }
+            }
+            Expr::Redirected(redirected) => {
+                self.tree_walk(env, state, visitable, &redirected.expr);
+                for redir in &redirected.redirections {
+                    self.tree_walk(env, state, visitable, &redir.operand);
+                }
+            }
+            Expr::Detached(detached) => {
+                self.tree_walk(
+                    env,
+                    state,
+                    visitable,
+                    &detached.underlying,
+                );
+            }
             Expr::VarDeclaration(var) => {
                 if let Some(initializer) = &var.initializer {
                     self.tree_walk(env, state, visitable, initializer);
                 }
-                env.variables.declare_local(var.var.name.to_owned());
+                let symbol = env
+                    .variables
+                    .declare_local(var.var.name.to_owned(), TypeInfo::Variable);
+                env.annotate(var, symbol);
             }
             Expr::VarReference(var) => {
-                env.variables.identify(state.module, self.relations, var);
+                let symbol = env.variables.identify(state.module, self.relations, var.name.to_string());
+                env.annotate(var, symbol);
             }
-            Expr::Literal(_) => {}
+            Expr::Range(range) => match range {
+                Iterable::Range(range) => {
+                    self.tree_walk(env, state, visitable, &range.start);
+                    self.tree_walk(env, state, visitable, &range.end);
+                }
+                Iterable::Files(_) => {}
+            },
+            Expr::Substitution(sub) => {
+                env.begin_scope();
+                for expr in &sub.underlying.expressions {
+                    self.tree_walk(env, state, visitable, expr);
+                }
+                env.end_scope();
+            }
+            Expr::TemplateString(template) => {
+                for expr in &template.parts {
+                    self.tree_walk(env, state, visitable, expr);
+                }
+            }
+            Expr::Casted(casted) => {
+                self.tree_walk(env, state, visitable, &casted.expr);
+            }
+            Expr::Test(test) => {
+                self.tree_walk(env, state, visitable, &test.expression);
+            }
+            Expr::Not(not) => {
+                self.tree_walk(env, state, visitable, &not.underlying);
+            }
+            Expr::Parenthesis(paren) => {
+                self.tree_walk(env, state, visitable, &paren.expression);
+            }
+            Expr::Subshell(subshell) => {
+                env.begin_scope();
+                for expr in &subshell.expressions {
+                    self.tree_walk(env, state, visitable, expr);
+                }
+                env.end_scope();
+            }
             Expr::Block(block) => {
                 env.begin_scope();
                 for expr in &block.expressions {
@@ -215,9 +340,116 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     env.end_scope();
                 }
             }
-            _ => todo!("first pass for {:?}", expr),
-        };
+            Expr::While(wh) => {
+                env.begin_scope();
+                self.tree_walk(env, state, visitable, &wh.condition);
+                env.end_scope();
+                env.begin_scope();
+                self.tree_walk(env, state, visitable, &wh.body);
+                env.end_scope();
+            }
+            Expr::Loop(lp) => {
+                env.begin_scope();
+                self.tree_walk(env, state, visitable, &lp.body);
+                env.end_scope();
+            }
+            Expr::For(fr) => {
+                env.begin_scope();
+                match fr.kind.as_ref() {
+                    ForKind::Range(range) => {
+                        let symbol = env
+                            .variables
+                            .declare_local(range.receiver.to_owned(), TypeInfo::Variable);
+                        env.annotate(range, symbol);
+                        self.tree_walk(env, state, visitable, &range.iterable);
+                    }
+                    ForKind::Conditional(cond) => {
+                        self.tree_walk(env, state, visitable, &cond.initializer);
+                        self.tree_walk(env, state, visitable, &cond.condition);
+                        self.tree_walk(env, state, visitable, &cond.increment);
+                    }
+                }
+                self.tree_walk(env, state, visitable, &fr.body);
+                env.end_scope();
+            }
+            Expr::Return(ret) => {
+                if let Some(expr) = &ret.expr {
+                    self.tree_walk(env, state, visitable, expr);
+                }
+            }
+            Expr::FunctionDeclaration(func) => {
+                let symbol = env
+                    .variables
+                    .declare_local(func.name.to_owned(), TypeInfo::Function);
+                env.annotate(func, symbol);
+                let func_id = self.engine.track(expr);
+                let mut func_env = env.fork(func_id, func.name);
+                for param in &func.parameters {
+                    let symbol = func_env.variables.declare_local(
+                        match param {
+                            FunctionParameter::Named(named) => named.name.to_owned(),
+                            FunctionParameter::Variadic(_) => "@".to_owned(),
+                        },
+                        TypeInfo::Variable,
+                    );
+                    // Only named parameters can be annotated for now
+                    if let FunctionParameter::Named(named) = param {
+                        func_env.annotate(named, symbol);
+                    }
+                }
+                self.tree_walk(
+                    &mut func_env,
+                    &mut ResolutionState::new(func_id),
+                    visitable,
+                    &func.body,
+                );
+                self.engine.attach(func_id, func_env);
+            }
+            Expr::LambdaDef(lambda) => {
+                let func_id = self.engine.track(expr);
+                let mut func_env = env.fork(func_id, &format!("lambda@{}", func_id.0));
+                for param in &lambda.args {
+                    let symbol = func_env
+                        .variables
+                        .declare_local(param.name.to_owned(), TypeInfo::Variable);
+                    func_env.annotate(param, symbol);
+                }
+                self.tree_walk(
+                    &mut func_env,
+                    &mut ResolutionState::new(func_id),
+                    visitable,
+                    &lambda.body,
+                );
+                self.engine.attach(func_id, func_env);
+            }
+            Expr::Literal(_) | Expr::Continue(_) | Expr::Break(_) => {}
+        }
         state.accept_imports = false;
+    }
+
+    fn extract_literal_argument(&self, call: &'a Call, nth: usize) -> Option<&'a str> {
+        match call.arguments.get(nth)? {
+            Expr::Literal(lit) => match &lit.parsed {
+                LiteralValue::String(str) => Some(str),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn resolve_primitive(&self, env: &mut Environment, call: &Call) -> Option<()> {
+        let command = self.extract_literal_argument(call, 0)?;
+        match command {
+            "read" => {
+                let var = self.extract_literal_argument(call, 1)?;
+                let symbol = env
+                    .variables
+                    .declare_local(var.to_owned(), TypeInfo::Variable);
+                env.annotate(&call.arguments[1], symbol);
+                Some(())
+            }
+            _ => None,
+        }
     }
 }
 

@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use ast::Expr;
 
-
 /// An importer is responsible for importing an AST from a given name
 /// The user of the analyzer must provide its own implementation
 pub trait ASTImporter<'a> {
@@ -21,7 +20,7 @@ pub struct FileASTImporter {
     ///
     /// The main purpose the importer is to be the owner of the source, so it should be
     /// assumed that entries are never removed from the cache.
-    cache: HashMap<Name, OwnedSource>,
+    cache: HashMap<PathBuf, OwnedSource>,
 }
 
 pub struct StaticImporter<'a, P> where P: Fn(Source<'a>) -> Expr<'a> {

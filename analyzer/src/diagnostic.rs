@@ -1,6 +1,6 @@
 use enum_assoc::Assoc;
 use crate::relations::{SourceObjectId};
-use context::source::{SourceSegment, SourceSegmentHolder};
+use context::source::SourceSegment;
 use crate::diagnostic::DiagnosticType::{Error, Warn};
 
 #[derive(PartialEq, Debug, Assoc)]
@@ -41,17 +41,17 @@ pub struct Observation {
 }
 
 impl Observation {
-    pub fn new(segment_holder: &impl SourceSegmentHolder) -> Self {
+    pub fn new(segment: SourceSegment) -> Self {
         Self {
-            segment: segment_holder.segment(),
+            segment,
             help: None,
         }
     }
 
-    pub fn with_help<'a>(segment_holder: &impl SourceSegmentHolder,help: &str) -> Self {
+    pub fn with_help<'a>(segment: SourceSegment, help: &str) -> Self {
         Self {
-            segment: segment_holder.segment(),
-            help: Some(help.to_string())
+            segment,
+            help: Some(help.to_string()),
         }
     }
 }
