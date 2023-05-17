@@ -49,6 +49,30 @@ impl Variables {
         self.globals.iter().map(|(name, id)| (name, *id))
     }
 
+    pub fn get(&self, name: &str) -> Option<Symbol> {
+        self.locals
+            .vars
+            .iter()
+            .position(|var| var.name == name /*&& var.depth.is_some()*/)
+            .map(Symbol::Local)
+            .or_else(|| {
+                self.globals
+                    .get(name)
+                    .copied()
+                    .map(|id| Symbol::Global(id.0))
+            })
+    }
+
+    pub fn get_symbol_name(&self, object_id: GlobalObjectId) -> Option<&str> {
+        self.globals.iter().find_map(|(name, &id)| {
+            if id == object_id {
+                Some(name.as_ref())
+            } else {
+                None
+            }
+        })
+    }
+
     pub fn begin_scope(&mut self) {
         self.locals.begin_scope();
     }

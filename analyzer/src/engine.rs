@@ -64,8 +64,8 @@ impl<'a> Engine<'a> {
             .map(SourceObjectId)
     }
 
-    ///Finds an environment by its identifier.
-    pub fn find_environment(&self, id: SourceObjectId) -> Option<&Environment> {
+    /// Gets an environment by its identifier.
+    pub fn get_environment(&self, id: SourceObjectId) -> Option<&Environment> {
         self.origins.get(id.0).and_then(|(_, env)| env.as_ref())
     }
 }

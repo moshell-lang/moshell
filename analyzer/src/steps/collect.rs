@@ -379,7 +379,7 @@ fn tree_walk<'a>(
                 .declare_local(func.name.to_owned(), TypeInfo::Function);
             env.annotate(func, symbol);
             let func_id = engine.track(expr);
-            let mut func_env = env.fork(func_id, func.name);
+            let mut func_env = env.fork(state.module, func.name);
             for param in &func.parameters {
                 let symbol = func_env.variables.declare_local(
                     match param {
@@ -405,7 +405,7 @@ fn tree_walk<'a>(
         }
         Expr::LambdaDef(lambda) => {
             let func_id = engine.track(expr);
-            let mut func_env = env.fork(func_id, &format!("lambda@{}", func_id.0));
+            let mut func_env = env.fork(state.module, &format!("lambda@{}", func_id.0));
             for param in &lambda.args {
                 let symbol = func_env
                     .variables
@@ -550,7 +550,7 @@ mod tests {
         assert_eq!(env.get_raw_symbol(0..17), Some(Symbol::Local(0)));
         assert_eq!(env.get_raw_symbol(3..4), None);
         assert_eq!(env.get_raw_symbol(13..15), None);
-        let func_env = engine.find_environment(SourceObjectId(1)).unwrap();
+        let func_env = engine.get_environment(SourceObjectId(1)).unwrap();
         assert_eq!(func_env.get_raw_symbol(3..4), Some(Symbol::Local(0)));
         assert_eq!(func_env.get_raw_symbol(13..15), Some(Symbol::Local(0)));
     }

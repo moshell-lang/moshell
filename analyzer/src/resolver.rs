@@ -156,7 +156,18 @@ impl Resolver {
         tracked_object: GlobalObjectId,
     ) -> Option<Vec<SourceSegment>> {
         let object = self.objects.get(tracked_object.0)?;
-        let environment = engine.find_environment(object.origin)?;
+        let environment = engine.get_environment(object.origin)?;
         Some(environment.find_references(Symbol::Global(tracked_object.0)))
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (GlobalObjectId, &mut Object)> {
+        self.objects
+            .iter_mut()
+            .enumerate()
+            .map(|(id, object)| (GlobalObjectId(id), object))
+    }
+
+    pub fn get_resolved(&self, id: GlobalObjectId) -> Option<ResolvedSymbol> {
+        self.objects.get(id.0)?.resolved
     }
 }

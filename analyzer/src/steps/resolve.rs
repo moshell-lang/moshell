@@ -2,7 +2,7 @@ use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::name::Name;
 use crate::resolver::{
-    ResolvedSymbol, Resolver, SourceObjectId, UnresolvedImport, UnresolvedImports,
+    ResolvedSymbol, Resolver, SourceObjectId, Symbol, UnresolvedImport, UnresolvedImports,
 };
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
@@ -77,7 +77,7 @@ fn get_env_from<'a>(
     let mut env_name = Some(name.clone());
     while let Some(name) = env_name {
         if let Some(env_id) = engine.find_environment_by_name(&name) {
-            return Ok((env_id, engine.find_environment(env_id).unwrap()));
+            return Ok((env_id, engine.get_environment(env_id).unwrap()));
         }
         env_name = name.tail();
     }
@@ -121,6 +121,40 @@ fn resolve_imports(engine: &Engine, imports: UnresolvedImports) -> Result<Resolv
     Ok(resolved_imports)
 }
 
+fn resolve_trees(resolver: &mut Resolver, engine: &mut Engine) -> Result<(), String> {
+    for (object_id, object) in resolver.iter_mut() {
+        if object.resolved.is_some() {
+            continue;
+        }
+        let env = engine
+            .get_environment(object.origin)
+            .expect("Environment declared an unknown parent");
+        let name = env
+            .variables
+            .get_symbol_name(object_id)
+            .expect("Unknown object name");
+
+        let mut current = env;
+        while let Some((module, env)) = current
+            .parent
+            .and_then(|id| engine.get_environment(id).map(|env| (id, env)))
+        {
+            if let Some(resolved) = env.variables.get(name) {
+                object.resolved = Some(match resolved {
+                    Symbol::Local(local) => ResolvedSymbol {
+                        module,
+                        object_id: local,
+                    },
+                    Symbol::Global(_) => todo!("resolver.get_resolved(GlobalObjectId(global)).expect(\"Unknown global object\")")
+                });
+                break;
+            }
+            current = env;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::engine::Engine;
@@ -130,7 +164,7 @@ mod tests {
         Object, ResolvedSymbol, Resolver, SourceObjectId, UnresolvedImport, UnresolvedImports,
     };
     use crate::steps::collect::collect_symbols;
-    use crate::steps::resolve::{resolve_imports, resolve_symbols, ResolvedImports};
+    use crate::steps::resolve::{resolve_imports, resolve_symbols, resolve_trees, ResolvedImports};
     use context::source::Source;
     use pretty_assertions::assert_eq;
     use std::collections::HashMap;
@@ -239,6 +273,31 @@ mod tests {
                 Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(2), 1)),
                 Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(3), 0)),
             ]
+        )
+    }
+
+    #[test]
+    fn find_in_parent_environment() {
+        let source = Source::unknown("val found = false; fun find() = $found");
+
+        let mut engine = Engine::default();
+        let mut resolver = Resolver::default();
+        let mut importer = StaticImporter::new([(Name::new("test"), source)]);
+        collect_symbols(&mut engine, &mut resolver, Name::new("test"), &mut importer)
+            .expect("collect errors");
+
+        resolve_imports(
+            &engine,
+            UnresolvedImports::default(),
+        )
+        .expect("resolution errors");
+        resolve_trees(&mut resolver, &mut engine).expect("resolution errors");
+        assert_eq!(
+            resolver.objects,
+            vec![Object::resolved(
+                SourceObjectId(1),
+                ResolvedSymbol::new(SourceObjectId(0), 0)
+            )]
         )
     }
 }
