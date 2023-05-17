@@ -17,20 +17,26 @@ pub struct Variables {
 }
 
 impl Variables {
+    /// Creates a new local variable.
     pub fn declare_local(&mut self, name: String, ty: TypeInfo) -> Symbol {
         self.locals.declare(name, ty)
     }
 
     /// Identifies a named variable to a binding.
     ///
-    /// If the variable is not reachable from the current scope, it is considered a global variable.
+    /// This creates a new global variable if the variable is not already known or is not reachable,
+    /// or returns the existing variable identifier. To only lookup a variable, use [`Variables::get`].
     pub fn identify(
         &mut self,
         state: SourceObjectId,
         resolver: &mut Resolver,
         name: &str,
     ) -> Symbol {
-        match self.locals.position_reachable_local(name) {
+        match self
+            .locals
+            .position_reachable_local(name)
+            .map(|idx| self.locals.vars.len() - 1 - idx)
+        {
             Some(var) => Symbol::Local(var),
             None => (*self
                 .globals
@@ -40,15 +46,7 @@ impl Variables {
         }
     }
 
-    pub fn exported_vars(&self) -> impl Iterator<Item = &Variable> {
-        //consider for now that all local vars are exported.
-        self.locals.vars.iter()
-    }
-
-    pub fn global_vars(&self) -> impl Iterator<Item = (&String, GlobalObjectId)> {
-        self.globals.iter().map(|(name, id)| (name, *id))
-    }
-
+    /// Gets the symbol associated with an already known name.
     pub fn get(&self, name: &str) -> Option<Symbol> {
         self.locals
             .vars
@@ -63,6 +61,20 @@ impl Variables {
             })
     }
 
+    /// Iterates over all the exported variables, local to the environment.
+    pub fn exported_vars(&self) -> impl Iterator<Item = &Variable> {
+        //consider for now that all local vars are exported.
+        self.locals.vars.iter()
+    }
+
+    /// Iterates over all the global variable ids, with their corresponding name.
+    pub fn global_vars(&self) -> impl Iterator<Item = (&String, GlobalObjectId)> {
+        self.globals.iter().map(|(name, id)| (name, *id))
+    }
+
+    /// Gets the name of a global variable.
+    ///
+    /// This returns the name only if the global object comes from this environment.
     pub fn get_symbol_name(&self, object_id: GlobalObjectId) -> Option<&str> {
         self.globals.iter().find_map(|(name, &id)| {
             if id == object_id {
@@ -106,6 +118,7 @@ impl Locals {
         Symbol::Local(id)
     }
 
+    /// Declares a new variable of type `TypeInfo::Variable`.
     fn declare_variable(&mut self, name: String) {
         self.declare(name, TypeInfo::Variable);
     }
@@ -145,6 +158,11 @@ impl Locals {
             .find(|var| var.name == name && var.depth.is_some())
     }
 
+    /// Gets the offset of a variable from the current scope.
+    ///
+    /// This relative index is from the end of the Vec of variables, so it
+    /// becomes invalid when a new variable is declared. Prefers the other
+    /// methods that exposes an index from the beginning of the Vec.
     fn position_reachable_local(&self, name: &str) -> Option<ObjectId> {
         self.vars
             .iter()

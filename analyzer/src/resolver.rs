@@ -160,6 +160,7 @@ impl Resolver {
         Some(environment.find_references(Symbol::Global(tracked_object.0)))
     }
 
+    /// Returns a mutable iterator over all the objects.
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (GlobalObjectId, &mut Object)> {
         self.objects
             .iter_mut()
@@ -167,6 +168,9 @@ impl Resolver {
             .map(|(id, object)| (GlobalObjectId(id), object))
     }
 
+    /// Returns the resolved symbol for the given object.
+    ///
+    /// If the object is not resolved or is not referenced, returns `None`.
     pub fn get_resolved(&self, id: GlobalObjectId) -> Option<ResolvedSymbol> {
         self.objects.get(id.0)?.resolved
     }
