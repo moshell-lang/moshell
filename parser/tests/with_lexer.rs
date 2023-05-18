@@ -10,6 +10,7 @@ use context::str_find::{find_in, find_in_nth};
 use parser::parse;
 use parser::source::{literal, literal_nth};
 use pretty_assertions::assert_eq;
+use ast::function::Return;
 
 #[test]
 fn with_lexer_variable() {
@@ -411,6 +412,28 @@ fn pipe_to_command() {
                     type_parameters: Vec::new(),
                 }),
             ],
+        })]
+    );
+}
+
+#[test]
+fn empty_return() {
+    let source = Source::unknown("{ return ; return}");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Block(Block {
+            expressions: vec![
+                Expr::Return(Return {
+                    expr: None,
+                    segment: find_in(source.source, "return"),
+                }),
+                Expr::Return(Return {
+                    expr: None,
+                    segment: find_in_nth(source.source, "return", 1),
+                }),
+            ],
+            segment: source.segment(),
         })]
     );
 }
