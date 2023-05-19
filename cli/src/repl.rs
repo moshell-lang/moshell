@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque};
-use crate::report::{print_flush, FormattedParseError, display_diagnostic};
-use context::source::OwnedSource;
+use crate::report::{print_flush, display_diagnostic, display_parse_error};
+use context::source::{OwnedSource};
 use dbg_pls::color;
 use parser::parse;
 use std::io;
@@ -35,24 +35,23 @@ fn handle_output(report: ParseReport, source: OwnedSource) {
     let mut relations = Relations::default();
 
     let source = source.as_source();
-    let errors: Vec<_> = report
-        .errors
-        .into_iter()
-        .map(|err| FormattedParseError::from(err, &source))
-        .collect();
+    let errors: Vec<_> = report.errors;
 
+    let out = &mut stderr();
     if !errors.is_empty() {
-        display_parse_errors(errors);
-        print_flush!("=> ");
+        for error in errors {
+            display_parse_error(source, error, out).expect("IO error when reporting diagnostics");
+        }
         return;
     }
+
+    println!("{}", color(&report.expr));
 
     let expr = Expr::Block(Block {
         expressions: report.expr,
         segment: 0..0,
     });
 
-    println!("{}", color(&expr));
 
     importer.stdin_expressions.push_front(expr);
 
@@ -97,12 +96,6 @@ fn parse_input<'a>() -> Option<(ParseReport<'a>, OwnedSource)> {
     None
 }
 
-
-fn display_parse_errors(errors: Vec<FormattedParseError>) {
-    for err in &errors {
-        eprintln!("{err:?}")
-    }
-}
 
 struct REPLImporter<'a> {
     imported_expressions: HashMap<Name, Expr<'a>>,

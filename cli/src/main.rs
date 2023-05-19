@@ -1,10 +1,11 @@
+#![allow(dead_code)]
+#![deny(warnings)]
 mod cli;
 mod repl;
 mod report;
 
 use crate::cli::Cli;
 use crate::repl::prompt;
-use crate::report::FormattedParseError;
 use clap::Parser;
 use context::source::Source;
 use dbg_pls::color;
@@ -27,11 +28,7 @@ fn main() -> io::Result<()> {
         let name = source.to_string_lossy();
         let source = Source::new(&content, &name);
         let report = parse(source);
-        let errors = report
-            .errors
-            .into_iter()
-            .map(|err| FormattedParseError::from(err, &source))
-            .collect::<Vec<_>>();
+        let errors = report.errors;
 
         if errors.is_empty() {
             eprintln!("{}", color(&report.expr));
@@ -45,3 +42,5 @@ fn main() -> io::Result<()> {
     prompt();
     Ok(())
 }
+
+
