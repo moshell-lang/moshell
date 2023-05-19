@@ -36,6 +36,15 @@ pub enum DiagnosticType {
     Warn(WarnID),
 }
 
+impl DiagnosticType {
+    pub fn code(&self) -> &'static str {
+        match self {
+            Error(e) => e.code(),
+            Warn(w) => w.code(),
+        }
+    }
+}
+
 #[derive(PartialEq, Debug)]
 pub struct Observation {
     pub segment: SourceSegment,

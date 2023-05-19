@@ -1,8 +1,13 @@
-use context::source::{Source, SourceSegment};
-use miette::{Diagnostic, SourceSpan};
-use parser::err::{ParseError, ParseErrorKind};
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
+use std::io;
+use std::io::{Write};
+
+use miette::{Diagnostic, LabeledSpan, MietteDiagnostic, Report, Severity, SourceSpan};
 use thiserror::Error;
+
+use analyzer::diagnostic::DiagnosticType::{Error, Warn};
+use context::source::{Source, SourceSegment};
+use parser::err::{ParseError, ParseErrorKind};
 
 macro_rules! print_flush {
     ( $($t:tt)* ) => {
@@ -60,4 +65,35 @@ impl<'a> FormattedParseError<'a> {
             },
         }
     }
+}
+
+pub fn display_diagnostic<W>(source: Source,
+                             diagnostic: analyzer::diagnostic::Diagnostic,
+                             writer: &mut W) -> io::Result<()> where W: Write {
+    let mut builder = MietteDiagnostic::new(diagnostic.global_message);
+
+    builder = match diagnostic.ty {
+        Warn(w) => builder.with_severity(Severity::Warning)
+            .with_code(format!("warn[{}]", w.code())),
+        Error(e) => builder.with_severity(Severity::Error)
+            .with_code(format!("error[{}]", e.code())),
+    };
+
+    if let Some((head, tail)) = diagnostic.tips.split_first() {
+        if tail.is_empty() {
+            builder = builder.with_help(head)
+        }
+        let helps = tail
+            .into_iter()
+            .fold(format!("\n- {head}"), |acc, help| format!("{acc}\n- {help}"));
+        builder = builder.with_help(helps)
+    }
+
+    for obs in diagnostic.observations {
+        builder = builder.and_label(LabeledSpan::new(obs.help, obs.segment.start, obs.segment.len()))
+    }
+
+    let report = Report::from(builder);
+    let report = report.with_source_code(source.source.to_string());
+    writeln!(writer, "\n{report:?}")
 }

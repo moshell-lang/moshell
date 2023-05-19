@@ -8,7 +8,7 @@ use crate::report::FormattedParseError;
 use clap::Parser;
 use context::source::Source;
 use dbg_pls::color;
-use miette::GraphicalReportHandler;
+use miette::{MietteHandlerOpts};
 use parser::parse;
 use std::io;
 use std::process::exit;
@@ -16,7 +16,11 @@ use std::process::exit;
 fn main() -> io::Result<()> {
     let cli = Cli::parse();
 
-    let handler = GraphicalReportHandler::default();
+    miette::set_hook(Box::new(|_| {
+        Box::new(MietteHandlerOpts::new()
+            .tab_width(2)
+            .build())
+    })).expect("miette setup");
 
     if let Some(source) = cli.source {
         let content = std::fs::read_to_string(&source)?;
@@ -30,21 +34,14 @@ fn main() -> io::Result<()> {
             .collect::<Vec<_>>();
 
         if errors.is_empty() {
-            println!("{}", color(&report.expr));
+            eprintln!("{}", color(&report.expr));
             return Ok(());
         }
-        let mut msg = String::new();
         for err in &errors {
-            if let Err(fmt_err) = handler.render_report(&mut msg, err) {
-                eprintln!("{fmt_err}");
-                msg.clear();
-            }
-        }
-        if !msg.is_empty() {
-            eprintln!("{msg}");
+            eprintln!("{err:?}")
         }
         exit(1);
     }
-    prompt(handler);
+    prompt();
     Ok(())
 }
