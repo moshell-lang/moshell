@@ -4,14 +4,13 @@ mod cli;
 mod repl;
 mod report;
 
-use crate::cli::Cli;
+use crate::cli::{Cli, handle_source};
 use crate::repl::prompt;
 use clap::Parser;
-use context::source::Source;
-use dbg_pls::color;
+use context::source::{OwnedSource};
 use miette::{MietteHandlerOpts};
-use parser::parse;
 use std::io;
+use std::ops::Deref;
 use std::process::exit;
 
 fn main() -> io::Result<()> {
@@ -25,19 +24,9 @@ fn main() -> io::Result<()> {
 
     if let Some(source) = cli.source {
         let content = std::fs::read_to_string(&source)?;
-        let name = source.to_string_lossy();
-        let source = Source::new(&content, &name);
-        let report = parse(source);
-        let errors = report.errors;
-
-        if errors.is_empty() {
-            eprintln!("{}", color(&report.expr));
-            return Ok(());
-        }
-        for err in &errors {
-            eprintln!("{err:?}")
-        }
-        exit(1);
+        let name = source.to_string_lossy().deref().to_string();
+        let source = OwnedSource::new(content, name);
+        exit(handle_source(source) as i32)
     }
     prompt();
     Ok(())

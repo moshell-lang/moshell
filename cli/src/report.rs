@@ -30,6 +30,7 @@ fn offset_empty_span(span: SourceSegment) -> SourceSpan {
 pub fn display_parse_error<W: Write>(source: Source,
                                      error: ParseError,
                                      writer: &mut W) -> io::Result<()> {
+
     let span = offset_empty_span(error.position);
     let mut diag = MietteDiagnostic::new(error.message)
         .with_severity(Severity::Error)
@@ -81,3 +82,5 @@ pub fn display_diagnostic<W: Write>(source: Source,
     let report = report.with_source_code(source.source.to_string());
     writeln!(writer, "\n{report:?}")
 }
+
+

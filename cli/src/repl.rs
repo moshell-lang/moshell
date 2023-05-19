@@ -1,71 +1,21 @@
-use std::collections::{HashMap, VecDeque};
-use crate::report::{print_flush, display_diagnostic, display_parse_error};
+use crate::report::{print_flush};
 use context::source::{OwnedSource};
-use dbg_pls::color;
 use parser::parse;
 use std::io;
-use std::io::{BufRead, stderr};
+use std::io::{BufRead};
 use std::io::Write;
-use analyzer::engine::Engine;
-use analyzer::importer::ASTImporter;
-use analyzer::name::Name;
-use analyzer::relations::Relations;
-use analyzer::steps::collect::SymbolCollector;
-use analyzer::steps::resolve::SymbolResolver;
-use ast::Expr;
-use ast::group::Block;
-use parser::err::ParseReport;
+use crate::cli::handle_source;
 
 
 pub fn prompt() {
     loop {
-        if let Some((report, source)) = parse_input() {
-            handle_output(report, source)
+        if let Some(source) = parse_input() {
+            handle_source(source);
         }
     }
 }
 
-fn handle_output(report: ParseReport, source: OwnedSource) {
-    let mut importer = REPLImporter {
-        stdin_expressions: VecDeque::new(),
-        imported_expressions: HashMap::new(),
-    };
-
-    let mut engine = Engine::default();
-    let mut relations = Relations::default();
-
-    let source = source.as_source();
-    let errors: Vec<_> = report.errors;
-
-    let out = &mut stderr();
-    if !errors.is_empty() {
-        for error in errors {
-            display_parse_error(source, error, out).expect("IO error when reporting diagnostics");
-        }
-        return;
-    }
-
-    println!("{}", color(&report.expr));
-
-    let expr = Expr::Block(Block {
-        expressions: report.expr,
-        segment: 0..0,
-    });
-
-
-    importer.stdin_expressions.push_front(expr);
-
-    let mut diagnostics = SymbolCollector::collect_symbols(&mut engine, &mut relations, Name::new("stdin"), &mut importer);
-    diagnostics.extend(SymbolResolver::resolve_symbols(&engine, &mut relations));
-
-    let mut stdout = stderr();
-    for diagnostic in diagnostics {
-        display_diagnostic(source, diagnostic, &mut stdout)
-            .expect("IO errors when reporting diagnostic")
-    }
-}
-
-fn parse_input<'a>() -> Option<(ParseReport<'a>, OwnedSource)> {
+fn parse_input() -> Option<OwnedSource> {
     let stdin = io::stdin();
     let lines = stdin.lock().lines();
     let mut content = String::new();
@@ -87,27 +37,7 @@ fn parse_input<'a>() -> Option<(ParseReport<'a>, OwnedSource)> {
             continue; // Silently ignore incomplete input
         }
 
-        return unsafe {
-            // SAFETY: The owned source of the ParseReport is returned,
-            // thus the expression's slices are not dropped
-            Some((std::mem::transmute::<ParseReport, ParseReport<'a>>(report), source))
-        };
+        return Some(source);
     }
     None
-}
-
-
-struct REPLImporter<'a> {
-    imported_expressions: HashMap<Name, Expr<'a>>,
-
-    stdin_expressions: VecDeque<Expr<'a>>,
-}
-
-impl<'a> ASTImporter<'a> for REPLImporter<'a> {
-    fn import(&mut self, name: &Name) -> Option<Expr<'a>> {
-        if name == &Name::new("stdin") {
-            return self.stdin_expressions.pop_back();
-        }
-        self.imported_expressions.get(name).cloned()
-    }
 }
