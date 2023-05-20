@@ -1,7 +1,8 @@
+use std::collections::VecDeque;
 use crate::parser::ParseResult;
 use ast::Expr;
 use context::source::SourceSegment;
-use lexer::token::Token;
+use lexer::token::{Token, TokenType};
 
 /// An error that occurs during parsing.
 #[derive(Debug, PartialEq)]
@@ -107,17 +108,14 @@ pub struct ParseReport<'a> {
     /// This may be empty if the parsing process succeeded.
     pub errors: Vec<ParseError>,
 
-    /// Indicates that the end of the input has been reached too early and
-    /// that the parser is waiting for more input.
-    ///
-    /// This flag is set only when a block delimiter is opened, but not closed,
-    /// and there was no actual error in the input.
-    pub stack_ended: bool,
+    /// contains the delimiter stack that were not closed,
+    /// This ParseReport is considered as valid if the delimiter stack is empty
+    pub delimiter_stack: VecDeque<TokenType>,
 }
 
 impl<'a> ParseReport<'a> {
     pub fn is_ok(&self) -> bool {
-        self.errors.is_empty() && self.stack_ended
+        self.errors.is_empty() && self.delimiter_stack.is_empty()
     }
 
     pub fn is_err(&self) -> bool {
@@ -151,12 +149,12 @@ impl<'a> From<ParseResult<Vec<Expr<'a>>>> for ParseReport<'a> {
             Ok(expr) => Self {
                 expr,
                 errors: Vec::new(),
-                stack_ended: true,
+                delimiter_stack: VecDeque::new(),
             },
             Err(err) => Self {
                 expr: Vec::new(),
                 errors: vec![err],
-                stack_ended: true,
+                delimiter_stack: VecDeque::new(),
             },
         }
     }

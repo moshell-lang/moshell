@@ -4,7 +4,7 @@ mod cli;
 mod repl;
 mod report;
 
-use crate::cli::{Cli, handle_source};
+use crate::cli::{Cli, Configuration, handle_source};
 use crate::repl::prompt;
 use clap::Parser;
 use context::source::{OwnedSource};
@@ -22,13 +22,15 @@ fn main() -> io::Result<()> {
             .build())
     })).expect("miette setup");
 
+    let config = Configuration::from(cli.clone());
+
     if let Some(source) = cli.source {
         let content = std::fs::read_to_string(&source)?;
         let name = source.to_string_lossy().deref().to_string();
         let source = OwnedSource::new(content, name);
-        exit(handle_source(source) as i32)
+        exit(handle_source(source, &config) as i32)
     }
-    prompt();
+    prompt(config);
     Ok(())
 }
 

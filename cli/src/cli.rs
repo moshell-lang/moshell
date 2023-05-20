@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::io::stderr;
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{Parser};
+use colored::{Colorize};
 use dbg_pls::color;
 use analyzer::engine::Engine;
 use analyzer::importer::ASTImporter;
@@ -13,15 +14,46 @@ use analyzer::steps::resolve::SymbolResolver;
 use ast::Expr;
 use ast::group::Block;
 use context::source::OwnedSource;
+use lexer::lexer::lex;
+use lexer::token::Token;
 use parser::parse;
 use crate::report::{display_diagnostic, display_parse_error};
 
-#[derive(Parser)]
+#[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
 pub struct Cli {
-    /// Defines the source file to parse
+    /// Defines the source file to evaluate
     #[arg(short, long, value_name = "FILE")]
     pub(crate) source: Option<PathBuf>,
+
+    /// Activate lexer output visualisation
+    #[arg(short = 'L', long)]
+    pub(crate) lexer: bool,
+
+    /// Activate parser AST visualisation
+    #[arg(short = 'P', long)]
+    pub(crate) parser: bool,
+
+    /// Activate analyzer visualisation
+    #[arg(short = 'A', long, default_value = "true")]
+    pub(crate) analyzer: bool,
+}
+
+
+pub struct Configuration {
+    pub lexer_visualisation: bool,
+    pub parser_visualization: bool,
+    pub analyzer: bool,
+}
+
+impl From<Cli> for Configuration {
+    fn from(value: Cli) -> Self {
+        Self {
+            lexer_visualisation: value.lexer,
+            parser_visualization: value.parser,
+            analyzer: value.parser,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -35,9 +67,34 @@ impl<'a> ASTImporter<'a> for RawImporter<'a> {
     }
 }
 
+fn display_tokens(tokens: Vec<Token>) {
+    println!("{}", "Lexer tokens: ".bright_black());
+    println!("{}", format!("\t- {} tokens lexed from input", tokens.len()));
+
+    let mut count = 0;
+    for token in tokens {
+        print!("{:10}: '{}', ", format!("{:?}", token.token_type).bright_blue(), token.value.white());
+        count += 1;
+        if count % 5 == 0 {
+            println!()
+        }
+    }
+    println!()
+}
+
+fn display_exprs(exprs: Vec<Expr>) {
+    for expr in exprs {
+        println!("{}", color(&expr));
+    }
+}
+
 /// Parses and display errors / diagnostics coming from the given source.
 /// Returning true if the source had at least one error or diagnostic.
-pub fn handle_source(source: OwnedSource) -> bool {
+pub fn handle_source(source: OwnedSource, config: &Configuration) -> bool {
+    if config.lexer_visualisation {
+        display_tokens(lex(&source.source))
+    }
+
     let report = parse(source.as_source());
     let mut importer = RawImporter::default();
 
@@ -55,7 +112,7 @@ pub fn handle_source(source: OwnedSource) -> bool {
         return true;
     }
 
-    println!("{}", color(&report.expr));
+    if config.parser_visualization {}
 
     let expr = Expr::Block(Block {
         expressions: report.expr,

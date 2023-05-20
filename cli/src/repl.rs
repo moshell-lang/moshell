@@ -5,21 +5,24 @@ use rustyline::{Cmd, ColorMode, DefaultEditor, Editor, Event, EventHandler, KeyC
 use rustyline::config::Configurer;
 use rustyline::error::ReadlineError;
 use rustyline::history::DefaultHistory;
-use crate::cli::handle_source;
+use crate::cli::{Configuration, handle_source};
 
 type REPLEditor = Editor<(), DefaultHistory>;
 
 /// Indefinitely prompts a new expression to the stdin,
 /// displaying back the errors if any and the formed AST
-pub fn prompt() {
+pub fn prompt(config: Configuration) {
+
     let mut editor: REPLEditor = DefaultEditor::new().expect("unable to instantiate terminal editor");
     editor.set_color_mode(ColorMode::Enabled);
     editor.set_history_ignore_dups(true).unwrap();
     editor.set_history_ignore_space(true);
     editor.bind_sequence(Event::KeySeq(vec![KeyEvent(KeyCode::Char('u'), Modifiers::ALT)]), EventHandler::from(Cmd::Undo(1)));
+
+
     loop {
         let source = parse_input(&mut editor);
-        handle_source(source);
+        handle_source(source, &config);
     }
 }
 
@@ -63,10 +66,10 @@ fn parse_input(editor: &mut REPLEditor) -> OwnedSource {
         }
 
         let source = OwnedSource::new(content.clone(), "stdin".to_string());
-        let report = parse(source.as_source());
-        if !report.stack_ended {
+        let mut report = parse(source.as_source());
+        if let Some(last) = report.delimiter_stack.pop_back() {
             content.push('\n');
-            prompt_prefix = "?> ".to_string(); //Todo display unterminated delimiter
+            prompt_prefix = format!("{}> ", last.str().unwrap());
             continue; // Silently ignore incomplete input
         }
 
