@@ -36,7 +36,7 @@ impl<'a> ASTImporter<'a> for RawImporter<'a> {
 }
 
 /// Parses and display errors / diagnostics coming from the given source.
-/// Returning true if the source had one error / diagnostic.
+/// Returning true if the source had at least one error or diagnostic.
 pub fn handle_source(source: OwnedSource) -> bool {
     let report = parse(source.as_source());
     let mut importer = RawImporter::default();

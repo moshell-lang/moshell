@@ -52,7 +52,7 @@ impl Environment {
     pub fn named(name: Name) -> Self {
         Self {
             parent: None,
-            fqn: name.clone(),
+            fqn: name,
             variables: Variables::default(),
             definitions: HashMap::new(),
         }

@@ -48,7 +48,8 @@ pub fn display_parse_error<W: Write>(source: Source,
             diag = diag.and_label(LabeledSpan::new(Some("Here".to_string()), span.offset(), span.len()))
         }
     }
-    let report = Report::from(diag).with_source_code(source.source.to_string());
+    let report = Report::from(diag)
+        .with_source_code(source.source.to_string());
     writeln!(writer, "{report:?}")
 }
 
@@ -69,7 +70,7 @@ pub fn display_diagnostic<W: Write>(source: Source,
             diag = diag.with_help(head)
         }
         let helps = tail
-            .into_iter()
+            .iter()
             .fold(format!("\n- {head}"), |acc, help| format!("{acc}\n- {help}"));
         diag = diag.with_help(helps)
     }

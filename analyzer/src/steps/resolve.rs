@@ -86,7 +86,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
 
             match imports.imported_symbols.get(symbol_name) {
                 Some(resolved_symbol) => object.resolved = Some(*resolved_symbol),
-                None => self.diagnose_unresolved_external_symbols(*external_var, env_id, env, &symbol_name)
+                None => self.diagnose_unresolved_external_symbols(*external_var, env_id, env, symbol_name)
             };
         }
     }

@@ -6,7 +6,8 @@ use std::io::{BufRead};
 use std::io::Write;
 use crate::cli::handle_source;
 
-
+/// Indefinitely prompts a new expression to the stdin,
+/// displaying back the errors if any and the formed AST
 pub fn prompt() {
     loop {
         if let Some(source) = parse_input() {
@@ -15,6 +16,8 @@ pub fn prompt() {
     }
 }
 
+/// Parses stdin until the user's input forms a source code with no unclosed delimiters
+/// and return the source.
 fn parse_input() -> Option<OwnedSource> {
     let stdin = io::stdin();
     let lines = stdin.lock().lines();
@@ -25,7 +28,7 @@ fn parse_input() -> Option<OwnedSource> {
         content.push_str(&line);
         if line.ends_with('\\') {
             content.push('\n');
-            print_flush!(".. ");
+            print_flush!("-> ");
             continue;
         }
 
@@ -33,7 +36,7 @@ fn parse_input() -> Option<OwnedSource> {
         let report = parse(source.as_source());
         if !report.stack_ended {
             content.push('\n');
-            print_flush!(".. ");
+            print_flush!("-> ");
             continue; // Silently ignore incomplete input
         }
 

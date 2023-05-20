@@ -45,10 +45,14 @@ impl DiagnosticType {
     }
 }
 
+/// Observations are an area in the source code with an (optional) help message
+/// that are contained in a [Diagnostic] to emphasis/further explain the causes of the diagnostic.
 #[derive(PartialEq, Debug)]
 pub struct Observation {
+    /// Observed segment
     pub segment: SourceSegment,
-    pub help: Option<String>,
+    /// An optional help string to complete the observation
+     pub help: Option<String>,
 }
 
 impl Observation {
@@ -59,7 +63,7 @@ impl Observation {
         }
     }
 
-    pub fn with_help<'a>(segment_holder: &impl SourceSegmentHolder, help: &str) -> Self {
+    pub fn with_help(segment_holder: &impl SourceSegmentHolder, help: &str) -> Self {
         Self {
             segment: segment_holder.segment(),
             help: Some(help.to_string()),
@@ -67,19 +71,25 @@ impl Observation {
     }
 }
 
+/// The structure of a diagnostic.
 #[derive(PartialEq, Debug)]
 pub struct Diagnostic {
-    pub module: SourceObjectId,
+    /// The source where this diagnostic applies
+    pub source: SourceObjectId,
+    /// The type of diagnostic, see [DiagnosticType] for further details
     pub ty: DiagnosticType,
+    /// The overall message of this diagnostic
     pub global_message: String,
+    /// Some observations to explain the diagnostic
     pub observations: Vec<Observation>,
+    /// Any tips to help the user understand and eventually fix the raised issue.
     pub tips: Vec<String>,
 }
 
 impl Diagnostic {
     pub fn warn(id: WarnID, module: SourceObjectId, msg: &str) -> Self {
         Self {
-            module,
+            source: module,
             ty: Warn(id),
             global_message: msg.to_string(),
             observations: Vec::new(),
@@ -89,7 +99,7 @@ impl Diagnostic {
 
     pub fn error(id: ErrorID, module: SourceObjectId, msg: &str) -> Self {
         Self {
-            module,
+            source: module,
             ty: Error(id),
             global_message: msg.to_string(),
             observations: Vec::new(),

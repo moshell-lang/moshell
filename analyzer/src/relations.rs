@@ -66,7 +66,7 @@ impl<'a> UnresolvedImports<'a> {
 }
 
 /// The resolved information about a symbol.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct ResolvedSymbol {
     /// The module where the symbol is defined.
     ///
@@ -75,13 +75,6 @@ pub struct ResolvedSymbol {
 
     /// The object identifier of the symbol, local to the module.
     pub object_id: ObjectId,
-}
-
-impl Hash for ResolvedSymbol {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.module.hash(state);
-        self.object_id.hash(state);
-    }
 }
 
 impl ResolvedSymbol {
