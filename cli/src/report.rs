@@ -7,18 +7,6 @@ use analyzer::diagnostic::DiagnosticType::{Error, Warn};
 use context::source::{Source, SourceSegment};
 use parser::err::{ParseError, ParseErrorKind};
 
-macro_rules! print_flush {
-    ( $($t:tt)* ) => {
-        {
-            let mut stdout = std::io::stdout();
-            write!(stdout, $($t)* ).unwrap();
-            stdout.flush().unwrap();
-        }
-    }
-}
-
-pub(crate) use print_flush;
-
 fn offset_empty_span(span: SourceSegment) -> SourceSpan {
     if span.start == span.end {
         (span.start - 1..span.end).into()
