@@ -7,7 +7,8 @@ use ast::Expr;
 #[derive(Debug, Default)]
 pub struct Engine<'a> {
     /// The engine has the ownership of the AST.
-    #[allow(clippy::vec_box)] // Box is used to ensure that the reference behind is still valid after vector's realloc
+    #[allow(clippy::vec_box)]
+    // Box is used to ensure that the reference behind is still valid after vector's realloc
     asts: Vec<Box<Expr<'a>>>,
 
     /// Associates a module id to the corresponding environment.
@@ -29,12 +30,11 @@ impl<'a> Engine<'a> {
     }
 
     ///Returns an iterator over environments contained in engine
-    pub fn environments(&self) -> impl Iterator<Item=(SourceObjectId, &Environment)> {
-        self.origins.iter()
+    pub fn environments(&self) -> impl Iterator<Item = (SourceObjectId, &Environment)> {
+        self.origins
+            .iter()
             .enumerate()
-            .filter_map(|(id, (_, env))| env
-                .as_ref()
-                .map(|env| (SourceObjectId(id), env)))
+            .filter_map(|(id, (_, env))| env.as_ref().map(|env| (SourceObjectId(id), env)))
     }
 
     /// Adds a new origin to the engine and returns its given id.
@@ -49,7 +49,10 @@ impl<'a> Engine<'a> {
 
     /// Attaches an environment to an origin if the origin does not already have an attached environment.
     pub fn attach(&mut self, id: SourceObjectId, env: Environment) {
-        debug_assert!(self.origins[id.0].1.is_none(), "Could not attach environment to a source that is already attached");
+        debug_assert!(
+            self.origins[id.0].1.is_none(),
+            "Could not attach environment to a source that is already attached"
+        );
         self.origins[id.0].1.replace(env);
     }
 
@@ -57,16 +60,12 @@ impl<'a> Engine<'a> {
     pub fn find_environment_by_name(&self, name: &Name) -> Option<SourceObjectId> {
         self.origins
             .iter()
-            .position(|(_, env)| {
-                env.as_ref()
-                    .map(|env| &env.fqn == name)
-                    .unwrap_or(false)
-            })
+            .position(|(_, env)| env.as_ref().map(|env| &env.fqn == name).unwrap_or(false))
             .map(SourceObjectId)
     }
 
-    ///Finds an environment by its identifier.
-    pub fn find_environment(&self, id: SourceObjectId) -> Option<&Environment> {
+    /// Gets an environment by its identifier.
+    pub fn get_environment(&self, id: SourceObjectId) -> Option<&Environment> {
         self.origins.get(id.0).and_then(|(_, env)| env.as_ref())
     }
 }

@@ -1,9 +1,8 @@
-use parser::err::ParseError;
 use crate::importer::ImportError;
+use parser::err::ParseError;
 
 pub mod collect;
 mod resolve;
-
 
 #[derive(Debug, PartialEq)]
 pub enum GatherError {

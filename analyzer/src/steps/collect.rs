@@ -1,11 +1,18 @@
 use crate::engine::Engine;
-use crate::importer::Importer;
-use crate::steps::GatherError;
+use crate::environment::variables::TypeInfo;
 use crate::environment::Environment;
+use crate::importer::Importer;
 use crate::name::Name;
 use crate::resolver::{Resolver, SourceObjectId, UnresolvedImport};
+use crate::steps::GatherError;
+use ast::call::Call;
+use ast::control_flow::ForKind;
+use ast::function::FunctionParameter;
 use ast::group::Block;
+use ast::r#match::MatchPattern;
 use ast::r#use::Import as AstImport;
+use ast::range::Iterable;
+use ast::value::LiteralValue;
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
 use parser::parse;
@@ -149,13 +156,13 @@ fn collect_symbol_import(
     }
 }
 
-fn tree_walk(
-    engine: &mut Engine,
+fn tree_walk<'a>(
+    engine: &mut Engine<'a>,
     resolver: &mut Resolver,
     env: &mut Environment,
     state: &mut ResolutionState,
     visitable: &mut Vec<Name>,
-    expr: &Expr,
+    expr: &'a Expr,
 ) -> Result<(), String> {
     match expr {
         Expr::Use(import) => {
@@ -171,16 +178,137 @@ fn tree_walk(
             )?;
             return Ok(());
         }
+        Expr::Assign(assign) => {
+            tree_walk(engine, resolver, env, state, visitable, &assign.value)?;
+        }
+        Expr::Binary(binary) => {
+            tree_walk(engine, resolver, env, state, visitable, &binary.left)?;
+            tree_walk(engine, resolver, env, state, visitable, &binary.right)?;
+        }
+        Expr::Match(match_expr) => {
+            tree_walk(engine, resolver, env, state, visitable, &match_expr.operand)?;
+            for arm in &match_expr.arms {
+                for pattern in &arm.patterns {
+                    match pattern {
+                        MatchPattern::VarRef(reference) => {
+                            let symbol =
+                                env.variables
+                                    .identify(state.module, resolver, reference.name);
+                            env.annotate(reference, symbol);
+                        }
+                        MatchPattern::Template(template) => {
+                            for part in &template.parts {
+                                tree_walk(engine, resolver, env, state, visitable, part)?;
+                            }
+                        }
+                        MatchPattern::Literal(_) | MatchPattern::Wildcard(_) => {}
+                    }
+                }
+                if let Some(guard) = &arm.guard {
+                    env.begin_scope();
+                    tree_walk(engine, resolver, env, state, visitable, guard)?;
+                    env.end_scope();
+                }
+                env.begin_scope();
+                if let Some(name) = arm.val_name {
+                    env.variables
+                        .declare_local(name.to_owned(), TypeInfo::Variable);
+                }
+                tree_walk(engine, resolver, env, state, visitable, &arm.body)?;
+                env.end_scope();
+            }
+        }
+        Expr::Call(call) => {
+            resolve_primitive(env, call);
+            for arg in &call.arguments {
+                tree_walk(engine, resolver, env, state, visitable, arg)?;
+            }
+        }
+        Expr::ProgrammaticCall(call) => {
+            let symbol = env.variables.identify(state.module, resolver, call.name);
+            env.annotate(call, symbol);
+            for arg in &call.arguments {
+                tree_walk(engine, resolver, env, state, visitable, arg)?;
+            }
+        }
+        Expr::MethodCall(call) => {
+            tree_walk(engine, resolver, env, state, visitable, &call.source)?;
+            for arg in &call.arguments {
+                tree_walk(engine, resolver, env, state, visitable, arg)?;
+            }
+        }
+        Expr::Pipeline(pipeline) => {
+            for expr in &pipeline.commands {
+                tree_walk(engine, resolver, env, state, visitable, expr)?;
+            }
+        }
+        Expr::Redirected(redirected) => {
+            tree_walk(engine, resolver, env, state, visitable, &redirected.expr)?;
+            for redir in &redirected.redirections {
+                tree_walk(engine, resolver, env, state, visitable, &redir.operand)?;
+            }
+        }
+        Expr::Detached(detached) => {
+            tree_walk(
+                engine,
+                resolver,
+                env,
+                state,
+                visitable,
+                &detached.underlying,
+            )?;
+        }
         Expr::VarDeclaration(var) => {
             if let Some(initializer) = &var.initializer {
                 tree_walk(engine, resolver, env, state, visitable, initializer)?;
             }
-            env.variables.declare_local(var.var.name.to_owned());
+            let symbol = env
+                .variables
+                .declare_local(var.var.name.to_owned(), TypeInfo::Variable);
+            env.annotate(var, symbol);
         }
         Expr::VarReference(var) => {
-            env.variables.identify(state.module, resolver, var.name);
+            let symbol = env.variables.identify(state.module, resolver, var.name);
+            env.annotate(var, symbol);
         }
-        Expr::Literal(_) => {}
+        Expr::Range(range) => match range {
+            Iterable::Range(range) => {
+                tree_walk(engine, resolver, env, state, visitable, &range.start)?;
+                tree_walk(engine, resolver, env, state, visitable, &range.end)?;
+            }
+            Iterable::Files(_) => {}
+        },
+        Expr::Substitution(sub) => {
+            env.begin_scope();
+            for expr in &sub.underlying.expressions {
+                tree_walk(engine, resolver, env, state, visitable, expr)?;
+            }
+            env.end_scope();
+        }
+        Expr::TemplateString(template) => {
+            for expr in &template.parts {
+                tree_walk(engine, resolver, env, state, visitable, expr)?;
+            }
+        }
+        Expr::Casted(casted) => {
+            tree_walk(engine, resolver, env, state, visitable, &casted.expr)?;
+        }
+        Expr::Test(test) => {
+            tree_walk(engine, resolver, env, state, visitable, &test.expression)?;
+        }
+        Expr::Not(not) => {
+            tree_walk(engine, resolver, env, state, visitable, &not.underlying)?;
+        }
+        Expr::Parenthesis(paren) => {
+            tree_walk(engine, resolver, env, state, visitable, &paren.expression)?;
+        }
+        Expr::Subshell(subshell) => {
+            env.begin_scope();
+            for expr in &subshell.expressions {
+                tree_walk(engine, resolver, env, state, visitable, expr)?;
+            }
+            env.end_scope();
+        }
         Expr::Block(block) => {
             env.begin_scope();
             for expr in &block.expressions {
@@ -208,17 +336,132 @@ fn tree_walk(
                 env.end_scope();
             }
         }
-        _ => todo!("first pass for {:?}", expr),
-    };
+        Expr::While(wh) => {
+            env.begin_scope();
+            tree_walk(engine, resolver, env, state, visitable, &wh.condition)?;
+            env.end_scope();
+            env.begin_scope();
+            tree_walk(engine, resolver, env, state, visitable, &wh.body)?;
+            env.end_scope();
+        }
+        Expr::Loop(lp) => {
+            env.begin_scope();
+            tree_walk(engine, resolver, env, state, visitable, &lp.body)?;
+            env.end_scope();
+        }
+        Expr::For(fr) => {
+            env.begin_scope();
+            match fr.kind.as_ref() {
+                ForKind::Range(range) => {
+                    let symbol = env
+                        .variables
+                        .declare_local(range.receiver.to_owned(), TypeInfo::Variable);
+                    env.annotate(range, symbol);
+                    tree_walk(engine, resolver, env, state, visitable, &range.iterable)?;
+                }
+                ForKind::Conditional(cond) => {
+                    tree_walk(engine, resolver, env, state, visitable, &cond.initializer)?;
+                    tree_walk(engine, resolver, env, state, visitable, &cond.condition)?;
+                    tree_walk(engine, resolver, env, state, visitable, &cond.increment)?;
+                }
+            }
+            tree_walk(engine, resolver, env, state, visitable, &fr.body)?;
+            env.end_scope();
+        }
+        Expr::Return(ret) => {
+            if let Some(expr) = &ret.expr {
+                tree_walk(engine, resolver, env, state, visitable, expr)?;
+            }
+        }
+        Expr::FunctionDeclaration(func) => {
+            let symbol = env
+                .variables
+                .declare_local(func.name.to_owned(), TypeInfo::Function);
+            env.annotate(func, symbol);
+            let func_id = engine.track(expr);
+            let mut func_env = env.fork(state.module, func.name);
+            for param in &func.parameters {
+                let symbol = func_env.variables.declare_local(
+                    match param {
+                        FunctionParameter::Named(named) => named.name.to_owned(),
+                        FunctionParameter::Variadic(_) => "@".to_owned(),
+                    },
+                    TypeInfo::Variable,
+                );
+                // Only named parameters can be annotated for now
+                if let FunctionParameter::Named(named) = param {
+                    func_env.annotate(named, symbol);
+                }
+            }
+            tree_walk(
+                engine,
+                resolver,
+                &mut func_env,
+                &mut ResolutionState::new(func_id),
+                visitable,
+                &func.body,
+            )?;
+            engine.attach(func_id, func_env);
+        }
+        Expr::LambdaDef(lambda) => {
+            let func_id = engine.track(expr);
+            let mut func_env = env.fork(state.module, &format!("lambda@{}", func_id.0));
+            for param in &lambda.args {
+                let symbol = func_env
+                    .variables
+                    .declare_local(param.name.to_owned(), TypeInfo::Variable);
+                func_env.annotate(param, symbol);
+            }
+            tree_walk(
+                engine,
+                resolver,
+                &mut func_env,
+                &mut ResolutionState::new(func_id),
+                visitable,
+                &lambda.body,
+            )?;
+            engine.attach(func_id, func_env);
+        }
+        Expr::Literal(_) | Expr::Continue(_) | Expr::Break(_) => {}
+    }
     state.accept_imports = false;
     Ok(())
+}
+
+fn extract_literal_argument<'a>(call: &'a Call, nth: usize) -> Option<&'a str> {
+    match call.arguments.get(nth)? {
+        Expr::Literal(lit) => match &lit.parsed {
+            LiteralValue::String(str) => Some(str),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn resolve_primitive(env: &mut Environment, call: &Call) -> Option<()> {
+    let command = extract_literal_argument(call, 0)?;
+    match command {
+        "read" => {
+            let var = extract_literal_argument(call, 1)?;
+            let symbol = env
+                .variables
+                .declare_local(var.to_owned(), TypeInfo::Variable);
+            env.annotate(&call.arguments[1], symbol);
+            Some(())
+        }
+        _ => None,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::importer::StaticImporter;
+    use crate::resolver::{GlobalObjectId, Symbol};
+    use ast::call::ProgrammaticCall;
+    use ast::function::{FunctionDeclaration, Return};
     use ast::group::Block;
+    use ast::value::Literal;
     use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 
     #[test]
@@ -268,5 +511,141 @@ mod tests {
         )
         .expect("tree walk");
         assert_eq!(resolver.objects.len(), 0);
+    }
+
+    #[test]
+    fn bind_function_param() {
+        let expr = Expr::FunctionDeclaration(FunctionDeclaration {
+            name: "id",
+            type_parameters: vec![],
+            parameters: vec![FunctionParameter::Named(TypedVariable {
+                name: "n",
+                ty: None,
+                segment: 3..4,
+            })],
+            return_type: None,
+            body: Box::new(Expr::Return(Return {
+                expr: Some(Box::new(Expr::VarReference(VarReference {
+                    name: "n",
+                    segment: 13..15,
+                }))),
+                segment: 8..17,
+            })),
+            segment: 0..17,
+        });
+        let mut engine = Engine::default();
+        let mut resolver = Resolver::default();
+        let mut env = Environment::named(Name::new("test"));
+        let mut state = ResolutionState::new(engine.track(&expr));
+        tree_walk(
+            &mut engine,
+            &mut resolver,
+            &mut env,
+            &mut state,
+            &mut Vec::new(),
+            &expr,
+        )
+        .expect("tree walk");
+        assert_eq!(resolver.objects.len(), 0);
+        assert_eq!(env.get_raw_symbol(0..17), Some(Symbol::Local(0)));
+        assert_eq!(env.get_raw_symbol(3..4), None);
+        assert_eq!(env.get_raw_symbol(13..15), None);
+        let func_env = engine.get_environment(SourceObjectId(1)).unwrap();
+        assert_eq!(func_env.get_raw_symbol(3..4), Some(Symbol::Local(0)));
+        assert_eq!(func_env.get_raw_symbol(13..15), Some(Symbol::Local(0)));
+    }
+
+    #[test]
+    fn bind_primitive() {
+        let expr = Expr::Call(Call {
+            path: vec![],
+            arguments: vec![
+                Expr::Literal(Literal {
+                    parsed: "read".into(),
+                    segment: 0..5,
+                }),
+                Expr::Literal(Literal {
+                    parsed: "foo".into(),
+                    segment: 6..9,
+                }),
+            ],
+            type_parameters: vec![],
+        });
+        let mut engine = Engine::default();
+        let mut resolver = Resolver::default();
+        let mut env = Environment::named(Name::new("test"));
+        let mut state = ResolutionState::new(engine.track(&expr));
+        tree_walk(
+            &mut engine,
+            &mut resolver,
+            &mut env,
+            &mut state,
+            &mut Vec::new(),
+            &expr,
+        )
+        .expect("tree walk");
+        assert_eq!(resolver.objects.len(), 0);
+        assert_eq!(env.get_raw_symbol(0..5), None);
+        assert_eq!(env.get_raw_symbol(6..9), Some(Symbol::Local(0)));
+    }
+
+    #[test]
+    fn find_references() {
+        let expr = Expr::Block(Block {
+            expressions: vec![
+                Expr::VarReference(VarReference {
+                    name: "bar",
+                    segment: 0..4,
+                }),
+                Expr::ProgrammaticCall(ProgrammaticCall {
+                    path: vec![],
+                    name: "baz",
+                    arguments: vec![
+                        Expr::VarReference(VarReference {
+                            name: "foo",
+                            segment: 9..13,
+                        }),
+                        Expr::VarReference(VarReference {
+                            name: "bar",
+                            segment: 15..19,
+                        }),
+                    ],
+                    type_parameters: vec![],
+                    segment: 5..20,
+                }),
+            ],
+            segment: 0..20,
+        });
+        let mut engine = Engine::default();
+        let mut resolver = Resolver::default();
+        let mut env = Environment::named(Name::new("test"));
+        let mut state = ResolutionState::new(engine.track(&expr));
+        tree_walk(
+            &mut engine,
+            &mut resolver,
+            &mut env,
+            &mut state,
+            &mut Vec::new(),
+            &expr,
+        )
+        .expect("tree walk");
+        engine.attach(state.module, env);
+        assert_eq!(
+            resolver
+                .find_references(&engine, GlobalObjectId(0))
+                .map(|mut references| {
+                    references.sort_by_key(|range| range.start);
+                    references
+                }),
+            Some(vec![0..4, 15..19])
+        );
+        assert_eq!(
+            resolver.find_references(&engine, GlobalObjectId(1)),
+            Some(vec![5..20])
+        );
+        assert_eq!(
+            resolver.find_references(&engine, GlobalObjectId(2)),
+            Some(vec![9..13])
+        );
     }
 }

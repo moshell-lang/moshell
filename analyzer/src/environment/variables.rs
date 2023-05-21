@@ -2,11 +2,10 @@ use crate::resolver::{GlobalObjectId, ObjectId, Resolver, SourceObjectId, Symbol
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
 
-#[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TypeInfo {
-    #[default]
-    Unknown,
-    Ref(Symbol),
+    Variable,
+    Function,
 }
 
 /// A collection of variables
@@ -18,20 +17,26 @@ pub struct Variables {
 }
 
 impl Variables {
-    pub fn declare_local(&mut self, name: String) {
-        self.locals.declare(name);
+    /// Creates a new local variable.
+    pub fn declare_local(&mut self, name: String, ty: TypeInfo) -> Symbol {
+        self.locals.declare(name, ty)
     }
 
     /// Identifies a named variable to a binding.
     ///
-    /// If the variable is not reachable from the current scope, it is considered a global variable.
+    /// This creates a new global variable if the variable is not already known or is not reachable,
+    /// or returns the existing variable identifier. To only lookup a variable, use [`Variables::get`].
     pub fn identify(
         &mut self,
         state: SourceObjectId,
         resolver: &mut Resolver,
         name: &str,
     ) -> Symbol {
-        match self.locals.position_reachable_local(name) {
+        match self
+            .locals
+            .position_reachable_local(name)
+            .map(|idx| self.locals.vars.len() - 1 - idx)
+        {
             Some(var) => Symbol::Local(var),
             None => (*self
                 .globals
@@ -41,13 +46,43 @@ impl Variables {
         }
     }
 
+    /// Gets the symbol associated with an already known name.
+    pub fn get(&self, name: &str) -> Option<Symbol> {
+        self.locals
+            .vars
+            .iter()
+            .position(|var| var.name == name /*&& var.depth.is_some()*/)
+            .map(Symbol::Local)
+            .or_else(|| {
+                self.globals
+                    .get(name)
+                    .copied()
+                    .map(|id| Symbol::Global(id.0))
+            })
+    }
+
+    /// Iterates over all the exported variables, local to the environment.
     pub fn exported_vars(&self) -> impl Iterator<Item = &Variable> {
         //consider for now that all local vars are exported.
         self.locals.vars.iter()
     }
 
+    /// Iterates over all the global variable ids, with their corresponding name.
     pub fn global_vars(&self) -> impl Iterator<Item = (&String, GlobalObjectId)> {
         self.globals.iter().map(|(name, id)| (name, *id))
+    }
+
+    /// Gets the name of a global variable.
+    ///
+    /// This returns the name only if the global object comes from this environment.
+    pub fn get_symbol_name(&self, object_id: GlobalObjectId) -> Option<&str> {
+        self.globals.iter().find_map(|(name, &id)| {
+            if id == object_id {
+                Some(name.as_ref())
+            } else {
+                None
+            }
+        })
     }
 
     pub fn begin_scope(&mut self) {
@@ -73,12 +108,19 @@ struct Locals {
 
 impl Locals {
     /// Adds a new variable and binds it to the current scope.
-    fn declare(&mut self, name: String) {
+    fn declare(&mut self, name: String, ty: TypeInfo) -> Symbol {
+        let id = self.vars.len();
         self.vars.push(Variable {
             name,
             depth: Some(self.current_depth),
-            ty: TypeInfo::Unknown,
+            ty,
         });
+        Symbol::Local(id)
+    }
+
+    /// Declares a new variable of type `TypeInfo::Variable`.
+    fn declare_variable(&mut self, name: String) {
+        self.declare(name, TypeInfo::Variable);
     }
 
     /// Moves into a new scope.
@@ -116,6 +158,11 @@ impl Locals {
             .find(|var| var.name == name && var.depth.is_some())
     }
 
+    /// Gets the offset of a variable from the current scope.
+    ///
+    /// This relative index is from the end of the Vec of variables, so it
+    /// becomes invalid when a new variable is declared. Prefers the other
+    /// methods that exposes an index from the beginning of the Vec.
     fn position_reachable_local(&self, name: &str) -> Option<ObjectId> {
         self.vars
             .iter()
@@ -156,11 +203,11 @@ impl Variable {
     ///
     /// This convenience method accepts zero as a depth, which is the internal
     /// representation of a non reachable variable.
-    fn scoped(name: String, depth: usize) -> Self {
+    pub fn scoped(name: String, depth: usize) -> Self {
         Self {
             name,
             depth: NonZeroUsize::try_from(depth).ok(),
-            ty: TypeInfo::Unknown,
+            ty: TypeInfo::Variable,
         }
     }
 }
@@ -172,9 +219,9 @@ mod tests {
     #[test]
     fn access_by_name() {
         let mut locals = Locals::default();
-        locals.declare("foo".to_owned());
+        locals.declare_variable("foo".to_owned());
         locals.begin_scope();
-        locals.declare("bar".to_owned());
+        locals.declare_variable("bar".to_owned());
         assert_eq!(
             locals.lookup_reachable_local("foo"),
             Some(&Variable::scoped("foo".to_owned(), 1))
@@ -190,7 +237,7 @@ mod tests {
     fn access_out_of_scope() {
         let mut locals = Locals::default();
         locals.begin_scope();
-        locals.declare("bar".to_owned());
+        locals.declare_variable("bar".to_owned());
         locals.end_scope();
         assert_eq!(locals.lookup_reachable_local("bar"), None);
         locals.begin_scope();
@@ -200,10 +247,10 @@ mod tests {
     #[test]
     fn shadow_nested() {
         let mut locals = Locals::default();
-        locals.declare("foo".to_owned());
+        locals.declare_variable("foo".to_owned());
         locals.begin_scope();
         locals.begin_scope();
-        locals.declare("foo".to_owned());
+        locals.declare_variable("foo".to_owned());
         assert_eq!(
             locals.lookup_reachable_local("foo"),
             Some(&Variable::scoped("foo".to_owned(), 3))

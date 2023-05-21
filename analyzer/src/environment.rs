@@ -1,4 +1,7 @@
 use crate::name::Name;
+use crate::resolver::{SourceObjectId, Symbol};
+use context::source::{SourceSegment, SourceSegmentHolder};
+use std::collections::HashMap;
 use variables::Variables;
 
 pub mod variables;
@@ -29,28 +32,37 @@ pub mod variables;
 /// It can have dependencies over other environments.
 #[derive(Debug, Clone)]
 pub struct Environment {
+    /// The source object id of the parent environment, if the environment is nested.
+    pub parent: Option<SourceObjectId>,
+
     ///Fully qualified name of the environment
     pub fqn: Name,
 
     /// The variables that are declared in the environment.
     pub variables: Variables,
-}
 
+    /// A mapping of expression segments to symbols.
+    pub definitions: HashMap<SourceSegment, Symbol>,
+}
 
 impl Environment {
     pub fn named(name: Name) -> Self {
         Self {
+            parent: None,
             fqn: name.clone(),
             variables: Variables::default(),
+            definitions: HashMap::new(),
         }
     }
 
-    pub fn fork(&self, name: &str) -> Environment {
+    pub fn fork(&self, source_id: SourceObjectId, name: &str) -> Environment {
         let env_fqn = self.fqn.child(name);
 
         Self {
+            parent: Some(source_id),
             fqn: env_fqn,
             variables: Variables::default(),
+            definitions: HashMap::new(),
         }
     }
 
@@ -60,5 +72,29 @@ impl Environment {
 
     pub fn end_scope(&mut self) {
         self.variables.end_scope();
+    }
+
+    /// Adds an annotation to any segment.
+    ///
+    /// This method exposes a low level API to add annotations to segments, preferably use the
+    /// wrapper methods defined in traits in the `checker` crate.
+    pub fn annotate(&mut self, segment: &impl SourceSegmentHolder, symbol: Symbol) {
+        self.definitions.insert(segment.segment(), symbol);
+    }
+
+    /// Gets a symbol from the environment.
+    pub fn get_raw_symbol(&self, segment: SourceSegment) -> Option<Symbol> {
+        self.definitions.get(&segment).copied()
+    }
+
+    /// Finds the local segments that references a symbol.
+    pub fn find_references(&self, symbol_declaration: Symbol) -> Vec<SourceSegment> {
+        let mut references = Vec::new();
+        for (segment, symbol_reference) in &self.definitions {
+            if *symbol_reference == symbol_declaration {
+                references.push(segment.clone());
+            }
+        }
+        references
     }
 }
