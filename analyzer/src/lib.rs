@@ -6,4 +6,4 @@ pub mod environment;
 pub mod importer;
 pub mod name;
 pub mod resolver;
-mod steps;
+pub mod steps;

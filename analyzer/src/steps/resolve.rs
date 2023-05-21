@@ -286,11 +286,7 @@ mod tests {
         collect_symbols(&mut engine, &mut resolver, Name::new("test"), &mut importer)
             .expect("collect errors");
 
-        resolve_imports(
-            &engine,
-            UnresolvedImports::default(),
-        )
-        .expect("resolution errors");
+        resolve_imports(&engine, UnresolvedImports::default()).expect("resolution errors");
         resolve_trees(&mut resolver, &mut engine).expect("resolution errors");
         assert_eq!(
             resolver.objects,

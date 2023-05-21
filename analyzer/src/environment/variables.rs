@@ -203,7 +203,7 @@ impl Variable {
     ///
     /// This convenience method accepts zero as a depth, which is the internal
     /// representation of a non reachable variable.
-    fn scoped(name: String, depth: usize) -> Self {
+    pub fn scoped(name: String, depth: usize) -> Self {
         Self {
             name,
             depth: NonZeroUsize::try_from(depth).ok(),
