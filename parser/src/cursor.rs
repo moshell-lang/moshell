@@ -51,7 +51,7 @@ impl<'a> ParserCursor<'a> {
     pub fn advance(&mut self, mov: impl Move) -> Option<Token<'a>> {
         let result = mov.apply(|pos| self.at(pos), self.pos);
 
-        if let Some(next_pos) = result {
+        if let Ok(next_pos) = result {
             //we subtract 1 to next_pos because the move returns the next position
             //of the token, thus, we want to return the last token that this move covered.
             let token_return = next_pos.saturating_sub(1).max(self.pos);
@@ -67,7 +67,7 @@ impl<'a> ParserCursor<'a> {
     pub fn lookahead(&self, mov: impl Move) -> Option<Token<'a>> {
         let result = mov.apply(|pos| self.at(pos), self.pos);
 
-        if let Some(next_pos) = result {
+        if let Ok(next_pos) = result {
             //we subtract 1 to next_pos because the move returns the next position
             //of the token, thus, we want to return the last token that this move covered.
             let token_return = next_pos.saturating_sub(1).max(self.pos);
@@ -79,9 +79,17 @@ impl<'a> ParserCursor<'a> {
     /// Force the given move to succeed, or else fail with given error message.
     /// This method will move the current cursor position on where the move ended.
     pub fn force(&mut self, mov: impl Move, err: &str) -> ParseResult<Token<'a>> {
-        self.advance(mov).ok_or_else(|| {
-            self.mk_parse_error(err, self.at(self.pos + 1), ParseErrorKind::Unexpected)
-        })
+        let result = mov.apply(|pos| self.at(pos), self.pos);
+        match result {
+            Ok(next_pos) => {
+                let token_return = next_pos.saturating_sub(1).max(self.pos);
+                self.pos = next_pos;
+                Ok(self.at(token_return))
+            }
+            Err(err_pos) => {
+                Err(self.mk_parse_error(err, self.at(err_pos), ParseErrorKind::Unexpected))
+            }
+        }
     }
 
     pub fn force_with(

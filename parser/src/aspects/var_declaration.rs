@@ -142,12 +142,12 @@ mod tests {
 
     #[test]
     fn val_declaration_with_type_no_colon() {
-        let source = Source::unknown("{val variable Array}");
+        let source = Source::unknown("val variable Array");
         let res: ParseResult<_> = parse(source).into();
         assert_eq!(
             res,
             Err(ParseError {
-                message: "expected new line or semicolon".to_owned(),
+                message: "expected end of expression or file".to_owned(),
                 position: find_in(source.source, "Array"),
                 kind: ParseErrorKind::Unexpected
             })

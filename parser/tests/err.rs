@@ -536,7 +536,7 @@ fn quotes_are_delimiters() {
             expr: vec![],
             errors: vec![ParseError {
                 message: "expected end of expression or file".to_owned(),
-                position: content.rfind('$').map(|p| p..p + 1).unwrap(),
+                position: content.find('"').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected
             }],
             stack_ended: true,
