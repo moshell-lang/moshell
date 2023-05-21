@@ -229,6 +229,7 @@ impl TokenType {
                 | CurlyLeftBracket
                 | CurlyRightBracket
                 | SemiColon
+                | NewLine
                 | Error
                 | EndOfFile
         )

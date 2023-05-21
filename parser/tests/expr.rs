@@ -1,4 +1,6 @@
-use ast::call::{Call, MethodCall, ProgrammaticCall, Redir, RedirFd, RedirOp, Redirected};
+use ast::call::{
+    Call, Detached, MethodCall, ProgrammaticCall, Redir, RedirFd, RedirOp, Redirected,
+};
 use ast::control_flow::{For, ForKind, RangeFor};
 use ast::group::{Block, Parenthesis};
 use ast::lambda::LambdaDef;
@@ -272,17 +274,19 @@ fn identity_lambda() {
 }
 
 #[test]
-fn command_echo() {
-    let source = Source::unknown("echo hello");
+fn background_command_echo() {
+    let source = Source::unknown("echo hello &\n");
     let parsed = parse(source).expect("Failed to parse");
-
-    let expected = vec![Expr::Call(Call {
-        path: Vec::new(),
-        arguments: vec![
-            literal(source.source, "echo"),
-            literal(source.source, "hello"),
-        ],
-        type_parameters: Vec::new(),
+    let expected = vec![Expr::Detached(Detached {
+        underlying: Box::new(Expr::Call(Call {
+            path: Vec::new(),
+            arguments: vec![
+                literal(source.source, "echo"),
+                literal(source.source, "hello"),
+            ],
+            type_parameters: Vec::new(),
+        })),
+        segment: find_in(source.source, "echo hello &"),
     })];
     assert_eq!(parsed, expected);
 }
