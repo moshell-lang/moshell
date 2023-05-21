@@ -5,7 +5,7 @@ use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
 
 use crate::err::ParseErrorKind;
-use crate::moves::{blanks, eod, eox, lookahead, of_type, spaces, MoveOperations};
+use crate::moves::{blanks, of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 pub trait VarDeclarationAspect<'a> {
@@ -38,21 +38,13 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
             .cursor
             .advance(spaces().then(of_type(TokenType::Equal)))
         {
-            None => {
-                self.cursor.force(
-                    spaces().then(eox().or(lookahead(eod()))),
-                    "Expected initializer after declaration or newline.",
-                )?;
-                None
-            }
-
+            None => None,
             Some(_) => {
                 let value = self.value()?;
                 segment = segment.start..value.segment().end;
-                Some(value)
+                Some(Box::new(value))
             }
-        }
-        .map(Box::new);
+        };
 
         Ok(Expr::VarDeclaration(VarDeclaration {
             kind,
@@ -101,7 +93,6 @@ mod tests {
 
     use crate::err::ParseError;
     use crate::parse;
-    use crate::parser::Parser;
     use crate::source::literal;
 
     use super::*;
@@ -151,10 +142,16 @@ mod tests {
 
     #[test]
     fn val_declaration_with_type_no_colon() {
-        let source = Source::unknown("val variable Array");
-        Parser::new(source)
-            .var_declaration()
-            .expect_err("did not fail");
+        let source = Source::unknown("{val variable Array}");
+        let res: ParseResult<_> = parse(source).into();
+        assert_eq!(
+            res,
+            Err(ParseError {
+                message: "expected new line or semicolon".to_owned(),
+                position: find_in(source.source, "Array"),
+                kind: ParseErrorKind::Unexpected
+            })
+        )
     }
 
     #[test]

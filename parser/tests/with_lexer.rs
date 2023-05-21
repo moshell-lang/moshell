@@ -467,3 +467,28 @@ fn inner_var_ref() {
         })]
     );
 }
+
+#[test]
+fn variable_without_initializer() {
+    let source = Source::unknown("var bar; $bar");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![
+            Expr::VarDeclaration(VarDeclaration {
+                kind: VarKind::Var,
+                var: TypedVariable {
+                    name: "bar",
+                    ty: None,
+                    segment: find_in(source.source, "bar"),
+                },
+                initializer: None,
+                segment: find_in(source.source, "var bar"),
+            }),
+            Expr::VarReference(VarReference {
+                name: "bar",
+                segment: find_in(source.source, "$bar"),
+            })
+        ]
+    );
+}
