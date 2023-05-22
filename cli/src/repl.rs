@@ -1,6 +1,6 @@
 use crate::cli::handle_source;
 use crate::report::print_flush;
-use context::source::OwnedSource;
+use context::source::{OwnedSource, Source};
 use parser::parse;
 use std::io;
 use std::io::BufRead;
@@ -11,7 +11,7 @@ use std::io::Write;
 pub fn prompt() {
     loop {
         if let Some(source) = parse_input() {
-            handle_source(source);
+            handle_source(source.as_source());
         }
     }
 }
@@ -32,15 +32,15 @@ fn parse_input() -> Option<OwnedSource> {
             continue;
         }
 
-        let source = OwnedSource::new(content.clone(), "stdin".to_string());
-        let report = parse(source.as_source());
+        let source = Source::new(&content, "stdin");
+        let report = parse(source);
         if !report.stack_ended {
             content.push('\n');
             print_flush!("-> ");
             continue; // Silently ignore incomplete input
         }
 
-        return Some(source);
+        return Some(OwnedSource::new(source.source.to_string(), source.name.to_string()));
     }
     None
 }

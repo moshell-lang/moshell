@@ -3,11 +3,12 @@
 mod cli;
 mod repl;
 mod report;
+mod source;
 
 use crate::cli::{handle_source, Cli};
 use crate::repl::prompt;
 use clap::Parser;
-use context::source::OwnedSource;
+use context::source::Source;
 use miette::MietteHandlerOpts;
 use std::io;
 use std::ops::Deref;
@@ -24,7 +25,7 @@ fn main() -> io::Result<()> {
     if let Some(source) = cli.source {
         let content = std::fs::read_to_string(&source)?;
         let name = source.to_string_lossy().deref().to_string();
-        let source = OwnedSource::new(content, name);
+        let source = Source::new(&content, &name);
         exit(handle_source(source) as i32)
     }
     prompt();

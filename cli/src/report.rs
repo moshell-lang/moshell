@@ -5,6 +5,7 @@ use miette::{LabeledSpan, MietteDiagnostic, Report, Severity, SourceSpan};
 
 use context::source::{Source, SourceSegment};
 use parser::err::{ParseError, ParseErrorKind};
+use crate::source::{CLISourceCode, into_source_code};
 
 macro_rules! print_flush {
     ( $($t:tt)* ) => {
@@ -65,7 +66,13 @@ pub fn display_parse_error<W: Write>(
         }
     }
     let report = Report::from(diag).with_source_code(source.source.to_string());
-    writeln!(writer, "{report:?}")
+    unsafe {
+        //SAFETY: the CLI source is transmuted to a static lifetime, because `report.with_source_code`
+        //needs a source with a static lifetime. The report and the source are then used to display the formatted diagnostic and are immediately dropped after.
+        let source = std::mem::transmute::<CLISourceCode, CLISourceCode<'static>>(into_source_code(source));
+        let report = report.with_source_code(source);
+        writeln!(writer, "\n{report:?}")
+    }
 }
 
 pub fn display_diagnostic<W: Write>(
@@ -103,6 +110,11 @@ pub fn display_diagnostic<W: Write>(
     }
 
     let report = Report::from(diag);
-    let report = report.with_source_code(source.source.to_string());
-    writeln!(writer, "\n{report:?}")
+    unsafe {
+        //SAFETY: the CLI source is transmuted to a static lifetime, because `report.with_source_code`
+        //needs a source with a static lifetime. The report and the source are then used to display the formatted diagnostic and are immediately dropped after.
+        let source = std::mem::transmute::<CLISourceCode, CLISourceCode<'static>>(into_source_code(source));
+        let report = report.with_source_code(source);
+        writeln!(writer, "\n{report:?}")
+    }
 }

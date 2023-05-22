@@ -12,7 +12,7 @@ use analyzer::steps::resolve::SymbolResolver;
 use ast::group::Block;
 use ast::Expr;
 use clap::Parser;
-use context::source::OwnedSource;
+use context::source::Source;
 use dbg_pls::color;
 use parser::parse;
 
@@ -37,14 +37,14 @@ impl<'a> ASTImporter<'a> for RawImporter<'a> {
 
 /// Parses and display errors / diagnostics coming from the given source.
 /// Returning true if the source had at least one error or diagnostic.
-pub fn handle_source(source: OwnedSource) -> bool {
-    let report = parse(source.as_source());
+pub fn handle_source(source: Source) -> bool {
+    let report = parse(source);
     let mut importer = RawImporter::default();
 
     let mut engine = Engine::default();
     let mut relations = Relations::default();
 
-    let source = source.as_source();
+    let source = source;
     let errors: Vec<_> = report.errors;
 
     let out = &mut stderr();
