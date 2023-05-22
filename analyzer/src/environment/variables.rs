@@ -1,6 +1,6 @@
 use crate::relations::{GlobalObjectId, ObjectId, Relations, SourceObjectId, Symbol};
-use std::num::NonZeroUsize;
 use indexmap::IndexMap;
+use std::num::NonZeroUsize;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TypeInfo {
@@ -15,7 +15,6 @@ pub struct Variables {
 
     globals: IndexMap<String, GlobalObjectId>,
 }
-
 
 impl Variables {
     /// Creates a new local variable.
@@ -70,7 +69,7 @@ impl Variables {
         self.locals.vars.iter()
     }
 
-    pub fn external_vars(&self) -> impl Iterator<Item=(&String, GlobalObjectId)> {
+    pub fn external_vars(&self) -> impl Iterator<Item = (&String, GlobalObjectId)> {
         self.globals.iter().map(|(name, id)| (name, *id))
     }
 

@@ -4,11 +4,11 @@ mod cli;
 mod repl;
 mod report;
 
-use crate::cli::{Cli, handle_source};
+use crate::cli::{handle_source, Cli};
 use crate::repl::prompt;
 use clap::Parser;
-use context::source::{OwnedSource};
-use miette::{MietteHandlerOpts};
+use context::source::OwnedSource;
+use miette::MietteHandlerOpts;
 use std::io;
 use std::ops::Deref;
 use std::process::exit;
@@ -17,10 +17,9 @@ fn main() -> io::Result<()> {
     let cli = Cli::parse();
 
     miette::set_hook(Box::new(|_| {
-        Box::new(MietteHandlerOpts::new()
-            .tab_width(2)
-            .build())
-    })).expect("miette setup");
+        Box::new(MietteHandlerOpts::new().tab_width(2).build())
+    }))
+    .expect("miette setup");
 
     if let Some(source) = cli.source {
         let content = std::fs::read_to_string(&source)?;
@@ -31,5 +30,3 @@ fn main() -> io::Result<()> {
     prompt();
     Ok(())
 }
-
-

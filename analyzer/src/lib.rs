@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 #![deny(warnings)]
 
-pub mod engine;
-pub mod importer;
 pub mod diagnostic;
+pub mod engine;
 pub mod environment;
+pub mod importer;
 pub mod name;
 pub mod relations;
 

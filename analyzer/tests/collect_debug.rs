@@ -16,7 +16,12 @@ fn collect_sample() {
     let mut engine = Engine::default();
     let mut relations = Relations::default();
     let mut importer = StaticImporter::new([(root_name.clone(), source)], parse_trusted);
-    let diagnostics = SymbolCollector::collect_symbols(&mut engine, &mut relations, root_name.clone(), &mut importer);
+    let diagnostics = SymbolCollector::collect_symbols(
+        &mut engine,
+        &mut relations,
+        root_name.clone(),
+        &mut importer,
+    );
     assert_eq!(diagnostics, vec![]);
     let root_env = engine
         .get_environment(SourceObjectId(0))

@@ -1,10 +1,10 @@
 use crate::engine::Engine;
 use crate::name::Name;
-use std::collections::{HashMap};
-use std::hash::{Hash, Hasher};
-use indexmap::IndexMap;
-use ast::r#use::{Import as ImportExpr};
+use ast::r#use::Import as ImportExpr;
 use context::source::SourceSegment;
+use indexmap::IndexMap;
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 
 /// The object identifier base.
 ///
@@ -62,7 +62,11 @@ impl<'a> UnresolvedImports<'a> {
     }
 
     ///Adds an unresolved import, placing the given `import_expr` as the dependent .
-    pub fn add_unresolved_import(&mut self, import: UnresolvedImport, import_expr: &'a ImportExpr<'a>) -> Option<&'a ImportExpr<'a>> {
+    pub fn add_unresolved_import(
+        &mut self,
+        import: UnresolvedImport,
+        import_expr: &'a ImportExpr<'a>,
+    ) -> Option<&'a ImportExpr<'a>> {
         self.imports.insert(import, import_expr)
     }
 }
@@ -81,10 +85,7 @@ pub struct ResolvedSymbol {
 
 impl ResolvedSymbol {
     pub fn new(module: SourceObjectId, object_id: ObjectId) -> Self {
-        Self {
-            module,
-            object_id,
-        }
+        Self { module, object_id }
     }
 }
 
@@ -96,7 +97,6 @@ pub struct Object {
     /// The link to the resolved symbol.
     pub resolved: Option<ResolvedSymbol>,
 }
-
 
 impl Hash for Object {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -156,7 +156,12 @@ impl<'a> Relations<'a> {
     /// References a new import directive in the given source.
     ///
     /// This directive may be used later to resolve the import.
-    pub fn add_import(&mut self, source: SourceObjectId, import: UnresolvedImport, import_expr: &'a ImportExpr<'a>) -> Option<&'a ImportExpr<'a>> {
+    pub fn add_import(
+        &mut self,
+        source: SourceObjectId,
+        import: UnresolvedImport,
+        import_expr: &'a ImportExpr<'a>,
+    ) -> Option<&'a ImportExpr<'a>> {
         let imports = self
             .imports
             .entry(source)

@@ -1,10 +1,10 @@
-use crate::report::{print_flush};
-use context::source::{OwnedSource};
+use crate::cli::handle_source;
+use crate::report::print_flush;
+use context::source::OwnedSource;
 use parser::parse;
 use std::io;
-use std::io::{BufRead};
+use std::io::BufRead;
 use std::io::Write;
-use crate::cli::handle_source;
 
 /// Indefinitely prompts a new expression to the stdin,
 /// displaying back the errors if any and the formed AST

@@ -8,7 +8,7 @@ pub trait SourceSegmentHolder {
 }
 
 pub struct StaticSegmentHolder {
-    segment: SourceSegment
+    segment: SourceSegment,
 }
 
 impl SourceSegmentHolder for StaticSegmentHolder {

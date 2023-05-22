@@ -2,19 +2,19 @@ use std::collections::HashMap;
 use std::io::stderr;
 use std::path::PathBuf;
 
-use clap::Parser;
-use dbg_pls::color;
+use crate::report::{display_diagnostic, display_parse_error};
 use analyzer::engine::Engine;
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
 use analyzer::relations::Relations;
 use analyzer::steps::collect::SymbolCollector;
 use analyzer::steps::resolve::SymbolResolver;
-use ast::Expr;
 use ast::group::Block;
+use ast::Expr;
+use clap::Parser;
 use context::source::OwnedSource;
+use dbg_pls::color;
 use parser::parse;
-use crate::report::{display_diagnostic, display_parse_error};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -65,7 +65,8 @@ pub fn handle_source(source: OwnedSource) -> bool {
     let name = Name::new("<module>");
     importer.imported_modules.insert(name.clone(), expr);
 
-    let mut diagnostics = SymbolCollector::collect_symbols(&mut engine, &mut relations, name, &mut importer);
+    let mut diagnostics =
+        SymbolCollector::collect_symbols(&mut engine, &mut relations, name, &mut importer);
     diagnostics.extend(SymbolResolver::resolve_symbols(&engine, &mut relations));
 
     let mut stdout = stderr();

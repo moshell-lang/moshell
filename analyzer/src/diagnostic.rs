@@ -1,48 +1,34 @@
-use enum_assoc::Assoc;
-use crate::relations::{SourceObjectId};
+use crate::relations::SourceObjectId;
 use context::source::{SourceSegment, SourceSegmentHolder};
-use crate::diagnostic::DiagnosticType::{Error, Warn};
+use enum_assoc::Assoc;
 
 #[derive(PartialEq, Debug, Assoc)]
-#[func(pub fn code(&self) -> &'static str)]
-pub enum ErrorID {
-    #[assoc(code = "E001")]
+#[func(pub fn code(&self) -> u16)]
+#[func(pub fn noxious(&self) -> bool { false })]
+pub enum DiagnosticID {
+    #[assoc(code = 1)]
+    #[assoc(noxious = true)]
     UnsupportedFeature,
 
     //No message is intentional as
-    #[assoc(code = "E002")]
+    #[assoc(code = 2)]
+    #[assoc(noxious = true)]
     CannotImport,
 
-    #[assoc(code = "E003")]
+    #[assoc(code = 3)]
+    #[assoc(noxious = true)]
     ImportResolution,
 
-    #[assoc(code = "E004")]
+    #[assoc(code = 4)]
+    #[assoc(noxious = true)]
     UnknownSymbol,
 
-    #[assoc(code = "E005")]
+    #[assoc(code = 5)]
+    #[assoc(noxious = true)]
     UseBetweenExprs,
-}
 
-#[derive(PartialEq, Debug, Assoc)]
-#[func(pub fn code(&self) -> &'static str)]
-pub enum WarnID {
-    #[assoc(code = "W001")]
-    ShadowedImport
-}
-
-#[derive(PartialEq, Debug)]
-pub enum DiagnosticType {
-    Error(ErrorID),
-    Warn(WarnID),
-}
-
-impl DiagnosticType {
-    pub fn code(&self) -> &'static str {
-        match self {
-            Error(e) => e.code(),
-            Warn(w) => w.code(),
-        }
-    }
+    #[assoc(code = 6)]
+    ShadowedImport,
 }
 
 /// Observations are an area in the source code with an (optional) help message
@@ -52,7 +38,7 @@ pub struct Observation {
     /// Observed segment
     pub segment: SourceSegment,
     /// An optional help string to complete the observation
-     pub help: Option<String>,
+    pub help: Option<String>,
 }
 
 impl Observation {
@@ -76,8 +62,8 @@ impl Observation {
 pub struct Diagnostic {
     /// The source where this diagnostic applies
     pub source: SourceObjectId,
-    /// The type of diagnostic, see [DiagnosticType] for further details
-    pub ty: DiagnosticType,
+    /// The diagnostic identifier
+    pub identifier: DiagnosticID,
     /// The overall message of this diagnostic
     pub global_message: String,
     /// Some observations to explain the diagnostic
@@ -87,20 +73,10 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
-    pub fn warn(id: WarnID, module: SourceObjectId, msg: &str) -> Self {
+    pub fn new(id: DiagnosticID, module: SourceObjectId, msg: &str) -> Self {
         Self {
             source: module,
-            ty: Warn(id),
-            global_message: msg.to_string(),
-            observations: Vec::new(),
-            tips: Vec::new(),
-        }
-    }
-
-    pub fn error(id: ErrorID, module: SourceObjectId, msg: &str) -> Self {
-        Self {
-            source: module,
-            ty: Error(id),
+            identifier: id,
             global_message: msg.to_string(),
             observations: Vec::new(),
             tips: Vec::new(),

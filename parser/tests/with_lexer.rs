@@ -1,5 +1,6 @@
 use ast::call::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use ast::control_flow::While;
+use ast::function::Return;
 use ast::group::{Block, Subshell};
 use ast::substitution::{Substitution, SubstitutionKind};
 use ast::value::TemplateString;
@@ -10,7 +11,6 @@ use context::str_find::{find_in, find_in_nth};
 use parser::parse;
 use parser::source::{literal, literal_nth};
 use pretty_assertions::assert_eq;
-use ast::function::Return;
 
 #[test]
 fn with_lexer_variable() {
