@@ -1,0 +1,21 @@
+use lib::LOG_FILE
+
+fun factorial(n: Int) -> Int = {
+    val a = 1
+    for i in 1..=$n {
+        a = $a * $i
+    }
+    return $a
+}
+
+fun debug() = {
+    start -w | grep 'incoming'
+    //watch-logs $LOG_FILE 2> /dev/null &
+    wait
+}
+
+val n = 5
+val a = factorial($n)
+echo "factorial($n) = $a"
+
+val provider = () => $n

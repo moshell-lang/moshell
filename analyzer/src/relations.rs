@@ -1,8 +1,10 @@
+use crate::engine::Engine;
 use crate::name::Name;
 use std::collections::{HashMap};
 use std::hash::{Hash, Hasher};
 use indexmap::IndexMap;
 use ast::r#use::{Import as ImportExpr};
+use context::source::SourceSegment;
 
 /// The object identifier base.
 ///
@@ -26,7 +28,7 @@ pub struct SourceObjectId(pub ObjectId);
 /// An indication where an object is located.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Symbol {
-    /// A local object, referenced by its index in the [`checker::environment::Environment`] it is defined in.
+    /// A local object, referenced by its index in the [`crate::environment::Environment`] it is defined in.
     Local(ObjectId),
 
     /// A global object, referenced by its index in the [`Relations`] it is linked to.
@@ -130,7 +132,7 @@ impl Object {
 pub struct Relations<'a> {
     /// The objects that need resolution that are tracked globally.
     ///
-    /// The actual [`String`] -> [`ObjectId`] mapping is left to the [`checker::environment::Environment`].
+    /// The actual [`String`] -> [`ObjectId`] mapping is left to the [`crate::environment::Environment`].
     /// The reason that the resolution information is lifted out of the environment is that identifiers
     /// binding happens across modules, and an environment cannot guarantee that it will be able to generate
     /// unique identifiers for all the symbols that do not conflicts with the ones from other modules.
@@ -139,7 +141,7 @@ pub struct Relations<'a> {
     /// Associates a source object with its unresolved imports.
     ///
     /// Imports may only be declared at the top level of a source. This lets us track the unresolved imports
-    /// per [`checker::environment::Environment`]. If a source is not tracked here, it means that it has no
+    /// per [`crate::environment::Environment`]. If a source is not tracked here, it means that it has no
     /// imports. This is only used to create find the link between environments and sources, and should not
     /// be used after the resolution is done.
     pub imports: HashMap<SourceObjectId, UnresolvedImports<'a>>,
@@ -170,5 +172,31 @@ impl<'a> Relations<'a> {
             resolved: None,
         });
         GlobalObjectId(id)
+    }
+
+    /// Finds segments that reference the given object.
+    pub fn find_references(
+        &self,
+        engine: &Engine,
+        tracked_object: GlobalObjectId,
+    ) -> Option<Vec<SourceSegment>> {
+        let object = self.objects.get(tracked_object.0)?;
+        let environment = engine.get_environment(object.origin)?;
+        Some(environment.find_references(Symbol::Global(tracked_object.0)))
+    }
+
+    /// Returns a mutable iterator over all the objects.
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (GlobalObjectId, &mut Object)> {
+        self.objects
+            .iter_mut()
+            .enumerate()
+            .map(|(id, object)| (GlobalObjectId(id), object))
+    }
+
+    /// Returns the resolved symbol for the given object.
+    ///
+    /// If the object is not resolved or is not referenced, returns `None`.
+    pub fn get_resolved(&self, id: GlobalObjectId) -> Option<ResolvedSymbol> {
+        self.objects.get(id.0)?.resolved
     }
 }

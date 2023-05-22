@@ -9,9 +9,9 @@ use ast::function::FunctionParameter;
 use ast::r#match::MatchPattern;
 use ast::r#use::Import as ImportExpr;
 use ast::range::Iterable;
-use ast::value::LiteralValue;
 use ast::Expr;
 use std::collections::HashSet;
+use ast::value::LiteralValue;
 use crate::diagnostic::{Diagnostic, ErrorID, Observation, WarnID};
 use crate::environment::Environment;
 use crate::relations::{Relations, SourceObjectId, UnresolvedImport};
@@ -234,7 +234,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 }
             }
             Expr::Call(call) => {
-                self.resolve_primitive(env, call);
+                self.resolve_primitive_call(env, call);
                 for arg in &call.arguments {
                     self.tree_walk(env, state, visitable, arg);
                 }
@@ -390,7 +390,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     .declare_local(func.name.to_owned(), TypeInfo::Function);
                 env.annotate(func, symbol);
                 let func_id = self.engine.track(expr);
-                let mut func_env = env.fork(func_id, func.name);
+                let mut func_env = env.fork(state.module, func.name);
                 for param in &func.parameters {
                     let symbol = func_env.variables.declare_local(
                         match param {
@@ -444,7 +444,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         }
     }
 
-    fn resolve_primitive(&self, env: &mut Environment, call: &Call) -> Option<()> {
+    fn resolve_primitive_call(&self, env: &mut Environment, call: &Call) -> Option<()> {
         let command = self.extract_literal_argument(call, 0)?;
         match command {
             "read" => {
@@ -487,6 +487,12 @@ mod tests {
     use context::source::{Source, StaticSegmentHolder};
     use parser::parse_trusted;
     use pretty_assertions::assert_eq;
+    use ast::call::ProgrammaticCall;
+    use ast::function::{FunctionDeclaration, Return};
+    use ast::group::Block;
+    use ast::value::Literal;
+    use ast::variable::{TypedVariable, VarReference};
+    use crate::relations::{GlobalObjectId, Symbol};
 
     #[test]
     fn use_between_expressions() {
@@ -544,4 +550,139 @@ mod tests {
         )
     }
 
+    #[test]
+    fn bind_function_param() {
+        let expr = Expr::FunctionDeclaration(FunctionDeclaration {
+            name: "id",
+            type_parameters: vec![],
+            parameters: vec![FunctionParameter::Named(TypedVariable {
+                name: "n",
+                ty: None,
+                segment: 3..4,
+            })],
+            return_type: None,
+            body: Box::new(Expr::Return(Return {
+                expr: Some(Box::new(Expr::VarReference(VarReference {
+                    name: "n",
+                    segment: 13..15,
+                }))),
+                segment: 8..17,
+            })),
+            segment: 0..17,
+        });
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
+        let mut env = Environment::named(Name::new("test"));
+        let mut state = ResolutionState::new(engine.track(&expr));
+        let mut collector = SymbolCollector::new(&mut engine, &mut relations);
+        collector.tree_walk(
+            &mut env,
+            &mut state,
+            &mut Vec::new(),
+            &expr,
+        );
+
+        assert_eq!(collector.diagnostics, vec![]);
+        assert_eq!(relations.objects, vec![]);
+        assert_eq!(env.get_raw_symbol(0..17), Some(Symbol::Local(0)));
+        assert_eq!(env.get_raw_symbol(3..4), None);
+        assert_eq!(env.get_raw_symbol(13..15), None);
+        let func_env = engine.get_environment(SourceObjectId(1)).unwrap();
+        assert_eq!(func_env.get_raw_symbol(3..4), Some(Symbol::Local(0)));
+        assert_eq!(func_env.get_raw_symbol(13..15), Some(Symbol::Local(0)));
+    }
+
+    #[test]
+    fn bind_primitive() {
+        let expr = Expr::Call(Call {
+            path: vec![],
+            arguments: vec![
+                Expr::Literal(Literal {
+                    parsed: "read".into(),
+                    segment: 0..5,
+                }),
+                Expr::Literal(Literal {
+                    parsed: "foo".into(),
+                    segment: 6..9,
+                }),
+            ],
+            type_parameters: vec![],
+        });
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
+        let mut env = Environment::named(Name::new("test"));
+        let mut state = ResolutionState::new(engine.track(&expr));
+        let mut collector = SymbolCollector::new(&mut engine, &mut relations);
+        collector.tree_walk(
+            &mut env,
+            &mut state,
+            &mut Vec::new(),
+            &expr,
+        );
+
+        assert_eq!(collector.diagnostics, vec![]);
+        assert_eq!(relations.objects, vec![]);
+        assert_eq!(env.get_raw_symbol(0..5), None);
+        assert_eq!(env.get_raw_symbol(6..9), Some(Symbol::Local(0)));
+    }
+
+    #[test]
+    fn find_references() {
+        let expr = Expr::Block(Block {
+            expressions: vec![
+                Expr::VarReference(VarReference {
+                    name: "bar",
+                    segment: 0..4,
+                }),
+                Expr::ProgrammaticCall(ProgrammaticCall {
+                    path: vec![],
+                    name: "baz",
+                    arguments: vec![
+                        Expr::VarReference(VarReference {
+                            name: "foo",
+                            segment: 9..13,
+                        }),
+                        Expr::VarReference(VarReference {
+                            name: "bar",
+                            segment: 15..19,
+                        }),
+                    ],
+                    type_parameters: vec![],
+                    segment: 5..20,
+                }),
+            ],
+            segment: 0..20,
+        });
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
+        let mut env = Environment::named(Name::new("test"));
+        let mut state = ResolutionState::new(engine.track(&expr));
+        let mut collector = SymbolCollector::new(&mut engine, &mut relations);
+        collector.tree_walk(
+            &mut env,
+            &mut state,
+            &mut Vec::new(),
+            &expr,
+        );
+
+        assert_eq!(collector.diagnostics, vec![]);
+        engine.attach(state.module, env);
+        assert_eq!(
+            relations
+                .find_references(&engine, GlobalObjectId(0))
+                .map(|mut references| {
+                    references.sort_by_key(|range| range.start);
+                    references
+                }),
+            Some(vec![0..4, 15..19])
+        );
+        assert_eq!(
+            relations.find_references(&engine, GlobalObjectId(1)),
+            Some(vec![5..20])
+        );
+        assert_eq!(
+            relations.find_references(&engine, GlobalObjectId(2)),
+            Some(vec![9..13])
+        );
+    }
 }

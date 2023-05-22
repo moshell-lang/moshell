@@ -89,7 +89,19 @@ impl Environment {
         self.definitions.iter()
     }
 
+    /// Gets a symbol from the environment.
     pub fn get_raw_symbol(&self, segment: SourceSegment) -> Option<Symbol> {
         self.definitions.get(&segment).copied()
+    }
+
+    /// Finds the local segments that references a symbol.
+    pub fn find_references(&self, symbol_declaration: Symbol) -> Vec<SourceSegment> {
+        let mut references = Vec::new();
+        for (segment, symbol_reference) in &self.definitions {
+            if *symbol_reference == symbol_declaration {
+                references.push(segment.clone());
+            }
+        }
+        references
     }
 }

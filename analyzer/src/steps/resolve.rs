@@ -86,7 +86,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
 
             match imports.imported_symbols.get(symbol_name) {
                 Some(resolved_symbol) => object.resolved = Some(*resolved_symbol),
-                None => self.diagnose_unresolved_external_symbols(*external_var, env_id, env, symbol_name)
+                None => self.diagnose_unresolved_external_symbols(external_var, env_id, env, symbol_name)
             };
         }
     }
@@ -207,7 +207,42 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         }
         None
     }
+
+    fn resolve_trees(&mut self) -> Result<(), String> {
+        for (object_id, object) in self.relations.iter_mut() {
+            if object.resolved.is_some() {
+                continue;
+            }
+            let env = self.engine
+                .get_environment(object.origin)
+                .expect("Environment declared an unknown parent");
+            let name = env
+                .variables
+                .get_symbol_name(object_id)
+                .expect("Unknown object name");
+
+            let mut current = env;
+            while let Some((module, env)) = current
+                .parent
+                .and_then(|id| self.engine.get_environment(id).map(|env| (id, env)))
+            {
+                if let Some(resolved) = env.variables.get(name) {
+                    object.resolved = Some(match resolved {
+                        Symbol::Local(local) => ResolvedSymbol {
+                            module,
+                            object_id: local,
+                        },
+                        Symbol::Global(_) => todo!("resolver.get_resolved(GlobalObjectId(global)).expect(\"Unknown global object\")")
+                    });
+                    break;
+                }
+                current = env;
+            }
+        }
+        Ok(())
+    }
 }
+
 
 
 #[cfg(test)]
@@ -218,6 +253,7 @@ mod tests {
     use crate::relations::{
         Object, ResolvedSymbol, Relations, SourceObjectId, UnresolvedImport, UnresolvedImports,
     };
+    use crate::steps::resolve::{ResolvedImports, SymbolResolver};
     use context::source::{Source, StaticSegmentHolder};
     use pretty_assertions::assert_eq;
     use std::collections::HashMap;
@@ -227,7 +263,6 @@ mod tests {
     use parser::{parse_trusted};
     use crate::diagnostic::{Diagnostic, ErrorID, Observation};
     use crate::steps::collect::SymbolCollector;
-    use crate::steps::resolve::{ResolvedImports, SymbolResolver};
 
     #[test]
     fn test_imports_resolution() {
@@ -347,7 +382,6 @@ mod tests {
         )
     }
 
-
     #[test]
     fn test_unknown_symbols() {
         let a_ast = Source::unknown("val C = 'A'");
@@ -392,7 +426,6 @@ mod tests {
         )
     }
 
-
     #[test]
     fn test_local_unknown_symbols() {
         let source = "\
@@ -423,6 +456,32 @@ mod tests {
                     .with_observation(Observation::new(&StaticSegmentHolder::new(38..40)))
                     .with_observation(Observation::new(&StaticSegmentHolder::new(42..44))),
             ]
+        )
+    }
+
+    #[test]
+    fn find_in_parent_environment() {
+        let source = Source::unknown("val found = false; fun find() = $found");
+
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
+        let mut importer = StaticImporter::new([(Name::new("test"), source)], parse_trusted);
+        let diagnostics = SymbolCollector::collect_symbols(&mut engine, &mut relations, Name::new("test"), &mut importer);
+
+        assert_eq!(diagnostics, vec![]);
+
+        let mut resolver = SymbolResolver::new(&mut engine, &mut relations);
+        resolver.resolve_imports(SourceObjectId(0), UnresolvedImports::default());
+        resolver.resolve_trees().expect("resolution errors");
+
+        assert_eq!(resolver.diagnostics, vec![]);
+
+        assert_eq!(
+            relations.objects,
+            vec![Object::resolved(
+                SourceObjectId(1),
+                ResolvedSymbol::new(SourceObjectId(0), 0)
+            )]
         )
     }
 }

@@ -262,7 +262,7 @@ impl<'a> Parser<'a> {
         if statement.is_ok() {
             //consume end of expression
             self.cursor
-                .force(eox(), "expected end of expression or file")?;
+                .force(spaces().then(eox()), "expected end of expression or file")?;
         };
         statement
     }
