@@ -486,6 +486,7 @@ mod tests {
     use ast::value::Literal;
     use ast::variable::{TypedVariable, VarReference};
     use context::source::{Source, StaticSegmentHolder};
+    use context::str_find::{find_in, find_in_nth};
     use parser::parse_trusted;
     use pretty_assertions::assert_eq;
 
@@ -528,7 +529,8 @@ mod tests {
 
     #[test]
     fn shadowed_imports() {
-        let test_src = Source::unknown("use A; use B; use A; use B");
+        let source = "use A; use B; use A; use B";
+        let test_src = Source::unknown(source);
         let mut engine = Engine::default();
         let mut relations = Relations::default();
         let mut importer = StaticImporter::new([(Name::new("test"), test_src)], parse_trusted);
@@ -548,11 +550,11 @@ mod tests {
                     "A is imported twice."
                 )
                 .with_observation(Observation::with_help(
-                    &StaticSegmentHolder::new(4..5),
+                    &StaticSegmentHolder::new(find_in(source, "A")),
                     "useless import here"
                 ))
                 .with_observation(Observation::with_help(
-                    &StaticSegmentHolder::new(18..19),
+                    &StaticSegmentHolder::new(find_in_nth(source, "A", 1)),
                     "This statement shadows previous import"
                 )),
                 Diagnostic::new(
@@ -561,11 +563,11 @@ mod tests {
                     "B is imported twice."
                 )
                 .with_observation(Observation::with_help(
-                    &StaticSegmentHolder::new(11..12),
+                    &StaticSegmentHolder::new(find_in(source, "B")),
                     "useless import here"
                 ))
                 .with_observation(Observation::with_help(
-                    &StaticSegmentHolder::new(25..26),
+                    &StaticSegmentHolder::new(find_in_nth(source, "B", 1)),
                     "This statement shadows previous import"
                 )),
             ]

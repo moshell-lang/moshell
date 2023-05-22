@@ -20,7 +20,7 @@ fn main() -> io::Result<()> {
     miette::set_hook(Box::new(|_| {
         Box::new(MietteHandlerOpts::new().tab_width(2).build())
     }))
-    .expect("miette setup");
+    .expect("miette options setup");
 
     if let Some(source) = cli.source {
         let content = std::fs::read_to_string(&source)?;

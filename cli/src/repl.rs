@@ -40,7 +40,10 @@ fn parse_input() -> Option<OwnedSource> {
             continue; // Silently ignore incomplete input
         }
 
-        return Some(OwnedSource::new(source.source.to_string(), source.name.to_string()));
+        return Some(OwnedSource::new(
+            source.source.to_string(),
+            source.name.to_string(),
+        ));
     }
     None
 }

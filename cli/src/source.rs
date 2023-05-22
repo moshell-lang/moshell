@@ -16,10 +16,10 @@ impl<'b> SourceCode for CLISourceCode<'b> {
         context_lines_before: usize,
         context_lines_after: usize,
     ) -> Result<Box<dyn SpanContents<'a> + 'a>, MietteError> {
-        let contents = self
-            .source
-            .source
-            .read_span(span, context_lines_before, context_lines_after)?;
+        let contents =
+            self.source
+                .source
+                .read_span(span, context_lines_before, context_lines_after)?;
         Ok(Box::new(MietteSpanContents::new_named(
             self.source.name.to_owned(),
             contents.data(),

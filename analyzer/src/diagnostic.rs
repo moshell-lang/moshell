@@ -4,27 +4,26 @@ use enum_assoc::Assoc;
 
 #[derive(PartialEq, Debug, Assoc)]
 #[func(pub fn code(&self) -> u16)]
-#[func(pub fn noxious(&self) -> bool { false })]
+#[func(pub fn critical(&self) -> bool { false })]
 pub enum DiagnosticID {
     #[assoc(code = 1)]
-    #[assoc(noxious = true)]
+    #[assoc(critical = true)]
     UnsupportedFeature,
 
-    //No message is intentional as
     #[assoc(code = 2)]
-    #[assoc(noxious = true)]
+    #[assoc(critical = true)]
     CannotImport,
 
     #[assoc(code = 3)]
-    #[assoc(noxious = true)]
+    #[assoc(critical = true)]
     ImportResolution,
 
     #[assoc(code = 4)]
-    #[assoc(noxious = true)]
+    #[assoc(critical = true)]
     UnknownSymbol,
 
     #[assoc(code = 5)]
-    #[assoc(noxious = true)]
+    #[assoc(critical = true)]
     UseBetweenExprs,
 
     #[assoc(code = 6)]

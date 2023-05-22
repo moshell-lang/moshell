@@ -117,7 +117,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         let mut diagnostic = Diagnostic::new(
             DiagnosticID::UnknownSymbol,
             env_id,
-            &format!("Could not resolve symbol {}.", name),
+            &format!("Could not resolve symbol {name}."),
         );
 
         let observations = env
@@ -293,6 +293,7 @@ mod tests {
     use ast::r#use::Import::AllIn;
     use ast::r#use::ImportedSymbol;
     use context::source::{Source, StaticSegmentHolder};
+    use context::str_find::{find_in, find_in_nth};
     use indexmap::IndexMap;
     use parser::parse_trusted;
     use pretty_assertions::assert_eq;
@@ -443,16 +444,15 @@ mod tests {
     fn test_unknown_symbols() {
         let a_ast = Source::unknown("val C = 'A'");
 
-        let test_ast = Source::unknown(
-            "\
+        let source = "\
         use A::B
         use B::C
         use C::*
 
         $a; $a; $a
         $C; $B;
-        ",
-        );
+        ";
+        let test_ast = Source::unknown(source);
         let mut engine = Engine::default();
         let mut relations = Relations::default();
         let mut importer = StaticImporter::new(
@@ -477,39 +477,55 @@ mod tests {
                     SourceObjectId(0),
                     "unable to find imported symbol B in module A."
                 )
-                .with_observation(Observation::new(&StaticSegmentHolder::new(4..8))),
+                .with_observation(Observation::new(&StaticSegmentHolder::new(
+                    find_in(source, "A::B")
+                ))),
                 Diagnostic::new(
                     DiagnosticID::ImportResolution,
                     SourceObjectId(0),
                     "unable to find imported symbol B::C."
                 )
-                .with_observation(Observation::new(&StaticSegmentHolder::new(21..25))),
+                .with_observation(Observation::new(&StaticSegmentHolder::new(
+                    find_in(source, "B::C")
+                ))),
                 Diagnostic::new(
                     DiagnosticID::ImportResolution,
                     SourceObjectId(0),
                     "unable to find imported symbol C."
                 )
-                .with_observation(Observation::new(&StaticSegmentHolder::new(38..42))),
+                .with_observation(Observation::new(&StaticSegmentHolder::new(
+                    find_in(source, "C::*")
+                ))),
                 Diagnostic::new(
                     DiagnosticID::UnknownSymbol,
                     SourceObjectId(0),
                     "Could not resolve symbol a."
                 )
-                .with_observation(Observation::new(&StaticSegmentHolder::new(52..54)))
-                .with_observation(Observation::new(&StaticSegmentHolder::new(56..58)))
-                .with_observation(Observation::new(&StaticSegmentHolder::new(60..62))),
+                .with_observation(Observation::new(&StaticSegmentHolder::new(find_in_nth(
+                    source, "$a", 0
+                ))))
+                .with_observation(Observation::new(&StaticSegmentHolder::new(find_in_nth(
+                    source, "$a", 1
+                ))))
+                .with_observation(Observation::new(&StaticSegmentHolder::new(find_in_nth(
+                    source, "$a", 2
+                )))),
                 Diagnostic::new(
                     DiagnosticID::UnknownSymbol,
                     SourceObjectId(0),
                     "Could not resolve symbol C."
                 )
-                .with_observation(Observation::new(&StaticSegmentHolder::new(71..73))),
+                .with_observation(Observation::new(&StaticSegmentHolder::new(
+                    find_in_nth(source, "$C", 0)
+                ))),
                 Diagnostic::new(
                     DiagnosticID::UnknownSymbol,
                     SourceObjectId(0),
                     "Could not resolve symbol B."
                 )
-                .with_observation(Observation::new(&StaticSegmentHolder::new(75..77))),
+                .with_observation(Observation::new(&StaticSegmentHolder::new(
+                    find_in(source, "$B")
+                ))),
             ]
         )
     }
@@ -544,16 +560,26 @@ mod tests {
                     SourceObjectId(0),
                     "Could not resolve symbol C."
                 )
-                .with_observation(Observation::new(&StaticSegmentHolder::new(0..2)))
-                .with_observation(Observation::new(&StaticSegmentHolder::new(4..6))),
+                .with_observation(Observation::new(&StaticSegmentHolder::new(find_in(
+                    source, "$C"
+                ))))
+                .with_observation(Observation::new(&StaticSegmentHolder::new(find_in_nth(
+                    source, "$C", 1
+                )))),
                 Diagnostic::new(
                     DiagnosticID::UnknownSymbol,
                     SourceObjectId(0),
                     "Could not resolve symbol a."
                 )
-                .with_observation(Observation::new(&StaticSegmentHolder::new(34..36)))
-                .with_observation(Observation::new(&StaticSegmentHolder::new(38..40)))
-                .with_observation(Observation::new(&StaticSegmentHolder::new(42..44))),
+                .with_observation(Observation::new(&StaticSegmentHolder::new(find_in_nth(
+                    source, "$a", 0
+                ))))
+                .with_observation(Observation::new(&StaticSegmentHolder::new(find_in_nth(
+                    source, "$a", 1
+                ))))
+                .with_observation(Observation::new(&StaticSegmentHolder::new(find_in_nth(
+                    source, "$a", 2
+                )))),
             ]
         )
     }

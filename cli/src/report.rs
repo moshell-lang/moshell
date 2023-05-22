@@ -3,9 +3,9 @@ use std::io::Write;
 
 use miette::{LabeledSpan, MietteDiagnostic, Report, Severity, SourceSpan};
 
+use crate::source::{into_source_code, CLISourceCode};
 use context::source::{Source, SourceSegment};
 use parser::err::{ParseError, ParseErrorKind};
-use crate::source::{CLISourceCode, into_source_code};
 
 macro_rules! print_flush {
     ( $($t:tt)* ) => {
@@ -69,7 +69,8 @@ pub fn display_parse_error<W: Write>(
     unsafe {
         //SAFETY: the CLI source is transmuted to a static lifetime, because `report.with_source_code`
         //needs a source with a static lifetime. The report and the source are then used to display the formatted diagnostic and are immediately dropped after.
-        let source = std::mem::transmute::<CLISourceCode, CLISourceCode<'static>>(into_source_code(source));
+        let source =
+            std::mem::transmute::<CLISourceCode, CLISourceCode<'static>>(into_source_code(source));
         let report = report.with_source_code(source);
         writeln!(writer, "\n{report:?}")
     }
@@ -83,12 +84,12 @@ pub fn display_diagnostic<W: Write>(
     let mut diag = MietteDiagnostic::new(diagnostic.global_message);
 
     let id = diagnostic.identifier;
-    diag = if id.noxious() {
+    diag = if id.critical() {
         diag.with_severity(Severity::Error)
-            .with_code(format!("error[{}]", id.code()))
+            .with_code(format!("error[E{:04}]", id.code()))
     } else {
         diag.with_severity(Severity::Warning)
-            .with_code(format!("warn[{}]", id.code()))
+            .with_code(format!("warn[W{:04}]", id.code()))
     };
 
     if let Some((head, tail)) = diagnostic.tips.split_first() {
@@ -113,7 +114,8 @@ pub fn display_diagnostic<W: Write>(
     unsafe {
         //SAFETY: the CLI source is transmuted to a static lifetime, because `report.with_source_code`
         //needs a source with a static lifetime. The report and the source are then used to display the formatted diagnostic and are immediately dropped after.
-        let source = std::mem::transmute::<CLISourceCode, CLISourceCode<'static>>(into_source_code(source));
+        let source =
+            std::mem::transmute::<CLISourceCode, CLISourceCode<'static>>(into_source_code(source));
         let report = report.with_source_code(source);
         writeln!(writer, "\n{report:?}")
     }
