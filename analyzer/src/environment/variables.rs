@@ -30,11 +30,11 @@ impl Variables {
         &mut self,
         state: SourceObjectId,
         relations: &mut Relations,
-        name: String,
+        name: &str,
     ) -> Symbol {
         match self
             .locals
-            .position_reachable_local(&name)
+            .position_reachable_local(name)
             .map(|idx| self.locals.vars.len() - 1 - idx)
         {
             Some(var) => Symbol::Local(var),

@@ -35,14 +35,19 @@ pub fn display_parse_error<W: Write>(
     let span = offset_empty_span(error.position);
     let mut diag = MietteDiagnostic::new(error.message)
         .with_severity(Severity::Error)
-        .with_code("error".to_string());
+        .with_code("error".to_string())
+        .and_label(LabeledSpan::new(
+            Some("Here".to_string()),
+            span.offset(),
+            span.len(),
+        ));
 
     match error.kind {
         ParseErrorKind::Expected(e) => {
-            diag = diag.and_label(LabeledSpan::new(Some(e), span.offset(), span.len()))
+            diag = diag.with_help(format!("expected: {e}"))
         }
         ParseErrorKind::UnexpectedInContext(e) => {
-            diag = diag.and_label(LabeledSpan::new(Some(e), span.offset(), span.len()))
+            diag = diag.with_help(e)
         }
         ParseErrorKind::Unpaired(e) => {
             let unpaired_span = offset_empty_span(e);
@@ -57,23 +62,9 @@ pub fn display_parse_error<W: Write>(
                 span.len(),
             ))
         }
-        _ => {
-            diag = diag.and_label(LabeledSpan::new(
-                Some("Here".to_string()),
-                span.offset(),
-                span.len(),
-            ))
-        }
+        _ => {}
     }
-    let report = Report::from(diag).with_source_code(source.source.to_string());
-    unsafe {
-        //SAFETY: the CLI source is transmuted to a static lifetime, because `report.with_source_code`
-        //needs a source with a static lifetime. The report and the source are then used to display the formatted diagnostic and are immediately dropped after.
-        let source =
-            std::mem::transmute::<CLISourceCode, CLISourceCode<'static>>(into_source_code(source));
-        let report = report.with_source_code(source);
-        writeln!(writer, "\n{report:?}")
-    }
+    write_diagnostic(diag, source, writer)
 }
 
 pub fn display_diagnostic<W: Write>(
@@ -110,7 +101,11 @@ pub fn display_diagnostic<W: Write>(
         ))
     }
 
-    let report = Report::from(diag);
+    write_diagnostic(diag, source, writer)
+}
+
+fn write_diagnostic<W: Write>(diagnostic: MietteDiagnostic, source: Source, writer: &mut W) -> io::Result<()> {
+    let report = Report::from(diagnostic);
     unsafe {
         //SAFETY: the CLI source is transmuted to a static lifetime, because `report.with_source_code`
         //needs a source with a static lifetime. The report and the source are then used to display the formatted diagnostic and are immediately dropped after.

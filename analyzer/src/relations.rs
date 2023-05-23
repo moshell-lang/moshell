@@ -4,7 +4,6 @@ use ast::r#use::Import as ImportExpr;
 use context::source::SourceSegment;
 use indexmap::IndexMap;
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
 
 /// The object identifier base.
 ///
@@ -89,7 +88,7 @@ impl ResolvedSymbol {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq)]
 pub struct Object {
     /// The symbol that is being resolved, where it is used.
     pub origin: SourceObjectId,
@@ -98,18 +97,6 @@ pub struct Object {
     pub resolved: Option<ResolvedSymbol>,
 }
 
-impl Hash for Object {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.origin.hash(state);
-        self.resolved.hash(state);
-    }
-}
-
-impl PartialEq for Object {
-    fn eq(&self, other: &Self) -> bool {
-        self.origin == other.origin && self.resolved == other.resolved
-    }
-}
 
 impl Object {
     pub fn unresolved(origin: SourceObjectId) -> Self {

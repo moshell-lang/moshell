@@ -210,7 +210,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                                 let symbol = env.variables.identify(
                                     state.module,
                                     self.relations,
-                                    reference.name.to_string(),
+                                    reference.name,
                                 );
                                 env.annotate(reference, symbol);
                             }
@@ -245,7 +245,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             Expr::ProgrammaticCall(call) => {
                 let symbol =
                     env.variables
-                        .identify(state.module, self.relations, call.name.to_string());
+                        .identify(state.module, self.relations, call.name);
                 env.annotate(call, symbol);
                 for arg in &call.arguments {
                     self.tree_walk(env, state, visitable, arg);
@@ -283,7 +283,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             Expr::VarReference(var) => {
                 let symbol =
                     env.variables
-                        .identify(state.module, self.relations, var.name.to_string());
+                        .identify(state.module, self.relations, var.name);
                 env.annotate(var, symbol);
             }
             Expr::Range(range) => match range {
