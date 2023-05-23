@@ -197,7 +197,7 @@ mod tests {
             parsed,
             ParseError {
                 message: "Expected name.".to_string(),
-                position: 1..3,
+                position: find_in(source.source, "=>"),
                 kind: Unexpected,
             }
         );

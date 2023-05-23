@@ -1,9 +1,8 @@
-use context::source::try_join_str;
 use lexer::token::TokenType::*;
 
 use crate::aspects::call::CallAspect;
 use crate::err::ParseErrorKind;
-use crate::moves::{any, blanks, like, lookahead, of_type, repeat, MoveOperations};
+use crate::moves::{any, blanks, like, lookahead, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::variable::VarReference;
 use ast::Expr;
@@ -26,33 +25,32 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
             self.delimiter_stack.push_back(bracket);
         }
 
-        let tokens = self.cursor.collect(
-            of_type(Dollar) //only allow one occurrence of $
-                .or(repeat(like(TokenType::is_valid_var_ref_name))),
-        );
-
-        if tokens.is_empty() {
-            let err = self.mk_parse_error(
-                "variable reference with empty name",
-                self.cursor.peek(),
-                ParseErrorKind::Unexpected,
-            );
-            if bracket.is_some() {
-                self.repos_delimiter_due_to(&err);
-            }
-            return Err(err);
-        }
-
-        let first = tokens[0].value;
-        let name = tokens.iter().skip(1).fold(first, |acc, t| {
-            try_join_str(self.source.source, acc, t.value).unwrap()
-        });
+        let name = self
+            .cursor
+            .force(
+                like(TokenType::is_valid_var_ref_name),
+                "Expected variable name.",
+            )
+            .map_err(|mut err| {
+                err.position = self.cursor.relative_pos(self.cursor.peek().value);
+                if bracket.is_some() {
+                    self.repos_delimiter_due_to(&err);
+                }
+                err
+            })?
+            .value;
 
         let mut segment = self.cursor.relative_pos_ctx(start.value..name);
         segment.start -= 1;
 
-        let mut expr =
-            self.expand_call_chain(Expr::VarReference(VarReference { name, segment }))?;
+        let mut expr = self
+            .expand_call_chain(Expr::VarReference(VarReference { name, segment }))
+            .map_err(|err| {
+                if bracket.is_some() {
+                    self.repos_delimiter_due_to(&err);
+                }
+                err
+            })?;
 
         if let Some(bracket) = bracket {
             if self.cursor.peek().token_type.is_closing_ponctuation() {
@@ -116,7 +114,7 @@ mod tests {
 
     #[test]
     fn special_refs() {
-        let source = Source::unknown("$@;$^;$!;$!!;$$");
+        let source = Source::unknown("$@;$^;$!;$$");
         let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,
@@ -132,10 +130,6 @@ mod tests {
                 Expr::VarReference(VarReference {
                     name: "!",
                     segment: find_in(&source.source, "$!"),
-                }),
-                Expr::VarReference(VarReference {
-                    name: "!!",
-                    segment: find_in(&source.source, "$!!"),
                 }),
                 Expr::VarReference(VarReference {
                     name: "$",

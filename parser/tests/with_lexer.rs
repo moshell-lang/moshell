@@ -1,16 +1,16 @@
 use ast::call::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use ast::control_flow::While;
+use ast::function::Return;
 use ast::group::{Block, Subshell};
 use ast::substitution::{Substitution, SubstitutionKind};
 use ast::value::TemplateString;
-use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
+use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
 use context::str_find::{find_in, find_in_nth};
 use parser::parse;
 use parser::source::{literal, literal_nth};
 use pretty_assertions::assert_eq;
-use ast::function::Return;
 
 #[test]
 fn with_lexer_variable() {
@@ -435,5 +435,60 @@ fn empty_return() {
             ],
             segment: source.segment(),
         })]
+    );
+}
+#[test]
+fn inner_var_ref() {
+    let source = Source::unknown("dest = \"$DEST/shard_$SHARD_NUMBER/$L\"");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Assign(Assign {
+            name: "dest",
+            value: Box::new(Expr::TemplateString(TemplateString {
+                parts: vec![
+                    Expr::VarReference(VarReference {
+                        name: "DEST",
+                        segment: find_in(source.source, "$DEST"),
+                    }),
+                    literal(source.source, "/shard_"),
+                    Expr::VarReference(VarReference {
+                        name: "SHARD_NUMBER",
+                        segment: find_in(source.source, "$SHARD_NUMBER"),
+                    }),
+                    literal_nth(source.source, "/", 1),
+                    Expr::VarReference(VarReference {
+                        name: "L",
+                        segment: find_in(source.source, "$L"),
+                    }),
+                ]
+            })),
+            segment: 0..source.len() - 1,
+        })]
+    );
+}
+
+#[test]
+fn variable_without_initializer() {
+    let source = Source::unknown("var bar; $bar");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![
+            Expr::VarDeclaration(VarDeclaration {
+                kind: VarKind::Var,
+                var: TypedVariable {
+                    name: "bar",
+                    ty: None,
+                    segment: find_in(source.source, "bar"),
+                },
+                initializer: None,
+                segment: find_in(source.source, "var bar"),
+            }),
+            Expr::VarReference(VarReference {
+                name: "bar",
+                segment: find_in(source.source, "$bar"),
+            })
+        ]
     );
 }
