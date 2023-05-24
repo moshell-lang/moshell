@@ -9,10 +9,8 @@ use std::io::Write;
 /// Indefinitely prompts a new expression to the stdin,
 /// displaying back the errors if any and the formed AST
 pub fn prompt() {
-    loop {
-        if let Some(source) = parse_input() {
-            handle_source(source.as_source());
-        }
+    while let Some(source) = parse_input() {
+        handle_source(source.as_source());
     }
 }
 
