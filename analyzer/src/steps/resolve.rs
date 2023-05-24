@@ -41,7 +41,7 @@ impl ResolvedImports {
 /// Main structure of the Symbols Resolver
 /// The symbol resolver resolves the given relations between the collected symbols in the Engine.
 ///
-/// - lifetime 'a is the structure's lifetime
+/// - lifetime 'a is the lifetime of references
 /// - lifetime 'e is the expressions' lifetime, the Engine and Relations needed a special lifetime
 ///   as both of them contains references to AST expressions.
 pub struct SymbolResolver<'a, 'e> {

@@ -461,7 +461,7 @@ fn import_ast<'a, 'b>(
     name: Name,
     importer: &'b mut impl ASTImporter<'a>,
 ) -> Option<(Expr<'a>, Name)> {
-    let mut parts = name.parts().to_vec();
+    let mut parts = name.into_vec();
     while !parts.is_empty() {
         let name = Name::from(parts.clone());
         match importer.import(&name) {

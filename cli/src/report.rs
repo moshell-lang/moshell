@@ -35,7 +35,6 @@ pub fn display_parse_error<W: Write>(
     let span = offset_empty_span(error.position);
     let mut diag = MietteDiagnostic::new(error.message)
         .with_severity(Severity::Error)
-        .with_code("error".to_string())
         .and_label(LabeledSpan::new(
             Some("Here".to_string()),
             span.offset(),

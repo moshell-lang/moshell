@@ -72,11 +72,11 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
-    pub fn new(id: DiagnosticID, module: SourceObjectId, msg: &str) -> Self {
+    pub fn new(id: DiagnosticID, module: SourceObjectId, msg: impl Into<String>) -> Self {
         Self {
             source: module,
             identifier: id,
-            global_message: msg.to_string(),
+            global_message: msg.into(),
             observations: Vec::new(),
             tips: Vec::new(),
         }
