@@ -42,12 +42,8 @@ pub fn display_parse_error<W: Write>(
         ));
 
     match error.kind {
-        ParseErrorKind::Expected(e) => {
-            diag = diag.with_help(format!("expected: {e}"))
-        }
-        ParseErrorKind::UnexpectedInContext(e) => {
-            diag = diag.with_help(e)
-        }
+        ParseErrorKind::Expected(e) => diag = diag.with_help(format!("expected: {e}")),
+        ParseErrorKind::UnexpectedInContext(e) => diag = diag.with_help(e),
         ParseErrorKind::Unpaired(e) => {
             let unpaired_span = offset_empty_span(e);
             diag = diag.and_label(LabeledSpan::new(
@@ -103,7 +99,11 @@ pub fn display_diagnostic<W: Write>(
     write_diagnostic(diag, source, writer)
 }
 
-fn write_diagnostic<W: Write>(diagnostic: MietteDiagnostic, source: Source, writer: &mut W) -> io::Result<()> {
+fn write_diagnostic<W: Write>(
+    diagnostic: MietteDiagnostic,
+    source: Source,
+    writer: &mut W,
+) -> io::Result<()> {
     let report = Report::from(diagnostic);
     unsafe {
         //SAFETY: the CLI source is transmuted to a static lifetime, because `report.with_source_code`

@@ -69,6 +69,7 @@ impl Variables {
         self.locals.vars.iter()
     }
 
+    /// Iterates over all the global variable ids, with their corresponding name.
     pub fn external_vars(&self) -> impl Iterator<Item = (&String, GlobalObjectId)> {
         self.globals.iter().map(|(name, id)| (name, *id))
     }

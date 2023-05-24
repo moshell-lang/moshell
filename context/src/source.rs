@@ -6,28 +6,6 @@ pub trait SourceSegmentHolder {
     fn segment(&self) -> SourceSegment;
 }
 
-pub struct StaticSegmentHolder {
-    segment: SourceSegment,
-}
-
-impl SourceSegmentHolder for StaticSegmentHolder {
-    fn segment(&self) -> SourceSegment {
-        self.segment.clone()
-    }
-}
-
-impl StaticSegmentHolder {
-    pub fn new(segment: SourceSegment) -> Self {
-        Self { segment }
-    }
-}
-
-impl From<SourceSegment> for StaticSegmentHolder {
-    fn from(value: SourceSegment) -> Self {
-        StaticSegmentHolder::new(value)
-    }
-}
-
 /// Defines a named source code from which tokens can be produced.
 #[derive(Clone, Copy)]
 pub struct Source<'a> {

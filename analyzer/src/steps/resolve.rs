@@ -7,6 +7,7 @@ use crate::relations::{
     UnresolvedImports,
 };
 use ast::r#use::Import as ImportExpr;
+use context::source::SourceSegmentHolder;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 
@@ -52,7 +53,7 @@ pub struct SymbolResolver<'a, 'e> {
 
 impl<'a, 'e> SymbolResolver<'a, 'e> {
     ///Attempts to resolve the unresolved Engine's symbols contained in the given Relations.
-    /// Returns a vector of diagnostics if the resolution did reported at least one diagnostic.
+    /// Returns a vector of diagnostics raised by the resolution process.
     pub fn resolve_symbols(
         engine: &'a Engine<'e>,
         relations: &'a mut Relations<'e>,
@@ -117,11 +118,11 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         let mut diagnostic = Diagnostic::new(
             DiagnosticID::UnknownSymbol,
             env_id,
-            &format!("Could not resolve symbol {name}."),
+            format!("Could not resolve symbol {name}."),
         );
 
         let observations = env
-            .list_annotations()
+            .list_definitions()
             .filter(|(_, sym)| match sym {
                 Symbol::Local(_) => false,
                 Symbol::Global(g) => g == &external_var.0,
@@ -158,7 +159,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         );
 
         let diagnostic = Diagnostic::new(DiagnosticID::ImportResolution, env_id, msg)
-            .with_observation(Observation::new(dependent_expr));
+            .with_observation(Observation::new(dependent_expr.segment()));
         self.diagnostics.push(diagnostic)
     }
 
@@ -292,7 +293,7 @@ mod tests {
     use crate::steps::resolve::{ResolvedImports, SymbolResolver};
     use ast::r#use::Import::AllIn;
     use ast::r#use::ImportedSymbol;
-    use context::source::{Source, StaticSegmentHolder};
+    use context::source::Source;
     use context::str_find::{find_in, find_in_nth};
     use indexmap::IndexMap;
     use parser::parse_trusted;
@@ -477,55 +478,39 @@ mod tests {
                     SourceObjectId(0),
                     "unable to find imported symbol B in module A."
                 )
-                .with_observation(Observation::new(&StaticSegmentHolder::new(
-                    find_in(source, "A::B")
-                ))),
+                .with_observation(Observation::new(find_in(source, "A::B"))),
                 Diagnostic::new(
                     DiagnosticID::ImportResolution,
                     SourceObjectId(0),
                     "unable to find imported symbol B::C."
                 )
-                .with_observation(Observation::new(&StaticSegmentHolder::new(
-                    find_in(source, "B::C")
-                ))),
+                .with_observation(Observation::new(find_in(source, "B::C"))),
                 Diagnostic::new(
                     DiagnosticID::ImportResolution,
                     SourceObjectId(0),
                     "unable to find imported symbol C."
                 )
-                .with_observation(Observation::new(&StaticSegmentHolder::new(
-                    find_in(source, "C::*")
-                ))),
+                .with_observation(Observation::new(find_in(source, "C::*"))),
                 Diagnostic::new(
                     DiagnosticID::UnknownSymbol,
                     SourceObjectId(0),
                     "Could not resolve symbol a."
                 )
-                .with_observation(Observation::new(&StaticSegmentHolder::new(find_in_nth(
-                    source, "$a", 0
-                ))))
-                .with_observation(Observation::new(&StaticSegmentHolder::new(find_in_nth(
-                    source, "$a", 1
-                ))))
-                .with_observation(Observation::new(&StaticSegmentHolder::new(find_in_nth(
-                    source, "$a", 2
-                )))),
+                .with_observation(Observation::new(find_in_nth(source, "$a", 0)))
+                .with_observation(Observation::new(find_in_nth(source, "$a", 1)))
+                .with_observation(Observation::new(find_in_nth(source, "$a", 2))),
                 Diagnostic::new(
                     DiagnosticID::UnknownSymbol,
                     SourceObjectId(0),
                     "Could not resolve symbol C."
                 )
-                .with_observation(Observation::new(&StaticSegmentHolder::new(
-                    find_in_nth(source, "$C", 0)
-                ))),
+                .with_observation(Observation::new(find_in_nth(source, "$C", 0))),
                 Diagnostic::new(
                     DiagnosticID::UnknownSymbol,
                     SourceObjectId(0),
                     "Could not resolve symbol B."
                 )
-                .with_observation(Observation::new(&StaticSegmentHolder::new(
-                    find_in(source, "$B")
-                ))),
+                .with_observation(Observation::new(find_in(source, "$B"))),
             ]
         )
     }
@@ -560,26 +545,16 @@ mod tests {
                     SourceObjectId(0),
                     "Could not resolve symbol C."
                 )
-                .with_observation(Observation::new(&StaticSegmentHolder::new(find_in(
-                    source, "$C"
-                ))))
-                .with_observation(Observation::new(&StaticSegmentHolder::new(find_in_nth(
-                    source, "$C", 1
-                )))),
+                .with_observation(Observation::new(find_in(source, "$C")))
+                .with_observation(Observation::new(find_in_nth(source, "$C", 1))),
                 Diagnostic::new(
                     DiagnosticID::UnknownSymbol,
                     SourceObjectId(0),
                     "Could not resolve symbol a."
                 )
-                .with_observation(Observation::new(&StaticSegmentHolder::new(find_in_nth(
-                    source, "$a", 0
-                ))))
-                .with_observation(Observation::new(&StaticSegmentHolder::new(find_in_nth(
-                    source, "$a", 1
-                ))))
-                .with_observation(Observation::new(&StaticSegmentHolder::new(find_in_nth(
-                    source, "$a", 2
-                )))),
+                .with_observation(Observation::new(find_in_nth(source, "$a", 0)))
+                .with_observation(Observation::new(find_in_nth(source, "$a", 1)))
+                .with_observation(Observation::new(find_in_nth(source, "$a", 2))),
             ]
         )
     }

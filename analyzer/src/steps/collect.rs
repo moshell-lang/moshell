@@ -14,6 +14,7 @@ use ast::r#use::Import as ImportExpr;
 use ast::range::Iterable;
 use ast::value::LiteralValue;
 use ast::Expr;
+use context::source::SourceSegmentHolder;
 use std::collections::HashSet;
 
 /// Defines the current state of the tree exploration.
@@ -45,6 +46,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
     /// Explores the entry point and all its recursive dependencies.
     ///
     /// This collects all the symbols that are used, locally or not yet resolved if they are global.
+    /// Returns a vector of diagnostics raised by the collection process.
     pub fn collect_symbols(
         engine: &'a mut Engine<'e>,
         relations: &'a mut Relations<'e>,
@@ -106,11 +108,14 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             let diagnostic = Diagnostic::new(
                 DiagnosticID::ShadowedImport,
                 mod_id,
-                &format!("{import_fqn} is imported twice."),
+                format!("{import_fqn} is imported twice."),
             )
-            .with_observation(Observation::with_help(shadowed, "useless import here"))
             .with_observation(Observation::with_help(
-                import_expr,
+                shadowed.segment(),
+                "useless import here",
+            ))
+            .with_observation(Observation::with_help(
+                import_expr.segment(),
                 "This statement shadows previous import",
             ));
             self.diagnostics.push(diagnostic)
@@ -157,7 +162,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     mod_id,
                     "import of environment variables and commands are not yet supported.",
                 )
-                .with_observation(Observation::new(import));
+                .with_observation(Observation::new(import.segment()));
 
                 self.diagnostics.push(diagnostic);
             }
@@ -243,9 +248,9 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 }
             }
             Expr::ProgrammaticCall(call) => {
-                let symbol =
-                    env.variables
-                        .identify(state.module, self.relations, call.name);
+                let symbol = env
+                    .variables
+                    .identify(state.module, self.relations, call.name);
                 env.annotate(call, symbol);
                 for arg in &call.arguments {
                     self.tree_walk(env, state, visitable, arg);
@@ -281,9 +286,9 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 env.annotate(var, symbol);
             }
             Expr::VarReference(var) => {
-                let symbol =
-                    env.variables
-                        .identify(state.module, self.relations, var.name);
+                let symbol = env
+                    .variables
+                    .identify(state.module, self.relations, var.name);
                 env.annotate(var, symbol);
             }
             Expr::Range(range) => match range {
@@ -485,7 +490,7 @@ mod tests {
     use ast::group::Block;
     use ast::value::Literal;
     use ast::variable::{TypedVariable, VarReference};
-    use context::source::{Source, StaticSegmentHolder};
+    use context::source::Source;
     use context::str_find::{find_in, find_in_nth};
     use parser::parse_trusted;
     use pretty_assertions::assert_eq;
@@ -550,11 +555,11 @@ mod tests {
                     "A is imported twice."
                 )
                 .with_observation(Observation::with_help(
-                    &StaticSegmentHolder::new(find_in(source, "A")),
+                    find_in(source, "A"),
                     "useless import here"
                 ))
                 .with_observation(Observation::with_help(
-                    &StaticSegmentHolder::new(find_in_nth(source, "A", 1)),
+                    find_in_nth(source, "A", 1),
                     "This statement shadows previous import"
                 )),
                 Diagnostic::new(
@@ -563,11 +568,11 @@ mod tests {
                     "B is imported twice."
                 )
                 .with_observation(Observation::with_help(
-                    &StaticSegmentHolder::new(find_in(source, "B")),
+                    find_in(source, "B"),
                     "useless import here"
                 ))
                 .with_observation(Observation::with_help(
-                    &StaticSegmentHolder::new(find_in_nth(source, "B", 1)),
+                    find_in_nth(source, "B", 1),
                     "This statement shadows previous import"
                 )),
             ]

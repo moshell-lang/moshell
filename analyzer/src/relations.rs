@@ -97,7 +97,6 @@ pub struct Object {
     pub resolved: Option<ResolvedSymbol>,
 }
 
-
 impl Object {
     pub fn unresolved(origin: SourceObjectId) -> Self {
         Self {

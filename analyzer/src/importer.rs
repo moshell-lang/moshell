@@ -14,11 +14,11 @@ pub trait ASTImporter<'a> {
 
 /// An importer with predefined sources.
 /// This importer implementation should only be used for tests.
-pub struct StaticImporter<'a, P>
+pub struct StaticImporter<'a, F>
 where
-    P: Fn(Source<'a>) -> Expr<'a>,
+    F: Fn(Source<'a>) -> Expr<'a>,
 {
-    ast_supplier: P,
+    ast_factory: F,
     sources: HashMap<Name, Source<'a>>,
 }
 
@@ -28,7 +28,7 @@ where
 {
     pub fn new<const N: usize>(sources: [(Name, Source<'a>); N], ast_supplier: P) -> Self {
         Self {
-            ast_supplier,
+            ast_factory: ast_supplier,
             sources: HashMap::from(sources),
         }
     }
@@ -39,6 +39,6 @@ where
     P: Fn(Source<'a>) -> Expr<'a>,
 {
     fn import(&mut self, name: &Name) -> Option<Expr<'a>> {
-        self.sources.get(name).map(|src| (self.ast_supplier)(*src))
+        self.sources.get(name).map(|src| (self.ast_factory)(*src))
     }
 }

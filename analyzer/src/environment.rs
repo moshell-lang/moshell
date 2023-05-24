@@ -82,7 +82,7 @@ impl Environment {
         self.definitions.insert(segment.segment(), symbol);
     }
 
-    pub fn list_annotations(&self) -> impl Iterator<Item = (&SourceSegment, &Symbol)> {
+    pub fn list_definitions(&self) -> impl Iterator<Item = (&SourceSegment, &Symbol)> {
         self.definitions.iter()
     }
 
