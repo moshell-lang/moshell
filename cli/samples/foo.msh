@@ -1,0 +1,15 @@
+
+use math::{PI, add}
+
+echo $PI
+
+val TAU = PI * 2
+
+fun start() = {
+    echo started script !
+    val nine = add(4, 5)
+    echo 4 + 5 = $nine
+}
+
+start()
+

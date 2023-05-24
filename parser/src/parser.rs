@@ -84,7 +84,8 @@ impl<'a> Parser<'a> {
         ParseReport {
             expr: statements,
             errors: self.errors,
-            delimiter_stack: self.delimiter_stack
+            delimiter_stack: self
+                .delimiter_stack
                 .into_iter()
                 .map(|t| t.token_type)
                 .collect(),
