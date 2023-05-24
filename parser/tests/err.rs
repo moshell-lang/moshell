@@ -79,7 +79,7 @@ fn repos_delimiter_in_var_reference() {
     assert_eq!(
         report.errors,
         vec![ParseError {
-            message: "variable reference with empty name".to_string(),
+            message: "Expected variable name.".to_string(),
             position: find_in(content, "..",),
             kind: ParseErrorKind::Unexpected
         }]
@@ -284,8 +284,8 @@ fn multiple_errors_in_parameters() {
                     kind: ParseErrorKind::Unexpected
                 },
                 ParseError {
-                    message: "variable reference with empty name".to_owned(),
-                    position: content.find('$').map(|p| p + 1..p + 2).unwrap(),
+                    message: "Expected variable name.".to_owned(),
+                    position: content.rfind(',').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 },
                 ParseError {
@@ -537,7 +537,7 @@ fn quotes_are_delimiters() {
             expr: vec![],
             errors: vec![ParseError {
                 message: "expected end of expression or file".to_owned(),
-                position: content.rfind('$').map(|p| p..p + 1).unwrap(),
+                position: content.find('"').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected
             }],
             delimiter_stack: vec![],

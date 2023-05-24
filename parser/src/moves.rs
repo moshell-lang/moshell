@@ -1,6 +1,8 @@
 use lexer::token::TokenType::*;
 use lexer::token::{Token, TokenType};
 
+type MoveResult = Result<usize, usize>;
+
 ///defines a way to move along a ParserCursor.
 pub trait Move {
     /// Returns
@@ -10,7 +12,7 @@ pub trait Move {
     /// `None` if the move did not take effect.
     ///* `at` - get token at given position
     ///* `pos` - the position in ParserCursor at beginning of the move
-    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
+    fn apply<'a, F>(&self, at: F, pos: usize) -> MoveResult
     where
         F: Fn(usize) -> Token<'a>;
 }
@@ -79,12 +81,12 @@ impl<P> Move for PredicateMove<P>
 where
     P: Fn(Token) -> bool + Copy,
 {
-    fn apply<'a, F>(&self, mut at: F, pos: usize) -> Option<usize>
+    fn apply<'a, F>(&self, mut at: F, pos: usize) -> MoveResult
     where
         F: FnMut(usize) -> Token<'a>,
     {
         let t: Token = at(pos);
-        (self.predicate)(t).then_some(pos + 1)
+        (self.predicate)(t).then_some(pos + 1).ok_or(pos)
     }
 }
 
@@ -174,13 +176,13 @@ pub(crate) struct NotMove<M: Move + Copy> {
 }
 
 impl<M: Move + Copy> Move for NotMove<M> {
-    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
+    fn apply<'a, F>(&self, at: F, pos: usize) -> MoveResult
     where
         F: Fn(usize) -> Token<'a>,
     {
         match self.underlying.apply(at, pos) {
-            Some(_) => None,
-            None => Some(pos),
+            Ok(_) => Err(pos),
+            Err(_) => Ok(pos),
         }
     }
 }
@@ -202,17 +204,17 @@ pub(crate) struct RepeatedMove<M: Move + Copy> {
 }
 
 impl<M: Move + Copy> Move for RepeatedMove<M> {
-    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
+    fn apply<'a, F>(&self, at: F, pos: usize) -> MoveResult
     where
         F: Fn(usize) -> Token<'a>,
     {
         let mut repeats = 0;
         let mut current_pos = pos;
-        while let Some(pos) = self.underlying.apply(&at, current_pos) {
+        while let Ok(pos) = self.underlying.apply(&at, current_pos) {
             current_pos = pos;
             repeats += 1;
             if self.max != -1 && repeats > self.max {
-                return None; // we exceeded the maximum amount of repetitions.
+                return Err(pos); // we exceeded the maximum amount of repetitions.
             }
 
             if at(current_pos).token_type == EndOfFile {
@@ -222,9 +224,9 @@ impl<M: Move + Copy> Move for RepeatedMove<M> {
         }
         // We did not repeated enough time to satisfy this movement
         if self.min != -1 && repeats < self.min {
-            return None;
+            return Err(pos);
         }
-        Some(current_pos)
+        Ok(current_pos)
     }
 }
 
@@ -275,7 +277,7 @@ pub(crate) struct AndThenMove<A: Move + Copy, B: Move + Copy> {
 }
 
 impl<A: Move + Copy, B: Move + Copy> Move for AndThenMove<A, B> {
-    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
+    fn apply<'a, F>(&self, at: F, pos: usize) -> MoveResult
     where
         F: Fn(usize) -> Token<'a>,
     {
@@ -293,11 +295,11 @@ pub(crate) struct ThenMove<A: Move + Copy, B: Move + Copy> {
 }
 
 impl<A: Move + Copy, B: Move + Copy> Move for ThenMove<A, B> {
-    fn apply<'a, F>(&self, at: F, mut pos: usize) -> Option<usize>
+    fn apply<'a, F>(&self, at: F, mut pos: usize) -> MoveResult
     where
         F: Fn(usize) -> Token<'a>,
     {
-        if let Some(new_pos) = self.left.apply(&at, pos) {
+        if let Ok(new_pos) = self.left.apply(&at, pos) {
             pos = new_pos
         }
         self.right.apply(&at, pos)
@@ -312,13 +314,13 @@ pub(crate) struct OrMove<A: Move + Copy, B: Move + Copy> {
 }
 
 impl<A: Move + Copy, B: Move + Copy> Move for OrMove<A, B> {
-    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
+    fn apply<'a, F>(&self, at: F, pos: usize) -> MoveResult
     where
         F: Fn(usize) -> Token<'a>,
     {
         self.left
             .apply(&at, pos)
-            .or_else(|| self.right.apply(at, pos))
+            .or_else(|_| self.right.apply(at, pos))
     }
 }
 
@@ -330,7 +332,7 @@ pub(crate) struct LookaheadMove<A: Move + Copy> {
 }
 
 impl<A: Move + Copy> Move for LookaheadMove<A> {
-    fn apply<'a, F>(&self, at: F, pos: usize) -> Option<usize>
+    fn apply<'a, F>(&self, at: F, pos: usize) -> MoveResult
     where
         F: Fn(usize) -> Token<'a>,
     {

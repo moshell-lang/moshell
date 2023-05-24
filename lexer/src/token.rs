@@ -185,7 +185,10 @@ impl TokenType {
 
     ///is this lexeme a valid reference name for a variable ?
     pub fn is_valid_var_ref_name(self) -> bool {
-        matches!(self, Identifier | Ampersand | At | Not | IntLiteral)
+        matches!(
+            self,
+            Identifier | Ampersand | At | Not | IntLiteral | Dollar
+        )
     }
 
     ///is this lexeme a binary operator ?

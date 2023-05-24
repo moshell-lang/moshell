@@ -457,6 +457,9 @@ impl<'a> Parser<'a> {
             return self.parse_binary_expr(expr);
         }
 
+        if self.cursor.lookahead(bin_op()).is_none() {
+            return Ok(expr);
+        }
         //else, we hit an invalid binary expression.
         self.expected("invalid expression operator", Unexpected)
     }
