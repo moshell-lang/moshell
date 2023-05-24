@@ -142,7 +142,7 @@ fn handle_source<'a>(
     config: &Configuration,
     engine: &mut Engine<'a>,
     importer: &mut REPLImporter<'a>,
-    relations: &mut Relations<'a>,
+    relations: &mut Relations,
 ) -> bool {
     let source = importer.take_source(source);
     let name = Name::new(&source.name);

@@ -14,7 +14,6 @@ mod cli;
 mod repl;
 mod report;
 mod runner;
-mod source;
 mod source_importer;
 
 fn main() {

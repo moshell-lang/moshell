@@ -1,6 +1,5 @@
 use crate::engine::Engine;
 use crate::name::Name;
-use ast::r#use::Import as ImportExpr;
 use context::source::SourceSegment;
 use indexmap::IndexMap;
 use std::collections::HashMap;
@@ -42,9 +41,9 @@ impl From<GlobalObjectId> for Symbol {
 
 /// The structure that hosts the unresolved imports of the Relations
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct UnresolvedImports<'a> {
+pub struct UnresolvedImports {
     /// Binds an UnresolvedImport to all the [ImportExpr] that refers to the import resolution.
-    pub imports: IndexMap<UnresolvedImport, &'a ImportExpr<'a>>,
+    pub imports: IndexMap<UnresolvedImport, SourceSegment>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -55,8 +54,8 @@ pub enum UnresolvedImport {
     AllIn(Name),
 }
 
-impl<'a> UnresolvedImports<'a> {
-    pub fn new(imports: IndexMap<UnresolvedImport, &'a ImportExpr<'a>>) -> Self {
+impl UnresolvedImports {
+    pub fn new(imports: IndexMap<UnresolvedImport, SourceSegment>) -> Self {
         Self { imports }
     }
 
@@ -64,9 +63,9 @@ impl<'a> UnresolvedImports<'a> {
     pub fn add_unresolved_import(
         &mut self,
         import: UnresolvedImport,
-        import_expr: &'a ImportExpr<'a>,
-    ) -> Option<&'a ImportExpr<'a>> {
-        self.imports.insert(import, import_expr)
+        segment: SourceSegment,
+    ) -> Option<SourceSegment> {
+        self.imports.insert(import, segment)
     }
 }
 
@@ -115,7 +114,7 @@ impl Object {
 
 /// A collection of objects that are tracked globally and may link to each other.
 #[derive(Debug, Clone, Default)]
-pub struct Relations<'a> {
+pub struct Relations {
     /// The objects that need resolution that are tracked globally.
     ///
     /// The actual [`String`] -> [`ObjectId`] mapping is left to the [`crate::environment::Environment`].
@@ -130,12 +129,12 @@ pub struct Relations<'a> {
     /// per [`crate::environment::Environment`]. If a source is not tracked here, it means that it has no
     /// imports. This is only used to create find the link between environments and sources, and should not
     /// be used after the resolution is done.
-    pub imports: HashMap<SourceObjectId, UnresolvedImports<'a>>,
+    pub imports: HashMap<SourceObjectId, UnresolvedImports>,
 }
 
-impl<'a> Relations<'a> {
+impl Relations {
     /// Takes the unresolved imports
-    pub fn take_imports(&mut self) -> HashMap<SourceObjectId, UnresolvedImports<'a>> {
+    pub fn take_imports(&mut self) -> HashMap<SourceObjectId, UnresolvedImports> {
         std::mem::take(&mut self.imports)
     }
 
@@ -146,8 +145,8 @@ impl<'a> Relations<'a> {
         &mut self,
         source: SourceObjectId,
         import: UnresolvedImport,
-        import_expr: &'a ImportExpr<'a>,
-    ) -> Option<&'a ImportExpr<'a>> {
+        import_expr: SourceSegment,
+    ) -> Option<SourceSegment> {
         let imports = self
             .imports
             .entry(source)

@@ -1,3 +1,8 @@
+use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
+
+use context::source::{SourceSegment};
+
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::environment::Environment;
@@ -6,10 +11,6 @@ use crate::relations::{
     GlobalObjectId, Relations, ResolvedSymbol, SourceObjectId, Symbol, UnresolvedImport,
     UnresolvedImports,
 };
-use ast::r#use::Import as ImportExpr;
-use context::source::SourceSegmentHolder;
-use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
 
 /// Used by the resolve step to store resolved imports of an environment.
 #[derive(Default, PartialEq)]
@@ -48,7 +49,7 @@ impl ResolvedImports {
 pub struct SymbolResolver<'a, 'e> {
     engine: &'a Engine<'e>,
     diagnostics: Vec<Diagnostic>,
-    relations: &'a mut Relations<'e>,
+    relations: &'a mut Relations,
 }
 
 impl<'a, 'e> SymbolResolver<'a, 'e> {
@@ -56,14 +57,14 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
     /// Returns a vector of diagnostics raised by the resolution process.
     pub fn resolve_symbols(
         engine: &'a Engine<'e>,
-        relations: &'a mut Relations<'e>,
+        relations: &'a mut Relations,
     ) -> Vec<Diagnostic> {
         let mut resolver = Self::new(engine, relations);
         resolver.resolve();
         resolver.diagnostics
     }
 
-    fn new(engine: &'a Engine<'e>, relations: &'a mut Relations<'e>) -> Self {
+    fn new(engine: &'a Engine<'e>, relations: &'a mut Relations) -> Self {
         Self {
             engine,
             relations,
@@ -145,7 +146,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         env_id: SourceObjectId,
         imported_symbol_name: Name,
         known_parent: Option<Name>,
-        dependent_expr: &'e ImportExpr<'e>,
+        dependent_segment: SourceSegment,
     ) {
         let msg = &format!(
             "unable to find imported symbol {}{}.",
@@ -159,7 +160,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         );
 
         let diagnostic = Diagnostic::new(DiagnosticID::ImportResolution, env_id, msg)
-            .with_observation(Observation::new(dependent_expr.segment()));
+            .with_observation(Observation::new(dependent_segment));
         self.diagnostics.push(diagnostic)
     }
 
@@ -169,7 +170,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
     fn resolve_imports(
         &mut self,
         env_id: SourceObjectId,
-        imports: UnresolvedImports<'e>,
+        imports: UnresolvedImports,
     ) -> ResolvedImports {
         let mut resolved_imports = ResolvedImports::default();
 
@@ -282,6 +283,15 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use indexmap::IndexMap;
+    use pretty_assertions::assert_eq;
+
+    use context::source::Source;
+    use context::str_find::{find_in, find_in_nth};
+    use parser::parse_trusted;
+
     use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
     use crate::engine::Engine;
     use crate::importer::StaticImporter;
@@ -291,14 +301,6 @@ mod tests {
     };
     use crate::steps::collect::SymbolCollector;
     use crate::steps::resolve::{ResolvedImports, SymbolResolver};
-    use ast::r#use::Import::AllIn;
-    use ast::r#use::ImportedSymbol;
-    use context::source::Source;
-    use context::str_find::{find_in, find_in_nth};
-    use indexmap::IndexMap;
-    use parser::parse_trusted;
-    use pretty_assertions::assert_eq;
-    use std::collections::HashMap;
 
     #[test]
     fn test_imports_resolution() {
@@ -340,29 +342,14 @@ mod tests {
                         UnresolvedImport::Symbol {
                             alias: None,
                             fqn: Name::new("math::PI"),
-                        },
-                        &ast::r#use::Import::Symbol(ImportedSymbol {
-                            path: vec!["math"],
-                            name: "PI",
-                            alias: None,
-                            segment: 17..25,
-                        })
-                    ),
-                    (
+                        }, 17..25
+                    ), (
                         UnresolvedImport::Symbol {
                             alias: None,
                             fqn: Name::new("std::Bar"),
-                        },
-                        &ast::r#use::Import::Symbol(ImportedSymbol {
-                            path: vec![],
-                            name: "Bar",
-                            alias: None,
-                            segment: 48..51,
-                        })
-                    ),
-                    (
-                        UnresolvedImport::AllIn(Name::new("std::io")),
-                        &AllIn(vec!["io"], 53..58)
+                        }, 48..51
+                    ), (
+                        UnresolvedImport::AllIn(Name::new("std::io")), 53..58
                     ),
                 ]))
             )])

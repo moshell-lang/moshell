@@ -3,7 +3,6 @@ use std::io::Write;
 
 use miette::{LabeledSpan, MietteDiagnostic, Report, Severity, SourceSpan};
 
-use crate::source::{into_source_code, CLISourceCode};
 use context::source::{Source, SourceSegment};
 use parser::err::{ParseError, ParseErrorKind};
 
@@ -97,7 +96,7 @@ fn write_diagnostic<W: Write>(
         //SAFETY: the CLI source is transmuted to a static lifetime, because `report.with_source_code`
         //needs a source with a static lifetime. The report and the source are then used to display the formatted diagnostic and are immediately dropped after.
         let source =
-            std::mem::transmute::<CLISourceCode, CLISourceCode<'static>>(into_source_code(source));
+            std::mem::transmute::<Source, Source<'static>>(source);
         let report = report.with_source_code(source);
         writeln!(writer, "\n{report:?}")
     }

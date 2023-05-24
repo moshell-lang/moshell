@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-context = { path = "../context" }
+context = { path = "../context", features = ["miette"] }
 parser = { path = "../parser" }
 analyzer = { path = "../analyzer" }
 ast = { path = "../ast" }
