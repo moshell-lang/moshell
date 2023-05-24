@@ -38,7 +38,7 @@ impl ResolutionState {
 
 pub struct SymbolCollector<'a, 'e> {
     engine: &'a mut Engine<'e>,
-    relations: &'a mut Relations<'e>,
+    relations: &'a mut Relations,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -49,7 +49,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
     /// Returns a vector of diagnostics raised by the collection process.
     pub fn collect_symbols(
         engine: &'a mut Engine<'e>,
-        relations: &'a mut Relations<'e>,
+        relations: &'a mut Relations,
         entry_point: Name,
         importer: &mut impl ASTImporter<'e>,
     ) -> Vec<Diagnostic> {
@@ -58,7 +58,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         collector.diagnostics
     }
 
-    fn new(engine: &'a mut Engine<'e>, relations: &'a mut Relations<'e>) -> Self {
+    fn new(engine: &'a mut Engine<'e>, relations: &'a mut Relations) -> Self {
         Self {
             engine,
             relations,
@@ -104,14 +104,14 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         import_expr: &'e ImportExpr<'e>,
         import_fqn: Name,
     ) {
-        if let Some(shadowed) = self.relations.add_import(mod_id, import, import_expr) {
+        if let Some(shadowed) = self.relations.add_import(mod_id, import, import_expr.segment()) {
             let diagnostic = Diagnostic::new(
                 DiagnosticID::ShadowedImport,
                 mod_id,
                 format!("{import_fqn} is imported twice."),
             )
             .with_observation(Observation::with_help(
-                shadowed.segment(),
+                shadowed,
                 "useless import here",
             ))
             .with_observation(Observation::with_help(
