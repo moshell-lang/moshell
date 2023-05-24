@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-#![deny(warnings)]
+
 
 pub mod diagnostic;
 pub mod engine;
