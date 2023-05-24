@@ -1,9 +1,7 @@
 #![allow(dead_code)]
-#![deny(warnings)]
 mod cli;
 mod repl;
 mod report;
-mod source;
 
 use crate::cli::{handle_source, Cli};
 use crate::repl::prompt;
