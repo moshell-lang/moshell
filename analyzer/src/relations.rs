@@ -1,8 +1,9 @@
+use crate::engine::Engine;
 use crate::name::Name;
-use std::collections::{HashMap};
-use std::hash::{Hash, Hasher};
+use ast::r#use::Import as ImportExpr;
+use context::source::SourceSegment;
 use indexmap::IndexMap;
-use ast::r#use::{Import as ImportExpr};
+use std::collections::HashMap;
 
 /// The object identifier base.
 ///
@@ -26,7 +27,7 @@ pub struct SourceObjectId(pub ObjectId);
 /// An indication where an object is located.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Symbol {
-    /// A local object, referenced by its index in the [`checker::environment::Environment`] it is defined in.
+    /// A local object, referenced by its index in the [`crate::environment::Environment`] it is defined in.
     Local(ObjectId),
 
     /// A global object, referenced by its index in the [`Relations`] it is linked to.
@@ -60,7 +61,11 @@ impl<'a> UnresolvedImports<'a> {
     }
 
     ///Adds an unresolved import, placing the given `import_expr` as the dependent .
-    pub fn add_unresolved_import(&mut self, import: UnresolvedImport, import_expr: &'a ImportExpr<'a>) -> Option<&'a ImportExpr<'a>> {
+    pub fn add_unresolved_import(
+        &mut self,
+        import: UnresolvedImport,
+        import_expr: &'a ImportExpr<'a>,
+    ) -> Option<&'a ImportExpr<'a>> {
         self.imports.insert(import, import_expr)
     }
 }
@@ -79,34 +84,17 @@ pub struct ResolvedSymbol {
 
 impl ResolvedSymbol {
     pub fn new(module: SourceObjectId, object_id: ObjectId) -> Self {
-        Self {
-            module,
-            object_id,
-        }
+        Self { module, object_id }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq)]
 pub struct Object {
     /// The symbol that is being resolved, where it is used.
     pub origin: SourceObjectId,
 
     /// The link to the resolved symbol.
     pub resolved: Option<ResolvedSymbol>,
-}
-
-
-impl Hash for Object {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.origin.hash(state);
-        self.resolved.hash(state);
-    }
-}
-
-impl PartialEq for Object {
-    fn eq(&self, other: &Self) -> bool {
-        self.origin == other.origin && self.resolved == other.resolved
-    }
 }
 
 impl Object {
@@ -130,7 +118,7 @@ impl Object {
 pub struct Relations<'a> {
     /// The objects that need resolution that are tracked globally.
     ///
-    /// The actual [`String`] -> [`ObjectId`] mapping is left to the [`checker::environment::Environment`].
+    /// The actual [`String`] -> [`ObjectId`] mapping is left to the [`crate::environment::Environment`].
     /// The reason that the resolution information is lifted out of the environment is that identifiers
     /// binding happens across modules, and an environment cannot guarantee that it will be able to generate
     /// unique identifiers for all the symbols that do not conflicts with the ones from other modules.
@@ -139,7 +127,7 @@ pub struct Relations<'a> {
     /// Associates a source object with its unresolved imports.
     ///
     /// Imports may only be declared at the top level of a source. This lets us track the unresolved imports
-    /// per [`checker::environment::Environment`]. If a source is not tracked here, it means that it has no
+    /// per [`crate::environment::Environment`]. If a source is not tracked here, it means that it has no
     /// imports. This is only used to create find the link between environments and sources, and should not
     /// be used after the resolution is done.
     pub imports: HashMap<SourceObjectId, UnresolvedImports<'a>>,
@@ -154,7 +142,12 @@ impl<'a> Relations<'a> {
     /// References a new import directive in the given source.
     ///
     /// This directive may be used later to resolve the import.
-    pub fn add_import(&mut self, source: SourceObjectId, import: UnresolvedImport, import_expr: &'a ImportExpr<'a>) -> Option<&'a ImportExpr<'a>> {
+    pub fn add_import(
+        &mut self,
+        source: SourceObjectId,
+        import: UnresolvedImport,
+        import_expr: &'a ImportExpr<'a>,
+    ) -> Option<&'a ImportExpr<'a>> {
         let imports = self
             .imports
             .entry(source)
@@ -170,5 +163,31 @@ impl<'a> Relations<'a> {
             resolved: None,
         });
         GlobalObjectId(id)
+    }
+
+    /// Finds segments that reference the given object.
+    pub fn find_references(
+        &self,
+        engine: &Engine,
+        tracked_object: GlobalObjectId,
+    ) -> Option<Vec<SourceSegment>> {
+        let object = self.objects.get(tracked_object.0)?;
+        let environment = engine.get_environment(object.origin)?;
+        Some(environment.find_references(Symbol::Global(tracked_object.0)))
+    }
+
+    /// Returns a mutable iterator over all the objects.
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (GlobalObjectId, &mut Object)> {
+        self.objects
+            .iter_mut()
+            .enumerate()
+            .map(|(id, object)| (GlobalObjectId(id), object))
+    }
+
+    /// Returns the resolved symbol for the given object.
+    ///
+    /// If the object is not resolved or is not referenced, returns `None`.
+    pub fn get_resolved(&self, id: GlobalObjectId) -> Option<ResolvedSymbol> {
+        self.objects.get(id.0)?.resolved
     }
 }

@@ -1,5 +1,6 @@
+
 use std::process::exit;
-use context::source::{OwnedSource};
+use context::source::{OwnedSource, Source};
 use parser::parse;
 use rustyline::{Cmd, ColorMode, DefaultEditor, Editor, Event, EventHandler, KeyCode, KeyEvent, Modifiers};
 use rustyline::config::Configurer;
@@ -8,6 +9,7 @@ use rustyline::history::DefaultHistory;
 use crate::cli::{Configuration, handle_source};
 
 type REPLEditor = Editor<(), DefaultHistory>;
+
 
 /// Indefinitely prompts a new expression to the stdin,
 /// displaying back the errors if any and the formed AST
@@ -22,7 +24,7 @@ pub fn prompt(config: Configuration) {
 
     loop {
         let source = parse_input(&mut editor);
-        handle_source(source, &config);
+        handle_source(source.as_source(), &config);
     }
 }
 
@@ -65,14 +67,17 @@ fn parse_input(editor: &mut REPLEditor) -> OwnedSource {
             continue;
         }
 
-        let source = OwnedSource::new(content.clone(), "stdin".to_string());
-        let mut report = parse(source.as_source());
-        if let Some(last) = report.delimiter_stack.pop_back() {
+        let source = Source::new(&content, "stdin");
+        let report = parse(source);
+        if let Some(last) = report.delimiter_stack.last() {
             content.push('\n');
             prompt_prefix = format!("{}> ", last.str().unwrap());
             continue; // Silently ignore incomplete input
         }
 
-        return source;
+        return OwnedSource::new(
+            source.source.to_string(),
+            source.name.to_string(),
+        )
     }
 }

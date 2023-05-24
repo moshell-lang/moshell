@@ -1,48 +1,33 @@
+use crate::relations::SourceObjectId;
+use context::source::SourceSegment;
 use enum_assoc::Assoc;
-use crate::relations::{SourceObjectId};
-use context::source::{SourceSegment, SourceSegmentHolder};
-use crate::diagnostic::DiagnosticType::{Error, Warn};
 
 #[derive(PartialEq, Debug, Assoc)]
-#[func(pub fn code(&self) -> &'static str)]
-pub enum ErrorID {
-    #[assoc(code = "E001")]
+#[func(pub fn code(&self) -> u16)]
+#[func(pub fn critical(&self) -> bool { false })]
+pub enum DiagnosticID {
+    #[assoc(code = 1)]
+    #[assoc(critical = true)]
     UnsupportedFeature,
 
-    //No message is intentional as
-    #[assoc(code = "E002")]
+    #[assoc(code = 2)]
+    #[assoc(critical = true)]
     CannotImport,
 
-    #[assoc(code = "E003")]
+    #[assoc(code = 3)]
+    #[assoc(critical = true)]
     ImportResolution,
 
-    #[assoc(code = "E004")]
+    #[assoc(code = 4)]
+    #[assoc(critical = true)]
     UnknownSymbol,
 
-    #[assoc(code = "E005")]
+    #[assoc(code = 5)]
+    #[assoc(critical = true)]
     UseBetweenExprs,
-}
 
-#[derive(PartialEq, Debug, Assoc)]
-#[func(pub fn code(&self) -> &'static str)]
-pub enum WarnID {
-    #[assoc(code = "W001")]
-    ShadowedImport
-}
-
-#[derive(PartialEq, Debug)]
-pub enum DiagnosticType {
-    Error(ErrorID),
-    Warn(WarnID),
-}
-
-impl DiagnosticType {
-    pub fn code(&self) -> &'static str {
-        match self {
-            Error(e) => e.code(),
-            Warn(w) => w.code(),
-        }
-    }
+    #[assoc(code = 6)]
+    ShadowedImport,
 }
 
 /// Observations are an area in the source code with an (optional) help message
@@ -52,21 +37,21 @@ pub struct Observation {
     /// Observed segment
     pub segment: SourceSegment,
     /// An optional help string to complete the observation
-     pub help: Option<String>,
+    pub help: Option<String>,
 }
 
 impl Observation {
-    pub fn new(segment_holder: &impl SourceSegmentHolder) -> Self {
+    pub fn new(segment: SourceSegment) -> Self {
         Self {
-            segment: segment_holder.segment(),
+            segment,
             help: None,
         }
     }
 
-    pub fn with_help(segment_holder: &impl SourceSegmentHolder, help: &str) -> Self {
+    pub fn with_help(segment: SourceSegment, help: impl Into<String>) -> Self {
         Self {
-            segment: segment_holder.segment(),
-            help: Some(help.to_string()),
+            segment,
+            help: Some(help.into()),
         }
     }
 }
@@ -76,8 +61,8 @@ impl Observation {
 pub struct Diagnostic {
     /// The source where this diagnostic applies
     pub source: SourceObjectId,
-    /// The type of diagnostic, see [DiagnosticType] for further details
-    pub ty: DiagnosticType,
+    /// The diagnostic identifier
+    pub identifier: DiagnosticID,
     /// The overall message of this diagnostic
     pub global_message: String,
     /// Some observations to explain the diagnostic
@@ -87,21 +72,11 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
-    pub fn warn(id: WarnID, module: SourceObjectId, msg: &str) -> Self {
+    pub fn new(id: DiagnosticID, module: SourceObjectId, msg: impl Into<String>) -> Self {
         Self {
             source: module,
-            ty: Warn(id),
-            global_message: msg.to_string(),
-            observations: Vec::new(),
-            tips: Vec::new(),
-        }
-    }
-
-    pub fn error(id: ErrorID, module: SourceObjectId, msg: &str) -> Self {
-        Self {
-            source: module,
-            ty: Error(id),
-            global_message: msg.to_string(),
+            identifier: id,
+            global_message: msg.into(),
             observations: Vec::new(),
             tips: Vec::new(),
         }

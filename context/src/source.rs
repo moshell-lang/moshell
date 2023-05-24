@@ -1,32 +1,9 @@
-use miette::{MietteError, MietteSpanContents, SourceCode, SourceSpan, SpanContents};
 use std::fmt::Debug;
 
 pub type SourceSegment = std::ops::Range<usize>;
 
 pub trait SourceSegmentHolder {
     fn segment(&self) -> SourceSegment;
-}
-
-pub struct StaticSegmentHolder {
-    segment: SourceSegment
-}
-
-impl SourceSegmentHolder for StaticSegmentHolder {
-    fn segment(&self) -> SourceSegment {
-        self.segment.clone()
-    }
-}
-
-impl StaticSegmentHolder {
-    pub fn new(segment: SourceSegment) -> Self {
-        Self { segment }
-    }
-}
-
-impl From<SourceSegment> for StaticSegmentHolder {
-    fn from(value: SourceSegment) -> Self {
-        StaticSegmentHolder::new(value)
-    }
 }
 
 /// Defines a named source code from which tokens can be produced.
@@ -77,27 +54,7 @@ impl SourceSegmentHolder for Source<'_> {
     }
 }
 
-impl<'s> SourceCode for &'s Source<'_> {
-    fn read_span<'a>(
-        &'a self,
-        span: &SourceSpan,
-        context_lines_before: usize,
-        context_lines_after: usize,
-    ) -> Result<Box<dyn SpanContents<'a> + 'a>, MietteError> {
-        let contents = self
-            .source
-            .read_span(span, context_lines_before, context_lines_after)?;
-        Ok(Box::new(MietteSpanContents::new_named(
-            self.name.to_owned(),
-            contents.data(),
-            *contents.span(),
-            contents.line(),
-            contents.column(),
-            contents.line_count(),
-        )))
-    }
-}
-
+#[derive(Clone)]
 pub struct OwnedSource {
     pub source: String,
     pub name: String,

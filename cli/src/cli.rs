@@ -2,22 +2,22 @@ use std::collections::HashMap;
 use std::io::stderr;
 use std::path::PathBuf;
 
-use clap::{Parser};
 use colored::{Colorize};
-use dbg_pls::color;
+use crate::report::{display_diagnostic, display_parse_error};
 use analyzer::engine::Engine;
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
 use analyzer::relations::Relations;
 use analyzer::steps::collect::SymbolCollector;
 use analyzer::steps::resolve::SymbolResolver;
-use ast::Expr;
 use ast::group::Block;
-use context::source::OwnedSource;
 use lexer::lexer::lex;
 use lexer::token::Token;
+use ast::Expr;
+use clap::Parser;
+use context::source::Source;
+use dbg_pls::color;
 use parser::parse;
-use crate::report::{display_diagnostic, display_parse_error};
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -90,18 +90,18 @@ fn display_exprs(exprs: Vec<Expr>) {
 
 /// Parses and display errors / diagnostics coming from the given source.
 /// Returning true if the source had at least one error or diagnostic.
-pub fn handle_source(source: OwnedSource, config: &Configuration) -> bool {
+pub fn handle_source(source: Source, config: &Configuration) -> bool {
     if config.lexer_visualisation {
         display_tokens(lex(&source.source))
     }
 
-    let report = parse(source.as_source());
+    let report = parse(source);
     let mut importer = RawImporter::default();
 
     let mut engine = Engine::default();
     let mut relations = Relations::default();
 
-    let source = source.as_source();
+    let source = source;
     let errors: Vec<_> = report.errors;
 
     let out = &mut stderr();
@@ -122,7 +122,8 @@ pub fn handle_source(source: OwnedSource, config: &Configuration) -> bool {
     let name = Name::new("<module>");
     importer.imported_modules.insert(name.clone(), expr);
 
-    let mut diagnostics = SymbolCollector::collect_symbols(&mut engine, &mut relations, name, &mut importer);
+    let mut diagnostics =
+        SymbolCollector::collect_symbols(&mut engine, &mut relations, name, &mut importer);
     diagnostics.extend(SymbolResolver::resolve_symbols(&engine, &mut relations));
 
     let mut stdout = stderr();

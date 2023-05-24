@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use crate::parser::ParseResult;
 use ast::Expr;
 use context::source::SourceSegment;
@@ -110,7 +109,7 @@ pub struct ParseReport<'a> {
 
     /// contains the delimiter stack that were not closed,
     /// This ParseReport is considered as valid if the delimiter stack is empty
-    pub delimiter_stack: VecDeque<TokenType>,
+    pub delimiter_stack: Vec<TokenType>,
 }
 
 impl<'a> ParseReport<'a> {
@@ -149,12 +148,12 @@ impl<'a> From<ParseResult<Vec<Expr<'a>>>> for ParseReport<'a> {
             Ok(expr) => Self {
                 expr,
                 errors: Vec::new(),
-                delimiter_stack: VecDeque::new(),
+                delimiter_stack: vec![],
             },
             Err(err) => Self {
                 expr: Vec::new(),
                 errors: vec![err],
-                delimiter_stack: VecDeque::new(),
+                delimiter_stack: vec![],
             },
         }
     }

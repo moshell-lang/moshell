@@ -1,4 +1,3 @@
-
 use crate::name::Name;
 use crate::relations::{SourceObjectId, Symbol};
 use context::source::{SourceSegment, SourceSegmentHolder};
@@ -6,7 +5,6 @@ use std::collections::HashMap;
 use variables::Variables;
 
 pub mod variables;
-
 
 ///! The type environment of the analyzer.
 ///!
@@ -34,7 +32,6 @@ pub mod variables;
 /// It can have dependencies over other environments.
 #[derive(Debug, Clone)]
 pub struct Environment {
-
     /// The source object id of the parent environment, if the environment is nested.
     pub parent: Option<SourceObjectId>,
 
@@ -85,11 +82,23 @@ impl Environment {
         self.definitions.insert(segment.segment(), symbol);
     }
 
-    pub fn list_annotations(&self) -> impl Iterator<Item=(&SourceSegment, &Symbol)> {
+    pub fn list_definitions(&self) -> impl Iterator<Item = (&SourceSegment, &Symbol)> {
         self.definitions.iter()
     }
 
+    /// Gets a symbol from the environment.
     pub fn get_raw_symbol(&self, segment: SourceSegment) -> Option<Symbol> {
         self.definitions.get(&segment).copied()
+    }
+
+    /// Finds the local segments that references a symbol.
+    pub fn find_references(&self, symbol_declaration: Symbol) -> Vec<SourceSegment> {
+        let mut references = Vec::new();
+        for (segment, symbol_reference) in &self.definitions {
+            if *symbol_reference == symbol_declaration {
+                references.push(segment.clone());
+            }
+        }
+        references
     }
 }
