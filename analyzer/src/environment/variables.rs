@@ -1,5 +1,5 @@
-use crate::resolver::{GlobalObjectId, ObjectId, Resolver, SourceObjectId, Symbol};
-use std::collections::HashMap;
+use crate::relations::{GlobalObjectId, ObjectId, Relations, SourceObjectId, Symbol};
+use indexmap::IndexMap;
 use std::num::NonZeroUsize;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -13,7 +13,7 @@ pub enum TypeInfo {
 pub struct Variables {
     locals: Locals,
 
-    globals: HashMap<String, GlobalObjectId>,
+    globals: IndexMap<String, GlobalObjectId>,
 }
 
 impl Variables {
@@ -29,7 +29,7 @@ impl Variables {
     pub fn identify(
         &mut self,
         state: SourceObjectId,
-        resolver: &mut Resolver,
+        relations: &mut Relations,
         name: &str,
     ) -> Symbol {
         match self
@@ -38,11 +38,13 @@ impl Variables {
             .map(|idx| self.locals.vars.len() - 1 - idx)
         {
             Some(var) => Symbol::Local(var),
-            None => (*self
-                .globals
-                .entry(name.to_owned())
-                .or_insert_with(|| resolver.track_new_object(state)))
-            .into(),
+            None => {
+                let id = *self
+                    .globals
+                    .entry(name.to_string())
+                    .or_insert_with(|| relations.track_new_object(state));
+                id.into()
+            }
         }
     }
 
@@ -68,7 +70,7 @@ impl Variables {
     }
 
     /// Iterates over all the global variable ids, with their corresponding name.
-    pub fn global_vars(&self) -> impl Iterator<Item = (&String, GlobalObjectId)> {
+    pub fn external_vars(&self) -> impl Iterator<Item = (&String, GlobalObjectId)> {
         self.globals.iter().map(|(name, id)| (name, *id))
     }
 

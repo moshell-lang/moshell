@@ -21,11 +21,10 @@ pub fn parse(src: Source) -> ParseReport {
 }
 
 /// Parses a supposedly valid string expression
-pub fn parse_trusted(src: &str) -> Expr {
-    let source = Source::unknown(src);
-    let expressions = parse(source).expect("trusted str contained invalid expressions");
+pub fn parse_trusted(src: Source) -> Expr {
+    let expressions = parse(src).expect("trusted str contained invalid expressions");
     Expr::Block(Block {
         expressions,
-        segment: source.segment(),
+        segment: src.segment(),
     })
 }

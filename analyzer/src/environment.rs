@@ -1,5 +1,5 @@
 use crate::name::Name;
-use crate::resolver::{SourceObjectId, Symbol};
+use crate::relations::{SourceObjectId, Symbol};
 use context::source::{SourceSegment, SourceSegmentHolder};
 use std::collections::HashMap;
 use variables::Variables;
@@ -49,7 +49,7 @@ impl Environment {
     pub fn named(name: Name) -> Self {
         Self {
             parent: None,
-            fqn: name.clone(),
+            fqn: name,
             variables: Variables::default(),
             definitions: HashMap::new(),
         }
@@ -80,6 +80,10 @@ impl Environment {
     /// wrapper methods defined in traits in the `checker` crate.
     pub fn annotate(&mut self, segment: &impl SourceSegmentHolder, symbol: Symbol) {
         self.definitions.insert(segment.segment(), symbol);
+    }
+
+    pub fn list_definitions(&self) -> impl Iterator<Item = (&SourceSegment, &Symbol)> {
+        self.definitions.iter()
     }
 
     /// Gets a symbol from the environment.

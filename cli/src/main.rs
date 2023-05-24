@@ -1,48 +1,32 @@
+#![allow(dead_code)]
 mod cli;
 mod repl;
 mod report;
 
-use crate::cli::Cli;
+use crate::cli::{handle_source, Cli};
 use crate::repl::prompt;
-use crate::report::FormattedError;
 use clap::Parser;
 use context::source::Source;
-use dbg_pls::color;
-use miette::GraphicalReportHandler;
-use parser::parse;
+use miette::MietteHandlerOpts;
 use std::io;
+use std::ops::Deref;
 use std::process::exit;
 
 fn main() -> io::Result<()> {
+
     let cli = Cli::parse();
 
-    let handler = GraphicalReportHandler::default();
+    miette::set_hook(Box::new(|_| {
+        Box::new(MietteHandlerOpts::new().tab_width(2).build())
+    }))
+    .expect("miette options setup");
 
     if let Some(source) = cli.source {
         let content = std::fs::read_to_string(&source)?;
-        let name = source.to_string_lossy();
+        let name = source.to_string_lossy().deref().to_string();
         let source = Source::new(&content, &name);
-        let report = parse(source);
-        let errors = report
-            .errors
-            .into_iter()
-            .map(|err| FormattedError::from(err, &source))
-            .collect::<Vec<_>>();
-        if errors.is_empty() {
-            println!("{}", color(&report.expr));
-            return Ok(());
-        }
-        let mut msg = String::new();
-        for err in &errors {
-            if let Err(fmt_err) = handler.render_report(&mut msg, err) {
-                eprintln!("{fmt_err}");
-                msg.clear();
-            }
-        }
-        if !msg.is_empty() {
-            eprintln!("{msg}");
-        }
-        exit(1);
+        exit(handle_source(source) as i32)
     }
-    prompt(handler)
+    prompt();
+    Ok(())
 }

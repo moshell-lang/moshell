@@ -1,11 +1,12 @@
-use checker::engine::Engine;
-use checker::environment::variables::Variable;
-use checker::importer::StaticImporter;
-use checker::name::Name;
-use checker::resolver::{GlobalObjectId, Resolver, SourceObjectId, Symbol};
-use checker::steps::collect::collect_symbols;
+use analyzer::engine::Engine;
+use analyzer::environment::variables::Variable;
+use analyzer::importer::StaticImporter;
+use analyzer::name::Name;
+use analyzer::relations::{GlobalObjectId, Relations, SourceObjectId, Symbol};
+use analyzer::steps::collect::SymbolCollector;
 use context::source::Source;
 use context::str_find::{find_between, find_in};
+use parser::parse_trusted;
 
 #[test]
 fn collect_sample() {
@@ -13,9 +14,15 @@ fn collect_sample() {
     let source = Source::new(content, "debug_sample.msh");
     let root_name = Name::new("debug_sample");
     let mut engine = Engine::default();
-    let mut resolver = Resolver::default();
-    let mut importer = StaticImporter::new([(root_name.clone(), source)]);
-    collect_symbols(&mut engine, &mut resolver, root_name.clone(), &mut importer).ok();
+    let mut relations = Relations::default();
+    let mut importer = StaticImporter::new([(root_name.clone(), source)], parse_trusted);
+    let diagnostics = SymbolCollector::collect_symbols(
+        &mut engine,
+        &mut relations,
+        root_name.clone(),
+        &mut importer,
+    );
+    assert_eq!(diagnostics, vec![]);
     let root_env = engine
         .get_environment(SourceObjectId(0))
         .expect("Unable to get root environment");
@@ -63,6 +70,6 @@ fn collect_sample() {
     let lambda_env = engine
         .get_environment(SourceObjectId(3))
         .expect("Unable to get lambda environment");
-    let variables = lambda_env.variables.global_vars().collect::<Vec<_>>();
+    let variables = lambda_env.variables.external_vars().collect::<Vec<_>>();
     assert_eq!(variables, vec![(&"n".to_owned(), GlobalObjectId(0))]);
 }

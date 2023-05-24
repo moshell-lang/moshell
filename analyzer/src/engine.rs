@@ -1,6 +1,7 @@
 use crate::environment::Environment;
 use crate::name::Name;
-use crate::resolver::SourceObjectId;
+
+use crate::relations::SourceObjectId;
 use ast::Expr;
 
 /// Owns references to the global AST and its environments.
@@ -14,7 +15,7 @@ pub struct Engine<'a> {
     /// Associates a module id to the corresponding environment.
     ///
     /// Those are origins of symbols that are available locally in the environment,
-    /// which may also be the source of unresolved symbols, tracked in the resolver.
+    /// which may also be the source of unresolved symbols, tracked in the Relations.
     origins: Vec<(&'a Expr<'a>, Option<Environment>)>,
 }
 
@@ -57,11 +58,12 @@ impl<'a> Engine<'a> {
     }
 
     ///Finds an environment by its fully qualified name.
-    pub fn find_environment_by_name(&self, name: &Name) -> Option<SourceObjectId> {
+    pub fn find_environment_by_name(&self, name: &Name) -> Option<(SourceObjectId, &Environment)> {
         self.origins
             .iter()
-            .position(|(_, env)| env.as_ref().map(|env| &env.fqn == name).unwrap_or(false))
-            .map(SourceObjectId)
+            .enumerate()
+            .find(|(_, (_, env))| env.as_ref().map(|env| &env.fqn == name).unwrap_or(false))
+            .and_then(|(idx, (_, env))| env.as_ref().map(|env| (SourceObjectId(idx), env)))
     }
 
     /// Gets an environment by its identifier.

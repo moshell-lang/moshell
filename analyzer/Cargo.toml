@@ -1,5 +1,5 @@
 [package]
-name = "checker"
+name = "analyzer"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,8 +7,9 @@ edition = "2021"
 
 [dependencies]
 ast = { path = "../ast" }
-parser = { path = "../parser" }
 context = { path = "../context" }
+enum-assoc = "1.0.0"
+indexmap = "1.9.3"
 
 [dev-dependencies]
 parser = { path = "../parser" }

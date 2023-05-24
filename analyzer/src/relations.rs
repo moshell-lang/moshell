@@ -1,6 +1,7 @@
 use crate::engine::Engine;
 use crate::name::Name;
 use context::source::SourceSegment;
+use indexmap::IndexMap;
 use std::collections::HashMap;
 
 /// The object identifier base.
@@ -14,7 +15,7 @@ use std::collections::HashMap;
 /// - [`Symbol`] refers differentiate a id that is local or not.
 pub type ObjectId = usize;
 
-/// A global object identifier, that points to a specific object in the [`Resolver`].
+/// A global object identifier, that points to a specific object in the [`Relations`].
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct GlobalObjectId(pub ObjectId);
 
@@ -28,7 +29,7 @@ pub enum Symbol {
     /// A local object, referenced by its index in the [`crate::environment::Environment`] it is defined in.
     Local(ObjectId),
 
-    /// A global object, referenced by its index in the [`Resolver`] it is linked to.
+    /// A global object, referenced by its index in the [`Relations`] it is linked to.
     Global(ObjectId),
 }
 
@@ -38,29 +39,38 @@ impl From<GlobalObjectId> for Symbol {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
+/// The structure that hosts the unresolved imports of the Relations
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct UnresolvedImports {
-    pub imports: Vec<UnresolvedImport>,
+    /// Binds an UnresolvedImport to all the [ImportExpr] that refers to the import resolution.
+    pub imports: IndexMap<UnresolvedImport, SourceSegment>,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum UnresolvedImport {
-    Symbol { alias: Option<String>, name: Name },
+    /// A symbol import with an optional alias.
+    Symbol { alias: Option<String>, fqn: Name },
+    /// Variant to target all the exported symbols of a symbol
     AllIn(Name),
 }
 
 impl UnresolvedImports {
-    pub fn new(imports: Vec<UnresolvedImport>) -> Self {
+    pub fn new(imports: IndexMap<UnresolvedImport, SourceSegment>) -> Self {
         Self { imports }
     }
 
-    pub fn add_unresolved_import(&mut self, import: UnresolvedImport) {
-        self.imports.push(import)
+    ///Adds an unresolved import, placing the given `import_expr` as the dependent .
+    pub fn add_unresolved_import(
+        &mut self,
+        import: UnresolvedImport,
+        segment: SourceSegment,
+    ) -> Option<SourceSegment> {
+        self.imports.insert(import, segment)
     }
 }
 
 /// The resolved information about a symbol.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct ResolvedSymbol {
     /// The module where the symbol is defined.
     ///
@@ -77,7 +87,7 @@ impl ResolvedSymbol {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Hash, PartialEq)]
 pub struct Object {
     /// The symbol that is being resolved, where it is used.
     pub origin: SourceObjectId,
@@ -104,7 +114,7 @@ impl Object {
 
 /// A collection of objects that are tracked globally and may link to each other.
 #[derive(Debug, Clone, Default)]
-pub struct Resolver {
+pub struct Relations {
     /// The objects that need resolution that are tracked globally.
     ///
     /// The actual [`String`] -> [`ObjectId`] mapping is left to the [`crate::environment::Environment`].
@@ -122,8 +132,8 @@ pub struct Resolver {
     pub imports: HashMap<SourceObjectId, UnresolvedImports>,
 }
 
-impl Resolver {
-    /// Take the imports
+impl Relations {
+    /// Takes the unresolved imports
     pub fn take_imports(&mut self) -> HashMap<SourceObjectId, UnresolvedImports> {
         std::mem::take(&mut self.imports)
     }
@@ -131,12 +141,17 @@ impl Resolver {
     /// References a new import directive in the given source.
     ///
     /// This directive may be used later to resolve the import.
-    pub fn add_import(&mut self, source: SourceObjectId, import: UnresolvedImport) {
+    pub fn add_import(
+        &mut self,
+        source: SourceObjectId,
+        import: UnresolvedImport,
+        import_expr: SourceSegment,
+    ) -> Option<SourceSegment> {
         let imports = self
             .imports
             .entry(source)
             .or_insert_with(UnresolvedImports::default);
-        imports.add_unresolved_import(import)
+        imports.add_unresolved_import(import, import_expr)
     }
 
     /// Tracks a new object and returns its identifier.

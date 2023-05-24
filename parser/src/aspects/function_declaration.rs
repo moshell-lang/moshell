@@ -60,7 +60,9 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
         let start = self
             .cursor
             .force(of_type(Return), "'return' keyword expected here")?;
-        if self.cursor.advance(spaces()).is_none() || self.cursor.lookahead(eox().or(eod())).is_some() {
+        if self.cursor.advance(spaces()).is_none()
+            || self.cursor.lookahead(eox().or(eod())).is_some()
+        {
             return Ok(Return {
                 expr: None,
                 segment: self.cursor.relative_pos(start),
