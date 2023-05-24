@@ -10,7 +10,7 @@ fun factorial(n: Int) -> Int = {
 
 fun debug() = {
     start -w | grep 'incoming'
-    //watch-logs $LOG_FILE 2> /dev/null &
+    watch-logs $LOG_FILE 2> /dev/null &
     wait
 }
 
@@ -19,3 +19,4 @@ val a = factorial($n)
 echo "factorial($n) = $a"
 
 val provider = () => $n
+echo $LOG_FILE

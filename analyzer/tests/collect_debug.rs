@@ -2,8 +2,11 @@ use analyzer::engine::Engine;
 use analyzer::environment::variables::Variable;
 use analyzer::importer::StaticImporter;
 use analyzer::name::Name;
-use analyzer::relations::{GlobalObjectId, Relations, SourceObjectId, Symbol};
+use analyzer::relations::{
+    GlobalObjectId, Object, Relations, ResolvedSymbol, SourceObjectId, Symbol,
+};
 use analyzer::steps::collect::SymbolCollector;
+use analyzer::steps::resolve::SymbolResolver;
 use context::source::Source;
 use context::str_find::{find_between, find_in};
 use parser::parse_trusted;
@@ -13,15 +16,24 @@ fn collect_sample() {
     let content = include_str!("debug_sample.msh");
     let source = Source::new(content, "debug_sample.msh");
     let root_name = Name::new("debug_sample");
+    let lib_name = Name::new("lib");
     let mut engine = Engine::default();
     let mut relations = Relations::default();
-    let mut importer = StaticImporter::new([(root_name.clone(), source)], parse_trusted);
+    let mut importer = StaticImporter::new(
+        [
+            (root_name.clone(), source),
+            (lib_name, Source::new("val LOG_FILE = 'debug.log'", "lib")),
+        ],
+        parse_trusted,
+    );
     let diagnostics = SymbolCollector::collect_symbols(
         &mut engine,
         &mut relations,
         root_name.clone(),
         &mut importer,
     );
+    assert_eq!(diagnostics, vec![]);
+    let diagnostics = SymbolResolver::resolve_symbols(&mut engine, &mut relations);
     assert_eq!(diagnostics, vec![]);
     let root_env = engine
         .get_environment(SourceObjectId(0))
@@ -67,9 +79,26 @@ fn collect_sample() {
         vec![find_in(content, "n: Int"), find_in(content, "$n")]
     );
 
+    let debug_env = engine
+        .get_environment(SourceObjectId(2))
+        .expect("Unable to get debug() environment");
+    assert_eq!(debug_env.fqn, root_name.child("debug"));
+    let globals = debug_env.variables.external_vars().collect::<Vec<_>>();
+    assert_eq!(globals, vec![(&"LOG_FILE".to_owned(), GlobalObjectId(0))]);
+    assert_eq!(
+        relations.objects[0],
+        Object {
+            origin: SourceObjectId(2),
+            resolved: Some(ResolvedSymbol {
+                module: SourceObjectId(4),
+                object_id: 0,
+            })
+        }
+    );
+
     let lambda_env = engine
         .get_environment(SourceObjectId(3))
         .expect("Unable to get lambda environment");
     let variables = lambda_env.variables.external_vars().collect::<Vec<_>>();
-    assert_eq!(variables, vec![(&"n".to_owned(), GlobalObjectId(0))]);
+    assert_eq!(variables, vec![(&"n".to_owned(), GlobalObjectId(1))]);
 }

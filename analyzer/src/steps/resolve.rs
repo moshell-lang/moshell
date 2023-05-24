@@ -81,28 +81,18 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
             let unresolved_imports = unresolved_imports.remove(&env_id).unwrap_or_default();
 
             let resolved_imports = self.resolve_imports(env_id, unresolved_imports);
-            self.resolve_symbols_of(env_id, env, resolved_imports);
+            self.resolve_symbols_of(env, resolved_imports);
         }
+        self.resolve_trees();
     }
 
     /// resolves the symbols of given environment, using given resolved imports for external symbol references.
-    fn resolve_symbols_of(
-        &mut self,
-        env_id: SourceObjectId,
-        env: &Environment,
-        imports: ResolvedImports,
-    ) {
+    fn resolve_symbols_of(&mut self, env: &Environment, imports: ResolvedImports) {
         for (symbol_name, external_var) in env.variables.external_vars() {
             let object = &mut self.relations.objects[external_var.0];
 
-            match imports.imported_symbols.get(symbol_name) {
-                Some(resolved_symbol) => object.resolved = Some(*resolved_symbol),
-                None => self.diagnose_unresolved_external_symbols(
-                    external_var,
-                    env_id,
-                    env,
-                    symbol_name,
-                ),
+            if let Some(resolved_symbol) = imports.imported_symbols.get(symbol_name) {
+                object.resolved = Some(*resolved_symbol);
             };
         }
     }
@@ -245,39 +235,50 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         None
     }
 
-    fn resolve_trees(&mut self) -> Result<(), String> {
-        for (object_id, object) in self.relations.iter_mut() {
+    fn resolve_trees(&mut self) {
+        'current: for object_id in self.relations.id_iter() {
+            let object = &self.relations.objects[object_id.0];
+            let origin = object.origin;
             if object.resolved.is_some() {
                 continue;
             }
-            let env = self
+            let origin_env = self
                 .engine
-                .get_environment(object.origin)
+                .get_environment(origin)
                 .expect("Environment declared an unknown parent");
-            let name = env
+            let name = origin_env
                 .variables
                 .get_symbol_name(object_id)
                 .expect("Unknown object name");
 
-            let mut current = env;
+            let mut current = origin_env;
             while let Some((module, env)) = current
                 .parent
                 .and_then(|id| self.engine.get_environment(id).map(|env| (id, env)))
             {
                 if let Some(resolved) = env.variables.get(name) {
-                    object.resolved = Some(match resolved {
-                        Symbol::Local(local) => ResolvedSymbol {
-                            module,
-                            object_id: local,
-                        },
-                        Symbol::Global(_) => todo!("resolver.get_resolved(GlobalObjectId(global)).expect(\"Unknown global object\")")
-                    });
-                    break;
+                    match resolved {
+                        Symbol::Local(local) => {
+                            self.relations.objects[object_id.0].resolved = Some(ResolvedSymbol {
+                                module,
+                                object_id: local,
+                            });
+                            break 'current;
+                        }
+                        Symbol::Global(global) => {
+                            if let Some(resolved) =
+                                self.relations.get_resolved(GlobalObjectId(global))
+                            {
+                                self.relations.objects[object_id.0].resolved = Some(resolved);
+                                break 'current;
+                            }
+                        }
+                    }
                 }
                 current = env;
             }
+            self.diagnose_unresolved_external_symbols(object_id, origin, origin_env, name);
         }
-        Ok(())
     }
 }
 
@@ -566,7 +567,7 @@ mod tests {
 
         let mut resolver = SymbolResolver::new(&mut engine, &mut relations);
         resolver.resolve_imports(SourceObjectId(0), UnresolvedImports::default());
-        resolver.resolve_trees().expect("resolution errors");
+        resolver.resolve_trees();
 
         assert_eq!(resolver.diagnostics, vec![]);
 
