@@ -175,10 +175,6 @@ impl Relations {
         Some(environment.find_references(Symbol::Global(tracked_object.0)))
     }
 
-    pub fn id_iter(&self) -> impl Iterator<Item = GlobalObjectId> {
-        (0..self.objects.len()).map(GlobalObjectId)
-    }
-
     /// Returns a mutable iterator over all the objects.
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (GlobalObjectId, &mut Object)> {
         self.objects

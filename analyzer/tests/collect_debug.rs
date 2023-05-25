@@ -22,7 +22,10 @@ fn collect_sample() {
     let mut importer = StaticImporter::new(
         [
             (root_name.clone(), source),
-            (lib_name, Source::new("val LOG_FILE = 'debug.log'", "lib")),
+            (
+                lib_name,
+                Source::new("val LOG_FILE = 'debug.log'; val n", "lib"),
+            ),
         ],
         parse_trusted,
     );

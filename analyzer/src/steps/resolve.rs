@@ -76,18 +76,19 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
     /// enables the resolution and pushes diagnostics if any symbol could not be resolved.
     fn resolve(&mut self) {
         let mut unresolved_imports = self.relations.take_imports();
-
+        let mut resolved_imports = HashMap::new();
         for (env_id, env) in self.engine.environments() {
             let unresolved_imports = unresolved_imports.remove(&env_id).unwrap_or_default();
 
-            let resolved_imports = self.resolve_imports(env_id, unresolved_imports);
-            self.resolve_symbols_of(env, resolved_imports);
+            let local_resolved_imports = self.resolve_imports(env_id, unresolved_imports);
+            self.resolve_symbols_of(env, &local_resolved_imports);
+            resolved_imports.insert(env_id, local_resolved_imports);
         }
-        self.resolve_trees();
+        self.resolve_trees(&resolved_imports);
     }
 
     /// resolves the symbols of given environment, using given resolved imports for external symbol references.
-    fn resolve_symbols_of(&mut self, env: &Environment, imports: ResolvedImports) {
+    fn resolve_symbols_of(&mut self, env: &Environment, imports: &ResolvedImports) {
         for (symbol_name, external_var) in env.variables.external_vars() {
             let object = &mut self.relations.objects[external_var.0];
 
@@ -100,11 +101,11 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
     /// Appends a diagnostic for an external symbol that could not be resolved.
     /// Each expression that used this symbol (such as VarReferences) will then get an observation
     fn diagnose_unresolved_external_symbols(
-        &mut self,
         external_var: GlobalObjectId,
         env_id: SourceObjectId,
         env: &Environment,
         name: &str,
+        diagnostics: &mut Vec<Diagnostic>,
     ) {
         let mut diagnostic = Diagnostic::new(
             DiagnosticID::UnknownSymbol,
@@ -126,7 +127,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         diagnostic.observations = observations.collect();
         diagnostic.observations.sort_by_key(|seg| seg.segment.start);
 
-        self.diagnostics.push(diagnostic);
+        diagnostics.push(diagnostic);
     }
 
     /// Appends a diagnostic for an import that could not be resolved.
@@ -235,9 +236,9 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         None
     }
 
-    fn resolve_trees(&mut self) {
-        'current: for object_id in self.relations.id_iter() {
-            let object = &self.relations.objects[object_id.0];
+    fn resolve_trees(&mut self, resolved_imports: &HashMap<SourceObjectId, ResolvedImports>) {
+        let diagnostics = &mut self.diagnostics;
+        'symbol: for (object_id, object) in self.relations.iter_mut() {
             let origin = object.origin;
             if object.resolved.is_some() {
                 continue;
@@ -256,28 +257,28 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                 .parent
                 .and_then(|id| self.engine.get_environment(id).map(|env| (id, env)))
             {
-                if let Some(resolved) = env.variables.get(name) {
-                    match resolved {
-                        Symbol::Local(local) => {
-                            self.relations.objects[object_id.0].resolved = Some(ResolvedSymbol {
-                                module,
-                                object_id: local,
-                            });
-                            break 'current;
-                        }
-                        Symbol::Global(global) => {
-                            if let Some(resolved) =
-                                self.relations.get_resolved(GlobalObjectId(global))
-                            {
-                                self.relations.objects[object_id.0].resolved = Some(resolved);
-                                break 'current;
-                            }
-                        }
+                if let Some(Symbol::Local(local)) = env.variables.get(name) {
+                    object.resolved = Some(ResolvedSymbol {
+                        module,
+                        object_id: local,
+                    });
+                    break 'symbol;
+                }
+                if let Some(resolved_imports) = resolved_imports.get(&module) {
+                    if let Some(resolved) = resolved_imports.imported_symbols.get(name) {
+                        object.resolved = Some(resolved.clone());
+                        break 'symbol;
                     }
                 }
                 current = env;
             }
-            self.diagnose_unresolved_external_symbols(object_id, origin, origin_env, name);
+            Self::diagnose_unresolved_external_symbols(
+                object_id,
+                origin,
+                origin_env,
+                name,
+                diagnostics,
+            );
         }
     }
 }
@@ -566,8 +567,7 @@ mod tests {
         assert_eq!(diagnostics, vec![]);
 
         let mut resolver = SymbolResolver::new(&mut engine, &mut relations);
-        resolver.resolve_imports(SourceObjectId(0), UnresolvedImports::default());
-        resolver.resolve_trees();
+        resolver.resolve();
 
         assert_eq!(resolver.diagnostics, vec![]);
 

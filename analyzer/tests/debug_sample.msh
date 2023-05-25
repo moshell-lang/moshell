@@ -1,4 +1,4 @@
-use lib::LOG_FILE
+use lib::{LOG_FILE,n}
 
 fun factorial(n: Int) -> Int = {
     val a = 1
@@ -19,4 +19,3 @@ val a = factorial($n)
 echo "factorial($n) = $a"
 
 val provider = () => $n
-echo $LOG_FILE

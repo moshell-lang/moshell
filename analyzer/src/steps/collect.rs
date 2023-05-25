@@ -417,7 +417,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             }
             Expr::LambdaDef(lambda) => {
                 let func_id = self.engine.track(expr);
-                let mut func_env = env.fork(func_id, &format!("lambda@{}", func_id.0));
+                let mut func_env = env.fork(state.module, &format!("lambda@{}", func_id.0));
                 for param in &lambda.args {
                     let symbol = func_env
                         .variables
