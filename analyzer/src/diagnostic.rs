@@ -68,7 +68,7 @@ pub struct Diagnostic {
     /// Some observations to explain the diagnostic
     pub observations: Vec<Observation>,
     /// Any tips to help the user understand and eventually fix the raised issue.
-    pub tips: Vec<String>,
+    pub helps: Vec<String>,
 }
 
 impl Diagnostic {
@@ -78,7 +78,7 @@ impl Diagnostic {
             identifier: id,
             global_message: msg.into(),
             observations: Vec::new(),
-            tips: Vec::new(),
+            helps: Vec::new(),
         }
     }
 
@@ -88,7 +88,7 @@ impl Diagnostic {
     }
 
     pub fn with_tip(mut self, tip: &str) -> Self {
-        self.tips.push(tip.to_string());
+        self.helps.push(tip.to_string());
         self
     }
 }

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fs::read_to_string;
 use std::io;
-use std::path::{PathBuf};
+use std::path::PathBuf;
 
 use analyzer::name::Name;
 use context::source::{OwnedSource, Source};
@@ -28,16 +28,14 @@ impl<'a> FileSourceImporter {
         }
     }
 
-    pub fn list_sources(&self) -> impl Iterator<Item=Source<'a>> + '_ {
-        self.cache
-            .values()
-            .map(|source| {
-                unsafe {
-                    // SAFETY: A source is owned by the importer.
-                    // 'a is used here to disambiguate the lifetime of the source and the mutable borrow.
-                    std::mem::transmute::<Source, Source<'a>>(source.as_source())
-                }
-            })
+    pub fn list_sources(&self) -> impl Iterator<Item = Source<'a>> + '_ {
+        self.cache.values().map(|source| {
+            unsafe {
+                // SAFETY: A source is owned by the importer.
+                // 'a is used here to disambiguate the lifetime of the source and the mutable borrow.
+                std::mem::transmute::<Source, Source<'a>>(source.as_source())
+            }
+        })
     }
 
     pub fn get_already_imported_name(&self, name: &Name) -> Option<Source<'a>> {

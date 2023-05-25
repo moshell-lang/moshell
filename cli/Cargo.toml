@@ -12,6 +12,7 @@ analyzer = { path = "../analyzer" }
 ast = { path = "../ast" }
 lexer = { path = "../lexer" }
 
+owo-colors = "3.0.0"
 rustyline = { version = "11.0.0", features = ["custom-bindings"] }
 miette = { version = "5.9.0", features = ["fancy"] }
 thiserror = "1.0.38"

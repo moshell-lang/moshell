@@ -104,16 +104,16 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         import_expr: &'e ImportExpr<'e>,
         import_fqn: Name,
     ) {
-        if let Some(shadowed) = self.relations.add_import(mod_id, import, import_expr.segment()) {
+        if let Some(shadowed) = self
+            .relations
+            .add_import(mod_id, import, import_expr.segment())
+        {
             let diagnostic = Diagnostic::new(
                 DiagnosticID::ShadowedImport,
                 mod_id,
                 format!("{import_fqn} is imported twice."),
             )
-            .with_observation(Observation::with_help(
-                shadowed,
-                "useless import here",
-            ))
+            .with_observation(Observation::with_help(shadowed, "useless import here"))
             .with_observation(Observation::with_help(
                 import_expr.segment(),
                 "This statement shadows previous import",

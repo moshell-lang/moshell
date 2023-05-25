@@ -1,5 +1,6 @@
 use crate::cli::{display_exprs, display_tokens, Configuration};
-use crate::report::{display_diagnostic, display_parse_error};
+use crate::formatted_diagnostic::render_diagnostic;
+use crate::formatted_parse_error::render_parse_error;
 use analyzer::engine::Engine;
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
@@ -10,6 +11,7 @@ use ast::group::Block;
 use ast::Expr;
 use context::source::{OwnedSource, Source};
 use lexer::lexer::lex;
+use miette::GraphicalReportHandler;
 use parser::parse;
 use rustyline::config::Configurer;
 use rustyline::error::ReadlineError;
@@ -18,7 +20,6 @@ use rustyline::{
     Cmd, ColorMode, DefaultEditor, Editor, Event, EventHandler, KeyCode, KeyEvent, Modifiers,
 };
 use std::collections::HashMap;
-use std::io::stderr;
 use std::process::exit;
 
 type REPLEditor = Editor<(), DefaultHistory>;
@@ -61,7 +62,7 @@ impl<'a> REPLImporter<'a> {
 
 /// Indefinitely prompts a new expression to the stdin,
 /// displaying back the errors if any and the formed AST
-pub fn repl(config: Configuration) {
+pub fn repl(config: Configuration, handler: GraphicalReportHandler) {
     let mut editor: REPLEditor =
         DefaultEditor::new().expect("unable to instantiate terminal editor");
     editor.set_color_mode(ColorMode::Enabled);
@@ -78,7 +79,14 @@ pub fn repl(config: Configuration) {
 
     loop {
         let source = parse_input(&mut editor);
-        handle_source(source, &config, &mut engine, &mut importer, &mut relations);
+        handle_source(
+            source,
+            &config,
+            &mut engine,
+            &mut importer,
+            &mut relations,
+            &handler,
+        );
     }
 }
 
@@ -143,6 +151,7 @@ fn handle_source<'a>(
     engine: &mut Engine<'a>,
     importer: &mut REPLImporter<'a>,
     relations: &mut Relations,
+    handler: &GraphicalReportHandler,
 ) -> bool {
     let source = importer.take_source(source);
     let name = Name::new(&source.name);
@@ -156,10 +165,11 @@ fn handle_source<'a>(
     let source = source;
     let errors: Vec<_> = report.errors;
 
-    let out = &mut stderr();
     if !errors.is_empty() {
         for error in errors {
-            display_parse_error(source, error, out).expect("IO error when reporting diagnostics");
+            let str = render_parse_error(error, handler, source)
+                .expect("IO error when reporting diagnostics");
+            eprintln!("{str}")
         }
         return true;
     }
@@ -178,11 +188,11 @@ fn handle_source<'a>(
     let mut diagnostics = SymbolCollector::collect_symbols(engine, relations, name, importer);
     diagnostics.extend(SymbolResolver::resolve_symbols(&engine, relations));
 
-    let mut stdout = stderr();
     let had_errors = !diagnostics.is_empty();
     for diagnostic in diagnostics {
-        display_diagnostic(source, diagnostic, &mut stdout)
-            .expect("IO errors when reporting diagnostic")
+        let str = render_diagnostic(source, diagnostic, handler)
+            .expect("IO errors when reporting diagnostic");
+        eprintln!("{str}")
     }
     had_errors
 }

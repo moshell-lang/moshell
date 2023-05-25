@@ -1,5 +1,5 @@
+use miette::GraphicalReportHandler;
 use std::io;
-use std::io::stderr;
 use std::ops::Deref;
 use std::path::PathBuf;
 
@@ -10,18 +10,24 @@ use analyzer::name::Name;
 use analyzer::relations::{Relations, SourceObjectId};
 use analyzer::steps::collect::SymbolCollector;
 use analyzer::steps::resolve::SymbolResolver;
-use ast::Expr;
 use ast::group::Block;
+use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
 use lexer::lexer::lex;
 use parser::err::ParseReport;
 use parser::parse;
 
-use crate::cli::{Configuration, display_exprs, display_tokens};
-use crate::report::{display_diagnostic, display_parse_error};
+use crate::cli::{display_exprs, display_tokens, Configuration};
+use crate::formatted_diagnostic::render_diagnostic;
+use crate::formatted_parse_error::render_parse_error;
 use crate::source_importer::FileSourceImporter;
 
-pub(crate) fn run(source: PathBuf, working_dir: PathBuf, config: Configuration) -> bool {
+pub(crate) fn run(
+    source: PathBuf,
+    working_dir: PathBuf,
+    config: Configuration,
+    handler: GraphicalReportHandler,
+) -> bool {
     let name = source.to_string_lossy();
     let mut name = name.deref().replace("/", "::");
     if let Some((name_no_extension, _)) = name.rsplit_once(".") {
@@ -33,16 +39,17 @@ pub(crate) fn run(source: PathBuf, working_dir: PathBuf, config: Configuration) 
     let mut relations = Relations::default();
     let mut importer = RunnerImporter::new(working_dir);
 
-    let mut diagnostics = SymbolCollector::collect_symbols(&mut engine, &mut relations, entry_point, &mut importer);
+    let mut diagnostics =
+        SymbolCollector::collect_symbols(&mut engine, &mut relations, entry_point, &mut importer);
     diagnostics.extend(SymbolResolver::resolve_symbols(&engine, &mut relations));
 
     if !importer.errors.is_empty() {
-        display_import_errors(importer.errors);
-        return true
+        display_import_errors(importer.errors, &handler);
+        return true;
     }
 
     let had_errors = diagnostics.is_empty();
-    display_diagnostics(diagnostics, &engine, &importer);
+    display_diagnostics(diagnostics, &engine, &importer, &handler);
     visualize_outputs(importer, config);
     had_errors
 }
@@ -86,8 +93,7 @@ fn get_source_of<'a>(
     }
 }
 
-
-fn display_import_errors(errors: Vec<RunnerImporterError>) {
+fn display_import_errors(errors: Vec<RunnerImporterError>, handler: &GraphicalReportHandler) {
     for parse_error in errors {
         match parse_error {
             RunnerImporterError::IO(name, e) => {
@@ -95,19 +101,26 @@ fn display_import_errors(errors: Vec<RunnerImporterError>) {
             }
             RunnerImporterError::Parse(source, report) => {
                 for err in report.errors {
-                    display_parse_error(source, err, &mut stderr()).expect("Could not display parse error");
+                    let str = render_parse_error(err, handler, source)
+                        .expect("Could not display parse error");
+                    eprintln!("{str}")
                 }
             }
         }
     }
 }
 
-fn display_diagnostics(diagnostics: Vec<Diagnostic>, engine: &Engine, importer: &RunnerImporter) {
-    let stderr = &mut stderr();
-
+fn display_diagnostics(
+    diagnostics: Vec<Diagnostic>,
+    engine: &Engine,
+    importer: &RunnerImporter,
+    handler: &GraphicalReportHandler,
+) {
     for diagnostic in diagnostics {
         let source = get_source_of(diagnostic.source, engine, importer);
-        display_diagnostic(source, diagnostic, stderr).expect("could not write in stderr");
+        let str =
+            render_diagnostic(source, diagnostic, handler).expect("could not write in stderr");
+        eprintln!("{str}")
     }
 }
 
@@ -144,8 +157,7 @@ impl<'a> RunnerImporter<'a> {
     fn import_expr(&mut self, source: Source<'a>) -> Option<Expr<'a>> {
         let report = parse(source);
         if report.is_err() {
-            self.errors
-                .push(RunnerImporterError::Parse(source, report));
+            self.errors.push(RunnerImporterError::Parse(source, report));
             return None;
         }
         let block = Expr::Block(Block {
