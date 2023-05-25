@@ -2,18 +2,18 @@ use std::collections::HashSet;
 
 use ast::call::Call;
 use ast::control_flow::ForKind;
-use ast::Expr;
 use ast::function::FunctionParameter;
 use ast::r#match::MatchPattern;
 use ast::r#use::Import as ImportExpr;
 use ast::range::Iterable;
 use ast::value::LiteralValue;
+use ast::Expr;
 use context::source::SourceSegmentHolder;
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
-use crate::environment::Environment;
 use crate::environment::variables::TypeInfo;
+use crate::environment::Environment;
 use crate::importer::ASTImporter;
 use crate::name::Name;
 use crate::relations::{Relations, SourceObjectId, UnresolvedImport};
@@ -105,16 +105,16 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         import_expr: &'e ImportExpr<'e>,
         import_fqn: Name,
     ) {
-        if let Some(shadowed) = self.relations.add_import(mod_id, import, import_expr.segment()) {
+        if let Some(shadowed) = self
+            .relations
+            .add_import(mod_id, import, import_expr.segment())
+        {
             let diagnostic = Diagnostic::new(
                 DiagnosticID::ShadowedImport,
                 mod_id,
                 format!("{import_fqn} is imported twice."),
             )
-            .with_observation(Observation::with_help(
-                shadowed,
-                "useless import here",
-            ))
+            .with_observation(Observation::with_help(shadowed, "useless import here"))
             .with_observation(Observation::with_help(
                 import_expr.segment(),
                 "This statement shadows previous import",
@@ -596,8 +596,14 @@ mod tests {
         assert_eq!(env.get_raw_symbol(find_in(src, "a")), None);
         assert_eq!(env.get_raw_symbol(find_in(src, "$a")), None);
         let func_env = engine.get_environment(SourceObjectId(1)).unwrap();
-        assert_eq!(func_env.get_raw_symbol(find_in(src, "a")), Some(Symbol::Local(0)));
-        assert_eq!(func_env.get_raw_symbol(find_in(src, "$a")), Some(Symbol::Local(0)));
+        assert_eq!(
+            func_env.get_raw_symbol(find_in(src, "a")),
+            Some(Symbol::Local(0))
+        );
+        assert_eq!(
+            func_env.get_raw_symbol(find_in(src, "$a")),
+            Some(Symbol::Local(0))
+        );
     }
 
     #[test]
@@ -615,7 +621,10 @@ mod tests {
         assert_eq!(collector.diagnostics, vec![]);
         assert_eq!(relations.objects, vec![]);
         assert_eq!(env.get_raw_symbol(find_in(src, "read")), None);
-        assert_eq!(env.get_raw_symbol(find_in(src, "foo")), Some(Symbol::Local(0)));
+        assert_eq!(
+            env.get_raw_symbol(find_in(src, "foo")),
+            Some(Symbol::Local(0))
+        );
     }
 
     #[test]

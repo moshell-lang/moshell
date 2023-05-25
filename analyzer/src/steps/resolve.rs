@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 
-use context::source::{SourceSegment};
+use context::source::SourceSegment;
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
@@ -342,15 +342,17 @@ mod tests {
                         UnresolvedImport::Symbol {
                             alias: None,
                             fqn: Name::new("math::PI"),
-                        }, 17..25
-                    ), (
+                        },
+                        17..25
+                    ),
+                    (
                         UnresolvedImport::Symbol {
                             alias: None,
                             fqn: Name::new("std::Bar"),
-                        }, 48..51
-                    ), (
-                        UnresolvedImport::AllIn(Name::new("std::io")), 53..58
+                        },
+                        48..51
                     ),
+                    (UnresolvedImport::AllIn(Name::new("std::io")), 53..58),
                 ]))
             )])
         );
