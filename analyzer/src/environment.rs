@@ -74,6 +74,16 @@ impl Environment {
         self.variables.end_scope();
     }
 
+    /// Tests if the position of the declaration of a symbol is important.
+    ///
+    /// If the declaration order is important, then the symbol resolution must be done in the
+    /// where it is located. It does mean that all the symbols referenced in the declaration
+    /// and in this environment must be declared before. If not, the symbol resolution happens
+    /// after the whole environment is parsed, and the symbol can be resolved in any order.
+    pub fn has_strict_declaration_order(&self) -> bool {
+        self.parent.is_some()
+    }
+
     /// Adds an annotation to any segment.
     ///
     /// This method exposes a low level API to add annotations to segments, preferably use the

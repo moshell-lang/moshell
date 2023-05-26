@@ -17,6 +17,7 @@ use crate::environment::Environment;
 use crate::importer::ASTImporter;
 use crate::name::Name;
 use crate::relations::{Relations, SourceObjectId, UnresolvedImport};
+use crate::steps::resolve::SymbolResolver;
 
 /// Defines the current state of the tree exploration.
 #[derive(Debug, Clone, Copy)]
@@ -92,10 +93,10 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         // Immediately transfer the ownership of the AST to the engine.
         let root_block = self.engine.take(ast);
 
-        let mut env = Environment::named(module_name);
-        let mut state = ResolutionState::new(self.engine.track(root_block));
-        self.tree_walk(&mut env, &mut state, visitable, root_block);
-        self.engine.attach(state.module, env)
+        let env = Environment::named(module_name);
+        let mut state = ResolutionState::new(self.engine.track(root_block, env));
+        let env = self.engine.get_mut(state.module).unwrap();
+        self.tree_walk(env, &mut state, visitable, root_block);
     }
 
     fn add_checked_import(
@@ -392,8 +393,9 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     .variables
                     .declare_local(func.name.to_owned(), TypeInfo::Function);
                 env.annotate(func, symbol);
-                let func_id = self.engine.track(expr);
-                let mut func_env = env.fork(state.module, func.name);
+                let func_env = env.fork(state.module, func.name);
+                let func_id = self.engine.track(expr, func_env);
+                let mut func_env = self.engine.get_mut(func_id).unwrap();
                 for param in &func.parameters {
                     let symbol = func_env.variables.declare_local(
                         match param {
@@ -413,11 +415,13 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     visitable,
                     &func.body,
                 );
-                self.engine.attach(func_id, func_env);
+                SymbolResolver::resolve_captures(self.engine, self.relations, func_env);
             }
             Expr::LambdaDef(lambda) => {
-                let func_id = self.engine.track(expr);
-                let mut func_env = env.fork(state.module, &format!("lambda@{}", func_id.0));
+                let func_env =
+                    env.fork(state.module, &format!("lambda@{}", self.engine.peek_id().0));
+                let func_id = self.engine.track(expr, func_env);
+                let mut func_env = self.engine.get_mut(func_id).unwrap();
                 for param in &lambda.args {
                     let symbol = func_env
                         .variables
@@ -430,7 +434,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     visitable,
                     &lambda.body,
                 );
-                self.engine.attach(func_id, func_env);
+                SymbolResolver::resolve_captures(self.engine, self.relations, func_env);
             }
             Expr::Literal(_) | Expr::Continue(_) | Expr::Break(_) => {}
         }
@@ -522,11 +526,12 @@ mod tests {
         let expr = parse_trusted(Source::unknown("var bar = 4; $bar"));
         let mut engine = Engine::default();
         let mut relations = Relations::default();
-        let mut env = Environment::named(Name::new("test"));
-        let mut state = ResolutionState::new(engine.track(&expr));
+        let env = Environment::named(Name::new("test"));
+        let mut state = ResolutionState::new(engine.track(&expr, env));
+        let env = engine.get_mut(state.module).unwrap();
         let mut collector = SymbolCollector::new(&mut engine, &mut relations);
 
-        collector.tree_walk(&mut env, &mut state, &mut Vec::new(), &expr);
+        collector.tree_walk(env, &mut state, &mut Vec::new(), &expr);
         assert_eq!(collector.diagnostics, vec![]);
         assert_eq!(relations.objects, vec![]);
     }
@@ -585,10 +590,11 @@ mod tests {
         let expr = parse_trusted(source);
         let mut engine = Engine::default();
         let mut relations = Relations::default();
-        let mut env = Environment::named(Name::new("test"));
-        let mut state = ResolutionState::new(engine.track(&expr));
+        let env = Environment::named(Name::new("test"));
+        let mut state = ResolutionState::new(engine.track(&expr, env));
+        let env = engine.get_mut(state.module).unwrap();
         let mut collector = SymbolCollector::new(&mut engine, &mut relations);
-        collector.tree_walk(&mut env, &mut state, &mut Vec::new(), &expr);
+        collector.tree_walk(env, &mut state, &mut Vec::new(), &expr);
 
         assert_eq!(collector.diagnostics, vec![]);
         assert_eq!(relations.objects, vec![]);
@@ -613,10 +619,11 @@ mod tests {
         let expr = parse_trusted(source);
         let mut engine = Engine::default();
         let mut relations = Relations::default();
-        let mut env = Environment::named(Name::new("test"));
-        let mut state = ResolutionState::new(engine.track(&expr));
+        let env = Environment::named(Name::new("test"));
+        let mut state = ResolutionState::new(engine.track(&expr, env));
+        let env = engine.get_mut(state.module).unwrap();
         let mut collector = SymbolCollector::new(&mut engine, &mut relations);
-        collector.tree_walk(&mut env, &mut state, &mut Vec::new(), &expr);
+        collector.tree_walk(env, &mut state, &mut Vec::new(), &expr);
 
         assert_eq!(collector.diagnostics, vec![]);
         assert_eq!(relations.objects, vec![]);
@@ -635,13 +642,13 @@ mod tests {
 
         let mut engine = Engine::default();
         let mut relations = Relations::default();
-        let mut env = Environment::named(Name::new("test"));
-        let mut state = ResolutionState::new(engine.track(&expr));
+        let env = Environment::named(Name::new("test"));
+        let mut state = ResolutionState::new(engine.track(&expr, env));
+        let env = engine.get_mut(state.module).unwrap();
         let mut collector = SymbolCollector::new(&mut engine, &mut relations);
-        collector.tree_walk(&mut env, &mut state, &mut Vec::new(), &expr);
+        collector.tree_walk(env, &mut state, &mut Vec::new(), &expr);
 
         assert_eq!(collector.diagnostics, vec![]);
-        engine.attach(state.module, env);
         assert_eq!(
             relations
                 .find_references(&engine, GlobalObjectId(0))

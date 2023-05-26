@@ -16,7 +16,7 @@ pub struct Engine<'a> {
     ///
     /// Those are origins of symbols that are available locally in the environment,
     /// which may also be the source of unresolved symbols, tracked in the Relations.
-    origins: Vec<(&'a Expr<'a>, Option<Environment>)>,
+    origins: Vec<(&'a Expr<'a>, Box<Environment>)>,
 }
 
 impl<'a> Engine<'a> {
@@ -35,26 +35,16 @@ impl<'a> Engine<'a> {
         self.origins
             .iter()
             .enumerate()
-            .filter_map(|(id, (_, env))| env.as_ref().map(|env| (SourceObjectId(id), env)))
+            .map(|(id, (_, env))| (SourceObjectId(id), env.as_ref()))
     }
 
     /// Adds a new origin to the engine and returns its given id.
     ///
-    /// A call to this method must be followed by a call to [`Engine::attach`] with the same id
-    /// after the environment has been built.
-    pub fn track(&mut self, ast: &'a Expr<'a>) -> SourceObjectId {
+    /// The same environment can be retrieved by its id, using [`Engine::get_environment`].
+    pub fn track(&mut self, ast: &'a Expr<'a>, env: Environment) -> SourceObjectId {
         let id = self.origins.len();
-        self.origins.push((ast, None));
+        self.origins.push((ast, Box::new(env)));
         SourceObjectId(id)
-    }
-
-    /// Attaches an environment to an origin if the origin does not already have an attached environment.
-    pub fn attach(&mut self, id: SourceObjectId, env: Environment) {
-        debug_assert!(
-            self.origins[id.0].1.is_none(),
-            "Could not attach environment to a source that is already attached"
-        );
-        self.origins[id.0].1.replace(env);
     }
 
     ///Finds an environment by its fully qualified name.
@@ -62,12 +52,29 @@ impl<'a> Engine<'a> {
         self.origins
             .iter()
             .enumerate()
-            .find(|(_, (_, env))| env.as_ref().map(|env| &env.fqn == name).unwrap_or(false))
-            .and_then(|(idx, (_, env))| env.as_ref().map(|env| (SourceObjectId(idx), env)))
+            .find(|(_, (_, env))| &env.fqn == name)
+            .map(|(idx, (_, env))| (SourceObjectId(idx), env.as_ref()))
     }
 
     /// Gets an environment by its identifier.
     pub fn get_environment(&self, id: SourceObjectId) -> Option<&Environment> {
-        self.origins.get(id.0).and_then(|(_, env)| env.as_ref())
+        self.origins.get(id.0).map(|(_, env)| env.as_ref())
+    }
+
+    /// Gets a mutable environment by its object id.
+    ///
+    /// If the environment is present, if it was just inserted for instance, it can be
+    /// safely unwrapped.
+    pub fn get_mut(&mut self, id: SourceObjectId) -> Option<&'a mut Environment> {
+        self.origins.get_mut(id.0).map(|(_, env)| unsafe {
+            // SAFETY: Assume that expressions are never removed from the engine and
+            // that the reference behind Box does not change.
+            std::mem::transmute::<&mut Environment, &'a mut Environment>(env)
+        })
+    }
+
+    /// Gets the next available id for a new origin.
+    pub fn peek_id(&self) -> SourceObjectId {
+        SourceObjectId(self.origins.len())
     }
 }

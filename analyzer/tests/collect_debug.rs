@@ -93,15 +93,49 @@ fn collect_sample() {
         Object {
             origin: SourceObjectId(2),
             resolved: Some(ResolvedSymbol {
-                module: SourceObjectId(4),
+                module: SourceObjectId(6),
+                object_id: 0,
+            })
+        }
+    );
+
+    let callback_env = engine
+        .get_environment(SourceObjectId(4))
+        .expect("Unable to get callback environment");
+    assert_eq!(callback_env.fqn, root_name.child("main").child("callback"));
+    let globals = callback_env.variables.external_vars().collect::<Vec<_>>();
+    assert_eq!(
+        globals,
+        vec![
+            (&"count".to_owned(), GlobalObjectId(1)),
+            (&"factorial".to_owned(), GlobalObjectId(2)),
+            (&"n".to_owned(), GlobalObjectId(3))
+        ]
+    );
+    assert_eq!(
+        relations.objects[1],
+        Object {
+            origin: SourceObjectId(4),
+            resolved: Some(ResolvedSymbol {
+                module: SourceObjectId(3),
+                object_id: 0,
+            })
+        }
+    );
+    assert_eq!(
+        relations.objects[2],
+        Object {
+            origin: SourceObjectId(4),
+            resolved: Some(ResolvedSymbol {
+                module: SourceObjectId(0),
                 object_id: 0,
             })
         }
     );
 
     let lambda_env = engine
-        .get_environment(SourceObjectId(3))
+        .get_environment(SourceObjectId(5))
         .expect("Unable to get lambda environment");
     let variables = lambda_env.variables.external_vars().collect::<Vec<_>>();
-    assert_eq!(variables, vec![(&"n".to_owned(), GlobalObjectId(1))]);
+    assert_eq!(variables, vec![(&"n".to_owned(), GlobalObjectId(4))]);
 }
