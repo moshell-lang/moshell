@@ -54,19 +54,21 @@ fn collect_sample() {
         .get_environment(SourceObjectId(1))
         .expect("Unable to get factorial environment");
     assert_eq!(factorial_env.fqn, root_name.child("factorial"));
-    let variables = factorial_env.variables.exported_vars().collect::<Vec<_>>();
+    let variables = factorial_env.variables.all_vars();
     assert_eq!(
         variables,
-        vec![
-            &Variable::scoped("n".to_owned(), 1),
-            &Variable::scoped("a".to_owned(), 2),
-            &Variable::scoped("i".to_owned(), 0)
+        &vec![
+            Variable::scoped("n".to_owned(), 0),
+            Variable::scoped("a".to_owned(), 1),
+            Variable::scoped("i".to_owned(), -2)
         ]
     );
+    let exported = factorial_env.variables.exported_vars().collect::<Vec<_>>();
+    assert_eq!(exported, Vec::<&Variable>::new());
 
     let n_parameter = factorial_env
         .variables
-        .get("n")
+        .get_reachable("n")
         .expect("Unable to get n symbol");
     assert_eq!(
         factorial_env.get_raw_symbol(find_in(content, "$n")),
@@ -129,6 +131,16 @@ fn collect_sample() {
             resolved: Some(ResolvedSymbol {
                 module: SourceObjectId(0),
                 object_id: 0,
+            })
+        }
+    );
+    assert_eq!(
+        relations.objects[3],
+        Object {
+            origin: SourceObjectId(4),
+            resolved: Some(ResolvedSymbol {
+                module: SourceObjectId(0),
+                object_id: 3,
             })
         }
     );

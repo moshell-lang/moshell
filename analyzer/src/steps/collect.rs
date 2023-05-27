@@ -395,7 +395,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 env.annotate(func, symbol);
                 let func_env = env.fork(state.module, func.name);
                 let func_id = self.engine.track(expr, func_env);
-                let mut func_env = self.engine.get_mut(func_id).unwrap();
+                let func_env = self.engine.get_mut(func_id).unwrap();
                 for param in &func.parameters {
                     let symbol = func_env.variables.declare_local(
                         match param {
@@ -410,7 +410,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     }
                 }
                 self.tree_walk(
-                    &mut func_env,
+                    func_env,
                     &mut ResolutionState::new(func_id),
                     visitable,
                     &func.body,
@@ -421,7 +421,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 let func_env =
                     env.fork(state.module, &format!("lambda@{}", self.engine.peek_id().0));
                 let func_id = self.engine.track(expr, func_env);
-                let mut func_env = self.engine.get_mut(func_id).unwrap();
+                let func_env = self.engine.get_mut(func_id).unwrap();
                 for param in &lambda.args {
                     let symbol = func_env
                         .variables
@@ -429,7 +429,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     func_env.annotate(param, symbol);
                 }
                 self.tree_walk(
-                    &mut func_env,
+                    func_env,
                     &mut ResolutionState::new(func_id),
                     visitable,
                     &lambda.body,

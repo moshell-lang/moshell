@@ -76,15 +76,15 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
     pub fn resolve_captures(
         engine: &'a Engine<'e>,
         relations: &'a mut Relations,
-        capture_env: &mut Environment,
+        capture_env: &Environment,
     ) {
         'capture: for (name, object_id) in capture_env.variables.external_vars() {
-            let mut current = &*capture_env;
+            let mut current = capture_env;
             while let Some((module, env)) = current
                 .parent
                 .and_then(|id| engine.get_environment(id).map(|env| (id, env)))
             {
-                if let Some(Symbol::Local(local)) = env.variables.get(name) {
+                if let Some(Symbol::Local(local)) = env.variables.get_reachable(name) {
                     relations.objects[object_id.0].resolved = Some(ResolvedSymbol {
                         module,
                         object_id: local,
@@ -299,8 +299,8 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                 // The current environment might already owns the resolution result as a global symbol.
                 // This happens only if it used it, so we ignore that fact here to always solve external
                 // symbols via imports.
-                if env.has_strict_declaration_order() {
-                    if let Some(Symbol::Local(local)) = env.variables.get(name) {
+                if !env.has_strict_declaration_order() {
+                    if let Some(Symbol::Local(local)) = env.variables.get_exported(name) {
                         object.resolved = Some(ResolvedSymbol {
                             module,
                             object_id: local,
@@ -312,7 +312,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                 // If the symbol is imported, resolve it directly.
                 if let Some(resolved_imports) = resolved_imports.get(&module) {
                     if let Some(resolved) = resolved_imports.imported_symbols.get(name) {
-                        object.resolved = Some(resolved.clone());
+                        object.resolved = Some(*resolved);
                         continue 'symbol;
                     }
                 }

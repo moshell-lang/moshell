@@ -1,6 +1,6 @@
 use crate::relations::{GlobalObjectId, ObjectId, Relations, SourceObjectId, Symbol};
 use indexmap::IndexMap;
-use std::num::NonZeroUsize;
+use std::ops::Neg;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TypeInfo {
@@ -25,7 +25,7 @@ impl Variables {
     /// Identifies a named variable to a binding.
     ///
     /// This creates a new global variable if the variable is not already known or is not reachable,
-    /// or returns the existing variable identifier. To only lookup a variable, use [`Variables::get`].
+    /// or returns the existing variable identifier. To only lookup a variable, use [`Variables::get_reachable`].
     pub fn identify(
         &mut self,
         state: SourceObjectId,
@@ -48,25 +48,43 @@ impl Variables {
         }
     }
 
-    /// Gets the symbol associated with an already known name.
-    pub fn get(&self, name: &str) -> Option<Symbol> {
+    /// Gets the local symbol associated with an already known name.
+    ///
+    /// The lookup uses the current scope, which is frequently updated during the collection phase.
+    /// That's the main reason why this method should be used in pair the variable capture
+    /// resolution, immediately after the closure is observed and inertly populated.
+    pub fn get_reachable(&self, name: &str) -> Option<Symbol> {
+        self.locals
+            .position_reachable_local(name)
+            .map(|idx| Symbol::Local(self.locals.vars.len() - 1 - idx))
+    }
+
+    /// Gets the local exported symbol associated with an already known name.
+    ///
+    /// Exported symbols are always declared in the outermost scope, and should be checked only
+    /// after the whole environment is collected.
+    pub fn get_exported(&self, name: &str) -> Option<Symbol> {
         self.locals
             .vars
             .iter()
-            .position(|var| var.name == name /*&& var.depth.is_some()*/)
-            .map(Symbol::Local)
-            .or_else(|| {
-                self.globals
-                    .get(name)
-                    .copied()
-                    .map(|id| Symbol::Global(id.0))
-            })
+            .rev()
+            .position(|var| var.name == name && var.depth == -1)
+            .map(|idx| Symbol::Local(self.locals.vars.len() - 1 - idx))
+    }
+
+    /// Lists all local variables, in the order they are declared.
+    ///
+    /// This exposes their current state, which is only interesting for debugging.
+    /// Use [`Variables::get_reachable`] to lookup any variable during the collection phase,
+    /// or [`Variables::get_exported`] to lookup an exported variable after the collection phase.
+    pub fn all_vars(&self) -> &[Variable] {
+        &self.locals.vars
     }
 
     /// Iterates over all the exported variables, local to the environment.
     pub fn exported_vars(&self) -> impl Iterator<Item = &Variable> {
-        //consider for now that all local vars are exported.
-        self.locals.vars.iter()
+        //consider for now that all local vars of the outermost scope are exported
+        self.locals.vars.iter().filter(|var| var.depth == -1)
     }
 
     /// Iterates over all the global variable ids, with their corresponding name.
@@ -96,16 +114,15 @@ impl Variables {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 struct Locals {
     /// The actual list of seen and unique variables.
     vars: Vec<Variable>,
 
     /// The current depth of the scope.
     ///
-    /// Scopes indices are 1-based, so the first scope is 1.
-    /// This allows to reserve the 0 index for non reachable variables.
-    current_depth: NonZeroUsize,
+    /// The first scope is 0.
+    current_depth: usize,
 }
 
 impl Locals {
@@ -114,7 +131,7 @@ impl Locals {
         let id = self.vars.len();
         self.vars.push(Variable {
             name,
-            depth: Some(self.current_depth),
+            depth: self.current_depth as isize,
             ty,
         });
         Symbol::Local(id)
@@ -130,7 +147,9 @@ impl Locals {
     /// # Panics
     /// This method panics if the maximum number of scopes has been reached.
     fn begin_scope(&mut self) {
-        self.current_depth = self.current_depth.checked_add(1).expect("Too many scopes");
+        self.current_depth = (self.current_depth as isize)
+            .checked_add(1)
+            .expect("Too many scopes") as usize;
     }
 
     /// Moves out of the current scope.
@@ -143,13 +162,15 @@ impl Locals {
         self.vars
             .iter_mut()
             .rev()
-            .take_while(|var| var.depth == Some(self.current_depth))
+            .take_while(|var| var.depth == self.current_depth as isize)
             .for_each(|var| {
-                var.depth.take();
+                var.depth = var.depth.neg();
             });
 
-        self.current_depth =
-            NonZeroUsize::new(self.current_depth.get() - 1).expect("Cannot end the root scope");
+        self.current_depth = self
+            .current_depth
+            .checked_sub(1)
+            .expect("Cannot end the root scope");
     }
 
     /// Looks up a variable by name that is reachable from the current scope.
@@ -157,7 +178,7 @@ impl Locals {
         self.vars
             .iter()
             .rev()
-            .find(|var| var.name == name && var.depth.is_some())
+            .find(|var| var.name == name && var.depth >= 0)
     }
 
     /// Gets the offset of a variable from the current scope.
@@ -169,16 +190,7 @@ impl Locals {
         self.vars
             .iter()
             .rev()
-            .position(|var| var.name == name && var.depth.is_some())
-    }
-}
-
-impl Default for Locals {
-    fn default() -> Self {
-        Self {
-            vars: Vec::new(),
-            current_depth: NonZeroUsize::new(1).unwrap(),
-        }
+            .position(|var| var.name == name && var.depth >= 0)
     }
 }
 
@@ -192,23 +204,21 @@ pub struct Variable {
     /// The depth of the variable.
     ///
     /// This is used to keep track if the variable is still reachable during the first
-    /// pass of the analyzer. The value is guaranteed to be relevant only if the scope
-    /// has not ended yet. If not, the value is undefined.
-    ///
-    /// Using an [`Option<NonZeroUsize>`] allows to bake the scope depth and the
-    /// variable reachability in the same 8 bytes on a 64-bit architecture.
-    depth: Option<NonZeroUsize>,
+    /// pass of the analyzer. The value is positive if the variable scope has not ended
+    /// yet. If it is out of scope, the value is negative, with the absolute value being
+    /// the depth of the scope where the variable was declared.
+    depth: isize,
 }
 
 impl Variable {
     /// Creates a new variable.
     ///
-    /// This convenience method accepts zero as a depth, which is the internal
-    /// representation of a non reachable variable.
-    pub fn scoped(name: String, depth: usize) -> Self {
+    /// This convenience method accepts negative values as depths, which are the internal
+    /// representations of unreachable variables.
+    pub fn scoped(name: String, depth: isize) -> Self {
         Self {
             name,
-            depth: NonZeroUsize::try_from(depth).ok(),
+            depth,
             ty: TypeInfo::Variable,
         }
     }
@@ -226,12 +236,12 @@ mod tests {
         locals.declare_variable("bar".to_owned());
         assert_eq!(
             locals.lookup_reachable_local("foo"),
-            Some(&Variable::scoped("foo".to_owned(), 1))
+            Some(&Variable::scoped("foo".to_owned(), 0))
         );
 
         assert_eq!(
             locals.lookup_reachable_local("bar"),
-            Some(&Variable::scoped("bar".to_owned(), 2))
+            Some(&Variable::scoped("bar".to_owned(), 1))
         );
     }
 
@@ -255,17 +265,17 @@ mod tests {
         locals.declare_variable("foo".to_owned());
         assert_eq!(
             locals.lookup_reachable_local("foo"),
-            Some(&Variable::scoped("foo".to_owned(), 3))
+            Some(&Variable::scoped("foo".to_owned(), 2))
         );
         locals.end_scope();
         assert_eq!(
             locals.lookup_reachable_local("foo"),
-            Some(&Variable::scoped("foo".to_owned(), 1))
+            Some(&Variable::scoped("foo".to_owned(), 0))
         );
         locals.end_scope();
         assert_eq!(
             locals.lookup_reachable_local("foo"),
-            Some(&Variable::scoped("foo".to_owned(), 1))
+            Some(&Variable::scoped("foo".to_owned(), 0))
         );
     }
 }
