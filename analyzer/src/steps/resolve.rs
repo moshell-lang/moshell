@@ -74,24 +74,19 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
     /// Imports are on the other hand always resolved after the collection phase is complete, during
     /// a call to [`SymbolResolver::resolve_trees`], when using [`SymbolResolver::resolve_symbols`].
     pub fn resolve_captures(
-        engine: &'a Engine<'e>,
+        env_stack: &[(SourceObjectId, &Environment)],
         relations: &'a mut Relations,
         capture_env: &Environment,
     ) {
         'capture: for (name, object_id) in capture_env.variables.external_vars() {
-            let mut current = capture_env;
-            while let Some((module, env)) = current
-                .parent
-                .and_then(|id| engine.get_environment(id).map(|env| (id, env)))
-            {
+            for (module, env) in env_stack.iter().rev() {
                 if let Some(Symbol::Local(local)) = env.variables.get_reachable(name) {
                     relations.objects[object_id.0].resolved = Some(ResolvedSymbol {
-                        module,
+                        module: *module,
                         object_id: local,
                     });
                     continue 'capture;
                 }
-                current = env;
             }
         }
     }

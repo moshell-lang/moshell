@@ -42,6 +42,9 @@ pub struct SymbolCollector<'a, 'e> {
     engine: &'a mut Engine<'e>,
     relations: &'a mut Relations,
     diagnostics: Vec<Diagnostic>,
+
+    /// During the exploration, a parent environment always leaves a reference for its children.
+    stack: Vec<(SourceObjectId, &'e Environment)>,
 }
 
 impl<'a, 'e> SymbolCollector<'a, 'e> {
@@ -65,6 +68,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             engine,
             relations,
             diagnostics: Vec::new(),
+            stack: Vec::new(),
         }
     }
 
@@ -93,10 +97,10 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         // Immediately transfer the ownership of the AST to the engine.
         let root_block = self.engine.take(ast);
 
-        let env = Environment::named(module_name);
-        let mut state = ResolutionState::new(self.engine.track(root_block, env));
-        let env = self.engine.get_mut(state.module).unwrap();
-        self.tree_walk(env, &mut state, visitable, root_block);
+        let mut env = Environment::named(module_name);
+        let mut state = ResolutionState::new(self.engine.track(root_block));
+        self.tree_walk(&mut env, &mut state, visitable, root_block);
+        self.engine.attach(state.module, env);
     }
 
     fn add_checked_import(
@@ -393,9 +397,8 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     .variables
                     .declare_local(func.name.to_owned(), TypeInfo::Function);
                 env.annotate(func, symbol);
-                let func_env = env.fork(state.module, func.name);
-                let func_id = self.engine.track(expr, func_env);
-                let func_env = self.engine.get_mut(func_id).unwrap();
+                let func_id = self.engine.track(expr);
+                let mut func_env = env.fork(state.module, func.name);
                 for param in &func.parameters {
                     let symbol = func_env.variables.declare_local(
                         match param {
@@ -410,18 +413,17 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     }
                 }
                 self.tree_walk(
-                    func_env,
+                    &mut func_env,
                     &mut ResolutionState::new(func_id),
                     visitable,
                     &func.body,
                 );
-                SymbolResolver::resolve_captures(self.engine, self.relations, func_env);
+                self.resolve_captures(env, state, &func_env);
+                self.engine.attach(func_id, func_env);
             }
             Expr::LambdaDef(lambda) => {
-                let func_env =
-                    env.fork(state.module, &format!("lambda@{}", self.engine.peek_id().0));
-                let func_id = self.engine.track(expr, func_env);
-                let func_env = self.engine.get_mut(func_id).unwrap();
+                let func_id = self.engine.track(expr);
+                let mut func_env = env.fork(state.module, &format!("lambda@{}", func_id.0));
                 for param in &lambda.args {
                     let symbol = func_env
                         .variables
@@ -429,16 +431,31 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     func_env.annotate(param, symbol);
                 }
                 self.tree_walk(
-                    func_env,
+                    &mut func_env,
                     &mut ResolutionState::new(func_id),
                     visitable,
                     &lambda.body,
                 );
-                SymbolResolver::resolve_captures(self.engine, self.relations, func_env);
+                self.resolve_captures(env, state, &func_env);
+                self.engine.attach(func_id, func_env);
             }
             Expr::Literal(_) | Expr::Continue(_) | Expr::Break(_) => {}
         }
         state.accept_imports = false;
+    }
+
+    fn resolve_captures(
+        &mut self,
+        parent_env: &Environment,
+        parent_state: &ResolutionState,
+        capture_env: &Environment,
+    ) {
+        self.stack.push((parent_state.module, unsafe {
+            // SAFETY: the reference will immediately be popped off the stack.
+            std::mem::transmute::<&Environment, &'e Environment>(parent_env)
+        }));
+        SymbolResolver::resolve_captures(&self.stack, self.relations, capture_env);
+        self.stack.pop();
     }
 
     fn extract_literal_argument(&self, call: &'a Call, nth: usize) -> Option<&'a str> {
@@ -526,12 +543,11 @@ mod tests {
         let expr = parse_trusted(Source::unknown("var bar = 4; $bar"));
         let mut engine = Engine::default();
         let mut relations = Relations::default();
-        let env = Environment::named(Name::new("test"));
-        let mut state = ResolutionState::new(engine.track(&expr, env));
-        let env = engine.get_mut(state.module).unwrap();
+        let mut env = Environment::named(Name::new("test"));
+        let mut state = ResolutionState::new(engine.track(&expr));
         let mut collector = SymbolCollector::new(&mut engine, &mut relations);
 
-        collector.tree_walk(env, &mut state, &mut Vec::new(), &expr);
+        collector.tree_walk(&mut env, &mut state, &mut Vec::new(), &expr);
         assert_eq!(collector.diagnostics, vec![]);
         assert_eq!(relations.objects, vec![]);
     }
@@ -590,11 +606,10 @@ mod tests {
         let expr = parse_trusted(source);
         let mut engine = Engine::default();
         let mut relations = Relations::default();
-        let env = Environment::named(Name::new("test"));
-        let mut state = ResolutionState::new(engine.track(&expr, env));
-        let env = engine.get_mut(state.module).unwrap();
+        let mut env = Environment::named(Name::new("test"));
+        let mut state = ResolutionState::new(engine.track(&expr));
         let mut collector = SymbolCollector::new(&mut engine, &mut relations);
-        collector.tree_walk(env, &mut state, &mut Vec::new(), &expr);
+        collector.tree_walk(&mut env, &mut state, &mut Vec::new(), &expr);
 
         assert_eq!(collector.diagnostics, vec![]);
         assert_eq!(relations.objects, vec![]);
@@ -619,11 +634,10 @@ mod tests {
         let expr = parse_trusted(source);
         let mut engine = Engine::default();
         let mut relations = Relations::default();
-        let env = Environment::named(Name::new("test"));
-        let mut state = ResolutionState::new(engine.track(&expr, env));
-        let env = engine.get_mut(state.module).unwrap();
+        let mut env = Environment::named(Name::new("test"));
+        let mut state = ResolutionState::new(engine.track(&expr));
         let mut collector = SymbolCollector::new(&mut engine, &mut relations);
-        collector.tree_walk(env, &mut state, &mut Vec::new(), &expr);
+        collector.tree_walk(&mut env, &mut state, &mut Vec::new(), &expr);
 
         assert_eq!(collector.diagnostics, vec![]);
         assert_eq!(relations.objects, vec![]);
@@ -642,13 +656,13 @@ mod tests {
 
         let mut engine = Engine::default();
         let mut relations = Relations::default();
-        let env = Environment::named(Name::new("test"));
-        let mut state = ResolutionState::new(engine.track(&expr, env));
-        let env = engine.get_mut(state.module).unwrap();
+        let mut env = Environment::named(Name::new("test"));
+        let mut state = ResolutionState::new(engine.track(&expr));
         let mut collector = SymbolCollector::new(&mut engine, &mut relations);
-        collector.tree_walk(env, &mut state, &mut Vec::new(), &expr);
+        collector.tree_walk(&mut env, &mut state, &mut Vec::new(), &expr);
 
         assert_eq!(collector.diagnostics, vec![]);
+        engine.attach(state.module, env);
         assert_eq!(
             relations
                 .find_references(&engine, GlobalObjectId(0))
