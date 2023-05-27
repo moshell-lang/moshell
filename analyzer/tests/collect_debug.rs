@@ -51,7 +51,7 @@ fn collect_sample() {
 
     let n_parameter = factorial_env
         .variables
-        .get("n")
+        .get_symbol("n")
         .expect("Unable to get n symbol");
     assert_eq!(
         factorial_env.get_raw_symbol(find_in(content, "$n")),

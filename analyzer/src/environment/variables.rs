@@ -25,7 +25,7 @@ impl Variables {
     /// Identifies a named variable to a binding.
     ///
     /// This creates a new global variable if the variable is not already known or is not reachable,
-    /// or returns the existing variable identifier. To only lookup a variable, use [`Variables::get`].
+    /// or returns the existing variable identifier. To only lookup a variable, use [`Variables::get_symbol`].
     pub fn identify(
         &mut self,
         state: SourceObjectId,
@@ -48,8 +48,14 @@ impl Variables {
         }
     }
 
+    pub fn get_var(&self, id: ObjectId) -> Option<&Variable> {
+        self
+            .locals
+            .vars.get(id)
+    }
+    
     /// Gets the symbol associated with an already known name.
-    pub fn get(&self, name: &str) -> Option<Symbol> {
+    pub fn get_symbol(&self, name: &str) -> Option<Symbol> {
         self.locals
             .vars
             .iter()
@@ -77,7 +83,7 @@ impl Variables {
     /// Gets the name of a global variable.
     ///
     /// This returns the name only if the global object comes from this environment.
-    pub fn get_symbol_name(&self, object_id: GlobalObjectId) -> Option<&str> {
+    pub fn get_global_symbol_name(&self, object_id: GlobalObjectId) -> Option<&str> {
         self.globals.iter().find_map(|(name, &id)| {
             if id == object_id {
                 Some(name.as_ref())

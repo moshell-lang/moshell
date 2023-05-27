@@ -1,7 +1,7 @@
 use crate::name::Name;
 use crate::relations::{SourceObjectId, Symbol};
 use context::source::{SourceSegment, SourceSegmentHolder};
-use std::collections::HashMap;
+use indexmap::IndexMap;
 use variables::Variables;
 
 pub mod variables;
@@ -42,7 +42,7 @@ pub struct Environment {
     pub variables: Variables,
 
     /// A mapping of expression segments to symbols.
-    pub definitions: HashMap<SourceSegment, Symbol>,
+    pub definitions: IndexMap<SourceSegment, Symbol>,
 }
 
 impl Environment {
@@ -51,7 +51,7 @@ impl Environment {
             parent: None,
             fqn: name,
             variables: Variables::default(),
-            definitions: HashMap::new(),
+            definitions: IndexMap::new(),
         }
     }
 
@@ -62,7 +62,7 @@ impl Environment {
             parent: Some(source_id),
             fqn: env_fqn,
             variables: Variables::default(),
-            definitions: HashMap::new(),
+            definitions: IndexMap::new(),
         }
     }
 

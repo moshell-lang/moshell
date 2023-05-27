@@ -256,7 +256,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                 .expect("Environment declared an unknown parent");
             let name = env
                 .variables
-                .get_symbol_name(object_id)
+                .get_global_symbol_name(object_id)
                 .expect("Unknown object name");
 
             let mut current = env;
@@ -264,7 +264,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                 .parent
                 .and_then(|id| self.engine.get_environment(id).map(|env| (id, env)))
             {
-                if let Some(resolved) = env.variables.get(name) {
+                if let Some(resolved) = env.variables.get_symbol(name) {
                     object.resolved = Some(match resolved {
                         Symbol::Local(local) => ResolvedSymbol {
                             module,
@@ -304,10 +304,10 @@ mod tests {
 
     #[test]
     fn test_imports_resolution() {
-        let math_ast = Source::unknown("val PI = 3.14");
-        let std_ast = Source::unknown("val Foo = 'moshell_std'; val Bar = $Foo");
-        let io_ast = Source::unknown("val output = 'OutputStream()'; val input = 'InputStream()'");
-        let test_ast = Source::unknown(
+        let math_src = Source::unknown("val PI = 3.14");
+        let std_src = Source::unknown("val Foo = 'moshell_std'; val Bar = $Foo");
+        let io_src = Source::unknown("val output = 'OutputStream()'; val input = 'InputStream()'");
+        let test_src = Source::unknown(
             "
             use math::PI
             use std::{Bar, io::*}
@@ -318,10 +318,10 @@ mod tests {
         let mut relations = Relations::default();
         let mut importer = StaticImporter::new(
             [
-                (Name::new("math"), math_ast),
-                (Name::new("std"), std_ast),
-                (Name::new("std::io"), io_ast),
-                (Name::new("test"), test_ast),
+                (Name::new("math"), math_src),
+                (Name::new("std"), std_src),
+                (Name::new("std::io"), io_src),
+                (Name::new("test"), test_src),
             ],
             parse_trusted,
         );
@@ -379,13 +379,13 @@ mod tests {
 
     #[test]
     fn test_symbols_resolution() {
-        let math_ast = Source::unknown("val PI = 3.14");
+        let math_src = Source::unknown("val PI = 3.14");
 
-        let std_ast = Source::unknown("val Foo = 'moshell_std'; val Bar = $Foo");
+        let std_src = Source::unknown("val Foo = 'moshell_std'; val Bar = $Foo");
 
-        let io_ast = Source::unknown("val output = 'OutputStream()'; val input = 'InputStream()'");
+        let io_src = Source::unknown("val output = 'OutputStream()'; val input = 'InputStream()'");
 
-        let test_ast = Source::unknown(
+        let test_src = Source::unknown(
             "\
             use math::PI
             use std::{Bar, io::*}
@@ -400,10 +400,10 @@ mod tests {
         let mut relations = Relations::default();
         let mut importer = StaticImporter::new(
             [
-                (Name::new("math"), math_ast),
-                (Name::new("std"), std_ast),
-                (Name::new("std::io"), io_ast),
-                (Name::new("test"), test_ast),
+                (Name::new("math"), math_src),
+                (Name::new("std"), std_src),
+                (Name::new("std::io"), io_src),
+                (Name::new("test"), test_src),
             ],
             parse_trusted,
         );
@@ -428,9 +428,60 @@ mod tests {
         )
     }
 
+
+    #[test]
+    fn test_qualified_symbols_resolution() {
+        let math_src = Source::unknown("fun add(a: Int, b: Int) = a + b");
+        let math_advanced_src = Source::unknown("fun multiply(a: Int, b: Int) = a * b");
+
+        let std_src = Source::unknown("fun foo() = 45; fun bar() = 78");
+
+        let test_src = Source::unknown(
+            "\
+            use math::advanced
+
+            val x = std::foo()
+            val y = std::bar()
+            val sum = math::add(x + y, advanced::multiply(std::foo(), std::bar()))
+        ",
+        );
+
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
+        let mut importer = StaticImporter::new(
+            [
+                (Name::new("math"), math_src),
+                (Name::new("std"), std_src),
+                (Name::new("math::advanced"), math_advanced_src),
+                (Name::new("test"), test_src),
+            ],
+            parse_trusted,
+        );
+
+        let diagnostics = SymbolCollector::collect_symbols(
+            &mut engine,
+            &mut relations,
+            Name::new("test"),
+            &mut importer,
+        );
+        assert_eq!(diagnostics, vec![]);
+        let diagnostics = SymbolResolver::resolve_symbols(&engine, &mut relations);
+        assert_eq!(diagnostics, vec![]);
+
+        assert_eq!(
+            relations.objects,
+            vec![
+                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(1), 0)),
+                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(2), 1)),
+                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(3), 0)),
+            ]
+        )
+    }
+
+
     #[test]
     fn test_unknown_symbols() {
-        let a_ast = Source::unknown("val C = 'A'");
+        let a_src = Source::unknown("val C = 'A'");
 
         let source = "\
         use A::B
@@ -440,11 +491,11 @@ mod tests {
         $a; $a; $a
         $C; $B;
         ";
-        let test_ast = Source::unknown(source);
+        let test_src = Source::unknown(source);
         let mut engine = Engine::default();
         let mut relations = Relations::default();
         let mut importer = StaticImporter::new(
-            [(Name::new("test"), test_ast), (Name::new("A"), a_ast)],
+            [(Name::new("test"), test_src), (Name::new("A"), a_src)],
             parse_trusted,
         );
         let diagnostics = SymbolCollector::collect_symbols(
@@ -510,10 +561,10 @@ mod tests {
         $a; $a; $a
         $C; $C;
         ";
-        let test_ast = Source::unknown(source);
+        let test_src = Source::unknown(source);
         let mut engine = Engine::default();
         let mut relations = Relations::default();
-        let mut importer = StaticImporter::new([(Name::new("test"), test_ast)], parse_trusted);
+        let mut importer = StaticImporter::new([(Name::new("test"), test_src)], parse_trusted);
         let diagnostics = SymbolCollector::collect_symbols(
             &mut engine,
             &mut relations,

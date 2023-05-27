@@ -16,7 +16,7 @@ use crate::environment::Environment;
 use crate::environment::variables::TypeInfo;
 use crate::importer::ASTImporter;
 use crate::name::Name;
-use crate::relations::{Relations, SourceObjectId, UnresolvedImport};
+use crate::relations::{Relations, SourceObjectId, Symbol, UnresolvedImport};
 
 /// Defines the current state of the tree exploration.
 #[derive(Debug, Clone, Copy)]
@@ -56,6 +56,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
     ) -> Vec<Diagnostic> {
         let mut collector = Self::new(engine, relations);
         collector.collect(entry_point, importer);
+        collector.check_symbols_identity();
         collector.diagnostics
     }
 
@@ -66,6 +67,55 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             diagnostics: Vec::new(),
         }
     }
+
+    /// Performs a check over the collected symbols of root environments
+    /// to ensure that the environment does not declares a symbols with the same name of
+    /// another module.
+    ///
+    /// For example, if the module `a` defines a symbol `b`, and the module `a::b` also exists
+    /// there is no way to identify if either `a::b` is the symbol, or `a::b` is the environment.
+    fn check_symbols_identity(&mut self) {
+        let roots = self.engine.environments()
+            .filter(|(_, e)| e.parent.is_none()); //keep root environments
+        for (env_id, env) in roots {
+            let env_name = &env.fqn;
+            let mut reported = HashSet::new();
+            for (declaration_segment, symbol) in &env.definitions {
+                let id = match symbol {
+                    Symbol::Local(id) => id,
+                    Symbol::Global(_) => continue
+                };
+                if !reported.insert(id) {
+                    continue
+                }
+                let var = env.variables.get_var(*id).expect("local symbol references an unknown variable");
+
+                let var_fqn = env_name.appended(Name::new(&var.name));
+                let clashed = self.engine.find_environment_by_name(&var_fqn).map(|(_, e)| e);
+                if let Some(clashed) = clashed {
+                    let inner_modules = {
+                        //we know that the inner envs contains at least one environment (the env being clashed with)
+                        let list = list_inner_modules(self.engine, env)
+                            .map(|e| e.fqn.simple_name())
+                            .collect::<Vec<_>>();
+
+                        let (head, tail) = list.split_first().unwrap();
+                        let str = tail.iter().fold(format!("{env_name}::{{{head}"), |acc, it| format!("{acc}, {it}"));
+                        format!("{str}}}")
+                    };
+
+                    let msg = format!("Declared symbol '{}' in module {env_name} clashes with module {}", var.name, &clashed.fqn);
+                    let diagnostic = {
+                        Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, env_id, msg)
+                            .with_observation(Observation::with_help(declaration_segment.clone(), format!("This symbol has the same fully-qualified name as module {}", clashed.fqn)))
+                            .with_help(format!("You should refactor this symbol with a name that does not conflicts with following modules: {inner_modules}"))
+                    };
+                    self.diagnostics.push(diagnostic)
+                }
+            }
+        }
+    }
+
 
     fn collect(&mut self, entry_point: Name, importer: &mut impl ASTImporter<'e>) {
         // Prevent re-importing the same names.
@@ -481,6 +531,12 @@ fn import_ast<'a, 'b>(
     None
 }
 
+fn list_inner_modules<'a>(engine: &'a Engine, env: &'a Environment) -> impl Iterator<Item=&'a Environment> {
+    engine.environments()
+        .filter(|(_, e)| e.parent.is_none() && e.fqn.tail().filter(|tail| tail == &env.fqn).is_some())
+        .map(|(_, e)| e)
+}
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
@@ -529,6 +585,40 @@ mod tests {
         collector.tree_walk(&mut env, &mut state, &mut Vec::new(), &expr);
         assert_eq!(collector.diagnostics, vec![]);
         assert_eq!(relations.objects, vec![]);
+    }
+
+
+    #[test]
+    fn test_symbol_clashes_with_module() {
+        let math_source = "use math::{add, multiply, divide}; fun multiply(a: Int, b: Int) = a * b";
+        let math_src = Source::unknown(math_source);
+        let math_multiply_src = Source::unknown("");
+        let math_add_src = Source::unknown("");
+        let math_divide_src = Source::unknown("");
+
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
+        let mut importer = StaticImporter::new(
+            [
+                (Name::new("math"), math_src),
+                (Name::new("math::multiply"), math_multiply_src),
+                (Name::new("math::add"), math_add_src),
+                (Name::new("math::divide"), math_divide_src),
+            ],
+            parse_trusted,
+        );
+
+        let diagnostics = SymbolCollector::collect_symbols(
+            &mut engine,
+            &mut relations,
+            Name::new("math"),
+            &mut importer,
+        );
+        assert_eq!(diagnostics, vec![
+            Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, SourceObjectId(0), "Declared symbol 'multiply' in module math clashes with module math::multiply")
+                .with_observation(Observation::with_help(find_in(math_source, "fun multiply(a: Int, b: Int) = a * b"), "This symbol has the same fully-qualified name as module math::multiply"))
+                .with_help("You should refactor this symbol with a name that does not conflicts with following modules: math::{divide, multiply, add}")
+        ]);
     }
 
     #[test]
