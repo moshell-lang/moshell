@@ -72,10 +72,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         resolver.diagnostics
     }
 
-    fn new(
-        engine: &'a Engine<'e>,
-        relations: &'a mut Relations,
-    ) -> Self {
+    fn new(engine: &'a Engine<'e>, relations: &'a mut Relations) -> Self {
         Self {
             engine,
             relations,
@@ -91,7 +88,8 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         for (env_id, env) in self.engine.environments() {
             let unresolved_imports = unresolved_imports.remove(&env_id).unwrap_or_default();
 
-            let resolved_imports = self.resolve_imports(env_id, unresolved_imports, to_visit, visited);
+            let resolved_imports =
+                self.resolve_imports(env_id, unresolved_imports, to_visit, visited);
             self.resolve_symbols_of(env_id, env, resolved_imports, to_visit, visited);
         }
     }
@@ -242,7 +240,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                         None => {
                             if !visited.contains(&name) {
                                 to_visit.push(name);
-                                continue
+                                continue;
                             }
                             // if the environment wasn't found, and its name was already known, push a diagnostic as it does not exists
                             self.diagnose_unresolved_import(env_id, name, None, dependent)
@@ -398,7 +396,6 @@ mod tests {
         let mut to_visit = vec![Name::new("test")];
         let mut visited = HashSet::new();
 
-
         let mut importer = StaticImporter::new(
             [
                 (Name::new("math"), math_src),
@@ -408,8 +405,13 @@ mod tests {
             ],
             parse_trusted,
         );
-        let diagnostics =
-            SymbolCollector::collect_symbols(&mut engine, &mut relations, &mut to_visit, &mut visited, &mut importer);
+        let diagnostics = SymbolCollector::collect_symbols(
+            &mut engine,
+            &mut relations,
+            &mut to_visit,
+            &mut visited,
+            &mut importer,
+        );
         assert_eq!(diagnostics, vec![]);
 
         assert_eq!(
@@ -511,12 +513,8 @@ mod tests {
             &mut importer,
         );
         assert_eq!(diagnostics, vec![]);
-        let diagnostics = SymbolResolver::resolve_symbols(
-            &engine,
-            &mut relations,
-            &mut to_visit,
-            &mut visited,
-        );
+        let diagnostics =
+            SymbolResolver::resolve_symbols(&engine, &mut relations, &mut to_visit, &mut visited);
         assert_eq!(diagnostics, vec![]);
 
         assert_eq!(
@@ -568,18 +566,11 @@ mod tests {
             &mut importer,
         );
         assert_eq!(diagnostics, vec![]);
-        let diagnostics = SymbolResolver::resolve_symbols(
-            &engine,
-            &mut relations,
-            &mut to_visit,
-            &mut visited,
-        );
+        let diagnostics =
+            SymbolResolver::resolve_symbols(&engine, &mut relations, &mut to_visit, &mut visited);
         assert_eq!(diagnostics, vec![]);
         to_visit.dedup();
-        assert_eq!(
-            to_visit,
-            vec![Name::new("std"), Name::new("math")]
-        );
+        assert_eq!(to_visit, vec![Name::new("std"), Name::new("math")]);
         let mut visited_vec = visited.iter().cloned().collect::<Vec<_>>();
         visited_vec.sort();
         assert_eq!(
@@ -596,12 +587,8 @@ mod tests {
             &mut importer,
         );
         assert_eq!(diagnostics, vec![]);
-        let diagnostics = SymbolResolver::resolve_symbols(
-            &engine,
-            &mut relations,
-            &mut to_visit,
-            &mut visited,
-        );
+        let diagnostics =
+            SymbolResolver::resolve_symbols(&engine, &mut relations, &mut to_visit, &mut visited);
         assert_eq!(diagnostics, vec![]);
         assert_eq!(to_visit, vec![]);
 
@@ -660,12 +647,8 @@ mod tests {
         );
         assert_eq!(diagnostics, vec![]);
 
-        let diagnostics = SymbolResolver::resolve_symbols(
-            &engine,
-            &mut relations,
-            &mut to_visit,
-            &mut visited,
-        );
+        let diagnostics =
+            SymbolResolver::resolve_symbols(&engine, &mut relations, &mut to_visit, &mut visited);
 
         assert_eq!(
             diagnostics,
@@ -675,7 +658,7 @@ mod tests {
                     SourceObjectId(0),
                     "unable to find imported symbol B in module A.",
                 )
-                    .with_observation(Observation::new(find_in(source, "A::B"))),
+                .with_observation(Observation::new(find_in(source, "A::B"))),
                 Diagnostic::new(
                     DiagnosticID::ImportResolution,
                     SourceObjectId(0),
@@ -737,12 +720,8 @@ mod tests {
         );
         assert_eq!(diagnostics, vec![]);
 
-        let diagnostic = SymbolResolver::resolve_symbols(
-            &engine,
-            &mut relations,
-            &mut to_visit,
-            &mut visited,
-        );
+        let diagnostic =
+            SymbolResolver::resolve_symbols(&engine, &mut relations, &mut to_visit, &mut visited);
 
         assert_eq!(
             diagnostic,
@@ -752,7 +731,7 @@ mod tests {
                     SourceObjectId(0),
                     "Could not resolve symbol C.",
                 )
-                    .with_observation(Observation::new(find_in(source, "$C")))
+                .with_observation(Observation::new(find_in(source, "$C")))
                 .with_observation(Observation::new(find_in_nth(source, "$C", 1))),
                 Diagnostic::new(
                     DiagnosticID::UnknownSymbol,
@@ -788,7 +767,12 @@ mod tests {
         assert_eq!(diagnostics, vec![]);
 
         let mut resolver = SymbolResolver::new(&mut engine, &mut relations);
-        resolver.resolve_imports(SourceObjectId(0), UnresolvedImports::default(), &mut to_visit, &mut visited);
+        resolver.resolve_imports(
+            SourceObjectId(0),
+            UnresolvedImports::default(),
+            &mut to_visit,
+            &mut visited,
+        );
         resolver.resolve_trees().expect("resolution errors");
 
         assert_eq!(resolver.diagnostics, vec![]);

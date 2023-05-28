@@ -104,8 +104,7 @@ pub fn try_join<'a, T>(owner: &'a [T], a: &'a [T], b: &'a [T]) -> Option<&'a [T]
     let a_head = a.as_ptr();
     let b_tail = b[b.len()..].as_ptr();
     if owner_head <= a_head && a_head <= b_tail && b_tail <= owner_tail {
-        // SAFETY: The two slices are adjacent in memory and are owned by the same container.
-        Some(unsafe { std::slice::from_raw_parts(a.as_ptr(), b_tail as usize - a_head as usize) })
+        Some(&owner[a_head as usize - owner_head as usize..b_tail as usize - owner_head as usize])
     } else {
         None
     }

@@ -61,10 +61,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         collector.diagnostics
     }
 
-    fn new(
-        engine: &'a mut Engine<'e>,
-        relations: &'a mut Relations,
-    ) -> Self {
+    fn new(engine: &'a mut Engine<'e>, relations: &'a mut Relations) -> Self {
         Self {
             engine,
             relations,
@@ -136,13 +133,15 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         }
     }
 
-    fn collect(&mut self,
-               importer: &mut impl ASTImporter<'e>,
-               to_visit: &mut Vec<Name>,
-               visited: &mut HashSet<Name>, ) {
+    fn collect(
+        &mut self,
+        importer: &mut impl ASTImporter<'e>,
+        to_visit: &mut Vec<Name>,
+        visited: &mut HashSet<Name>,
+    ) {
         while let Some(name) = to_visit.pop() {
             if !visited.insert(name.clone()) {
-                continue
+                continue;
             }
             //try to import the ast, if the importer isn't able to achieve this and returns None,
             //Ignore this ast analysis. It'll be up to the given importer implementation to handle the
@@ -194,7 +193,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         import: &'e ImportExpr<'e>,
         relative_path: Vec<String>,
         mod_id: SourceObjectId,
-        to_visit: &mut Vec<Name>
+        to_visit: &mut Vec<Name>,
     ) {
         match import {
             ImportExpr::Symbol(s) => {
@@ -249,7 +248,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         env: &mut Environment,
         state: &mut ResolutionState,
         expr: &'e Expr<'e>,
-        to_visit: &mut Vec<Name>
+        to_visit: &mut Vec<Name>,
     ) {
         match expr {
             Expr::Use(import) => {
@@ -502,7 +501,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     &mut func_env,
                     &mut ResolutionState::new(func_id),
                     &lambda.body,
-                    to_visit
+                    to_visit,
                 );
                 self.engine.attach(func_id, func_env);
             }
@@ -591,8 +590,13 @@ mod tests {
             [(Name::new("test"), Source::unknown("use a; $a; use c; $c"))],
             parse_trusted,
         );
-        let res =
-            SymbolCollector::collect_symbols(&mut engine, &mut relations, &mut vec![Name::new("test")], &mut HashSet::new(), &mut importer);
+        let res = SymbolCollector::collect_symbols(
+            &mut engine,
+            &mut relations,
+            &mut vec![Name::new("test")],
+            &mut HashSet::new(),
+            &mut importer,
+        );
         assert_eq!(
             res,
             vec![
@@ -634,8 +638,13 @@ mod tests {
             ],
             parse_trusted,
         );
-        let diagnostics =
-            SymbolCollector::collect_symbols(&mut engine, &mut relations, &mut vec![Name::new("math")], &mut HashSet::new(), &mut importer);
+        let diagnostics = SymbolCollector::collect_symbols(
+            &mut engine,
+            &mut relations,
+            &mut vec![Name::new("math")],
+            &mut HashSet::new(),
+            &mut importer,
+        );
         assert_eq!(diagnostics, vec![
             Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, SourceObjectId(0), "Declared symbol 'multiply' in module math clashes with module math::multiply")
                 .with_observation(Observation::with_help(find_in(math_source, "fun multiply(a: Int, b: Int) = a * b"), "This symbol has the same fully-qualified name as module math::multiply"))
@@ -651,8 +660,13 @@ mod tests {
         let mut relations = Relations::default();
         let mut importer = StaticImporter::new([(Name::new("test"), test_src)], parse_trusted);
 
-        let diagnostics =
-            SymbolCollector::collect_symbols(&mut engine, &mut relations, &mut vec![Name::new("test")], &mut HashSet::new(), &mut importer);
+        let diagnostics = SymbolCollector::collect_symbols(
+            &mut engine,
+            &mut relations,
+            &mut vec![Name::new("test")],
+            &mut HashSet::new(),
+            &mut importer,
+        );
 
         assert_eq!(
             diagnostics,

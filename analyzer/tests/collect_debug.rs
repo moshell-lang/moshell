@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use analyzer::engine::Engine;
 use analyzer::environment::variables::{TypeUsage, Variable};
 use analyzer::importer::StaticImporter;
@@ -8,6 +7,7 @@ use analyzer::steps::collect::SymbolCollector;
 use context::source::Source;
 use context::str_find::{find_between, find_in};
 use parser::parse_trusted;
+use std::collections::HashSet;
 
 #[test]
 fn collect_sample() {
