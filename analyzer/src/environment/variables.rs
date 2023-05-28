@@ -32,11 +32,7 @@ impl Variables {
         relations: &mut Relations,
         name: &str,
     ) -> Symbol {
-        match self
-            .locals
-            .position_reachable_local(name)
-            .map(|idx| self.locals.vars.len() - 1 - idx)
-        {
+        match self.locals.position_reachable_local(name) {
             Some(var) => Symbol::Local(var),
             None => {
                 let id = *self
@@ -56,7 +52,7 @@ impl Variables {
     pub fn get_reachable(&self, name: &str) -> Option<Symbol> {
         self.locals
             .position_reachable_local(name)
-            .map(|idx| Symbol::Local(self.locals.vars.len() - 1 - idx))
+            .map(Symbol::Local)
     }
 
     /// Gets the local exported symbol associated with an already known name.
@@ -181,16 +177,13 @@ impl Locals {
             .find(|var| var.name == name && var.depth >= 0)
     }
 
-    /// Gets the offset of a variable from the current scope.
-    ///
-    /// This relative index is from the end of the Vec of variables, so it
-    /// becomes invalid when a new variable is declared. Prefers the other
-    /// methods that exposes an index from the beginning of the Vec.
+    /// Gets the variable id from the current scope.
     fn position_reachable_local(&self, name: &str) -> Option<ObjectId> {
         self.vars
             .iter()
             .rev()
             .position(|var| var.name == name && var.depth >= 0)
+            .map(|idx| self.vars.len() - 1 - idx)
     }
 }
 
