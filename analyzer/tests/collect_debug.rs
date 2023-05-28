@@ -1,10 +1,10 @@
+use std::collections::HashSet;
 use analyzer::engine::Engine;
 use analyzer::environment::variables::{TypeUsage, Variable};
 use analyzer::importer::StaticImporter;
 use analyzer::name::Name;
 use analyzer::relations::{GlobalObjectId, Relations, SourceObjectId, Symbol};
 use analyzer::steps::collect::SymbolCollector;
-use analyzer::visitable::ModulesVisitable;
 use context::source::Source;
 use context::str_find::{find_between, find_in};
 use parser::parse_trusted;
@@ -16,12 +16,16 @@ fn collect_sample() {
     let root_name = Name::new("debug_sample");
     let mut engine = Engine::default();
     let mut relations = Relations::default();
-    let mut visitable = ModulesVisitable::with_entry(root_name.clone());
+
+    let mut to_visit = vec![root_name.clone()];
+    let mut visited = HashSet::new();
+
     let mut importer = StaticImporter::new([(root_name.clone(), source)], parse_trusted);
     let diagnostics = SymbolCollector::collect_symbols(
         &mut engine,
         &mut relations,
-        &mut visitable,
+        &mut to_visit,
+        &mut visited,
         &mut importer,
     );
     assert_eq!(diagnostics, vec![]);

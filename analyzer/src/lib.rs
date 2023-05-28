@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use std::collections::HashSet;
+
 use crate::diagnostic::Diagnostic;
 use crate::engine::Engine;
 use crate::importer::ASTImporter;
@@ -7,7 +9,6 @@ use crate::name::Name;
 use crate::relations::Relations;
 use crate::steps::collect::SymbolCollector;
 use crate::steps::resolve::SymbolResolver;
-use crate::visitable::ModulesVisitable;
 
 pub mod diagnostic;
 pub mod engine;
@@ -17,27 +18,29 @@ pub mod name;
 pub mod relations;
 
 pub mod steps;
-pub mod visitable;
 
 pub fn analyze<'a>(entry_point: Name, importer: &mut impl ASTImporter<'a>) -> AnalyzerOutput<'a> {
     let mut engine = Engine::default();
     let mut relations = Relations::default();
 
-    let mut visitable = ModulesVisitable::with_entry(entry_point);
+    let mut to_visit = vec![entry_point];
+    let mut visited = HashSet::new();
 
     let mut diagnostics = Vec::new();
 
-    while !visitable.is_empty() {
+    while !to_visit.is_empty() {
         diagnostics.extend(SymbolCollector::collect_symbols(
             &mut engine,
             &mut relations,
-            &mut visitable,
+            &mut to_visit,
+            &mut visited,
             importer,
         ));
         diagnostics.extend(SymbolResolver::resolve_symbols(
             &engine,
             &mut relations,
-            &mut visitable,
+            &mut to_visit,
+            &mut visited,
         ));
     }
 

@@ -17,7 +17,6 @@ use crate::environment::Environment;
 use crate::importer::ASTImporter;
 use crate::name::Name;
 use crate::relations::{Relations, SourceObjectId, Symbol, UnresolvedImport};
-use crate::visitable::ModulesVisitable;
 
 /// Defines the current state of the tree exploration.
 #[derive(Debug, Clone, Copy)]
@@ -41,7 +40,6 @@ impl ResolutionState {
 pub struct SymbolCollector<'a, 'e> {
     engine: &'a mut Engine<'e>,
     relations: &'a mut Relations,
-    visitable: &'a mut ModulesVisitable,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -53,11 +51,12 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
     pub fn collect_symbols(
         engine: &'a mut Engine<'e>,
         relations: &'a mut Relations,
-        visitable: &'a mut ModulesVisitable,
+        to_visit: &mut Vec<Name>,
+        visited: &mut HashSet<Name>,
         importer: &mut impl ASTImporter<'e>,
     ) -> Vec<Diagnostic> {
-        let mut collector = Self::new(engine, relations, visitable);
-        collector.collect(importer);
+        let mut collector = Self::new(engine, relations);
+        collector.collect(importer, to_visit, visited);
         collector.check_symbols_identity();
         collector.diagnostics
     }
@@ -65,12 +64,10 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
     fn new(
         engine: &'a mut Engine<'e>,
         relations: &'a mut Relations,
-        visitable: &'a mut ModulesVisitable,
     ) -> Self {
         Self {
             engine,
             relations,
-            visitable,
             diagnostics: Vec::new(),
         }
     }
@@ -139,24 +136,30 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         }
     }
 
-    fn collect(&mut self, importer: &mut impl ASTImporter<'e>) {
-        while let Some(name) = self.visitable.pop() {
+    fn collect(&mut self,
+               importer: &mut impl ASTImporter<'e>,
+               to_visit: &mut Vec<Name>,
+               visited: &mut HashSet<Name>, ) {
+        while let Some(name) = to_visit.pop() {
+            if !visited.insert(name.clone()) {
+                continue
+            }
             //try to import the ast, if the importer isn't able to achieve this and returns None,
             //Ignore this ast analysis. It'll be up to the given importer implementation to handle the
             //errors caused by this import request failure
             if let Some((ast, name)) = import_ast(name, importer) {
-                self.collect_ast_symbols(ast, name)
+                self.collect_ast_symbols(ast, name, to_visit)
             }
         }
     }
 
-    fn collect_ast_symbols(&mut self, ast: Expr<'e>, module_name: Name) {
+    fn collect_ast_symbols(&mut self, ast: Expr<'e>, module_name: Name, to_visit: &mut Vec<Name>) {
         // Immediately transfer the ownership of the AST to the engine.
         let root_block = self.engine.take(ast);
 
         let mut env = Environment::named(module_name);
         let mut state = ResolutionState::new(self.engine.track(root_block));
-        self.tree_walk(&mut env, &mut state, root_block);
+        self.tree_walk(&mut env, &mut state, root_block, to_visit);
         self.engine.attach(state.module, env)
     }
 
@@ -191,6 +194,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         import: &'e ImportExpr<'e>,
         relative_path: Vec<String>,
         mod_id: SourceObjectId,
+        to_visit: &mut Vec<Name>
     ) {
         match import {
             ImportExpr::Symbol(s) => {
@@ -201,7 +205,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 let name = Name::from(symbol_name);
                 let alias = s.alias.map(|s| s.to_string());
 
-                self.visitable.push(name.clone());
+                to_visit.push(name.clone());
                 let unresolved = UnresolvedImport::Symbol {
                     alias,
                     fqn: name.clone(),
@@ -213,7 +217,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 symbol_name.extend(path.iter().map(|s| s.to_string()));
 
                 let name = Name::from(symbol_name);
-                self.visitable.push(name.clone());
+                to_visit.push(name.clone());
                 let unresolved = UnresolvedImport::AllIn(name.clone());
                 self.add_checked_import(mod_id, unresolved, import, name)
             }
@@ -234,7 +238,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     let mut relative = relative_path.clone();
                     relative.extend(list.path.iter().map(|s| s.to_string()).collect::<Vec<_>>());
 
-                    self.collect_symbol_import(list_import, relative, mod_id)
+                    self.collect_symbol_import(list_import, relative, mod_id, to_visit)
                 }
             }
         }
@@ -245,6 +249,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         env: &mut Environment,
         state: &mut ResolutionState,
         expr: &'e Expr<'e>,
+        to_visit: &mut Vec<Name>
     ) {
         match expr {
             Expr::Use(import) => {
@@ -257,18 +262,18 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     self.diagnostics.push(diagnostic);
                     return;
                 }
-                self.collect_symbol_import(&import.import, Vec::new(), state.module);
+                self.collect_symbol_import(&import.import, Vec::new(), state.module, to_visit);
                 return;
             }
             Expr::Assign(assign) => {
-                self.tree_walk(env, state, &assign.value);
+                self.tree_walk(env, state, &assign.value, to_visit);
             }
             Expr::Binary(binary) => {
-                self.tree_walk(env, state, &binary.left);
-                self.tree_walk(env, state, &binary.right);
+                self.tree_walk(env, state, &binary.left, to_visit);
+                self.tree_walk(env, state, &binary.right, to_visit);
             }
             Expr::Match(match_expr) => {
-                self.tree_walk(env, state, &match_expr.operand);
+                self.tree_walk(env, state, &match_expr.operand, to_visit);
                 for arm in &match_expr.arms {
                     for pattern in &arm.patterns {
                         match pattern {
@@ -282,7 +287,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                             }
                             MatchPattern::Template(template) => {
                                 for part in &template.parts {
-                                    self.tree_walk(env, state, part);
+                                    self.tree_walk(env, state, part, to_visit);
                                 }
                             }
                             MatchPattern::Literal(_) | MatchPattern::Wildcard(_) => {}
@@ -290,7 +295,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     }
                     if let Some(guard) = &arm.guard {
                         env.begin_scope();
-                        self.tree_walk(env, state, guard);
+                        self.tree_walk(env, state, guard, to_visit);
                         env.end_scope();
                     }
                     env.begin_scope();
@@ -298,14 +303,14 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                         env.variables
                             .declare_local(name.to_owned(), TypeInfo::Variable);
                     }
-                    self.tree_walk(env, state, &arm.body);
+                    self.tree_walk(env, state, &arm.body, to_visit);
                     env.end_scope();
                 }
             }
             Expr::Call(call) => {
                 self.resolve_primitive_call(env, call);
                 for arg in &call.arguments {
-                    self.tree_walk(env, state, arg);
+                    self.tree_walk(env, state, arg, to_visit);
                 }
             }
             Expr::ProgrammaticCall(call) => {
@@ -321,32 +326,32 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
 
                 env.annotate(call, symbol);
                 for arg in &call.arguments {
-                    self.tree_walk(env, state, arg);
+                    self.tree_walk(env, state, arg, to_visit);
                 }
             }
             Expr::MethodCall(call) => {
-                self.tree_walk(env, state, &call.source);
+                self.tree_walk(env, state, &call.source, to_visit);
                 for arg in &call.arguments {
-                    self.tree_walk(env, state, arg);
+                    self.tree_walk(env, state, arg, to_visit);
                 }
             }
             Expr::Pipeline(pipeline) => {
                 for expr in &pipeline.commands {
-                    self.tree_walk(env, state, expr);
+                    self.tree_walk(env, state, expr, to_visit);
                 }
             }
             Expr::Redirected(redirected) => {
-                self.tree_walk(env, state, &redirected.expr);
+                self.tree_walk(env, state, &redirected.expr, to_visit);
                 for redir in &redirected.redirections {
-                    self.tree_walk(env, state, &redir.operand);
+                    self.tree_walk(env, state, &redir.operand, to_visit);
                 }
             }
             Expr::Detached(detached) => {
-                self.tree_walk(env, state, &detached.underlying);
+                self.tree_walk(env, state, &detached.underlying, to_visit);
             }
             Expr::VarDeclaration(var) => {
                 if let Some(initializer) = &var.initializer {
-                    self.tree_walk(env, state, initializer);
+                    self.tree_walk(env, state, initializer, to_visit);
                 }
                 let symbol = env
                     .variables
@@ -363,73 +368,73 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             }
             Expr::Range(range) => match range {
                 Iterable::Range(range) => {
-                    self.tree_walk(env, state, &range.start);
-                    self.tree_walk(env, state, &range.end);
+                    self.tree_walk(env, state, &range.start, to_visit);
+                    self.tree_walk(env, state, &range.end, to_visit);
                 }
                 Iterable::Files(_) => {}
             },
             Expr::Substitution(sub) => {
                 env.begin_scope();
                 for expr in &sub.underlying.expressions {
-                    self.tree_walk(env, state, expr);
+                    self.tree_walk(env, state, expr, to_visit);
                 }
                 env.end_scope();
             }
             Expr::TemplateString(template) => {
                 for expr in &template.parts {
-                    self.tree_walk(env, state, expr);
+                    self.tree_walk(env, state, expr, to_visit);
                 }
             }
             Expr::Casted(casted) => {
-                self.tree_walk(env, state, &casted.expr);
+                self.tree_walk(env, state, &casted.expr, to_visit);
             }
             Expr::Test(test) => {
-                self.tree_walk(env, state, &test.expression);
+                self.tree_walk(env, state, &test.expression, to_visit);
             }
             Expr::Not(not) => {
-                self.tree_walk(env, state, &not.underlying);
+                self.tree_walk(env, state, &not.underlying, to_visit);
             }
             Expr::Parenthesis(paren) => {
-                self.tree_walk(env, state, &paren.expression);
+                self.tree_walk(env, state, &paren.expression, to_visit);
             }
             Expr::Subshell(subshell) => {
                 env.begin_scope();
                 for expr in &subshell.expressions {
-                    self.tree_walk(env, state, expr);
+                    self.tree_walk(env, state, expr, to_visit);
                 }
                 env.end_scope();
             }
             Expr::Block(block) => {
                 env.begin_scope();
                 for expr in &block.expressions {
-                    self.tree_walk(env, state, expr);
+                    self.tree_walk(env, state, expr, to_visit);
                 }
                 env.end_scope();
             }
             Expr::If(if_expr) => {
                 env.begin_scope();
-                self.tree_walk(env, state, &if_expr.condition);
+                self.tree_walk(env, state, &if_expr.condition, to_visit);
                 env.end_scope();
                 env.begin_scope();
-                self.tree_walk(env, state, &if_expr.success_branch);
+                self.tree_walk(env, state, &if_expr.success_branch, to_visit);
                 env.end_scope();
                 if let Some(else_branch) = &if_expr.fail_branch {
                     env.begin_scope();
-                    self.tree_walk(env, state, else_branch);
+                    self.tree_walk(env, state, else_branch, to_visit);
                     env.end_scope();
                 }
             }
             Expr::While(wh) => {
                 env.begin_scope();
-                self.tree_walk(env, state, &wh.condition);
+                self.tree_walk(env, state, &wh.condition, to_visit);
                 env.end_scope();
                 env.begin_scope();
-                self.tree_walk(env, state, &wh.body);
+                self.tree_walk(env, state, &wh.body, to_visit);
                 env.end_scope();
             }
             Expr::Loop(lp) => {
                 env.begin_scope();
-                self.tree_walk(env, state, &lp.body);
+                self.tree_walk(env, state, &lp.body, to_visit);
                 env.end_scope();
             }
             Expr::For(fr) => {
@@ -440,20 +445,20 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                             .variables
                             .declare_local(range.receiver.to_owned(), TypeInfo::Variable);
                         env.annotate(range, symbol);
-                        self.tree_walk(env, state, &range.iterable);
+                        self.tree_walk(env, state, &range.iterable, to_visit);
                     }
                     ForKind::Conditional(cond) => {
-                        self.tree_walk(env, state, &cond.initializer);
-                        self.tree_walk(env, state, &cond.condition);
-                        self.tree_walk(env, state, &cond.increment);
+                        self.tree_walk(env, state, &cond.initializer, to_visit);
+                        self.tree_walk(env, state, &cond.condition, to_visit);
+                        self.tree_walk(env, state, &cond.increment, to_visit);
                     }
                 }
-                self.tree_walk(env, state, &fr.body);
+                self.tree_walk(env, state, &fr.body, to_visit);
                 env.end_scope();
             }
             Expr::Return(ret) => {
                 if let Some(expr) = &ret.expr {
-                    self.tree_walk(env, state, expr);
+                    self.tree_walk(env, state, expr, to_visit);
                 }
             }
             Expr::FunctionDeclaration(func) => {
@@ -480,6 +485,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     &mut func_env,
                     &mut ResolutionState::new(func_id),
                     &func.body,
+                    to_visit,
                 );
                 self.engine.attach(func_id, func_env);
             }
@@ -496,6 +502,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     &mut func_env,
                     &mut ResolutionState::new(func_id),
                     &lambda.body,
+                    to_visit
                 );
                 self.engine.attach(func_id, func_env);
             }
@@ -584,9 +591,8 @@ mod tests {
             [(Name::new("test"), Source::unknown("use a; $a; use c; $c"))],
             parse_trusted,
         );
-        let visitable = &mut ModulesVisitable::with_entry(Name::new("test"));
         let res =
-            SymbolCollector::collect_symbols(&mut engine, &mut relations, visitable, &mut importer);
+            SymbolCollector::collect_symbols(&mut engine, &mut relations, &mut vec![Name::new("test")], &mut HashSet::new(), &mut importer);
         assert_eq!(
             res,
             vec![
@@ -602,10 +608,9 @@ mod tests {
         let mut relations = Relations::default();
         let mut env = Environment::named(Name::new("test"));
         let mut state = ResolutionState::new(engine.track(&expr));
-        let visitable = &mut ModulesVisitable::with_entry(Name::new("test"));
-        let mut collector = SymbolCollector::new(&mut engine, &mut relations, visitable);
+        let mut collector = SymbolCollector::new(&mut engine, &mut relations);
 
-        collector.tree_walk(&mut env, &mut state, &expr);
+        collector.tree_walk(&mut env, &mut state, &expr, &mut vec![]);
         assert_eq!(collector.diagnostics, vec![]);
         assert_eq!(relations.objects, vec![]);
     }
@@ -629,9 +634,8 @@ mod tests {
             ],
             parse_trusted,
         );
-        let visitable = &mut ModulesVisitable::with_entry(Name::new("math"));
         let diagnostics =
-            SymbolCollector::collect_symbols(&mut engine, &mut relations, visitable, &mut importer);
+            SymbolCollector::collect_symbols(&mut engine, &mut relations, &mut vec![Name::new("math")], &mut HashSet::new(), &mut importer);
         assert_eq!(diagnostics, vec![
             Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, SourceObjectId(0), "Declared symbol 'multiply' in module math clashes with module math::multiply")
                 .with_observation(Observation::with_help(find_in(math_source, "fun multiply(a: Int, b: Int) = a * b"), "This symbol has the same fully-qualified name as module math::multiply"))
@@ -647,9 +651,8 @@ mod tests {
         let mut relations = Relations::default();
         let mut importer = StaticImporter::new([(Name::new("test"), test_src)], parse_trusted);
 
-        let visitable = &mut ModulesVisitable::with_entry(Name::new("test"));
         let diagnostics =
-            SymbolCollector::collect_symbols(&mut engine, &mut relations, visitable, &mut importer);
+            SymbolCollector::collect_symbols(&mut engine, &mut relations, &mut vec![Name::new("test")], &mut HashSet::new(), &mut importer);
 
         assert_eq!(
             diagnostics,
@@ -694,9 +697,8 @@ mod tests {
         let mut env = Environment::named(Name::new("test"));
         let mut state = ResolutionState::new(engine.track(&expr));
 
-        let visitable = &mut ModulesVisitable::with_entry(Name::new("test"));
-        let mut collector = SymbolCollector::new(&mut engine, &mut relations, visitable);
-        collector.tree_walk(&mut env, &mut state, &expr);
+        let mut collector = SymbolCollector::new(&mut engine, &mut relations);
+        collector.tree_walk(&mut env, &mut state, &expr, &mut vec![]);
 
         assert_eq!(collector.diagnostics, vec![]);
         assert_eq!(relations.objects, vec![]);
@@ -723,9 +725,8 @@ mod tests {
         let mut relations = Relations::default();
         let mut env = Environment::named(Name::new("test"));
         let mut state = ResolutionState::new(engine.track(&expr));
-        let visitable = &mut ModulesVisitable::with_entry(Name::new("test"));
-        let mut collector = SymbolCollector::new(&mut engine, &mut relations, visitable);
-        collector.tree_walk(&mut env, &mut state, &expr);
+        let mut collector = SymbolCollector::new(&mut engine, &mut relations);
+        collector.tree_walk(&mut env, &mut state, &expr, &mut vec![]);
 
         assert_eq!(collector.diagnostics, vec![]);
         assert_eq!(relations.objects, vec![]);
@@ -747,9 +748,8 @@ mod tests {
         let mut env = Environment::named(Name::new("test"));
         let mut state = ResolutionState::new(engine.track(&expr));
 
-        let visitable = &mut ModulesVisitable::with_entry(Name::new("test"));
-        let mut collector = SymbolCollector::new(&mut engine, &mut relations, visitable);
-        collector.tree_walk(&mut env, &mut state, &expr);
+        let mut collector = SymbolCollector::new(&mut engine, &mut relations);
+        collector.tree_walk(&mut env, &mut state, &expr, &mut vec![]);
 
         assert_eq!(collector.diagnostics, vec![]);
         engine.attach(state.module, env);

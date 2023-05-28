@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
 
 use context::source::SourceSegment;
@@ -11,7 +11,6 @@ use crate::relations::{
     GlobalObjectId, Relations, ResolvedSymbol, SourceObjectId, Symbol, UnresolvedImport,
     UnresolvedImports,
 };
-use crate::visitable::ModulesVisitable;
 
 #[derive(PartialEq, Eq, Debug)]
 enum ResolvedImport {
@@ -57,7 +56,6 @@ pub struct SymbolResolver<'a, 'e> {
     engine: &'a Engine<'e>,
     diagnostics: Vec<Diagnostic>,
     relations: &'a mut Relations,
-    visitable: &'a mut ModulesVisitable,
 }
 
 impl<'a, 'e> SymbolResolver<'a, 'e> {
@@ -66,36 +64,35 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
     pub fn resolve_symbols(
         engine: &'a Engine<'e>,
         relations: &'a mut Relations,
-        visitable: &'a mut ModulesVisitable,
+        to_visit: &mut Vec<Name>,
+        visited: &mut HashSet<Name>,
     ) -> Vec<Diagnostic> {
-        let mut resolver = Self::new(engine, relations, visitable);
-        resolver.resolve();
+        let mut resolver = Self::new(engine, relations);
+        resolver.resolve(to_visit, visited);
         resolver.diagnostics
     }
 
     fn new(
         engine: &'a Engine<'e>,
         relations: &'a mut Relations,
-        visitable: &'a mut ModulesVisitable,
     ) -> Self {
         Self {
             engine,
             relations,
             diagnostics: Vec::new(),
-            visitable,
         }
     }
 
     /// The starting point of the resolution phase.
     /// enables the resolution and pushes diagnostics if any symbol could not be resolved.
-    fn resolve(&mut self) {
+    fn resolve(&mut self, to_visit: &mut Vec<Name>, visited: &mut HashSet<Name>) {
         let mut unresolved_imports = self.relations.take_imports();
 
         for (env_id, env) in self.engine.environments() {
             let unresolved_imports = unresolved_imports.remove(&env_id).unwrap_or_default();
 
-            let resolved_imports = self.resolve_imports(env_id, unresolved_imports);
-            self.resolve_symbols_of(env_id, env, resolved_imports);
+            let resolved_imports = self.resolve_imports(env_id, unresolved_imports, to_visit, visited);
+            self.resolve_symbols_of(env_id, env, resolved_imports, to_visit, visited);
         }
     }
 
@@ -105,6 +102,8 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         env_id: SourceObjectId,
         env: &Environment,
         imports: ResolvedImports,
+        to_visit: &mut Vec<Name>,
+        visited: &mut HashSet<Name>,
     ) {
         for (usage, external_var) in env.variables.external_usages() {
             if self.relations.objects[external_var.0].resolved.is_some() {
@@ -151,7 +150,8 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                             }
                         }
                         // We put the unknown name in the visitable
-                        if self.visitable.push(env_name) {
+                        if !visited.contains(&env_name) {
+                            to_visit.push(env_name);
                             // env_name wasn't known from the visitable, let's give it a chance to be resolved
                             continue;
                         }
@@ -226,6 +226,8 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         &mut self,
         env_id: SourceObjectId,
         imports: UnresolvedImports,
+        to_visit: &mut Vec<Name>,
+        visited: &mut HashSet<Name>,
     ) -> ResolvedImports {
         let mut resolved_imports = ResolvedImports::default();
 
@@ -238,10 +240,12 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                     match self.get_env_from(&name) {
                         // if the environment wasn't found, attempt to resolve it in next cycle
                         None => {
-                            if !self.visitable.push(name.clone()) {
-                                // if the environment wasn't found, and its name was already known, push a diagnostic as it does not exists
-                                self.diagnose_unresolved_import(env_id, name, None, dependent)
+                            if !visited.contains(&name) {
+                                to_visit.push(name);
+                                continue
                             }
+                            // if the environment wasn't found, and its name was already known, push a diagnostic as it does not exists
+                            self.diagnose_unresolved_import(env_id, name, None, dependent)
                         }
                         //else, try to resolve it
                         Some((found_env_id, found_env)) => {
@@ -357,7 +361,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
 
     use indexmap::IndexMap;
     use pretty_assertions::assert_eq;
@@ -375,7 +379,6 @@ mod tests {
     };
     use crate::steps::collect::SymbolCollector;
     use crate::steps::resolve::{ResolvedImport, ResolvedImports, SymbolResolver};
-    use crate::visitable::ModulesVisitable;
 
     #[test]
     fn test_imports_resolution() {
@@ -391,6 +394,11 @@ mod tests {
 
         let mut engine = Engine::default();
         let mut relations = Relations::default();
+
+        let mut to_visit = vec![Name::new("test")];
+        let mut visited = HashSet::new();
+
+
         let mut importer = StaticImporter::new(
             [
                 (Name::new("math"), math_src),
@@ -400,9 +408,8 @@ mod tests {
             ],
             parse_trusted,
         );
-        let visitable = &mut ModulesVisitable::with_entry(Name::new("test"));
         let diagnostics =
-            SymbolCollector::collect_symbols(&mut engine, &mut relations, visitable, &mut importer);
+            SymbolCollector::collect_symbols(&mut engine, &mut relations, &mut to_visit, &mut visited, &mut importer);
         assert_eq!(diagnostics, vec![]);
 
         assert_eq!(
@@ -430,8 +437,13 @@ mod tests {
         );
 
         let unresolved_imports = relations.take_imports().remove(&SourceObjectId(0)).unwrap();
-        let mut resolver = SymbolResolver::new(&engine, &mut relations, visitable);
-        let resolved_imports = resolver.resolve_imports(SourceObjectId(0), unresolved_imports);
+        let mut resolver = SymbolResolver::new(&engine, &mut relations);
+        let resolved_imports = resolver.resolve_imports(
+            SourceObjectId(0),
+            unresolved_imports,
+            &mut to_visit,
+            &mut visited,
+        );
 
         assert_eq!(
             resolved_imports,
@@ -488,15 +500,23 @@ mod tests {
             parse_trusted,
         );
 
-        let mut visitable = ModulesVisitable::with_entry(Name::new("test"));
+        let mut to_visit = vec![Name::new("test")];
+        let mut visited = HashSet::new();
+
         let diagnostics = SymbolCollector::collect_symbols(
             &mut engine,
             &mut relations,
-            &mut visitable,
+            &mut to_visit,
+            &mut visited,
             &mut importer,
         );
         assert_eq!(diagnostics, vec![]);
-        let diagnostics = SymbolResolver::resolve_symbols(&engine, &mut relations, &mut visitable);
+        let diagnostics = SymbolResolver::resolve_symbols(
+            &engine,
+            &mut relations,
+            &mut to_visit,
+            &mut visited,
+        );
         assert_eq!(diagnostics, vec![]);
 
         assert_eq!(
@@ -536,47 +556,65 @@ mod tests {
             parse_trusted,
         );
 
-        let mut visitable = ModulesVisitable::with_entry(Name::new("test"));
+        let mut to_visit = vec![Name::new("test")];
+        let mut visited = HashSet::new();
 
         //first cycle
         let diagnostics = SymbolCollector::collect_symbols(
             &mut engine,
             &mut relations,
-            &mut visitable,
+            &mut to_visit,
+            &mut visited,
             &mut importer,
         );
         assert_eq!(diagnostics, vec![]);
-        let diagnostics = SymbolResolver::resolve_symbols(&engine, &mut relations, &mut visitable);
+        let diagnostics = SymbolResolver::resolve_symbols(
+            &engine,
+            &mut relations,
+            &mut to_visit,
+            &mut visited,
+        );
         assert_eq!(diagnostics, vec![]);
+        to_visit.dedup();
         assert_eq!(
-            visitable,
-            ModulesVisitable::new(
-                [Name::new("math"), Name::new("std")],
-                [Name::new("math::advanced"), Name::new("test")],
-            )
+            to_visit,
+            vec![Name::new("std"), Name::new("math")]
+        );
+        let mut visited_vec = visited.iter().cloned().collect::<Vec<_>>();
+        visited_vec.sort();
+        assert_eq!(
+            visited_vec,
+            vec![Name::new("math::advanced"), Name::new("test")]
         );
 
         //second cycle
         let diagnostics = SymbolCollector::collect_symbols(
             &mut engine,
             &mut relations,
-            &mut visitable,
+            &mut to_visit,
+            &mut visited,
             &mut importer,
         );
         assert_eq!(diagnostics, vec![]);
-        let diagnostics = SymbolResolver::resolve_symbols(&engine, &mut relations, &mut visitable);
+        let diagnostics = SymbolResolver::resolve_symbols(
+            &engine,
+            &mut relations,
+            &mut to_visit,
+            &mut visited,
+        );
         assert_eq!(diagnostics, vec![]);
+        assert_eq!(to_visit, vec![]);
+
+        let mut visited_vec = visited.iter().cloned().collect::<Vec<_>>();
+        visited_vec.sort();
         assert_eq!(
-            visitable,
-            ModulesVisitable::new(
-                [],
-                [
-                    Name::new("math"),
-                    Name::new("std"),
-                    Name::new("math::advanced"),
-                    Name::new("test")
-                ],
-            )
+            visited_vec,
+            vec![
+                Name::new("math"),
+                Name::new("math::advanced"),
+                Name::new("std"),
+                Name::new("test"),
+            ]
         );
 
         assert_eq!(
@@ -609,16 +647,25 @@ mod tests {
             [(Name::new("test"), test_src), (Name::new("A"), a_src)],
             parse_trusted,
         );
-        let mut visitable = ModulesVisitable::with_entry(Name::new("test"));
+
+        let mut to_visit = vec![Name::new("test")];
+        let mut visited = HashSet::new();
+
         let diagnostics = SymbolCollector::collect_symbols(
             &mut engine,
             &mut relations,
-            &mut visitable,
+            &mut to_visit,
+            &mut visited,
             &mut importer,
         );
         assert_eq!(diagnostics, vec![]);
 
-        let diagnostics = SymbolResolver::resolve_symbols(&engine, &mut relations, &mut visitable);
+        let diagnostics = SymbolResolver::resolve_symbols(
+            &engine,
+            &mut relations,
+            &mut to_visit,
+            &mut visited,
+        );
 
         assert_eq!(
             diagnostics,
@@ -626,9 +673,9 @@ mod tests {
                 Diagnostic::new(
                     DiagnosticID::ImportResolution,
                     SourceObjectId(0),
-                    "unable to find imported symbol B in module A."
+                    "unable to find imported symbol B in module A.",
                 )
-                .with_observation(Observation::new(find_in(source, "A::B"))),
+                    .with_observation(Observation::new(find_in(source, "A::B"))),
                 Diagnostic::new(
                     DiagnosticID::ImportResolution,
                     SourceObjectId(0),
@@ -677,16 +724,25 @@ mod tests {
         let mut engine = Engine::default();
         let mut relations = Relations::default();
         let mut importer = StaticImporter::new([(Name::new("test"), test_src)], parse_trusted);
-        let mut visitable = ModulesVisitable::with_entry(Name::new("test"));
+
+        let mut to_visit = vec![Name::new("test")];
+        let mut visited = HashSet::new();
+
         let diagnostics = SymbolCollector::collect_symbols(
             &mut engine,
             &mut relations,
-            &mut visitable,
+            &mut to_visit,
+            &mut visited,
             &mut importer,
         );
         assert_eq!(diagnostics, vec![]);
 
-        let diagnostic = SymbolResolver::resolve_symbols(&engine, &mut relations, &mut visitable);
+        let diagnostic = SymbolResolver::resolve_symbols(
+            &engine,
+            &mut relations,
+            &mut to_visit,
+            &mut visited,
+        );
 
         assert_eq!(
             diagnostic,
@@ -694,9 +750,9 @@ mod tests {
                 Diagnostic::new(
                     DiagnosticID::UnknownSymbol,
                     SourceObjectId(0),
-                    "Could not resolve symbol C."
+                    "Could not resolve symbol C.",
                 )
-                .with_observation(Observation::new(find_in(source, "$C")))
+                    .with_observation(Observation::new(find_in(source, "$C")))
                 .with_observation(Observation::new(find_in_nth(source, "$C", 1))),
                 Diagnostic::new(
                     DiagnosticID::UnknownSymbol,
@@ -717,19 +773,22 @@ mod tests {
         let mut engine = Engine::default();
         let mut relations = Relations::default();
         let mut importer = StaticImporter::new([(Name::new("test"), source)], parse_trusted);
-        let mut visitable = ModulesVisitable::with_entry(Name::new("test"));
+
+        let mut to_visit = vec![Name::new("test")];
+        let mut visited = HashSet::new();
 
         let diagnostics = SymbolCollector::collect_symbols(
             &mut engine,
             &mut relations,
-            &mut visitable,
+            &mut to_visit,
+            &mut visited,
             &mut importer,
         );
 
         assert_eq!(diagnostics, vec![]);
 
-        let mut resolver = SymbolResolver::new(&mut engine, &mut relations, &mut visitable);
-        resolver.resolve_imports(SourceObjectId(0), UnresolvedImports::default());
+        let mut resolver = SymbolResolver::new(&mut engine, &mut relations);
+        resolver.resolve_imports(SourceObjectId(0), UnresolvedImports::default(), &mut to_visit, &mut visited);
         resolver.resolve_trees().expect("resolution errors");
 
         assert_eq!(resolver.diagnostics, vec![]);
