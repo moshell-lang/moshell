@@ -1,9 +1,10 @@
 use analyzer::engine::Engine;
-use analyzer::environment::variables::Variable;
+use analyzer::environment::variables::{TypeUsage, Variable};
 use analyzer::importer::StaticImporter;
 use analyzer::name::Name;
 use analyzer::relations::{GlobalObjectId, Relations, SourceObjectId, Symbol};
 use analyzer::steps::collect::SymbolCollector;
+use analyzer::visitable::ModulesVisitable;
 use context::source::Source;
 use context::str_find::{find_between, find_in};
 use parser::parse_trusted;
@@ -15,11 +16,12 @@ fn collect_sample() {
     let root_name = Name::new("debug_sample");
     let mut engine = Engine::default();
     let mut relations = Relations::default();
+    let mut visitable = ModulesVisitable::with_entry(root_name.clone());
     let mut importer = StaticImporter::new([(root_name.clone(), source)], parse_trusted);
     let diagnostics = SymbolCollector::collect_symbols(
         &mut engine,
         &mut relations,
-        root_name.clone(),
+        &mut visitable,
         &mut importer,
     );
     assert_eq!(diagnostics, vec![]);
@@ -51,7 +53,7 @@ fn collect_sample() {
 
     let n_parameter = factorial_env
         .variables
-        .get_symbol("n")
+        .get_symbol(&TypeUsage::Variable(Name::new("n")))
         .expect("Unable to get n symbol");
     assert_eq!(
         factorial_env.get_raw_symbol(find_in(content, "$n")),
@@ -70,6 +72,6 @@ fn collect_sample() {
     let lambda_env = engine
         .get_environment(SourceObjectId(3))
         .expect("Unable to get lambda environment");
-    let variables = lambda_env.variables.external_vars().collect::<Vec<_>>();
-    assert_eq!(variables, vec![(&"n".to_owned(), GlobalObjectId(0))]);
+    let variables = lambda_env.variables.external_usages().collect::<Vec<_>>();
+    assert_eq!(variables, vec![(&TypeUsage::Variable(Name::new("n")), GlobalObjectId(0))]);
 }
