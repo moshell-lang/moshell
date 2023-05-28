@@ -2,18 +2,18 @@ use std::collections::HashSet;
 
 use ast::call::Call;
 use ast::control_flow::ForKind;
-use ast::Expr;
 use ast::function::FunctionParameter;
 use ast::r#match::MatchPattern;
 use ast::r#use::Import as ImportExpr;
 use ast::range::Iterable;
 use ast::value::LiteralValue;
+use ast::Expr;
 use context::source::SourceSegmentHolder;
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
-use crate::environment::Environment;
 use crate::environment::variables::{TypeInfo, TypeUsage};
+use crate::environment::Environment;
 use crate::importer::ASTImporter;
 use crate::name::Name;
 use crate::relations::{Relations, SourceObjectId, Symbol, UnresolvedImport};
@@ -62,9 +62,11 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         collector.diagnostics
     }
 
-    fn new(engine: &'a mut Engine<'e>,
-           relations: &'a mut Relations,
-           visitable: &'a mut ModulesVisitable) -> Self {
+    fn new(
+        engine: &'a mut Engine<'e>,
+        relations: &'a mut Relations,
+        visitable: &'a mut ModulesVisitable,
+    ) -> Self {
         Self {
             engine,
             relations,
@@ -80,7 +82,9 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
     /// For example, if the module `a` defines a symbol `b`, and the module `a::b` also exists
     /// there is no way to identify if either `a::b` is the symbol, or `a::b` is the module.
     fn check_symbols_identity(&mut self) {
-        let roots = self.engine.environments()
+        let roots = self
+            .engine
+            .environments()
             .filter(|(_, e)| e.parent.is_none()); //keep root environments
         for (env_id, env) in roots {
             let env_name = &env.fqn;
@@ -88,15 +92,19 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             for (declaration_segment, symbol) in &env.definitions {
                 let id = match symbol {
                     Symbol::Local(id) => id,
-                    Symbol::Global(_) => continue
+                    Symbol::Global(_) => continue,
                 };
                 if !reported.insert(id) {
-                    continue
+                    continue;
                 }
-                let var = env.variables.get_var(*id).expect("local symbol references an unknown variable");
+                let var = env
+                    .variables
+                    .get_var(*id)
+                    .expect("local symbol references an unknown variable");
 
                 let var_fqn = env_name.appended(Name::new(&var.name));
-                let clashed = self.engine
+                let clashed = self
+                    .engine
                     .find_environment_by_name(&var_fqn, true)
                     .map(|(_, e)| e)
                     .filter(|e| e.parent.is_none());
@@ -108,11 +116,18 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                             .collect::<Vec<_>>();
 
                         let (head, tail) = list.split_first().unwrap();
-                        let str = tail.iter().fold(format!("{env_name}::{{{head}"), |acc, it| format!("{acc}, {it}"));
+                        let str = tail
+                            .iter()
+                            .fold(format!("{env_name}::{{{head}"), |acc, it| {
+                                format!("{acc}, {it}")
+                            });
                         format!("{str}}}")
                     };
 
-                    let msg = format!("Declared symbol '{}' in module {env_name} clashes with module {}", var.name, &clashed.fqn);
+                    let msg = format!(
+                        "Declared symbol '{}' in module {env_name} clashes with module {}",
+                        var.name, &clashed.fqn
+                    );
                     let diagnostic = {
                         Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, env_id, msg)
                             .with_observation(Observation::with_help(declaration_segment.clone(), format!("This symbol has the same fully-qualified name as module {}", clashed.fqn)))
@@ -124,9 +139,8 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         }
     }
 
-
     fn collect(&mut self, importer: &mut impl ASTImporter<'e>) {
-        while let Some(name) = self.visitable.next() {
+        while let Some(name) = self.visitable.pop() {
             //try to import the ast, if the importer isn't able to achieve this and returns None,
             //Ignore this ast analysis. It'll be up to the given importer implementation to handle the
             //errors caused by this import request failure
@@ -153,16 +167,16 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         import_expr: &'e ImportExpr<'e>,
         import_fqn: Name,
     ) {
-        if let Some(shadowed) = self.relations.add_import(mod_id, import, import_expr.segment()) {
+        if let Some(shadowed) = self
+            .relations
+            .add_import(mod_id, import, import_expr.segment())
+        {
             let diagnostic = Diagnostic::new(
                 DiagnosticID::ShadowedImport,
                 mod_id,
                 format!("{import_fqn} is imported twice."),
             )
-            .with_observation(Observation::with_help(
-                shadowed,
-                "useless import here",
-            ))
+            .with_observation(Observation::with_help(shadowed, "useless import here"))
             .with_observation(Observation::with_help(
                 import_expr.segment(),
                 "This statement shadows previous import",
@@ -187,7 +201,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 let name = Name::from(symbol_name);
                 let alias = s.alias.map(|s| s.to_string());
 
-                self.visitable.insert(name.clone());
+                self.visitable.push(name.clone());
                 let unresolved = UnresolvedImport::Symbol {
                     alias,
                     fqn: name.clone(),
@@ -199,7 +213,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 symbol_name.extend(path.iter().map(|s| s.to_string()));
 
                 let name = Name::from(symbol_name);
-                self.visitable.insert(name.clone());
+                self.visitable.push(name.clone());
                 let unresolved = UnresolvedImport::AllIn(name.clone());
                 self.add_checked_import(mod_id, unresolved, import, name)
             }
@@ -303,9 +317,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 let name = Name::prefixed(path, call.name.to_string());
 
                 let usage = TypeUsage::Function(name);
-                let symbol = env
-                    .variables
-                    .identify(state.module, self.relations, usage);
+                let symbol = env.variables.identify(state.module, self.relations, usage);
 
                 env.annotate(call, symbol);
                 for arg in &call.arguments {
@@ -342,9 +354,11 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 env.annotate(var, symbol);
             }
             Expr::VarReference(var) => {
-                let symbol = env
-                    .variables
-                    .identify(state.module, self.relations, TypeUsage::Variable(Name::new(var.name)));
+                let symbol = env.variables.identify(
+                    state.module,
+                    self.relations,
+                    TypeUsage::Variable(Name::new(var.name)),
+                );
                 env.annotate(var, symbol);
             }
             Expr::Range(range) => match range {
@@ -502,7 +516,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
 
     fn resolve_primitive_call(&self, env: &mut Environment, call: &Call) -> Option<()> {
         if !call.path.is_empty() {
-            return None
+            return None;
         }
         let command = self.extract_literal_argument(call, 0)?;
         match command {
@@ -537,9 +551,15 @@ fn import_ast<'a, 'b>(
     None
 }
 
-fn list_inner_modules<'a>(engine: &'a Engine, env: &'a Environment) -> impl Iterator<Item=&'a Environment> {
-    engine.environments()
-        .filter(|(_, e)| e.parent.is_none() && e.fqn.tail().filter(|tail| tail == &env.fqn).is_some())
+fn list_inner_modules<'a>(
+    engine: &'a Engine,
+    env: &'a Environment,
+) -> impl Iterator<Item = &'a Environment> {
+    engine
+        .environments()
+        .filter(|(_, e)| {
+            e.parent.is_none() && e.fqn.tail().filter(|tail| tail == &env.fqn).is_some()
+        })
         .map(|(_, e)| e)
 }
 
@@ -565,12 +585,8 @@ mod tests {
             parse_trusted,
         );
         let visitable = &mut ModulesVisitable::with_entry(Name::new("test"));
-        let res = SymbolCollector::collect_symbols(
-            &mut engine,
-            &mut relations,
-            visitable,
-            &mut importer,
-        );
+        let res =
+            SymbolCollector::collect_symbols(&mut engine, &mut relations, visitable, &mut importer);
         assert_eq!(
             res,
             vec![
@@ -594,7 +610,6 @@ mod tests {
         assert_eq!(relations.objects, vec![]);
     }
 
-
     #[test]
     fn test_symbol_clashes_with_module() {
         let math_source = "use math::{add, multiply, divide}; fun multiply(a: Int, b: Int) = a * b";
@@ -615,12 +630,8 @@ mod tests {
             parse_trusted,
         );
         let visitable = &mut ModulesVisitable::with_entry(Name::new("math"));
-        let diagnostics = SymbolCollector::collect_symbols(
-            &mut engine,
-            &mut relations,
-            visitable,
-            &mut importer,
-        );
+        let diagnostics =
+            SymbolCollector::collect_symbols(&mut engine, &mut relations, visitable, &mut importer);
         assert_eq!(diagnostics, vec![
             Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, SourceObjectId(0), "Declared symbol 'multiply' in module math clashes with module math::multiply")
                 .with_observation(Observation::with_help(find_in(math_source, "fun multiply(a: Int, b: Int) = a * b"), "This symbol has the same fully-qualified name as module math::multiply"))
@@ -637,12 +648,8 @@ mod tests {
         let mut importer = StaticImporter::new([(Name::new("test"), test_src)], parse_trusted);
 
         let visitable = &mut ModulesVisitable::with_entry(Name::new("test"));
-        let diagnostics = SymbolCollector::collect_symbols(
-            &mut engine,
-            &mut relations,
-            visitable,
-            &mut importer,
-        );
+        let diagnostics =
+            SymbolCollector::collect_symbols(&mut engine, &mut relations, visitable, &mut importer);
 
         assert_eq!(
             diagnostics,
@@ -697,8 +704,14 @@ mod tests {
         assert_eq!(env.get_raw_symbol(find_in(src, "a")), None);
         assert_eq!(env.get_raw_symbol(find_in(src, "$a")), None);
         let func_env = engine.get_environment(SourceObjectId(1)).unwrap();
-        assert_eq!(func_env.get_raw_symbol(find_in(src, "a")), Some(Symbol::Local(0)));
-        assert_eq!(func_env.get_raw_symbol(find_in(src, "$a")), Some(Symbol::Local(0)));
+        assert_eq!(
+            func_env.get_raw_symbol(find_in(src, "a")),
+            Some(Symbol::Local(0))
+        );
+        assert_eq!(
+            func_env.get_raw_symbol(find_in(src, "$a")),
+            Some(Symbol::Local(0))
+        );
     }
 
     #[test]
@@ -717,7 +730,10 @@ mod tests {
         assert_eq!(collector.diagnostics, vec![]);
         assert_eq!(relations.objects, vec![]);
         assert_eq!(env.get_raw_symbol(find_in(src, "read")), None);
-        assert_eq!(env.get_raw_symbol(find_in(src, "foo")), Some(Symbol::Local(0)));
+        assert_eq!(
+            env.get_raw_symbol(find_in(src, "foo")),
+            Some(Symbol::Local(0))
+        );
     }
 
     #[test]
@@ -733,7 +749,7 @@ mod tests {
 
         let visitable = &mut ModulesVisitable::with_entry(Name::new("test"));
         let mut collector = SymbolCollector::new(&mut engine, &mut relations, visitable);
-        collector.tree_walk(&mut env, &mut state,  &expr);
+        collector.tree_walk(&mut env, &mut state, &expr);
 
         assert_eq!(collector.diagnostics, vec![]);
         engine.attach(state.module, env);

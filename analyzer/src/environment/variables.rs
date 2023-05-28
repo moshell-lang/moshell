@@ -1,7 +1,7 @@
+use crate::name::Name;
 use crate::relations::{GlobalObjectId, ObjectId, Relations, SourceObjectId, Symbol};
 use indexmap::IndexMap;
 use std::num::NonZeroUsize;
-use crate::name::Name;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TypeInfo {
@@ -19,7 +19,7 @@ impl TypeUsage {
     pub fn name(&self) -> &Name {
         match self {
             TypeUsage::Variable(name) => name,
-            TypeUsage::Function(name) => name
+            TypeUsage::Function(name) => name,
         }
     }
 }
@@ -51,9 +51,7 @@ impl Variables {
         let mut local = None;
         let var_name = usage.name();
         if var_name.parts().len() == 1 {
-            local = self
-                .locals
-                .position_reachable_local(var_name.simple_name());
+            local = self.locals.position_reachable_local(var_name.simple_name());
         }
         match local {
             Some(var) => Symbol::Local(var),
@@ -68,9 +66,7 @@ impl Variables {
     }
 
     pub fn get_var(&self, id: ObjectId) -> Option<&Variable> {
-        self.locals
-            .vars
-            .get(id)
+        self.locals.vars.get(id)
     }
 
     /// Gets the symbol associated with an already known name.
@@ -95,7 +91,7 @@ impl Variables {
     }
 
     /// Iterates over all the global variable ids, with their corresponding name.
-    pub fn external_usages(&self) -> impl Iterator<Item=(&TypeUsage, GlobalObjectId)> {
+    pub fn external_usages(&self) -> impl Iterator<Item = (&TypeUsage, GlobalObjectId)> {
         self.external_usages.iter().map(|(name, id)| (name, *id))
     }
 
@@ -103,9 +99,9 @@ impl Variables {
     ///
     /// This returns the name only if the global object comes from this environment.
     pub fn get_external_symbol_usage(&self, object_id: GlobalObjectId) -> Option<&TypeUsage> {
-        self.external_usages.iter().find_map(|(usage, &id)| {
-            (id == object_id).then_some(usage)
-        })
+        self.external_usages
+            .iter()
+            .find_map(|(usage, &id)| (id == object_id).then_some(usage))
     }
 
     pub fn begin_scope(&mut self) {

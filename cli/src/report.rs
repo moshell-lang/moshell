@@ -107,8 +107,7 @@ fn write_diagnostic<W: Write>(
     unsafe {
         //SAFETY: the CLI source is transmuted to a static lifetime, because `report.with_source_code`
         //needs a source with a static lifetime. The report and the source are then used to display the formatted diagnostic and are immediately dropped after.
-        let source =
-            std::mem::transmute::<Source, Source<'static>>(source);
+        let source = std::mem::transmute::<Source, Source<'static>>(source);
         let report = report.with_source_code(source);
         writeln!(writer, "\n{report:?}")
     }

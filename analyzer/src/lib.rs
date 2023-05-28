@@ -1,13 +1,12 @@
 #![allow(dead_code)]
 
-
 use crate::diagnostic::Diagnostic;
 use crate::engine::Engine;
 use crate::importer::ASTImporter;
 use crate::name::Name;
 use crate::relations::Relations;
 use crate::steps::collect::SymbolCollector;
-use crate::steps::resolve::{SymbolResolver};
+use crate::steps::resolve::SymbolResolver;
 use crate::visitable::ModulesVisitable;
 
 pub mod diagnostic;
@@ -28,23 +27,29 @@ pub fn analyze<'a>(entry_point: Name, importer: &mut impl ASTImporter<'a>) -> An
 
     let mut diagnostics = Vec::new();
 
-    diagnostics.extend(SymbolCollector::collect_symbols(&mut engine, &mut relations, &mut visitable, importer));
-    diagnostics.extend(SymbolResolver::resolve_symbols(&mut engine, &mut relations, &mut visitable));
-
     while !visitable.is_empty() {
-        diagnostics.extend(SymbolCollector::collect_symbols(&mut engine, &mut relations, &mut visitable, importer));
-        diagnostics.extend(SymbolResolver::resolve_symbols(&mut engine, &mut relations, &mut visitable));
+        diagnostics.extend(SymbolCollector::collect_symbols(
+            &mut engine,
+            &mut relations,
+            &mut visitable,
+            importer,
+        ));
+        diagnostics.extend(SymbolResolver::resolve_symbols(
+            &engine,
+            &mut relations,
+            &mut visitable,
+        ));
     }
 
     AnalyzerOutput {
         engine,
         relations,
-        diagnostics
+        diagnostics,
     }
 }
 
 pub struct AnalyzerOutput<'e> {
     pub engine: Engine<'e>,
     pub relations: Relations,
-    pub diagnostics: Vec<Diagnostic>
+    pub diagnostics: Vec<Diagnostic>,
 }

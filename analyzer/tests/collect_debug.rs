@@ -73,5 +73,8 @@ fn collect_sample() {
         .get_environment(SourceObjectId(3))
         .expect("Unable to get lambda environment");
     let variables = lambda_env.variables.external_usages().collect::<Vec<_>>();
-    assert_eq!(variables, vec![(&TypeUsage::Variable(Name::new("n")), GlobalObjectId(0))]);
+    assert_eq!(
+        variables,
+        vec![(&TypeUsage::Variable(Name::new("n")), GlobalObjectId(0))]
+    );
 }

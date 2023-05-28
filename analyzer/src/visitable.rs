@@ -1,6 +1,6 @@
 use crate::name::Name;
-use std::collections::{ HashSet};
 use indexmap::IndexSet;
+use std::collections::HashSet;
 
 #[derive(Eq, PartialEq, Debug)]
 pub struct ModulesVisitable {
@@ -12,7 +12,7 @@ impl ModulesVisitable {
     pub fn with_entry(entry_point: Name) -> Self {
         Self {
             to_visit: IndexSet::from([entry_point]),
-            visited: HashSet::new()
+            visited: HashSet::new(),
         }
     }
 
@@ -20,22 +20,24 @@ impl ModulesVisitable {
     pub(crate) fn empty() -> Self {
         Self {
             to_visit: IndexSet::new(),
-            visited: HashSet::new()
+            visited: HashSet::new(),
         }
     }
 
-
     #[cfg(test)]
-    pub(crate) fn new<const A: usize, const B: usize>(to_visit: [Name; A], visited: [Name; B]) -> Self {
+    pub(crate) fn new<const A: usize, const B: usize>(
+        to_visit: [Name; A],
+        visited: [Name; B],
+    ) -> Self {
         Self {
             to_visit: IndexSet::from(to_visit),
-            visited: HashSet::from(visited)
+            visited: HashSet::from(visited),
         }
     }
 
     /// Inserts a name in this visitable,
     /// Returns true if the name was effectively inserted, false if it was already visited.
-    pub fn insert(&mut self, name: Name) -> bool {
+    pub fn push(&mut self, name: Name) -> bool {
         if self.is_already_visited(&name) {
             return false;
         }
@@ -43,7 +45,7 @@ impl ModulesVisitable {
         true
     }
 
-    pub fn next(&mut self) -> Option<Name> {
+    pub fn pop(&mut self) -> Option<Name> {
         if let Some(name) = self.to_visit.pop() {
             self.visited.insert(name.clone());
             return Some(name);

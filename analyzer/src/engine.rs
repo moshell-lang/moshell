@@ -59,11 +59,19 @@ impl<'a> Engine<'a> {
 
     ///Finds an environment by its fully qualified name.
     /// if `force_module` is set to true, the returned environment must be a module's environment
-    pub fn find_environment_by_name(&self, name: &Name, force_module: bool) -> Option<(SourceObjectId, &Environment)> {
+    pub fn find_environment_by_name(
+        &self,
+        name: &Name,
+        force_module: bool,
+    ) -> Option<(SourceObjectId, &Environment)> {
         self.origins
             .iter()
             .enumerate()
-            .find(|(_, (_, env))| env.as_ref().map(|env| (!force_module || env.parent.is_none()) && &env.fqn == name).unwrap_or(false))
+            .find(|(_, (_, env))| {
+                env.as_ref()
+                    .map(|env| (!force_module || env.parent.is_none()) && &env.fqn == name)
+                    .unwrap_or(false)
+            })
             .and_then(|(idx, (_, env))| env.as_ref().map(|env| (SourceObjectId(idx), env)))
     }
 

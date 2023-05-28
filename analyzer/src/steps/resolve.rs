@@ -7,9 +7,11 @@ use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::name::Name;
-use crate::relations::{GlobalObjectId, Relations, ResolvedSymbol, SourceObjectId, Symbol, UnresolvedImport, UnresolvedImports};
+use crate::relations::{
+    GlobalObjectId, Relations, ResolvedSymbol, SourceObjectId, Symbol, UnresolvedImport,
+    UnresolvedImports,
+};
 use crate::visitable::ModulesVisitable;
-
 
 #[derive(PartialEq, Eq, Debug)]
 enum ResolvedImport {
@@ -71,9 +73,11 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         resolver.diagnostics
     }
 
-    fn new(engine: &'a Engine<'e>,
-           relations: &'a mut Relations,
-           visitable: &'a mut ModulesVisitable) -> Self {
+    fn new(
+        engine: &'a Engine<'e>,
+        relations: &'a mut Relations,
+        visitable: &'a mut ModulesVisitable,
+    ) -> Self {
         Self {
             engine,
             relations,
@@ -104,7 +108,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
     ) {
         for (usage, external_var) in env.variables.external_usages() {
             if self.relations.objects[external_var.0].resolved.is_some() {
-                continue
+                continue;
             }
             let name = usage.name();
             let name_root = name.root();
@@ -112,47 +116,49 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                 Some(ResolvedImport::Symbol(resolved_symbol)) => {
                     let object = &mut self.relations.objects[external_var.0];
                     object.resolved = Some(*resolved_symbol);
-                    continue
-                },
+                    continue;
+                }
                 Some(ResolvedImport::Module(resolved_module)) => {
                     if let Some(env) = self.engine.get_environment(*resolved_module) {
-                        let resolved_pos = env.variables
+                        let resolved_pos = env
+                            .variables
                             .exported_vars()
                             .position(|v| v.name == name.simple_name());
 
                         if let Some(symbol_pos) = resolved_pos {
                             let object = &mut self.relations.objects[external_var.0];
-                            object.resolved = Some(ResolvedSymbol::new(*resolved_module, symbol_pos));
-                            continue
+                            object.resolved =
+                                Some(ResolvedSymbol::new(*resolved_module, symbol_pos));
+                            continue;
                         }
                     }
-                },
-                None => if let Some(env_name) = name.tail() {
-                    let env_result = name.tail().and_then(|env_name| self.get_env_from(&env_name));
-                    if let Some((env_id, env)) = env_result {
-                        let resolved_pos = env.variables
-                            .exported_vars()
-                            .position(|v| v.name == name.simple_name());
+                }
+                None => {
+                    if let Some(env_name) = name.tail() {
+                        let env_result = name
+                            .tail()
+                            .and_then(|env_name| self.get_env_from(&env_name));
+                        if let Some((env_id, env)) = env_result {
+                            let resolved_pos = env
+                                .variables
+                                .exported_vars()
+                                .position(|v| v.name == name.simple_name());
 
-                        if let Some(symbol_pos) = resolved_pos {
-                            let object = &mut self.relations.objects[external_var.0];
-                            object.resolved = Some(ResolvedSymbol::new(env_id, symbol_pos));
-                            continue
+                            if let Some(symbol_pos) = resolved_pos {
+                                let object = &mut self.relations.objects[external_var.0];
+                                object.resolved = Some(ResolvedSymbol::new(env_id, symbol_pos));
+                                continue;
+                            }
+                        }
+                        // We put the unknown name in the visitable
+                        if self.visitable.push(env_name) {
+                            // env_name wasn't known from the visitable, let's give it a chance to be resolved
+                            continue;
                         }
                     }
-                    // We put the unknown name in the visitable
-                    if self.visitable.insert(env_name) {
-                        // env_name wasn't known from the visitable, let's give it a chance
-                        continue
-                    }
-                },
+                }
             };
-            self.diagnose_unresolved_external_symbols(
-                external_var,
-                env_id,
-                env,
-                name,
-            )
+            self.diagnose_unresolved_external_symbols(external_var, env_id, env, name)
         }
     }
 
@@ -232,18 +238,21 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                     match self.get_env_from(&name) {
                         // if the environment wasn't found, attempt to resolve it in next cycle
                         None => {
-                            if !self.visitable.insert(name.clone()) {
+                            if !self.visitable.push(name.clone()) {
                                 // if the environment wasn't found, and its name was already known, push a diagnostic as it does not exists
                                 self.diagnose_unresolved_import(env_id, name, None, dependent)
                             }
-                        },
+                        }
                         //else, try to resolve it
                         Some((found_env_id, found_env)) => {
                             let symbol_name = name.simple_name().to_string();
                             if found_env.fqn == name {
                                 //it's the module that is being imported
-                                resolved_imports.set_import(alias.unwrap_or(symbol_name), ResolvedImport::Module(found_env_id));
-                                continue
+                                resolved_imports.set_import(
+                                    alias.unwrap_or(symbol_name),
+                                    ResolvedImport::Module(found_env_id),
+                                );
+                                continue;
                             }
                             let symbol_id = found_env
                                 .variables
@@ -252,7 +261,10 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
 
                             if let Some(symbol_id) = symbol_id {
                                 let resolved = ResolvedSymbol::new(found_env_id, symbol_id);
-                                resolved_imports.set_import(alias.unwrap_or(symbol_name), ResolvedImport::Symbol(resolved));
+                                resolved_imports.set_import(
+                                    alias.unwrap_or(symbol_name),
+                                    ResolvedImport::Symbol(resolved),
+                                );
                                 continue;
                             }
                             //if the symbol inside the resolved environment could not be found,
@@ -281,7 +293,10 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                                     .unwrap();
 
                                 let import_symbol = ResolvedSymbol::new(env_id, var_id);
-                                resolved_imports.set_import(var.name.clone(), ResolvedImport::Symbol(import_symbol));
+                                resolved_imports.set_import(
+                                    var.name.clone(),
+                                    ResolvedImport::Symbol(import_symbol),
+                                );
                             }
                         }
                     }
@@ -386,12 +401,8 @@ mod tests {
             parse_trusted,
         );
         let visitable = &mut ModulesVisitable::with_entry(Name::new("test"));
-        let diagnostics = SymbolCollector::collect_symbols(
-            &mut engine,
-            &mut relations,
-            visitable,
-            &mut importer,
-        );
+        let diagnostics =
+            SymbolCollector::collect_symbols(&mut engine, &mut relations, visitable, &mut importer);
         assert_eq!(diagnostics, vec![]);
 
         assert_eq!(
@@ -403,15 +414,17 @@ mod tests {
                         UnresolvedImport::Symbol {
                             alias: None,
                             fqn: Name::new("math::PI"),
-                        }, 17..25
-                    ), (
+                        },
+                        17..25
+                    ),
+                    (
                         UnresolvedImport::Symbol {
                             alias: None,
                             fqn: Name::new("std::Bar"),
-                        }, 48..51
-                    ), (
-                        UnresolvedImport::AllIn(Name::new("std::io")), 53..58
+                        },
+                        48..51
                     ),
+                    (UnresolvedImport::AllIn(Name::new("std::io")), 53..58),
                 ]))
             )])
         );
@@ -423,8 +436,14 @@ mod tests {
         assert_eq!(
             resolved_imports,
             ResolvedImports::with(HashMap::from([
-                ("PI".to_string(), ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(3), 0))),
-                ("Bar".to_string(), ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(2), 1))),
+                (
+                    "PI".to_string(),
+                    ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(3), 0))
+                ),
+                (
+                    "Bar".to_string(),
+                    ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(2), 1))
+                ),
                 (
                     "output".to_string(),
                     ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(1), 0))
@@ -490,7 +509,6 @@ mod tests {
         )
     }
 
-
     #[test]
     fn test_qualified_symbols_resolution() {
         let math_src = Source::unknown("fun add(a: Int, b: Int) = a + b");
@@ -530,11 +548,13 @@ mod tests {
         assert_eq!(diagnostics, vec![]);
         let diagnostics = SymbolResolver::resolve_symbols(&engine, &mut relations, &mut visitable);
         assert_eq!(diagnostics, vec![]);
-        assert_eq!(visitable, ModulesVisitable::new(
-            [Name::new("math"), Name::new("std")],
-            [Name::new("math::advanced"), Name::new("test")],
-        ));
-
+        assert_eq!(
+            visitable,
+            ModulesVisitable::new(
+                [Name::new("math"), Name::new("std")],
+                [Name::new("math::advanced"), Name::new("test")],
+            )
+        );
 
         //second cycle
         let diagnostics = SymbolCollector::collect_symbols(
@@ -546,11 +566,18 @@ mod tests {
         assert_eq!(diagnostics, vec![]);
         let diagnostics = SymbolResolver::resolve_symbols(&engine, &mut relations, &mut visitable);
         assert_eq!(diagnostics, vec![]);
-        assert_eq!(visitable, ModulesVisitable::new(
-            [],
-            [Name::new("math"), Name::new("std"), Name::new("math::advanced"), Name::new("test")],
-        ));
-
+        assert_eq!(
+            visitable,
+            ModulesVisitable::new(
+                [],
+                [
+                    Name::new("math"),
+                    Name::new("std"),
+                    Name::new("math::advanced"),
+                    Name::new("test")
+                ],
+            )
+        );
 
         assert_eq!(
             relations.objects,
@@ -562,7 +589,6 @@ mod tests {
             ]
         )
     }
-
 
     #[test]
     fn test_unknown_symbols() {

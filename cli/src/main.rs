@@ -13,7 +13,6 @@ use std::ops::Deref;
 use std::process::exit;
 
 fn main() -> io::Result<()> {
-
     let cli = Cli::parse();
 
     miette::set_hook(Box::new(|_| {

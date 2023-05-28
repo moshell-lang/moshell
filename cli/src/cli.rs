@@ -8,8 +8,8 @@ use dbg_pls::color;
 use analyzer::analyze;
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
-use ast::Expr;
 use ast::group::Block;
+use ast::Expr;
 use context::source::Source;
 use parser::parse;
 

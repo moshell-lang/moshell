@@ -50,9 +50,9 @@ impl<'b> SourceCode for Source<'b> {
         context_lines_before: usize,
         context_lines_after: usize,
     ) -> Result<Box<dyn SpanContents<'a> + 'a>, MietteError> {
-        let contents =
-            self.source
-                .read_span(span, context_lines_before, context_lines_after)?;
+        let contents = self
+            .source
+            .read_span(span, context_lines_before, context_lines_after)?;
         Ok(Box::new(MietteSpanContents::new_named(
             self.name.to_owned(),
             contents.data(),
@@ -63,7 +63,6 @@ impl<'b> SourceCode for Source<'b> {
         )))
     }
 }
-
 
 impl Debug for Source<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
