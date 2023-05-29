@@ -165,8 +165,8 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         imported_symbol_name: Name,
         known_parent: Option<Name>,
         dependent_segment: SourceSegment,
-    ) {
-        let msg = &format!(
+    ) -> Diagnostic {
+        let msg = format!(
             "unable to find imported symbol {}{}.",
             known_parent
                 .as_ref()
@@ -177,9 +177,8 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                 .unwrap_or_default()
         );
 
-        let diagnostic = Diagnostic::new(DiagnosticID::ImportResolution, env_id, msg)
-            .with_observation(Observation::new(dependent_segment));
-        self.diagnostics.push(diagnostic)
+        Diagnostic::new(DiagnosticID::ImportResolution, env_id, msg)
+            .with_observation(Observation::new(dependent_segment))
     }
 
     /// Attempts to resolve all given unresolved imports, returning a [ResolvedImports] structure containing the
@@ -200,7 +199,11 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                     // try to get referenced environment of the import
                     match self.get_env_from(&name) {
                         // if the environment wasn't found, push a diagnostic
-                        None => self.diagnose_unresolved_import(env_id, name, None, dependent),
+                        None => {
+                            let diagnostic =
+                                self.diagnose_unresolved_import(env_id, name, None, dependent);
+                            self.diagnostics.push(diagnostic);
+                        }
                         //else, try to resolve it
                         Some((found_env_id, found_env)) => {
                             let symbol_name = name.simple_name().to_string();
@@ -215,12 +218,13 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                                 continue;
                             }
                             //if the symbol inside the resolved environment could not be found,
-                            self.diagnose_unresolved_import(
+                            let diagnostic = self.diagnose_unresolved_import(
                                 env_id,
                                 name,
                                 Some(found_env.fqn.clone()),
                                 dependent,
-                            )
+                            );
+                            self.diagnostics.push(diagnostic);
                         }
                     }
                 }
@@ -230,7 +234,11 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                     // try to get referenced environment of the import
                     match self.get_env_from(&name) {
                         // if the environment wasn't found, push a diagnostic
-                        None => self.diagnose_unresolved_import(env_id, name, None, dependent),
+                        None => {
+                            let diagnostic =
+                                self.diagnose_unresolved_import(env_id, name, None, dependent);
+                            self.diagnostics.push(diagnostic)
+                        }
                         Some((env_id, env)) => {
                             for var in env.variables.exported_vars() {
                                 let var_id = env
@@ -269,10 +277,10 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
     /// to allow child environments to use imports from their parents.
     fn resolve_trees(&mut self, resolved_imports: &HashMap<SourceObjectId, ResolvedImports>) {
         'symbol: for (object_id, object) in self.relations.iter_mut() {
-            let origin = object.origin;
             if object.resolved.is_some() {
                 continue;
             }
+            let origin = object.origin;
 
             // Get the local naming of the object
             let origin_env = self

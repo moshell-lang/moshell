@@ -1,6 +1,5 @@
 use crate::relations::{GlobalObjectId, ObjectId, Relations, SourceObjectId, Symbol};
 use indexmap::IndexMap;
-use std::ops::Neg;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TypeInfo {
@@ -160,7 +159,7 @@ impl Locals {
             .rev()
             .take_while(|var| var.depth == self.current_depth as isize)
             .for_each(|var| {
-                var.depth = var.depth.neg();
+                var.depth = -var.depth;
             });
 
         self.current_depth = self
