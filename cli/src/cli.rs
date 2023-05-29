@@ -5,9 +5,9 @@ use std::path::PathBuf;
 use clap::Parser;
 use dbg_pls::color;
 
-use analyzer::resolve_all;
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
+use analyzer::resolve_all;
 use ast::group::Block;
 use ast::Expr;
 use context::source::Source;

@@ -23,7 +23,10 @@ pub mod steps;
 ///
 /// This function will alternate between collection and resolution phases as long as the resolution
 /// phase finds new modules that could be imported.
-pub fn resolve_all<'a>(entry_point: Name, importer: &mut impl ASTImporter<'a>) -> ResolutionResult<'a> {
+pub fn resolve_all<'a>(
+    entry_point: Name,
+    importer: &mut impl ASTImporter<'a>,
+) -> ResolutionResult<'a> {
     let mut engine = Engine::default();
     let mut relations = Relations::default();
 

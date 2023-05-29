@@ -82,8 +82,11 @@ pub struct ResolvedSymbol {
 }
 
 impl ResolvedSymbol {
-    pub fn new(module: SourceObjectId, object_id: ObjectId) -> Self {
-        Self { source: module, object_id }
+    pub fn new(source: SourceObjectId, object_id: ObjectId) -> Self {
+        Self {
+            source,
+            object_id,
+        }
     }
 }
 
@@ -176,7 +179,7 @@ impl Relations {
     }
 
     /// Returns a mutable iterator over all the objects.
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (GlobalObjectId, &mut Object)> {
+    pub fn iter_mut(&mut self) -> impl Iterator<Item=(GlobalObjectId, &mut Object)> {
         self.objects
             .iter_mut()
             .enumerate()

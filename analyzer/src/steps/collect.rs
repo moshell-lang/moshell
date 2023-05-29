@@ -17,6 +17,7 @@ use crate::environment::{Definition, Environment};
 use crate::importer::ASTImporter;
 use crate::name::Name;
 use crate::relations::{Relations, SourceObjectId, Symbol, UnresolvedImport};
+use crate::steps::resolve::SymbolResolver;
 
 /// Defines the current state of the tree exploration.
 #[derive(Debug, Clone, Copy)]
@@ -41,6 +42,9 @@ pub struct SymbolCollector<'a, 'e> {
     engine: &'a mut Engine<'e>,
     relations: &'a mut Relations,
     diagnostics: Vec<Diagnostic>,
+
+    /// During the exploration, a parent environment always leaves a reference for its children.
+    stack: Vec<(SourceObjectId, &'e Environment)>,
 }
 
 impl<'a, 'e> SymbolCollector<'a, 'e> {
@@ -66,6 +70,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             engine,
             relations,
             diagnostics: Vec::new(),
+            stack: Vec::new(),
         }
     }
 
@@ -486,11 +491,12 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     &func.body,
                     to_visit,
                 );
+                self.resolve_captures(env, state, &func_env);
                 self.engine.attach(func_id, func_env);
             }
             Expr::LambdaDef(lambda) => {
                 let func_id = self.engine.track(expr);
-                let mut func_env = env.fork(func_id, &format!("lambda@{}", func_id.0));
+                let mut func_env = env.fork(state.module, &format!("lambda@{}", func_id.0));
                 for param in &lambda.args {
                     let symbol = func_env
                         .variables
@@ -503,11 +509,26 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     &lambda.body,
                     to_visit,
                 );
+                self.resolve_captures(env, state, &func_env);
                 self.engine.attach(func_id, func_env);
             }
             Expr::Literal(_) | Expr::Continue(_) | Expr::Break(_) => {}
         }
         state.accept_imports = false;
+    }
+
+    fn resolve_captures(
+        &mut self,
+        parent_env: &Environment,
+        parent_state: &ResolutionState,
+        capture_env: &Environment,
+    ) {
+        self.stack.push((parent_state.module, unsafe {
+            // SAFETY: the reference will immediately be popped off the stack.
+            std::mem::transmute::<&Environment, &'e Environment>(parent_env)
+        }));
+        SymbolResolver::resolve_captures(&self.stack, self.relations, capture_env);
+        self.stack.pop();
     }
 
     fn extract_literal_argument(&self, call: &'a Call, nth: usize) -> Option<&'a str> {

@@ -1,9 +1,9 @@
+use crate::environment::variables::TypeUsage;
 use crate::name::Name;
 use crate::relations::{SourceObjectId, Symbol};
 use context::source::{SourceSegment, SourceSegmentHolder};
 use indexmap::IndexMap;
 use variables::Variables;
-use crate::environment::variables::TypeUsage;
 
 pub mod variables;
 
@@ -75,6 +75,17 @@ impl Environment {
         self.variables.end_scope();
     }
 
+    /// Tests if the position of the declaration of a symbol is important.
+    ///
+    /// If the declaration order is important in the host environment, this requires that symbol
+    /// resolution must be done immediately after the child environment is collected. It does
+    /// mean that all the symbols referenced in the declaration and in this environment must be
+    /// declared before. If not, symbol resolution happens after the whole environment is collected,
+    /// and the symbol can be resolved in any order.
+    pub fn has_strict_declaration_order(&self) -> bool {
+        self.parent.is_some()
+    }
+
     /// Adds an annotation to any segment.
     ///
     /// This method exposes a low level API to add annotations to segments, preferably use the
@@ -104,25 +115,24 @@ impl Environment {
     }
 }
 
-
 #[derive(Debug, Clone)]
 pub struct Definition {
     pub symbol: Symbol,
-    pub usage: Option<TypeUsage>
+    pub usage: Option<TypeUsage>,
 }
 
 impl Definition {
     pub fn reference(symbol: Symbol, usage: TypeUsage) -> Self {
         Self {
             symbol,
-            usage: Some(usage)
+            usage: Some(usage),
         }
     }
 
     pub fn declaration(symbol: Symbol) -> Self {
         Self {
             symbol,
-            usage: None
+            usage: None,
         }
     }
 }
