@@ -8,7 +8,7 @@ use crate::aspects::r#type::TypeAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{
-    blank, blanks, eod, eox, like, lookahead, next, not, of_type, of_types, repeat, spaces,
+    blank, blanks, eog, eox, like, lookahead, next, not, of_type, of_types, repeat, spaces,
     MoveOperations,
 };
 use crate::parser::{ParseResult, Parser};
@@ -60,9 +60,7 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
         let start = self
             .cursor
             .force(of_type(Return), "'return' keyword expected here")?;
-        if self.cursor.advance(spaces()).is_none()
-            || self.cursor.lookahead(eox().or(eod())).is_some()
-        {
+        if self.cursor.advance(spaces()).is_none() || self.cursor.lookahead(eox()).is_some() {
             return Ok(Return {
                 expr: None,
                 segment: self.cursor.relative_pos(start),
@@ -139,7 +137,7 @@ impl<'a> Parser<'a> {
                 ));
                 self.cursor.advance(blanks());
             }
-            if self.cursor.lookahead(eox().or(eod())).is_some() {
+            if self.cursor.lookahead(eog()).is_some() {
                 break;
             }
             let param = self.parse_fn_parameter();
@@ -150,7 +148,7 @@ impl<'a> Parser<'a> {
                 }
             }
             if let Err(err) = self.cursor.force(
-                blanks().then(of_type(Comma).or(lookahead(eod()))),
+                blanks().then(of_type(Comma).or(lookahead(eog()))),
                 "Expected ','",
             ) {
                 self.cursor.advance(blanks());
@@ -171,7 +169,7 @@ impl<'a> Parser<'a> {
                 let wrong_name_slice = self
                     .cursor
                     .collect(repeat(
-                        not(blank().or(eod()).or(eox()).or(of_types(&[
+                        not(blank().or(eox()).or(of_types(&[
                             CurlyLeftBracket,
                             SquaredLeftBracket,
                             RoundedLeftBracket,
@@ -283,6 +281,22 @@ mod tests {
             exprs,
             vec![Expr::Return(Return {
                 expr: None,
+                segment: source.segment()
+            })]
+        );
+    }
+
+    #[test]
+    fn return_string() {
+        let source = Source::unknown("return 'foo'");
+        let exprs = parse(source).expect("parse fail");
+        assert_eq!(
+            exprs,
+            vec![Expr::Return(Return {
+                expr: Some(Box::new(Expr::Literal(Literal {
+                    parsed: "foo".into(),
+                    segment: find_in(source.source, "'foo'"),
+                }))),
                 segment: source.segment()
             })]
         );

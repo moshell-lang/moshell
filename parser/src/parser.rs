@@ -25,7 +25,7 @@ use crate::cursor::ParserCursor;
 use crate::err::ParseErrorKind::Unexpected;
 use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
 use crate::moves::{
-    any, bin_op, blanks, eod, eox, like, next, of_type, of_types, repeat, spaces, Move,
+    any, bin_op, blanks, eox, like, line_end, next, of_type, of_types, repeat, spaces, Move,
     MoveOperations,
 };
 use ast::range::Iterable;
@@ -44,16 +44,15 @@ pub(crate) struct Parser<'a> {
 //all tokens that can't be an infix operator
 macro_rules! non_infix {
     () => {
-        eox()
-            .or(eod())
-            .or(like(TokenType::is_keyword))
-            .or(of_types(&[
-                RoundedLeftBracket,
-                CurlyLeftBracket,
-                SquaredLeftBracket,
-                Comma,
-                FatArrow,
-            ]))
+        eox().or(like(TokenType::is_keyword)).or(of_types(&[
+            RoundedLeftBracket,
+            CurlyLeftBracket,
+            SquaredLeftBracket,
+            Quote,
+            DoubleQuote,
+            Comma,
+            FatArrow,
+        ]))
     };
 }
 
@@ -75,7 +74,7 @@ impl<'a> Parser<'a> {
         while self.look_for_input() {
             match self.parse_next() {
                 Err(error) => {
-                    self.recover_from(error, eox());
+                    self.recover_from(error, line_end());
                 }
                 Ok(statement) => statements.push(statement),
             }
@@ -116,7 +115,7 @@ impl<'a> Parser<'a> {
     }
 
     fn look_for_input(&mut self) -> bool {
-        self.cursor.advance(repeat(spaces().or(eox())));
+        self.cursor.advance(repeat(spaces().or(line_end())));
 
         !self.cursor.is_at_end()
     }
@@ -261,8 +260,10 @@ impl<'a> Parser<'a> {
         let statement = self.statement();
         if statement.is_ok() {
             //consume end of expression
-            self.cursor
-                .force(spaces().then(eox()), "expected end of expression or file")?;
+            self.cursor.force(
+                spaces().then(line_end()),
+                "expected end of expression or file",
+            )?;
         };
         statement
     }
@@ -489,11 +490,7 @@ impl<'a> Parser<'a> {
         let token = self.cursor.next()?;
         let err = self.mk_parse_error("invalid infix operator", token, Unexpected);
         // Avoid recovering here to block the cursor on the closing delimiter token
-        if self
-            .cursor
-            .lookahead(spaces().then(eox().or(eod())))
-            .is_some()
-        {
+        if self.cursor.lookahead(spaces().then(eox())).is_some() {
             return Err(err);
         }
 
@@ -506,7 +503,7 @@ impl<'a> Parser<'a> {
     /// (unescaped newline or semicolon)
     pub(crate) fn repos(&mut self, message: &str) -> ParseResult<()> {
         self.cursor.advance(spaces()); //skip word separators
-        if self.cursor.lookahead(eox()).is_some() {
+        if self.cursor.lookahead(line_end()).is_some() {
             return self.expected(message, Unexpected);
         }
         Ok(())
