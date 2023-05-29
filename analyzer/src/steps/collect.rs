@@ -13,7 +13,7 @@ use context::source::SourceSegmentHolder;
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::environment::variables::{TypeInfo, TypeUsage};
-use crate::environment::Environment;
+use crate::environment::{Definition, Environment};
 use crate::importer::ASTImporter;
 use crate::name::Name;
 use crate::relations::{Relations, SourceObjectId, Symbol, UnresolvedImport};
@@ -84,7 +84,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             let env_name = &env.fqn;
             let mut reported = HashSet::new();
             for (declaration_segment, symbol) in &env.definitions {
-                let id = match symbol {
+                let id = match symbol.symbol {
                     Symbol::Local(id) => id,
                     Symbol::Global(_) => continue,
                 };
@@ -93,7 +93,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 }
                 let var = env
                     .variables
-                    .get_var(*id)
+                    .get_var(id)
                     .expect("local symbol references an unknown variable");
 
                 let var_fqn = env_name.appended(Name::new(&var.name));
@@ -105,7 +105,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 if let Some(clashed) = clashed {
                     let inner_modules = {
                         //we know that the inner envs contains at least one environment (the env being clashed with)
-                        let list = list_inner_modules(self.engine, env)
+                        let list = list_inner_modules(self.engine, &env.fqn)
                             .map(|e| e.fqn.simple_name())
                             .collect::<Vec<_>>();
 
@@ -277,12 +277,12 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     for pattern in &arm.patterns {
                         match pattern {
                             MatchPattern::VarRef(reference) => {
-                                let symbol = env.variables.identify(
+                                let def = env.variables.identify(
                                     state.module,
                                     self.relations,
                                     TypeUsage::Variable(Name::new(reference.name)),
                                 );
-                                env.annotate(reference, symbol);
+                                env.annotate(reference, def);
                             }
                             MatchPattern::Template(template) => {
                                 for part in &template.parts {
@@ -355,7 +355,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 let symbol = env
                     .variables
                     .declare_local(var.var.name.to_owned(), TypeInfo::Variable);
-                env.annotate(var, symbol);
+                env.annotate(var, Definition::declaration(symbol));
             }
             Expr::VarReference(var) => {
                 let symbol = env.variables.identify(
@@ -443,7 +443,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                         let symbol = env
                             .variables
                             .declare_local(range.receiver.to_owned(), TypeInfo::Variable);
-                        env.annotate(range, symbol);
+                        env.annotate(range, Definition::declaration(symbol));
                         self.tree_walk(env, state, &range.iterable, to_visit);
                     }
                     ForKind::Conditional(cond) => {
@@ -464,7 +464,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 let symbol = env
                     .variables
                     .declare_local(func.name.to_owned(), TypeInfo::Function);
-                env.annotate(func, symbol);
+                env.annotate(func, Definition::declaration(symbol));
                 let func_id = self.engine.track(expr);
                 let mut func_env = env.fork(state.module, func.name);
                 for param in &func.parameters {
@@ -477,7 +477,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     );
                     // Only named parameters can be annotated for now
                     if let FunctionParameter::Named(named) = param {
-                        func_env.annotate(named, symbol);
+                        func_env.annotate(named, Definition::declaration(symbol));
                     }
                 }
                 self.tree_walk(
@@ -495,7 +495,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     let symbol = func_env
                         .variables
                         .declare_local(param.name.to_owned(), TypeInfo::Variable);
-                    func_env.annotate(param, symbol);
+                    func_env.annotate(param, Definition::declaration(symbol));
                 }
                 self.tree_walk(
                     &mut func_env,
@@ -531,7 +531,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 let symbol = env
                     .variables
                     .declare_local(var.to_owned(), TypeInfo::Variable);
-                env.annotate(&call.arguments[1], symbol);
+                env.annotate(&call.arguments[1], Definition::declaration(symbol));
                 Some(())
             }
             _ => None,
@@ -557,14 +557,15 @@ fn import_ast<'a, 'b>(
     None
 }
 
+/// Lists all modules directly contained in the given module name.
 fn list_inner_modules<'a>(
     engine: &'a Engine,
-    env: &'a Environment,
+    module_fqn: &'a Name,
 ) -> impl Iterator<Item = &'a Environment> {
     engine
         .environments()
-        .filter(|(_, e)| {
-            e.parent.is_none() && e.fqn.tail().filter(|tail| tail == &env.fqn).is_some()
+        .filter(move |(_, e)| {
+            e.parent.is_none() && e.fqn.tail().filter(|tail| tail == module_fqn).is_some()
         })
         .map(|(_, e)| e)
 }

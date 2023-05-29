@@ -20,19 +20,25 @@ pub enum DiagnosticID {
     #[assoc(critical = true)]
     UnknownSymbol,
 
+    /// A symbol is invalid as it cannot be accessed in any way
+    #[assoc(code = 4)]
+    #[assoc(critical = true)]
+    InvalidSymbol,
+
     /// There is a `use` statement between two expressions,
     /// `use` needs to be declared before any expressions in an environment.
-    #[assoc(code = 4)]
+    #[assoc(code = 5)]
     #[assoc(critical = true)]
     UseBetweenExprs,
 
     /// A `use` statement is shadowed as the symbol it imports has been imported again below
-    #[assoc(code = 5)]
+    #[assoc(code = 6)]
     ShadowedImport,
 
     /// A symbol have the same fully qualified name (its name with its module's name prepended)
     /// as another module
-    #[assoc(code = 6)]
+    #[assoc(code = 7)]
+    #[assoc(critical = true)]
     SymbolConflictsWithModule,
 }
 

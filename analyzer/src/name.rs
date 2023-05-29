@@ -105,6 +105,13 @@ impl From<Vec<String>> for Name {
     }
 }
 
+impl From<&[String]> for Name {
+    fn from(value: &[String]) -> Self {
+        assert!(!value.is_empty(), "cannot create a name from an empty vec");
+        Self { parts: value.to_vec() }
+    }
+}
+
 impl Display for Name {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if let Some((name, tail)) = self.parts.split_last() {

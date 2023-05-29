@@ -3,6 +3,7 @@ use crate::relations::{SourceObjectId, Symbol};
 use context::source::{SourceSegment, SourceSegmentHolder};
 use indexmap::IndexMap;
 use variables::Variables;
+use crate::environment::variables::TypeUsage;
 
 pub mod variables;
 
@@ -41,8 +42,8 @@ pub struct Environment {
     /// The variables that are declared in the environment.
     pub variables: Variables,
 
-    /// A mapping of expression segments to symbols.
-    pub definitions: IndexMap<SourceSegment, Symbol>,
+    /// A mapping of expression segments to definitions.
+    pub definitions: IndexMap<SourceSegment, Definition>,
 }
 
 impl Environment {
@@ -78,27 +79,50 @@ impl Environment {
     ///
     /// This method exposes a low level API to add annotations to segments, preferably use the
     /// wrapper methods defined in traits in the `checker` crate.
-    pub fn annotate(&mut self, segment: &impl SourceSegmentHolder, symbol: Symbol) {
-        self.definitions.insert(segment.segment(), symbol);
+    pub fn annotate(&mut self, segment: &impl SourceSegmentHolder, def: Definition) {
+        self.definitions.insert(segment.segment(), def);
     }
 
-    pub fn list_definitions(&self) -> impl Iterator<Item = (&SourceSegment, &Symbol)> {
+    pub fn list_definitions(&self) -> impl Iterator<Item = (&SourceSegment, &Definition)> {
         self.definitions.iter()
     }
 
     /// Gets a symbol from the environment.
     pub fn get_raw_symbol(&self, segment: SourceSegment) -> Option<Symbol> {
-        self.definitions.get(&segment).copied()
+        self.definitions.get(&segment).map(|d| d.symbol)
     }
 
     /// Finds the local segments that references a symbol.
     pub fn find_references(&self, symbol_declaration: Symbol) -> Vec<SourceSegment> {
         let mut references = Vec::new();
-        for (segment, symbol_reference) in &self.definitions {
-            if *symbol_reference == symbol_declaration {
+        for (segment, def) in &self.definitions {
+            if def.symbol == symbol_declaration {
                 references.push(segment.clone());
             }
         }
         references
+    }
+}
+
+
+#[derive(Debug, Clone)]
+pub struct Definition {
+    pub symbol: Symbol,
+    pub usage: Option<TypeUsage>
+}
+
+impl Definition {
+    pub fn reference(symbol: Symbol, usage: TypeUsage) -> Self {
+        Self {
+            symbol,
+            usage: Some(usage)
+        }
+    }
+
+    pub fn declaration(symbol: Symbol) -> Self {
+        Self {
+            symbol,
+            usage: None
+        }
     }
 }

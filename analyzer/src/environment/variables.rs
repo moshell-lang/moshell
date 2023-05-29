@@ -2,16 +2,24 @@ use crate::name::Name;
 use crate::relations::{GlobalObjectId, ObjectId, Relations, SourceObjectId, Symbol};
 use indexmap::IndexMap;
 use std::num::NonZeroUsize;
+use crate::environment::Definition;
 
+/// Information over the declared type of a variable
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TypeInfo {
+    /// The variable is a regular variable
     Variable,
+    /// The variable is a function declaration
     Function,
 }
 
+/// The kind of usage a variable is being used
+/// The wrapped name is the variable's qualified name.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeUsage {
+    /// The variable is being accessed as a regular variable
     Variable(Name),
+    /// The variable is being accessed as a function
     Function(Name),
 }
 
@@ -47,22 +55,24 @@ impl Variables {
         state: SourceObjectId,
         relations: &mut Relations,
         usage: TypeUsage,
-    ) -> Symbol {
+    ) -> Definition {
         let mut local = None;
         let var_name = usage.name();
         if var_name.parts().len() == 1 {
+            // locals can only be referencable if the used variable's name isn't qualified
             local = self.locals.position_reachable_local(var_name.simple_name());
         }
-        match local {
+        let symbol = match local {
             Some(var) => Symbol::Local(var),
             None => {
                 let id = *self
                     .external_usages
-                    .entry(usage)
+                    .entry(usage.clone())
                     .or_insert_with(|| relations.track_new_object(state));
                 id.into()
             }
-        }
+        };
+        Definition::reference(symbol, usage)
     }
 
     pub fn get_var(&self, id: ObjectId) -> Option<&Variable> {

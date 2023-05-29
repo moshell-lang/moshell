@@ -75,7 +75,7 @@ pub struct ResolvedSymbol {
     /// The module where the symbol is defined.
     ///
     /// This is used to route the symbol to the correct environment.
-    pub module: SourceObjectId,
+    pub source: SourceObjectId,
 
     /// The object identifier of the symbol, local to the module.
     pub object_id: ObjectId,
@@ -83,7 +83,7 @@ pub struct ResolvedSymbol {
 
 impl ResolvedSymbol {
     pub fn new(module: SourceObjectId, object_id: ObjectId) -> Self {
-        Self { module, object_id }
+        Self { source: module, object_id }
     }
 }
 

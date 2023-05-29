@@ -19,7 +19,11 @@ pub mod relations;
 
 pub mod steps;
 
-pub fn analyze<'a>(entry_point: Name, importer: &mut impl ASTImporter<'a>) -> AnalyzerOutput<'a> {
+/// Performs a full resolution of the environments directly or indirectly implied by the entry point.
+///
+/// This function will alternate between collection and resolution phases as long as the resolution
+/// phase finds new modules that could be imported.
+pub fn resolve_all<'a>(entry_point: Name, importer: &mut impl ASTImporter<'a>) -> ResolutionResult<'a> {
     let mut engine = Engine::default();
     let mut relations = Relations::default();
 
@@ -44,14 +48,14 @@ pub fn analyze<'a>(entry_point: Name, importer: &mut impl ASTImporter<'a>) -> An
         ));
     }
 
-    AnalyzerOutput {
+    ResolutionResult {
         engine,
         relations,
         diagnostics,
     }
 }
 
-pub struct AnalyzerOutput<'e> {
+pub struct ResolutionResult<'e> {
     pub engine: Engine<'e>,
     pub relations: Relations,
     pub diagnostics: Vec<Diagnostic>,

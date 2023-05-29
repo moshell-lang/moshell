@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use clap::Parser;
 use dbg_pls::color;
 
-use analyzer::analyze;
+use analyzer::resolve_all;
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
 use ast::group::Block;
@@ -61,7 +61,7 @@ pub fn handle_source(source: Source) -> bool {
     let name = Name::new("<module>");
     importer.imported_modules.insert(name.clone(), expr);
 
-    let result = analyze(name, &mut importer);
+    let result = resolve_all(name, &mut importer);
 
     let diagnostics = result.diagnostics;
 
