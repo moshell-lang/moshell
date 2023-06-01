@@ -1,7 +1,9 @@
-use crate::environment::Definition;
+use std::fmt::{Display, Formatter};
+
+use indexmap::IndexMap;
+
 use crate::name::Name;
 use crate::relations::{GlobalObjectId, ObjectId, Relations, SourceObjectId, Symbol};
-use indexmap::IndexMap;
 
 /// Information over the declared type of a variable
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -12,31 +14,32 @@ pub enum TypeInfo {
     Function,
 }
 
+impl Display for TypeInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TypeInfo::Variable => write!(f, "variable"),
+            TypeInfo::Function => write!(f, "function")
+        }
+    }
+}
+
 /// The kind of usage a variable is being used
 /// The wrapped name is the variable's qualified name.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeUsage {
     /// The variable is being accessed as a regular variable
-    Variable(Name),
+    Variable,
     /// The variable is being accessed as a function
-    Function(Name),
+    Function,
 }
 
-impl TypeUsage {
-    pub fn name(&self) -> &Name {
-        match self {
-            TypeUsage::Variable(name) => name,
-            TypeUsage::Function(name) => name,
-        }
-    }
-}
 
 /// A collection of variables
 #[derive(Debug, Clone, Default)]
 pub struct Variables {
     locals: Locals,
 
-    external_usages: IndexMap<TypeUsage, GlobalObjectId>,
+    externals: IndexMap<Name, GlobalObjectId>,
 }
 
 impl Variables {
@@ -53,25 +56,23 @@ impl Variables {
         &mut self,
         state: SourceObjectId,
         relations: &mut Relations,
-        usage: TypeUsage,
-    ) -> Definition {
+        name: Name,
+    ) -> Symbol {
         let mut local = None;
-        let var_name = usage.name();
-        if var_name.parts().len() == 1 {
+        if name.parts().len() == 1 {
             // locals can only be referencable if the used variable's name isn't qualified
-            local = self.locals.position_reachable_local(var_name.simple_name());
+            local = self.locals.position_reachable_local(name.simple_name());
         }
-        let symbol = match local {
+        match local {
             Some(var) => Symbol::Local(var),
             None => {
                 let id = *self
-                    .external_usages
-                    .entry(usage.clone())
+                    .externals
+                    .entry(name)
                     .or_insert_with(|| relations.track_new_object(state));
                 id.into()
             }
-        };
-        Definition::reference(symbol, usage)
+        }
     }
 
     pub fn get_var(&self, id: ObjectId) -> Option<&Variable> {
@@ -79,18 +80,21 @@ impl Variables {
     }
 
     /// Gets the symbol associated with an already known name.
-    pub fn get_symbol(&self, usage: &TypeUsage) -> Option<Symbol> {
-        let name = usage.name();
+    pub fn get_symbol(&self, name: &Name) -> Option<Symbol> {
+        let external = || {
+            self.externals
+                .get(name)
+                .map(|id| Symbol::Global(id.0))
+        };
+        if name.parts().len() != 1 {
+            return external()
+        }
         self.locals
             .vars
             .iter()
-            .position(|var| name.parts().len() == 1 && var.name == name.simple_name() /*&& var.depth.is_some()*/)
+            .position(|var| var.name == name.simple_name() /*&& var.depth.is_some()*/)
             .map(Symbol::Local)
-            .or_else(|| {
-                self.external_usages
-                    .get(usage)
-                    .map(|id| Symbol::Global(id.0))
-            })
+            .or_else(external)
     }
     /// Gets the local symbol associated with an already known name.
     ///
@@ -132,17 +136,17 @@ impl Variables {
     }
 
     /// Iterates over all the global variable ids, with their corresponding name.
-    pub fn external_usages(&self) -> impl Iterator<Item = (&TypeUsage, GlobalObjectId)> {
-        self.external_usages.iter().map(|(name, id)| (name, *id))
+    pub fn external_usages(&self) -> impl Iterator<Item = (&Name, GlobalObjectId)> {
+        self.externals.iter().map(|(name, id)| (name, *id))
     }
 
     /// Gets the name of a global variable.
     ///
     /// This returns the name only if the global object comes from this environment.
-    pub fn get_external_symbol_usage(&self, object_id: GlobalObjectId) -> Option<&TypeUsage> {
-        self.external_usages
+    pub fn get_external_symbol_name(&self, object_id: GlobalObjectId) -> Option<&Name> {
+        self.externals
             .iter()
-            .find_map(|(usage, &id)| (id == object_id).then_some(usage))
+            .find_map(|(name, id)| (id == &object_id).then_some(name))
     }
 
     pub fn begin_scope(&mut self) {

@@ -21,6 +21,7 @@ pub enum DiagnosticID {
     UnknownSymbol,
 
     /// A symbol is invalid as it cannot be accessed in any way
+    /// (for example, a symbol into a function, or in a variable)
     #[assoc(code = 4)]
     #[assoc(critical = true)]
     InvalidSymbol,
@@ -84,9 +85,9 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
-    pub fn new(id: DiagnosticID, module: SourceObjectId, msg: impl Into<String>) -> Self {
+    pub fn new(id: DiagnosticID, source: SourceObjectId, msg: impl Into<String>) -> Self {
         Self {
-            source: module,
+            source,
             identifier: id,
             global_message: msg.into(),
             observations: Vec::new(),
@@ -96,6 +97,11 @@ impl Diagnostic {
 
     pub fn with_observation(mut self, o: Observation) -> Self {
         self.observations.push(o);
+        self
+    }
+
+    pub fn with_observations(mut self, o: Vec<Observation>) -> Self {
+        self.observations.extend(o);
         self
     }
 

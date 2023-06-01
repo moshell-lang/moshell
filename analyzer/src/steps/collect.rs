@@ -100,13 +100,14 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     .variables
                     .get_var(id)
                     .expect("local symbol references an unknown variable");
-
                 let var_fqn = env_name.appended(Name::new(&var.name));
+
                 let clashed = self
                     .engine
                     .find_environment_by_name(&var_fqn, true)
                     .map(|(_, e)| e)
                     .filter(|e| e.parent.is_none());
+
                 if let Some(clashed) = clashed {
                     let inner_modules = {
                         //we know that the inner envs contains at least one environment (the env being clashed with)
@@ -282,11 +283,12 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     for pattern in &arm.patterns {
                         match pattern {
                             MatchPattern::VarRef(reference) => {
-                                let def = env.variables.identify(
+                                let symbol = env.variables.identify(
                                     state.module,
                                     self.relations,
-                                    TypeUsage::Variable(Name::new(reference.name)),
+                                    Name::new(reference.name),
                                 );
+                                let def = Definition::reference(symbol, TypeUsage::Variable);
                                 env.annotate(reference, def);
                             }
                             MatchPattern::Template(template) => {
@@ -325,10 +327,10 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     .collect::<Vec<_>>();
                 let name = Name::prefixed(path, call.name.to_string());
 
-                let usage = TypeUsage::Function(name);
-                let symbol = env.variables.identify(state.module, self.relations, usage);
+                let symbol = env.variables.identify(state.module, self.relations, name);
+                let def = Definition::reference(symbol, TypeUsage::Function);
 
-                env.annotate(call, symbol);
+                env.annotate(call, def);
                 for arg in &call.arguments {
                     self.tree_walk(env, state, arg, to_visit);
                 }
@@ -366,9 +368,10 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 let symbol = env.variables.identify(
                     state.module,
                     self.relations,
-                    TypeUsage::Variable(Name::new(var.name)),
+                    Name::new(var.name),
                 );
-                env.annotate(var, symbol);
+                let def = Definition::reference(symbol, TypeUsage::Variable);
+                env.annotate(var, def);
             }
             Expr::Range(range) => match range {
                 Iterable::Range(range) => {
@@ -527,7 +530,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             // SAFETY: the reference will immediately be popped off the stack.
             std::mem::transmute::<&Environment, &'e Environment>(parent_env)
         }));
-        SymbolResolver::resolve_captures(&self.stack, self.relations, capture_env);
+        SymbolResolver::resolve_captures(&self.stack, self.relations, capture_env, &mut self.diagnostics);
         self.stack.pop();
     }
 

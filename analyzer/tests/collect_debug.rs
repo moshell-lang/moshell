@@ -1,10 +1,8 @@
 use analyzer::engine::Engine;
-use analyzer::environment::variables::{TypeUsage, Variable};
+use analyzer::environment::variables::{Variable};
 use analyzer::importer::StaticImporter;
 use analyzer::name::Name;
-use analyzer::relations::{
-    GlobalObjectId, Object, Relations, ResolvedSymbol, SourceObjectId, Symbol,
-};
+use analyzer::relations::{GlobalObjectId, Object, ObjectState, Relations, ResolvedSymbol, SourceObjectId, Symbol};
 use analyzer::steps::collect::SymbolCollector;
 use analyzer::steps::resolve::SymbolResolver;
 use context::source::Source;
@@ -96,13 +94,13 @@ fn collect_sample() {
         .get_environment(SourceObjectId(2))
         .expect("Unable to get debug() environment");
     assert_eq!(debug_env.fqn, root_name.child("debug"));
-    let globals = debug_env.variables.external_usages().collect::<Vec<_>>();
-    assert_eq!(globals, vec![(&TypeUsage::Variable(Name::new("LOG_FILE")), GlobalObjectId(0))]);
+    let usages = debug_env.variables.external_usages().collect::<Vec<_>>();
+    assert_eq!(usages, vec![(&Name::new("LOG_FILE"), GlobalObjectId(0))]);
     assert_eq!(
         relations.objects[0],
         Object {
             origin: SourceObjectId(2),
-            resolved: Some(ResolvedSymbol {
+            state: ObjectState::Resolved(ResolvedSymbol {
                 source: SourceObjectId(6),
                 object_id: 0,
             }),
@@ -117,16 +115,16 @@ fn collect_sample() {
     assert_eq!(
         globals,
         vec![
-            (&TypeUsage::Variable(Name::new("count")), GlobalObjectId(1)),
-            (&TypeUsage::Function(Name::new("factorial")), GlobalObjectId(2)),
-            (&TypeUsage::Variable(Name::new("n")), GlobalObjectId(3)),
+            (&Name::new("count"), GlobalObjectId(1)),
+            (&Name::new("factorial"), GlobalObjectId(2)),
+            (&Name::new("n"), GlobalObjectId(3)),
         ]
     );
     assert_eq!(
         relations.objects[1],
         Object {
             origin: SourceObjectId(4),
-            resolved: Some(ResolvedSymbol {
+            state: ObjectState::Resolved(ResolvedSymbol {
                 source: SourceObjectId(3),
                 object_id: 0,
             }),
@@ -136,7 +134,7 @@ fn collect_sample() {
         relations.objects[2],
         Object {
             origin: SourceObjectId(4),
-            resolved: Some(ResolvedSymbol {
+            state: ObjectState::Resolved(ResolvedSymbol {
                 source: SourceObjectId(0),
                 object_id: 0,
             }),
@@ -146,7 +144,7 @@ fn collect_sample() {
         relations.objects[3],
         Object {
             origin: SourceObjectId(4),
-            resolved: Some(ResolvedSymbol {
+            state: ObjectState::Resolved(ResolvedSymbol {
                 source: SourceObjectId(0),
                 object_id: 3,
             }),
@@ -159,6 +157,6 @@ fn collect_sample() {
     let variables = lambda_env.variables.external_usages().collect::<Vec<_>>();
     assert_eq!(
         variables,
-        vec![(&TypeUsage::Variable(Name::new("n")), GlobalObjectId(4))]
+        vec![(&Name::new("n"), GlobalObjectId(4))]
     );
 }

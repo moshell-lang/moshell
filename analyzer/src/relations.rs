@@ -90,27 +90,34 @@ impl ResolvedSymbol {
     }
 }
 
+#[derive(Debug, Clone, Copy, Hash, PartialEq)]
+pub enum ObjectState {
+    Resolved(ResolvedSymbol),
+    Unresolved,
+    Dead
+}
+
 #[derive(Debug, Clone, Hash, PartialEq)]
 pub struct Object {
     /// The symbol that is being resolved, where it is used.
     pub origin: SourceObjectId,
 
     /// The link to the resolved symbol.
-    pub resolved: Option<ResolvedSymbol>,
+    pub state: ObjectState,
 }
 
 impl Object {
     pub fn unresolved(origin: SourceObjectId) -> Self {
         Self {
             origin,
-            resolved: None,
+            state: ObjectState::Unresolved,
         }
     }
 
     pub fn resolved(origin: SourceObjectId, resolved: ResolvedSymbol) -> Self {
         Self {
             origin,
-            resolved: Some(resolved),
+            state: ObjectState::Resolved(resolved),
         }
     }
 }
@@ -160,10 +167,7 @@ impl Relations {
     /// Tracks a new object and returns its identifier.
     pub fn track_new_object(&mut self, origin: SourceObjectId) -> GlobalObjectId {
         let id = self.objects.len();
-        self.objects.push(Object {
-            origin,
-            resolved: None,
-        });
+        self.objects.push(Object::unresolved(origin));
         GlobalObjectId(id)
     }
 
@@ -186,10 +190,18 @@ impl Relations {
             .map(|(id, object)| (GlobalObjectId(id), object))
     }
 
+    /// Returns an immutable iterator over all the objects.
+    pub fn iter(&self) -> impl Iterator<Item=(GlobalObjectId, &Object)> {
+        self.objects
+            .iter()
+            .enumerate()
+            .map(|(id, object)| (GlobalObjectId(id), object))
+    }
+
     /// Returns the resolved symbol for the given object.
     ///
     /// If the object is not resolved or is not referenced, returns `None`.
-    pub fn get_resolved(&self, id: GlobalObjectId) -> Option<ResolvedSymbol> {
-        self.objects.get(id.0)?.resolved
+    pub fn get_state(&self, id: GlobalObjectId) -> Option<ObjectState> {
+        Some(self.objects.get(id.0)?.state)
     }
 }
