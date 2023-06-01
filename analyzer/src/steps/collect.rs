@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use crate::dead_symbols::{DeadCause, DeadSymbolsOccurrences};
 use ast::call::Call;
 use ast::control_flow::ForKind;
 use ast::function::FunctionParameter;
@@ -8,15 +9,15 @@ use ast::r#use::Import as ImportExpr;
 use ast::range::Iterable;
 use ast::value::LiteralValue;
 use ast::Expr;
-use context::source::SourceSegmentHolder;
+use context::source::{SourceSegment, SourceSegmentHolder};
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
-use crate::environment::variables::{TypeInfo, TypeUsage};
+use crate::environment::variables::{TypeInfo, TypeUsage, Variables};
 use crate::environment::{Definition, Environment};
 use crate::importer::ASTImporter;
 use crate::name::Name;
-use crate::relations::{Relations, SourceObjectId, Symbol, UnresolvedImport};
+use crate::relations::{ObjectState, Relations, SourceObjectId, Symbol, UnresolvedImport};
 use crate::steps::resolve::SymbolResolver;
 
 /// Defines the current state of the tree exploration.
@@ -41,6 +42,7 @@ impl ResolutionState {
 pub struct SymbolCollector<'a, 'e> {
     engine: &'a mut Engine<'e>,
     relations: &'a mut Relations,
+    dead_occurrences: &'a mut DeadSymbolsOccurrences,
     diagnostics: Vec<Diagnostic>,
 
     /// During the exploration, a parent environment always leaves a reference for its children.
@@ -55,20 +57,26 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
     pub fn collect_symbols(
         engine: &'a mut Engine<'e>,
         relations: &'a mut Relations,
+        dead_occurrences: &'a mut DeadSymbolsOccurrences,
         to_visit: &mut Vec<Name>,
         visited: &mut HashSet<Name>,
         importer: &mut impl ASTImporter<'e>,
     ) -> Vec<Diagnostic> {
-        let mut collector = Self::new(engine, relations);
+        let mut collector = Self::new(engine, relations, dead_occurrences);
         collector.collect(importer, to_visit, visited);
         collector.check_symbols_identity();
         collector.diagnostics
     }
 
-    fn new(engine: &'a mut Engine<'e>, relations: &'a mut Relations) -> Self {
+    fn new(
+        engine: &'a mut Engine<'e>,
+        relations: &'a mut Relations,
+        dead_occurrences: &'a mut DeadSymbolsOccurrences,
+    ) -> Self {
         Self {
             engine,
             relations,
+            dead_occurrences,
             diagnostics: Vec::new(),
             stack: Vec::new(),
         }
@@ -249,6 +257,38 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         }
     }
 
+    fn identify_variable(
+        &mut self,
+        variables: &mut Variables,
+        origin: SourceObjectId,
+        name: Name,
+        segment: SourceSegment,
+    ) -> Symbol {
+        macro_rules! track_global {
+            () => {
+                *variables
+                    .external(name.clone())
+                    .or_insert_with(|| self.relations.track_new_object(origin))
+            };
+        }
+
+        match variables.get_reachable(name.root()) {
+            None => Symbol::Global(track_global!().0),
+            Some(_) if name.is_qualified() => {
+                self.dead_occurrences.add_occurrence(
+                    &name,
+                    origin,
+                    DeadCause::InvalidSymbol,
+                    segment,
+                );
+                let id = track_global!();
+                self.relations.objects[id.0].state = ObjectState::Dead;
+                Symbol::Global(id.0)
+            }
+            Some(id) => Symbol::Local(id),
+        }
+    }
+
     fn tree_walk(
         &mut self,
         env: &mut Environment,
@@ -283,10 +323,11 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     for pattern in &arm.patterns {
                         match pattern {
                             MatchPattern::VarRef(reference) => {
-                                let symbol = env.variables.identify(
+                                let symbol = self.identify_variable(
+                                    &mut env.variables,
                                     state.module,
-                                    self.relations,
                                     Name::new(reference.name),
+                                    reference.segment(),
                                 );
                                 let def = Definition::reference(symbol, TypeUsage::Variable);
                                 env.annotate(reference, def);
@@ -327,7 +368,8 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     .collect::<Vec<_>>();
                 let name = Name::prefixed(path, call.name.to_string());
 
-                let symbol = env.variables.identify(state.module, self.relations, name);
+                let symbol =
+                    self.identify_variable(&mut env.variables, state.module, name, call.segment());
                 let def = Definition::reference(symbol, TypeUsage::Function);
 
                 env.annotate(call, def);
@@ -365,10 +407,11 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 env.annotate(var, Definition::declaration(symbol));
             }
             Expr::VarReference(var) => {
-                let symbol = env.variables.identify(
+                let symbol = self.identify_variable(
+                    &mut env.variables,
                     state.module,
-                    self.relations,
                     Name::new(var.name),
+                    var.segment(),
                 );
                 let def = Definition::reference(symbol, TypeUsage::Variable);
                 env.annotate(var, def);
@@ -494,7 +537,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     &func.body,
                     to_visit,
                 );
-                self.resolve_captures(env, state, &func_env);
+                self.resolve_captures(env, state, &func_env, func_id);
                 self.engine.attach(func_id, func_env);
             }
             Expr::LambdaDef(lambda) => {
@@ -512,7 +555,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     &lambda.body,
                     to_visit,
                 );
-                self.resolve_captures(env, state, &func_env);
+                self.resolve_captures(env, state, &func_env, func_id);
                 self.engine.attach(func_id, func_env);
             }
             Expr::Literal(_) | Expr::Continue(_) | Expr::Break(_) => {}
@@ -525,12 +568,19 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         parent_env: &Environment,
         parent_state: &ResolutionState,
         capture_env: &Environment,
+        capture_env_id: SourceObjectId,
     ) {
         self.stack.push((parent_state.module, unsafe {
             // SAFETY: the reference will immediately be popped off the stack.
             std::mem::transmute::<&Environment, &'e Environment>(parent_env)
         }));
-        SymbolResolver::resolve_captures(&self.stack, self.relations, capture_env, &mut self.diagnostics);
+        SymbolResolver::resolve_captures(
+            &self.stack,
+            self.relations,
+            capture_env,
+            capture_env_id,
+            self.dead_occurrences,
+        );
         self.stack.pop();
     }
 
@@ -615,9 +665,11 @@ mod tests {
             [(Name::new("test"), Source::unknown("use a; $a; use c; $c"))],
             parse_trusted,
         );
+        let mut dead_objects = DeadSymbolsOccurrences::default();
         let res = SymbolCollector::collect_symbols(
             &mut engine,
             &mut relations,
+            &mut dead_objects,
             &mut vec![Name::new("test")],
             &mut HashSet::new(),
             &mut importer,
@@ -637,7 +689,9 @@ mod tests {
         let mut relations = Relations::default();
         let mut env = Environment::named(Name::new("test"));
         let mut state = ResolutionState::new(engine.track(&expr));
-        let mut collector = SymbolCollector::new(&mut engine, &mut relations);
+        let mut dead_objects = DeadSymbolsOccurrences::default();
+
+        let mut collector = SymbolCollector::new(&mut engine, &mut relations, &mut dead_objects);
 
         collector.tree_walk(&mut env, &mut state, &expr, &mut vec![]);
         assert_eq!(collector.diagnostics, vec![]);
@@ -663,9 +717,12 @@ mod tests {
             ],
             parse_trusted,
         );
+        let mut dead_objects = DeadSymbolsOccurrences::default();
+
         let diagnostics = SymbolCollector::collect_symbols(
             &mut engine,
             &mut relations,
+            &mut dead_objects,
             &mut vec![Name::new("math")],
             &mut HashSet::new(),
             &mut importer,
@@ -684,10 +741,12 @@ mod tests {
         let mut engine = Engine::default();
         let mut relations = Relations::default();
         let mut importer = StaticImporter::new([(Name::new("test"), test_src)], parse_trusted);
+        let mut dead_objects = DeadSymbolsOccurrences::default();
 
         let diagnostics = SymbolCollector::collect_symbols(
             &mut engine,
             &mut relations,
+            &mut dead_objects,
             &mut vec![Name::new("test")],
             &mut HashSet::new(),
             &mut importer,
@@ -735,8 +794,9 @@ mod tests {
         let mut relations = Relations::default();
         let mut env = Environment::named(Name::new("test"));
         let mut state = ResolutionState::new(engine.track(&expr));
+        let mut dead_objects = DeadSymbolsOccurrences::default();
 
-        let mut collector = SymbolCollector::new(&mut engine, &mut relations);
+        let mut collector = SymbolCollector::new(&mut engine, &mut relations, &mut dead_objects);
         collector.tree_walk(&mut env, &mut state, &expr, &mut vec![]);
 
         assert_eq!(collector.diagnostics, vec![]);
@@ -764,7 +824,9 @@ mod tests {
         let mut relations = Relations::default();
         let mut env = Environment::named(Name::new("test"));
         let mut state = ResolutionState::new(engine.track(&expr));
-        let mut collector = SymbolCollector::new(&mut engine, &mut relations);
+        let mut dead_objects = DeadSymbolsOccurrences::default();
+
+        let mut collector = SymbolCollector::new(&mut engine, &mut relations, &mut dead_objects);
         collector.tree_walk(&mut env, &mut state, &expr, &mut vec![]);
 
         assert_eq!(collector.diagnostics, vec![]);
@@ -786,8 +848,9 @@ mod tests {
         let mut relations = Relations::default();
         let mut env = Environment::named(Name::new("test"));
         let mut state = ResolutionState::new(engine.track(&expr));
+        let mut dead_objects = DeadSymbolsOccurrences::default();
 
-        let mut collector = SymbolCollector::new(&mut engine, &mut relations);
+        let mut collector = SymbolCollector::new(&mut engine, &mut relations, &mut dead_objects);
         collector.tree_walk(&mut env, &mut state, &expr, &mut vec![]);
 
         assert_eq!(collector.diagnostics, vec![]);

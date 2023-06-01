@@ -83,10 +83,7 @@ pub struct ResolvedSymbol {
 
 impl ResolvedSymbol {
     pub fn new(source: SourceObjectId, object_id: ObjectId) -> Self {
-        Self {
-            source,
-            object_id,
-        }
+        Self { source, object_id }
     }
 }
 
@@ -94,7 +91,7 @@ impl ResolvedSymbol {
 pub enum ObjectState {
     Resolved(ResolvedSymbol),
     Unresolved,
-    Dead
+    Dead,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq)]
@@ -183,7 +180,7 @@ impl Relations {
     }
 
     /// Returns a mutable iterator over all the objects.
-    pub fn iter_mut(&mut self) -> impl Iterator<Item=(GlobalObjectId, &mut Object)> {
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (GlobalObjectId, &mut Object)> {
         self.objects
             .iter_mut()
             .enumerate()
@@ -191,7 +188,7 @@ impl Relations {
     }
 
     /// Returns an immutable iterator over all the objects.
-    pub fn iter(&self) -> impl Iterator<Item=(GlobalObjectId, &Object)> {
+    pub fn iter(&self) -> impl Iterator<Item = (GlobalObjectId, &Object)> {
         self.objects
             .iter()
             .enumerate()

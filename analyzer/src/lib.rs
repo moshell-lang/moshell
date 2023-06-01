@@ -1,12 +1,14 @@
 #![allow(dead_code)]
 
+use crate::dead_symbols::DeadSymbolsOccurrences;
+use context::source::SourceSegment;
 use std::collections::HashSet;
 
 use crate::diagnostic::Diagnostic;
 use crate::engine::Engine;
 use crate::importer::ASTImporter;
 use crate::name::Name;
-use crate::relations::Relations;
+use crate::relations::{Relations, SourceObjectId};
 use crate::steps::collect::SymbolCollector;
 use crate::steps::resolve::SymbolResolver;
 
@@ -17,6 +19,7 @@ pub mod importer;
 pub mod name;
 pub mod relations;
 
+pub mod dead_symbols;
 pub mod steps;
 
 /// Performs a full resolution of the environments directly or indirectly implied by the entry point.
@@ -34,11 +37,12 @@ pub fn resolve_all<'a>(
     let mut visited = HashSet::new();
 
     let mut diagnostics = Vec::new();
-
+    let mut occurrences = DeadSymbolsOccurrences::default();
     while !to_visit.is_empty() {
         diagnostics.extend(SymbolCollector::collect_symbols(
             &mut engine,
             &mut relations,
+            &mut occurrences,
             &mut to_visit,
             &mut visited,
             importer,
@@ -46,6 +50,7 @@ pub fn resolve_all<'a>(
         diagnostics.extend(SymbolResolver::resolve_symbols(
             &engine,
             &mut relations,
+            &mut occurrences,
             &mut to_visit,
             &mut visited,
         ));
@@ -62,4 +67,16 @@ pub struct ResolutionResult<'e> {
     pub engine: Engine<'e>,
     pub relations: Relations,
     pub diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(PartialEq, Clone)]
+pub struct Span {
+    pub source: SourceObjectId,
+    pub segment: SourceSegment,
+}
+
+impl Span {
+    fn new(source: SourceObjectId, segment: SourceSegment) -> Self {
+        Self { source, segment }
+    }
 }

@@ -1,9 +1,10 @@
 use std::fmt::{Display, Formatter};
 
+use indexmap::map::Entry;
 use indexmap::IndexMap;
 
 use crate::name::Name;
-use crate::relations::{GlobalObjectId, ObjectId, Relations, SourceObjectId, Symbol};
+use crate::relations::{GlobalObjectId, ObjectId, Symbol};
 
 /// Information over the declared type of a variable
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -18,7 +19,7 @@ impl Display for TypeInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             TypeInfo::Variable => write!(f, "variable"),
-            TypeInfo::Function => write!(f, "function")
+            TypeInfo::Function => write!(f, "function"),
         }
     }
 }
@@ -32,7 +33,6 @@ pub enum TypeUsage {
     /// The variable is being accessed as a function
     Function,
 }
-
 
 /// A collection of variables
 #[derive(Debug, Clone, Default)]
@@ -48,63 +48,36 @@ impl Variables {
         self.locals.declare(name, ty)
     }
 
-    /// Identifies a named variable to a binding.
-    ///
-    /// This creates a new global variable if the variable is not already known or is not reachable,
-    /// or returns the existing variable identifier. To only lookup a variable, use [`Variables::get_reachable`].
-    pub fn identify(
-        &mut self,
-        state: SourceObjectId,
-        relations: &mut Relations,
-        name: Name,
-    ) -> Symbol {
-        let mut local = None;
-        if name.parts().len() == 1 {
-            // locals can only be referencable if the used variable's name isn't qualified
-            local = self.locals.position_reachable_local(name.simple_name());
-        }
-        match local {
-            Some(var) => Symbol::Local(var),
-            None => {
-                let id = *self
-                    .externals
-                    .entry(name)
-                    .or_insert_with(|| relations.track_new_object(state));
-                id.into()
-            }
-        }
-    }
-
     pub fn get_var(&self, id: ObjectId) -> Option<&Variable> {
         self.locals.vars.get(id)
     }
 
+    pub fn external(&mut self, name: Name) -> Entry<Name, GlobalObjectId> {
+        self.externals.entry(name)
+    }
+
     /// Gets the symbol associated with an already known name.
     pub fn get_symbol(&self, name: &Name) -> Option<Symbol> {
-        let external = || {
-            self.externals
-                .get(name)
-                .map(|id| Symbol::Global(id.0))
-        };
+        let external = || self.externals.get(name).map(|id| Symbol::Global(id.0));
         if name.parts().len() != 1 {
-            return external()
+            return external();
         }
         self.locals
             .vars
             .iter()
-            .position(|var| var.name == name.simple_name() /*&& var.depth.is_some()*/)
+            .position(
+                |var| var.name == name.simple_name(), /*&& var.depth.is_some()*/
+            )
             .map(Symbol::Local)
             .or_else(external)
     }
-    /// Gets the local symbol associated with an already known name.
+    /// Gets the local identifier associated with an already known name.
     ///
     /// The lookup uses the current scope, which is frequently updated during the collection phase.
     /// That's the main reason why this method should be used in pair the variable capture
     /// resolution, immediately after the closure is observed and inertly populated.
-    pub fn get_reachable(&self, name: &str) -> Option<Symbol> {
-        self.locals
-            .position_reachable_local(name)
-            .map(Symbol::Local)
+    pub fn get_reachable(&self, name: &str) -> Option<ObjectId> {
+        self.locals.position_reachable_local(name)
     }
 
     /// Gets the local exported symbol associated with an already known name.

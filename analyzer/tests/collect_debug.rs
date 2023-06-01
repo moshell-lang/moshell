@@ -1,15 +1,18 @@
+use analyzer::dead_symbols::DeadSymbolsOccurrences;
 use analyzer::engine::Engine;
-use analyzer::environment::variables::{Variable};
+use analyzer::environment::variables::Variable;
 use analyzer::importer::StaticImporter;
 use analyzer::name::Name;
-use analyzer::relations::{GlobalObjectId, Object, ObjectState, Relations, ResolvedSymbol, SourceObjectId, Symbol};
+use analyzer::relations::{
+    GlobalObjectId, Object, ObjectState, Relations, ResolvedSymbol, SourceObjectId, Symbol,
+};
 use analyzer::steps::collect::SymbolCollector;
 use analyzer::steps::resolve::SymbolResolver;
 use context::source::Source;
 use context::str_find::{find_between, find_in};
 use parser::parse_trusted;
-use std::collections::HashSet;
 use pretty_assertions::assert_eq;
+use std::collections::HashSet;
 
 #[test]
 fn collect_sample() {
@@ -22,7 +25,7 @@ fn collect_sample() {
 
     let mut to_visit = vec![root_name.clone()];
     let mut visited = HashSet::new();
-
+    let mut occurrences = DeadSymbolsOccurrences::default();
     let mut importer = StaticImporter::new(
         [
             (root_name.clone(), source),
@@ -36,12 +39,19 @@ fn collect_sample() {
     let diagnostics = SymbolCollector::collect_symbols(
         &mut engine,
         &mut relations,
+        &mut occurrences,
         &mut to_visit,
         &mut visited,
         &mut importer,
     );
     assert_eq!(diagnostics, vec![]);
-    let diagnostics = SymbolResolver::resolve_symbols(&mut engine, &mut relations, &mut to_visit, &mut visited);
+    let diagnostics = SymbolResolver::resolve_symbols(
+        &mut engine,
+        &mut relations,
+        &mut occurrences,
+        &mut to_visit,
+        &mut visited,
+    );
     assert_eq!(diagnostics, vec![]);
     let root_env = engine
         .get_environment(SourceObjectId(0))
@@ -74,6 +84,7 @@ fn collect_sample() {
     let n_parameter = factorial_env
         .variables
         .get_reachable("n")
+        .map(Symbol::Local)
         .expect("Unable to get n symbol");
 
     assert_eq!(
@@ -155,8 +166,5 @@ fn collect_sample() {
         .get_environment(SourceObjectId(5))
         .expect("Unable to get lambda environment");
     let variables = lambda_env.variables.external_usages().collect::<Vec<_>>();
-    assert_eq!(
-        variables,
-        vec![(&Name::new("n"), GlobalObjectId(4))]
-    );
+    assert_eq!(variables, vec![(&Name::new("n"), GlobalObjectId(4))]);
 }
