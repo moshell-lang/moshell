@@ -1,4 +1,3 @@
-use analyzer::dead_symbols::DeadSymbolsOccurrences;
 use analyzer::engine::Engine;
 use analyzer::environment::variables::Variable;
 use analyzer::importer::StaticImporter;
@@ -25,7 +24,6 @@ fn collect_sample() {
 
     let mut to_visit = vec![root_name.clone()];
     let mut visited = HashSet::new();
-    let mut occurrences = DeadSymbolsOccurrences::default();
     let mut importer = StaticImporter::new(
         [
             (root_name.clone(), source),
@@ -39,19 +37,13 @@ fn collect_sample() {
     let diagnostics = SymbolCollector::collect_symbols(
         &mut engine,
         &mut relations,
-        &mut occurrences,
         &mut to_visit,
         &mut visited,
         &mut importer,
     );
     assert_eq!(diagnostics, vec![]);
-    let diagnostics = SymbolResolver::resolve_symbols(
-        &mut engine,
-        &mut relations,
-        &mut occurrences,
-        &mut to_visit,
-        &mut visited,
-    );
+    let diagnostics =
+        SymbolResolver::resolve_symbols(&mut engine, &mut relations, &mut to_visit, &mut visited);
     assert_eq!(diagnostics, vec![]);
     let root_env = engine
         .get_environment(SourceObjectId(0))

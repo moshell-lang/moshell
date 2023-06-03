@@ -56,21 +56,6 @@ impl Variables {
         self.externals.entry(name)
     }
 
-    /// Gets the symbol associated with an already known name.
-    pub fn get_symbol(&self, name: &Name) -> Option<Symbol> {
-        let external = || self.externals.get(name).map(|id| Symbol::Global(id.0));
-        if name.parts().len() != 1 {
-            return external();
-        }
-        self.locals
-            .vars
-            .iter()
-            .position(
-                |var| var.name == name.simple_name(), /*&& var.depth.is_some()*/
-            )
-            .map(Symbol::Local)
-            .or_else(external)
-    }
     /// Gets the local identifier associated with an already known name.
     ///
     /// The lookup uses the current scope, which is frequently updated during the collection phase.
@@ -84,13 +69,13 @@ impl Variables {
     ///
     /// Exported symbols are always declared in the outermost scope, and should be checked only
     /// after the whole environment is collected.
-    pub fn get_exported(&self, name: &str) -> Option<Symbol> {
+    pub fn get_exported(&self, name: &str) -> Option<ObjectId> {
         self.locals
             .vars
             .iter()
             .rev()
-            .position(|var| var.name == name && var.depth == -1)
-            .map(|idx| Symbol::Local(self.locals.vars.len() - 1 - idx))
+            .position(|var| var.name == name && var.is_exported())
+            .map(|idx| self.locals.vars.len() - 1 - idx)
     }
 
     /// Lists all local variables, in the order they are declared.
@@ -235,6 +220,10 @@ impl Variable {
             depth,
             ty: TypeInfo::Variable,
         }
+    }
+
+    pub fn is_exported(&self) -> bool {
+        self.depth == -1
     }
 }
 

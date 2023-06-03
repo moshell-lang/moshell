@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-use crate::dead_symbols::DeadSymbolsOccurrences;
 use context::source::SourceSegment;
 use std::collections::HashSet;
 
@@ -19,7 +18,6 @@ pub mod importer;
 pub mod name;
 pub mod relations;
 
-pub mod dead_symbols;
 pub mod steps;
 
 /// Performs a full resolution of the environments directly or indirectly implied by the entry point.
@@ -37,12 +35,10 @@ pub fn resolve_all<'a>(
     let mut visited = HashSet::new();
 
     let mut diagnostics = Vec::new();
-    let mut occurrences = DeadSymbolsOccurrences::default();
     while !to_visit.is_empty() {
         diagnostics.extend(SymbolCollector::collect_symbols(
             &mut engine,
             &mut relations,
-            &mut occurrences,
             &mut to_visit,
             &mut visited,
             importer,
@@ -50,7 +46,6 @@ pub fn resolve_all<'a>(
         diagnostics.extend(SymbolResolver::resolve_symbols(
             &engine,
             &mut relations,
-            &mut occurrences,
             &mut to_visit,
             &mut visited,
         ));
