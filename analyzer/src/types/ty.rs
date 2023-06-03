@@ -1,7 +1,8 @@
+use crate::types::hir::TypeId;
 use std::fmt::Display;
 
 /// An internal type representation.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub enum Type {
     /// Reports a previous type error that is propagated.
     Error,
@@ -24,6 +25,12 @@ pub enum Type {
 
     /// A string type, that contains a UTF-8 string.
     String,
+
+    /// A callable type, that have a separate environment.
+    Function {
+        parameters: Vec<TypeId>,
+        return_type: TypeId,
+    },
 }
 
 impl Display for Type {
@@ -36,6 +43,12 @@ impl Display for Type {
             Type::Int => write!(f, "Int"),
             Type::Float => write!(f, "Float"),
             Type::String => write!(f, "String"),
+            Type::Function {
+                parameters,
+                return_type,
+            } => {
+                write!(f, "fn({:?}) -> {:?}", parameters, return_type)
+            }
         }
     }
 }

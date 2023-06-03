@@ -1,16 +1,15 @@
-use crate::relations::SourceObjectId;
+use crate::relations::{Relations, SourceObjectId, Symbol};
 use crate::types::hir::TypeId;
 use crate::types::{BOOL, FLOAT, INT, NOTHING, STRING};
 use std::collections::HashMap;
 
-pub struct TypeContext<'p> {
+pub struct TypeContext {
     pub(crate) source: SourceObjectId,
     names: HashMap<String, TypeId>,
-    pub(crate) locals: Vec<TypeId>,
-    parent: Option<&'p TypeContext<'p>>,
+    locals: HashMap<SourceObjectId, Vec<TypeId>>,
 }
 
-impl<'p> TypeContext<'p> {
+impl TypeContext {
     pub(crate) fn lang() -> Self {
         Self {
             source: SourceObjectId(0),
@@ -21,9 +20,38 @@ impl<'p> TypeContext<'p> {
                 ("Float".to_owned(), FLOAT),
                 ("String".to_owned(), STRING),
             ]),
-            locals: Vec::new(),
-            parent: None,
+            locals: HashMap::new(),
         }
+    }
+
+    /// Updates the context to prepare for a new source object.
+    pub(crate) fn prepare(&mut self, source: SourceObjectId) {
+        self.source = source;
+        self.locals.insert(source, Vec::new());
+    }
+
+    /// Returns the type id of a symbol.
+    pub(crate) fn get(&self, relations: &Relations, symbol: Symbol) -> Option<TypeId> {
+        match symbol {
+            Symbol::Local(index) => self.locals.get(&self.source).unwrap().get(index).copied(),
+            Symbol::Global(index) => {
+                let resolved = relations.objects[index]
+                    .resolved
+                    .expect("Unresolved symbol");
+                self.locals
+                    .get(&resolved.module)
+                    .unwrap()
+                    .get(resolved.object_id)
+                    .copied()
+            }
+        }
+    }
+
+    /// Defines the type of a currently explored symbol.
+    ///
+    /// This must be in sync with the symbol in the environment.
+    pub(crate) fn push_local_type(&mut self, type_id: TypeId) {
+        self.locals.get_mut(&self.source).unwrap().push(type_id);
     }
 
     pub(crate) fn resolve(&self, type_annotation: &ast::r#type::Type) -> Option<TypeId> {
@@ -36,15 +64,6 @@ impl<'p> TypeContext<'p> {
             }
             ast::r#type::Type::Callable(_) => None,
             ast::r#type::Type::ByName(_) => None,
-        }
-    }
-
-    fn fork(&'p self, source: SourceObjectId) -> Self {
-        Self {
-            source,
-            names: HashMap::new(),
-            locals: Vec::new(),
-            parent: Some(self),
         }
     }
 }

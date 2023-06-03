@@ -48,4 +48,8 @@ pub enum ExprKind {
         otherwise: Option<Box<TypedExpr>>,
     },
     ProcessCall(Vec<TypedExpr>),
+    FunctionCall {
+        name: String,
+        arguments: Vec<TypedExpr>,
+    },
 }

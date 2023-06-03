@@ -36,21 +36,27 @@ impl Typing {
         assign_to: TypeId,
         rvalue: TypeId,
     ) -> Result<TypeId, UnificationError> {
-        let lhs = self.types[assign_to.0];
-        let rhs = self.types[rvalue.0];
+        let lhs = &self.types[assign_to.0];
+        let rhs = &self.types[rvalue.0];
         if lhs == rhs {
             return Ok(assign_to);
         }
         if let Some(implicit) = self.implicits.get(&rvalue) {
-            if lhs == self.types[implicit.0] {
+            if lhs == &self.types[implicit.0] {
                 return Ok(assign_to);
             }
         }
         Err(UnificationError())
     }
 
+    pub(crate) fn add_type(&mut self, ty: Type) -> TypeId {
+        let type_id = TypeId(self.types.len());
+        self.types.push(ty);
+        type_id
+    }
+
     pub(crate) fn get_type(&self, type_id: TypeId) -> Option<Type> {
-        self.types.get(type_id.0).copied()
+        self.types.get(type_id.0).cloned()
     }
 }
 
