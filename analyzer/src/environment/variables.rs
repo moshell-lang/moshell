@@ -1,7 +1,6 @@
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-
-use indexmap::map::Entry;
-use indexmap::IndexMap;
 
 use crate::name::Name;
 use crate::relations::{GlobalObjectId, ObjectId, Symbol};
@@ -24,22 +23,15 @@ impl Display for TypeInfo {
     }
 }
 
-/// The kind of usage a variable is being used
-/// The wrapped name is the variable's qualified name.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum TypeUsage {
-    /// The variable is being accessed as a regular variable
-    Variable,
-    /// The variable is being accessed as a function
-    Function,
-}
-
 /// A collection of variables
 #[derive(Debug, Clone, Default)]
 pub struct Variables {
+    /// Locals declarations
     locals: Locals,
 
-    externals: IndexMap<Name, GlobalObjectId>,
+    /// Relations with external variables.
+    /// The key is the variable Names, where value is the relation with another external environment's [Locals]
+    externals: HashMap<Name, GlobalObjectId>,
 }
 
 impl Variables {
@@ -48,10 +40,12 @@ impl Variables {
         self.locals.declare(name, ty)
     }
 
+    /// Returns the local variable associated with the id
     pub fn get_var(&self, id: ObjectId) -> Option<&Variable> {
         self.locals.vars.get(id)
     }
 
+    /// Returns an entry for the given external symbol name relation
     pub fn external(&mut self, name: Name) -> Entry<Name, GlobalObjectId> {
         self.externals.entry(name)
     }
@@ -94,11 +88,11 @@ impl Variables {
     }
 
     /// Iterates over all the global variable ids, with their corresponding name.
-    pub fn external_usages(&self) -> impl Iterator<Item = (&Name, GlobalObjectId)> {
+    pub fn external_vars(&self) -> impl Iterator<Item = (&Name, GlobalObjectId)> {
         self.externals.iter().map(|(name, id)| (name, *id))
     }
 
-    /// Gets the name of a global variable.
+    /// Gets the name of an external variable.
     ///
     /// This returns the name only if the global object comes from this environment.
     pub fn get_external_symbol_name(&self, object_id: GlobalObjectId) -> Option<&Name> {
@@ -222,7 +216,7 @@ impl Variable {
         }
     }
 
-    pub fn is_exported(&self) -> bool {
+    pub const fn is_exported(&self) -> bool {
         self.depth == -1
     }
 }

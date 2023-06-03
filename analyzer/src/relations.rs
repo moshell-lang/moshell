@@ -87,6 +87,13 @@ impl ResolvedSymbol {
     }
 }
 
+/// The state of an object
+///
+/// The [SymbolResolver] only handles objects marked as [ObjectState::Unresolved]
+/// and will attempt to resolve it by updating his state to [ObjectState::Resolved]
+/// If the resolution fails, for any reason, the object is marked as dead ([ObjectState::Dead])
+/// which should imply a diagnostic.
+/// This state prevents the resolver to attempt to resolve again unresolvable symbols on next cycles.
 #[derive(Debug, Clone, Copy, Hash, PartialEq)]
 pub enum ObjectState {
     Resolved(ResolvedSymbol),
@@ -96,10 +103,11 @@ pub enum ObjectState {
 
 #[derive(Debug, Clone, Hash, PartialEq)]
 pub struct Object {
-    /// The symbol that is being resolved, where it is used.
+    /// The environment's id that requested this object resolution.
     pub origin: SourceObjectId,
 
-    /// The link to the resolved symbol.
+    /// This object's state.
+    /// See [ObjectState] for more details
     pub state: ObjectState,
 }
 
@@ -177,14 +185,6 @@ impl Relations {
         let object = self.objects.get(tracked_object.0)?;
         let environment = engine.get_environment(object.origin)?;
         Some(environment.find_references(Symbol::Global(tracked_object.0)))
-    }
-
-    /// Returns a mutable iterator over all the objects.
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (GlobalObjectId, &mut Object)> {
-        self.objects
-            .iter_mut()
-            .enumerate()
-            .map(|(id, object)| (GlobalObjectId(id), object))
     }
 
     /// Returns an immutable iterator over all the objects.

@@ -97,7 +97,7 @@ fn collect_sample() {
         .get_environment(SourceObjectId(2))
         .expect("Unable to get debug() environment");
     assert_eq!(debug_env.fqn, root_name.child("debug"));
-    let usages = debug_env.variables.external_usages().collect::<Vec<_>>();
+    let usages = debug_env.variables.external_vars().collect::<Vec<_>>();
     assert_eq!(usages, vec![(&Name::new("LOG_FILE"), GlobalObjectId(0))]);
     assert_eq!(
         relations.objects[0],
@@ -114,7 +114,8 @@ fn collect_sample() {
         .get_environment(SourceObjectId(4))
         .expect("Unable to get callback environment");
     assert_eq!(callback_env.fqn, root_name.child("main").child("callback"));
-    let globals = callback_env.variables.external_usages().collect::<Vec<_>>();
+    let mut globals = callback_env.variables.external_vars().collect::<Vec<_>>();
+    globals.sort_by_key(|(name, _)| *name);
     assert_eq!(
         globals,
         vec![
@@ -157,6 +158,6 @@ fn collect_sample() {
     let lambda_env = engine
         .get_environment(SourceObjectId(5))
         .expect("Unable to get lambda environment");
-    let variables = lambda_env.variables.external_usages().collect::<Vec<_>>();
+    let variables = lambda_env.variables.external_vars().collect::<Vec<_>>();
     assert_eq!(variables, vec![(&Name::new("n"), GlobalObjectId(4))]);
 }

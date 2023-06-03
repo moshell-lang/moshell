@@ -18,7 +18,7 @@ impl Name {
         self.parts.len() != 1
     }
 
-    pub fn prefixed(mut path: Vec<String>, name: String) -> Self {
+    pub fn qualified(mut path: Vec<String>, name: String) -> Self {
         path.push(name);
         Self::from(path)
     }

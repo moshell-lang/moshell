@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::iter::once;
 
 use ast::call::Call;
 use ast::control_flow::ForKind;
@@ -13,8 +12,8 @@ use context::source::{SourceSegment, SourceSegmentHolder};
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
-use crate::environment::variables::{TypeInfo, TypeUsage, Variables};
-use crate::environment::{Definition, Environment};
+use crate::environment::variables::{TypeInfo, Variables};
+use crate::environment::Environment;
 use crate::importer::ASTImporter;
 use crate::name::Name;
 use crate::relations::{ObjectState, Relations, SourceObjectId, Symbol, UnresolvedImport};
@@ -90,26 +89,26 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             let env_name = &env.fqn;
             let mut reported = HashSet::new();
             for (declaration_segment, symbol) in &env.definitions {
-                let id = match symbol.symbol {
+                let id = match symbol {
                     Symbol::Local(id) => id,
-                    Symbol::Global(_) => continue,
+                    Symbol::Global(_) => continue, //we check declarations only, thus external symbols are ignored
                 };
                 if !reported.insert(id) {
                     continue;
                 }
                 let var = env
                     .variables
-                    .get_var(id)
+                    .get_var(*id)
                     .expect("local symbol references an unknown variable");
                 let var_fqn = env_name.appended(Name::new(&var.name));
 
-                let clashed = self
+                let clashed_module = self
                     .engine
-                    .find_environment_by_name(&var_fqn, true)
-                    .map(|(_, e)| e)
-                    .filter(|e| e.parent.is_none());
+                    .environments()
+                    .find(|(_, e)| e.parent.is_none() && e.fqn == var_fqn)
+                    .map(|(_, e)| e);
 
-                if let Some(clashed) = clashed {
+                if let Some(clashed_module) = clashed_module {
                     let inner_modules = {
                         //we know that the inner envs contains at least one environment (the env being clashed with)
                         let list = list_inner_modules(self.engine, &env.fqn)
@@ -127,11 +126,11 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
 
                     let msg = format!(
                         "Declared symbol '{}' in module {env_name} clashes with module {}",
-                        var.name, &clashed.fqn
+                        var.name, &clashed_module.fqn
                     );
                     let diagnostic = {
                         Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, env_id, msg)
-                            .with_observation(Observation::with_help(declaration_segment.clone(), format!("This symbol has the same fully-qualified name as module {}", clashed.fqn)))
+                            .with_observation(Observation::with_help(declaration_segment.clone(), format!("This symbol has the same fully-qualified name as module {}", clashed_module.fqn)))
                             .with_help(format!("You should refactor this symbol with a name that does not conflicts with following modules: {inner_modules}"))
                     };
                     self.diagnostics.push(diagnostic)
@@ -250,6 +249,8 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         }
     }
 
+    /// Identifies a variable [Symbol] from given [Variables] structure.
+    /// Will return [Symbol::Local] if the given name isn't qualified and matches
     fn identify_variable(
         &mut self,
         variables: &mut Variables,
@@ -269,12 +270,11 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             None => Symbol::Global(track_global!().0),
             Some(id) if name.is_qualified() => {
                 let var = variables.get_var(id).unwrap();
-                self.diagnostics.push(diagnose_invalid_symbol(
-                    var.ty,
-                    origin,
-                    name,
-                    once(&segment),
-                ));
+                self.diagnostics
+                    .push(diagnose_invalid_symbol(var.ty, origin, name, &[&segment]));
+                // instantly declare a dead resolution object
+                // We could have returned None here to ignore the symbol but it's more appropriate to
+                // bind the variable occurrence with a dead object to signify that it's bound symbol invalid.
                 let id = track_global!();
                 self.relations.objects[id.0].state = ObjectState::Dead;
                 Symbol::Global(id.0)
@@ -323,8 +323,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                                     &Name::new(reference.name),
                                     reference.segment(),
                                 );
-                                let def = Definition::reference(symbol, TypeUsage::Variable);
-                                env.annotate(reference, def);
+                                env.annotate(reference, symbol);
                             }
                             MatchPattern::Template(template) => {
                                 for part in &template.parts {
@@ -360,13 +359,12 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     .iter()
                     .map(ToString::to_string)
                     .collect::<Vec<_>>();
-                let name = Name::prefixed(path, call.name.to_string());
+                let name = Name::qualified(path, call.name.to_string());
 
                 let symbol =
                     self.identify_variable(&mut env.variables, state.module, &name, call.segment());
-                let def = Definition::reference(symbol, TypeUsage::Function);
 
-                env.annotate(call, def);
+                env.annotate(call, symbol);
                 for arg in &call.arguments {
                     self.tree_walk(env, state, arg, to_visit);
                 }
@@ -398,7 +396,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 let symbol = env
                     .variables
                     .declare_local(var.var.name.to_owned(), TypeInfo::Variable);
-                env.annotate(var, Definition::declaration(symbol));
+                env.annotate(var, symbol);
             }
             Expr::VarReference(var) => {
                 let symbol = self.identify_variable(
@@ -407,8 +405,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     &Name::new(var.name),
                     var.segment(),
                 );
-                let def = Definition::reference(symbol, TypeUsage::Variable);
-                env.annotate(var, def);
+                env.annotate(var, symbol);
             }
             Expr::Range(range) => match range {
                 Iterable::Range(range) => {
@@ -488,7 +485,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                         let symbol = env
                             .variables
                             .declare_local(range.receiver.to_owned(), TypeInfo::Variable);
-                        env.annotate(range, Definition::declaration(symbol));
+                        env.annotate(range, symbol);
                         self.tree_walk(env, state, &range.iterable, to_visit);
                     }
                     ForKind::Conditional(cond) => {
@@ -509,7 +506,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 let symbol = env
                     .variables
                     .declare_local(func.name.to_owned(), TypeInfo::Function);
-                env.annotate(func, Definition::declaration(symbol));
+                env.annotate(func, symbol);
                 let func_id = self.engine.track(expr);
                 let mut func_env = env.fork(state.module, func.name);
                 for param in &func.parameters {
@@ -522,7 +519,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     );
                     // Only named parameters can be annotated for now
                     if let FunctionParameter::Named(named) = param {
-                        func_env.annotate(named, Definition::declaration(symbol));
+                        func_env.annotate(named, symbol);
                     }
                 }
                 self.tree_walk(
@@ -541,7 +538,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     let symbol = func_env
                         .variables
                         .declare_local(param.name.to_owned(), TypeInfo::Variable);
-                    func_env.annotate(param, Definition::declaration(symbol));
+                    func_env.annotate(param, symbol);
                 }
                 self.tree_walk(
                     &mut func_env,
@@ -568,7 +565,13 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             // SAFETY: the reference will immediately be popped off the stack.
             std::mem::transmute::<&Environment, &'e Environment>(parent_env)
         }));
-        SymbolResolver::resolve_captures(&self.stack, self.relations, capture_env, capture_env_id);
+        SymbolResolver::resolve_captures(
+            &self.stack,
+            self.relations,
+            capture_env,
+            capture_env_id,
+            &mut self.diagnostics,
+        );
         self.stack.pop();
     }
 
@@ -593,7 +596,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 let symbol = env
                     .variables
                     .declare_local(var.to_owned(), TypeInfo::Variable);
-                env.annotate(&call.arguments[1], Definition::declaration(symbol));
+                env.annotate(&call.arguments[1], symbol);
                 Some(())
             }
             _ => None,

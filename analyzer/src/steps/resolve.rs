@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
+use std::iter::once;
 
 use context::source::SourceSegment;
 
@@ -9,7 +10,7 @@ use crate::environment::variables::TypeInfo;
 use crate::environment::Environment;
 use crate::name::Name;
 use crate::relations::{
-    GlobalObjectId, ObjectState, Relations, ResolvedSymbol, SourceObjectId, Symbol,
+    GlobalObjectId, ObjectId, ObjectState, Relations, ResolvedSymbol, SourceObjectId, Symbol,
     UnresolvedImport, UnresolvedImports,
 };
 
@@ -95,19 +96,58 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         relations: &mut Relations,
         capture_env: &Environment,
         capture_env_id: SourceObjectId,
+        diagnostics: &mut Vec<Diagnostic>,
     ) {
-        'capture: for (name, object_id) in capture_env.variables.external_usages() {
-            for (env_id, env) in env_stack.iter().rev() {
+        fn diagnose_invalid_symbol_in_capture(
+            env_stack: Vec<&Environment>,
+            capture_env_id: SourceObjectId,
+            name: &Name,
+            local: ObjectId,
+            global: ObjectId,
+        ) -> Diagnostic {
+            let declaration_env = *env_stack.last().unwrap();
+            let mut segments: Vec<_> = env_stack
+                .iter()
+                .flat_map(|env| {
+                    env.definitions
+                        .iter()
+                        //keep symbols subscribed to same global resolution or local symbols inside the enironment declaration
+                        .filter(|(_, symbol)| {
+                            *symbol == &Symbol::Global(global)
+                                || (std::ptr::eq(declaration_env, *env)
+                                    && *symbol == &Symbol::Local(local))
+                        })
+                        .map(|(seq, _)| seq)
+                })
+                .collect();
+
+            segments.sort_by_key(|s| s.start);
+
+            let (_declaration, segments) = segments.split_first().unwrap();
+            //TODO support observations in foreign environments to include concerned symbol declaration in diagnostics
+
+            let var = declaration_env.variables.get_var(local).unwrap();
+            diagnose_invalid_symbol(var.ty, capture_env_id, name, segments)
+        }
+
+        'capture: for (name, object_id) in capture_env.variables.external_vars() {
+            for (pos, (env_id, env)) in env_stack.iter().rev().enumerate() {
                 if let Some(local) = env.variables.get_reachable(name.root()) {
                     if name.is_qualified() {
-                        let segments = capture_env
-                            .definitions
-                            .iter()
-                            .filter(|(_, d)| d.symbol == Symbol::Local(local))
-                            .map(|(seq, _)| seq);
+                        let erroneous_capture =
+                            env_stack.iter().rev().take(pos + 1).map(|(_, s)| *s);
+                        let erroneous_capture =
+                            once(capture_env).chain(erroneous_capture).collect();
 
-                        let var = env.variables.get_var(local).unwrap();
-                        diagnose_invalid_symbol(var.ty, capture_env_id, name, segments);
+                        let diagnostic = diagnose_invalid_symbol_in_capture(
+                            erroneous_capture,
+                            capture_env_id,
+                            name,
+                            local,
+                            object_id.0,
+                        );
+                        diagnostics.push(diagnostic);
+                        relations.objects[object_id.0].state = ObjectState::Dead;
                     } else {
                         let symbol = ResolvedSymbol {
                             source: *env_id,
@@ -393,24 +433,26 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                             .variables
                             .get_var(symbol.object_id)
                             .expect("resolved symbol points to an unknown variable in environment");
-                        let occurrences = origin_env
+                        let mut occurrences: Vec<_> = origin_env
                             .definitions
                             .iter()
-                            .filter(|(_, def)| match def.symbol {
+                            .filter(|(_, symbol)| match symbol {
                                 Symbol::Local(l) => origin_env
                                     .variables
-                                    .get_var(l)
+                                    .get_var(*l)
                                     .filter(|v| v == &var)
                                     .is_some(),
-                                Symbol::Global(g) => g == object_id.0, // the global symbol
+                                Symbol::Global(g) => g == &object_id.0, // the global symbol
                             })
-                            .map(|(seq, _)| seq);
+                            .map(|(seq, _)| seq)
+                            .collect();
+                        occurrences.sort_by_key(|s| s.start);
 
                         self.diagnostics.push(diagnose_invalid_symbol(
                             var.ty,
                             origin,
                             symbol_name,
-                            occurrences,
+                            &occurrences,
                         ));
                         self.relations.objects[object_id.0].state = ObjectState::Dead;
                         continue 'symbol;
@@ -482,7 +524,7 @@ fn get_env_from_absolute<'a>(
 ) -> Option<(SourceObjectId, &'a Environment)> {
     let mut env_name = Some(name.clone());
     while let Some(name) = env_name {
-        if let Some((id, env)) = engine.find_environment_by_name(&name, false) {
+        if let Some((id, env)) = engine.find_environment_by_name(&name) {
             return Some((id, env));
         }
         env_name = name.tail();
@@ -490,18 +532,21 @@ fn get_env_from_absolute<'a>(
     None
 }
 
-pub(crate) fn diagnose_invalid_symbol<'a>(
+pub(crate) fn diagnose_invalid_symbol(
     base_type: TypeInfo,
     env_id: SourceObjectId,
     name: &Name,
-    segments: impl Iterator<Item = &'a SourceSegment>,
+    segments: &[&SourceSegment],
 ) -> Diagnostic {
     let name_root = name.root();
     let (_, tail) = name.parts().split_first().unwrap();
     let base_type_name = base_type.to_string();
     let msg = format!("`{name_root}` is a {base_type_name} which cannot export any inner symbols");
 
-    let observations = segments.map(|seg| Observation::new(seg.clone())).collect();
+    let observations = segments
+        .iter()
+        .map(|seg| Observation::new((*seg).clone()))
+        .collect();
 
     Diagnostic::new(DiagnosticID::InvalidSymbol, env_id, msg)
         .with_observations(observations)
@@ -526,15 +571,17 @@ fn diagnose_unresolved_external_symbols(
         format!("Could not resolve symbol `{name}`."),
     );
 
-    let observations = env
+    let mut observations: Vec<_> = env
         .list_definitions()
-        .filter(|(_, sym)| match sym.symbol {
+        .filter(|(_, sym)| match sym {
             Symbol::Local(_) => false,
-            Symbol::Global(g) => g == relation.0,
+            Symbol::Global(g) => g == &relation.0,
         })
-        .map(|(seg, _)| Observation::new(seg.clone()));
+        .map(|(seg, _)| Observation::new(seg.clone()))
+        .collect();
 
-    diagnostic.observations = observations.collect();
+    observations.sort_by_key(|s| s.segment.start);
+    diagnostic.observations = observations;
 
     diagnostic
 }
@@ -898,7 +945,7 @@ mod tests {
                 Diagnostic::new(
                     DiagnosticID::InvalidSymbol,
                     SourceObjectId(2),
-                    "`foo` is a function which cannot export any inner symbols"
+                    "`foo` is a function which cannot export any inner symbols",
                 )
                 .with_observation(Observation::new(find_in_nth(test_src, "foo::y::z()", 2)))
                 .with_observation(Observation::new(find_in_nth(test_src, "foo::y::z()", 3)))
