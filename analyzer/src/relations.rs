@@ -1,3 +1,4 @@
+use crate::dependency::Dependencies;
 use crate::engine::Engine;
 use crate::name::Name;
 use context::source::SourceSegment;
@@ -188,5 +189,20 @@ impl Relations {
     /// If the object is not resolved or is not referenced, returns `None`.
     pub fn get_resolved(&self, id: GlobalObjectId) -> Option<ResolvedSymbol> {
         self.objects.get(id.0)?.resolved
+    }
+
+    /// Creates a dependency graph for the given engine.
+    pub fn build_dependencies(&self, engine: &Engine) -> Dependencies<SourceObjectId> {
+        let mut dependencies = Dependencies::default();
+        for (id, _) in engine.environments() {
+            dependencies.add_node(id);
+        }
+
+        for object in self.objects.iter() {
+            if let Some(resolved) = object.resolved {
+                dependencies.add_dependency(object.origin, resolved.module);
+            }
+        }
+        dependencies
     }
 }

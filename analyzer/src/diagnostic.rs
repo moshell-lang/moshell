@@ -28,6 +28,12 @@ pub enum DiagnosticID {
 
     #[assoc(code = 6)]
     ShadowedImport,
+
+    #[assoc(code = 7)]
+    UnknownType,
+
+    #[assoc(code = 8)]
+    TypeMismatch,
 }
 
 /// Observations are an area in the source code with an (optional) help message
