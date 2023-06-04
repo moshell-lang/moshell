@@ -111,10 +111,7 @@ impl From<Vec<String>> for Name {
 
 impl From<&[String]> for Name {
     fn from(value: &[String]) -> Self {
-        assert!(!value.is_empty(), "cannot create a name from an empty vec");
-        Self {
-            parts: value.to_vec(),
-        }
+        value.to_vec().into()
     }
 }
 

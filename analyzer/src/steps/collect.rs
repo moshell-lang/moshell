@@ -271,7 +271,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             Some(id) if name.is_qualified() => {
                 let var = variables.get_var(id).unwrap();
                 self.diagnostics
-                    .push(diagnose_invalid_symbol(var.ty, origin, name, &[&segment]));
+                    .push(diagnose_invalid_symbol(var.ty, origin, name, &[segment]));
                 // instantly declare a dead resolution object
                 // We could have returned None here to ignore the symbol but it's more appropriate to
                 // bind the variable occurrence with a dead object to signify that it's bound symbol invalid.

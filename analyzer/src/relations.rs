@@ -177,13 +177,16 @@ impl Relations {
     }
 
     /// Finds segments that reference the given object.
+    /// Returns non if the object wasn't found or if the tracked object isn't found in the relations
     pub fn find_references(
         &self,
         engine: &Engine,
         tracked_object: GlobalObjectId,
     ) -> Option<Vec<SourceSegment>> {
         let object = self.objects.get(tracked_object.0)?;
-        let environment = engine.get_environment(object.origin)?;
+        let environment = engine
+            .get_environment(object.origin)
+            .expect("object relation targets to an unknown environment");
         Some(environment.find_references(Symbol::Global(tracked_object.0)))
     }
 

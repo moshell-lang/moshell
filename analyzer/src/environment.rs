@@ -105,8 +105,8 @@ impl Environment {
     /// Finds the local segments that references a symbol.
     pub fn find_references(&self, symbol_declaration: Symbol) -> Vec<SourceSegment> {
         let mut references = Vec::new();
-        for (segment, symbol) in &self.definitions {
-            if symbol == &symbol_declaration {
+        for (segment, symbol_reference) in &self.definitions {
+            if symbol_reference == &symbol_declaration {
                 references.push(segment.clone());
             }
         }

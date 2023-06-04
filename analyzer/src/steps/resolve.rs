@@ -14,10 +14,13 @@ use crate::relations::{
     UnresolvedImport, UnresolvedImports,
 };
 
+/// A resolved symbol import
 #[derive(PartialEq, Eq, Debug)]
 enum ResolvedImport {
+    /// The import is a symbol
     Symbol(ResolvedSymbol),
-    Module(SourceObjectId),
+    /// The import is an environment
+    Env(SourceObjectId),
 }
 
 /// Used by the resolve step to store resolved imports of an environment.
@@ -48,10 +51,15 @@ impl ResolvedImports {
     }
 }
 
+/// The result of a symbol resolution attempt
 #[derive(PartialEq)]
 enum SymbolResolutionResult {
+    /// The symbol is resolved, where `ResolvedSymbol` is the resolved symbol
     Resolved(ResolvedSymbol),
+    /// The symbol is resolved, but it's invalid. This result usually implies a diagnostic emission.
+    /// Where the `ResolvedSymbol` is the resolved symbol
     Invalid(ResolvedSymbol),
+    /// The symbol could not be found.
     NotFound,
 }
 
@@ -64,7 +72,6 @@ enum SymbolResolutionResult {
 pub struct SymbolResolver<'a, 'e> {
     engine: &'a Engine<'e>,
     diagnostics: Vec<Diagnostic>,
-
     relations: &'a mut Relations,
 }
 
@@ -105,29 +112,18 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
             local: ObjectId,
             global: ObjectId,
         ) -> Diagnostic {
-            let declaration_env = *env_stack.last().unwrap();
             let mut segments: Vec<_> = env_stack
                 .iter()
-                .flat_map(|env| {
-                    env.definitions
-                        .iter()
-                        //keep symbols subscribed to same global resolution or local symbols inside the enironment declaration
-                        .filter(|(_, symbol)| {
-                            *symbol == &Symbol::Global(global)
-                                || (std::ptr::eq(declaration_env, *env)
-                                    && *symbol == &Symbol::Local(local))
-                        })
-                        .map(|(seq, _)| seq)
-                })
+                .flat_map(|env| env.find_references(Symbol::Global(global)))
                 .collect();
 
             segments.sort_by_key(|s| s.start);
 
-            let (_declaration, segments) = segments.split_first().unwrap();
             //TODO support observations in foreign environments to include concerned symbol declaration in diagnostics
+            let declaration_env = *env_stack.last().unwrap();
 
             let var = declaration_env.variables.get_var(local).unwrap();
-            diagnose_invalid_symbol(var.ty, capture_env_id, name, segments)
+            diagnose_invalid_symbol(var.ty, capture_env_id, name, &segments)
         }
 
         'capture: for (name, object_id) in capture_env.variables.external_vars() {
@@ -185,16 +181,11 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         self.resolve_trees(&resolved_imports, to_visit, visited);
     }
 
-    fn resolve_symbol_from_env(
+    fn resolve_symbol_from_locals(
         env_id: SourceObjectId,
         env: &Environment,
         symbol_name: &Name,
     ) -> SymbolResolutionResult {
-        // Locals symbols are always treated first, before imports.
-        // The current environment might already owns the resolution result as a global symbol.
-        // This happens only if it used it, so we ignore that fact here to always solve external
-        // symbols via imports.
-        //
         if !env.has_strict_declaration_order() {
             if let Some(var_id) = env.variables.get_exported(symbol_name.root()) {
                 let symbol = ResolvedSymbol {
@@ -224,7 +215,6 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
 
         // try to resolve the relation by looking the name's root inside imports
         match imports.imported_symbols.get(name_root) {
-            // symbol is resolved
             Some(ResolvedImport::Symbol(resolved_symbol)) => {
                 return if !name.is_qualified() {
                     SymbolResolutionResult::Resolved(*resolved_symbol)
@@ -232,10 +222,10 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                     SymbolResolutionResult::Invalid(*resolved_symbol)
                 }
             }
-            Some(ResolvedImport::Module(resolved_module)) => {
+            Some(ResolvedImport::Env(resolved_module)) => {
                 let env = engine
                     .get_environment(*resolved_module)
-                    .expect("resolved import points to an unknown module");
+                    .expect("resolved import points to an unknown environment");
 
                 let resolved_pos = env
                     .variables
@@ -305,10 +295,10 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                         Some((found_env_id, found_env)) => {
                             let symbol_name = name.simple_name().to_string();
                             if found_env.fqn == name {
-                                //it's the module that is being imported
+                                //it's the environment that is being imported
                                 resolved_imports.set_import(
                                     alias.unwrap_or(symbol_name),
-                                    ResolvedImport::Module(found_env_id),
+                                    ResolvedImport::Env(found_env_id),
                                 );
                                 continue;
                             }
@@ -373,10 +363,8 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         resolved_imports
     }
 
-    /// Iterates over remaining unresolved symbols, and tries to resolve them by traversing the parent chain.
-    ///
-    /// This resolution should happen after all imports have been resolved in their respective environments,
-    /// to allow child environments to use imports from their parents.
+    /// Iterates over remaining unresolved symbols
+    /// This resolution supports parent lookups if the resolution could not
     fn resolve_trees(
         &mut self,
         resolved_imports: &HashMap<SourceObjectId, ResolvedImports>,
@@ -407,10 +395,22 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
             // Go up the parent chain until we find the symbol or we reach the root
             let mut current = Some((origin, origin_env));
             while let Some((env_id, env)) = current {
-                let mut result = Self::resolve_symbol_from_env(env_id, env, symbol_name);
+                let mut result = SymbolResolutionResult::NotFound;
+
+                if env_id != origin {
+                    // Locals symbols are always treated first, before imports.
+                    // The current environment might already owns the resolution result as a global symbol.
+                    // This happens only if it used it, so we ignore that fact here to always solve external
+                    // symbols via imports.
+                    //
+                    // We omit this resolution for origin environments as the resolution of their own locals
+                    // is done by the collection phase
+                    result = Self::resolve_symbol_from_locals(env_id, env, symbol_name);
+                }
 
                 if result == SymbolResolutionResult::NotFound {
                     if let Some(resolved_imports) = resolved_imports.get(&env_id) {
+                        // If the symbol wasn't found from the environment locals, try to resolve using its imports
                         result = Self::resolve_symbol_from_imports(
                             self.engine,
                             resolved_imports,
@@ -433,19 +433,8 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                             .variables
                             .get_var(symbol.object_id)
                             .expect("resolved symbol points to an unknown variable in environment");
-                        let mut occurrences: Vec<_> = origin_env
-                            .definitions
-                            .iter()
-                            .filter(|(_, symbol)| match symbol {
-                                Symbol::Local(l) => origin_env
-                                    .variables
-                                    .get_var(*l)
-                                    .filter(|v| v == &var)
-                                    .is_some(),
-                                Symbol::Global(g) => g == &object_id.0, // the global symbol
-                            })
-                            .map(|(seq, _)| seq)
-                            .collect();
+                        let mut occurrences: Vec<_> =
+                            origin_env.find_references(Symbol::Global(object_id.0));
                         occurrences.sort_by_key(|s| s.start);
 
                         self.diagnostics.push(diagnose_invalid_symbol(
@@ -500,7 +489,7 @@ fn get_env_from_relatives<'a>(
 
     let target_env_id = match imports.imported_symbols.get(name_root) {
         Some(ResolvedImport::Symbol(symbol)) => symbol.source,
-        Some(ResolvedImport::Module(module)) => *module,
+        Some(ResolvedImport::Env(module)) => *module,
         None => return get_env_from_absolute(engine, name),
     };
 
@@ -536,7 +525,7 @@ pub(crate) fn diagnose_invalid_symbol(
     base_type: TypeInfo,
     env_id: SourceObjectId,
     name: &Name,
-    segments: &[&SourceSegment],
+    segments: &[SourceSegment],
 ) -> Diagnostic {
     let name_root = name.root();
     let (_, tail) = name.parts().split_first().unwrap();
@@ -721,7 +710,7 @@ mod tests {
                     "Bar".to_string(),
                     ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(2), 1))
                 ),
-                ("io".to_string(), ResolvedImport::Module(SourceObjectId(1))),
+                ("io".to_string(), ResolvedImport::Env(SourceObjectId(1))),
                 (
                     "output".to_string(),
                     ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(1), 0))
@@ -747,6 +736,8 @@ mod tests {
             "\
             use math::PI
             use std::{Bar, io::*}
+
+            fun foo() = $x
 
             val output = $output
             val x = $Bar
@@ -784,9 +775,10 @@ mod tests {
         assert_eq!(
             relations.objects,
             vec![
-                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(0), 0)),
-                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(2), 1)),
-                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(3), 0)),
+                Object::resolved(SourceObjectId(1), ResolvedSymbol::new(SourceObjectId(0), 2)),
+                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(2), 0)),
+                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(3), 1)),
+                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(4), 0)),
             ]
         )
     }
@@ -1076,14 +1068,23 @@ mod tests {
 
         assert_eq!(
             diagnostic,
-            vec![Diagnostic::new(
-                DiagnosticID::UnknownSymbol,
-                SourceObjectId(0),
-                "Could not resolve symbol `a`.",
-            )
-            .with_observation(Observation::new(find_in_nth(source, "$a", 0)))
-            .with_observation(Observation::new(find_in_nth(source, "$a", 1)))
-            .with_observation(Observation::new(find_in_nth(source, "$a", 2))),]
+            vec![
+                Diagnostic::new(
+                    DiagnosticID::UnknownSymbol,
+                    SourceObjectId(0),
+                    "Could not resolve symbol `C`."
+                )
+                .with_observation(Observation::new(find_in_nth(source, "$C", 0)))
+                .with_observation(Observation::new(find_in_nth(source, "$C", 1))),
+                Diagnostic::new(
+                    DiagnosticID::UnknownSymbol,
+                    SourceObjectId(0),
+                    "Could not resolve symbol `a`."
+                )
+                .with_observation(Observation::new(find_in_nth(source, "$a", 0)))
+                .with_observation(Observation::new(find_in_nth(source, "$a", 1)))
+                .with_observation(Observation::new(find_in_nth(source, "$a", 2))),
+            ]
         )
     }
 
