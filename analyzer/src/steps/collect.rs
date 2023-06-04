@@ -398,6 +398,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     .declare_local(func.name.to_owned(), TypeInfo::Function);
                 env.annotate(func, symbol);
                 let func_id = self.engine.track(expr);
+                env.declare(func, func_id);
                 let mut func_env = env.fork(state.module, func.name);
                 for param in &func.parameters {
                     let symbol = func_env.variables.declare_local(

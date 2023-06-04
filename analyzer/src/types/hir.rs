@@ -52,4 +52,5 @@ pub enum ExprKind {
         name: String,
         arguments: Vec<TypedExpr>,
     },
+    Noop,
 }

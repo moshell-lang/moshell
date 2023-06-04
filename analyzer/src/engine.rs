@@ -74,4 +74,14 @@ impl<'a> Engine<'a> {
     pub fn get_environment(&self, id: SourceObjectId) -> Option<&Environment> {
         self.origins.get(id.0).and_then(|(_, env)| env.as_ref())
     }
+
+    /// Gets the number of origins in the engine.
+    pub fn len(&self) -> usize {
+        self.origins.len()
+    }
+
+    /// Returns `true` does not contain any origin.
+    pub fn is_empty(&self) -> bool {
+        self.origins.is_empty()
+    }
 }

@@ -14,6 +14,7 @@ use ast::Expr;
 use clap::Parser;
 use context::source::Source;
 use dbg_pls::color;
+use analyzer::steps::typing::apply_types;
 use parser::parse;
 
 #[derive(Parser)]
@@ -68,6 +69,13 @@ pub fn handle_source(source: Source) -> bool {
     let mut diagnostics =
         SymbolCollector::collect_symbols(&mut engine, &mut relations, name, &mut importer);
     diagnostics.extend(SymbolResolver::resolve_symbols(&engine, &mut relations));
+    if diagnostics.is_empty() {
+        apply_types(
+            &engine,
+            &relations,
+            &mut diagnostics,
+        );
+    }
 
     let mut stdout = stderr();
     let had_errors = !diagnostics.is_empty();

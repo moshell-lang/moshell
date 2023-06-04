@@ -30,9 +30,11 @@ pub enum DiagnosticID {
     ShadowedImport,
 
     #[assoc(code = 7)]
+    #[assoc(critical = true)]
     UnknownType,
 
     #[assoc(code = 8)]
+    #[assoc(critical = true)]
     TypeMismatch,
 }
 

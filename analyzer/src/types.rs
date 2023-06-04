@@ -3,6 +3,7 @@ use crate::types::ty::Type;
 use std::collections::HashMap;
 
 pub mod ctx;
+pub mod engine;
 pub mod hir;
 pub mod ty;
 

@@ -43,6 +43,9 @@ pub struct Environment {
 
     /// A mapping of expression segments to symbols.
     pub definitions: HashMap<SourceSegment, Symbol>,
+
+    /// A mapping of expression segments to their declaring environment.
+    pub declarations: HashMap<SourceSegment, SourceObjectId>,
 }
 
 impl Environment {
@@ -52,6 +55,7 @@ impl Environment {
             fqn: name,
             variables: Variables::default(),
             definitions: HashMap::new(),
+            declarations: HashMap::new(),
         }
     }
 
@@ -63,6 +67,7 @@ impl Environment {
             fqn: env_fqn,
             variables: Variables::default(),
             definitions: HashMap::new(),
+            declarations: HashMap::new(),
         }
     }
 
@@ -86,11 +91,13 @@ impl Environment {
     }
 
     /// Adds an annotation to any segment.
-    ///
-    /// This method exposes a low level API to add annotations to segments, preferably use the
-    /// wrapper methods defined in traits in the `checker` crate.
     pub fn annotate(&mut self, segment: &impl SourceSegmentHolder, symbol: Symbol) {
         self.definitions.insert(segment.segment(), symbol);
+    }
+
+    /// Maps the declaring environment of a segment.
+    pub fn declare(&mut self, segment: &impl SourceSegmentHolder, symbol: SourceObjectId) {
+        self.declarations.insert(segment.segment(), symbol);
     }
 
     pub fn list_definitions(&self) -> impl Iterator<Item = (&SourceSegment, &Symbol)> {
@@ -100,6 +107,11 @@ impl Environment {
     /// Gets a symbol from the environment.
     pub fn get_raw_symbol(&self, segment: SourceSegment) -> Option<Symbol> {
         self.definitions.get(&segment).copied()
+    }
+
+    /// Gets the declaring environment id of a segment.
+    pub fn get_raw_env(&self, segment: SourceSegment) -> Option<SourceObjectId> {
+        self.declarations.get(&segment).copied()
     }
 
     /// Finds the local segments that references a symbol.

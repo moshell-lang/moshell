@@ -1,4 +1,6 @@
+use crate::relations::SourceObjectId;
 use crate::types::hir::TypeId;
+use context::source::SourceSegment;
 use std::fmt::Display;
 
 /// An internal type representation.
@@ -27,10 +29,14 @@ pub enum Type {
     String,
 
     /// A callable type, that have a separate environment.
-    Function {
-        parameters: Vec<TypeId>,
-        return_type: TypeId,
-    },
+    Function(SourceObjectId),
+}
+
+/// A function parameter.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Parameter {
+    pub(crate) segment: SourceSegment,
+    pub(crate) ty: TypeId,
 }
 
 impl Display for Type {
@@ -43,12 +49,7 @@ impl Display for Type {
             Type::Int => write!(f, "Int"),
             Type::Float => write!(f, "Float"),
             Type::String => write!(f, "String"),
-            Type::Function {
-                parameters,
-                return_type,
-            } => {
-                write!(f, "fn({:?}) -> {:?}", parameters, return_type)
-            }
+            Type::Function(id) => write!(f, "fn#{}", id.0),
         }
     }
 }
