@@ -5,8 +5,6 @@ use analyzer::engine::Engine;
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
 use analyzer::relations::Relations;
-use analyzer::steps::collect::SymbolCollector;
-use analyzer::steps::resolve::SymbolResolver;
 use ast::group::Block;
 use ast::Expr;
 use context::source::{OwnedSource, Source};
@@ -145,11 +143,11 @@ fn parse_input(editor: &mut REPLEditor) -> OwnedSource {
 
 /// Parses and display errors / diagnostics coming from the given source.
 /// Returning true if the source had at least one error or diagnostic.
-fn handle_source<'a>(
+fn handle_source<'a, 'e>(
     source: OwnedSource,
     config: &Configuration,
-    engine: &mut Engine<'a>,
-    importer: &mut REPLImporter<'a>,
+    engine: &mut Engine<'e>,
+    importer: &mut REPLImporter<'e>,
     relations: &mut Relations,
     handler: &GraphicalReportHandler,
 ) -> bool {
@@ -185,8 +183,7 @@ fn handle_source<'a>(
 
     importer.imported_modules.insert(name.clone(), expr);
 
-    let mut diagnostics = SymbolCollector::collect_symbols(engine, relations, name, importer);
-    diagnostics.extend(SymbolResolver::resolve_symbols(&engine, relations));
+    let diagnostics = analyzer::make_full_resolution(name, importer, engine, relations);
 
     let had_errors = !diagnostics.is_empty();
     for diagnostic in diagnostics {

@@ -1,23 +1,22 @@
-use miette::GraphicalReportHandler;
 use std::io;
 use std::ops::Deref;
 use std::path::PathBuf;
+
+use miette::GraphicalReportHandler;
 
 use analyzer::diagnostic::Diagnostic;
 use analyzer::engine::Engine;
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
-use analyzer::relations::{Relations, SourceObjectId};
-use analyzer::steps::collect::SymbolCollector;
-use analyzer::steps::resolve::SymbolResolver;
-use ast::group::Block;
+use analyzer::relations::SourceObjectId;
 use ast::Expr;
+use ast::group::Block;
 use context::source::{Source, SourceSegmentHolder};
 use lexer::lexer::lex;
 use parser::err::ParseReport;
 use parser::parse;
 
-use crate::cli::{display_exprs, display_tokens, Configuration};
+use crate::cli::{Configuration, display_exprs, display_tokens};
 use crate::formatted_diagnostic::render_diagnostic;
 use crate::formatted_parse_error::render_parse_error;
 use crate::source_importer::FileSourceImporter;
@@ -35,13 +34,12 @@ pub(crate) fn run(
     }
     let entry_point = Name::new(&name);
 
-    let mut engine = Engine::default();
-    let mut relations = Relations::default();
     let mut importer = RunnerImporter::new(working_dir);
 
-    let mut diagnostics =
-        SymbolCollector::collect_symbols(&mut engine, &mut relations, entry_point, &mut importer);
-    diagnostics.extend(SymbolResolver::resolve_symbols(&engine, &mut relations));
+    let result = analyzer::analyze_all(entry_point, &mut importer);
+
+    let diagnostics = result.diagnostics;
+    let engine = result.engine;
 
     if !importer.errors.is_empty() {
         display_import_errors(importer.errors, &handler);

@@ -75,39 +75,54 @@ pub struct ResolvedSymbol {
     /// The module where the symbol is defined.
     ///
     /// This is used to route the symbol to the correct environment.
-    pub module: SourceObjectId,
+    pub source: SourceObjectId,
 
     /// The object identifier of the symbol, local to the module.
     pub object_id: ObjectId,
 }
 
 impl ResolvedSymbol {
-    pub fn new(module: SourceObjectId, object_id: ObjectId) -> Self {
-        Self { module, object_id }
+    pub fn new(source: SourceObjectId, object_id: ObjectId) -> Self {
+        Self { source, object_id }
     }
+}
+
+/// The state of an object
+///
+/// The [SymbolResolver] only handles objects marked as [ObjectState::Unresolved]
+/// and will attempt to resolve it by updating his state to [ObjectState::Resolved]
+/// If the resolution fails, for any reason, the object is marked as dead ([ObjectState::Dead])
+/// which should imply a diagnostic.
+/// This state prevents the resolver to attempt to resolve again unresolvable symbols on next cycles.
+#[derive(Debug, Clone, Copy, Hash, PartialEq)]
+pub enum ObjectState {
+    Resolved(ResolvedSymbol),
+    Unresolved,
+    Dead,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq)]
 pub struct Object {
-    /// The symbol that is being resolved, where it is used.
+    /// The environment's id that requested this object resolution.
     pub origin: SourceObjectId,
 
-    /// The link to the resolved symbol.
-    pub resolved: Option<ResolvedSymbol>,
+    /// This object's state.
+    /// See [ObjectState] for more details
+    pub state: ObjectState,
 }
 
 impl Object {
     pub fn unresolved(origin: SourceObjectId) -> Self {
         Self {
             origin,
-            resolved: None,
+            state: ObjectState::Unresolved,
         }
     }
 
     pub fn resolved(origin: SourceObjectId, resolved: ResolvedSymbol) -> Self {
         Self {
             origin,
-            resolved: Some(resolved),
+            state: ObjectState::Resolved(resolved),
         }
     }
 }
@@ -157,28 +172,28 @@ impl Relations {
     /// Tracks a new object and returns its identifier.
     pub fn track_new_object(&mut self, origin: SourceObjectId) -> GlobalObjectId {
         let id = self.objects.len();
-        self.objects.push(Object {
-            origin,
-            resolved: None,
-        });
+        self.objects.push(Object::unresolved(origin));
         GlobalObjectId(id)
     }
 
     /// Finds segments that reference the given object.
+    /// Returns non if the object wasn't found or if the tracked object isn't found in the relations
     pub fn find_references(
         &self,
         engine: &Engine,
         tracked_object: GlobalObjectId,
     ) -> Option<Vec<SourceSegment>> {
         let object = self.objects.get(tracked_object.0)?;
-        let environment = engine.get_environment(object.origin)?;
+        let environment = engine
+            .get_environment(object.origin)
+            .expect("object relation targets to an unknown environment");
         Some(environment.find_references(Symbol::Global(tracked_object.0)))
     }
 
-    /// Returns a mutable iterator over all the objects.
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (GlobalObjectId, &mut Object)> {
+    /// Returns an immutable iterator over all the objects.
+    pub fn iter(&self) -> impl Iterator<Item = (GlobalObjectId, &Object)> {
         self.objects
-            .iter_mut()
+            .iter()
             .enumerate()
             .map(|(id, object)| (GlobalObjectId(id), object))
     }
@@ -186,7 +201,7 @@ impl Relations {
     /// Returns the resolved symbol for the given object.
     ///
     /// If the object is not resolved or is not referenced, returns `None`.
-    pub fn get_resolved(&self, id: GlobalObjectId) -> Option<ResolvedSymbol> {
-        self.objects.get(id.0)?.resolved
+    pub fn get_state(&self, id: GlobalObjectId) -> Option<ObjectState> {
+        Some(self.objects.get(id.0)?.state)
     }
 }
