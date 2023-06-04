@@ -21,6 +21,9 @@ enum ResolvedImport {
     Symbol(ResolvedSymbol),
     /// The import is an environment
     Env(SourceObjectId),
+
+    /// The import wasn't found
+    Dead,
 }
 
 /// Used by the resolve step to store resolved imports of an environment.
@@ -173,8 +176,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         for (env_id, _) in self.engine.environments() {
             let unresolved_imports = unresolved_imports.remove(&env_id).unwrap_or_default();
 
-            let local_resolved_imports =
-                self.resolve_imports(env_id, unresolved_imports, to_visit, visited);
+            let local_resolved_imports = self.resolve_imports(env_id, unresolved_imports);
 
             resolved_imports.insert(env_id, local_resolved_imports);
         }
@@ -215,6 +217,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
 
         // try to resolve the relation by looking the name's root inside imports
         match imports.imported_symbols.get(name_root) {
+            Some(ResolvedImport::Dead) => {} //ignore dead imports
             Some(ResolvedImport::Symbol(resolved_symbol)) => {
                 return if !name.is_qualified() {
                     SymbolResolutionResult::Resolved(*resolved_symbol)
@@ -268,8 +271,6 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         &mut self,
         env_id: SourceObjectId,
         imports: UnresolvedImports,
-        to_visit: &mut Vec<Name>,
-        visited: &mut HashSet<Name>,
     ) -> ResolvedImports {
         let mut resolved_imports = ResolvedImports::default();
         //iterate over our unresolved imports
@@ -282,14 +283,14 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                     match result {
                         // if the environment wasn't found, attempt to resolve it in next cycle
                         None => {
-                            if !visited.contains(&name) {
-                                to_visit.push(name);
-                                continue;
-                            }
                             // if the environment wasn't found, and its name was already known, push a diagnostic as it does not exists
                             let diagnostic =
-                                diagnose_unresolved_import(env_id, name, None, dependent);
+                                diagnose_unresolved_import(env_id, &name, None, dependent);
                             self.diagnostics.push(diagnostic);
+                            resolved_imports.set_import(
+                                alias.unwrap_or(name.simple_name().to_string()),
+                                ResolvedImport::Dead,
+                            );
                         }
                         //else, try to resolve it
                         Some((found_env_id, found_env)) => {
@@ -318,10 +319,12 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                             //if the symbol inside the resolved environment could not be found,
                             let diagnostic = diagnose_unresolved_import(
                                 env_id,
-                                name,
+                                &name,
                                 Some(found_env.fqn.clone()),
                                 dependent,
                             );
+                            resolved_imports
+                                .set_import(alias.unwrap_or(symbol_name), ResolvedImport::Dead);
                             self.diagnostics.push(diagnostic);
                         }
                     }
@@ -332,14 +335,12 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                     // try to get referenced environment of the import
                     match get_env_from_relatives(&resolved_imports, &name, self.engine) {
                         None => {
-                            if !visited.contains(&name) {
-                                to_visit.push(name);
-                                continue;
-                            }
                             // if the environment wasn't found, and its name was already known, push a diagnostic as it does not exists
                             let diagnostic =
-                                diagnose_unresolved_import(env_id, name, None, dependent);
-                            self.diagnostics.push(diagnostic)
+                                diagnose_unresolved_import(env_id, &name, None, dependent);
+                            self.diagnostics.push(diagnostic);
+                            resolved_imports
+                                .set_import(name.simple_name().to_string(), ResolvedImport::Dead);
                         }
                         Some((env_id, env)) => {
                             for var in env.variables.exported_vars() {
@@ -488,6 +489,7 @@ fn get_env_from_relatives<'a>(
     let (name_root, name_parts) = name_parts.split_first().unwrap(); //name_parts cannot be empty
 
     let target_env_id = match imports.imported_symbols.get(name_root) {
+        Some(ResolvedImport::Dead) => return None, //if the import is found but dead
         Some(ResolvedImport::Symbol(symbol)) => symbol.source,
         Some(ResolvedImport::Env(module)) => *module,
         None => return get_env_from_absolute(engine, name),
@@ -579,7 +581,7 @@ fn diagnose_unresolved_external_symbols(
 /// Each `use` expressions that was referring to the unknown import will get a diagnostic
 fn diagnose_unresolved_import(
     env_id: SourceObjectId,
-    imported_symbol_name: Name,
+    imported_symbol_name: &Name,
     known_parent: Option<Name>,
     dependent_segment: SourceSegment,
 ) -> Diagnostic {
@@ -588,7 +590,7 @@ fn diagnose_unresolved_import(
         known_parent
             .as_ref()
             .and_then(|p| imported_symbol_name.relative_to(p))
-            .unwrap_or(imported_symbol_name),
+            .unwrap_or(imported_symbol_name.clone()),
         known_parent
             .map(|p| format!(" in module `{p}`"))
             .unwrap_or_default()
@@ -609,6 +611,7 @@ mod tests {
     use context::str_find::{find_in, find_in_nth};
     use parser::parse_trusted;
 
+    use crate::diagnostic::DiagnosticID::ImportResolution;
     use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
     use crate::engine::Engine;
     use crate::importer::StaticImporter;
@@ -628,7 +631,7 @@ mod tests {
         let io_src = Source::unknown("val output = 'OutputStream()'; val input = 'InputStream()'");
         let test_src = "
             use math::PI
-            use std::{Bar, io}
+            use std::{Bar, io, foo}
             use io::*
         ";
 
@@ -681,6 +684,13 @@ mod tests {
                         find_in(test_src, "io")
                     ),
                     (
+                        UnresolvedImport::Symbol {
+                            alias: None,
+                            fqn: Name::new("std::foo"),
+                        },
+                        find_in(test_src, "foo")
+                    ),
+                    (
                         UnresolvedImport::AllIn(Name::new("io")),
                         find_in(test_src, "io::*")
                     ),
@@ -691,37 +701,40 @@ mod tests {
         let unresolved_imports = relations.take_imports().remove(&SourceObjectId(0)).unwrap();
 
         let mut resolver = SymbolResolver::new(&engine, &mut relations);
-        let resolved_imports = resolver.resolve_imports(
-            SourceObjectId(0),
-            unresolved_imports,
-            &mut to_visit,
-            &mut visited,
-        );
+        let resolved_imports = resolver.resolve_imports(SourceObjectId(0), unresolved_imports);
         assert_eq!(to_visit, vec![]);
-        assert_eq!(resolver.diagnostics, vec![]);
+        assert_eq!(
+            resolver.diagnostics,
+            vec![Diagnostic::new(
+                ImportResolution,
+                SourceObjectId(0),
+                "unable to find imported symbol `foo` in module `std`."
+            )
+            .with_observation(Observation::new(find_in(test_src, "foo")))]
+        );
         assert_eq!(
             resolved_imports,
             ResolvedImports::with(HashMap::from([
                 (
                     "PI".to_string(),
-                    ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(3), 0))
+                    ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(4), 0))
                 ),
                 (
                     "Bar".to_string(),
-                    ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(2), 1))
+                    ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(1), 1))
                 ),
-                ("io".to_string(), ResolvedImport::Env(SourceObjectId(1))),
+                ("foo".to_string(), ResolvedImport::Dead),
+                ("io".to_string(), ResolvedImport::Env(SourceObjectId(2))),
                 (
                     "output".to_string(),
-                    ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(1), 0))
+                    ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(2), 0))
                 ),
                 (
                     "input".to_string(),
-                    ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(1), 1))
+                    ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(2), 1))
                 ),
             ]))
         );
-        assert_eq!(resolver.diagnostics, vec![])
     }
 
     #[test]
