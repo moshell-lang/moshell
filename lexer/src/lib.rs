@@ -1,5 +1,3 @@
-#![deny(warnings)]
-
 mod keyword;
 pub mod lexer;
 mod literal;

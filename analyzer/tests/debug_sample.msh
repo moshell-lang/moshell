@@ -1,4 +1,4 @@
-use lib::LOG_FILE
+use lib::{LOG_FILE,n}
 
 fun factorial(n: Int) -> Int = {
     val a = 1
@@ -10,8 +10,21 @@ fun factorial(n: Int) -> Int = {
 
 fun debug() = {
     start -w | grep 'incoming'
-    //watch-logs $LOG_FILE 2> /dev/null &
+    watch-logs $LOG_FILE 2> /dev/null &
     wait
+}
+
+fun main() = {
+    val count = 9
+    {
+        var n = 40
+    }
+    fun callback() = {
+        echo "callback $count"
+        factorial($n)
+    }
+    val n = 9
+    callback()
 }
 
 val n = 5

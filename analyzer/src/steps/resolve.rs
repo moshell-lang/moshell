@@ -64,6 +64,33 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         resolver.diagnostics
     }
 
+    /// Resolves symbols in an immediate environment.
+    ///
+    /// Nested environments, where [`Environment::has_strict_declaration_order`] is `true`, resolve
+    /// differently from non-nested environments. In a nested environment, the symbols captures
+    /// the order of the declarations. To know what is in scope, resolution must be done immediately
+    /// after the declaration of the environment that captures, during the collection phase.
+    ///
+    /// Imports are on the other hand always resolved after the collection phase is complete, during
+    /// a call to [`SymbolResolver::resolve_trees`], when using [`SymbolResolver::resolve_symbols`].
+    pub fn resolve_captures(
+        env_stack: &[(SourceObjectId, &Environment)],
+        relations: &'a mut Relations,
+        capture_env: &Environment,
+    ) {
+        'capture: for (name, object_id) in capture_env.variables.external_vars() {
+            for (module, env) in env_stack.iter().rev() {
+                if let Some(Symbol::Local(local)) = env.variables.get_reachable(name) {
+                    relations.objects[object_id.0].resolved = Some(ResolvedSymbol {
+                        module: *module,
+                        object_id: local,
+                    });
+                    continue 'capture;
+                }
+            }
+        }
+    }
+
     fn new(engine: &'a Engine<'e>, relations: &'a mut Relations) -> Self {
         Self {
             engine,
@@ -76,46 +103,37 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
     /// enables the resolution and pushes diagnostics if any symbol could not be resolved.
     fn resolve(&mut self) {
         let mut unresolved_imports = self.relations.take_imports();
-
+        let mut resolved_imports = HashMap::new();
         for (env_id, env) in self.engine.environments() {
             let unresolved_imports = unresolved_imports.remove(&env_id).unwrap_or_default();
 
-            let resolved_imports = self.resolve_imports(env_id, unresolved_imports);
-            self.resolve_symbols_of(env_id, env, resolved_imports);
+            let local_resolved_imports = self.resolve_imports(env_id, unresolved_imports);
+            self.resolve_symbols_of(env, &local_resolved_imports);
+            resolved_imports.insert(env_id, local_resolved_imports);
         }
+        self.resolve_trees(&resolved_imports);
     }
 
     /// resolves the symbols of given environment, using given resolved imports for external symbol references.
-    fn resolve_symbols_of(
-        &mut self,
-        env_id: SourceObjectId,
-        env: &Environment,
-        imports: ResolvedImports,
-    ) {
+    fn resolve_symbols_of(&mut self, env: &Environment, imports: &ResolvedImports) {
         for (symbol_name, external_var) in env.variables.external_vars() {
             let object = &mut self.relations.objects[external_var.0];
 
-            match imports.imported_symbols.get(symbol_name) {
-                Some(resolved_symbol) => object.resolved = Some(*resolved_symbol),
-                None => self.diagnose_unresolved_external_symbols(
-                    external_var,
-                    env_id,
-                    env,
-                    symbol_name,
-                ),
+            if let Some(resolved_symbol) = imports.imported_symbols.get(symbol_name) {
+                object.resolved = Some(*resolved_symbol);
             };
         }
     }
 
     /// Appends a diagnostic for an external symbol that could not be resolved.
-    /// Each expression that used this symbol (such as VarReferences) will then get an observation
+    ///
+    /// Each expression that use this symbol (such as variable references) will then get an observation.
     fn diagnose_unresolved_external_symbols(
-        &mut self,
         external_var: GlobalObjectId,
         env_id: SourceObjectId,
         env: &Environment,
         name: &str,
-    ) {
+    ) -> Diagnostic {
         let mut diagnostic = Diagnostic::new(
             DiagnosticID::UnknownSymbol,
             env_id,
@@ -136,7 +154,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         diagnostic.observations = observations.collect();
         diagnostic.observations.sort_by_key(|seg| seg.segment.start);
 
-        self.diagnostics.push(diagnostic);
+        diagnostic
     }
 
     /// Appends a diagnostic for an import that could not be resolved.
@@ -147,8 +165,8 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         imported_symbol_name: Name,
         known_parent: Option<Name>,
         dependent_segment: SourceSegment,
-    ) {
-        let msg = &format!(
+    ) -> Diagnostic {
+        let msg = format!(
             "unable to find imported symbol {}{}.",
             known_parent
                 .as_ref()
@@ -159,9 +177,8 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                 .unwrap_or_default()
         );
 
-        let diagnostic = Diagnostic::new(DiagnosticID::ImportResolution, env_id, msg)
-            .with_observation(Observation::new(dependent_segment));
-        self.diagnostics.push(diagnostic)
+        Diagnostic::new(DiagnosticID::ImportResolution, env_id, msg)
+            .with_observation(Observation::new(dependent_segment))
     }
 
     /// Attempts to resolve all given unresolved imports, returning a [ResolvedImports] structure containing the
@@ -182,7 +199,11 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                     // try to get referenced environment of the import
                     match self.get_env_from(&name) {
                         // if the environment wasn't found, push a diagnostic
-                        None => self.diagnose_unresolved_import(env_id, name, None, dependent),
+                        None => {
+                            let diagnostic =
+                                self.diagnose_unresolved_import(env_id, name, None, dependent);
+                            self.diagnostics.push(diagnostic);
+                        }
                         //else, try to resolve it
                         Some((found_env_id, found_env)) => {
                             let symbol_name = name.simple_name().to_string();
@@ -197,12 +218,13 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                                 continue;
                             }
                             //if the symbol inside the resolved environment could not be found,
-                            self.diagnose_unresolved_import(
+                            let diagnostic = self.diagnose_unresolved_import(
                                 env_id,
                                 name,
                                 Some(found_env.fqn.clone()),
                                 dependent,
-                            )
+                            );
+                            self.diagnostics.push(diagnostic);
                         }
                     }
                 }
@@ -212,7 +234,11 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                     // try to get referenced environment of the import
                     match self.get_env_from(&name) {
                         // if the environment wasn't found, push a diagnostic
-                        None => self.diagnose_unresolved_import(env_id, name, None, dependent),
+                        None => {
+                            let diagnostic =
+                                self.diagnose_unresolved_import(env_id, name, None, dependent);
+                            self.diagnostics.push(diagnostic)
+                        }
                         Some((env_id, env)) => {
                             for var in env.variables.exported_vars() {
                                 let var_id = env
@@ -245,39 +271,63 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         None
     }
 
-    fn resolve_trees(&mut self) -> Result<(), String> {
-        for (object_id, object) in self.relations.iter_mut() {
+    /// Iterates over remaining unresolved symbols, and tries to resolve them by traversing the parent chain.
+    ///
+    /// This resolution should happen after all imports have been resolved in their respective environments,
+    /// to allow child environments to use imports from their parents.
+    fn resolve_trees(&mut self, resolved_imports: &HashMap<SourceObjectId, ResolvedImports>) {
+        'symbol: for (object_id, object) in self.relations.iter_mut() {
             if object.resolved.is_some() {
                 continue;
             }
-            let env = self
+            let origin = object.origin;
+
+            // Get the local naming of the object
+            let origin_env = self
                 .engine
-                .get_environment(object.origin)
+                .get_environment(origin)
                 .expect("Environment declared an unknown parent");
-            let name = env
+            let name = origin_env
                 .variables
                 .get_symbol_name(object_id)
                 .expect("Unknown object name");
 
-            let mut current = env;
+            // Go up the parent chain until we find the symbol or we reach the root
+            let mut current = origin_env;
             while let Some((module, env)) = current
                 .parent
                 .and_then(|id| self.engine.get_environment(id).map(|env| (id, env)))
             {
-                if let Some(resolved) = env.variables.get(name) {
-                    object.resolved = Some(match resolved {
-                        Symbol::Local(local) => ResolvedSymbol {
+                // Locals symbols are always treated first, before imports.
+                // The current environment might already owns the resolution result as a global symbol.
+                // This happens only if it used it, so we ignore that fact here to always solve external
+                // symbols via imports.
+                if !env.has_strict_declaration_order() {
+                    if let Some(Symbol::Local(local)) = env.variables.get_exported(name) {
+                        object.resolved = Some(ResolvedSymbol {
                             module,
                             object_id: local,
-                        },
-                        Symbol::Global(_) => todo!("resolver.get_resolved(GlobalObjectId(global)).expect(\"Unknown global object\")")
-                    });
-                    break;
+                        });
+                        continue 'symbol;
+                    }
+                }
+
+                // If the symbol is imported, resolve it directly.
+                if let Some(resolved_imports) = resolved_imports.get(&module) {
+                    if let Some(resolved) = resolved_imports.imported_symbols.get(name) {
+                        object.resolved = Some(*resolved);
+                        continue 'symbol;
+                    }
                 }
                 current = env;
             }
+
+            // If we reach this point, the symbol could not be resolved, during any of the previous phases.
+            self.diagnostics
+                .push(Self::diagnose_unresolved_external_symbols(
+                    object_id, origin, origin_env, name,
+                ));
         }
-        Ok(())
     }
 }
 
@@ -565,8 +615,7 @@ mod tests {
         assert_eq!(diagnostics, vec![]);
 
         let mut resolver = SymbolResolver::new(&mut engine, &mut relations);
-        resolver.resolve_imports(SourceObjectId(0), UnresolvedImports::default());
-        resolver.resolve_trees().expect("resolution errors");
+        resolver.resolve();
 
         assert_eq!(resolver.diagnostics, vec![]);
 

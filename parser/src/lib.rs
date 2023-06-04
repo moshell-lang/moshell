@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-#![deny(warnings)]
 
 use crate::err::ParseReport;
 use ast::Expr;

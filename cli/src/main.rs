@@ -18,6 +18,7 @@ mod runner;
 mod source_importer;
 
 fn main() {
+
     let cli = Cli::parse();
 
     let handler = GraphicalReportHandler::default();

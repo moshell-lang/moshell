@@ -1,11 +1,5 @@
-use crate::engine::Engine;
+use std::collections::HashSet;
 
-use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
-use crate::environment::variables::TypeInfo;
-use crate::environment::Environment;
-use crate::importer::ASTImporter;
-use crate::name::Name;
-use crate::relations::{Relations, SourceObjectId, UnresolvedImport};
 use ast::call::Call;
 use ast::control_flow::ForKind;
 use ast::function::FunctionParameter;
@@ -15,7 +9,15 @@ use ast::range::Iterable;
 use ast::value::LiteralValue;
 use ast::Expr;
 use context::source::SourceSegmentHolder;
-use std::collections::HashSet;
+
+use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
+use crate::engine::Engine;
+use crate::environment::variables::TypeInfo;
+use crate::environment::Environment;
+use crate::importer::ASTImporter;
+use crate::name::Name;
+use crate::relations::{Relations, SourceObjectId, UnresolvedImport};
+use crate::steps::resolve::SymbolResolver;
 
 /// Defines the current state of the tree exploration.
 #[derive(Debug, Clone, Copy)]
@@ -40,6 +42,9 @@ pub struct SymbolCollector<'a, 'e> {
     engine: &'a mut Engine<'e>,
     relations: &'a mut Relations,
     diagnostics: Vec<Diagnostic>,
+
+    /// During the exploration, a parent environment always leaves a reference for its children.
+    stack: Vec<(SourceObjectId, &'e Environment)>,
 }
 
 impl<'a, 'e> SymbolCollector<'a, 'e> {
@@ -63,6 +68,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             engine,
             relations,
             diagnostics: Vec::new(),
+            stack: Vec::new(),
         }
     }
 
@@ -94,7 +100,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         let mut env = Environment::named(module_name);
         let mut state = ResolutionState::new(self.engine.track(root_block));
         self.tree_walk(&mut env, &mut state, visitable, root_block);
-        self.engine.attach(state.module, env)
+        self.engine.attach(state.module, env);
     }
 
     fn add_checked_import(
@@ -412,11 +418,12 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     visitable,
                     &func.body,
                 );
+                self.resolve_captures(env, state, &func_env);
                 self.engine.attach(func_id, func_env);
             }
             Expr::LambdaDef(lambda) => {
                 let func_id = self.engine.track(expr);
-                let mut func_env = env.fork(func_id, &format!("lambda@{}", func_id.0));
+                let mut func_env = env.fork(state.module, &format!("lambda@{}", func_id.0));
                 for param in &lambda.args {
                     let symbol = func_env
                         .variables
@@ -429,11 +436,26 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     visitable,
                     &lambda.body,
                 );
+                self.resolve_captures(env, state, &func_env);
                 self.engine.attach(func_id, func_env);
             }
             Expr::Literal(_) | Expr::Continue(_) | Expr::Break(_) => {}
         }
         state.accept_imports = false;
+    }
+
+    fn resolve_captures(
+        &mut self,
+        parent_env: &Environment,
+        parent_state: &ResolutionState,
+        capture_env: &Environment,
+    ) {
+        self.stack.push((parent_state.module, unsafe {
+            // SAFETY: the reference will immediately be popped off the stack.
+            std::mem::transmute::<&Environment, &'e Environment>(parent_env)
+        }));
+        SymbolResolver::resolve_captures(&self.stack, self.relations, capture_env);
+        self.stack.pop();
     }
 
     fn extract_literal_argument(&self, call: &'a Call, nth: usize) -> Option<&'a str> {
@@ -482,18 +504,16 @@ fn import_ast<'a, 'b>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::importer::StaticImporter;
-    use crate::relations::{GlobalObjectId, Symbol};
-    use ast::call::ProgrammaticCall;
-    use ast::function::{FunctionDeclaration, Return};
-    use ast::group::Block;
-    use ast::value::Literal;
-    use ast::variable::{TypedVariable, VarReference};
+    use pretty_assertions::assert_eq;
+
     use context::source::Source;
     use context::str_find::{find_in, find_in_nth};
     use parser::parse_trusted;
-    use pretty_assertions::assert_eq;
+
+    use crate::importer::StaticImporter;
+    use crate::relations::{GlobalObjectId, Symbol};
+
+    use super::*;
 
     #[test]
     fn use_between_expressions() {
@@ -581,24 +601,9 @@ mod tests {
 
     #[test]
     fn bind_function_param() {
-        let expr = Expr::FunctionDeclaration(FunctionDeclaration {
-            name: "id",
-            type_parameters: vec![],
-            parameters: vec![FunctionParameter::Named(TypedVariable {
-                name: "n",
-                ty: None,
-                segment: 3..4,
-            })],
-            return_type: None,
-            body: Box::new(Expr::Return(Return {
-                expr: Some(Box::new(Expr::VarReference(VarReference {
-                    name: "n",
-                    segment: 13..15,
-                }))),
-                segment: 8..17,
-            })),
-            segment: 0..17,
-        });
+        let src = "fun id(a) = return $a";
+        let source = Source::unknown(src);
+        let expr = parse_trusted(source);
         let mut engine = Engine::default();
         let mut relations = Relations::default();
         let mut env = Environment::named(Name::new("test"));
@@ -608,30 +613,25 @@ mod tests {
 
         assert_eq!(collector.diagnostics, vec![]);
         assert_eq!(relations.objects, vec![]);
-        assert_eq!(env.get_raw_symbol(0..17), Some(Symbol::Local(0)));
-        assert_eq!(env.get_raw_symbol(3..4), None);
-        assert_eq!(env.get_raw_symbol(13..15), None);
+        assert_eq!(env.get_raw_symbol(source.segment()), Some(Symbol::Local(0)));
+        assert_eq!(env.get_raw_symbol(find_in(src, "a")), None);
+        assert_eq!(env.get_raw_symbol(find_in(src, "$a")), None);
         let func_env = engine.get_environment(SourceObjectId(1)).unwrap();
-        assert_eq!(func_env.get_raw_symbol(3..4), Some(Symbol::Local(0)));
-        assert_eq!(func_env.get_raw_symbol(13..15), Some(Symbol::Local(0)));
+        assert_eq!(
+            func_env.get_raw_symbol(find_in(src, "a")),
+            Some(Symbol::Local(0))
+        );
+        assert_eq!(
+            func_env.get_raw_symbol(find_in(src, "$a")),
+            Some(Symbol::Local(0))
+        );
     }
 
     #[test]
     fn bind_primitive() {
-        let expr = Expr::Call(Call {
-            path: vec![],
-            arguments: vec![
-                Expr::Literal(Literal {
-                    parsed: "read".into(),
-                    segment: 0..5,
-                }),
-                Expr::Literal(Literal {
-                    parsed: "foo".into(),
-                    segment: 6..9,
-                }),
-            ],
-            type_parameters: vec![],
-        });
+        let src = "read foo";
+        let source = Source::unknown(src);
+        let expr = parse_trusted(source);
         let mut engine = Engine::default();
         let mut relations = Relations::default();
         let mut env = Environment::named(Name::new("test"));
@@ -641,37 +641,19 @@ mod tests {
 
         assert_eq!(collector.diagnostics, vec![]);
         assert_eq!(relations.objects, vec![]);
-        assert_eq!(env.get_raw_symbol(0..5), None);
-        assert_eq!(env.get_raw_symbol(6..9), Some(Symbol::Local(0)));
+        assert_eq!(env.get_raw_symbol(find_in(src, "read")), None);
+        assert_eq!(
+            env.get_raw_symbol(find_in(src, "foo")),
+            Some(Symbol::Local(0))
+        );
     }
 
     #[test]
     fn find_references() {
-        let expr = Expr::Block(Block {
-            expressions: vec![
-                Expr::VarReference(VarReference {
-                    name: "bar",
-                    segment: 0..4,
-                }),
-                Expr::ProgrammaticCall(ProgrammaticCall {
-                    path: vec![],
-                    name: "baz",
-                    arguments: vec![
-                        Expr::VarReference(VarReference {
-                            name: "foo",
-                            segment: 9..13,
-                        }),
-                        Expr::VarReference(VarReference {
-                            name: "bar",
-                            segment: 15..19,
-                        }),
-                    ],
-                    type_parameters: vec![],
-                    segment: 5..20,
-                }),
-            ],
-            segment: 0..20,
-        });
+        let src = "$bar; baz($foo, $bar)";
+        let source = Source::unknown(src);
+        let expr = parse_trusted(source);
+
         let mut engine = Engine::default();
         let mut relations = Relations::default();
         let mut env = Environment::named(Name::new("test"));
@@ -688,15 +670,15 @@ mod tests {
                     references.sort_by_key(|range| range.start);
                     references
                 }),
-            Some(vec![0..4, 15..19])
+            Some(vec![find_in(src, "$bar"), find_in_nth(src, "$bar", 1)])
         );
         assert_eq!(
             relations.find_references(&engine, GlobalObjectId(1)),
-            Some(vec![5..20])
+            Some(vec![find_in(src, "baz($foo, $bar)")])
         );
         assert_eq!(
             relations.find_references(&engine, GlobalObjectId(2)),
-            Some(vec![9..13])
+            Some(vec![find_in(src, "$foo")])
         );
     }
 }

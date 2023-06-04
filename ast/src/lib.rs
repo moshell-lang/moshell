@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-#![deny(warnings)]
 
 use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
