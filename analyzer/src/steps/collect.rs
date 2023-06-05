@@ -213,7 +213,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 to_visit.push(name.clone());
                 let unresolved = UnresolvedImport::Symbol {
                     alias,
-                    fqn: name.clone(),
+                    qualified_name: name.clone(),
                 };
                 self.add_checked_import(mod_id, unresolved, import, name)
             }

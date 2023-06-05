@@ -54,7 +54,10 @@ pub struct Imports {
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub enum UnresolvedImport {
     /// A symbol import with an optional alias.
-    Symbol { alias: Option<String>, fqn: Name },
+    Symbol {
+        alias: Option<String>,
+        qualified_name: Name,
+    },
     /// Variant to target all the exported symbols of a symbol
     AllIn(Name),
 }
@@ -214,12 +217,12 @@ impl Relations {
         imports.add_unresolved_import(import, import_expr)
     }
 
-    pub fn get_imports(&self, source: &SourceObjectId) -> Option<&Imports> {
-        self.imports.get(source)
+    pub fn get_imports(&self, source: SourceObjectId) -> Option<&Imports> {
+        self.imports.get(&source)
     }
 
-    pub fn get_imports_mut(&mut self, source: &SourceObjectId) -> Option<&mut Imports> {
-        self.imports.get_mut(source)
+    pub fn get_imports_mut(&mut self, source: SourceObjectId) -> Option<&mut Imports> {
+        self.imports.get_mut(&source)
     }
 
     /// Tracks a new object and returns its identifier.

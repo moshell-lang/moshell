@@ -131,7 +131,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
     /// enables the resolution and pushes diagnostics if any symbol could not be resolved.
     fn resolve(&mut self, to_visit: &mut Vec<Name>, visited: &mut HashSet<Name>) {
         for (env_id, _) in self.engine.environments() {
-            if let Some(imports) = self.relations.get_imports_mut(&env_id) {
+            if let Some(imports) = self.relations.get_imports_mut(env_id) {
                 Self::resolve_imports(env_id, imports, self.engine, &mut self.diagnostics);
             }
         }
@@ -201,7 +201,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                 // As we could not resolve the symbol using imports, try to find the symbol from
                 // an absolute qualified name
                 let env_name = name.tail().unwrap_or(name.clone());
-                let env_result = get_env_from_absolute(engine, &env_name);
+                let env_result = get_mod_from_absolute(engine, &env_name);
 
                 if let Some((env_id, env)) = env_result {
                     let resolved_pos = env
@@ -232,9 +232,12 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         for (unresolved, dependent) in imports.take_unresolved_imports() {
             match unresolved {
                 // If the unresolved import is a symbol
-                UnresolvedImport::Symbol { alias, fqn: name } => {
-                    // try to get referenced environment of the import
-                    let result = get_env_from_relatives(imports, &name, engine);
+                UnresolvedImport::Symbol {
+                    alias,
+                    qualified_name: name,
+                } => {
+                    // try to get referenced module of the import
+                    let result = get_mod_from_relatives(imports, &name, engine);
                     match result {
                         // if the environment wasn't found, attempt to resolve it in next cycle
                         None => {
@@ -258,6 +261,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                                 );
                                 continue;
                             }
+
                             let symbol_id = found_env
                                 .variables
                                 .exported_vars()
@@ -290,7 +294,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                 //if the unresolved import is an 'AllIn' import, meaning that it imports all symbols from given module
                 UnresolvedImport::AllIn(name) => {
                     // try to get referenced environment of the import
-                    match get_env_from_relatives(imports, &name, engine) {
+                    match get_mod_from_relatives(imports, &name, engine) {
                         None => {
                             // if the environment wasn't found, and its name was already known, push a diagnostic as it does not exists
                             let diagnostic =
@@ -363,7 +367,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                 }
 
                 if result == SymbolResolutionResult::NotFound {
-                    if let Some(imports) = &self.relations.get_imports(&env_id) {
+                    if let Some(imports) = &self.relations.get_imports(env_id) {
                         // If the symbol wasn't found from the environment locals, try to resolve using its imports
                         result =
                             Self::resolve_symbol_from_imports(self.engine, imports, symbol_name)
@@ -430,7 +434,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
     }
 }
 
-fn get_env_from_relatives<'a>(
+fn get_mod_from_relatives<'a>(
     imports: &Imports,
     name: &Name,
     engine: &'a Engine,
@@ -439,10 +443,10 @@ fn get_env_from_relatives<'a>(
     let (name_root, name_parts) = name_parts.split_first().unwrap(); //name_parts cannot be empty
 
     let target_env_id = match imports.get_import(name_root) {
-        Some(ResolvedImport::Dead) => return None, //if the import is found but dead
+        Some(ResolvedImport::Dead) => return None, //if the import is found but dead, assume it's simply not found
         Some(ResolvedImport::Symbol(symbol)) => symbol.source,
         Some(ResolvedImport::Env(module)) => *module,
-        None => return get_env_from_absolute(engine, name),
+        None => return get_mod_from_absolute(engine, name),
     };
 
     let base_env = engine
@@ -454,19 +458,21 @@ fn get_env_from_relatives<'a>(
         .then(|| base_fqn.appended(Name::from(name_parts)))
         .unwrap_or(base_fqn);
 
-    get_env_from_absolute(engine, &name_fq)
+    get_mod_from_absolute(engine, &name_fq)
 }
 
-/// Gets an environment from the given fully qualified name, then pop the name until it finds a valid environment.
+/// Gets a module environment from the given fully qualified name, then pop the name until it finds a valid environment.
 /// returns None if the name's root could not get resolved
-fn get_env_from_absolute<'a>(
+fn get_mod_from_absolute<'a>(
     engine: &'a Engine,
     name: &Name,
 ) -> Option<(SourceObjectId, &'a Environment)> {
     let mut env_name = Some(name.clone());
     while let Some(name) = env_name {
         if let Some((id, env)) = engine.find_environment_by_name(&name) {
-            return Some((id, env));
+            if env.parent.is_none() {
+                return Some((id, env));
+            }
         }
         env_name = name.tail();
     }
@@ -577,11 +583,12 @@ mod tests {
     fn test_imports_resolution() {
         let math_src = Source::unknown("val PI = 3.14");
         let std_src = Source::unknown("val Foo = 'moshell_std'; val Bar = $Foo");
-        let io_src = Source::unknown("val output = 'OutputStream()'; val input = 'InputStream()'");
+        let io_src = Source::unknown("fun output() = (); fun input() = ()");
         let test_src = "
             use math::PI
-            use std::{Bar, io, foo}
-            use io::*
+            use std::{io, foo}
+            use std::*
+            use io::{input, output}
         ";
 
         let mut engine = Engine::default();
@@ -605,7 +612,7 @@ mod tests {
             &mut visited,
             &mut importer,
         );
-        let test_env_imports = relations.get_imports_mut(&SourceObjectId(0)).unwrap();
+        let test_env_imports = relations.get_imports_mut(SourceObjectId(0)).unwrap();
         assert_eq!(diagnostics, vec![]);
         assert_eq!(
             test_env_imports,
@@ -614,34 +621,41 @@ mod tests {
                     (
                         UnresolvedImport::Symbol {
                             alias: None,
-                            fqn: Name::new("math::PI"),
+                            qualified_name: Name::new("math::PI"),
                         },
                         find_in(test_src, "math::PI")
                     ),
                     (
                         UnresolvedImport::Symbol {
                             alias: None,
-                            fqn: Name::new("std::Bar"),
-                        },
-                        find_in(test_src, "Bar")
-                    ),
-                    (
-                        UnresolvedImport::Symbol {
-                            alias: None,
-                            fqn: Name::new("std::io"),
+                            qualified_name: Name::new("std::io"),
                         },
                         find_in(test_src, "io")
                     ),
                     (
                         UnresolvedImport::Symbol {
                             alias: None,
-                            fqn: Name::new("std::foo"),
+                            qualified_name: Name::new("std::foo"),
                         },
                         find_in(test_src, "foo")
                     ),
                     (
-                        UnresolvedImport::AllIn(Name::new("io")),
-                        find_in(test_src, "io::*")
+                        UnresolvedImport::AllIn(Name::new("std")),
+                        find_in(test_src, "std::*")
+                    ),
+                    (
+                        UnresolvedImport::Symbol {
+                            alias: None,
+                            qualified_name: Name::new("io::input"),
+                        },
+                        find_in(test_src, "input")
+                    ),
+                    (
+                        UnresolvedImport::Symbol {
+                            alias: None,
+                            qualified_name: Name::new("io::output"),
+                        },
+                        find_in(test_src, "output")
                     ),
                 ]),
                 HashMap::new()
@@ -670,27 +684,57 @@ mod tests {
             &Imports::with(
                 IndexMap::default(),
                 HashMap::from([
+                    ("io".to_string(), ResolvedImport::Env(SourceObjectId(3))),
+                    ("foo".to_string(), ResolvedImport::Dead),
                     (
                         "PI".to_string(),
-                        ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(4), 0))
+                        ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(6), 0))
                     ),
                     (
                         "Bar".to_string(),
                         ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(1), 1))
                     ),
-                    ("foo".to_string(), ResolvedImport::Dead),
-                    ("io".to_string(), ResolvedImport::Env(SourceObjectId(2))),
+                    (
+                        "Foo".to_string(),
+                        ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(1), 0))
+                    ),
                     (
                         "output".to_string(),
-                        ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(2), 0))
+                        ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(3), 0))
                     ),
                     (
                         "input".to_string(),
-                        ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(2), 1))
+                        ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(3), 1))
                     ),
                 ])
             )
         );
+    }
+
+    #[test]
+    fn report_unknown_imported_symbol() {
+        let mut importer = StaticImporter::new(
+            [
+                (
+                    Name::new("main"),
+                    Source::new("use math::id\nid(9)", "main"),
+                ),
+                (
+                    Name::new("math"),
+                    Source::new("fun id(n: Int) -> Int = $n", "math"),
+                ),
+            ],
+            parse_trusted,
+        );
+        let res = resolve_all(Name::new("main"), &mut importer);
+        assert_eq!(res.diagnostics, vec![]);
+        assert_eq!(
+            res.relations.objects,
+            vec![Object::resolved(
+                SourceObjectId(0),
+                ResolvedSymbol::new(SourceObjectId(1), 0),
+            )]
+        )
     }
 
     #[test]
