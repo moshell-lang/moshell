@@ -3,6 +3,7 @@ use crate::name::Name;
 use context::source::SourceSegment;
 use indexmap::IndexMap;
 use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
 
 /// The object identifier base.
 ///
@@ -39,14 +40,18 @@ impl From<GlobalObjectId> for Symbol {
     }
 }
 
-/// The structure that hosts the unresolved imports of the Relations
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct UnresolvedImports {
-    /// Binds an UnresolvedImport to all the [ImportExpr] that refers to the import resolution.
-    pub imports: IndexMap<UnresolvedImport, SourceSegment>,
+/// The structure that hosts the unresolved and resolved imported symbols of an environment
+#[derive(PartialEq, Default)]
+pub struct Imports {
+    /// The imports that still needs to be resolved.
+    /// Binds an [UnresolvedImport] to the segment that introduced the import.
+    unresolved_imports: IndexMap<UnresolvedImport, SourceSegment>,
+
+    /// Binds a symbol name to its resolved import.
+    imported_symbols: HashMap<String, ResolvedImport>,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Eq, PartialEq, Hash)]
 pub enum UnresolvedImport {
     /// A symbol import with an optional alias.
     Symbol { alias: Option<String>, fqn: Name },
@@ -54,9 +59,46 @@ pub enum UnresolvedImport {
     AllIn(Name),
 }
 
-impl UnresolvedImports {
-    pub fn new(imports: IndexMap<UnresolvedImport, SourceSegment>) -> Self {
-        Self { imports }
+/// A resolved symbol import
+#[derive(PartialEq, Eq, Debug)]
+pub enum ResolvedImport {
+    /// The import is a symbol
+    Symbol(ResolvedSymbol),
+    /// The import is an environment
+    Env(SourceObjectId),
+
+    /// The import wasn't found
+    Dead,
+}
+
+impl Debug for Imports {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut imported_symbols: Vec<_> = self.imported_symbols.iter().collect();
+        imported_symbols.sort_by_key(|(k, _)| *k);
+        f.debug_struct("Imports")
+            .field("imported_symbols", &imported_symbols)
+            .field("unresolved_imports", &self.unresolved_imports)
+            .finish()
+    }
+}
+
+impl Imports {
+    pub fn new(unresolved_imports: IndexMap<UnresolvedImport, SourceSegment>) -> Self {
+        Self {
+            unresolved_imports,
+            imported_symbols: HashMap::new(),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn with(
+        unresolved_imports: IndexMap<UnresolvedImport, SourceSegment>,
+        imported_symbols: HashMap<String, ResolvedImport>,
+    ) -> Self {
+        Self {
+            unresolved_imports,
+            imported_symbols,
+        }
     }
 
     ///Adds an unresolved import, placing the given `import_expr` as the dependent .
@@ -65,7 +107,19 @@ impl UnresolvedImports {
         import: UnresolvedImport,
         segment: SourceSegment,
     ) -> Option<SourceSegment> {
-        self.imports.insert(import, segment)
+        self.unresolved_imports.insert(import, segment)
+    }
+
+    pub fn take_unresolved_imports(&mut self) -> IndexMap<UnresolvedImport, SourceSegment> {
+        std::mem::take(&mut self.unresolved_imports)
+    }
+
+    pub fn set_resolved_import(&mut self, name: String, resolved: ResolvedImport) {
+        self.imported_symbols.insert(name, resolved);
+    }
+
+    pub fn get_import(&self, name: &str) -> Option<&ResolvedImport> {
+        self.imported_symbols.get(name)
     }
 }
 
@@ -128,7 +182,7 @@ impl Object {
 }
 
 /// A collection of objects that are tracked globally and may link to each other.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct Relations {
     /// The objects that need resolution that are tracked globally.
     ///
@@ -138,35 +192,34 @@ pub struct Relations {
     /// unique identifiers for all the symbols that do not conflicts with the ones from other modules.
     pub objects: Vec<Object>,
 
-    /// Associates a source object with its unresolved imports.
+    /// Associates a source object with its imports.
     ///
     /// Imports may only be declared at the top level of a source. This lets us track the unresolved imports
     /// per [`crate::environment::Environment`]. If a source is not tracked here, it means that it has no
-    /// imports. This is only used to create find the link between environments and sources, and should not
-    /// be used after the resolution is done.
-    pub imports: HashMap<SourceObjectId, UnresolvedImports>,
+    /// imports.
+    pub(crate) imports: HashMap<SourceObjectId, Imports>,
 }
 
 impl Relations {
-    /// Takes the unresolved imports
-    pub fn take_imports(&mut self) -> HashMap<SourceObjectId, UnresolvedImports> {
-        std::mem::take(&mut self.imports)
-    }
-
     /// References a new import directive in the given source.
     ///
     /// This directive may be used later to resolve the import.
-    pub fn add_import(
+    pub fn add_unresolved_import(
         &mut self,
         source: SourceObjectId,
         import: UnresolvedImport,
         import_expr: SourceSegment,
     ) -> Option<SourceSegment> {
-        let imports = self
-            .imports
-            .entry(source)
-            .or_insert_with(UnresolvedImports::default);
+        let imports = self.imports.entry(source).or_insert_with(Imports::default);
         imports.add_unresolved_import(import, import_expr)
+    }
+
+    pub fn get_imports(&self, source: &SourceObjectId) -> Option<&Imports> {
+        self.imports.get(source)
+    }
+
+    pub fn get_imports_mut(&mut self, source: &SourceObjectId) -> Option<&mut Imports> {
+        self.imports.get_mut(source)
     }
 
     /// Tracks a new object and returns its identifier.

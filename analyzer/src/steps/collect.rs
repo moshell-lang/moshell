@@ -175,9 +175,9 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         import_expr: &'e ImportExpr<'e>,
         import_fqn: Name,
     ) {
-        if let Some(shadowed) = self
-            .relations
-            .add_import(mod_id, import, import_expr.segment())
+        if let Some(shadowed) =
+            self.relations
+                .add_unresolved_import(mod_id, import, import_expr.segment())
         {
             let diagnostic = Diagnostic::new(
                 DiagnosticID::ShadowedImport,
