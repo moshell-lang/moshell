@@ -197,7 +197,7 @@ pub struct Relations {
     /// Imports may only be declared at the top level of a source. This lets us track the unresolved imports
     /// per [`crate::environment::Environment`]. If a source is not tracked here, it means that it has no
     /// imports.
-    pub(crate) imports: HashMap<SourceObjectId, Imports>,
+    imports: HashMap<SourceObjectId, Imports>,
 }
 
 impl Relations {

@@ -605,12 +605,12 @@ mod tests {
             &mut visited,
             &mut importer,
         );
+        let test_env_imports = relations.get_imports_mut(&SourceObjectId(0)).unwrap();
         assert_eq!(diagnostics, vec![]);
         assert_eq!(
-            relations.imports,
-            HashMap::from([(
-                SourceObjectId(0),
-                Imports::new(IndexMap::from([
+            test_env_imports,
+            &Imports::with(
+                IndexMap::from([
                     (
                         UnresolvedImport::Symbol {
                             alias: None,
@@ -643,12 +643,17 @@ mod tests {
                         UnresolvedImport::AllIn(Name::new("io")),
                         find_in(test_src, "io::*")
                     ),
-                ]))
-            )])
+                ]),
+                HashMap::new()
+            ),
         );
 
-        let imports = relations.imports.get_mut(&SourceObjectId(0)).unwrap();
-        SymbolResolver::resolve_imports(SourceObjectId(0), imports, &engine, &mut diagnostics);
+        SymbolResolver::resolve_imports(
+            SourceObjectId(0),
+            test_env_imports,
+            &engine,
+            &mut diagnostics,
+        );
         assert_eq!(to_visit, vec![]);
         assert_eq!(
             diagnostics,
@@ -661,7 +666,7 @@ mod tests {
         );
 
         assert_eq!(
-            imports,
+            test_env_imports,
             &Imports::with(
                 IndexMap::default(),
                 HashMap::from([
