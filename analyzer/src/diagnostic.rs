@@ -40,7 +40,7 @@ pub enum DiagnosticID {
 
 /// Observations are an area in the source code with an (optional) help message
 /// that are contained in a [Diagnostic] to emphasis/further explain the causes of the diagnostic.
-#[derive(PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Observation {
     /// Observed segment
     pub segment: SourceSegment,
@@ -92,6 +92,14 @@ impl Diagnostic {
 
     pub fn with_observation(mut self, o: Observation) -> Self {
         self.observations.push(o);
+        self
+    }
+
+    pub fn with_observations<I: IntoIterator<Item = Observation>>(
+        mut self,
+        observations: I,
+    ) -> Self {
+        self.observations.extend(observations);
         self
     }
 

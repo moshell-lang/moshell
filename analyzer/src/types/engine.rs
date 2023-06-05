@@ -75,4 +75,13 @@ impl TypedEngine {
     pub fn insert(&mut self, id: SourceObjectId, entry: Chunk) {
         self.entries[id.0] = Some(entry);
     }
+
+    /// Inserts a chunk into the engine if it is not already present.
+    ///
+    /// This may be used to insert semi-accurate chunks into the engine.
+    pub fn insert_if_absent(&mut self, id: SourceObjectId, entry: Chunk) {
+        if self.entries[id.0].is_none() {
+            self.entries[id.0] = Some(entry);
+        }
+    }
 }

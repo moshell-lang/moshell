@@ -5,85 +5,106 @@ use crate::environment::Environment;
 use crate::relations::{Relations, SourceObjectId};
 use crate::types::ctx::TypeContext;
 use crate::types::engine::{Chunk, TypedEngine};
+use crate::types::exploration::Exploration;
+use crate::types::function::{infer_return, type_parameter, Return};
 use crate::types::hir::{ExprKind, TypedExpr};
-use crate::types::ty::{Parameter, Type};
+use crate::types::ty::Type;
 use crate::types::{Typing, ERROR, FLOAT, INT, NOTHING, STRING};
-use ast::function::FunctionParameter;
 use ast::value::LiteralValue;
 use ast::Expr;
-use context::source::SourceSegmentHolder;
+use context::source::{SourceSegment, SourceSegmentHolder};
 
 pub fn apply_types(
     engine: &Engine,
     relations: &Relations,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> TypedEngine {
-    let mut typing = Typing::lang();
-    let mut ctx = TypeContext::lang();
     let environments = topological_sort(&relations.build_dependencies(engine));
-    let mut typed = TypedEngine::new(engine.len());
+    let mut exploration = Exploration {
+        engine: TypedEngine::new(engine.len()),
+        typing: Typing::lang(),
+        ctx: TypeContext::lang(),
+        returns: Vec::new(),
+    };
     for env_id in environments {
         let entry = apply_types_to_source(
-            &mut typed,
+            &mut exploration,
+            diagnostics,
             engine,
             relations,
-            diagnostics,
-            &mut typing,
-            &mut ctx,
-            env_id,
+            TypingState::new(env_id),
         );
-        typed.insert(env_id, entry);
+        exploration.engine.insert(env_id, entry);
     }
-    typed
+    exploration.engine
+}
+
+/// A state holder, used to informs the type checker about what should be
+/// checked.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+struct TypingState {
+    source: SourceObjectId,
+    local_type: bool,
+}
+
+impl TypingState {
+    fn new(source: SourceObjectId) -> Self {
+        Self {
+            source,
+            local_type: false,
+        }
+    }
+
+    fn with_local_type(self) -> Self {
+        Self {
+            local_type: true,
+            ..self
+        }
+    }
 }
 
 fn apply_types_to_source(
-    typed: &mut TypedEngine,
+    exploration: &mut Exploration,
+    diagnostics: &mut Vec<Diagnostic>,
     engine: &Engine,
     relations: &Relations,
-    diagnostics: &mut Vec<Diagnostic>,
-    typing: &mut Typing,
-    ctx: &mut TypeContext,
-    source_id: SourceObjectId,
+    state: TypingState,
 ) -> Chunk {
+    let source_id = state.source;
     let expr = engine.get_expression(source_id).unwrap();
     let env = engine.get_environment(source_id).unwrap();
-    ctx.prepare(source_id);
+    exploration.prepare(source_id);
     match expr {
         Expr::FunctionDeclaration(func) => {
             for param in &func.parameters {
-                let param = type_parameter(ctx, param);
-                ctx.push_local_type(param.ty);
+                let param = type_parameter(&exploration.ctx, param);
+                exploration.ctx.push_local_type(param.ty);
             }
             let typed_expr = ascribe_types(
-                typed,
+                exploration,
                 relations,
                 diagnostics,
-                typing,
-                ctx,
                 env,
                 &func.body,
+                state.with_local_type(),
             );
+            let return_type = infer_return(func, &typed_expr, diagnostics, exploration);
             Chunk::function(
                 typed_expr,
                 func.parameters
                     .iter()
-                    .map(|param| type_parameter(ctx, param))
+                    .map(|param| type_parameter(&exploration.ctx, param))
                     .collect(),
-                func.return_type
-                    .as_ref()
-                    .map(|ty| ctx.resolve(ty).unwrap_or(ERROR))
-                    .unwrap_or(NOTHING),
+                return_type,
             )
         }
         expr => Chunk::script(ascribe_types(
-            typed,
+            exploration,
             relations,
             diagnostics,
-            typing,
-            ctx,
             env,
             expr,
+            state,
         )),
     }
 }
@@ -92,13 +113,12 @@ fn apply_types_to_source(
 ///
 /// In case of an error, the expression is still returned, but the type is set to [`ERROR`].
 fn ascribe_types(
-    engine: &mut TypedEngine,
+    exploration: &mut Exploration,
     relations: &Relations,
     diagnostics: &mut Vec<Diagnostic>,
-    typing: &mut Typing,
-    ctx: &mut TypeContext,
     env: &Environment,
     expr: &Expr,
+    state: TypingState,
 ) -> TypedExpr {
     match expr {
         Expr::Literal(lit) => {
@@ -119,29 +139,33 @@ fn ascribe_types(
                 .as_ref()
                 .map(|expr| {
                     Box::new(ascribe_types(
-                        engine,
+                        exploration,
                         relations,
                         diagnostics,
-                        typing,
-                        ctx,
                         env,
                         expr,
+                        state.with_local_type(),
                     ))
                 })
                 .expect("Variables without initializers are not supported yet");
-            ctx.push_local_type(initializer.ty);
+            exploration.ctx.push_local_type(initializer.ty);
             if let Some(type_annotation) = &decl.var.ty {
-                let type_annotation = ctx.resolve(type_annotation).unwrap_or(ERROR);
+                let type_annotation = exploration.ctx.resolve(type_annotation).unwrap_or(ERROR);
                 if type_annotation == ERROR {
                     diagnostics.push(Diagnostic::new(
                         DiagnosticID::UnknownType,
-                        ctx.source,
+                        state.source,
                         "Unknown type annotation",
                     ));
-                } else if typing.unify(type_annotation, initializer.ty).is_err() {
+                } else if initializer.ty.is_ok()
+                    && exploration
+                        .typing
+                        .unify(type_annotation, initializer.ty)
+                        .is_err()
+                {
                     diagnostics.push(Diagnostic::new(
                         DiagnosticID::TypeMismatch,
-                        ctx.source,
+                        state.source,
                         "Type mismatch",
                     ));
                 }
@@ -157,7 +181,7 @@ fn ascribe_types(
         }
         Expr::VarReference(var) => {
             let symbol = env.get_raw_symbol(var.segment.clone()).unwrap();
-            let type_id = ctx.get(relations, symbol).unwrap();
+            let type_id = exploration.ctx.get(relations, symbol).unwrap();
             TypedExpr {
                 kind: ExprKind::Reference {
                     name: var.name.to_owned(),
@@ -170,7 +194,8 @@ fn ascribe_types(
             let expressions = block
                 .expressions
                 .iter()
-                .map(|expr| ascribe_types(engine, relations, diagnostics, typing, ctx, env, expr))
+                .filter(|expr| !matches!(expr, Expr::Use(_)))
+                .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
                 .collect::<Vec<_>>();
             let ty = expressions.last().map(|expr| expr.ty).unwrap_or(NOTHING);
             TypedExpr {
@@ -179,32 +204,52 @@ fn ascribe_types(
                 segment: block.segment.clone(),
             }
         }
+        Expr::Return(ret) => {
+            let expr = ret.expr.as_ref().map(|expr| {
+                Box::new(ascribe_types(
+                    exploration,
+                    relations,
+                    diagnostics,
+                    env,
+                    expr,
+                    state,
+                ))
+            });
+            exploration.returns.push(Return {
+                ty: expr.as_ref().map(|expr| expr.ty).unwrap_or(NOTHING),
+                segment: ret.segment.clone(),
+            });
+            TypedExpr {
+                kind: ExprKind::Return(expr),
+                ty: NOTHING,
+                segment: ret.segment.clone(),
+            }
+        }
         Expr::Parenthesis(paren) => ascribe_types(
-            engine,
+            exploration,
             relations,
             diagnostics,
-            typing,
-            ctx,
             env,
             &paren.expression,
+            state,
         ),
         Expr::FunctionDeclaration(fun) => {
             let declaration = env.get_raw_env(fun.segment.clone()).unwrap();
-            let type_id = typing.add_type(Type::Function(declaration));
-            ctx.push_local_type(type_id);
+            let type_id = exploration.typing.add_type(Type::Function(declaration));
+            exploration.ctx.push_local_type(type_id);
 
             // Forward declare the function
             let parameters = fun
                 .parameters
                 .iter()
-                .map(|param| type_parameter(ctx, param))
+                .map(|param| type_parameter(&exploration.ctx, param))
                 .collect::<Vec<_>>();
             let return_type = fun
                 .return_type
                 .as_ref()
-                .map(|ty| ctx.resolve(ty).unwrap_or(ERROR))
+                .map(|ty| exploration.ctx.resolve(ty).unwrap_or(ERROR))
                 .unwrap_or(NOTHING);
-            engine.insert(
+            exploration.engine.insert_if_absent(
                 declaration,
                 Chunk::function(
                     TypedExpr {
@@ -227,10 +272,13 @@ fn ascribe_types(
         }
         Expr::Binary(bin) => {
             let left_expr =
-                ascribe_types(engine, relations, diagnostics, typing, ctx, env, &bin.left);
+                ascribe_types(exploration, relations, diagnostics, env, &bin.left, state);
             let right_expr =
-                ascribe_types(engine, relations, diagnostics, typing, ctx, env, &bin.right);
-            let ty = typing.unify(left_expr.ty, right_expr.ty).unwrap_or(ERROR);
+                ascribe_types(exploration, relations, diagnostics, env, &bin.right, state);
+            let ty = exploration
+                .typing
+                .unify(left_expr.ty, right_expr.ty)
+                .unwrap_or(ERROR);
             TypedExpr {
                 kind: ExprKind::Binary {
                     lhs: Box::new(left_expr),
@@ -243,40 +291,49 @@ fn ascribe_types(
         }
         Expr::If(block) => {
             let condition = ascribe_types(
-                engine,
+                exploration,
                 relations,
                 diagnostics,
-                typing,
-                ctx,
                 env,
                 &block.condition,
+                state,
             );
             let then = ascribe_types(
-                engine,
+                exploration,
                 relations,
                 diagnostics,
-                typing,
-                ctx,
                 env,
                 &block.success_branch,
+                state,
             );
             let otherwise = block.fail_branch.as_ref().map(|expr| {
                 Box::new(ascribe_types(
-                    engine,
+                    exploration,
                     relations,
                     diagnostics,
-                    typing,
-                    ctx,
                     env,
                     expr,
+                    state,
                 ))
             });
-            let ty = typing
-                .unify(
+            let ty = if state.local_type {
+                match exploration.typing.unify(
                     then.ty,
                     otherwise.as_ref().map(|expr| expr.ty).unwrap_or(NOTHING),
-                )
-                .unwrap_or(ERROR);
+                ) {
+                    Ok(ty) => ty,
+                    Err(_) => {
+                        diagnostics.push(Diagnostic::new(
+                            DiagnosticID::TypeMismatch,
+                            state.source,
+                            "`if` and `else` have incompatible types",
+                        ));
+                        ERROR
+                    }
+                }
+            } else {
+                NOTHING
+            };
             TypedExpr {
                 kind: ExprKind::Conditional {
                     condition: Box::new(condition),
@@ -291,7 +348,7 @@ fn ascribe_types(
             let args = call
                 .arguments
                 .iter()
-                .map(|expr| ascribe_types(engine, relations, diagnostics, typing, ctx, env, expr))
+                .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
                 .collect::<Vec<_>>();
             TypedExpr {
                 kind: ExprKind::ProcessCall(args),
@@ -303,37 +360,37 @@ fn ascribe_types(
             let arguments = call
                 .arguments
                 .iter()
-                .map(|expr| ascribe_types(engine, relations, diagnostics, typing, ctx, env, expr))
+                .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
                 .collect::<Vec<_>>();
             let symbol = env.get_raw_symbol(call.segment.clone()).unwrap();
-            let type_id = ctx.get(relations, symbol).unwrap();
-            let return_type = match typing.get_type(type_id).unwrap() {
+            let type_id = exploration.ctx.get(relations, symbol).unwrap();
+            let return_type = match exploration.get_type(type_id).unwrap() {
                 Type::Function(declaration) => {
-                    let entry = engine.get(declaration).unwrap();
+                    let entry = exploration.engine.get(*declaration).unwrap();
                     let parameters = &entry.parameters;
                     let return_type = entry.return_type;
                     if parameters.len() != arguments.len() {
                         diagnostics.push(Diagnostic::new(
                             DiagnosticID::TypeMismatch,
-                            ctx.source,
+                            state.source,
                             "Wrong number of arguments",
                         ));
                         ERROR
                     } else {
                         for (param, arg) in parameters.iter().zip(arguments.iter()) {
-                            if typing.unify(param.ty, arg.ty).is_err() {
+                            if exploration.typing.unify(param.ty, arg.ty).is_err() {
                                 diagnostics.push(
                                     Diagnostic::new(
                                         DiagnosticID::TypeMismatch,
-                                        ctx.source,
+                                        state.source,
                                         "Type mismatch",
                                     )
                                     .with_observation(Observation::with_help(
                                         arg.segment.clone(),
                                         format!(
                                             "Expected `{}`, found `{}`",
-                                            typing.get_type(param.ty).unwrap(),
-                                            typing.get_type(arg.ty).unwrap()
+                                            exploration.get_type(param.ty).unwrap(),
+                                            exploration.get_type(arg.ty).unwrap()
                                         ),
                                     ))
                                     .with_observation(
@@ -351,7 +408,7 @@ fn ascribe_types(
                 _ => {
                     diagnostics.push(Diagnostic::new(
                         DiagnosticID::TypeMismatch,
-                        ctx.source,
+                        state.source,
                         "Cannot invoke non function type",
                     ));
                     ERROR
@@ -370,20 +427,14 @@ fn ascribe_types(
     }
 }
 
-fn type_parameter(ctx: &TypeContext, param: &FunctionParameter) -> Parameter {
-    match param {
-        FunctionParameter::Named(named) => {
-            let type_id = named
-                .ty
-                .as_ref()
-                .map(|ty| ctx.resolve(ty).unwrap_or(ERROR))
-                .unwrap_or(STRING);
-            Parameter {
-                segment: named.segment.clone(),
-                ty: type_id,
-            }
-        }
-        FunctionParameter::Variadic(_) => todo!("Arrays are not supported yet"),
+fn get_last_segment(expr: &Expr) -> SourceSegment {
+    match expr {
+        Expr::Block(block) => block
+            .expressions
+            .last()
+            .map(get_last_segment)
+            .unwrap_or(block.segment.clone()),
+        expr => expr.segment(),
     }
 }
 
@@ -418,7 +469,7 @@ mod tests {
         if !diagnostics.is_empty() {
             return Err(diagnostics);
         }
-        Ok(typing.get_type(expr.expression.ty).unwrap())
+        Ok(typing.get_type(expr.expression.ty).unwrap().clone())
     }
 
     #[test]
@@ -468,7 +519,26 @@ mod tests {
     #[test]
     fn condition_same_type() {
         let res = extract_type(Source::unknown("if true; 1; else 2"));
-        assert_eq!(res, Ok(Type::Int));
+        assert_eq!(res, Ok(Type::Nothing));
+    }
+
+    #[test]
+    fn condition_different_type() {
+        let res = extract_type(Source::unknown("if false; 4.7; else {}"));
+        assert_eq!(res, Ok(Type::Nothing));
+    }
+
+    #[test]
+    fn condition_different_type_local_return() {
+        let res = extract_type(Source::unknown("var n: Int = {if false; 4.7; else {}}"));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                SourceObjectId(0),
+                "`if` and `else` have incompatible types",
+            )])
+        );
     }
 
     #[test]
@@ -480,7 +550,7 @@ mod tests {
     #[test]
     fn wrong_arguments() {
         let res = extract_type(Source::unknown(
-            "fun square(n: Int) = $(( $n * $n ))\nsquare(9, 9)",
+            "fun square(n: Int) -> Int = $(( $n * $n ))\nsquare(9, 9)",
         ));
         assert_eq!(
             res,
@@ -542,7 +612,9 @@ mod tests {
 
     #[test]
     fn a_calling_b() {
-        let res = extract_type(Source::unknown("fun a() -> Int = b()\nfun b() = 1\na()"));
+        let res = extract_type(Source::unknown(
+            "fun a() -> Int = b()\nfun b() -> Int = 1\na()",
+        ));
         assert_eq!(res, Ok(Type::Int));
     }
 
@@ -552,5 +624,131 @@ mod tests {
             "val PI = 3.14\nfun circle(r: Float) -> Float = $(( $PI * $r * $r ))\ncircle(1)",
         ));
         assert_eq!(res, Ok(Type::Float));
+    }
+
+    #[test]
+    fn incorrect_return_type() {
+        let content = "fun zero() -> String = 0";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                SourceObjectId(1),
+                "Type mismatch",
+            )
+            .with_observation(Observation::with_help(find_in(content, "0"), "Found `Int`"))
+            .with_observation(Observation::with_help(
+                find_in(content, "String"),
+                "Expected `String` because of return type"
+            ))])
+        );
+    }
+
+    #[test]
+    fn explicit_valid_return() {
+        let content = "fun some() -> Int = return 20";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(res, Ok(Type::Nothing));
+    }
+
+    #[test]
+    fn explicit_valid_return_mixed() {
+        let content = "fun some() -> Int = {\nif true; return 5; 9\n}";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(res, Ok(Type::Nothing));
+    }
+
+    #[test]
+    fn explicit_invalid_return() {
+        let content = "fun some() -> String = {if true; return {}; 9}";
+        let res = extract_type(Source::unknown(content));
+        let return_observation = Observation::with_help(
+            find_in(content, "String"),
+            "Expected `String` because of return type",
+        );
+        assert_eq!(
+            res,
+            Err(vec![
+                Diagnostic::new(
+                    DiagnosticID::TypeMismatch,
+                    SourceObjectId(1),
+                    "Type mismatch",
+                )
+                .with_observation(Observation::with_help(
+                    find_in(content, "return {}"),
+                    "Found `Nothing`"
+                ))
+                .with_observation(return_observation.clone()),
+                Diagnostic::new(
+                    DiagnosticID::TypeMismatch,
+                    SourceObjectId(1),
+                    "Type mismatch",
+                )
+                .with_observation(Observation::with_help(find_in(content, "9"), "Found `Int`"))
+                .with_observation(return_observation)
+            ])
+        );
+    }
+
+    #[test]
+    fn infer_valid_return_type() {
+        let content = "fun test(n: Float) = if false; 0.0; else $n; test(156.0)";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                SourceObjectId(1),
+                "Return type inference is not supported yet",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "fun test(n: Float) = "),
+                "No return type is specified"
+            ))
+            .with_tip("Add -> Float to the function declaration")])
+        );
+    }
+
+    #[test]
+    fn no_infer_block_return_type() {
+        let content = "fun test(n: Float) = {if false; return 0; $n}; test(156.0)";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                SourceObjectId(1),
+                "Return type is not inferred for block functions",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "return 0"),
+                "Returning `Int`"
+            ))
+            .with_observation(Observation::with_help(
+                find_in(content, "$n"),
+                "Returning `Float`"
+            ))
+            .with_tip("Try adding an explicit return type to the function")])
+        );
+    }
+
+    #[test]
+    fn no_infer_complex_return_type() {
+        let content = "fun test() = if false; return 5; else {}; test()";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                SourceObjectId(1),
+                "Failed to infer return type",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "fun test() = if false; return 5; else {}"),
+                "This function returns multiple types"
+            ))
+            .with_tip("Try adding an explicit return type to the function")])
+        );
     }
 }

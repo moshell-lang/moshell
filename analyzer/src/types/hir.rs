@@ -1,4 +1,5 @@
 use crate::relations::ObjectId;
+use crate::types::{ERROR, NOTHING};
 use ast::operation::BinaryOperator;
 use ast::value::LiteralValue;
 use context::source::{SourceSegment, SourceSegmentHolder};
@@ -6,6 +7,24 @@ use context::source::{SourceSegment, SourceSegmentHolder};
 /// A type identifier in a [`Typing`] instance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TypeId(pub ObjectId);
+
+impl TypeId {
+    pub fn is_nothing(self) -> bool {
+        self == NOTHING
+    }
+
+    pub fn is_something(self) -> bool {
+        self != NOTHING
+    }
+
+    pub fn is_ok(self) -> bool {
+        self != ERROR
+    }
+
+    pub fn is_err(self) -> bool {
+        self == ERROR
+    }
+}
 
 /// A type checked expression attached to a source segment.
 #[derive(Debug, PartialEq)]
@@ -52,5 +71,6 @@ pub enum ExprKind {
         name: String,
         arguments: Vec<TypedExpr>,
     },
+    Return(Option<Box<TypedExpr>>),
     Noop,
 }

@@ -9,12 +9,12 @@ use analyzer::name::Name;
 use analyzer::relations::Relations;
 use analyzer::steps::collect::SymbolCollector;
 use analyzer::steps::resolve::SymbolResolver;
+use analyzer::steps::typing::apply_types;
 use ast::group::Block;
 use ast::Expr;
 use clap::Parser;
 use context::source::Source;
 use dbg_pls::color;
-use analyzer::steps::typing::apply_types;
 use parser::parse;
 
 #[derive(Parser)]
@@ -70,11 +70,7 @@ pub fn handle_source(source: Source) -> bool {
         SymbolCollector::collect_symbols(&mut engine, &mut relations, name, &mut importer);
     diagnostics.extend(SymbolResolver::resolve_symbols(&engine, &mut relations));
     if diagnostics.is_empty() {
-        apply_types(
-            &engine,
-            &relations,
-            &mut diagnostics,
-        );
+        apply_types(&engine, &relations, &mut diagnostics);
     }
 
     let mut stdout = stderr();

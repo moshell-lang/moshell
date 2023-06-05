@@ -4,6 +4,8 @@ use std::collections::HashMap;
 
 pub mod ctx;
 pub mod engine;
+pub(crate) mod exploration;
+pub(crate) mod function;
 pub mod hir;
 pub mod ty;
 
@@ -50,14 +52,25 @@ impl Typing {
         Err(UnificationError())
     }
 
+    pub fn unify_many(
+        &mut self,
+        types: impl Iterator<Item = TypeId>,
+    ) -> Result<TypeId, UnificationError> {
+        let mut types = types.peekable();
+        let first = types.next().unwrap();
+        types.try_fold(first, |acc, ty| {
+            self.unify(acc, ty).or_else(|_| self.unify(ty, acc))
+        })
+    }
+
     pub(crate) fn add_type(&mut self, ty: Type) -> TypeId {
         let type_id = TypeId(self.types.len());
         self.types.push(ty);
         type_id
     }
 
-    pub(crate) fn get_type(&self, type_id: TypeId) -> Option<Type> {
-        self.types.get(type_id.0).cloned()
+    pub(crate) fn get_type(&self, type_id: TypeId) -> Option<&Type> {
+        self.types.get(type_id.0)
     }
 }
 
