@@ -1,9 +1,11 @@
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
+use crate::relations::{Relations, Symbol};
 use crate::types::ctx::TypeContext;
 use crate::types::exploration::Exploration;
 use crate::types::hir::{ExprKind, TypeId, TypedExpr};
-use crate::types::ty::Parameter;
+use crate::types::ty::{Parameter, Type};
 use crate::types::{ERROR, NOTHING, STRING};
+use ast::call::ProgrammaticCall;
 use ast::function::{FunctionDeclaration, FunctionParameter};
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
@@ -53,7 +55,10 @@ pub(crate) fn infer_return(
                     exploration.ctx.source,
                     "Unknown type annotation",
                 )
-                .with_observation(Observation::new(return_type_annotation.segment())),
+                .with_observation(Observation::with_help(
+                    return_type_annotation.segment(),
+                    "Not found in scope",
+                )),
             );
         } else {
             for ret in &exploration.returns {
@@ -120,7 +125,7 @@ pub(crate) fn infer_return(
             }
         }
     } else {
-        // Explain if there is any return that this fuction will not be inferred
+        // Explain if there is any return that this function will not be inferred
         let mut observations = Vec::new();
         for ret in &exploration.returns {
             observations.push(Observation::with_help(
@@ -140,6 +145,83 @@ pub(crate) fn infer_return(
             );
         }
         NOTHING
+    }
+}
+
+/// Checks the type of a call expression.
+pub(crate) fn type_call(
+    call: &ProgrammaticCall,
+    arguments: &[TypedExpr],
+    symbol: Symbol,
+    diagnostics: &mut Vec<Diagnostic>,
+    exploration: &mut Exploration,
+    relations: &Relations,
+) -> TypeId {
+    let type_id = exploration.ctx.get(relations, symbol).unwrap();
+    match exploration.get_type(type_id).unwrap() {
+        Type::Function(declaration) => {
+            let entry = exploration.engine.get(*declaration).unwrap();
+            let parameters = &entry.parameters;
+            let return_type = entry.return_type;
+            if parameters.len() != arguments.len() {
+                diagnostics.push(
+                    Diagnostic::new(
+                        DiagnosticID::TypeMismatch,
+                        exploration.ctx.source,
+                        format!(
+                            "This function takes {} {} but {} were supplied",
+                            parameters.len(),
+                            pluralize(parameters.len(), "argument", "arguments"),
+                            arguments.len()
+                        ),
+                    )
+                    .with_observation(Observation::with_help(
+                        call.segment.clone(),
+                        "Function is called here",
+                    )),
+                );
+                ERROR
+            } else {
+                for (param, arg) in parameters.iter().zip(arguments.iter()) {
+                    if exploration.typing.unify(param.ty, arg.ty).is_err() {
+                        diagnostics.push(
+                            Diagnostic::new(
+                                DiagnosticID::TypeMismatch,
+                                exploration.ctx.source,
+                                "Type mismatch",
+                            )
+                            .with_observation(Observation::with_help(
+                                arg.segment.clone(),
+                                format!(
+                                    "Expected `{}`, found `{}`",
+                                    exploration.get_type(param.ty).unwrap(),
+                                    exploration.get_type(arg.ty).unwrap()
+                                ),
+                            ))
+                            .with_observation(Observation::with_help(
+                                param.segment.clone(),
+                                "Parameter is declared here",
+                            )),
+                        );
+                    }
+                }
+                return_type
+            }
+        }
+        ty => {
+            diagnostics.push(
+                Diagnostic::new(
+                    DiagnosticID::TypeMismatch,
+                    exploration.ctx.source,
+                    "Cannot invoke non function type",
+                )
+                .with_observation(Observation::with_help(
+                    call.segment(),
+                    format!("Call expression requires function, found `{ty}`"),
+                )),
+            );
+            ERROR
+        }
     }
 }
 
@@ -165,5 +247,13 @@ fn get_last_segment(expr: &TypedExpr) -> &TypedExpr {
     match &expr.kind {
         ExprKind::Block(expressions) => expressions.last().map(get_last_segment).unwrap_or(expr),
         _ => expr,
+    }
+}
+
+fn pluralize<'a>(count: usize, singular: &'a str, plural: &'a str) -> &'a str {
+    if count == 1 {
+        singular
+    } else {
+        plural
     }
 }

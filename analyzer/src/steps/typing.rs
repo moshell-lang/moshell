@@ -6,13 +6,13 @@ use crate::relations::{Relations, SourceObjectId};
 use crate::types::ctx::TypeContext;
 use crate::types::engine::{Chunk, TypedEngine};
 use crate::types::exploration::Exploration;
-use crate::types::function::{infer_return, type_parameter, Return};
+use crate::types::function::{infer_return, type_call, type_parameter, Return};
 use crate::types::hir::{ExprKind, TypedExpr};
 use crate::types::ty::Type;
 use crate::types::{Typing, ERROR, FLOAT, INT, NOTHING, STRING};
 use ast::value::LiteralValue;
 use ast::Expr;
-use context::source::{SourceSegment, SourceSegmentHolder};
+use context::source::SourceSegmentHolder;
 
 pub fn apply_types(
     engine: &Engine,
@@ -150,24 +150,42 @@ fn ascribe_types(
                 .expect("Variables without initializers are not supported yet");
             exploration.ctx.push_local_type(initializer.ty);
             if let Some(type_annotation) = &decl.var.ty {
-                let type_annotation = exploration.ctx.resolve(type_annotation).unwrap_or(ERROR);
-                if type_annotation == ERROR {
-                    diagnostics.push(Diagnostic::new(
-                        DiagnosticID::UnknownType,
-                        state.source,
-                        "Unknown type annotation",
-                    ));
+                let expected_type = exploration.ctx.resolve(type_annotation).unwrap_or(ERROR);
+                if expected_type == ERROR {
+                    diagnostics.push(
+                        Diagnostic::new(
+                            DiagnosticID::UnknownType,
+                            state.source,
+                            "Unknown type annotation",
+                        )
+                        .with_observation(Observation::with_help(
+                            type_annotation.segment(),
+                            "Not found in scope",
+                        )),
+                    );
                 } else if initializer.ty.is_ok()
                     && exploration
                         .typing
-                        .unify(type_annotation, initializer.ty)
+                        .unify(expected_type, initializer.ty)
                         .is_err()
                 {
-                    diagnostics.push(Diagnostic::new(
-                        DiagnosticID::TypeMismatch,
-                        state.source,
-                        "Type mismatch",
-                    ));
+                    diagnostics.push(
+                        Diagnostic::new(DiagnosticID::TypeMismatch, state.source, "Type mismatch")
+                            .with_observation(Observation::with_help(
+                                type_annotation.segment(),
+                                format!(
+                                    "Expected `{}`",
+                                    exploration.get_type(expected_type).unwrap()
+                                ),
+                            ))
+                            .with_observation(Observation::with_help(
+                                initializer.segment(),
+                                format!(
+                                    "Found `{}`",
+                                    exploration.get_type(initializer.ty).unwrap()
+                                ),
+                            )),
+                    );
                 }
             }
             TypedExpr {
@@ -323,11 +341,22 @@ fn ascribe_types(
                 ) {
                     Ok(ty) => ty,
                     Err(_) => {
-                        diagnostics.push(Diagnostic::new(
+                        let mut diagnostic = Diagnostic::new(
                             DiagnosticID::TypeMismatch,
                             state.source,
                             "`if` and `else` have incompatible types",
+                        )
+                        .with_observation(Observation::with_help(
+                            block.success_branch.segment(),
+                            format!("Found `{}`", exploration.get_type(then.ty).unwrap()),
                         ));
+                        if let Some(otherwise) = &otherwise {
+                            diagnostic = diagnostic.with_observation(Observation::with_help(
+                                otherwise.segment(),
+                                format!("Found `{}`", exploration.get_type(otherwise.ty).unwrap()),
+                            ));
+                        }
+                        diagnostics.push(diagnostic);
                         ERROR
                     }
                 }
@@ -363,57 +392,14 @@ fn ascribe_types(
                 .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
                 .collect::<Vec<_>>();
             let symbol = env.get_raw_symbol(call.segment.clone()).unwrap();
-            let type_id = exploration.ctx.get(relations, symbol).unwrap();
-            let return_type = match exploration.get_type(type_id).unwrap() {
-                Type::Function(declaration) => {
-                    let entry = exploration.engine.get(*declaration).unwrap();
-                    let parameters = &entry.parameters;
-                    let return_type = entry.return_type;
-                    if parameters.len() != arguments.len() {
-                        diagnostics.push(Diagnostic::new(
-                            DiagnosticID::TypeMismatch,
-                            state.source,
-                            "Wrong number of arguments",
-                        ));
-                        ERROR
-                    } else {
-                        for (param, arg) in parameters.iter().zip(arguments.iter()) {
-                            if exploration.typing.unify(param.ty, arg.ty).is_err() {
-                                diagnostics.push(
-                                    Diagnostic::new(
-                                        DiagnosticID::TypeMismatch,
-                                        state.source,
-                                        "Type mismatch",
-                                    )
-                                    .with_observation(Observation::with_help(
-                                        arg.segment.clone(),
-                                        format!(
-                                            "Expected `{}`, found `{}`",
-                                            exploration.get_type(param.ty).unwrap(),
-                                            exploration.get_type(arg.ty).unwrap()
-                                        ),
-                                    ))
-                                    .with_observation(
-                                        Observation::with_help(
-                                            param.segment.clone(),
-                                            "Parameter is declared here",
-                                        ),
-                                    ),
-                                );
-                            }
-                        }
-                        return_type
-                    }
-                }
-                _ => {
-                    diagnostics.push(Diagnostic::new(
-                        DiagnosticID::TypeMismatch,
-                        state.source,
-                        "Cannot invoke non function type",
-                    ));
-                    ERROR
-                }
-            };
+            let return_type = type_call(
+                call,
+                &arguments,
+                symbol,
+                diagnostics,
+                exploration,
+                relations,
+            );
             TypedExpr {
                 kind: ExprKind::FunctionCall {
                     name: call.name.to_owned(),
@@ -424,17 +410,6 @@ fn ascribe_types(
             }
         }
         _ => todo!("{expr:?}"),
-    }
-}
-
-fn get_last_segment(expr: &Expr) -> SourceSegment {
-    match expr {
-        Expr::Block(block) => block
-            .expressions
-            .last()
-            .map(get_last_segment)
-            .unwrap_or(block.segment.clone()),
-        expr => expr.segment(),
     }
 }
 
@@ -492,27 +467,41 @@ mod tests {
 
     #[test]
     fn no_coerce_type_annotation() {
-        let res = extract_type(Source::unknown("val a: Int = 1.6"));
+        let content = "val a: Int = 1.6";
+        let res = extract_type(Source::unknown(content));
         assert_eq!(
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
                 SourceObjectId(0),
                 "Type mismatch",
-            )])
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "Int"),
+                "Expected `Int`",
+            ))
+            .with_observation(Observation::with_help(
+                find_in(content, "1.6"),
+                "Found `Float`",
+            ))])
         );
     }
 
     #[test]
     fn unknown_type_annotation() {
-        let res = extract_type(Source::unknown("val a: ABC = 1.6"));
+        let content = "val a: ABC = 1.6";
+        let res = extract_type(Source::unknown(content));
         assert_eq!(
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::UnknownType,
                 SourceObjectId(0),
                 "Unknown type annotation",
-            )])
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "ABC"),
+                "Not found in scope",
+            ))])
         );
     }
 
@@ -530,14 +519,23 @@ mod tests {
 
     #[test]
     fn condition_different_type_local_return() {
-        let res = extract_type(Source::unknown("var n: Int = {if false; 4.7; else {}}"));
+        let content = "var n: Int = {if false; 4.7; else {}}";
+        let res = extract_type(Source::unknown(content));
         assert_eq!(
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
                 SourceObjectId(0),
                 "`if` and `else` have incompatible types",
-            )])
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "4.7"),
+                "Found `Float`",
+            ))
+            .with_observation(Observation::with_help(
+                find_in(content, "{}"),
+                "Found `Nothing`",
+            ))])
         );
     }
 
@@ -549,16 +547,19 @@ mod tests {
 
     #[test]
     fn wrong_arguments() {
-        let res = extract_type(Source::unknown(
-            "fun square(n: Int) -> Int = $(( $n * $n ))\nsquare(9, 9)",
-        ));
+        let content = "fun square(n: Int) -> Int = $(( $n * $n ))\nsquare(9, 9)";
+        let res = extract_type(Source::unknown(content));
         assert_eq!(
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
                 SourceObjectId(0),
-                "Wrong number of arguments",
-            )])
+                "This function takes 1 argument but 2 were supplied",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "square(9, 9)"),
+                "Function is called here"
+            ))])
         );
     }
 
@@ -586,27 +587,41 @@ mod tests {
 
     #[test]
     fn cannot_invoke_non_function() {
-        let res = extract_type(Source::unknown("val test = 1;test()"));
+        let content = "val test = 1;test()";
+        let res = extract_type(Source::unknown(content));
         assert_eq!(
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
                 SourceObjectId(0),
                 "Cannot invoke non function type",
-            )])
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "test()"),
+                "Call expression requires function, found `Int`"
+            ))])
         );
     }
 
     #[test]
     fn type_function_parameters() {
-        let res = extract_type(Source::unknown("fun test(a: String) = { var b: Int = $a }"));
+        let content = "fun test(a: String) = { var b: Int = $a }";
+        let res = extract_type(Source::unknown(content));
         assert_eq!(
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
                 SourceObjectId(1),
                 "Type mismatch",
-            )])
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "Int"),
+                "Expected `Int`"
+            ))
+            .with_observation(Observation::with_help(
+                find_in(content, "$a"),
+                "Found `String`"
+            ))])
         );
     }
 
