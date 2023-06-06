@@ -42,7 +42,10 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
         let body = self
             .cursor
             .force(blanks().then(of_type(Equal)), "expected '='")
-            .and_then(|_| self.statement())
+            .and_then(|_| {
+                self.cursor.advance(blanks());
+                self.statement()
+            })
             .map(Box::new)?;
         let segment = self.cursor.relative_pos(fun).start..body.segment().end;
 
@@ -331,16 +334,27 @@ mod tests {
     }
 
     #[test]
-    fn function_invalid_name_() {
-        let src = "fun 78() = ()";
-        let errs = parse(Source::unknown(src)).errors;
+    fn functions_with_blanks() {
+        let src = Source::unknown("fun test()\n -> Float\n =\n    2.0");
+        let ast = parse(src).expect("parse failed");
         assert_eq!(
-            errs,
-            vec![ParseError {
-                message: "function name is invalid.".to_string(),
-                position: src.find("78").map(|i| i..i + 2).unwrap(),
-                kind: ParseErrorKind::InvalidFormat,
-            }]
+            ast,
+            vec![Expr::FunctionDeclaration(FunctionDeclaration {
+                name: "test",
+                type_parameters: vec![],
+                parameters: vec![],
+                return_type: Some(Type::Parametrized(ParametrizedType {
+                    path: vec![],
+                    name: "Float",
+                    params: vec![],
+                    segment: find_in_nth(src.source, "Float", 0),
+                })),
+                body: Box::new(Expr::Literal(Literal {
+                    parsed: 2.0.into(),
+                    segment: find_in_nth(src.source, "2.0", 0),
+                })),
+                segment: src.segment(),
+            })]
         );
     }
 
