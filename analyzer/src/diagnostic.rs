@@ -36,6 +36,10 @@ pub enum DiagnosticID {
     #[assoc(code = 8)]
     #[assoc(critical = true)]
     TypeMismatch,
+
+    #[assoc(code = 9)]
+    #[assoc(critical = true)]
+    CannotInfer,
 }
 
 /// Observations are an area in the source code with an (optional) help message

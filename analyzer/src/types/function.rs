@@ -15,6 +15,9 @@ pub(crate) struct Return {
 }
 
 /// Gets the returned type of a function.
+///
+/// This verifies the type annotation if present against all the return types,
+/// or try to guess the return type.
 pub(crate) fn infer_return(
     func: &FunctionDeclaration,
     typed_func: &TypedExpr,
@@ -36,7 +39,9 @@ pub(crate) fn infer_return(
             segment: last.segment.clone(),
         });
     }
+
     if let Some(return_type_annotation) = func.return_type.as_ref() {
+        // An explicit return type is present, check it against all the return types.
         let type_annotation = exploration
             .ctx
             .resolve(return_type_annotation)
@@ -76,6 +81,7 @@ pub(crate) fn infer_return(
         }
         type_annotation
     } else if !matches!(func.body.as_ref(), Expr::Block(_)) {
+        // We may want to infer, or leave it as a empty return type
         match exploration
             .typing
             .unify_many(exploration.returns.iter().map(|ret| ret.ty))
@@ -85,7 +91,7 @@ pub(crate) fn infer_return(
                 let segment = func.segment().start..func.body.segment().start;
                 diagnostics.push(
                     Diagnostic::new(
-                        DiagnosticID::TypeMismatch,
+                        DiagnosticID::CannotInfer,
                         exploration.ctx.source,
                         "Return type inference is not supported yet",
                     )
@@ -100,7 +106,7 @@ pub(crate) fn infer_return(
             Err(_) => {
                 diagnostics.push(
                     Diagnostic::new(
-                        DiagnosticID::TypeMismatch,
+                        DiagnosticID::CannotInfer,
                         exploration.ctx.source,
                         "Failed to infer return type",
                     )
@@ -114,6 +120,7 @@ pub(crate) fn infer_return(
             }
         }
     } else {
+        // Explain if there is any return that this fuction will not be inferred
         let mut observations = Vec::new();
         for ret in &exploration.returns {
             observations.push(Observation::with_help(
@@ -124,7 +131,7 @@ pub(crate) fn infer_return(
         if !observations.is_empty() {
             diagnostics.push(
                 Diagnostic::new(
-                    DiagnosticID::TypeMismatch,
+                    DiagnosticID::CannotInfer,
                     exploration.ctx.source,
                     "Return type is not inferred for block functions",
                 )

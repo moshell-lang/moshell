@@ -698,7 +698,7 @@ mod tests {
         assert_eq!(
             res,
             Err(vec![Diagnostic::new(
-                DiagnosticID::TypeMismatch,
+                DiagnosticID::CannotInfer,
                 SourceObjectId(1),
                 "Return type inference is not supported yet",
             )
@@ -717,7 +717,7 @@ mod tests {
         assert_eq!(
             res,
             Err(vec![Diagnostic::new(
-                DiagnosticID::TypeMismatch,
+                DiagnosticID::CannotInfer,
                 SourceObjectId(1),
                 "Return type is not inferred for block functions",
             )
@@ -740,7 +740,7 @@ mod tests {
         assert_eq!(
             res,
             Err(vec![Diagnostic::new(
-                DiagnosticID::TypeMismatch,
+                DiagnosticID::CannotInfer,
                 SourceObjectId(1),
                 "Failed to infer return type",
             )
