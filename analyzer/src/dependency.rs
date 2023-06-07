@@ -46,8 +46,9 @@ pub fn topological_sort<N>(dependencies: &Dependencies<N>) -> Vec<N>
 where
     N: Eq + Hash + Copy,
 {
-    let mut sorted = Vec::new();
-    let mut visited = HashSet::new();
+    let dep_count = dependencies.top.len();
+    let mut sorted = Vec::with_capacity(dep_count);
+    let mut visited = HashSet::with_capacity(dep_count);
     let mut stack = Vec::new();
     for node in dependencies.top.keys() {
         if visited.contains(node) {

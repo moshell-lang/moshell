@@ -60,9 +60,7 @@ impl TypedEngine {
         let mut builder = Self {
             entries: Vec::with_capacity(capacity),
         };
-        for _ in 0..capacity {
-            builder.entries.push(None);
-        }
+        builder.entries.resize_with(capacity, || None);
         builder
     }
 

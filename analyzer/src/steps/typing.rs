@@ -439,7 +439,7 @@ mod tests {
         assert_eq!(diagnostics, vec![]);
         let mut diagnostics = SymbolResolver::resolve_symbols(&engine, &mut relations);
         assert_eq!(diagnostics, vec![]);
-        let typed = apply_types(&mut engine, &mut relations, &mut diagnostics);
+        let typed = apply_types(&engine, &relations, &mut diagnostics);
         let expr = typed.get(SourceObjectId(0)).unwrap();
         if !diagnostics.is_empty() {
             return Err(diagnostics);
