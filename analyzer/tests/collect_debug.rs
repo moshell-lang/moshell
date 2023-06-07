@@ -1,6 +1,7 @@
 use analyzer::engine::Engine;
 use analyzer::environment::variables::Variable;
 use analyzer::importer::StaticImporter;
+use analyzer::imports::Imports;
 use analyzer::name::Name;
 use analyzer::relations::{
     GlobalObjectId, Object, ObjectState, Relations, ResolvedSymbol, SourceObjectId, Symbol,
@@ -21,6 +22,7 @@ fn collect_sample() {
     let lib_name = Name::new("lib");
     let mut engine = Engine::default();
     let mut relations = Relations::default();
+    let mut imports = Imports::default();
 
     let mut to_visit = vec![root_name.clone()];
     let mut visited = HashSet::new();
@@ -37,13 +39,19 @@ fn collect_sample() {
     let diagnostics = SymbolCollector::collect_symbols(
         &mut engine,
         &mut relations,
+        &mut imports,
         &mut to_visit,
         &mut visited,
         &mut importer,
     );
     assert_eq!(diagnostics, vec![]);
-    let diagnostics =
-        SymbolResolver::resolve_symbols(&mut engine, &mut relations, &mut to_visit, &mut visited);
+    let diagnostics = SymbolResolver::resolve_symbols(
+        &engine,
+        &mut relations,
+        &mut imports,
+        &mut to_visit,
+        &mut visited,
+    );
     assert_eq!(diagnostics, vec![]);
     let root_env = engine
         .get_environment(SourceObjectId(0))

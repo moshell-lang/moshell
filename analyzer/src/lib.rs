@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use crate::diagnostic::Diagnostic;
 use crate::engine::Engine;
 use crate::importer::ASTImporter;
+use crate::imports::Imports;
 use crate::name::Name;
 use crate::relations::Relations;
 use crate::steps::collect::SymbolCollector;
@@ -17,6 +18,7 @@ pub mod importer;
 pub mod name;
 pub mod relations;
 
+pub mod imports;
 pub mod steps;
 
 /// Performs a full resolution of the environments directly or indirectly implied by the entry point.
@@ -29,6 +31,7 @@ pub fn resolve_all<'a>(
 ) -> ResolutionResult<'a> {
     let mut engine = Engine::default();
     let mut relations = Relations::default();
+    let mut imports = Imports::default();
 
     let mut to_visit = vec![entry_point];
     let mut visited = HashSet::new();
@@ -38,6 +41,7 @@ pub fn resolve_all<'a>(
         diagnostics.extend(SymbolCollector::collect_symbols(
             &mut engine,
             &mut relations,
+            &mut imports,
             &mut to_visit,
             &mut visited,
             importer,
@@ -45,6 +49,7 @@ pub fn resolve_all<'a>(
         diagnostics.extend(SymbolResolver::resolve_symbols(
             &engine,
             &mut relations,
+            &mut imports,
             &mut to_visit,
             &mut visited,
         ));

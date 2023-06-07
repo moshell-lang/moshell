@@ -50,7 +50,7 @@ impl Variables {
         self.externals.entry(name)
     }
 
-    /// Returns the local variable associated with the id
+    /// Returns the local variable id associated with the given name
     pub fn find_id(&self, name: &str) -> Option<ObjectId> {
         self.locals
             .vars
