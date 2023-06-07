@@ -47,8 +47,8 @@ pub struct Imports {
     /// Binds an [UnresolvedImport] to the segment that introduced the import.
     unresolved_imports: IndexMap<UnresolvedImport, SourceSegment>,
 
-    /// Binds a symbol name to its resolved import.
-    imported_symbols: HashMap<String, ResolvedImport>,
+    /// Binds a symbol name to its resolved import, with the source segment where the import is declared.
+    imported_symbols: HashMap<String, (ResolvedImport, SourceSegment)>,
 }
 
 #[derive(Debug, Eq, PartialEq, Hash)]
@@ -96,7 +96,7 @@ impl Imports {
     #[cfg(test)]
     pub fn with(
         unresolved_imports: IndexMap<UnresolvedImport, SourceSegment>,
-        imported_symbols: HashMap<String, ResolvedImport>,
+        imported_symbols: HashMap<String, (ResolvedImport, SourceSegment)>,
     ) -> Self {
         Self {
             unresolved_imports,
@@ -117,12 +117,21 @@ impl Imports {
         std::mem::take(&mut self.unresolved_imports)
     }
 
-    pub fn set_resolved_import(&mut self, name: String, resolved: ResolvedImport) {
-        self.imported_symbols.insert(name, resolved);
+    pub fn set_resolved_import(
+        &mut self,
+        name: String,
+        resolved: ResolvedImport,
+        segment: SourceSegment,
+    ) {
+        self.imported_symbols.insert(name, (resolved, segment));
     }
 
     pub fn get_import(&self, name: &str) -> Option<&ResolvedImport> {
-        self.imported_symbols.get(name)
+        self.imported_symbols.get(name).map(|(i, _)| i)
+    }
+
+    pub fn get_import_segment(&self, name: &str) -> Option<SourceSegment> {
+        self.imported_symbols.get(name).map(|(_, s)| s.clone())
     }
 }
 
