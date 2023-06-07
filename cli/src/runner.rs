@@ -9,14 +9,14 @@ use analyzer::engine::Engine;
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
 use analyzer::relations::SourceObjectId;
-use ast::Expr;
 use ast::group::Block;
+use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
 use lexer::lexer::lex;
 use parser::err::ParseReport;
 use parser::parse;
 
-use crate::cli::{Configuration, display_exprs, display_tokens};
+use crate::cli::{display_exprs, display_tokens, Configuration};
 use crate::formatted_diagnostic::render_diagnostic;
 use crate::formatted_parse_error::render_parse_error;
 use crate::source_importer::FileSourceImporter;
@@ -28,8 +28,8 @@ pub(crate) fn run(
     handler: GraphicalReportHandler,
 ) -> bool {
     let name = source.to_string_lossy();
-    let mut name = name.deref().replace("/", "::");
-    if let Some((name_no_extension, _)) = name.rsplit_once(".") {
+    let mut name = name.deref().replace('/', "::");
+    if let Some((name_no_extension, _)) = name.rsplit_once('.') {
         name = name_no_extension.to_string()
     }
     let entry_point = Name::new(&name);
@@ -84,10 +84,7 @@ fn get_source_of<'a>(
         return importer
             .source_importer
             .get_already_imported_name(&env.fqn)
-            .expect(&format!(
-                "Could not retrieve source of environment {}",
-                env_id.0
-            ));
+            .unwrap_or_else(|| panic!("Could not retrieve source of environment {}", env_id.0));
     }
 }
 

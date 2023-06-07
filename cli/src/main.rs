@@ -18,7 +18,6 @@ mod runner;
 mod source_importer;
 
 fn main() {
-
     let cli = Cli::parse();
 
     let handler = GraphicalReportHandler::default();
@@ -46,12 +45,4 @@ fn main() {
         exit(run(source, working_dir, config, handler) as i32)
     }
     repl(config, handler);
-}
-
-fn assert_simple(test: bool, msg: String) {
-    if test {
-        return;
-    }
-    eprintln!("{}", msg);
-    exit(1)
 }

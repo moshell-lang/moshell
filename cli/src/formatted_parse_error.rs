@@ -42,7 +42,7 @@ pub fn render_parse_error(
             _ => None,
         },
         help: match &error.kind {
-            ParseErrorKind::Expected(expected) => Some(format!("Expected: {:?}", expected)),
+            ParseErrorKind::Expected(expected) => Some(format!("Expected: {expected:?}")),
             ParseErrorKind::UnexpectedInContext(help) => Some(help.clone()),
             _ => None,
         },

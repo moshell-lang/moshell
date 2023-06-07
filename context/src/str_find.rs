@@ -16,7 +16,7 @@ pub fn find_in_nth<'a>(source: &'a str, needle: &'a str, nth: usize) -> SourceSe
     let start = source
         .match_indices(needle)
         .nth(nth)
-        .unwrap_or_else(|| panic!("{nth}'nth {needle} not found."))
+        .unwrap_or_else(|| panic!("{nth}'nth '{needle}' not found."))
         .0;
     start..start + needle.len()
 }

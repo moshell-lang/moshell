@@ -3,6 +3,7 @@ use crate::formatted_diagnostic::render_diagnostic;
 use crate::formatted_parse_error::render_parse_error;
 use analyzer::engine::Engine;
 use analyzer::importer::ASTImporter;
+use analyzer::imports::Imports;
 use analyzer::name::Name;
 use analyzer::relations::Relations;
 use ast::group::Block;
@@ -73,6 +74,7 @@ pub fn repl(config: Configuration, handler: GraphicalReportHandler) {
 
     let mut engine = Engine::default();
     let mut relations = Relations::default();
+    let mut imports = Imports::default();
     let mut importer = REPLImporter::default();
 
     loop {
@@ -82,6 +84,7 @@ pub fn repl(config: Configuration, handler: GraphicalReportHandler) {
             &config,
             &mut engine,
             &mut importer,
+            &mut imports,
             &mut relations,
             &handler,
         );
@@ -143,16 +146,17 @@ fn parse_input(editor: &mut REPLEditor) -> OwnedSource {
 
 /// Parses and display errors / diagnostics coming from the given source.
 /// Returning true if the source had at least one error or diagnostic.
-fn handle_source<'a, 'e>(
+fn handle_source<'e>(
     source: OwnedSource,
     config: &Configuration,
     engine: &mut Engine<'e>,
     importer: &mut REPLImporter<'e>,
+    imports: &mut Imports,
     relations: &mut Relations,
     handler: &GraphicalReportHandler,
 ) -> bool {
     let source = importer.take_source(source);
-    let name = Name::new(&source.name);
+    let name = Name::new(source.name);
 
     if config.lexer_visualisation {
         display_tokens(lex(source.source))
@@ -183,7 +187,7 @@ fn handle_source<'a, 'e>(
 
     importer.imported_modules.insert(name.clone(), expr);
 
-    let diagnostics = analyzer::make_full_resolution(name, importer, engine, relations);
+    let diagnostics = analyzer::make_full_resolution(name, importer, engine, relations, imports);
 
     let had_errors = !diagnostics.is_empty();
     for diagnostic in diagnostics {

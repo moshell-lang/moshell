@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use analyzer::name::Name;
 use context::source::{OwnedSource, Source};
 
-const MOSHELL_EXTENSION: &'static str = "msh";
+const MOSHELL_EXTENSION: &str = "msh";
 
 /// An importer that reads files from a given root directory.
 pub struct FileSourceImporter {

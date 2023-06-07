@@ -1,8 +1,8 @@
-use crate::engine::Engine;
-use crate::name::Name;
+use std::fmt::Debug;
+
 use context::source::SourceSegment;
-use indexmap::IndexMap;
-use std::collections::HashMap;
+
+use crate::engine::Engine;
 
 /// The object identifier base.
 ///
@@ -36,36 +36,6 @@ pub enum Symbol {
 impl From<GlobalObjectId> for Symbol {
     fn from(id: GlobalObjectId) -> Self {
         Symbol::Global(id.0)
-    }
-}
-
-/// The structure that hosts the unresolved imports of the Relations
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct UnresolvedImports {
-    /// Binds an UnresolvedImport to all the [ImportExpr] that refers to the import resolution.
-    pub imports: IndexMap<UnresolvedImport, SourceSegment>,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub enum UnresolvedImport {
-    /// A symbol import with an optional alias.
-    Symbol { alias: Option<String>, fqn: Name },
-    /// Variant to target all the exported symbols of a symbol
-    AllIn(Name),
-}
-
-impl UnresolvedImports {
-    pub fn new(imports: IndexMap<UnresolvedImport, SourceSegment>) -> Self {
-        Self { imports }
-    }
-
-    ///Adds an unresolved import, placing the given `import_expr` as the dependent .
-    pub fn add_unresolved_import(
-        &mut self,
-        import: UnresolvedImport,
-        segment: SourceSegment,
-    ) -> Option<SourceSegment> {
-        self.imports.insert(import, segment)
     }
 }
 
@@ -128,7 +98,7 @@ impl Object {
 }
 
 /// A collection of objects that are tracked globally and may link to each other.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct Relations {
     /// The objects that need resolution that are tracked globally.
     ///
@@ -137,38 +107,9 @@ pub struct Relations {
     /// binding happens across modules, and an environment cannot guarantee that it will be able to generate
     /// unique identifiers for all the symbols that do not conflicts with the ones from other modules.
     pub objects: Vec<Object>,
-
-    /// Associates a source object with its unresolved imports.
-    ///
-    /// Imports may only be declared at the top level of a source. This lets us track the unresolved imports
-    /// per [`crate::environment::Environment`]. If a source is not tracked here, it means that it has no
-    /// imports. This is only used to create find the link between environments and sources, and should not
-    /// be used after the resolution is done.
-    pub imports: HashMap<SourceObjectId, UnresolvedImports>,
 }
 
 impl Relations {
-    /// Takes the unresolved imports
-    pub fn take_imports(&mut self) -> HashMap<SourceObjectId, UnresolvedImports> {
-        std::mem::take(&mut self.imports)
-    }
-
-    /// References a new import directive in the given source.
-    ///
-    /// This directive may be used later to resolve the import.
-    pub fn add_import(
-        &mut self,
-        source: SourceObjectId,
-        import: UnresolvedImport,
-        import_expr: SourceSegment,
-    ) -> Option<SourceSegment> {
-        let imports = self
-            .imports
-            .entry(source)
-            .or_insert_with(UnresolvedImports::default);
-        imports.add_unresolved_import(import, import_expr)
-    }
-
     /// Tracks a new object and returns its identifier.
     pub fn track_new_object(&mut self, origin: SourceObjectId) -> GlobalObjectId {
         let id = self.objects.len();
@@ -191,9 +132,9 @@ impl Relations {
     }
 
     /// Returns an immutable iterator over all the objects.
-    pub fn iter(&self) -> impl Iterator<Item = (GlobalObjectId, &Object)> {
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (GlobalObjectId, &mut Object)> {
         self.objects
-            .iter()
+            .iter_mut()
             .enumerate()
             .map(|(id, object)| (GlobalObjectId(id), object))
     }

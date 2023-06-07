@@ -15,8 +15,9 @@ use crate::engine::Engine;
 use crate::environment::variables::{TypeInfo, Variables};
 use crate::environment::Environment;
 use crate::importer::ASTImporter;
+use crate::imports::{Imports, UnresolvedImport};
 use crate::name::Name;
-use crate::relations::{ObjectState, Relations, SourceObjectId, Symbol, UnresolvedImport};
+use crate::relations::{ObjectState, Relations, SourceObjectId, Symbol};
 use crate::steps::resolve::{diagnose_invalid_symbol, SymbolResolver};
 
 /// Defines the current state of the tree exploration.
@@ -41,6 +42,7 @@ impl ResolutionState {
 pub struct SymbolCollector<'a, 'e> {
     engine: &'a mut Engine<'e>,
     relations: &'a mut Relations,
+    imports: &'a mut Imports,
     diagnostics: Vec<Diagnostic>,
 
     /// During the exploration, a parent environment always leaves a reference for its children.
@@ -55,20 +57,26 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
     pub fn collect_symbols(
         engine: &'a mut Engine<'e>,
         relations: &'a mut Relations,
+        imports: &'a mut Imports,
         to_visit: &mut Vec<Name>,
         visited: &mut HashSet<Name>,
         importer: &mut impl ASTImporter<'e>,
     ) -> Vec<Diagnostic> {
-        let mut collector = Self::new(engine, relations);
+        let mut collector = Self::new(engine, relations, imports);
         collector.collect(importer, to_visit, visited);
         collector.check_symbols_identity();
         collector.diagnostics
     }
 
-    fn new(engine: &'a mut Engine<'e>, relations: &'a mut Relations) -> Self {
+    fn new(
+        engine: &'a mut Engine<'e>,
+        relations: &'a mut Relations,
+        imports: &'a mut Imports,
+    ) -> Self {
         Self {
             engine,
             relations,
+            imports,
             diagnostics: Vec::new(),
             stack: Vec::new(),
         }
@@ -175,9 +183,9 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         import_expr: &'e ImportExpr<'e>,
         import_fqn: Name,
     ) {
-        if let Some(shadowed) = self
-            .relations
-            .add_import(mod_id, import, import_expr.segment())
+        if let Some(shadowed) =
+            self.imports
+                .add_unresolved_import(mod_id, import, import_expr.segment())
         {
             let diagnostic = Diagnostic::new(
                 DiagnosticID::ShadowedImport,
@@ -213,7 +221,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 to_visit.push(name.clone());
                 let unresolved = UnresolvedImport::Symbol {
                     alias,
-                    fqn: name.clone(),
+                    qualified_name: name.clone(),
                 };
                 self.add_checked_import(mod_id, unresolved, import, name)
             }
@@ -652,6 +660,7 @@ mod tests {
     fn use_between_expressions() {
         let mut engine = Engine::default();
         let mut relations = Relations::default();
+        let mut imports = Imports::default();
         let mut importer = StaticImporter::new(
             [(Name::new("test"), Source::unknown("use a; $a; use c; $c"))],
             parse_trusted,
@@ -659,6 +668,7 @@ mod tests {
         let res = SymbolCollector::collect_symbols(
             &mut engine,
             &mut relations,
+            &mut imports,
             &mut vec![Name::new("test")],
             &mut HashSet::new(),
             &mut importer,
@@ -676,10 +686,11 @@ mod tests {
         let expr = parse_trusted(Source::unknown("var bar = 4; $bar"));
         let mut engine = Engine::default();
         let mut relations = Relations::default();
+        let mut imports = Imports::default();
         let mut env = Environment::named(Name::new("test"));
         let mut state = ResolutionState::new(engine.track(&expr));
 
-        let mut collector = SymbolCollector::new(&mut engine, &mut relations);
+        let mut collector = SymbolCollector::new(&mut engine, &mut relations, &mut imports);
 
         collector.tree_walk(&mut env, &mut state, &expr, &mut vec![]);
         assert_eq!(collector.diagnostics, vec![]);
@@ -696,6 +707,7 @@ mod tests {
 
         let mut engine = Engine::default();
         let mut relations = Relations::default();
+        let mut imports = Imports::default();
         let mut importer = StaticImporter::new(
             [
                 (Name::new("math"), math_src),
@@ -709,6 +721,7 @@ mod tests {
         let diagnostics = SymbolCollector::collect_symbols(
             &mut engine,
             &mut relations,
+            &mut imports,
             &mut vec![Name::new("math")],
             &mut HashSet::new(),
             &mut importer,
@@ -726,11 +739,13 @@ mod tests {
         let test_src = Source::unknown(source);
         let mut engine = Engine::default();
         let mut relations = Relations::default();
+        let mut imports = Imports::default();
         let mut importer = StaticImporter::new([(Name::new("test"), test_src)], parse_trusted);
 
         let diagnostics = SymbolCollector::collect_symbols(
             &mut engine,
             &mut relations,
+            &mut imports,
             &mut vec![Name::new("test")],
             &mut HashSet::new(),
             &mut importer,
@@ -775,11 +790,12 @@ mod tests {
         let source = Source::unknown(src);
         let expr = parse_trusted(source);
         let mut engine = Engine::default();
+        let mut imports = Imports::default();
         let mut relations = Relations::default();
         let mut env = Environment::named(Name::new("test"));
         let mut state = ResolutionState::new(engine.track(&expr));
 
-        let mut collector = SymbolCollector::new(&mut engine, &mut relations);
+        let mut collector = SymbolCollector::new(&mut engine, &mut relations, &mut imports);
         collector.tree_walk(&mut env, &mut state, &expr, &mut vec![]);
 
         assert_eq!(collector.diagnostics, vec![]);
@@ -805,10 +821,11 @@ mod tests {
         let expr = parse_trusted(source);
         let mut engine = Engine::default();
         let mut relations = Relations::default();
+        let mut imports = Imports::default();
         let mut env = Environment::named(Name::new("test"));
         let mut state = ResolutionState::new(engine.track(&expr));
 
-        let mut collector = SymbolCollector::new(&mut engine, &mut relations);
+        let mut collector = SymbolCollector::new(&mut engine, &mut relations, &mut imports);
         collector.tree_walk(&mut env, &mut state, &expr, &mut vec![]);
 
         assert_eq!(collector.diagnostics, vec![]);
@@ -828,10 +845,11 @@ mod tests {
 
         let mut engine = Engine::default();
         let mut relations = Relations::default();
+        let mut imports = Imports::default();
         let mut env = Environment::named(Name::new("test"));
         let mut state = ResolutionState::new(engine.track(&expr));
 
-        let mut collector = SymbolCollector::new(&mut engine, &mut relations);
+        let mut collector = SymbolCollector::new(&mut engine, &mut relations, &mut imports);
         collector.tree_walk(&mut env, &mut state, &expr, &mut vec![]);
 
         assert_eq!(collector.diagnostics, vec![]);

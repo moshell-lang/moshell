@@ -57,10 +57,7 @@ impl From<Cli> for Configuration {
 
 pub(crate) fn display_tokens(tokens: Vec<Token>) {
     println!("{}", "Lexer tokens: ".bright_black());
-    println!(
-        "{}",
-        format!("\t- {} tokens lexed from input", tokens.len())
-    );
+    println!("\t- {} tokens lexed from input", tokens.len());
 
     let mut count = 0;
     for token in tokens {
