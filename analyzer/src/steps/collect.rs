@@ -140,7 +140,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     );
                     let diagnostic = {
                         Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, env_id, msg)
-                            .with_observation(Observation::with_help(declaration_segment.clone(), format!("This symbol has the same fully-qualified name as module {}", clashed_module.fqn)))
+                            .with_observation(Observation::new(declaration_segment.clone()).with_help(format!("This symbol has the same fully-qualified name as module {}", clashed_module.fqn)))
                             .with_help(format!("You should refactor this symbol with a name that does not conflicts with following modules: {inner_modules}"))
                     };
                     self.diagnostics.push(diagnostic)
@@ -194,11 +194,8 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 mod_id,
                 format!("{import_fqn} is imported twice."),
             )
-            .with_observation(Observation::with_help(shadowed, "useless import here"))
-            .with_observation(Observation::with_help(
-                import_expr.segment(),
-                "This statement shadows previous import",
-            ));
+                .with_observation(Observation::new(shadowed).with_help("useless import here"))
+                .with_observation(Observation::new(import_expr.segment()).with_help("This statement shadows previous import"));
             self.diagnostics.push(diagnostic)
         }
     }
@@ -730,7 +727,7 @@ mod tests {
         );
         assert_eq!(diagnostics, vec![
             Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, SourceObjectId(0), "Declared symbol 'multiply' in module math clashes with module math::multiply")
-                .with_observation(Observation::with_help(find_in(math_source, "fun multiply(a: Int, b: Int) = a * b"), "This symbol has the same fully-qualified name as module math::multiply"))
+                .with_observation(Observation::new(find_in(math_source, "fun multiply(a: Int, b: Int) = a * b")).with_help("This symbol has the same fully-qualified name as module math::multiply"))
                 .with_help("You should refactor this symbol with a name that does not conflicts with following modules: math::{divide, multiply, add}")
         ]);
     }
@@ -759,29 +756,29 @@ mod tests {
                 Diagnostic::new(
                     DiagnosticID::ShadowedImport,
                     SourceObjectId(0),
-                    "A is imported twice."
+                    "A is imported twice.",
                 )
-                .with_observation(Observation::with_help(
-                    find_in(source, "A"),
-                    "useless import here"
-                ))
-                .with_observation(Observation::with_help(
-                    find_in_nth(source, "A", 1),
-                    "This statement shadows previous import"
-                )),
+                    .with_observation(
+                        Observation::new(find_in(source, "A"))
+                            .with_help("useless import here")
+                    )
+                    .with_observation(
+                        Observation::new(find_in_nth(source, "A", 1))
+                            .with_help("This statement shadows previous import"),
+                    ),
                 Diagnostic::new(
                     DiagnosticID::ShadowedImport,
                     SourceObjectId(0),
-                    "B is imported twice."
+                    "B is imported twice.",
                 )
-                .with_observation(Observation::with_help(
-                    find_in(source, "B"),
-                    "useless import here"
-                ))
-                .with_observation(Observation::with_help(
-                    find_in_nth(source, "B", 1),
-                    "This statement shadows previous import"
-                )),
+                    .with_observation(
+                        Observation::new(find_in(source, "B"))
+                            .with_help("useless import here")
+                    )
+                    .with_observation(
+                        Observation::new(find_in_nth(source, "B", 1))
+                            .with_help("This statement shadows previous import")
+                    ),
             ]
         )
     }

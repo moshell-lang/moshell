@@ -47,25 +47,40 @@ pub enum DiagnosticID {
 /// that are contained in a [Diagnostic] to emphasis/further explain the causes of the diagnostic.
 #[derive(PartialEq, Debug)]
 pub struct Observation {
+    /// Optional environment if the observation occurs on a different environment than the diagnostic's source 
+    /// if none, this observation will target its diagnostic.
+    pub foreign_env: Option<SourceObjectId>,
     /// Observed segment
     pub segment: SourceSegment,
     /// An optional help string to complete the observation
     pub help: Option<String>,
+    /// An optional tag to group observations
+    pub tag: Option<usize>,
 }
 
 impl Observation {
     pub fn new(segment: SourceSegment) -> Self {
         Self {
             segment,
+            foreign_env: None,
             help: None,
+            tag: None
         }
     }
+    
+    pub fn within(mut self, env: SourceObjectId) -> Self {
+        self.foreign_env = Some(env);
+        self
+    }
 
-    pub fn with_help(segment: SourceSegment, help: impl Into<String>) -> Self {
-        Self {
-            segment,
-            help: Some(help.into()),
-        }
+    pub fn with_help(mut self, help: impl Into<String>) -> Self {
+        self.help = Some(help.into());
+        self
+    }
+
+    pub fn with_tag(mut self, tag: usize) -> Self {
+        self.tag = Some(tag);
+        self
     }
 }
 
@@ -82,6 +97,8 @@ pub struct Diagnostic {
     pub observations: Vec<Observation>,
     /// Any tips to help the user understand and eventually fix the raised issue.
     pub helps: Vec<String>,
+    /// Any tips to help the user understand and eventually fix the raised issue.
+    pub notes: Vec<String>,
 }
 
 impl Diagnostic {
@@ -92,6 +109,7 @@ impl Diagnostic {
             global_message: msg.into(),
             observations: Vec::new(),
             helps: Vec::new(),
+            notes: Vec::new(),
         }
     }
 
@@ -107,6 +125,11 @@ impl Diagnostic {
 
     pub fn with_help(mut self, help: impl Into<String>) -> Self {
         self.helps.push(help.into());
+        self
+    }
+
+    pub fn with_note(mut self, note: impl Into<String>) -> Self {
+        self.notes.push(note.into());
         self
     }
 }

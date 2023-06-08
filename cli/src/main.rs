@@ -54,7 +54,7 @@ pub fn fix_ariadne_report(report_str: String) -> String {
     let mut did_skip_lines = false;
     for line in report_str.lines() {
 
-        if !line.starts_with(&blank_line) {
+        if !(line.starts_with(&blank_line) && line.chars().take(blank_line.len()).all(|c| c.is_whitespace())) {
             if did_skip_lines {
                 did_skip_lines = false;
                 fixed_report.push_str(&blank_line);

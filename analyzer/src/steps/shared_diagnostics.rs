@@ -19,7 +19,7 @@ pub fn diagnose_invalid_symbol(
 
     let mut observations: Vec<_> = segments
         .iter()
-        .map(|seg| Observation::new(seg.clone()))
+        .map(|seg| Observation::new(seg.clone()).with_tag(0))
         .collect();
     observations.sort_by_key(|s| s.segment.start);
 

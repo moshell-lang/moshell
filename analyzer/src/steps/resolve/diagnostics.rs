@@ -29,16 +29,16 @@ pub fn diagnose_invalid_symbol_from_dead_import(
 
     let mut segments: Vec<_> = segments
         .iter()
-        .map(|seg| Observation::new(seg.clone()))
+        .map(|seg| Observation::new(seg.clone()).with_tag(1))
         .collect();
 
     segments.sort_by_key(|s| s.segment.start);
 
     Diagnostic::new(DiagnosticID::InvalidSymbol, env_id, msg)
-        .with_observation(Observation::with_help(
-            invalid_import_seg,
-            "invalid import introduced here",
-        ))
+        .with_observation(
+            Observation::new(invalid_import_seg)
+                .with_help("invalid import introduced here")
+                .with_tag(0))
         .with_observations(segments)
 }
 
@@ -63,7 +63,7 @@ pub fn diagnose_unresolved_external_symbols(
             Symbol::Local(_) => false,
             Symbol::Global(g) => *g == relation.0,
         })
-        .map(|(seg, _)| Observation::new(seg.clone()))
+        .map(|(seg, _)| Observation::new(seg.clone()).with_tag(0))
         .collect();
 
     observations.sort_by_key(|s| s.segment.start);

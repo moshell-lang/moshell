@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io;
 
 use ariadne::{Color, ColorGenerator, Config, Label, Report, ReportKind};
@@ -12,6 +13,7 @@ pub fn render_diagnostic(
 ) -> io::Result<String> {
     let mut colors = ColorGenerator::new();
 
+    let mut colormap: HashMap<usize, Color> = HashMap::new();
     let source_name = source_code.name;
 
 
@@ -26,7 +28,12 @@ pub fn render_diagnostic(
         .into_iter()
         .map(|o| {
             let mut label = Label::new((source_name, o.segment))
-                .with_color(colors.next());
+                .with_color(o.tag.map(|tag| {
+                    *colormap
+                        .entry(tag)
+                        .or_insert_with(|| colors.next())
+                }).unwrap_or_else(|| colors.next()));
+
             if let Some(help) = o.help {
                 label = label.with_message(help)
             }
@@ -45,6 +52,18 @@ pub fn render_diagnostic(
         }
     }
 
+    let mut note = None;
+    if let Some((head, tail)) = diagnostic.notes.split_first() {
+        note = if tail.is_empty() {
+            Some(head.clone())
+        } else {
+            let notes_agg = tail.iter().fold(format!("\n- {head}"), |acc, note| {
+                format!("{acc}\n- {note}")
+            });
+            Some(notes_agg)
+        }
+    }
+
 
     let mut builder = Report::build(ReportKind::Custom(&code, color), source_name, 0)
         .with_config(
@@ -57,6 +76,10 @@ pub fn render_diagnostic(
 
     if let Some(help) = help {
         builder = builder.with_help(help)
+    }
+
+    if let Some(note) = note {
+        builder = builder.with_note(note)
     }
 
     let mut buf = Vec::new();
