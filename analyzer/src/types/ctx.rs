@@ -7,36 +7,43 @@ use std::collections::HashMap;
 ///
 /// The actual type definition is in the [`crate::types::Typing`] struct.
 pub struct TypeContext {
-    pub(crate) source: SourceObjectId,
     names: HashMap<String, TypeId>,
     locals: HashMap<SourceObjectId, Vec<TypeId>>,
 }
 
 impl TypeContext {
-    pub(crate) fn lang() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
-            source: SourceObjectId(0),
-            names: HashMap::from([
-                ("Nothing".to_owned(), NOTHING),
-                ("Bool".to_owned(), BOOL),
-                ("Int".to_owned(), INT),
-                ("Float".to_owned(), FLOAT),
-                ("String".to_owned(), STRING),
-            ]),
+            names: HashMap::new(),
             locals: HashMap::new(),
         }
     }
 
-    /// Updates the context to prepare for a new source object.
-    pub(crate) fn prepare(&mut self, source: SourceObjectId) {
-        self.source = source;
-        self.locals.insert(source, Vec::new());
+    pub(crate) fn lang() -> Self {
+        let mut ctx = Self::new();
+        ctx.fill_lang();
+        ctx
+    }
+
+    pub(crate) fn fill_lang(&mut self) {
+        self.names.extend([
+            ("Nothing".to_owned(), NOTHING),
+            ("Bool".to_owned(), BOOL),
+            ("Int".to_owned(), INT),
+            ("Float".to_owned(), FLOAT),
+            ("String".to_owned(), STRING),
+        ]);
     }
 
     /// Returns the type id of a symbol.
-    pub(crate) fn get(&self, relations: &Relations, symbol: Symbol) -> Option<TypeId> {
+    pub(crate) fn get(
+        &self,
+        relations: &Relations,
+        source: SourceObjectId,
+        symbol: Symbol,
+    ) -> Option<TypeId> {
         match symbol {
-            Symbol::Local(index) => self.locals.get(&self.source).unwrap().get(index).copied(),
+            Symbol::Local(index) => self.locals.get(&source).unwrap().get(index).copied(),
             Symbol::Global(index) => {
                 let resolved = relations.objects[index]
                     .resolved
@@ -53,8 +60,8 @@ impl TypeContext {
     /// Defines the type of a currently explored symbol.
     ///
     /// This must be in sync with the symbol in the environment.
-    pub(crate) fn push_local_type(&mut self, type_id: TypeId) {
-        self.locals.get_mut(&self.source).unwrap().push(type_id);
+    pub(crate) fn push_local_type(&mut self, source: SourceObjectId, type_id: TypeId) {
+        self.locals.entry(source).or_default().push(type_id);
     }
 
     /// Finds the type from an annotation.

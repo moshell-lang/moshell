@@ -45,7 +45,7 @@ pub fn apply_types(
 /// A state holder, used to informs the type checker about what should be
 /// checked.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-struct TypingState {
+pub(self) struct TypingState {
     source: SourceObjectId,
     local_type: bool,
 }
@@ -76,12 +76,12 @@ fn apply_types_to_source(
     let source_id = state.source;
     let expr = engine.get_expression(source_id).unwrap();
     let env = engine.get_environment(source_id).unwrap();
-    exploration.prepare(source_id);
+    exploration.prepare();
     match expr {
         Expr::FunctionDeclaration(func) => {
             for param in &func.parameters {
                 let param = type_parameter(&exploration.ctx, param);
-                exploration.ctx.push_local_type(param.ty);
+                exploration.ctx.push_local_type(state.source, param.ty);
             }
             let typed_expr = ascribe_types(
                 exploration,
@@ -91,7 +91,7 @@ fn apply_types_to_source(
                 &func.body,
                 state.with_local_type(),
             );
-            let return_type = infer_return(func, &typed_expr, diagnostics, exploration);
+            let return_type = infer_return(func, &typed_expr, diagnostics, exploration, state);
             Chunk::function(
                 typed_expr,
                 func.parameters
@@ -151,7 +151,9 @@ fn ascribe_types(
                     ))
                 })
                 .expect("Variables without initializers are not supported yet");
-            exploration.ctx.push_local_type(initializer.ty);
+            exploration
+                .ctx
+                .push_local_type(state.source, initializer.ty);
             if let Some(type_annotation) = &decl.var.ty {
                 let expected_type = exploration.ctx.resolve(type_annotation).unwrap_or(ERROR);
                 if expected_type == ERROR {
@@ -202,7 +204,10 @@ fn ascribe_types(
         }
         Expr::VarReference(var) => {
             let symbol = env.get_raw_symbol(var.segment.clone()).unwrap();
-            let type_id = exploration.ctx.get(relations, symbol).unwrap();
+            let type_id = exploration
+                .ctx
+                .get(relations, state.source, symbol)
+                .unwrap();
             TypedExpr {
                 kind: ExprKind::Reference {
                     name: var.name.to_owned(),
@@ -257,7 +262,7 @@ fn ascribe_types(
         Expr::FunctionDeclaration(fun) => {
             let declaration = env.get_raw_env(fun.segment.clone()).unwrap();
             let type_id = exploration.typing.add_type(Type::Function(declaration));
-            exploration.ctx.push_local_type(type_id);
+            exploration.ctx.push_local_type(state.source, type_id);
 
             // Forward declare the function
             let parameters = fun
@@ -402,6 +407,7 @@ fn ascribe_types(
                 diagnostics,
                 exploration,
                 relations,
+                state,
             );
             TypedExpr {
                 kind: ExprKind::FunctionCall {

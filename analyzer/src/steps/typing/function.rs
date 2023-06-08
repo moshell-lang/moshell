@@ -1,6 +1,7 @@
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::relations::{Relations, Symbol};
 use crate::steps::typing::exploration::Exploration;
+use crate::steps::typing::TypingState;
 use crate::types::ctx::TypeContext;
 use crate::types::hir::{ExprKind, TypeId, TypedExpr};
 use crate::types::ty::{Parameter, Type};
@@ -20,11 +21,12 @@ pub(crate) struct Return {
 ///
 /// This verifies the type annotation if present against all the return types,
 /// or try to guess the return type.
-pub(crate) fn infer_return(
+pub(super) fn infer_return(
     func: &FunctionDeclaration,
     typed_func: &TypedExpr,
     diagnostics: &mut Vec<Diagnostic>,
     exploration: &mut Exploration,
+    state: TypingState,
 ) -> TypeId {
     let last = get_last_segment(typed_func);
     // If the last statement is a return, we don't need re-add it
@@ -51,7 +53,7 @@ pub(crate) fn infer_return(
             diagnostics.push(
                 Diagnostic::new(
                     DiagnosticID::UnknownType,
-                    exploration.ctx.source,
+                    state.source,
                     "Unknown type annotation",
                 )
                 .with_observation(Observation::with_help(
@@ -63,22 +65,18 @@ pub(crate) fn infer_return(
             for ret in &exploration.returns {
                 if exploration.typing.unify(type_annotation, ret.ty).is_err() {
                     diagnostics.push(
-                        Diagnostic::new(
-                            DiagnosticID::TypeMismatch,
-                            exploration.ctx.source,
-                            "Type mismatch",
-                        )
-                        .with_observation(Observation::with_help(
-                            ret.segment.clone(),
-                            format!("Found `{}`", exploration.get_type(ret.ty).unwrap()),
-                        ))
-                        .with_observation(Observation::with_help(
-                            return_type_annotation.segment(),
-                            format!(
-                                "Expected `{}` because of return type",
-                                exploration.get_type(type_annotation).unwrap()
-                            ),
-                        )),
+                        Diagnostic::new(DiagnosticID::TypeMismatch, state.source, "Type mismatch")
+                            .with_observation(Observation::with_help(
+                                ret.segment.clone(),
+                                format!("Found `{}`", exploration.get_type(ret.ty).unwrap()),
+                            ))
+                            .with_observation(Observation::with_help(
+                                return_type_annotation.segment(),
+                                format!(
+                                    "Expected `{}` because of return type",
+                                    exploration.get_type(type_annotation).unwrap()
+                                ),
+                            )),
                     );
                 }
             }
@@ -96,7 +94,7 @@ pub(crate) fn infer_return(
                 diagnostics.push(
                     Diagnostic::new(
                         DiagnosticID::CannotInfer,
-                        exploration.ctx.source,
+                        state.source,
                         "Return type inference is not supported yet",
                     )
                     .with_observation(Observation::with_help(
@@ -111,7 +109,7 @@ pub(crate) fn infer_return(
                 diagnostics.push(
                     Diagnostic::new(
                         DiagnosticID::CannotInfer,
-                        exploration.ctx.source,
+                        state.source,
                         "Failed to infer return type",
                     )
                     .with_observation(Observation::with_help(
@@ -136,7 +134,7 @@ pub(crate) fn infer_return(
             diagnostics.push(
                 Diagnostic::new(
                     DiagnosticID::CannotInfer,
-                    exploration.ctx.source,
+                    state.source,
                     "Return type is not inferred for block functions",
                 )
                 .with_observations(observations)
@@ -148,15 +146,19 @@ pub(crate) fn infer_return(
 }
 
 /// Checks the type of a call expression.
-pub(crate) fn type_call(
+pub(super) fn type_call(
     call: &ProgrammaticCall,
     arguments: &[TypedExpr],
     symbol: Symbol,
     diagnostics: &mut Vec<Diagnostic>,
     exploration: &mut Exploration,
     relations: &Relations,
+    state: TypingState,
 ) -> TypeId {
-    let type_id = exploration.ctx.get(relations, symbol).unwrap();
+    let type_id = exploration
+        .ctx
+        .get(relations, state.source, symbol)
+        .unwrap();
     match exploration.get_type(type_id).unwrap() {
         Type::Function(declaration) => {
             let entry = exploration.engine.get(*declaration).unwrap();
@@ -166,7 +168,7 @@ pub(crate) fn type_call(
                 diagnostics.push(
                     Diagnostic::new(
                         DiagnosticID::TypeMismatch,
-                        exploration.ctx.source,
+                        state.source,
                         format!(
                             "This function takes {} {} but {} were supplied",
                             parameters.len(),
@@ -186,7 +188,7 @@ pub(crate) fn type_call(
                         diagnostics.push(
                             Diagnostic::new(
                                 DiagnosticID::TypeMismatch,
-                                exploration.ctx.source,
+                                state.source,
                                 "Type mismatch",
                             )
                             .with_observation(Observation::with_help(
@@ -211,7 +213,7 @@ pub(crate) fn type_call(
             diagnostics.push(
                 Diagnostic::new(
                     DiagnosticID::TypeMismatch,
-                    exploration.ctx.source,
+                    state.source,
                     "Cannot invoke non function type",
                 )
                 .with_observation(Observation::with_help(
