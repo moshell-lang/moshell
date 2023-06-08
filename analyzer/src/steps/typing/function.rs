@@ -1,7 +1,7 @@
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::relations::{Relations, Symbol};
+use crate::steps::typing::exploration::Exploration;
 use crate::types::ctx::TypeContext;
-use crate::types::exploration::Exploration;
 use crate::types::hir::{ExprKind, TypeId, TypedExpr};
 use crate::types::ty::{Parameter, Type};
 use crate::types::{ERROR, NOTHING, STRING};
@@ -31,10 +31,9 @@ pub(crate) fn infer_return(
     if exploration
         .returns
         .last()
-        .map(|ret| ret.segment != last.segment.clone())
+        .map(|ret| ret.segment != last.segment)
         .unwrap_or(true)
-        && (last.ty.is_something()
-            || !exploration.returns.is_empty() && func.return_type.as_ref().is_none())
+        && (last.ty.is_something() || !exploration.returns.is_empty() && func.return_type.is_none())
     {
         exploration.returns.push(Return {
             ty: typed_func.ty,

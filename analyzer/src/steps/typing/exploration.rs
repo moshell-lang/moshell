@@ -1,11 +1,12 @@
 use crate::relations::SourceObjectId;
+use crate::steps::typing::function::Return;
 use crate::types::ctx::TypeContext;
 use crate::types::engine::TypedEngine;
-use crate::types::function::Return;
 use crate::types::hir::TypeId;
 use crate::types::ty::Type;
 use crate::types::Typing;
 
+/// The support for type analysis.
 pub(crate) struct Exploration {
     pub(crate) engine: TypedEngine,
     pub(crate) typing: Typing,

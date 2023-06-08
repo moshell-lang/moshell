@@ -3,16 +3,19 @@ use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::relations::{Relations, SourceObjectId};
+use crate::steps::typing::exploration::Exploration;
+use crate::steps::typing::function::{infer_return, type_call, type_parameter, Return};
 use crate::types::ctx::TypeContext;
 use crate::types::engine::{Chunk, TypedEngine};
-use crate::types::exploration::Exploration;
-use crate::types::function::{infer_return, type_call, type_parameter, Return};
 use crate::types::hir::{ExprKind, TypedExpr};
 use crate::types::ty::Type;
 use crate::types::{Typing, ERROR, FLOAT, INT, NOTHING, STRING};
 use ast::value::LiteralValue;
 use ast::Expr;
 use context::source::SourceSegmentHolder;
+
+mod exploration;
+mod function;
 
 pub fn apply_types(
     engine: &Engine,

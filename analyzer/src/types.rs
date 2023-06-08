@@ -4,13 +4,13 @@ use std::collections::HashMap;
 
 pub mod ctx;
 pub mod engine;
-pub(crate) mod exploration;
-pub(crate) mod function;
 pub mod hir;
 pub mod ty;
 
+/// Holds all the known types.
 #[derive(Default)]
 pub struct Typing {
+    /// The actual types.
     types: Vec<Type>,
 
     /// A list of implicit conversions from one type to another.

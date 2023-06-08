@@ -96,10 +96,11 @@ impl Environment {
     }
 
     /// Maps the declaring environment of a segment.
-    pub fn declare(&mut self, segment: &impl SourceSegmentHolder, symbol: SourceObjectId) {
-        self.declarations.insert(segment.segment(), symbol);
+    pub fn bind_source(&mut self, segment: &impl SourceSegmentHolder, source: SourceObjectId) {
+        self.declarations.insert(segment.segment(), source);
     }
 
+    /// Iterates over the segments that maps to a symbol.
     pub fn list_definitions(&self) -> impl Iterator<Item = (&SourceSegment, &Symbol)> {
         self.definitions.iter()
     }

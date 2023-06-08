@@ -49,7 +49,7 @@ impl Display for Type {
             Type::Int => write!(f, "Int"),
             Type::Float => write!(f, "Float"),
             Type::String => write!(f, "String"),
-            Type::Function(id) => write!(f, "fn#{}", id.0),
+            Type::Function(id) => write!(f, "fun#{}", id.0),
         }
     }
 }

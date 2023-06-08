@@ -3,6 +3,9 @@ use crate::types::hir::TypeId;
 use crate::types::{BOOL, FLOAT, INT, NOTHING, STRING};
 use std::collections::HashMap;
 
+/// Holds the symbol to type mapping.
+///
+/// The actual type definition is in the [`crate::types::Typing`] struct.
 pub struct TypeContext {
     pub(crate) source: SourceObjectId,
     names: HashMap<String, TypeId>,
@@ -54,6 +57,7 @@ impl TypeContext {
         self.locals.get_mut(&self.source).unwrap().push(type_id);
     }
 
+    /// Finds the type from an annotation.
     pub(crate) fn resolve(&self, type_annotation: &ast::r#type::Type) -> Option<TypeId> {
         match type_annotation {
             ast::r#type::Type::Parametrized(param) => {
