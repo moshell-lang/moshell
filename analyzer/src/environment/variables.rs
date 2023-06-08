@@ -50,16 +50,6 @@ impl Variables {
         self.externals.entry(name)
     }
 
-    /// Returns the local variable id associated with the given name
-    pub fn find_id(&self, name: &str) -> Option<ObjectId> {
-        self.locals
-            .vars
-            .iter()
-            .rev()
-            .position(|var| var.name == name)
-            .map(|idx| self.locals.vars.len() - 1 - idx)
-    }
-
     /// Gets the local identifier associated with an already known name.
     ///
     /// The lookup uses the current scope, which is frequently updated during the collection phase.

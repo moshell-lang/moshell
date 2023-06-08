@@ -96,6 +96,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         'capture: for (name, object_id) in capture_env.variables.external_vars() {
             for (pos, (env_id, env)) in env_stack.iter().rev().enumerate() {
                 if let Some(local) = env.variables.get_reachable(name.root()) {
+                    let object = &mut relations.objects[object_id.0];
                     if name.is_qualified() {
                         let erroneous_capture =
                             env_stack.iter().rev().take(pos + 1).map(|(_, s)| *s);
@@ -110,13 +111,13 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                             object_id.0,
                         );
                         diagnostics.push(diagnostic);
-                        relations.objects[object_id.0].state = ObjectState::Dead;
+                        object.state = ObjectState::Dead;
                     } else {
                         let symbol = ResolvedSymbol {
                             source: *env_id,
                             object_id: local,
                         };
-                        relations.objects[object_id.0].state = ObjectState::Resolved(symbol);
+                        object.state = ObjectState::Resolved(symbol);
                     }
                     continue 'capture;
                 }
@@ -170,10 +171,10 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         // As we could not resolve the symbol using imports, try to find the symbol from
         // an absolute qualified name
         let env_name = name.tail().unwrap_or(name.clone());
-        let env_result = get_mod_from_absolute(engine, &env_name);
+        let env_result = engine.find_environment_by_name(&env_name);
 
         if let Some((env_id, env)) = env_result {
-            let resolved_pos = env.variables.find_id(name.simple_name());
+            let resolved_pos = env.variables.get_exported(name.simple_name());
 
             if let Some(symbol_pos) = resolved_pos {
                 let symbol = ResolvedSymbol::new(env_id, symbol_pos);
@@ -205,10 +206,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                     .get_environment(*resolved_module)
                     .expect("resolved import points to an unknown environment");
 
-                let resolved_pos = env
-                    .variables
-                    .exported_vars()
-                    .position(|v| v.name == name.simple_name());
+                let resolved_pos = env.variables.get_exported(name.simple_name());
 
                 if let Some(symbol_pos) = resolved_pos {
                     return SymbolResolutionResult::Resolved(ResolvedSymbol::new(
@@ -241,7 +239,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                     qualified_name: name,
                 } => {
                     // try to get referenced module of the import
-                    let result = get_mod_from_relatives(imports, &name, engine);
+                    let result = get_mod_from_absolute(engine, &name);
                     match result {
                         // if the environment wasn't found, attempt to resolve it in next cycle
                         None => {
@@ -299,7 +297,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                 //if the unresolved import is an 'AllIn' import, meaning that it imports all symbols from given module
                 UnresolvedImport::AllIn(name) => {
                     // try to get referenced environment of the import
-                    match get_mod_from_relatives(imports, &name, engine) {
+                    match get_mod_from_absolute(engine, &name) {
                         None => {
                             // if the environment wasn't found, and its name was already known, push a diagnostic as it does not exists
                             let diagnostic =
@@ -442,33 +440,6 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
             }
         }
     }
-}
-
-fn get_mod_from_relatives<'a>(
-    imports: &SourceImports,
-    name: &Name,
-    engine: &'a Engine,
-) -> Option<(SourceObjectId, &'a Environment)> {
-    let name_parts = name.parts();
-    let (name_root, name_parts) = name_parts.split_first().unwrap(); //name_parts cannot be empty
-
-    let target_env_id = match imports.get_import(name_root) {
-        Some(ResolvedImport::Dead) => return None, //if the import is found but dead, assume it's simply not found
-        Some(ResolvedImport::Symbol(symbol)) => symbol.source,
-        Some(ResolvedImport::Env(module)) => *module,
-        None => return get_mod_from_absolute(engine, name),
-    };
-
-    let base_env = engine
-        .get_environment(target_env_id)
-        .expect("import points to an unknown environment");
-    let base_fqn = base_env.fqn.clone();
-
-    let name_fq = (!name_parts.is_empty())
-        .then(|| base_fqn.appended(Name::from(name_parts)))
-        .unwrap_or(base_fqn);
-
-    get_mod_from_absolute(engine, &name_fq)
 }
 
 /// Gets a module environment from the given fully qualified name, then pop the name until it finds a valid environment.
@@ -658,7 +629,7 @@ mod tests {
             use math::PI
             use std::{io, foo}
             use std::*
-            use io::{input, output}
+            use std::io::{input, output}
         ";
 
         let mut engine = Engine::default();
@@ -718,14 +689,14 @@ mod tests {
                     (
                         UnresolvedImport::Symbol {
                             alias: None,
-                            qualified_name: Name::new("io::input"),
+                            qualified_name: Name::new("std::io::input"),
                         },
                         find_in(test_src, "input")
                     ),
                     (
                         UnresolvedImport::Symbol {
                             alias: None,
-                            qualified_name: Name::new("io::output"),
+                            qualified_name: Name::new("std::io::output"),
                         },
                         find_in(test_src, "output")
                     ),
@@ -759,7 +730,7 @@ mod tests {
                     (
                         "io".to_string(),
                         (
-                            ResolvedImport::Env(SourceObjectId(3)),
+                            ResolvedImport::Env(SourceObjectId(1)),
                             find_in(test_src, "io")
                         )
                     ),
@@ -770,35 +741,35 @@ mod tests {
                     (
                         "PI".to_string(),
                         (
-                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(6), 0)),
+                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(12), 0)),
                             find_in(test_src, "math::PI")
                         )
                     ),
                     (
                         "Bar".to_string(),
                         (
-                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(1), 1)),
+                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(7), 1)),
                             find_in(test_src, "std::*")
                         )
                     ),
                     (
                         "Foo".to_string(),
                         (
-                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(1), 0)),
+                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(7), 0)),
                             find_in(test_src, "std::*")
                         )
                     ),
                     (
                         "output".to_string(),
                         (
-                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(3), 0)),
+                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(1), 0)),
                             find_in(test_src, "output")
                         )
                     ),
                     (
                         "input".to_string(),
                         (
-                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(3), 1)),
+                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(1), 1)),
                             find_in(test_src, "input")
                         )
                     ),
@@ -1290,7 +1261,7 @@ mod tests {
         assert_eq!(diagnostics, vec![]);
 
         let diagnostics = SymbolResolver::resolve_symbols(
-            &mut engine,
+            &engine,
             &mut relations,
             &mut imports,
             &mut to_visit,
