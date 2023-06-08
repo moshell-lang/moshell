@@ -10,7 +10,6 @@ use ast::group::Block;
 use ast::Expr;
 use context::source::{OwnedSource, Source};
 use lexer::lexer::lex;
-use miette::GraphicalReportHandler;
 use parser::parse;
 use rustyline::config::Configurer;
 use rustyline::error::ReadlineError;
@@ -61,9 +60,9 @@ impl<'a> REPLImporter<'a> {
 
 /// Indefinitely prompts a new expression to the stdin,
 /// displaying back the errors if any and the formed AST
-pub fn repl(config: Configuration, handler: GraphicalReportHandler) {
-    let mut editor: REPLEditor =
-        DefaultEditor::new().expect("unable to instantiate terminal editor");
+pub fn repl(config: Configuration) {
+    let mut editor: REPLEditor = DefaultEditor::new()
+        .expect("unable to instantiate terminal editor");
     editor.set_color_mode(ColorMode::Enabled);
     editor.set_history_ignore_dups(true).unwrap();
     editor.set_history_ignore_space(true);
@@ -86,7 +85,6 @@ pub fn repl(config: Configuration, handler: GraphicalReportHandler) {
             &mut importer,
             &mut imports,
             &mut relations,
-            &handler,
         );
     }
 }
@@ -119,10 +117,6 @@ fn parse_input(editor: &mut REPLEditor) -> OwnedSource {
             e => e.expect("error when reading next line from editor"),
         };
 
-        editor
-            .add_history_entry(line.clone())
-            .expect("terminal has no history");
-
         indent_prefix = strip_indent(&mut line);
 
         content.push_str(&line);
@@ -140,6 +134,10 @@ fn parse_input(editor: &mut REPLEditor) -> OwnedSource {
             continue; // Silently ignore incomplete input
         }
 
+        editor
+            .add_history_entry(source.source.to_string())
+            .expect("terminal has no history");
+
         return OwnedSource::new(source.source.to_string(), source.name.to_string());
     }
 }
@@ -153,7 +151,6 @@ fn handle_source<'e>(
     importer: &mut REPLImporter<'e>,
     imports: &mut Imports,
     relations: &mut Relations,
-    handler: &GraphicalReportHandler,
 ) -> bool {
     let source = importer.take_source(source);
     let name = Name::new(source.name);
@@ -169,7 +166,7 @@ fn handle_source<'e>(
 
     if !errors.is_empty() {
         for error in errors {
-            let str = render_parse_error(error, handler, source)
+            let str = render_parse_error(source, error)
                 .expect("IO error when reporting diagnostics");
             eprintln!("{str}")
         }
@@ -191,7 +188,7 @@ fn handle_source<'e>(
 
     let had_errors = !diagnostics.is_empty();
     for diagnostic in diagnostics {
-        let str = render_diagnostic(source, diagnostic, handler)
+        let str = render_diagnostic(source, diagnostic)
             .expect("IO errors when reporting diagnostic");
         eprintln!("{str}")
     }

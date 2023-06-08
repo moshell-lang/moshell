@@ -2,7 +2,6 @@ use std::io;
 use std::ops::Deref;
 use std::path::PathBuf;
 
-use miette::GraphicalReportHandler;
 
 use analyzer::diagnostic::Diagnostic;
 use analyzer::engine::Engine;
@@ -25,7 +24,6 @@ pub(crate) fn run(
     source: PathBuf,
     working_dir: PathBuf,
     config: Configuration,
-    handler: GraphicalReportHandler,
 ) -> bool {
     let name = source.to_string_lossy();
     let mut name = name.deref().replace('/', "::");
@@ -42,12 +40,12 @@ pub(crate) fn run(
     let engine = result.engine;
 
     if !importer.errors.is_empty() {
-        display_import_errors(importer.errors, &handler);
+        display_import_errors(importer.errors);
         return true;
     }
 
     let had_errors = diagnostics.is_empty();
-    display_diagnostics(diagnostics, &engine, &importer, &handler);
+    display_diagnostics(diagnostics, &engine, &importer);
     visualize_outputs(importer, config);
     had_errors
 }
@@ -88,7 +86,7 @@ fn get_source_of<'a>(
     }
 }
 
-fn display_import_errors(errors: Vec<RunnerImporterError>, handler: &GraphicalReportHandler) {
+fn display_import_errors(errors: Vec<RunnerImporterError>) {
     for parse_error in errors {
         match parse_error {
             RunnerImporterError::IO(name, e) => {
@@ -96,9 +94,8 @@ fn display_import_errors(errors: Vec<RunnerImporterError>, handler: &GraphicalRe
             }
             RunnerImporterError::Parse(source, report) => {
                 for err in report.errors {
-                    let str = render_parse_error(err, handler, source)
+                    render_parse_error(source, err)
                         .expect("Could not display parse error");
-                    eprintln!("{str}")
                 }
             }
         }
@@ -109,12 +106,11 @@ fn display_diagnostics(
     diagnostics: Vec<Diagnostic>,
     engine: &Engine,
     importer: &RunnerImporter,
-    handler: &GraphicalReportHandler,
 ) {
     for diagnostic in diagnostics {
         let source = get_source_of(diagnostic.source, engine, importer);
         let str =
-            render_diagnostic(source, diagnostic, handler).expect("could not write in stderr");
+            render_diagnostic(source, diagnostic).expect("could not write in stderr");
         eprintln!("{str}")
     }
 }

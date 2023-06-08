@@ -1,54 +1,42 @@
-use std::fmt;
-use std::fmt::Display;
+use std::io;
 
-use miette::{Diagnostic, GraphicalReportHandler, SourceSpan};
-use thiserror::Error;
+use ariadne::{Color, Label, Report, ReportKind};
 
 use context::source::Source;
 use parser::err::{ParseError, ParseErrorKind};
-
-use crate::cli::offset_empty_span;
-
-#[derive(Error, Debug, Diagnostic)]
-struct FormattedParseError<'s> {
-    message: String,
-    #[source_code]
-    src: Source<'s>,
-    #[label("Here")]
-    cursor: SourceSpan,
-    #[label("Start")]
-    related: Option<SourceSpan>,
-    #[help]
-    help: Option<String>,
-}
-
-impl Display for FormattedParseError<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.message)
-    }
-}
+use crate::fix_ariadne_report;
 
 pub fn render_parse_error(
-    error: ParseError,
-    handler: &GraphicalReportHandler,
     source: Source,
-) -> Result<String, fmt::Error> {
-    let err = FormattedParseError {
-        message: error.message,
-        src: source,
-        cursor: offset_empty_span(error.position),
-        related: match &error.kind {
-            ParseErrorKind::Unpaired(pos) => Some(pos.clone().into()),
-            _ => None,
-        },
-        help: match &error.kind {
-            ParseErrorKind::Expected(expected) => Some(format!("Expected: {expected:?}")),
-            ParseErrorKind::UnexpectedInContext(help) => Some(help.clone()),
-            _ => None,
-        },
+    error: ParseError,
+) -> io::Result<String> {
+    let source_name = source.name;
+    let mut builder = Report::build(ReportKind::Error, source_name, 0)
+        .with_message(error.message)
+        .with_label(
+            Label::new((source_name, error.position))
+                .with_color(Color::Red)
+                .with_message("Here")
+        );
+
+    builder = match error.kind {
+        ParseErrorKind::Expected(e) => builder.with_help(format!("expected: {e}")),
+        ParseErrorKind::UnexpectedInContext(e) => builder.with_help(format!("{e}")),
+        ParseErrorKind::Unpaired(pos) => builder.with_label(
+            Label::new((source_name, pos))
+                .with_message("Start")
+                .with_color(Color::Green)
+                .with_order(1)
+        ),
+        _ => builder
     };
 
-    let mut buff = String::new();
+    let mut buf = Vec::new();
 
-    handler.render_report(&mut buff, &err).map(|_| buff)
+    builder
+        .finish()
+        .write_for_stdout((source_name, ariadne::Source::from(source.source)), &mut buf)?;
+
+    let str = fix_ariadne_report(String::from_utf8(buf).unwrap());
+    Ok(str)
 }

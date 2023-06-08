@@ -3,10 +3,8 @@ use std::path::PathBuf;
 use clap::Parser;
 use colored::Colorize;
 use dbg_pls::color;
-use miette::SourceSpan;
 
 use ast::Expr;
-use context::source::SourceSegment;
 use lexer::token::Token;
 
 #[derive(Parser, Debug, Clone)]
@@ -29,7 +27,7 @@ pub struct Cli {
     pub(crate) parser: bool,
 
     /// Activate analyzer relations visualisation
-    #[arg(short = 'A', long, default_value = "true")]
+    #[arg(short = 'A', long)]
     pub(crate) analyzer: bool,
 }
 
@@ -77,13 +75,5 @@ pub(crate) fn display_tokens(tokens: Vec<Token>) {
 pub(crate) fn display_exprs(exprs: &Vec<Expr>) {
     for expr in exprs {
         println!("{}", color(expr));
-    }
-}
-
-pub fn offset_empty_span(span: SourceSegment) -> SourceSpan {
-    if span.start == span.end {
-        (span.start - 1..span.end).into()
-    } else {
-        span.into()
     }
 }

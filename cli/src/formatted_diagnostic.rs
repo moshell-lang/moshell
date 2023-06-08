@@ -1,72 +1,37 @@
-use std::fmt;
-use std::fmt::{Debug, Display, Error, Formatter};
+use std::io;
 
-use miette::{Diagnostic, GraphicalReportHandler, LabeledSpan, Severity, SourceCode};
+use ariadne::{Color, ColorGenerator, Config, Label, Report, ReportKind};
 
 use context::source::Source;
 
-use crate::cli::offset_empty_span;
-
-#[derive(Debug)]
-struct FormattedAnalyzerDiagnostic<'a> {
-    code: String,
-    severity: Severity,
-    help: Option<String>,
-    source_code: Source<'a>,
-    labels: Vec<LabeledSpan>,
-    message: String,
-}
-
-impl<'a> Display for FormattedAnalyzerDiagnostic<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.message)
-    }
-}
-
-impl std::error::Error for FormattedAnalyzerDiagnostic<'_> {}
-
-impl<'a> Diagnostic for FormattedAnalyzerDiagnostic<'a> {
-    fn code<'b>(&'b self) -> Option<Box<dyn Display + 'b>> {
-        Some(Box::new(&self.code))
-    }
-
-    fn severity(&self) -> Option<Severity> {
-        Some(self.severity)
-    }
-
-    fn help<'b>(&'b self) -> Option<Box<dyn Display + 'b>> {
-        self.help.as_ref().map(|s| Box::new(s) as Box<dyn Display>)
-    }
-
-    fn source_code(&self) -> Option<&dyn SourceCode> {
-        Some(&self.source_code)
-    }
-
-    fn labels(&self) -> Option<Box<dyn Iterator<Item = LabeledSpan> + '_>> {
-        Some(Box::new(self.labels.iter().cloned()))
-    }
-}
+use crate::fix_ariadne_report;
 
 pub fn render_diagnostic(
     source_code: Source,
     diagnostic: analyzer::diagnostic::Diagnostic,
-    handler: &GraphicalReportHandler,
-) -> Result<String, Error> {
+) -> io::Result<String> {
+    let mut colors = ColorGenerator::new();
+
+    let source_name = source_code.name;
+
+
+    let (code, color) = if diagnostic.identifier.critical() {
+        (format!("error[E{:04}]", diagnostic.identifier.code()), Color::Red)
+    } else {
+        (format!("warn[W{:04}]", diagnostic.identifier.code()), Color::Yellow)
+    };
+
     let labels = diagnostic
         .observations
         .into_iter()
-        .map(|obs| {
-            let span = offset_empty_span(obs.segment);
-            LabeledSpan::new(obs.help, span.offset(), span.len())
-        })
-        .collect();
-
-    let id = diagnostic.identifier;
-    let (code, severity) = if id.critical() {
-        (format!("error[E{:04}]", id.code()), Severity::Error)
-    } else {
-        (format!("warn[W{:04}]", id.code()), Severity::Warning)
-    };
+        .map(|o| {
+            let mut label = Label::new((source_name, o.segment))
+                .with_color(colors.next());
+            if let Some(help) = o.help {
+                label = label.with_message(help)
+            }
+            label
+        });
 
     let mut help = None;
     if let Some((head, tail)) = diagnostic.helps.split_first() {
@@ -80,14 +45,25 @@ pub fn render_diagnostic(
         }
     }
 
-    let diag = FormattedAnalyzerDiagnostic {
-        code,
-        source_code,
-        labels,
-        severity,
-        help,
-        message: diagnostic.global_message,
-    };
-    let mut str = String::new();
-    handler.render_report(&mut str, &diag).map(|_| str)
+
+    let mut builder = Report::build(ReportKind::Custom(&code, color), source_name, 0)
+        .with_config(
+            Config::default()
+                .with_compact(true)
+                .with_underlines(true)
+        )
+        .with_message(diagnostic.global_message)
+        .with_labels(labels);
+
+    if let Some(help) = help {
+        builder = builder.with_help(help)
+    }
+
+    let mut buf = Vec::new();
+    builder
+        .finish()
+        .write_for_stdout((source_name, ariadne::Source::from(source_code.source)), &mut buf)?;
+
+    let str = String::from_utf8(buf).unwrap();
+    Ok(fix_ariadne_report(str))
 }
