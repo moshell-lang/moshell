@@ -5,10 +5,11 @@ use ast::control_flow::ForKind;
 use ast::function::FunctionParameter;
 use ast::r#match::MatchPattern;
 use ast::r#use::Import as ImportExpr;
-use ast::range::Iterable;
+use ast::range;
 use ast::value::LiteralValue;
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
+use range::Iterable;
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
@@ -18,7 +19,8 @@ use crate::importer::ASTImporter;
 use crate::imports::{Imports, UnresolvedImport};
 use crate::name::Name;
 use crate::relations::{ObjectState, Relations, SourceObjectId, Symbol};
-use crate::steps::resolve::{diagnose_invalid_symbol, SymbolResolver};
+use crate::steps::resolve::SymbolResolver;
+use crate::steps::shared_diagnostics::diagnose_invalid_symbol;
 
 /// Defines the current state of the tree exploration.
 #[derive(Debug, Clone, Copy)]
