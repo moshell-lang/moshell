@@ -19,7 +19,8 @@ use crate::importer::ASTImporter;
 use crate::imports::{Imports, UnresolvedImport};
 use crate::name::Name;
 use crate::relations::{ObjectState, Relations, SourceObjectId, Symbol};
-use crate::steps::resolve::{diagnose_invalid_symbol, SymbolResolver};
+use crate::steps::resolve::SymbolResolver;
+use crate::steps::shared_diagnostics::diagnose_invalid_symbol;
 
 /// Defines the current state of the tree exploration.
 #[derive(Debug, Clone, Copy)]
