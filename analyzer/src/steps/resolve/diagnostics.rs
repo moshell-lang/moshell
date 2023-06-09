@@ -51,7 +51,7 @@ pub fn diagnose_unresolved_external_symbols(
     env: &Environment,
     name: &Name,
 ) -> Diagnostic {
-    let mut diagnostic = Diagnostic::new(
+    let diagnostic = Diagnostic::new(
         DiagnosticID::UnknownSymbol,
         env_id,
         format!("Could not resolve symbol `{name}`."),
@@ -67,9 +67,7 @@ pub fn diagnose_unresolved_external_symbols(
         .collect();
 
     observations.sort_by_key(|s| s.segment.start);
-    diagnostic.observations = observations;
-
-    diagnostic
+    diagnostic.with_observations(observations)
 }
 
 /// Appends a diagnostic for an import that could not be resolved.
