@@ -51,6 +51,7 @@ pub(self) struct TypingState {
 }
 
 impl TypingState {
+    /// Creates a new initial state, for a script.
     fn new(source: SourceObjectId) -> Self {
         Self {
             source,
@@ -58,9 +59,18 @@ impl TypingState {
         }
     }
 
+    /// Returns a new state that should track local returns.
     fn with_local_type(self) -> Self {
         Self {
             local_type: true,
+            ..self
+        }
+    }
+
+    /// Returns a new state that indicates to not track local returns.
+    fn without_local_type(self) -> Self {
+        Self {
+            local_type: false,
             ..self
         }
     }
@@ -215,12 +225,27 @@ fn ascribe_types(
             }
         }
         Expr::Block(block) => {
-            let expressions = block
-                .expressions
-                .iter()
-                .filter(|expr| !matches!(expr, Expr::Use(_)))
-                .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
-                .collect::<Vec<_>>();
+            let mut expressions = Vec::with_capacity(block.expressions.len());
+            if let Some((last, exprs)) = block.expressions.split_last() {
+                for expr in exprs {
+                    expressions.push(ascribe_types(
+                        exploration,
+                        relations,
+                        diagnostics,
+                        env,
+                        expr,
+                        state.without_local_type(),
+                    ));
+                }
+                expressions.push(ascribe_types(
+                    exploration,
+                    relations,
+                    diagnostics,
+                    env,
+                    last,
+                    state,
+                ));
+            }
             let ty = expressions.last().map(|expr| expr.ty).unwrap_or(NOTHING);
             TypedExpr {
                 kind: ExprKind::Block(expressions),
@@ -549,6 +574,13 @@ mod tests {
     #[test]
     fn function_return_type() {
         let res = extract_type(Source::unknown("fun one() -> Int = 1\none()"));
+        assert_eq!(res, Ok(Type::Int));
+    }
+
+    #[test]
+    fn local_type_only_at_end_of_block() {
+        let content = "fun test() -> Int = {if false; 5; else {}; 4}; test()";
+        let res = extract_type(Source::unknown(content));
         assert_eq!(res, Ok(Type::Int));
     }
 
