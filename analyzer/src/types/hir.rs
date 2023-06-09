@@ -29,9 +29,9 @@ impl TypeId {
 /// A type checked expression attached to a source segment.
 #[derive(Debug, PartialEq)]
 pub struct TypedExpr {
-    pub(crate) kind: ExprKind,
-    pub(crate) ty: TypeId,
-    pub(crate) segment: SourceSegment,
+    pub kind: ExprKind,
+    pub ty: TypeId,
+    pub segment: SourceSegment,
 }
 
 impl SourceSegmentHolder for TypedExpr {

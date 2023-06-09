@@ -1,20 +1,23 @@
 use std::collections::HashMap;
+use std::fs::File;
 use std::io::stderr;
 use std::path::PathBuf;
+use std::process::exit;
 
 use crate::report::{display_diagnostic, display_parse_error};
 use analyzer::engine::Engine;
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
-use analyzer::relations::Relations;
+use analyzer::relations::{Relations, SourceObjectId};
 use analyzer::steps::collect::SymbolCollector;
 use analyzer::steps::resolve::SymbolResolver;
 use analyzer::steps::typing::apply_types;
 use ast::group::Block;
 use ast::Expr;
 use clap::Parser;
+use compiler::bytecode::Bytecode;
+use compiler::{emit, write};
 use context::source::Source;
-use dbg_pls::color;
 use parser::parse;
 
 #[derive(Parser)]
@@ -56,7 +59,7 @@ pub fn handle_source(source: Source) -> bool {
         return true;
     }
 
-    println!("{}", color(&report.expr));
+    //println!("{}", color(&report.expr));
 
     let expr = Expr::Block(Block {
         expressions: report.expr,
@@ -70,7 +73,15 @@ pub fn handle_source(source: Source) -> bool {
         SymbolCollector::collect_symbols(&mut engine, &mut relations, name, &mut importer);
     diagnostics.extend(SymbolResolver::resolve_symbols(&engine, &mut relations));
     if diagnostics.is_empty() {
-        apply_types(&engine, &relations, &mut diagnostics);
+        let ty = apply_types(&engine, &relations, &mut diagnostics);
+        if diagnostics.is_empty() {
+            let mut emitter = Bytecode::default();
+            emit(&mut emitter, &ty.get(SourceObjectId(0)).unwrap().expression);
+            let mut shellcode = File::create("shellcode.bin").expect("creation failed");
+            write(&mut shellcode, emitter).expect("write failed");
+            println!("Successfully compiled to shellcode.bin");
+            exit(0);
+        }
     }
 
     let mut stdout = stderr();

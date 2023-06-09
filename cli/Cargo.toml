@@ -10,6 +10,7 @@ context = { path = "../context", features = ["miette"] }
 parser = { path = "../parser" }
 analyzer = { path = "../analyzer" }
 ast = { path = "../ast" }
+compiler = { path = "../compiler" }
 
 miette = { version = "5.9.0", features = ["fancy"] }
 thiserror = "1.0.38"
