@@ -1,4 +1,4 @@
-use crate::relations::{Relations, SourceObjectId, Symbol};
+use crate::relations::{ObjectId, Relations, SourceObjectId, Symbol};
 use crate::types::hir::TypeId;
 use crate::types::{BOOL, FLOAT, INT, NOTHING, STRING};
 use std::collections::HashMap;
@@ -60,8 +60,11 @@ impl TypeContext {
     /// Defines the type of a currently explored symbol.
     ///
     /// This must be in sync with the symbol in the environment.
-    pub(crate) fn push_local_type(&mut self, source: SourceObjectId, type_id: TypeId) {
-        self.locals.entry(source).or_default().push(type_id);
+    pub(crate) fn push_local_type(&mut self, source: SourceObjectId, type_id: TypeId) -> ObjectId {
+        let locals = self.locals.entry(source).or_default();
+        let index = locals.len();
+        locals.push(type_id);
+        index
     }
 
     /// Finds the type from an annotation.
@@ -69,12 +72,12 @@ impl TypeContext {
         match type_annotation {
             ast::r#type::Type::Parametrized(param) => {
                 if !param.path.is_empty() || !param.params.is_empty() {
-                    return None;
+                    unimplemented!();
                 }
                 self.names.get(param.name).copied()
             }
-            ast::r#type::Type::Callable(_) => None,
-            ast::r#type::Type::ByName(_) => None,
+            ast::r#type::Type::Callable(_) => unimplemented!(),
+            ast::r#type::Type::ByName(_) => unimplemented!(),
         }
     }
 }

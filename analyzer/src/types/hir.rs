@@ -49,7 +49,7 @@ pub enum ExprKind {
         rhs: Box<TypedExpr>,
     },
     Declare {
-        identifier: Symbol,
+        identifier: ObjectId,
         value: Option<Box<TypedExpr>>,
     },
     Reference(Symbol),

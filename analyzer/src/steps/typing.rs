@@ -161,7 +161,7 @@ fn ascribe_types(
                     ))
                 })
                 .expect("Variables without initializers are not supported yet");
-            exploration
+            let id = exploration
                 .ctx
                 .push_local_type(state.source, initializer.ty);
             if let Some(type_annotation) = &decl.var.ty {
@@ -205,7 +205,7 @@ fn ascribe_types(
             }
             TypedExpr {
                 kind: ExprKind::Declare {
-                    identifier: env.get_raw_symbol(decl.segment.clone()).unwrap(),
+                    identifier: id,
                     value: Some(initializer),
                 },
                 ty: NOTHING,
@@ -285,7 +285,7 @@ fn ascribe_types(
         Expr::FunctionDeclaration(fun) => {
             let declaration = env.get_raw_env(fun.segment.clone()).unwrap();
             let type_id = exploration.typing.add_type(Type::Function(declaration));
-            exploration.ctx.push_local_type(state.source, type_id);
+            let local_id = exploration.ctx.push_local_type(state.source, type_id);
 
             // Forward declare the function
             let parameters = fun
@@ -312,7 +312,7 @@ fn ascribe_types(
             );
             TypedExpr {
                 kind: ExprKind::Declare {
-                    identifier: env.get_raw_symbol(fun.segment.clone()).unwrap(),
+                    identifier: local_id,
                     value: None,
                 },
                 ty: NOTHING,
