@@ -1,15 +1,18 @@
 use analyzer::engine::Engine;
 use analyzer::environment::variables::Variable;
 use analyzer::importer::StaticImporter;
+use analyzer::imports::Imports;
 use analyzer::name::Name;
 use analyzer::relations::{
-    GlobalObjectId, Object, Relations, ResolvedSymbol, SourceObjectId, Symbol,
+    GlobalObjectId, Object, ObjectState, Relations, ResolvedSymbol, SourceObjectId, Symbol,
 };
 use analyzer::steps::collect::SymbolCollector;
 use analyzer::steps::resolve::SymbolResolver;
 use context::source::Source;
 use context::str_find::{find_between, find_in};
 use parser::parse_trusted;
+use pretty_assertions::assert_eq;
+use std::collections::HashSet;
 
 #[test]
 fn collect_sample() {
@@ -19,6 +22,10 @@ fn collect_sample() {
     let lib_name = Name::new("lib");
     let mut engine = Engine::default();
     let mut relations = Relations::default();
+    let mut imports = Imports::default();
+
+    let mut to_visit = vec![root_name.clone()];
+    let mut visited = HashSet::new();
     let mut importer = StaticImporter::new(
         [
             (root_name.clone(), source),
@@ -32,11 +39,19 @@ fn collect_sample() {
     let diagnostics = SymbolCollector::collect_symbols(
         &mut engine,
         &mut relations,
-        root_name.clone(),
+        &mut imports,
+        &mut to_visit,
+        &mut visited,
         &mut importer,
     );
     assert_eq!(diagnostics, vec![]);
-    let diagnostics = SymbolResolver::resolve_symbols(&mut engine, &mut relations);
+    let diagnostics = SymbolResolver::resolve_symbols(
+        &engine,
+        &mut relations,
+        &mut imports,
+        &mut to_visit,
+        &mut visited,
+    );
     assert_eq!(diagnostics, vec![]);
     let root_env = engine
         .get_environment(SourceObjectId(0))
@@ -60,7 +75,7 @@ fn collect_sample() {
         &vec![
             Variable::scoped("n".to_owned(), 0),
             Variable::scoped("a".to_owned(), 1),
-            Variable::scoped("i".to_owned(), -2)
+            Variable::scoped("i".to_owned(), -2),
         ]
     );
     let exported = factorial_env.variables.exported_vars().collect::<Vec<_>>();
@@ -69,7 +84,9 @@ fn collect_sample() {
     let n_parameter = factorial_env
         .variables
         .get_reachable("n")
+        .map(Symbol::Local)
         .expect("Unable to get n symbol");
+
     assert_eq!(
         factorial_env.get_raw_symbol(find_in(content, "$n")),
         Some(n_parameter)
@@ -88,16 +105,16 @@ fn collect_sample() {
         .get_environment(SourceObjectId(2))
         .expect("Unable to get debug() environment");
     assert_eq!(debug_env.fqn, root_name.child("debug"));
-    let globals = debug_env.variables.external_vars().collect::<Vec<_>>();
-    assert_eq!(globals, vec![(&"LOG_FILE".to_owned(), GlobalObjectId(0))]);
+    let usages = debug_env.variables.external_vars().collect::<Vec<_>>();
+    assert_eq!(usages, vec![(&Name::new("LOG_FILE"), GlobalObjectId(0))]);
     assert_eq!(
         relations.objects[0],
         Object {
             origin: SourceObjectId(2),
-            resolved: Some(ResolvedSymbol {
-                module: SourceObjectId(6),
+            state: ObjectState::Resolved(ResolvedSymbol {
+                source: SourceObjectId(6),
                 object_id: 0,
-            })
+            }),
         }
     );
 
@@ -105,43 +122,44 @@ fn collect_sample() {
         .get_environment(SourceObjectId(4))
         .expect("Unable to get callback environment");
     assert_eq!(callback_env.fqn, root_name.child("main").child("callback"));
-    let globals = callback_env.variables.external_vars().collect::<Vec<_>>();
+    let mut globals = callback_env.variables.external_vars().collect::<Vec<_>>();
+    globals.sort_by_key(|(name, _)| *name);
     assert_eq!(
         globals,
         vec![
-            (&"count".to_owned(), GlobalObjectId(1)),
-            (&"factorial".to_owned(), GlobalObjectId(2)),
-            (&"n".to_owned(), GlobalObjectId(3))
+            (&Name::new("count"), GlobalObjectId(1)),
+            (&Name::new("factorial"), GlobalObjectId(2)),
+            (&Name::new("n"), GlobalObjectId(3)),
         ]
     );
     assert_eq!(
         relations.objects[1],
         Object {
             origin: SourceObjectId(4),
-            resolved: Some(ResolvedSymbol {
-                module: SourceObjectId(3),
+            state: ObjectState::Resolved(ResolvedSymbol {
+                source: SourceObjectId(3),
                 object_id: 0,
-            })
+            }),
         }
     );
     assert_eq!(
         relations.objects[2],
         Object {
             origin: SourceObjectId(4),
-            resolved: Some(ResolvedSymbol {
-                module: SourceObjectId(0),
+            state: ObjectState::Resolved(ResolvedSymbol {
+                source: SourceObjectId(0),
                 object_id: 0,
-            })
+            }),
         }
     );
     assert_eq!(
         relations.objects[3],
         Object {
             origin: SourceObjectId(4),
-            resolved: Some(ResolvedSymbol {
-                module: SourceObjectId(0),
+            state: ObjectState::Resolved(ResolvedSymbol {
+                source: SourceObjectId(0),
                 object_id: 3,
-            })
+            }),
         }
     );
 
@@ -149,5 +167,5 @@ fn collect_sample() {
         .get_environment(SourceObjectId(5))
         .expect("Unable to get lambda environment");
     let variables = lambda_env.variables.external_vars().collect::<Vec<_>>();
-    assert_eq!(variables, vec![(&"n".to_owned(), GlobalObjectId(4))]);
+    assert_eq!(variables, vec![(&Name::new("n"), GlobalObjectId(4))]);
 }

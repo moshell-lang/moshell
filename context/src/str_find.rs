@@ -5,11 +5,7 @@ use crate::source::SourceSegment;
 /// # Panics
 /// Panics if the needle is not found.
 pub fn find_in<'a>(source: &'a str, needle: &'a str) -> SourceSegment {
-    let start = match source.find(needle) {
-        Some(start) => start,
-        None => panic!("'{needle}' not found."),
-    };
-    start..start + needle.len()
+    find_in_nth(source, needle, 0)
 }
 
 /// Finds the byte segment of the nth match of needle in input source.
@@ -20,7 +16,7 @@ pub fn find_in_nth<'a>(source: &'a str, needle: &'a str, nth: usize) -> SourceSe
     let start = source
         .match_indices(needle)
         .nth(nth)
-        .expect("String not found.")
+        .unwrap_or_else(|| panic!("{nth}'nth '{needle}' not found."))
         .0;
     start..start + needle.len()
 }
