@@ -133,10 +133,11 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         self.resolve_trees(to_visit, visited);
     }
 
-    /// Iterates over remaining unresolved symbols
-    /// This resolution supports parent lookups if the resolution could not
+   /// Iterates over remaining unresolved symbols, and tries to resolve them by traversing the parent chain.
+    ///
+    /// This resolution should happen after all imports have been resolved in their respective environments,
+    /// to allow child environments to use imports from their parents.
     fn resolve_trees(&mut self, to_visit: &mut Vec<Name>, visited: &mut HashSet<Name>) {
-        //NOTE: the resolution does not insert new objects
         for (object_id, object) in self.relations.iter_mut() {
             if object.state != ObjectState::Unresolved {
                 continue;

@@ -216,6 +216,8 @@ impl Variable {
         }
     }
 
+    /// Returns `true` if the variable can be accessed externally, without being
+    /// captured.
     pub const fn is_exported(&self) -> bool {
         self.depth == -1
     }

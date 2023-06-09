@@ -14,10 +14,12 @@ impl Name {
         Self { parts }
     }
 
+    /// Tests if this name contains a path and a simple name.
     pub fn is_qualified(&self) -> bool {
         self.parts.len() != 1
     }
 
+    /// Creates a new Name from a path and a simple name.
     pub fn qualified(mut path: Vec<String>, name: String) -> Self {
         path.push(name);
         Self::from(path)
