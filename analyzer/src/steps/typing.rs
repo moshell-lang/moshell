@@ -450,28 +450,22 @@ mod tests {
     use super::*;
     use crate::importer::StaticImporter;
     use crate::name::Name;
-    use crate::steps::collect::SymbolCollector;
-    use crate::steps::resolve::SymbolResolver;
+    use crate::resolve_all;
     use crate::types::ty::Type;
     use context::source::Source;
     use context::str_find::find_in;
     use parser::parse_trusted;
 
     pub(crate) fn extract_type(source: Source) -> Result<Type, Vec<Diagnostic>> {
-        let mut engine = Engine::default();
-        let mut relations = Relations::default();
         let typing = Typing::lang();
         let name = Name::new(source.name);
-        let diagnostics = SymbolCollector::collect_symbols(
-            &mut engine,
-            &mut relations,
+        let result = resolve_all(
             name.clone(),
             &mut StaticImporter::new([(name, source)], parse_trusted),
         );
+        let mut diagnostics = result.diagnostics;
         assert_eq!(diagnostics, vec![]);
-        let mut diagnostics = SymbolResolver::resolve_symbols(&engine, &mut relations);
-        assert_eq!(diagnostics, vec![]);
-        let typed = apply_types(&engine, &relations, &mut diagnostics);
+        let typed = apply_types(&result.engine, &result.relations, &mut diagnostics);
         let expr = typed.get(SourceObjectId(0)).unwrap();
         if !diagnostics.is_empty() {
             return Err(diagnostics);
@@ -760,7 +754,7 @@ mod tests {
                 find_in(content, "fun test(n: Float) = "),
                 "No return type is specified"
             ))
-            .with_tip("Add -> Float to the function declaration")])
+            .with_help("Add -> Float to the function declaration")])
         );
     }
 
@@ -783,7 +777,9 @@ mod tests {
                 find_in(content, "$n"),
                 "Returning `Float`"
             ))
-            .with_tip("Try adding an explicit return type to the function")])
+            .with_help(
+                "Try adding an explicit return type to the function"
+            )])
         );
     }
 
@@ -802,7 +798,9 @@ mod tests {
                 find_in(content, "fun test() = if false; return 5; else {}"),
                 "This function returns multiple types"
             ))
-            .with_tip("Try adding an explicit return type to the function")])
+            .with_help(
+                "Try adding an explicit return type to the function"
+            )])
         );
     }
 }

@@ -10,34 +10,47 @@ pub enum DiagnosticID {
     #[assoc(critical = true)]
     UnsupportedFeature,
 
+    /// An import could not be resolved
     #[assoc(code = 2)]
-    #[assoc(critical = true)]
-    CannotImport,
-
-    #[assoc(code = 3)]
     #[assoc(critical = true)]
     ImportResolution,
 
-    #[assoc(code = 4)]
+    /// A symbol is unknown as it could not be resolved
+    #[assoc(code = 3)]
     #[assoc(critical = true)]
     UnknownSymbol,
 
+    /// A symbol is invalid as it cannot be accessed in any way
+    /// (for example, a symbol into a function, or in a variable)
+    #[assoc(code = 4)]
+    #[assoc(critical = true)]
+    InvalidSymbol,
+
+    /// There is a `use` statement between two expressions,
+    /// `use` needs to be declared before any expressions in an environment.
     #[assoc(code = 5)]
     #[assoc(critical = true)]
     UseBetweenExprs,
 
+    /// A `use` statement is shadowed as the symbol it imports has been imported again below
     #[assoc(code = 6)]
     ShadowedImport,
 
+    /// A symbol have the same fully qualified name (its name with its module's name prepended)
+    /// as another module
     #[assoc(code = 7)]
     #[assoc(critical = true)]
-    UnknownType,
+    SymbolConflictsWithModule,
 
     #[assoc(code = 8)]
     #[assoc(critical = true)]
-    TypeMismatch,
+    UnknownType,
 
     #[assoc(code = 9)]
+    #[assoc(critical = true)]
+    TypeMismatch,
+
+    #[assoc(code = 10)]
     #[assoc(critical = true)]
     CannotInfer,
 }
@@ -80,17 +93,17 @@ pub struct Diagnostic {
     /// Some observations to explain the diagnostic
     pub observations: Vec<Observation>,
     /// Any tips to help the user understand and eventually fix the raised issue.
-    pub tips: Vec<String>,
+    pub helps: Vec<String>,
 }
 
 impl Diagnostic {
-    pub fn new(id: DiagnosticID, module: SourceObjectId, msg: impl Into<String>) -> Self {
+    pub fn new(id: DiagnosticID, source: SourceObjectId, msg: impl Into<String>) -> Self {
         Self {
-            source: module,
+            source,
             identifier: id,
             global_message: msg.into(),
             observations: Vec::new(),
-            tips: Vec::new(),
+            helps: Vec::new(),
         }
     }
 
@@ -107,8 +120,8 @@ impl Diagnostic {
         self
     }
 
-    pub fn with_tip(mut self, tip: &str) -> Self {
-        self.tips.push(tip.to_string());
+    pub fn with_help(mut self, help: impl Into<String>) -> Self {
+        self.helps.push(help.into());
         self
     }
 }

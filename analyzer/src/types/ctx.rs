@@ -46,10 +46,10 @@ impl TypeContext {
             Symbol::Local(index) => self.locals.get(&source).unwrap().get(index).copied(),
             Symbol::Global(index) => {
                 let resolved = relations.objects[index]
-                    .resolved
-                    .expect("Unresolved symbol");
+                    .state
+                    .expect_resolved("Unresolved symbol");
                 self.locals
-                    .get(&resolved.module)
+                    .get(&resolved.source)
                     .unwrap()
                     .get(resolved.object_id)
                     .copied()

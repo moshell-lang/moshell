@@ -14,7 +14,13 @@ impl Name {
         Self { parts }
     }
 
-    pub fn prefixed(mut path: Vec<String>, name: String) -> Self {
+    /// Tests if this name contains a path and a simple name.
+    pub fn is_qualified(&self) -> bool {
+        self.parts.len() != 1
+    }
+
+    /// Creates a new Name from a path and a simple name.
+    pub fn qualified(mut path: Vec<String>, name: String) -> Self {
         path.push(name);
         Self::from(path)
     }
@@ -102,6 +108,12 @@ impl From<Vec<String>> for Name {
     fn from(value: Vec<String>) -> Self {
         assert!(!value.is_empty(), "cannot create a name from an empty vec");
         Self { parts: value }
+    }
+}
+
+impl From<&[String]> for Name {
+    fn from(value: &[String]) -> Self {
+        value.to_vec().into()
     }
 }
 

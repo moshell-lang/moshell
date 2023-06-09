@@ -101,7 +101,7 @@ pub(super) fn infer_return(
                         segment,
                         "No return type is specified",
                     ))
-                    .with_tip("Add -> Float to the function declaration"),
+                    .with_help("Add -> Float to the function declaration"),
                 );
                 ty
             }
@@ -116,7 +116,7 @@ pub(super) fn infer_return(
                         func.segment(),
                         "This function returns multiple types".to_string(),
                     ))
-                    .with_tip("Try adding an explicit return type to the function"),
+                    .with_help("Try adding an explicit return type to the function"),
                 );
                 ERROR
             }
@@ -138,7 +138,7 @@ pub(super) fn infer_return(
                     "Return type is not inferred for block functions",
                 )
                 .with_observations(observations)
-                .with_tip("Try adding an explicit return type to the function"),
+                .with_help("Try adding an explicit return type to the function"),
             );
         }
         NOTHING
