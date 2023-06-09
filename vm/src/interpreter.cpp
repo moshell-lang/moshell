@@ -86,8 +86,8 @@ void run(constant_pool pool, int ip, const char *bytes, size_t size) {
             char index = *(bytes + ip + 1);
             ip += 2;
             // Push the string index onto the stack
-            *(char *)(stack + sp) = index;
-            sp += 1;
+            *(int64_t *)(stack + sp) = index;
+            sp += 8;
             break;
         }
         case OP_SPAWN: {
@@ -99,7 +99,7 @@ void run(constant_pool pool, int ip, const char *bytes, size_t size) {
             char **argv = new char *[frame_size + 1];
             for (int i = 0; i < frame_size; i++) {
                 // Read the string index
-                int index = *(stack + sp - frame_size + i);
+                int index = *(int64_t *)(stack + sp - (frame_size - i) * 8);
                 // Allocate the string
                 argv[i] = new char[pool.sizes[index] + 1];
                 // Copy the string data
@@ -143,6 +143,12 @@ void run(constant_pool pool, int ip, const char *bytes, size_t size) {
             sp -= 8;
             // Set the local
             *(int64_t *)(locals + lp + index * 8) = *(int64_t *)(stack + sp);
+            break;
+        }
+        case OP_POP: {
+            // Pop the value from the stack
+            sp -= 8;
+            ip += 1;
             break;
         }
         default: {
