@@ -28,7 +28,7 @@ impl Imports {
         let imports = self
             .imports
             .entry(source)
-            .or_insert_with(SourceImports::default);
+            .or_default();
         imports.add_unresolved_import(import, import_expr)
     }
 
