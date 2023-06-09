@@ -19,6 +19,7 @@ impl Name {
         self.parts.len() != 1
     }
 
+    /// Creates a new Name from a path and a simple name.
     pub fn qualified(mut path: Vec<String>, name: String) -> Self {
         path.push(name);
         Self::from(path)
