@@ -11,9 +11,9 @@ use crate::steps::resolve::diagnostics::*;
 use crate::steps::resolve::symbol::SymbolResolutionResult;
 use crate::steps::shared_diagnostics::diagnose_invalid_symbol;
 
-pub(in crate::steps::resolve) mod diagnostics;
-pub(in crate::steps::resolve) mod import;
-pub(in crate::steps::resolve) mod symbol;
+mod diagnostics;
+mod import;
+mod symbol;
 
 /// Main structure of the Symbols Resolver
 /// The symbol resolver resolves the given relations between the collected symbols in the Engine.
