@@ -158,7 +158,7 @@ impl Relations {
     }
 
     /// Creates a dependency graph for the given engine.
-    pub fn build_dependencies(&self, engine: &Engine) -> Dependencies<SourceObjectId> {
+    pub fn as_dependencies(&self, engine: &Engine) -> Dependencies<SourceObjectId> {
         let mut dependencies = Dependencies::default();
         for (id, _) in engine.environments() {
             dependencies.add_node(id);

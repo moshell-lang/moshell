@@ -22,7 +22,7 @@ pub fn apply_types(
     relations: &Relations,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> TypedEngine {
-    let environments = topological_sort(&relations.build_dependencies(engine));
+    let environments = topological_sort(&relations.as_dependencies(engine));
     let mut exploration = Exploration {
         engine: TypedEngine::new(engine.len()),
         typing: Typing::lang(),
