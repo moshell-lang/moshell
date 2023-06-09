@@ -14,6 +14,7 @@ impl Name {
         Self { parts }
     }
 
+    /// Tests if this name contains a path and a simple name.
     pub fn is_qualified(&self) -> bool {
         self.parts.len() != 1
     }

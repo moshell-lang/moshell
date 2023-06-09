@@ -118,7 +118,8 @@ impl Relations {
     }
 
     /// Finds segments that reference the given object.
-    /// Returns non if the object wasn't found or if the tracked object isn't found in the relations
+    ///
+    /// Returns [`None`] if the object is neither found nor tracked.
     pub fn find_references(
         &self,
         engine: &Engine,
@@ -131,7 +132,7 @@ impl Relations {
         Some(environment.find_references(Symbol::Global(tracked_object.0)))
     }
 
-    /// Returns an immutable iterator over all the objects.
+    /// Returns a mutable iterator over all the objects.
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (GlobalObjectId, &mut Object)> {
         self.objects
             .iter_mut()
@@ -139,9 +140,9 @@ impl Relations {
             .map(|(id, object)| (GlobalObjectId(id), object))
     }
 
-    /// Returns the resolved symbol for the given object.
+    /// Returns the state of the given object.
     ///
-    /// If the object is not resolved or is not referenced, returns `None`.
+    /// If the object is not referenced, returns [`None`].
     pub fn get_state(&self, id: GlobalObjectId) -> Option<ObjectState> {
         Some(self.objects.get(id.0)?.state)
     }
