@@ -195,7 +195,7 @@ fn ascribe_types(
             }
             TypedExpr {
                 kind: ExprKind::Declare {
-                    name: decl.var.name.to_owned(),
+                    identifier: env.get_raw_symbol(decl.segment.clone()).unwrap(),
                     value: Some(initializer),
                 },
                 ty: NOTHING,
@@ -209,9 +209,7 @@ fn ascribe_types(
                 .get(relations, state.source, symbol)
                 .unwrap();
             TypedExpr {
-                kind: ExprKind::Reference {
-                    name: var.name.to_owned(),
-                },
+                kind: ExprKind::Reference(symbol),
                 ty: type_id,
                 segment: var.segment.clone(),
             }
@@ -289,7 +287,7 @@ fn ascribe_types(
             );
             TypedExpr {
                 kind: ExprKind::Declare {
-                    name: fun.name.to_owned(),
+                    identifier: env.get_raw_symbol(fun.segment.clone()).unwrap(),
                     value: None,
                 },
                 ty: NOTHING,
