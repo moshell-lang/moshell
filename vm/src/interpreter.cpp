@@ -1,4 +1,4 @@
-#include <cstdio>
+#include "interpreter.h"
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -16,11 +16,6 @@ enum Opcode {
     OP_SPAWN, // 1 byte opcode, 1 byte stack size for process exec()
 };
 
-struct constant_pool {
-    char **strings;
-    size_t *sizes;
-};
-
 int64_t ntohl(int64_t const net) {
     int64_t host = 0;
     for (int i = 0; i < 8; i++) {
@@ -30,32 +25,35 @@ int64_t ntohl(int64_t const net) {
     return host;
 }
 
+constant_pool::constant_pool(int capacity) {
+    strings.reserve(capacity);
+    sizes.reserve(capacity);
+}
+
 constant_pool load_constant_pool(const char *bytes, int *ip) {
     // Read the number of strings on a single byte
     char count = *(bytes + *ip);
     (*ip)++;
     // Allocate the constant pool
-    struct constant_pool pool;
-    pool.strings = new char *[count];
-    pool.sizes = new size_t[count];
+    constant_pool pool(count);
     // Read each string and store it in the constant pool
-    // A string is a-8 byte length big endian followed by the string data without a null byte
+    // A string is an 8-byte length big endian followed by the string data without a null byte
     for (int i = 0; i < count; i++) {
         // Read the length
         size_t length = ntohl(*(int64_t *)(bytes + *ip));
         (*ip) += 8;
 
         // Allocate the string
-        pool.strings[i] = new char[length];
-        pool.sizes[i] = length;
+        pool.strings.push_back(std::make_unique<char[]>(length));
+        pool.sizes.push_back(length);
         // Read the string data
-        memcpy(pool.strings[i], bytes + *ip, length);
+        memcpy(pool.strings[i].get(), bytes + *ip, length);
         (*ip) += length;
     }
     return pool;
 }
 
-void run(struct constant_pool pool, int ip, const char *bytes, size_t size) {
+void run(constant_pool pool, int ip, const char *bytes, size_t size) {
     std::unique_ptr<char[]> stack_buf = std::make_unique<char[]>(1024);
     std::unique_ptr<char[]> locals_buf = std::make_unique<char[]>(1024);
     char *stack = stack_buf.get();
@@ -105,7 +103,7 @@ void run(struct constant_pool pool, int ip, const char *bytes, size_t size) {
                 // Allocate the string
                 argv[i] = new char[pool.sizes[index] + 1];
                 // Copy the string data
-                memcpy(argv[i], pool.strings[index], pool.sizes[index]);
+                memcpy(argv[i], pool.strings[index].get(), pool.sizes[index]);
                 // Add the null byte
                 argv[i][pool.sizes[index]] = '\0';
             }
