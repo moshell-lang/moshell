@@ -37,9 +37,11 @@ pub fn emit(emitter: &mut Bytecode, expr: &TypedExpr) -> usize {
                 emitter.emit_string_constant(string.to_owned());
             }
             LiteralValue::Int(integer) => {
-                emitter.emit_int_constant(*integer);
+                emitter.emit_int(*integer);
             }
-            _ => {}
+            LiteralValue::Float(f) => {
+                emitter.emit_float(*f);
+            }
         },
         ExprKind::ProcessCall(arguments) => {
             for arg in arguments {
@@ -63,7 +65,6 @@ pub fn emit(emitter: &mut Bytecode, expr: &TypedExpr) -> usize {
         let code = match (expr.ty, convert_to) {
             (INT, STRING) => Opcode::ConvertIntToStr,
             (FLOAT, STRING) => Opcode::ConvertFloatToStr,
-            (INT, FLOAT) => Opcode::ConvertIntToFloat,
             _ => panic!("invalid implicit conversion in hir"),
         };
         emitter.emit_code(code)

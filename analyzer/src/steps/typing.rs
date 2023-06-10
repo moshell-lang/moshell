@@ -131,7 +131,7 @@ fn check_implicit_cast(expr: &TypedExpr,
     if expr.ty == to {
         return Ok(None)
     }
-    if !matches!((expr.ty, to), (INT, FLOAT) | (FLOAT, INT) | (INT, STRING) | (FLOAT, STRING)) {
+    if !matches!((expr.ty, to), (INT, STRING) | (FLOAT, STRING)) {
         let from_ty = exploration.get_type(expr.ty).unwrap();
         let to_ty = exploration.get_type(expr.ty).unwrap();
         return Err(Diagnostic::new(DiagnosticID::TypeMismatch, env_id, format!("Cannot implicitly convert `{from_ty}` to `{to_ty}`."))

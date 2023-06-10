@@ -1,5 +1,4 @@
 #include "interpreter.h"
-#include "conversions.h"
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -17,7 +16,6 @@ enum Opcode {
     OP_SPAWN, // 1 byte opcode, 1 byte stack size for process exec()
     OP_INT_TO_STR,
     OP_FLOAT_TO_STR,
-    OP_INT_TO_FLOAT,
 };
 
 
@@ -26,6 +24,8 @@ constant_pool::constant_pool(int capacity) {
     strings.reserve(capacity);
     sizes.reserve(capacity);
 }
+
+
 
 
 void run(constant_pool pool, int ip, const char *bytes, size_t size) {
@@ -49,10 +49,10 @@ void run(constant_pool pool, int ip, const char *bytes, size_t size) {
         }
         case OP_PUSH_FLOAT: {
             // Read the 8 byte float value
-            double value = *(double *)(bytes + ip + 1);
+            int64_t value = ntohl(*(int64_t *)(bytes + ip + 1));
             ip += 9;
             // Push the value onto the stack
-            *(double *)(stack + stack_frame) = value;
+            *(double *)(stack + stack_frame) = reinterpret_cast<double&>(value);
             stack_frame += 8;
             break;
         }
@@ -131,23 +131,26 @@ void run(constant_pool pool, int ip, const char *bytes, size_t size) {
             // the local in stack
             auto* stack_local = (int64_t *)(stack + stack_frame - 8);
 
-            // convert last local from stack to str
             int64_t value = *stack_local;
-            size_t str_len;
-            std::unique_ptr<char[]> value_str = to_str(value, str_len);
-
-            // replace stack's integer value with a string reference
-            *stack_local = (int64_t) pool.strings.size();
-            // add the string in constant pools (burk)
-            pool.strings.push_back(std::move(value_str));
-            pool.sizes.push_back(str_len);
+            append_str_value(value, stack_local, pool);
 
             // goto next operation
             ip++;
             break;
         }
+        case OP_FLOAT_TO_STR: {
+            // convert last local from stack to str
+            // the local in stack
+            auto* stack_local = (int64_t *)(stack + stack_frame - 8);
+
+            auto value = *(double *)(stack + stack_frame - 8);
+            append_str_value(value, stack_local, pool);
+            // goto next operation
+            ip++;
+            break;
+        }
         default: {
-            std::cerr << "Error: Unknown opcode " << (int)bytes[ip] << "\n";
+            std::cerr << "Error: Unknown opcode " << (int) bytes[ip] << "\n";
             exit(1);
         }
         }

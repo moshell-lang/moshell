@@ -9,8 +9,13 @@ impl Bytecode {
         self.bytes.push(code as u8);
     }
 
-    pub fn emit_int_constant(&mut self, constant: i64) {
+    pub fn emit_int(&mut self, constant: i64) {
         self.emit_code(Opcode::PushInt);
+        self.bytes.extend(constant.to_be_bytes());
+    }
+
+    pub fn emit_float(&mut self, constant: f64) {
+        self.emit_code(Opcode::PushFloat);
         self.bytes.extend(constant.to_be_bytes());
     }
 
@@ -33,5 +38,4 @@ pub enum Opcode {
 
     ConvertIntToStr,
     ConvertFloatToStr,
-    ConvertIntToFloat,
 }
