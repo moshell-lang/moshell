@@ -70,8 +70,7 @@ impl<'a> Lexer<'a> {
             }
             '/' if !self.is_in_string() => {
                 if self.matches_next('/', &mut size) {
-                    self.skip_line();
-                    return self.next_token();
+                    return self.skip_line();
                 } else if self.matches_next('*', &mut size) {
                     self.skip_multiline_comment();
                     return self.next_token();
@@ -221,12 +220,13 @@ impl<'a> Lexer<'a> {
     }
 
     /// Skip the remaining characters of the current line.
-    fn skip_line(&mut self) {
-        for (_, c) in self.iter.by_ref() {
+    fn skip_line(&mut self) -> Token<'a> {
+        for (pos, c) in self.iter.by_ref() {
             if c == '\n' {
-                break;
+                return Token::new(TokenType::NewLine, &self.input[pos..pos + 1]);
             }
         }
+        Token::new(TokenType::EndOfFile, "")
     }
 
     /// Skip the remaining characters of the current multiline comment.

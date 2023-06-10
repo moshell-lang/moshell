@@ -346,19 +346,23 @@ pub(crate) fn lookahead<M: Move + Copy>(m: M) -> LookaheadMove<M> {
 
 //////////////////// STANDARD MOVES ////////////////////
 
-///End of _group_ Delimiter, any closing punctuation as long as they are unescaped
-pub(crate) fn eod() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
-    like(TokenType::is_closing_ponctuation)
+/// Tests if the token ends an expression.
+///
+/// Use this move in expressions where line endings are important. If not, use [`eog`].
+pub(crate) fn eox() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
+    like(TokenType::ends_expression)
 }
 
-///a move to consume default eox tokens as long as they are not escaped.
-/// default eox tokens are semicolon (;) and newline (\n)
-pub(crate) fn eox() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
-    of_types(&[NewLine, SemiColon, EndOfFile])
+/// Tests if the token ends a group.
+///
+/// Use this move in expressions where line endings does not matter. If not, use [`eox`].
+pub(crate) fn eog() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
+    like(TokenType::ends_group)
 }
-///a move that consumes a character if it can be escaped.
-pub(crate) fn escapable() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
-    like(TokenType::is_ponctuation)
+
+/// Tests if the token acts as a line ending.
+pub(crate) fn line_end() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
+    of_types(&[NewLine, SemiColon, EndOfFile])
 }
 
 ///a move that consumes a binary operation character

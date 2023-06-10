@@ -1,7 +1,7 @@
 use crate::aspects::group::GroupAspect;
 use crate::aspects::var_reference::VarReferenceAspect;
 use crate::err::ParseErrorKind;
-use crate::moves::{eox, not, of_type, repeat_n, spaces, MoveOperations};
+use crate::moves::{line_end, not, of_type, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::substitution::{Substitution, SubstitutionKind};
 use ast::value::{Literal, LiteralValue};
@@ -50,7 +50,11 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
         }
 
         // Short pass for variable references
-        if self.cursor.lookahead(not(spaces().or(eox()))).is_some() {
+        if self
+            .cursor
+            .lookahead(not(spaces().or(line_end())))
+            .is_some()
+        {
             return self.var_reference();
         }
 
