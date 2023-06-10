@@ -167,7 +167,7 @@ impl Relations {
             .map(|(id, relation)| (RelationId(id), relation))
     }
 
-    /// Returns a mutable iterator over all the objects.
+    /// Returns an immutable iterator over all the objects.
     pub fn iter(&self) -> impl Iterator<Item = (RelationId, &Relation)> {
         self.relations
             .iter()
