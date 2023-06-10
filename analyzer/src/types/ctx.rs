@@ -1,4 +1,4 @@
-use crate::relations::{ObjectId, Relations, SourceId, Symbol};
+use crate::relations::{LocalId, Relations, SourceId, Symbol};
 use crate::types::hir::TypeId;
 use crate::types::{BOOL, FLOAT, INT, NOTHING, STRING};
 use std::collections::HashMap;
@@ -49,11 +49,11 @@ impl TypeContext {
     /// Defines the type of a currently explored symbol.
     ///
     /// This must be in sync with the symbol in the environment.
-    pub(crate) fn push_local_type(&mut self, source: SourceId, type_id: TypeId) -> ObjectId {
+    pub(crate) fn push_local_type(&mut self, source: SourceId, type_id: TypeId) -> LocalId {
         let locals = self.locals.entry(source).or_default();
         let index = locals.len();
         locals.push(type_id);
-        index
+        LocalId(index)
     }
 
     /// Finds the type from an annotation.

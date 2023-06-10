@@ -30,7 +30,7 @@ pub struct RelationId(pub ObjectId);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct SourceId(pub ObjectId);
 
-/// A source object identifier, that can be the target of a global resolution.
+/// An identifier for a local variable stored in an environment
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct LocalId(pub ObjectId);
 
@@ -127,7 +127,7 @@ impl Relation {
 /// A collection of objects that are tracked globally and may link to each other.
 #[derive(Debug, Default)]
 pub struct Relations {
-    /// The tracked relations.
+    /// The tracked relations between environments.
     ///
     /// The actual [`String`] -> [`ObjectId`] mapping is left to the [`crate::environment::Environment`].
     /// The reason that the resolution information is lifted out of the environment is that identifiers

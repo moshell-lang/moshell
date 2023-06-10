@@ -35,7 +35,7 @@ pub struct Variables {
 }
 
 impl Variables {
-    /// Declares a new local variable.
+    /// Creates a new local variable.
     pub fn declare_local(&mut self, name: String, ty: TypeInfo) -> Symbol {
         self.locals.declare(name, ty)
     }
