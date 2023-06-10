@@ -3,7 +3,7 @@ use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::relations::{Relations, SourceObjectId};
-use crate::steps::typing::exploration::Exploration;
+use crate::steps::typing::exploration::{diagnose_unknown_type, Exploration};
 use crate::steps::typing::function::{infer_return, type_call, type_parameter, Return};
 use crate::types::ctx::TypeContext;
 use crate::types::engine::{Chunk, TypedEngine};
@@ -167,17 +167,10 @@ fn ascribe_types(
             if let Some(type_annotation) = &decl.var.ty {
                 let expected_type = exploration.ctx.resolve(type_annotation).unwrap_or(ERROR);
                 if expected_type == ERROR {
-                    diagnostics.push(
-                        Diagnostic::new(
-                            DiagnosticID::UnknownType,
-                            state.source,
-                            "Unknown type annotation",
-                        )
-                        .with_observation(Observation::with_help(
-                            type_annotation.segment(),
-                            "Not found in scope",
-                        )),
-                    );
+                    diagnostics.push(diagnose_unknown_type(
+                        state.source,
+                        type_annotation.segment(),
+                    ));
                 } else if initializer.ty.is_ok()
                     && exploration
                         .typing
@@ -338,6 +331,50 @@ fn ascribe_types(
                 segment: bin.segment(),
             }
         }
+        Expr::Casted(casted) => {
+            let expr = ascribe_types(
+                exploration,
+                relations,
+                diagnostics,
+                env,
+                &casted.expr,
+                state,
+            );
+            let ty = exploration
+                .ctx
+                .resolve(&casted.casted_type)
+                .unwrap_or(ERROR);
+            if ty.is_err() {
+                diagnostics.push(diagnose_unknown_type(
+                    state.source,
+                    casted.casted_type.segment(),
+                ))
+            } else if expr.ty.is_ok() && exploration.typing.unify(ty, expr.ty).is_err() {
+                diagnostics.push(
+                    Diagnostic::new(
+                        DiagnosticID::IncompatibleCast,
+                        state.source,
+                        format!(
+                            "Casting `{}` as `{}` is invalid",
+                            exploration.get_type(expr.ty).unwrap(),
+                            exploration.get_type(ty).unwrap()
+                        ),
+                    )
+                    .with_observation(Observation::with_help(
+                        casted.segment(),
+                        "Incompatible cast",
+                    )),
+                );
+            }
+            TypedExpr {
+                kind: ExprKind::Convert {
+                    inner: Box::new(expr),
+                    into: ty,
+                },
+                ty,
+                segment: casted.segment(),
+            }
+        }
         Expr::If(block) => {
             let condition = ascribe_types(
                 exploration,
@@ -408,7 +445,10 @@ fn ascribe_types(
             let args = call
                 .arguments
                 .iter()
-                .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
+                .map(|expr| {
+                    ascribe_types(exploration, relations, diagnostics, env, expr, state)
+                        .cast(STRING)
+                })
                 .collect::<Vec<_>>();
             TypedExpr {
                 kind: ExprKind::ProcessCall(args),
@@ -450,13 +490,15 @@ mod tests {
     use super::*;
     use crate::importer::StaticImporter;
     use crate::name::Name;
+    use crate::relations::Symbol;
     use crate::resolve_all;
     use crate::types::ty::Type;
     use context::source::Source;
-    use context::str_find::find_in;
+    use context::str_find::{find_in, find_in_nth};
     use parser::parse_trusted;
+    use pretty_assertions::assert_eq;
 
-    pub(crate) fn extract_type(source: Source) -> Result<Type, Vec<Diagnostic>> {
+    fn extract(source: Source) -> Result<(Typing, TypedExpr), Vec<Diagnostic>> {
         let typing = Typing::with_lang();
         let name = Name::new(source.name);
         let result = resolve_all(
@@ -470,7 +512,22 @@ mod tests {
         if !diagnostics.is_empty() {
             return Err(diagnostics);
         }
-        Ok(typing.get_type(expr.expression.ty).unwrap().clone())
+        Ok((typing, expr.expression.clone()))
+    }
+
+    pub(crate) fn extract_expr(source: Source) -> Result<Vec<TypedExpr>, Vec<Diagnostic>> {
+        extract(source).map(|(_, expr)| {
+            if let ExprKind::Block(exprs) = expr.kind {
+                exprs
+            } else {
+                unreachable!()
+            }
+        })
+    }
+
+    pub(crate) fn extract_type(source: Source) -> Result<Type, Vec<Diagnostic>> {
+        let (typing, expr) = extract(source)?;
+        Ok(typing.get_type(expr.ty).unwrap().clone())
     }
 
     #[test]
@@ -561,6 +618,42 @@ mod tests {
             .with_observation(Observation::with_help(
                 find_in(content, "{}"),
                 "Found `Nothing`",
+            ))])
+        );
+    }
+
+    #[test]
+    fn unknown_type_in_cast() {
+        let content = "4 as Imaginary";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::UnknownType,
+                SourceObjectId(0),
+                "Unknown type annotation",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "Imaginary"),
+                "Not found in scope",
+            ))])
+        );
+    }
+
+    #[test]
+    fn incompatible_cast() {
+        let content = "val n = 'a' as Int";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::IncompatibleCast,
+                SourceObjectId(0),
+                "Casting `String` as `Int` is invalid",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "'a' as Int"),
+                "Incompatible cast",
             ))])
         );
     }
@@ -801,6 +894,71 @@ mod tests {
             .with_help(
                 "Try adding an explicit return type to the function"
             )])
+        );
+    }
+
+    #[test]
+    fn conversions() {
+        let content = "val n = 75;val j = $n as Float\ngrep $n 4.2";
+        let res = extract_expr(Source::unknown(content));
+        assert_eq!(
+            res,
+            Ok(vec![
+                TypedExpr {
+                    kind: ExprKind::Declare {
+                        identifier: 0,
+                        value: Some(Box::new(TypedExpr {
+                            kind: ExprKind::Literal(75.into()),
+                            ty: INT,
+                            segment: find_in(content, "75"),
+                        })),
+                    },
+                    ty: NOTHING,
+                    segment: find_in(content, "val n = 75"),
+                },
+                TypedExpr {
+                    kind: ExprKind::Declare {
+                        identifier: 1,
+                        value: Some(Box::new(TypedExpr {
+                            kind: ExprKind::Convert {
+                                inner: Box::new(TypedExpr {
+                                    kind: ExprKind::Reference(Symbol::Local(0)),
+                                    ty: INT,
+                                    segment: find_in(content, "$n"),
+                                }),
+                                into: FLOAT,
+                            },
+                            ty: FLOAT,
+                            segment: find_in(content, "$n as Float"),
+                        })),
+                    },
+                    ty: NOTHING,
+                    segment: find_in(content, "val j = $n as Float"),
+                },
+                TypedExpr {
+                    kind: ExprKind::ProcessCall(vec![
+                        TypedExpr {
+                            kind: ExprKind::Literal("grep".into()),
+                            ty: STRING,
+                            segment: find_in(content, "grep"),
+                        },
+                        TypedExpr {
+                            kind: ExprKind::Reference(Symbol::Local(0)),
+                            ty: INT,
+                            segment: find_in_nth(content, "$n", 1),
+                        }
+                        .cast(STRING),
+                        TypedExpr {
+                            kind: ExprKind::Literal(4.2.into()),
+                            ty: FLOAT,
+                            segment: find_in(content, "4.2"),
+                        }
+                        .cast(STRING)
+                    ]),
+                    ty: NOTHING,
+                    segment: find_in(content, "grep $n 4.2"),
+                }
+            ])
         );
     }
 }

@@ -27,7 +27,7 @@ impl TypeId {
 }
 
 /// A type checked expression attached to a source segment.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TypedExpr {
     pub(crate) kind: ExprKind,
     pub(crate) ty: TypeId,
@@ -41,7 +41,7 @@ impl SourceSegmentHolder for TypedExpr {
 }
 
 /// An expression content.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ExprKind {
     Literal(LiteralValue),
     Assign {
@@ -64,6 +64,10 @@ pub enum ExprKind {
         then: Box<TypedExpr>,
         otherwise: Option<Box<TypedExpr>>,
     },
+    Convert {
+        inner: Box<TypedExpr>,
+        into: TypeId,
+    },
     ProcessCall(Vec<TypedExpr>),
     FunctionCall {
         name: String,
@@ -71,4 +75,24 @@ pub enum ExprKind {
     },
     Return(Option<Box<TypedExpr>>),
     Noop,
+}
+
+impl TypedExpr {
+    /// Wraps the current expression in a conversion to the given type.
+    ///
+    /// If the type is the same, returns the current expression.
+    pub fn cast(self, into: TypeId) -> Self {
+        if self.ty == into {
+            return self;
+        }
+        let segment = self.segment.clone();
+        Self {
+            kind: ExprKind::Convert {
+                inner: Box::new(self),
+                into,
+            },
+            ty: into,
+            segment,
+        }
+    }
 }
