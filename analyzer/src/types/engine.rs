@@ -1,6 +1,7 @@
 use crate::relations::SourceObjectId;
+use crate::types::builtin::lang;
 use crate::types::hir::{TypeId, TypedExpr};
-use crate::types::ty::Parameter;
+use crate::types::ty::{MethodType, Parameter, TypeDescription};
 use crate::types::NOTHING;
 
 /// A typed [`crate::engine::Engine`].
@@ -10,6 +11,7 @@ use crate::types::NOTHING;
 #[derive(Debug)]
 pub struct TypedEngine {
     entries: Vec<Option<Chunk>>,
+    descriptions: Vec<TypeDescription>,
 }
 
 /// A chunk of typed code.
@@ -56,11 +58,16 @@ impl TypedEngine {
     ///
     /// In most cases, the capacity is equal to the number of source objects in
     /// the source engine.
-    pub fn new(capacity: usize) -> Self {
+    pub fn with_lang(capacity: usize) -> Self {
         let mut builder = Self {
-            entries: Vec::with_capacity(capacity),
+            entries: Vec::new(),
+            descriptions: Vec::new(),
         };
         builder.entries.resize_with(capacity, || None);
+        builder
+            .descriptions
+            .resize_with(10 /* Just a random number for now */, Default::default);
+        lang(&mut builder);
         builder
     }
 
@@ -72,6 +79,16 @@ impl TypedEngine {
     /// Inserts a chunk into the engine.
     pub fn insert(&mut self, id: SourceObjectId, entry: Chunk) {
         self.entries[id.0] = Some(entry);
+    }
+
+    pub fn find_method(&self, type_id: TypeId, name: &str) -> Option<&MethodType> {
+        self.descriptions[type_id.0].methods.get(name)
+    }
+
+    pub fn add_method(&mut self, type_id: TypeId, name: &str, method: MethodType) {
+        self.descriptions[type_id.0]
+            .methods
+            .insert(name.to_owned(), method);
     }
 
     /// Inserts a chunk into the engine if it is not already present.

@@ -185,25 +185,26 @@ pub(super) fn type_call(
             } else {
                 for (param, arg) in parameters.iter().zip(arguments.iter()) {
                     if exploration.typing.unify(param.ty, arg.ty).is_err() {
-                        diagnostics.push(
-                            Diagnostic::new(
-                                DiagnosticID::TypeMismatch,
-                                state.source,
-                                "Type mismatch",
-                            )
-                            .with_observation(Observation::with_help(
-                                arg.segment.clone(),
-                                format!(
-                                    "Expected `{}`, found `{}`",
-                                    exploration.get_type(param.ty).unwrap(),
-                                    exploration.get_type(arg.ty).unwrap()
-                                ),
-                            ))
-                            .with_observation(Observation::with_help(
-                                param.segment.clone(),
+                        let mut diagnostic = Diagnostic::new(
+                            DiagnosticID::TypeMismatch,
+                            state.source,
+                            "Type mismatch",
+                        )
+                        .with_observation(Observation::with_help(
+                            arg.segment.clone(),
+                            format!(
+                                "Expected `{}`, found `{}`",
+                                exploration.get_type(param.ty).unwrap(),
+                                exploration.get_type(arg.ty).unwrap()
+                            ),
+                        ));
+                        if let Some(decl) = &param.segment {
+                            diagnostic = diagnostic.with_observation(Observation::with_help(
+                                decl.clone(),
                                 "Parameter is declared here",
-                            )),
-                        );
+                            ));
+                        }
+                        diagnostics.push(diagnostic);
                     }
                 }
                 return_type
@@ -236,7 +237,7 @@ pub(crate) fn type_parameter(ctx: &TypeContext, param: &FunctionParameter) -> Pa
                 .map(|ty| ctx.resolve(ty).unwrap_or(ERROR))
                 .unwrap_or(STRING);
             Parameter {
-                segment: named.segment.clone(),
+                segment: Some(named.segment.clone()),
                 ty: type_id,
             }
         }

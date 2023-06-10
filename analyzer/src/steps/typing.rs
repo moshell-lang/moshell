@@ -8,6 +8,7 @@ use crate::steps::typing::function::{infer_return, type_call, type_parameter, Re
 use crate::types::ctx::TypeContext;
 use crate::types::engine::{Chunk, TypedEngine};
 use crate::types::hir::{ExprKind, TypedExpr};
+use crate::types::operator::name_operator_method;
 use crate::types::ty::Type;
 use crate::types::{Typing, ERROR, FLOAT, INT, NOTHING, STRING};
 use ast::value::LiteralValue;
@@ -24,7 +25,7 @@ pub fn apply_types(
 ) -> TypedEngine {
     let environments = topological_sort(&relations.as_dependencies(engine));
     let mut exploration = Exploration {
-        engine: TypedEngine::new(engine.len()),
+        engine: TypedEngine::with_lang(engine.len()),
         typing: Typing::with_lang(),
         ctx: TypeContext::with_lang(),
         returns: Vec::new(),
@@ -317,10 +318,30 @@ fn ascribe_types(
                 ascribe_types(exploration, relations, diagnostics, env, &bin.left, state);
             let right_expr =
                 ascribe_types(exploration, relations, diagnostics, env, &bin.right, state);
-            let ty = exploration
-                .typing
-                .unify(left_expr.ty, right_expr.ty)
-                .unwrap_or(ERROR);
+            let name = name_operator_method(bin.op);
+            let method = exploration.engine.find_method(left_expr.ty, name);
+            let ty = match method {
+                Some(method) => method.return_type,
+                None => {
+                    diagnostics.push(
+                        Diagnostic::new(
+                            DiagnosticID::UnknownMethod,
+                            state.source,
+                            "Undefined operator",
+                        )
+                        .with_observation(Observation::with_help(
+                            bin.segment(),
+                            format!(
+                                "No operator `{}` between type `{}` and `{}`",
+                                name,
+                                exploration.get_type(left_expr.ty).unwrap(),
+                                exploration.get_type(right_expr.ty).unwrap()
+                            ),
+                        )),
+                    );
+                    ERROR
+                }
+            };
             TypedExpr {
                 kind: ExprKind::Binary {
                     lhs: Box::new(left_expr),
@@ -960,5 +981,30 @@ mod tests {
                 }
             ])
         );
+    }
+
+    #[test]
+    fn undefined_operator() {
+        let content = "val c = 'operator' - 2.4; $c";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::UnknownMethod,
+                SourceObjectId(0),
+                "Undefined operator",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "'operator' - 2.4"),
+                "No operator `sub` between type `String` and `Float`"
+            ))]),
+        );
+    }
+
+    #[test]
+    fn valid_operator() {
+        let content = "val c = 7.3 - 2.4; $c";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(res, Ok(Type::Float));
     }
 }

@@ -57,6 +57,10 @@ pub enum DiagnosticID {
     #[assoc(code = 12)]
     #[assoc(critical = true)]
     IncompatibleCast,
+
+    #[assoc(code = 13)]
+    #[assoc(critical = true)]
+    UnknownMethod,
 }
 
 /// Observations are an area in the source code with an (optional) help message
