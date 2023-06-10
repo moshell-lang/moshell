@@ -1,8 +1,17 @@
+use std::env;
 use cmake::Config;
 
 fn main() {
         let dst = Config::new("../vm").build();
         println!("cargo:rustc-link-search=native={}", dst.display());
         println!("cargo:rustc-link-lib=static=vm");
-        println!("cargo:rustc-link-lib=dylib=stdc++");
+
+        let target = env::var("TARGET").unwrap();
+        if target.contains("apple") {
+                println!("cargo:rustc-link-lib=dylib=c++");
+        } else if target.contains("linux") {
+                println!("cargo:rustc-link-lib=dylib=stdc++");
+        } else {
+                panic!("unsupported target {target}")
+        }
 }
