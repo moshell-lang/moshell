@@ -25,8 +25,8 @@ pub fn apply_types(
     let environments = topological_sort(&relations.as_dependencies(engine));
     let mut exploration = Exploration {
         engine: TypedEngine::new(engine.len()),
-        typing: Typing::lang(),
-        ctx: TypeContext::lang(),
+        typing: Typing::with_lang(),
+        ctx: TypeContext::with_lang(),
         returns: Vec::new(),
     };
     for env_id in environments {
@@ -457,7 +457,7 @@ mod tests {
     use parser::parse_trusted;
 
     pub(crate) fn extract_type(source: Source) -> Result<Type, Vec<Diagnostic>> {
-        let typing = Typing::lang();
+        let typing = Typing::with_lang();
         let name = Name::new(source.name);
         let result = resolve_all(
             name.clone(),

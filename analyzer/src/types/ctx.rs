@@ -12,27 +12,18 @@ pub struct TypeContext {
 }
 
 impl TypeContext {
-    pub(crate) fn new() -> Self {
+    /// Constructs a new typing context that already contains the built-in type names.
+    pub(crate) fn with_lang() -> Self {
         Self {
-            names: HashMap::new(),
+            names: HashMap::from([
+                ("Nothing".to_owned(), NOTHING),
+                ("Bool".to_owned(), BOOL),
+                ("Int".to_owned(), INT),
+                ("Float".to_owned(), FLOAT),
+                ("String".to_owned(), STRING),
+            ]),
             locals: HashMap::new(),
         }
-    }
-
-    pub(crate) fn lang() -> Self {
-        let mut ctx = Self::new();
-        ctx.fill_lang();
-        ctx
-    }
-
-    pub(crate) fn fill_lang(&mut self) {
-        self.names.extend([
-            ("Nothing".to_owned(), NOTHING),
-            ("Bool".to_owned(), BOOL),
-            ("Int".to_owned(), INT),
-            ("Float".to_owned(), FLOAT),
-            ("String".to_owned(), STRING),
-        ]);
     }
 
     /// Returns the type id of a symbol.
