@@ -1,8 +1,6 @@
 use std::collections::HashMap;
-use std::fs::File;
 use std::io::stderr;
 use std::path::PathBuf;
-use std::process::exit;
 
 use crate::report::{display_diagnostic, display_parse_error};
 use analyzer::engine::Engine;
@@ -15,6 +13,7 @@ use analyzer::steps::typing::apply_types;
 use ast::group::Block;
 use ast::Expr;
 use clap::Parser;
+use analyzer::types::engine::TypedEngine;
 use compiler::bytecode::Bytecode;
 use compiler::{emit, write};
 use context::source::Source;
@@ -72,15 +71,11 @@ pub fn handle_source(source: Source) -> bool {
     let mut diagnostics =
         SymbolCollector::collect_symbols(&mut engine, &mut relations, name, &mut importer);
     diagnostics.extend(SymbolResolver::resolve_symbols(&engine, &mut relations));
+
     if diagnostics.is_empty() {
-        let ty = apply_types(&engine, &relations, &mut diagnostics);
+        let type_engine = apply_types(&engine, &relations, &mut diagnostics);
         if diagnostics.is_empty() {
-            let mut emitter = Bytecode::default();
-            emit(&mut emitter, &ty.get(SourceObjectId(0)).unwrap().expression);
-            let mut shellcode = File::create("shellcode.bin").expect("creation failed");
-            write(&mut shellcode, emitter).expect("write failed");
-            println!("Successfully compiled to shellcode.bin");
-            exit(0);
+            execute(type_engine)
         }
     }
 
@@ -91,4 +86,21 @@ pub fn handle_source(source: Source) -> bool {
             .expect("IO errors when reporting diagnostic")
     }
     had_errors
+}
+
+#[link(name = "vm", kind = "static")]
+extern "C" {
+    fn exec(bytes: *const u8, byte_count: usize);
+}
+
+fn execute(types: TypedEngine) {
+    let mut emitter = Bytecode::default();
+    emit(&mut emitter, &types.get(SourceObjectId(0)).unwrap().expression);
+    let mut bytes: Vec<u8> = Vec::new();
+    write(&mut bytes, emitter).expect("write failed");
+
+    let len = bytes.len();
+    unsafe {
+        exec(bytes.leak().as_ptr(), len);
+    }
 }

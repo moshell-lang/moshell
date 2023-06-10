@@ -11,7 +11,7 @@ pub fn emit(emitter: &mut Bytecode, expr: &TypedExpr) -> usize {
     match &expr.kind {
         ExprKind::Declare { identifier, value } => {
             if let Some(value) = value {
-                emit(emitter, &value);
+                emit(emitter, value);
                 emitter.emit_code(Opcode::SetLocal);
                 match identifier {
                     Symbol::Local(id) => {

@@ -1,4 +1,4 @@
-#include "interpreter.h"
+#include "vm.h"
 #include <cstring>
 #include <fstream>
 #include <iostream>
@@ -14,9 +14,8 @@ int main(int argc, char *argv[]) {
         std::cerr << "Could not open file " << argv[1] << " (" << strerror(errno) << ")\n";
         return 1;
     }
-    std::vector<char> bytes(std::istreambuf_iterator<char>(input), {});
-    int ip = 0;
-    constant_pool pool = load_constant_pool(bytes.data(), &ip);
-    run(std::move(pool), ip, bytes.data(), bytes.size());
+    std::vector<char> bytes_vec(std::istreambuf_iterator<char>(input), {});
+    const char* bytes = bytes_vec.data();
+    exec(bytes, bytes_vec.size());
     return 0;
 }

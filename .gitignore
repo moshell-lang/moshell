@@ -12,6 +12,7 @@ Cargo.lock
 **/*.rs.bk
 
 cmake-build-debug
+CMakeFiles
 a.out
 moshell
 *.bin
