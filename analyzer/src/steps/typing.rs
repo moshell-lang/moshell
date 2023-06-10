@@ -2,7 +2,7 @@ use crate::dependency::topological_sort;
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::environment::Environment;
-use crate::relations::{Relations, SourceObjectId};
+use crate::relations::{Relations, SourceId};
 use crate::steps::typing::exploration::Exploration;
 use crate::steps::typing::function::{infer_return, type_call, type_parameter, Return};
 use crate::types::ctx::TypeContext;
@@ -46,13 +46,13 @@ pub fn apply_types(
 /// checked.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(self) struct TypingState {
-    source: SourceObjectId,
+    source: SourceId,
     local_type: bool,
 }
 
 impl TypingState {
     /// Creates a new initial state, for a script.
-    fn new(source: SourceObjectId) -> Self {
+    fn new(source: SourceId) -> Self {
         Self {
             source,
             local_type: false,
@@ -466,7 +466,7 @@ mod tests {
         let mut diagnostics = result.diagnostics;
         assert_eq!(diagnostics, vec![]);
         let typed = apply_types(&result.engine, &result.relations, &mut diagnostics);
-        let expr = typed.get(SourceObjectId(0)).unwrap();
+        let expr = typed.get(SourceId(0)).unwrap();
         if !diagnostics.is_empty() {
             return Err(diagnostics);
         }
@@ -499,7 +499,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "Type mismatch",
             )
             .with_observation(Observation::with_help(
@@ -521,7 +521,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::UnknownType,
-                SourceObjectId(0),
+                SourceId(0),
                 "Unknown type annotation",
             )
             .with_observation(Observation::with_help(
@@ -551,7 +551,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "`if` and `else` have incompatible types",
             )
             .with_observation(Observation::with_help(
@@ -586,7 +586,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "This function takes 1 argument but 2 were supplied",
             )
             .with_observation(Observation::with_help(
@@ -604,7 +604,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "Type mismatch",
             )
             .with_observation(Observation::with_help(
@@ -626,7 +626,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "Cannot invoke non function type",
             )
             .with_observation(Observation::with_help(
@@ -644,7 +644,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(1),
+                SourceId(1),
                 "Type mismatch",
             )
             .with_observation(Observation::with_help(
@@ -682,7 +682,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(1),
+                SourceId(1),
                 "Type mismatch",
             )
             .with_observation(Observation::with_help(find_in(content, "0"), "Found `Int`"))
@@ -718,23 +718,15 @@ mod tests {
         assert_eq!(
             res,
             Err(vec![
-                Diagnostic::new(
-                    DiagnosticID::TypeMismatch,
-                    SourceObjectId(1),
-                    "Type mismatch",
-                )
-                .with_observation(Observation::with_help(
-                    find_in(content, "return {}"),
-                    "Found `Nothing`"
-                ))
-                .with_observation(return_observation.clone()),
-                Diagnostic::new(
-                    DiagnosticID::TypeMismatch,
-                    SourceObjectId(1),
-                    "Type mismatch",
-                )
-                .with_observation(Observation::with_help(find_in(content, "9"), "Found `Int`"))
-                .with_observation(return_observation)
+                Diagnostic::new(DiagnosticID::TypeMismatch, SourceId(1), "Type mismatch",)
+                    .with_observation(Observation::with_help(
+                        find_in(content, "return {}"),
+                        "Found `Nothing`"
+                    ))
+                    .with_observation(return_observation.clone()),
+                Diagnostic::new(DiagnosticID::TypeMismatch, SourceId(1), "Type mismatch",)
+                    .with_observation(Observation::with_help(find_in(content, "9"), "Found `Int`"))
+                    .with_observation(return_observation)
             ])
         );
     }
@@ -747,7 +739,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::CannotInfer,
-                SourceObjectId(1),
+                SourceId(1),
                 "Return type inference is not supported yet",
             )
             .with_observation(Observation::with_help(
@@ -766,7 +758,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::CannotInfer,
-                SourceObjectId(1),
+                SourceId(1),
                 "Return type is not inferred for block functions",
             )
             .with_observation(Observation::with_help(
@@ -791,7 +783,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::CannotInfer,
-                SourceObjectId(1),
+                SourceId(1),
                 "Failed to infer return type",
             )
             .with_observation(Observation::with_help(

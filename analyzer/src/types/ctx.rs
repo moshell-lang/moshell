@@ -1,4 +1,4 @@
-use crate::relations::{ObjectId, Relations, SourceObjectId, Symbol};
+use crate::relations::{LocalId, Relations, SourceId, Symbol};
 use crate::types::hir::TypeId;
 use crate::types::{BOOL, FLOAT, INT, NOTHING, STRING};
 use std::collections::HashMap;
@@ -8,7 +8,7 @@ use std::collections::HashMap;
 /// The actual type definition is in the [`crate::types::Typing`] struct.
 pub struct TypeContext {
     names: HashMap<String, TypeId>,
-    locals: HashMap<SourceObjectId, Vec<TypeId>>,
+    locals: HashMap<SourceId, Vec<TypeId>>,
 }
 
 impl TypeContext {
@@ -30,19 +30,17 @@ impl TypeContext {
     pub(crate) fn get(
         &self,
         relations: &Relations,
-        source: SourceObjectId,
+        source: SourceId,
         symbol: Symbol,
     ) -> Option<TypeId> {
         match symbol {
-            Symbol::Local(index) => self.locals.get(&source).unwrap().get(index).copied(),
-            Symbol::Global(index) => {
-                let resolved = relations.objects[index]
-                    .state
-                    .expect_resolved("Unresolved symbol");
+            Symbol::Local(index) => self.locals.get(&source).unwrap().get(index.0).copied(),
+            Symbol::External(index) => {
+                let resolved = relations[index].state.expect_resolved("Unresolved symbol");
                 self.locals
                     .get(&resolved.source)
                     .unwrap()
-                    .get(resolved.object_id)
+                    .get(resolved.object_id.0)
                     .copied()
             }
         }
@@ -51,11 +49,11 @@ impl TypeContext {
     /// Defines the type of a currently explored symbol.
     ///
     /// This must be in sync with the symbol in the environment.
-    pub(crate) fn push_local_type(&mut self, source: SourceObjectId, type_id: TypeId) -> ObjectId {
+    pub(crate) fn push_local_type(&mut self, source: SourceId, type_id: TypeId) -> LocalId {
         let locals = self.locals.entry(source).or_default();
         let index = locals.len();
         locals.push(type_id);
-        index
+        LocalId(index)
     }
 
     /// Finds the type from an annotation.

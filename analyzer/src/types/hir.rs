@@ -1,4 +1,4 @@
-use crate::relations::{ObjectId, Symbol};
+use crate::relations::{LocalId, ObjectId, Symbol};
 use crate::types::{ERROR, NOTHING};
 use ast::operation::BinaryOperator;
 use ast::value::LiteralValue;
@@ -49,7 +49,7 @@ pub enum ExprKind {
         rhs: Box<TypedExpr>,
     },
     Declare {
-        identifier: ObjectId,
+        identifier: LocalId,
         value: Option<Box<TypedExpr>>,
     },
     Reference(Symbol),

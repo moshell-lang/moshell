@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
 use crate::name::Name;
-use crate::relations::{GlobalObjectId, ObjectId, Symbol};
+use crate::relations::{LocalId, RelationId, Symbol};
 
 /// Information over the declared type of a variable
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -31,7 +31,7 @@ pub struct Variables {
 
     /// Relations with external variables.
     /// The key is the variable Names, where value is the relation with another external environment's [Locals]
-    externals: HashMap<Name, GlobalObjectId>,
+    externals: HashMap<Name, RelationId>,
 }
 
 impl Variables {
@@ -41,42 +41,42 @@ impl Variables {
     }
 
     /// Returns the local variable associated with the id
-    pub fn get_var(&self, id: ObjectId) -> Option<&Variable> {
-        self.locals.vars.get(id)
+    pub fn get_var(&self, id: LocalId) -> Option<&Variable> {
+        self.locals.vars.get(id.0)
     }
 
     /// Returns an entry for the given external symbol name relation
-    pub fn external(&mut self, name: Name) -> Entry<Name, GlobalObjectId> {
+    pub fn external(&mut self, name: Name) -> Entry<Name, RelationId> {
         self.externals.entry(name)
     }
 
-    /// Gets the local identifier associated with an already known name.
+    /// Finds the local identifier associated with an already known name.
     ///
     /// The lookup uses the current scope, which is frequently updated during the collection phase.
     /// That's the main reason why this method should be used in pair the variable capture
     /// resolution, immediately after the closure is observed and inertly populated.
-    pub fn get_reachable(&self, name: &str) -> Option<ObjectId> {
+    pub fn find_reachable(&self, name: &str) -> Option<LocalId> {
         self.locals.position_reachable_local(name)
     }
 
-    /// Gets the local exported symbol associated with an already known name.
+    /// Finds the local exported symbol associated with an already known name.
     ///
     /// Exported symbols are always declared in the outermost scope, and should be checked only
     /// after the whole environment is collected.
-    pub fn get_exported(&self, name: &str) -> Option<ObjectId> {
+    pub fn find_exported(&self, name: &str) -> Option<LocalId> {
         self.locals
             .vars
             .iter()
             .rev()
             .position(|var| var.name == name && var.is_exported())
-            .map(|idx| self.locals.vars.len() - 1 - idx)
+            .map(|idx| LocalId(self.locals.vars.len() - 1 - idx))
     }
 
     /// Lists all local variables, in the order they are declared.
     ///
     /// This exposes their current state, which is only interesting for debugging.
-    /// Use [`Variables::get_reachable`] to lookup any variable during the collection phase,
-    /// or [`Variables::get_exported`] to lookup an exported variable after the collection phase.
+    /// Use [`Variables::find_reachable`] to lookup any variable during the collection phase,
+    /// or [`Variables::find_exported`] to lookup an exported variable after the collection phase.
     pub fn all_vars(&self) -> &[Variable] {
         &self.locals.vars
     }
@@ -88,14 +88,14 @@ impl Variables {
     }
 
     /// Iterates over all the global variable ids, with their corresponding name.
-    pub fn external_vars(&self) -> impl Iterator<Item = (&Name, GlobalObjectId)> {
+    pub fn external_vars(&self) -> impl Iterator<Item = (&Name, RelationId)> {
         self.externals.iter().map(|(name, id)| (name, *id))
     }
 
-    /// Gets the name of an external variable.
+    /// Finds the name of an external variable.
     ///
     /// This returns the name only if the global object comes from this environment.
-    pub fn get_external_symbol_name(&self, object_id: GlobalObjectId) -> Option<&Name> {
+    pub fn find_external_symbol_name(&self, object_id: RelationId) -> Option<&Name> {
         self.externals
             .iter()
             .find_map(|(name, id)| (id == &object_id).then_some(name))
@@ -130,7 +130,7 @@ impl Locals {
             depth: self.current_depth as isize,
             ty,
         });
-        Symbol::Local(id)
+        Symbol::Local(LocalId(id))
     }
 
     /// Declares a new variable of type `TypeInfo::Variable`.
@@ -178,12 +178,12 @@ impl Locals {
     }
 
     /// Gets the variable id from the current scope.
-    fn position_reachable_local(&self, name: &str) -> Option<ObjectId> {
+    fn position_reachable_local(&self, name: &str) -> Option<LocalId> {
         self.vars
             .iter()
             .rev()
             .position(|var| var.name == name && var.depth >= 0)
-            .map(|idx| self.vars.len() - 1 - idx)
+            .map(|idx| LocalId(self.vars.len() - 1 - idx))
     }
 }
 
