@@ -47,7 +47,6 @@ pub fn handle_source(source: Source) -> bool {
     let mut engine = Engine::default();
     let mut relations = Relations::default();
 
-    let source = source;
     let errors: Vec<_> = report.errors;
 
     let out = &mut stderr();

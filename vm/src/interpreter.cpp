@@ -1,4 +1,5 @@
 #include "interpreter.h"
+#include "conversions.h"
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -39,7 +40,7 @@ void run(constant_pool pool, int ip, const char *bytes, size_t size) {
             int64_t value = *(int64_t *)(bytes + ip + 1);
             ip += 9;
             // Push the value onto the stack
-            *(int64_t *)(stack + sp) = value;
+            *(int64_t *)(stack + sp) = ntohl(value);
             sp += 8;
             break;
         }
@@ -128,4 +129,5 @@ void run(constant_pool pool, int ip, const char *bytes, size_t size) {
         }
         }
     }
+    std::cout << "test" << std::endl;
 }
