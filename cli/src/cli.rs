@@ -8,6 +8,7 @@ use dbg_pls::color;
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
 use analyzer::resolve_all;
+use analyzer::steps::typing::apply_types;
 use ast::group::Block;
 use ast::Expr;
 use context::source::Source;
@@ -63,7 +64,10 @@ pub fn handle_source(source: Source) -> bool {
 
     let result = resolve_all(name, &mut importer);
 
-    let diagnostics = result.diagnostics;
+    let mut diagnostics = result.diagnostics;
+    if diagnostics.is_empty() {
+        apply_types(&result.engine, &result.relations, &mut diagnostics);
+    }
 
     let mut stdout = stderr();
     let had_errors = !diagnostics.is_empty();

@@ -18,8 +18,10 @@ pub mod importer;
 pub mod name;
 pub mod relations;
 
+mod dependency;
 pub mod imports;
 pub mod steps;
+pub mod types;
 
 /// Performs a full resolution of the environments directly or indirectly implied by the entry point.
 ///

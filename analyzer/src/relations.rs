@@ -1,3 +1,4 @@
+use crate::dependency::Dependencies;
 use std::fmt::Debug;
 
 use context::source::SourceSegment;
@@ -69,6 +70,15 @@ pub enum ObjectState {
     Resolved(ResolvedSymbol),
     Unresolved,
     Dead,
+}
+
+impl ObjectState {
+    pub fn expect_resolved(self, msg: &str) -> ResolvedSymbol {
+        match self {
+            ObjectState::Resolved(resolved) => resolved,
+            _ => panic!("{}", msg),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Hash, PartialEq)]
@@ -145,5 +155,20 @@ impl Relations {
     /// If the object is not referenced, returns [`None`].
     pub fn get_state(&self, id: GlobalObjectId) -> Option<ObjectState> {
         Some(self.objects.get(id.0)?.state)
+    }
+
+    /// Creates a dependency graph for the given engine.
+    pub fn as_dependencies(&self, engine: &Engine) -> Dependencies<SourceObjectId> {
+        let mut dependencies = Dependencies::default();
+        for (id, _) in engine.environments() {
+            dependencies.add_node(id);
+        }
+
+        for object in self.objects.iter() {
+            if let ObjectState::Resolved(resolved) = object.state {
+                dependencies.add_dependency(object.origin, resolved.source);
+            }
+        }
+        dependencies
     }
 }

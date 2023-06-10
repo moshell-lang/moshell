@@ -66,8 +66,22 @@ impl<'a> Engine<'a> {
             .and_then(|(idx, (_, env))| env.as_ref().map(|env| (SourceObjectId(idx), env)))
     }
 
+    pub fn get_expression(&self, id: SourceObjectId) -> Option<&Expr<'a>> {
+        self.origins.get(id.0).map(|(expr, _)| *expr)
+    }
+
     /// Gets an environment by its identifier.
     pub fn get_environment(&self, id: SourceObjectId) -> Option<&Environment> {
         self.origins.get(id.0).and_then(|(_, env)| env.as_ref())
+    }
+
+    /// Gets the number of origins in the engine.
+    pub fn len(&self) -> usize {
+        self.origins.len()
+    }
+
+    /// Returns `true` does not contain any origin.
+    pub fn is_empty(&self) -> bool {
+        self.origins.is_empty()
     }
 }

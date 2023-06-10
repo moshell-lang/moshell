@@ -1,0 +1,5 @@
+use math::{round, floor}
+
+val n = round(1.234)
+
+// This is a test that is really important because errors are bad

@@ -25,10 +25,7 @@ impl Imports {
         import: UnresolvedImport,
         import_expr: SourceSegment,
     ) -> Option<SourceSegment> {
-        let imports = self
-            .imports
-            .entry(source)
-            .or_default();
+        let imports = self.imports.entry(source).or_default();
         imports.add_unresolved_import(import, import_expr)
     }
 

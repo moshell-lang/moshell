@@ -41,11 +41,23 @@ pub enum DiagnosticID {
     #[assoc(code = 7)]
     #[assoc(critical = true)]
     SymbolConflictsWithModule,
+
+    #[assoc(code = 8)]
+    #[assoc(critical = true)]
+    UnknownType,
+
+    #[assoc(code = 9)]
+    #[assoc(critical = true)]
+    TypeMismatch,
+
+    #[assoc(code = 10)]
+    #[assoc(critical = true)]
+    CannotInfer,
 }
 
 /// Observations are an area in the source code with an (optional) help message
 /// that are contained in a [Diagnostic] to emphasis/further explain the causes of the diagnostic.
-#[derive(PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Observation {
     /// Observed segment
     pub segment: SourceSegment,
@@ -100,8 +112,11 @@ impl Diagnostic {
         self
     }
 
-    pub fn with_observations(mut self, o: Vec<Observation>) -> Self {
-        self.observations.extend(o);
+    pub fn with_observations<I: IntoIterator<Item = Observation>>(
+        mut self,
+        observations: I,
+    ) -> Self {
+        self.observations.extend(observations);
         self
     }
 
