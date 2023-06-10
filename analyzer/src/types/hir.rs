@@ -31,6 +31,8 @@ impl TypeId {
 pub struct TypedExpr {
     pub kind: ExprKind,
     pub ty: TypeId,
+    // the type this expression was implicitly converted to
+    pub implicit_cast: Option<TypeId>,
     pub segment: SourceSegment,
 }
 

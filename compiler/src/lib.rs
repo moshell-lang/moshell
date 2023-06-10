@@ -6,6 +6,7 @@ use analyzer::types::hir::{ExprKind, TypedExpr};
 use ast::value::LiteralValue;
 use std::io;
 use std::io::Write;
+use analyzer::types::*;
 
 pub fn emit(emitter: &mut Bytecode, expr: &TypedExpr) -> usize {
     match &expr.kind {
@@ -57,6 +58,15 @@ pub fn emit(emitter: &mut Bytecode, expr: &TypedExpr) -> usize {
             }
         }
         _ => {}
+    }
+    if let Some(convert_to) = expr.implicit_cast {
+        let code = match (expr.ty, convert_to) {
+            (INT, STRING) => Opcode::ConvertIntToStr,
+            (FLOAT, STRING) => Opcode::ConvertFloatToStr,
+            (INT, FLOAT) => Opcode::ConvertIntToFloat,
+            _ => panic!("invalid implicit conversion in hir"),
+        };
+        emitter.emit_code(code)
     }
     0
 }

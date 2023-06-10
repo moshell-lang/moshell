@@ -15,6 +15,9 @@ enum Opcode {
     OP_SET_LOCAL,
     OP_POP,
     OP_SPAWN, // 1 byte opcode, 1 byte stack size for process exec()
+    OP_INT_TO_STR,
+    OP_FLOAT_TO_STR,
+    OP_INT_TO_FLOAT,
 };
 
 
@@ -30,8 +33,8 @@ void run(constant_pool pool, int ip, const char *bytes, size_t size) {
     std::unique_ptr<char[]> locals_buf = std::make_unique<char[]>(1024);
     char *stack = stack_buf.get();
     char *locals = locals_buf.get();
-    int lp = 0;
-    int sp = 0;
+    int local_frame = 0;
+    int stack_frame = 0;
     while (ip < size) {
         // Read the opcode
         switch (bytes[ip]) {
@@ -40,8 +43,8 @@ void run(constant_pool pool, int ip, const char *bytes, size_t size) {
             int64_t value = *(int64_t *)(bytes + ip + 1);
             ip += 9;
             // Push the value onto the stack
-            *(int64_t *)(stack + sp) = ntohl(value);
-            sp += 8;
+            *(int64_t *)(stack + stack_frame) = ntohl(value);
+            stack_frame += 8;
             break;
         }
         case OP_PUSH_FLOAT: {
@@ -49,8 +52,8 @@ void run(constant_pool pool, int ip, const char *bytes, size_t size) {
             double value = *(double *)(bytes + ip + 1);
             ip += 9;
             // Push the value onto the stack
-            *(double *)(stack + sp) = value;
-            sp += 8;
+            *(double *)(stack + stack_frame) = value;
+            stack_frame += 8;
             break;
         }
         case OP_PUSH_STRING: {
@@ -58,8 +61,8 @@ void run(constant_pool pool, int ip, const char *bytes, size_t size) {
             char index = *(bytes + ip + 1);
             ip += 2;
             // Push the string index onto the stack
-            *(int64_t *)(stack + sp) = index;
-            sp += 8;
+            *(int64_t *)(stack + stack_frame) = index;
+            stack_frame += 8;
             break;
         }
         case OP_SPAWN: {
@@ -71,11 +74,11 @@ void run(constant_pool pool, int ip, const char *bytes, size_t size) {
             char **argv = new char *[frame_size + 1];
             for (int i = 0; i < frame_size; i++) {
                 // Read the string index
-                int index = *(int64_t *)(stack + sp - (frame_size - i) * 8);
+                int index = *(int64_t *)(stack + stack_frame - (frame_size - i) * 8);
                 // Allocate the string
                 argv[i] = new char[pool.sizes[index] + 1];
                 // Copy the string data
-                memcpy(argv[i], pool.strings[index].get(), pool.sizes[index]);
+                 memcpy(argv[i], pool.strings[index].get(), pool.sizes[index]);
                 // Add the null byte
                 argv[i][pool.sizes[index]] = '\0';
             }
@@ -94,17 +97,17 @@ void run(constant_pool pool, int ip, const char *bytes, size_t size) {
                 // Wait for the process to finish
                 waitpid(pid, nullptr, 0);
                 // Pop the stack
-                sp -= frame_size;
+                stack_frame -= frame_size;
             }
             break;
         }
         case OP_GET_LOCAL: {
-            // Read the 1 byte local index
-            char index = *(bytes + ip + 1);
+            // Read the 1 byte local local_index
+            char local_index = *(bytes + ip + 1);
             ip += 2;
             // Push the local onto the stack
-            *(int64_t *)(stack + sp) = *(int64_t *)(locals + lp + index * 8);
-            sp += 8;
+            *(int64_t *)(stack + stack_frame) = *(int64_t *)(locals + local_frame + local_index * 8);
+            stack_frame += 8;
             break;
         }
         case OP_SET_LOCAL: {
@@ -112,15 +115,35 @@ void run(constant_pool pool, int ip, const char *bytes, size_t size) {
             char index = *(bytes + ip + 1);
             ip += 2;
             // Pop the value from the stack
-            sp -= 8;
+            stack_frame -= 8;
             // Set the local
-            *(int64_t *)(locals + lp + index * 8) = *(int64_t *)(stack + sp);
+            *(int64_t *)(locals + local_frame + index * 8) = *(int64_t *)(stack + stack_frame);
             break;
         }
         case OP_POP: {
             // Pop the value from the stack
-            sp -= 8;
+            stack_frame -= 8;
             ip += 1;
+            break;
+        }
+        case OP_INT_TO_STR: {
+            // convert last local from stack to str
+            // the local in stack
+            auto* stack_local = (int64_t *)(stack + stack_frame - 8);
+
+            // convert last local from stack to str
+            int64_t value = *stack_local;
+            size_t str_len;
+            std::unique_ptr<char[]> value_str = to_str(value, str_len);
+
+            // replace stack's integer value with a string reference
+            *stack_local = (int64_t) pool.strings.size();
+            // add the string in constant pools (burk)
+            pool.strings.push_back(std::move(value_str));
+            pool.sizes.push_back(str_len);
+
+            // goto next operation
+            ip++;
             break;
         }
         default: {
@@ -129,5 +152,4 @@ void run(constant_pool pool, int ip, const char *bytes, size_t size) {
         }
         }
     }
-    std::cout << "test" << std::endl;
 }

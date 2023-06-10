@@ -74,12 +74,12 @@ impl Typing {
     }
 }
 
-pub(crate) const ERROR: TypeId = TypeId(0);
-pub(crate) const NOTHING: TypeId = TypeId(1);
-pub(crate) const BOOL: TypeId = TypeId(2);
-pub(crate) const INT: TypeId = TypeId(3);
-pub(crate) const FLOAT: TypeId = TypeId(4);
-pub(crate) const STRING: TypeId = TypeId(5);
+pub const ERROR: TypeId = TypeId(0);
+pub const NOTHING: TypeId = TypeId(1);
+pub const BOOL: TypeId = TypeId(2);
+pub const INT: TypeId = TypeId(3);
+pub const FLOAT: TypeId = TypeId(4);
+pub const STRING: TypeId = TypeId(5);
 
 /// An error that occurs when two types are not compatible.
 #[derive(Debug, PartialEq)]

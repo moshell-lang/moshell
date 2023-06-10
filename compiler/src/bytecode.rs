@@ -30,4 +30,8 @@ pub enum Opcode {
     SetLocal,
     Pop,
     Spawn,
+
+    ConvertIntToStr,
+    ConvertFloatToStr,
+    ConvertIntToFloat,
 }
