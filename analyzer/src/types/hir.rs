@@ -73,6 +73,11 @@ pub enum ExprKind {
         name: String,
         arguments: Vec<TypedExpr>,
     },
+    MethodCall {
+        callee: Box<TypedExpr>,
+        name: String,
+        arguments: Vec<TypedExpr>,
+    },
     Return(Option<Box<TypedExpr>>),
     Noop,
 }

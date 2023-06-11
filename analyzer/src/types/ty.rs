@@ -98,7 +98,7 @@ impl FunctionType {
 /// be instantiated multiple times with different [`Type`] parameters.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct TypeDescription {
-    pub(crate) methods: HashMap<String, MethodType>,
+    pub(crate) methods: HashMap<String, Vec<MethodType>>,
 }
 
 pub type MethodType = FunctionType;

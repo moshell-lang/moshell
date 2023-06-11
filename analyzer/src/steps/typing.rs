@@ -4,7 +4,9 @@ use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::relations::{Relations, SourceObjectId};
 use crate::steps::typing::exploration::{diagnose_unknown_type, Exploration};
-use crate::steps::typing::function::{infer_return, type_call, type_parameter, Return};
+use crate::steps::typing::function::{
+    find_operand_implementation, infer_return, type_call, type_method, type_parameter, Return,
+};
 use crate::types::ctx::TypeContext;
 use crate::types::engine::{Chunk, TypedEngine};
 use crate::types::hir::{ExprKind, TypedExpr};
@@ -319,10 +321,13 @@ fn ascribe_types(
             let right_expr =
                 ascribe_types(exploration, relations, diagnostics, env, &bin.right, state);
             let name = name_operator_method(bin.op);
-            let method = exploration.engine.find_method(left_expr.ty, name);
+            let method = exploration
+                .engine
+                .get_methods(left_expr.ty, name)
+                .and_then(|methods| find_operand_implementation(methods, &right_expr));
             let ty = match method {
                 Some(method) => method.return_type,
-                None => {
+                _ => {
                     diagnostics.push(
                         Diagnostic::new(
                             DiagnosticID::UnknownMethod,
@@ -500,6 +505,32 @@ fn ascribe_types(
                 },
                 ty: return_type,
                 segment: call.segment.clone(),
+            }
+        }
+        Expr::MethodCall(method) => {
+            let callee = ascribe_types(
+                exploration,
+                relations,
+                diagnostics,
+                env,
+                &method.source,
+                state,
+            );
+            let arguments = method
+                .arguments
+                .iter()
+                .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
+                .collect::<Vec<_>>();
+            let return_type =
+                type_method(method, &callee, &arguments, diagnostics, exploration, state);
+            TypedExpr {
+                kind: ExprKind::MethodCall {
+                    callee: Box::new(callee),
+                    name: method.name.unwrap_or("apply").to_owned(),
+                    arguments,
+                },
+                ty: return_type,
+                segment: method.segment.clone(),
             }
         }
         _ => todo!("{expr:?}"),
@@ -984,6 +1015,24 @@ mod tests {
     }
 
     #[test]
+    fn invalid_operand() {
+        let content = "val c = 4 / 'a'; $c";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::UnknownMethod,
+                SourceObjectId(0),
+                "Undefined operator",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "4 / 'a'"),
+                "No operator `div` between type `Int` and `String`"
+            ))]),
+        );
+    }
+
+    #[test]
     fn undefined_operator() {
         let content = "val c = 'operator' - 2.4; $c";
         let res = extract_type(Source::unknown(content));
@@ -1006,5 +1055,53 @@ mod tests {
         let content = "val c = 7.3 - 2.4; $c";
         let res = extract_type(Source::unknown(content));
         assert_eq!(res, Ok(Type::Float));
+    }
+
+    #[test]
+    fn valid_operator_explicit_method() {
+        let content = "val j = 7.3; val c = $j.sub(2.4); $c";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(res, Ok(Type::Float));
+    }
+
+    #[test]
+    fn valid_method_but_invalid_parameter_count() {
+        let content = "val n = 'test'.len(5)";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                SourceObjectId(0),
+                "This method takes 0 arguments but 1 was supplied",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, ".len(5)"),
+                "Method is called here"
+            ))
+            .with_help("The method signature is `String::len() -> Int`")])
+        );
+    }
+
+    #[test]
+    fn valid_method_but_invalid_parameter_types() {
+        let content = "val j = 7.3; val c = $j.sub('a')";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                SourceObjectId(0),
+                "Type mismatch",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "'a'"),
+                "Expected `Float`, found `String`"
+            ))
+            .with_observation(Observation::with_help(
+                find_in(content, ".sub('a')"),
+                "Arguments to this method are incorrect"
+            ))])
+        );
     }
 }

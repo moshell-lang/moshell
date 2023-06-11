@@ -1,15 +1,17 @@
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
-use crate::relations::{Relations, Symbol};
+use crate::relations::{Relations, SourceObjectId, Symbol};
 use crate::steps::typing::exploration::Exploration;
 use crate::steps::typing::TypingState;
 use crate::types::ctx::TypeContext;
 use crate::types::hir::{ExprKind, TypeId, TypedExpr};
-use crate::types::ty::{Parameter, Type};
-use crate::types::{ERROR, NOTHING, STRING};
-use ast::call::ProgrammaticCall;
+use crate::types::ty::{FunctionType, MethodType, Parameter, Type};
+use crate::types::{Typing, ERROR, NOTHING, STRING};
+use ast::call::{MethodCall, ProgrammaticCall};
 use ast::function::{FunctionDeclaration, FunctionParameter};
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
+use std::fmt;
+use std::fmt::Display;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Return {
@@ -170,10 +172,11 @@ pub(super) fn type_call(
                         DiagnosticID::TypeMismatch,
                         state.source,
                         format!(
-                            "This function takes {} {} but {} were supplied",
+                            "This function takes {} {} but {} {} supplied",
                             parameters.len(),
                             pluralize(parameters.len(), "argument", "arguments"),
-                            arguments.len()
+                            arguments.len(),
+                            pluralize(arguments.len(), "was", "were"),
                         ),
                     )
                     .with_observation(Observation::with_help(
@@ -185,26 +188,12 @@ pub(super) fn type_call(
             } else {
                 for (param, arg) in parameters.iter().zip(arguments.iter()) {
                     if exploration.typing.unify(param.ty, arg.ty).is_err() {
-                        let mut diagnostic = Diagnostic::new(
-                            DiagnosticID::TypeMismatch,
+                        diagnostics.push(diagnose_arg_mismatch(
+                            &exploration.typing,
                             state.source,
-                            "Type mismatch",
-                        )
-                        .with_observation(Observation::with_help(
-                            arg.segment.clone(),
-                            format!(
-                                "Expected `{}`, found `{}`",
-                                exploration.get_type(param.ty).unwrap(),
-                                exploration.get_type(arg.ty).unwrap()
-                            ),
+                            param,
+                            arg,
                         ));
-                        if let Some(decl) = &param.segment {
-                            diagnostic = diagnostic.with_observation(Observation::with_help(
-                                decl.clone(),
-                                "Parameter is declared here",
-                            ));
-                        }
-                        diagnostics.push(diagnostic);
                     }
                 }
                 return_type
@@ -225,6 +214,170 @@ pub(super) fn type_call(
             ERROR
         }
     }
+}
+
+/// Checks the type of a method expression.
+pub(super) fn find_operand_implementation<'a>(
+    methods: &'a [MethodType],
+    right: &TypedExpr,
+) -> Option<&'a MethodType> {
+    for method in methods {
+        if method.parameters.len() != 1 {
+            continue;
+        }
+        if let Some(ty) = method.parameters.first() {
+            if ty.ty == right.ty {
+                return Some(method);
+            }
+        }
+    }
+    None
+}
+
+/// Checks the type of a method expression.
+pub(super) fn type_method(
+    method_call: &MethodCall,
+    callee: &TypedExpr,
+    arguments: &[TypedExpr],
+    diagnostics: &mut Vec<Diagnostic>,
+    exploration: &mut Exploration,
+    state: TypingState,
+) -> TypeId {
+    // Directly callable types just have a single method called `apply`
+    let method_name = method_call.name.unwrap_or("apply");
+    let methods = exploration.engine.get_methods(callee.ty, method_name);
+    if methods.is_none() {
+        diagnostics.push(Diagnostic::new(
+            DiagnosticID::UnknownMethod,
+            state.source,
+            if method_call.name.is_some() {
+                format!(
+                    "No method named `{method_name}` found for type `{}`",
+                    exploration.get_type(callee.ty).unwrap()
+                )
+            } else {
+                format!(
+                    "Type `{}` is not directly callable",
+                    exploration.get_type(callee.ty).unwrap()
+                )
+            },
+        ));
+        return ERROR;
+    }
+
+    let methods = methods.unwrap(); // We just checked for None
+    let method = find_matching_method(methods, arguments);
+    if let Some(method) = method {
+        // We have an exact match
+        return method.return_type;
+    }
+
+    if methods.len() == 1 {
+        // If there is only one method, we can give a more specific error by adding
+        // an observation for each invalid type
+        let method = methods.first().unwrap();
+        if method.parameters.len() != arguments.len() {
+            diagnostics.push(
+                Diagnostic::new(
+                    DiagnosticID::TypeMismatch,
+                    state.source,
+                    format!(
+                        "This method takes {} {} but {} {} supplied",
+                        method.parameters.len(),
+                        pluralize(method.parameters.len(), "argument", "arguments"),
+                        arguments.len(),
+                        pluralize(arguments.len(), "was", "were")
+                    ),
+                )
+                .with_observation(Observation::with_help(
+                    method_call.segment(),
+                    "Method is called here",
+                ))
+                .with_help(format!(
+                    "The method signature is `{}::{}`",
+                    exploration.get_type(callee.ty).unwrap(),
+                    Signature::new(&exploration.typing, method_name, method)
+                )),
+            );
+        } else {
+            for (param, arg) in method.parameters.iter().zip(arguments.iter()) {
+                if exploration.typing.unify(param.ty, arg.ty).is_err() {
+                    let diagnostic =
+                        diagnose_arg_mismatch(&exploration.typing, state.source, param, arg)
+                            .with_observation(Observation::with_help(
+                                method_call.segment(),
+                                "Arguments to this method are incorrect",
+                            ));
+                    diagnostics.push(diagnostic);
+                }
+            }
+        }
+    } else {
+        // If there are multiple methods, list them all
+        diagnostics.push(
+            Diagnostic::new(
+                DiagnosticID::UnknownMethod,
+                state.source,
+                format!(
+                    "No matching method found for `{method_name}::{}`",
+                    exploration.get_type(callee.ty).unwrap()
+                ),
+            )
+            .with_observation(Observation::with_help(
+                method_call.segment(),
+                "Method is called here",
+            )),
+        );
+    }
+    ERROR
+}
+
+fn diagnose_arg_mismatch(
+    typing: &Typing,
+    source: SourceObjectId,
+    param: &Parameter,
+    arg: &TypedExpr,
+) -> Diagnostic {
+    let diagnostic = Diagnostic::new(DiagnosticID::TypeMismatch, source, "Type mismatch")
+        .with_observation(Observation::with_help(
+            arg.segment.clone(),
+            format!(
+                "Expected `{}`, found `{}`",
+                typing.get_type(param.ty).unwrap(),
+                typing.get_type(arg.ty).unwrap()
+            ),
+        ));
+    if let Some(decl) = &param.segment {
+        diagnostic.with_observation(Observation::with_help(
+            decl.clone(),
+            "Parameter is declared here",
+        ))
+    } else {
+        diagnostic
+    }
+}
+
+/// Find a matching method for the given arguments.
+fn find_matching_method<'a>(
+    methods: &'a [MethodType],
+    args: &[TypedExpr],
+) -> Option<&'a MethodType> {
+    for method in methods {
+        if method.parameters.len() != args.len() {
+            continue;
+        }
+        let mut matches = true;
+        for (param, arg) in method.parameters.iter().zip(args.iter()) {
+            if param.ty != arg.ty {
+                matches = false;
+                break;
+            }
+        }
+        if matches {
+            return Some(method);
+        }
+    }
+    None
 }
 
 /// Type check a single function parameter.
@@ -257,5 +410,54 @@ fn pluralize<'a>(count: usize, singular: &'a str, plural: &'a str) -> &'a str {
         singular
     } else {
         plural
+    }
+}
+
+/// A formatted signature of a function.
+struct Signature<'a> {
+    typing: &'a Typing,
+    name: &'a str,
+    function: &'a FunctionType,
+}
+
+impl<'a> Signature<'a> {
+    /// Creates a new signature.
+    fn new(typing: &'a Typing, name: &'a str, function: &'a FunctionType) -> Self {
+        Self {
+            typing,
+            name,
+            function,
+        }
+    }
+}
+
+impl Display for Signature<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}(", self.name)?;
+        if let Some((first, parameters)) = self.function.parameters.split_first() {
+            write!(
+                f,
+                "{}",
+                self.typing.get_type(first.ty).unwrap_or(&Type::Error)
+            )?;
+            for param in parameters {
+                write!(
+                    f,
+                    ", {}",
+                    self.typing.get_type(param.ty).unwrap_or(&Type::Error)
+                )?;
+            }
+        }
+        if self.function.return_type.is_nothing() {
+            write!(f, ")")
+        } else {
+            write!(
+                f,
+                ") -> {}",
+                self.typing
+                    .get_type(self.function.return_type)
+                    .unwrap_or(&Type::Error)
+            )
+        }
     }
 }

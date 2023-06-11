@@ -81,14 +81,23 @@ impl TypedEngine {
         self.entries[id.0] = Some(entry);
     }
 
-    pub fn find_method(&self, type_id: TypeId, name: &str) -> Option<&MethodType> {
-        self.descriptions[type_id.0].methods.get(name)
+    /// Lists methods with a given name of a given type.
+    ///
+    /// If the type is unknown or doesn't have any methods with the given name,
+    /// [`None`] is returned.
+    pub fn get_methods(&self, type_id: TypeId, name: &str) -> Option<&Vec<MethodType>> {
+        self.descriptions.get(type_id.0)?.methods.get(name)
     }
 
+    /// Adds a new method to a type.
+    ///
+    /// The method may not conflict with any existing methods.
     pub fn add_method(&mut self, type_id: TypeId, name: &str, method: MethodType) {
         self.descriptions[type_id.0]
             .methods
-            .insert(name.to_owned(), method);
+            .entry(name.to_owned())
+            .or_default()
+            .push(method);
     }
 
     /// Inserts a chunk into the engine if it is not already present.
