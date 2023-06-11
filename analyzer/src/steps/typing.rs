@@ -13,6 +13,7 @@ use crate::types::hir::{ExprKind, TypedExpr};
 use crate::types::operator::name_operator_method;
 use crate::types::ty::Type;
 use crate::types::{Typing, ERROR, FLOAT, INT, NOTHING, STRING};
+use ast::operation::BinaryOperator;
 use ast::value::LiteralValue;
 use ast::Expr;
 use context::source::SourceSegmentHolder;
@@ -148,6 +149,46 @@ fn ascribe_types(
                 ty,
                 segment: lit.segment.clone(),
             }
+        }
+        Expr::TemplateString(tpl) => {
+            if tpl.parts.is_empty() {
+                return TypedExpr {
+                    kind: ExprKind::Literal(LiteralValue::String("".to_owned())),
+                    ty: STRING,
+                    segment: tpl.segment(),
+                };
+            }
+            let mut it = tpl.parts.iter();
+            let acc = ascribe_types(
+                exploration,
+                relations,
+                diagnostics,
+                env,
+                it.next().unwrap(),
+                state.without_local_type(),
+            )
+            .cast(STRING);
+            it.fold(acc, |acc, part| {
+                let current = ascribe_types(
+                    exploration,
+                    relations,
+                    diagnostics,
+                    env,
+                    part,
+                    state.without_local_type(),
+                )
+                .cast(STRING);
+                let segment = acc.segment.start..current.segment.end;
+                TypedExpr {
+                    kind: ExprKind::MethodCall {
+                        callee: Box::new(acc),
+                        name: name_operator_method(BinaryOperator::Plus).to_owned(),
+                        arguments: vec![current],
+                    },
+                    ty: STRING,
+                    segment,
+                }
+            })
         }
         Expr::VarDeclaration(decl) => {
             let initializer = decl
@@ -708,6 +749,12 @@ mod tests {
                 "Incompatible cast",
             ))])
         );
+    }
+
+    #[test]
+    fn string_template() {
+        let res = extract_type(Source::unknown("val m = 5; val test = \"m = $m\"; $test"));
+        assert_eq!(res, Ok(Type::String));
     }
 
     #[test]
