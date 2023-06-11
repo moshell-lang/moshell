@@ -288,7 +288,8 @@ mod tests {
                                             name: "2",
                                             segment: find_in(source.source, "$2"),
                                         }),
-                                    ]
+                                    ],
+                                    segment: find_in(source.source, "\"test $2\""),
                                 }),
                                 MatchPattern::Literal(Literal {
                                     parsed: 2.into(),
@@ -366,7 +367,8 @@ mod tests {
                                         name: "2",
                                         segment: find_in(content, "$2"),
                                     }),
-                                ]
+                                ],
+                                segment: find_in(content, "\"test $2\""),
                             }),
                             MatchPattern::Literal(Literal {
                                 parsed: 2.into(),
@@ -516,7 +518,8 @@ mod tests {
                                 parts: vec![
                                     literal(content, "\"test "),
                                     Expr::VarReference(VarReference { name: "2", segment: find_in(content, "$2") }),
-                                ]
+                                ],
+                                segment: find_in(content, "\"test $2\""),
                             }),
                             MatchPattern::Literal(Literal {
                                 parsed: 2.into(),

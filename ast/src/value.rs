@@ -1,5 +1,4 @@
 use crate::Expr;
-use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
 use src_macros::segment_holder;
 
@@ -19,15 +18,10 @@ pub enum LiteralValue {
 }
 
 /// A group of expressions that can be interpolated into a string.
+#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct TemplateString<'a> {
     pub parts: Vec<Expr<'a>>,
-}
-
-impl SourceSegmentHolder for TemplateString<'_> {
-    fn segment(&self) -> SourceSegment {
-        self.parts.first().unwrap().segment().start..self.parts.last().unwrap().segment().end
-    }
 }
 
 impl From<&str> for LiteralValue {
