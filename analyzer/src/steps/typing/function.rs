@@ -160,7 +160,8 @@ pub(super) fn type_call(
     let type_id = exploration
         .ctx
         .get(relations, state.source, symbol)
-        .unwrap();
+        .unwrap()
+        .type_id;
     match exploration.get_type(type_id).unwrap() {
         Type::Function(declaration) => {
             let entry = exploration.engine.get(*declaration).unwrap();

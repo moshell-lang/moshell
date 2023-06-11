@@ -8,7 +8,7 @@ use std::collections::HashMap;
 /// The actual type definition is in the [`crate::types::Typing`] struct.
 pub struct TypeContext {
     names: HashMap<String, TypeId>,
-    locals: HashMap<SourceObjectId, Vec<TypeId>>,
+    locals: HashMap<SourceObjectId, Vec<TypedVariable>>,
 }
 
 impl TypeContext {
@@ -32,7 +32,7 @@ impl TypeContext {
         relations: &Relations,
         source: SourceObjectId,
         symbol: Symbol,
-    ) -> Option<TypeId> {
+    ) -> Option<TypedVariable> {
         match symbol {
             Symbol::Local(index) => self.locals.get(&source).unwrap().get(index).copied(),
             Symbol::Global(index) => {
@@ -52,9 +52,16 @@ impl TypeContext {
     ///
     /// This must be in sync with the symbol in the environment.
     pub(crate) fn push_local_type(&mut self, source: SourceObjectId, type_id: TypeId) -> ObjectId {
+        self.push_local(source, TypedVariable::immutable(type_id))
+    }
+
+    /// Defines the identity of a currently explored symbol.
+    ///
+    /// This must be in sync with the symbol in the environment.
+    pub(crate) fn push_local(&mut self, source: SourceObjectId, obj: TypedVariable) -> ObjectId {
         let locals = self.locals.entry(source).or_default();
         let index = locals.len();
-        locals.push(type_id);
+        locals.push(obj);
         index
     }
 
@@ -69,6 +76,34 @@ impl TypeContext {
             }
             ast::r#type::Type::Callable(_) => unimplemented!(),
             ast::r#type::Type::ByName(_) => unimplemented!(),
+        }
+    }
+}
+
+/// The identity of a variable.
+///
+/// The main purpose of this struct is to hold the type of a variable,
+/// but it also holds if the variable can be reassigned.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct TypedVariable {
+    pub(crate) type_id: TypeId,
+    pub(crate) can_reassign: bool,
+}
+
+impl TypedVariable {
+    /// Constructs a new mutable variable identity.
+    pub(crate) fn assignable(type_id: TypeId) -> Self {
+        Self {
+            type_id,
+            can_reassign: true,
+        }
+    }
+
+    /// Constructs a new immutable variable identity.
+    pub(crate) fn immutable(type_id: TypeId) -> Self {
+        Self {
+            type_id,
+            can_reassign: false,
         }
     }
 }

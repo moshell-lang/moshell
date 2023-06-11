@@ -61,6 +61,10 @@ pub enum DiagnosticID {
     #[assoc(code = 13)]
     #[assoc(critical = true)]
     UnknownMethod,
+
+    #[assoc(code = 14)]
+    #[assoc(critical = true)]
+    CannotReassign,
 }
 
 /// Observations are an area in the source code with an (optional) help message

@@ -7,7 +7,7 @@ use crate::steps::typing::exploration::{diagnose_unknown_type, Exploration};
 use crate::steps::typing::function::{
     find_operand_implementation, infer_return, type_call, type_method, type_parameter, Return,
 };
-use crate::types::ctx::TypeContext;
+use crate::types::ctx::{TypeContext, TypedVariable};
 use crate::types::engine::{Chunk, TypedEngine};
 use crate::types::hir::{ExprKind, TypedExpr};
 use crate::types::operator::name_operator_method;
@@ -15,6 +15,7 @@ use crate::types::ty::Type;
 use crate::types::{Typing, ERROR, FLOAT, INT, NOTHING, STRING};
 use ast::operation::BinaryOperator;
 use ast::value::LiteralValue;
+use ast::variable::VarKind;
 use ast::Expr;
 use context::source::SourceSegmentHolder;
 
@@ -190,6 +191,69 @@ fn ascribe_types(
                 }
             })
         }
+        Expr::Assign(assign) => {
+            let rhs = ascribe_types(
+                exploration,
+                relations,
+                diagnostics,
+                env,
+                &assign.value,
+                state.with_local_type(),
+            );
+            let symbol = env.get_raw_symbol(assign.segment()).unwrap();
+            let var_obj = exploration
+                .ctx
+                .get(relations, state.source, symbol)
+                .unwrap();
+            let var_ty = var_obj.type_id;
+            let cast = match exploration.typing.unify(var_ty, rhs.ty) {
+                Ok(ty) => {
+                    if !var_obj.can_reassign {
+                        diagnostics.push(
+                            Diagnostic::new(
+                                DiagnosticID::CannotReassign,
+                                state.source,
+                                format!(
+                                    "Cannot assign twice to immutable variable `{}`",
+                                    assign.name
+                                ),
+                            )
+                            .with_observation(Observation::with_help(
+                                assign.segment(),
+                                "Assignment happens here",
+                            )),
+                        );
+                    }
+                    ty
+                }
+                Err(_) => {
+                    diagnostics.push(
+                        Diagnostic::new(
+                            DiagnosticID::TypeMismatch,
+                            state.source,
+                            format!(
+                                "Cannot assign a value of type `{}` to something of type `{}`",
+                                exploration.get_type(rhs.ty).unwrap(),
+                                exploration.get_type(var_ty).unwrap()
+                            ),
+                        )
+                        .with_observation(Observation::with_help(
+                            assign.segment(),
+                            "Assignment happens here",
+                        )),
+                    );
+                    ERROR
+                }
+            };
+            TypedExpr {
+                kind: ExprKind::Assign {
+                    identifier: symbol,
+                    rhs: Box::new(rhs.cast(cast)),
+                },
+                ty: NOTHING,
+                segment: assign.segment(),
+            }
+        }
         Expr::VarDeclaration(decl) => {
             let initializer = decl
                 .initializer
@@ -205,9 +269,14 @@ fn ascribe_types(
                     ))
                 })
                 .expect("Variables without initializers are not supported yet");
-            let id = exploration
-                .ctx
-                .push_local_type(state.source, initializer.ty);
+            let id = exploration.ctx.push_local(
+                state.source,
+                if decl.kind == VarKind::Val {
+                    TypedVariable::immutable(initializer.ty)
+                } else {
+                    TypedVariable::assignable(initializer.ty)
+                },
+            );
             if let Some(type_annotation) = &decl.var.ty {
                 let expected_type = exploration.ctx.resolve(type_annotation).unwrap_or(ERROR);
                 if expected_type == ERROR {
@@ -254,7 +323,8 @@ fn ascribe_types(
             let type_id = exploration
                 .ctx
                 .get(relations, state.source, symbol)
-                .unwrap();
+                .unwrap()
+                .type_id;
             TypedExpr {
                 kind: ExprKind::Reference(symbol),
                 ty: type_id,
@@ -677,6 +747,66 @@ mod tests {
             .with_observation(Observation::with_help(
                 find_in(content, "ABC"),
                 "Not found in scope",
+            ))])
+        );
+    }
+
+    #[test]
+    fn var_assign_of_same_type() {
+        let res = extract_type(Source::unknown("var l = 1; l = 2"));
+        assert_eq!(res, Ok(Type::Nothing));
+    }
+
+    #[test]
+    fn val_cannot_reassign() {
+        let content = "val l = 1; l = 2";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::CannotReassign,
+                SourceObjectId(0),
+                "Cannot assign twice to immutable variable `l`",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "l = 2"),
+                "Assignment happens here",
+            ))])
+        );
+    }
+
+    #[test]
+    fn cannot_assign_different_type() {
+        let content = "var p = 1; p = 'a'";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                SourceObjectId(0),
+                "Cannot assign a value of type `String` to something of type `Int`",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "p = 'a'"),
+                "Assignment happens here",
+            ))])
+        );
+    }
+
+    #[test]
+    fn cannot_assign_to_function() {
+        let content = "fun a() -> Int = 1; a = 'a'";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                SourceObjectId(0),
+                "Cannot assign a value of type `String` to something of type `fun#1`",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "a = 'a'"),
+                "Assignment happens here",
             ))])
         );
     }

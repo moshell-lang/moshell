@@ -45,7 +45,7 @@ impl SourceSegmentHolder for TypedExpr {
 pub enum ExprKind {
     Literal(LiteralValue),
     Assign {
-        lhs: Box<TypedExpr>,
+        identifier: Symbol,
         rhs: Box<TypedExpr>,
     },
     Declare {
