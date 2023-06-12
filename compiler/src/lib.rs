@@ -10,12 +10,13 @@ use std::io::Write;
 
 pub fn emit(emitter: &mut Bytecode, expr: &TypedExpr) {
     match &expr.kind {
-        ExprKind::Declare { identifier, value } => {
-            if let Some(value) = value {
-                emit(emitter, value);
-                emitter.emit_code(Opcode::SetLocal);
-                emitter.bytes.push(identifier.0 as u8);
-            }
+        ExprKind::Declare {
+            identifier,
+            value: Some(value),
+        } => {
+            emit(emitter, value);
+            emitter.emit_code(Opcode::SetLocal);
+            emitter.bytes.push(identifier.0 as u8);
         }
         ExprKind::Reference(symbol) => {
             emitter.emit_code(Opcode::GetLocal);
@@ -60,11 +61,11 @@ pub fn emit(emitter: &mut Bytecode, expr: &TypedExpr) {
 }
 
 pub fn write(mut writer: impl Write, emitter: Bytecode) -> Result<(), io::Error> {
-    writer.write(&[emitter.constants.len() as u8])?;
+    writer.write_all(&[emitter.constants.len() as u8])?;
     for constant in emitter.constants {
-        writer.write(&constant.len().to_be_bytes())?;
-        writer.write(constant.as_bytes())?;
+        writer.write_all(&constant.len().to_be_bytes())?;
+        writer.write_all(constant.as_bytes())?;
     }
-    writer.write(&emitter.bytes)?;
+    writer.write_all(&emitter.bytes)?;
     Ok(())
 }

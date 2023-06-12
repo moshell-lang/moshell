@@ -143,7 +143,6 @@ fn ascribe_types(
             TypedExpr {
                 kind: ExprKind::Literal(lit.parsed.clone()),
                 ty,
-                implicit_cast: None,
                 segment: lit.segment.clone(),
             }
         }
@@ -210,7 +209,6 @@ fn ascribe_types(
                     value: Some(initializer),
                 },
                 ty: NOTHING,
-                implicit_cast: None,
                 segment: decl.segment.clone(),
             }
         }
@@ -223,7 +221,6 @@ fn ascribe_types(
             TypedExpr {
                 kind: ExprKind::Reference(symbol),
                 ty: type_id,
-                implicit_cast: None,
                 segment: var.segment.clone(),
             }
         }
@@ -253,7 +250,6 @@ fn ascribe_types(
             TypedExpr {
                 kind: ExprKind::Block(expressions),
                 ty,
-                implicit_cast: None,
                 segment: block.segment.clone(),
             }
         }
@@ -275,7 +271,6 @@ fn ascribe_types(
             TypedExpr {
                 kind: ExprKind::Return(expr),
                 ty: NOTHING,
-                implicit_cast: None,
                 segment: ret.segment.clone(),
             }
         }
@@ -309,7 +304,6 @@ fn ascribe_types(
                     TypedExpr {
                         kind: ExprKind::Noop,
                         ty: type_id,
-                        implicit_cast: None,
                         segment: fun.segment.clone(),
                     },
                     parameters,
@@ -322,7 +316,6 @@ fn ascribe_types(
                     value: None,
                 },
                 ty: NOTHING,
-                implicit_cast: None,
                 segment: fun.segment.clone(),
             }
         }
@@ -342,7 +335,6 @@ fn ascribe_types(
                     rhs: Box::new(right_expr),
                 },
                 ty,
-                implicit_cast: None,
                 segment: bin.segment(),
             }
         }
@@ -409,7 +401,6 @@ fn ascribe_types(
                     otherwise,
                 },
                 ty,
-                implicit_cast: None,
                 segment: block.segment.clone(),
             }
         }
@@ -422,7 +413,6 @@ fn ascribe_types(
             TypedExpr {
                 kind: ExprKind::ProcessCall(args),
                 ty: NOTHING,
-                implicit_cast: None,
                 segment: call.segment(),
             }
         }
@@ -448,7 +438,6 @@ fn ascribe_types(
                     arguments,
                 },
                 ty: return_type,
-                implicit_cast: None,
                 segment: call.segment.clone(),
             }
         }
