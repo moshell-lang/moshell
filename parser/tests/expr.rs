@@ -661,6 +661,7 @@ fn method_call_with_type_params_and_ref() {
                             })],
                             segment: find_in(source.source, ".bar[T]()")
                         })],
+                        segment: find_between(source.source, "\"", "\"")
                     }),
                 ],
                 type_parameters: Vec::new()

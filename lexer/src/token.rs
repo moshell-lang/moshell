@@ -248,6 +248,8 @@ impl TokenType {
                 | Bar
                 | Or
                 | And
+                | Quote
+                | DoubleQuote
                 | SquaredLeftBracket
                 | SquaredRightBracket
                 | RoundedLeftBracket
@@ -280,6 +282,27 @@ impl TokenType {
             | CurlyRightBracket
             | Quote
             | DoubleQuote)
+    }
+
+    /// Tests if this token ends an expression, where newlines are not allowed.
+    pub fn ends_expression(self) -> bool {
+        matches!(
+            self,
+            SemiColon
+                | NewLine
+                | EndOfFile
+                | SquaredRightBracket
+                | RoundedRightBracket
+                | CurlyRightBracket
+        )
+    }
+
+    /// Tests if this token ends a group, where newlines are allowed.
+    pub fn ends_group(self) -> bool {
+        matches!(
+            self,
+            EndOfFile | SquaredRightBracket | RoundedRightBracket | CurlyRightBracket
+        )
     }
 
     pub fn closing_pair(self) -> Option<TokenType> {

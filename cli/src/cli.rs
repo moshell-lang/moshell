@@ -2,22 +2,23 @@ use std::collections::HashMap;
 use std::io::stderr;
 use std::path::PathBuf;
 
-use crate::report::{display_diagnostic, display_parse_error};
-use analyzer::engine::Engine;
+use clap::Parser;
+use dbg_pls::color;
+
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
-use analyzer::relations::{Relations, SourceObjectId};
-use analyzer::steps::collect::SymbolCollector;
-use analyzer::steps::resolve::SymbolResolver;
+use analyzer::relations::SourceId;
+use analyzer::resolve_all;
 use analyzer::steps::typing::apply_types;
 use analyzer::types::engine::TypedEngine;
 use ast::group::Block;
 use ast::Expr;
-use clap::Parser;
 use compiler::bytecode::Bytecode;
 use compiler::{emit, write};
 use context::source::Source;
 use parser::parse;
+
+use crate::report::{display_diagnostic, display_parse_error};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -44,9 +45,6 @@ pub fn handle_source(source: Source) -> bool {
     let report = parse(source);
     let mut importer = RawImporter::default();
 
-    let mut engine = Engine::default();
-    let mut relations = Relations::default();
-
     let errors: Vec<_> = report.errors;
 
     let out = &mut stderr();
@@ -67,14 +65,13 @@ pub fn handle_source(source: Source) -> bool {
     let name = Name::new("<module>");
     importer.imported_modules.insert(name.clone(), expr);
 
-    let mut diagnostics =
-        SymbolCollector::collect_symbols(&mut engine, &mut relations, name, &mut importer);
-    diagnostics.extend(SymbolResolver::resolve_symbols(&engine, &mut relations));
+    let result = resolve_all(name, &mut importer);
 
+    let mut diagnostics = result.diagnostics;
     if diagnostics.is_empty() {
-        let type_engine = apply_types(&engine, &relations, &mut diagnostics);
+        let types = apply_types(&result.engine, &result.relations, &mut diagnostics);
         if diagnostics.is_empty() {
-            execute(type_engine)
+            execute(types);
         }
     }
 
@@ -94,10 +91,7 @@ extern "C" {
 
 fn execute(types: TypedEngine) {
     let mut emitter = Bytecode::default();
-    emit(
-        &mut emitter,
-        &types.get(SourceObjectId(0)).unwrap().expression,
-    );
+    emit(&mut emitter, &types.get(SourceId(0)).unwrap().expression);
     let mut bytes: Vec<u8> = Vec::new();
     write(&mut bytes, emitter).expect("write failed");
 

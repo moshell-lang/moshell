@@ -18,8 +18,8 @@ pub struct Typing {
 }
 
 impl Typing {
-    /// Constructs a new typing context with the built-in types.
-    pub fn lang() -> Self {
+    /// Constructs a new typing context that already contains the built-in types.
+    pub fn with_lang() -> Self {
         Self {
             types: vec![
                 Type::Error,

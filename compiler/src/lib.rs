@@ -14,19 +14,14 @@ pub fn emit(emitter: &mut Bytecode, expr: &TypedExpr) {
             if let Some(value) = value {
                 emit(emitter, value);
                 emitter.emit_code(Opcode::SetLocal);
-                match identifier {
-                    Symbol::Local(id) => {
-                        emitter.bytes.push(*id as u8);
-                    }
-                    _ => unreachable!(),
-                }
+                emitter.bytes.push(identifier.0 as u8);
             }
         }
         ExprKind::Reference(symbol) => {
             emitter.emit_code(Opcode::GetLocal);
             match symbol {
                 Symbol::Local(id) => {
-                    emitter.bytes.push(*id as u8);
+                    emitter.bytes.push(id.0 as u8);
                 }
                 _ => todo!(),
             }

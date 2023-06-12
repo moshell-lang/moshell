@@ -2,7 +2,7 @@ use crate::dependency::topological_sort;
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::environment::Environment;
-use crate::relations::{Relations, SourceObjectId};
+use crate::relations::{Relations, SourceId};
 use crate::steps::typing::exploration::Exploration;
 use crate::steps::typing::function::{infer_return, type_call, type_parameter, Return};
 use crate::types::ctx::TypeContext;
@@ -22,11 +22,11 @@ pub fn apply_types(
     relations: &Relations,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> TypedEngine {
-    let environments = topological_sort(&relations.build_dependencies(engine));
+    let environments = topological_sort(&relations.as_dependencies(engine));
     let mut exploration = Exploration {
         engine: TypedEngine::new(engine.len()),
-        typing: Typing::lang(),
-        ctx: TypeContext::lang(),
+        typing: Typing::with_lang(),
+        ctx: TypeContext::with_lang(),
         returns: Vec::new(),
     };
     for env_id in environments {
@@ -46,21 +46,31 @@ pub fn apply_types(
 /// checked.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(self) struct TypingState {
-    source: SourceObjectId,
+    source: SourceId,
     local_type: bool,
 }
 
 impl TypingState {
-    fn new(source: SourceObjectId) -> Self {
+    /// Creates a new initial state, for a script.
+    fn new(source: SourceId) -> Self {
         Self {
             source,
             local_type: false,
         }
     }
 
+    /// Returns a new state that should track local returns.
     fn with_local_type(self) -> Self {
         Self {
             local_type: true,
+            ..self
+        }
+    }
+
+    /// Returns a new state that indicates to not track local returns.
+    fn without_local_type(self) -> Self {
+        Self {
+            local_type: false,
             ..self
         }
     }
@@ -152,7 +162,7 @@ fn ascribe_types(
                     ))
                 })
                 .expect("Variables without initializers are not supported yet");
-            exploration
+            let id = exploration
                 .ctx
                 .push_local_type(state.source, initializer.ty);
             if let Some(type_annotation) = &decl.var.ty {
@@ -196,7 +206,7 @@ fn ascribe_types(
             }
             TypedExpr {
                 kind: ExprKind::Declare {
-                    identifier: env.get_raw_symbol(decl.segment.clone()).unwrap(),
+                    identifier: id,
                     value: Some(initializer),
                 },
                 ty: NOTHING,
@@ -218,12 +228,27 @@ fn ascribe_types(
             }
         }
         Expr::Block(block) => {
-            let expressions = block
-                .expressions
-                .iter()
-                .filter(|expr| !matches!(expr, Expr::Use(_)))
-                .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
-                .collect::<Vec<_>>();
+            let mut expressions = Vec::with_capacity(block.expressions.len());
+            if let Some((last, exprs)) = block.expressions.split_last() {
+                for expr in exprs {
+                    expressions.push(ascribe_types(
+                        exploration,
+                        relations,
+                        diagnostics,
+                        env,
+                        expr,
+                        state.without_local_type(),
+                    ));
+                }
+                expressions.push(ascribe_types(
+                    exploration,
+                    relations,
+                    diagnostics,
+                    env,
+                    last,
+                    state,
+                ));
+            }
             let ty = expressions.last().map(|expr| expr.ty).unwrap_or(NOTHING);
             TypedExpr {
                 kind: ExprKind::Block(expressions),
@@ -265,7 +290,7 @@ fn ascribe_types(
         Expr::FunctionDeclaration(fun) => {
             let declaration = env.get_raw_env(fun.segment.clone()).unwrap();
             let type_id = exploration.typing.add_type(Type::Function(declaration));
-            exploration.ctx.push_local_type(state.source, type_id);
+            let local_id = exploration.ctx.push_local_type(state.source, type_id);
 
             // Forward declare the function
             let parameters = fun
@@ -293,7 +318,7 @@ fn ascribe_types(
             );
             TypedExpr {
                 kind: ExprKind::Declare {
-                    identifier: env.get_raw_symbol(fun.segment.clone()).unwrap(),
+                    identifier: local_id,
                     value: None,
                 },
                 ty: NOTHING,
@@ -436,29 +461,23 @@ mod tests {
     use super::*;
     use crate::importer::StaticImporter;
     use crate::name::Name;
-    use crate::steps::collect::SymbolCollector;
-    use crate::steps::resolve::SymbolResolver;
+    use crate::resolve_all;
     use crate::types::ty::Type;
     use context::source::Source;
     use context::str_find::find_in;
     use parser::parse_trusted;
 
     pub(crate) fn extract_type(source: Source) -> Result<Type, Vec<Diagnostic>> {
-        let mut engine = Engine::default();
-        let mut relations = Relations::default();
-        let typing = Typing::lang();
+        let typing = Typing::with_lang();
         let name = Name::new(source.name);
-        let diagnostics = SymbolCollector::collect_symbols(
-            &mut engine,
-            &mut relations,
+        let result = resolve_all(
             name.clone(),
             &mut StaticImporter::new([(name, source)], parse_trusted),
         );
+        let mut diagnostics = result.diagnostics;
         assert_eq!(diagnostics, vec![]);
-        let mut diagnostics = SymbolResolver::resolve_symbols(&engine, &mut relations);
-        assert_eq!(diagnostics, vec![]);
-        let typed = apply_types(&engine, &relations, &mut diagnostics);
-        let expr = typed.get(SourceObjectId(0)).unwrap();
+        let typed = apply_types(&result.engine, &result.relations, &mut diagnostics);
+        let expr = typed.get(SourceId(0)).unwrap();
         if !diagnostics.is_empty() {
             return Err(diagnostics);
         }
@@ -491,7 +510,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "Type mismatch",
             )
             .with_observation(Observation::with_help(
@@ -513,7 +532,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::UnknownType,
-                SourceObjectId(0),
+                SourceId(0),
                 "Unknown type annotation",
             )
             .with_observation(Observation::with_help(
@@ -543,7 +562,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "`if` and `else` have incompatible types",
             )
             .with_observation(Observation::with_help(
@@ -564,6 +583,13 @@ mod tests {
     }
 
     #[test]
+    fn local_type_only_at_end_of_block() {
+        let content = "fun test() -> Int = {if false; 5; else {}; 4}; test()";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(res, Ok(Type::Int));
+    }
+
+    #[test]
     fn wrong_arguments() {
         let content = "fun square(n: Int) -> Int = $(( $n * $n ))\nsquare(9, 9)";
         let res = extract_type(Source::unknown(content));
@@ -571,7 +597,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "This function takes 1 argument but 2 were supplied",
             )
             .with_observation(Observation::with_help(
@@ -589,7 +615,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "Type mismatch",
             )
             .with_observation(Observation::with_help(
@@ -611,7 +637,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "Cannot invoke non function type",
             )
             .with_observation(Observation::with_help(
@@ -629,7 +655,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(1),
+                SourceId(1),
                 "Type mismatch",
             )
             .with_observation(Observation::with_help(
@@ -667,7 +693,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(1),
+                SourceId(1),
                 "Type mismatch",
             )
             .with_observation(Observation::with_help(find_in(content, "0"), "Found `Int`"))
@@ -703,23 +729,15 @@ mod tests {
         assert_eq!(
             res,
             Err(vec![
-                Diagnostic::new(
-                    DiagnosticID::TypeMismatch,
-                    SourceObjectId(1),
-                    "Type mismatch",
-                )
-                .with_observation(Observation::with_help(
-                    find_in(content, "return {}"),
-                    "Found `Nothing`"
-                ))
-                .with_observation(return_observation.clone()),
-                Diagnostic::new(
-                    DiagnosticID::TypeMismatch,
-                    SourceObjectId(1),
-                    "Type mismatch",
-                )
-                .with_observation(Observation::with_help(find_in(content, "9"), "Found `Int`"))
-                .with_observation(return_observation)
+                Diagnostic::new(DiagnosticID::TypeMismatch, SourceId(1), "Type mismatch",)
+                    .with_observation(Observation::with_help(
+                        find_in(content, "return {}"),
+                        "Found `Nothing`"
+                    ))
+                    .with_observation(return_observation.clone()),
+                Diagnostic::new(DiagnosticID::TypeMismatch, SourceId(1), "Type mismatch",)
+                    .with_observation(Observation::with_help(find_in(content, "9"), "Found `Int`"))
+                    .with_observation(return_observation)
             ])
         );
     }
@@ -732,14 +750,14 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::CannotInfer,
-                SourceObjectId(1),
+                SourceId(1),
                 "Return type inference is not supported yet",
             )
             .with_observation(Observation::with_help(
                 find_in(content, "fun test(n: Float) = "),
                 "No return type is specified"
             ))
-            .with_tip("Add -> Float to the function declaration")])
+            .with_help("Add -> Float to the function declaration")])
         );
     }
 
@@ -751,7 +769,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::CannotInfer,
-                SourceObjectId(1),
+                SourceId(1),
                 "Return type is not inferred for block functions",
             )
             .with_observation(Observation::with_help(
@@ -762,7 +780,9 @@ mod tests {
                 find_in(content, "$n"),
                 "Returning `Float`"
             ))
-            .with_tip("Try adding an explicit return type to the function")])
+            .with_help(
+                "Try adding an explicit return type to the function"
+            )])
         );
     }
 
@@ -774,14 +794,16 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::CannotInfer,
-                SourceObjectId(1),
+                SourceId(1),
                 "Failed to infer return type",
             )
             .with_observation(Observation::with_help(
                 find_in(content, "fun test() = if false; return 5; else {}"),
                 "This function returns multiple types"
             ))
-            .with_tip("Try adding an explicit return type to the function")])
+            .with_help(
+                "Try adding an explicit return type to the function"
+            )])
         );
     }
 }

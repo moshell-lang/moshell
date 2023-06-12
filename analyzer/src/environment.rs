@@ -1,5 +1,5 @@
 use crate::name::Name;
-use crate::relations::{SourceObjectId, Symbol};
+use crate::relations::{SourceId, Symbol};
 use context::source::{SourceSegment, SourceSegmentHolder};
 use std::collections::HashMap;
 use variables::Variables;
@@ -33,7 +33,7 @@ pub mod variables;
 #[derive(Debug, Clone)]
 pub struct Environment {
     /// The source object id of the parent environment, if the environment is nested.
-    pub parent: Option<SourceObjectId>,
+    pub parent: Option<SourceId>,
 
     ///Fully qualified name of the environment
     pub fqn: Name,
@@ -45,7 +45,7 @@ pub struct Environment {
     pub definitions: HashMap<SourceSegment, Symbol>,
 
     /// A mapping of expression segments to their declaring environment.
-    pub declarations: HashMap<SourceSegment, SourceObjectId>,
+    pub declarations: HashMap<SourceSegment, SourceId>,
 }
 
 impl Environment {
@@ -59,7 +59,7 @@ impl Environment {
         }
     }
 
-    pub fn fork(&self, source_id: SourceObjectId, name: &str) -> Environment {
+    pub fn fork(&self, source_id: SourceId, name: &str) -> Environment {
         let env_fqn = self.fqn.child(name);
 
         Self {
@@ -96,7 +96,7 @@ impl Environment {
     }
 
     /// Maps the declaring environment of a segment.
-    pub fn bind_source(&mut self, segment: &impl SourceSegmentHolder, source: SourceObjectId) {
+    pub fn bind_source(&mut self, segment: &impl SourceSegmentHolder, source: SourceId) {
         self.declarations.insert(segment.segment(), source);
     }
 
@@ -111,7 +111,7 @@ impl Environment {
     }
 
     /// Gets the declaring environment id of a segment.
-    pub fn get_raw_env(&self, segment: SourceSegment) -> Option<SourceObjectId> {
+    pub fn get_raw_env(&self, segment: SourceSegment) -> Option<SourceId> {
         self.declarations.get(&segment).copied()
     }
 
@@ -119,7 +119,7 @@ impl Environment {
     pub fn find_references(&self, symbol_declaration: Symbol) -> Vec<SourceSegment> {
         let mut references = Vec::new();
         for (segment, symbol_reference) in &self.definitions {
-            if *symbol_reference == symbol_declaration {
+            if symbol_reference == &symbol_declaration {
                 references.push(segment.clone());
             }
         }

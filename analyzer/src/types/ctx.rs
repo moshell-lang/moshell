@@ -1,4 +1,4 @@
-use crate::relations::{Relations, SourceObjectId, Symbol};
+use crate::relations::{LocalId, Relations, SourceId, Symbol};
 use crate::types::hir::TypeId;
 use crate::types::{BOOL, FLOAT, INT, NOTHING, STRING};
 use std::collections::HashMap;
@@ -8,50 +8,39 @@ use std::collections::HashMap;
 /// The actual type definition is in the [`crate::types::Typing`] struct.
 pub struct TypeContext {
     names: HashMap<String, TypeId>,
-    locals: HashMap<SourceObjectId, Vec<TypeId>>,
+    locals: HashMap<SourceId, Vec<TypeId>>,
 }
 
 impl TypeContext {
-    pub(crate) fn new() -> Self {
+    /// Constructs a new typing context that already contains the built-in type names.
+    pub(crate) fn with_lang() -> Self {
         Self {
-            names: HashMap::new(),
+            names: HashMap::from([
+                ("Nothing".to_owned(), NOTHING),
+                ("Bool".to_owned(), BOOL),
+                ("Int".to_owned(), INT),
+                ("Float".to_owned(), FLOAT),
+                ("String".to_owned(), STRING),
+            ]),
             locals: HashMap::new(),
         }
-    }
-
-    pub(crate) fn lang() -> Self {
-        let mut ctx = Self::new();
-        ctx.fill_lang();
-        ctx
-    }
-
-    pub(crate) fn fill_lang(&mut self) {
-        self.names.extend([
-            ("Nothing".to_owned(), NOTHING),
-            ("Bool".to_owned(), BOOL),
-            ("Int".to_owned(), INT),
-            ("Float".to_owned(), FLOAT),
-            ("String".to_owned(), STRING),
-        ]);
     }
 
     /// Returns the type id of a symbol.
     pub(crate) fn get(
         &self,
         relations: &Relations,
-        source: SourceObjectId,
+        source: SourceId,
         symbol: Symbol,
     ) -> Option<TypeId> {
         match symbol {
-            Symbol::Local(index) => self.locals.get(&source).unwrap().get(index).copied(),
-            Symbol::Global(index) => {
-                let resolved = relations.objects[index]
-                    .resolved
-                    .expect("Unresolved symbol");
+            Symbol::Local(index) => self.locals.get(&source).unwrap().get(index.0).copied(),
+            Symbol::External(index) => {
+                let resolved = relations[index].state.expect_resolved("Unresolved symbol");
                 self.locals
-                    .get(&resolved.module)
+                    .get(&resolved.source)
                     .unwrap()
-                    .get(resolved.object_id)
+                    .get(resolved.object_id.0)
                     .copied()
             }
         }
@@ -60,8 +49,11 @@ impl TypeContext {
     /// Defines the type of a currently explored symbol.
     ///
     /// This must be in sync with the symbol in the environment.
-    pub(crate) fn push_local_type(&mut self, source: SourceObjectId, type_id: TypeId) {
-        self.locals.entry(source).or_default().push(type_id);
+    pub(crate) fn push_local_type(&mut self, source: SourceId, type_id: TypeId) -> LocalId {
+        let locals = self.locals.entry(source).or_default();
+        let index = locals.len();
+        locals.push(type_id);
+        LocalId(index)
     }
 
     /// Finds the type from an annotation.
@@ -69,12 +61,12 @@ impl TypeContext {
         match type_annotation {
             ast::r#type::Type::Parametrized(param) => {
                 if !param.path.is_empty() || !param.params.is_empty() {
-                    return None;
+                    unimplemented!();
                 }
                 self.names.get(param.name).copied()
             }
-            ast::r#type::Type::Callable(_) => None,
-            ast::r#type::Type::ByName(_) => None,
+            ast::r#type::Type::Callable(_) => unimplemented!(),
+            ast::r#type::Type::ByName(_) => unimplemented!(),
         }
     }
 }

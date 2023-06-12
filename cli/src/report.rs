@@ -77,7 +77,7 @@ pub fn display_diagnostic<W: Write>(
             .with_code(format!("warn[W{:04}]", id.code()))
     };
 
-    if let Some((head, tail)) = diagnostic.tips.split_first() {
+    if let Some((head, tail)) = diagnostic.helps.split_first() {
         if tail.is_empty() {
             diag = diag.with_help(head)
         }

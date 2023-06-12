@@ -1,4 +1,4 @@
-use crate::relations::SourceObjectId;
+use crate::relations::SourceId;
 use crate::types::hir::TypeId;
 use context::source::SourceSegment;
 use std::fmt::Display;
@@ -29,7 +29,7 @@ pub enum Type {
     String,
 
     /// A callable type, that have a separate environment.
-    Function(SourceObjectId),
+    Function(SourceId),
 }
 
 /// A function parameter.
