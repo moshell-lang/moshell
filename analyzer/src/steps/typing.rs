@@ -7,7 +7,7 @@ use crate::steps::typing::exploration::Exploration;
 use crate::steps::typing::function::{infer_return, type_call, type_parameter, Return};
 use crate::types::ctx::TypeContext;
 use crate::types::engine::{Chunk, TypedEngine};
-use crate::types::hir::{ExprKind, TypedExpr, TypeId};
+use crate::types::hir::{ExprKind, TypedExpr};
 use crate::types::ty::Type;
 use crate::types::{Typing, ERROR, FLOAT, INT, NOTHING, STRING};
 use ast::value::LiteralValue;
@@ -73,7 +73,6 @@ fn apply_types_to_source(
     relations: &Relations,
     state: TypingState,
 ) -> Chunk {
-
     let source_id = state.source;
     let expr = engine.get_expression(source_id).unwrap();
     let env = engine.get_environment(source_id).unwrap();
@@ -91,7 +90,6 @@ fn apply_types_to_source(
                 env,
                 &func.body,
                 state.with_local_type(),
-                None,
             );
             let return_type = infer_return(func, &typed_expr, diagnostics, exploration, state);
             Chunk::function(
@@ -110,34 +108,8 @@ fn apply_types_to_source(
             env,
             expr,
             state,
-            None,
         )),
     }
-}
-
-/// checks if implicit conversion from expr's type to given type is valid.
-/// returns `Err(Diagnostic)` if the conversion is incompatible,
-/// `Ok(_)` if the conversion is compatible, with `None` if the conversion is useless
-/// (same types or `to` is none)
-fn check_implicit_cast(expr: &TypedExpr,
-                       to: Option<TypeId>,
-                       env_id: SourceObjectId,
-                       exploration: &Exploration) -> Result<Option<TypeId>, Diagnostic> {
-    if to.is_none() {
-        return Ok(None)
-    }
-    let to = to.unwrap();
-    // we try to cast to the same type
-    if expr.ty == to {
-        return Ok(None)
-    }
-    if !matches!((expr.ty, to), (INT, STRING) | (FLOAT, STRING)) {
-        let from_ty = exploration.get_type(expr.ty).unwrap();
-        let to_ty = exploration.get_type(expr.ty).unwrap();
-        return Err(Diagnostic::new(DiagnosticID::TypeMismatch, env_id, format!("Cannot implicitly convert `{from_ty}` to `{to_ty}`."))
-            .with_observation(Observation::new(expr.segment.clone())))
-    }
-    Ok(Some(to))
 }
 
 /// Ascribes types to the given expression.
@@ -150,9 +122,8 @@ fn ascribe_types(
     env: &Environment,
     expr: &Expr,
     state: TypingState,
-    implicit_cast: Option<TypeId>,
 ) -> TypedExpr {
-    let mut typed_expr = match expr {
+    match expr {
         Expr::Literal(lit) => {
             let ty = match lit.parsed {
                 LiteralValue::Int(_) => INT,
@@ -178,7 +149,6 @@ fn ascribe_types(
                         env,
                         expr,
                         state.with_local_type(),
-                        None
                     ))
                 })
                 .expect("Variables without initializers are not supported yet");
@@ -252,7 +222,7 @@ fn ascribe_types(
                 .expressions
                 .iter()
                 .filter(|expr| !matches!(expr, Expr::Use(_)))
-                .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state, None))
+                .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
                 .collect::<Vec<_>>();
             let ty = expressions.last().map(|expr| expr.ty).unwrap_or(NOTHING);
             TypedExpr {
@@ -271,7 +241,6 @@ fn ascribe_types(
                     env,
                     expr,
                     state,
-                    None
                 ))
             });
             exploration.returns.push(Return {
@@ -292,7 +261,6 @@ fn ascribe_types(
             env,
             &paren.expression,
             state,
-            None,
         ),
         Expr::FunctionDeclaration(fun) => {
             let declaration = env.get_raw_env(fun.segment.clone()).unwrap();
@@ -335,9 +303,9 @@ fn ascribe_types(
         }
         Expr::Binary(bin) => {
             let left_expr =
-                ascribe_types(exploration, relations, diagnostics, env, &bin.left, state, None);
+                ascribe_types(exploration, relations, diagnostics, env, &bin.left, state);
             let right_expr =
-                ascribe_types(exploration, relations, diagnostics, env, &bin.right, state, None);
+                ascribe_types(exploration, relations, diagnostics, env, &bin.right, state);
             let ty = exploration
                 .typing
                 .unify(left_expr.ty, right_expr.ty)
@@ -361,7 +329,6 @@ fn ascribe_types(
                 env,
                 &block.condition,
                 state,
-                None,
             );
             let then = ascribe_types(
                 exploration,
@@ -370,7 +337,6 @@ fn ascribe_types(
                 env,
                 &block.success_branch,
                 state,
-                None,
             );
             let otherwise = block.fail_branch.as_ref().map(|expr| {
                 Box::new(ascribe_types(
@@ -380,7 +346,6 @@ fn ascribe_types(
                     env,
                     expr,
                     state,
-                    None,
                 ))
             });
             let ty = if state.local_type {
@@ -427,7 +392,7 @@ fn ascribe_types(
             let args = call
                 .arguments
                 .iter()
-                .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state, Some(STRING)))
+                .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
                 .collect::<Vec<_>>();
             TypedExpr {
                 kind: ExprKind::ProcessCall(args),
@@ -440,7 +405,7 @@ fn ascribe_types(
             let arguments = call
                 .arguments
                 .iter()
-                .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state, None)) //TODO implicitly convert if the parameter is a primitive
+                .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state)) //TODO implicitly convert if the parameter is a primitive
                 .collect::<Vec<_>>();
             let symbol = env.get_raw_symbol(call.segment.clone()).unwrap();
             let return_type = type_call(
@@ -463,13 +428,7 @@ fn ascribe_types(
             }
         }
         _ => todo!("{expr:?}"),
-    };
-
-    match check_implicit_cast(&typed_expr, implicit_cast, state.source, exploration) {
-        Err(diag) => diagnostics.push(diag),
-        Ok(conversion) => typed_expr.implicit_cast = conversion,
     }
-    typed_expr
 }
 
 #[cfg(test)]
