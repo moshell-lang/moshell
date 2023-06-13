@@ -1,4 +1,5 @@
 use crate::relations::{ObjectId, Symbol};
+use crate::types::ty::Definition;
 use crate::types::{ERROR, NOTHING};
 use ast::operation::BinaryOperator;
 use ast::value::LiteralValue;
@@ -72,11 +73,12 @@ pub enum ExprKind {
     FunctionCall {
         name: String,
         arguments: Vec<TypedExpr>,
+        definition: Definition,
     },
     MethodCall {
         callee: Box<TypedExpr>,
-        name: String,
         arguments: Vec<TypedExpr>,
+        definition: Definition,
     },
     Return(Option<Box<TypedExpr>>),
     Noop,

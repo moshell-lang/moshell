@@ -4,7 +4,7 @@ use crate::steps::typing::exploration::Exploration;
 use crate::steps::typing::TypingState;
 use crate::types::ctx::TypeContext;
 use crate::types::hir::{ExprKind, TypeId, TypedExpr};
-use crate::types::ty::{FunctionType, MethodType, Parameter, Type};
+use crate::types::ty::{Definition, FunctionType, MethodType, Parameter, Type};
 use crate::types::{Typing, ERROR, NOTHING, STRING};
 use ast::call::{MethodCall, ProgrammaticCall};
 use ast::function::{FunctionDeclaration, FunctionParameter};
@@ -156,7 +156,7 @@ pub(super) fn type_call(
     exploration: &mut Exploration,
     relations: &Relations,
     state: TypingState,
-) -> TypeId {
+) -> (Definition, TypeId) {
     let type_id = exploration
         .ctx
         .get(relations, state.source, symbol)
@@ -164,9 +164,10 @@ pub(super) fn type_call(
         .type_id;
     match exploration.get_type(type_id).unwrap() {
         Type::Function(declaration) => {
-            let entry = exploration.engine.get(*declaration).unwrap();
-            let parameters = &entry.parameters;
-            let return_type = entry.return_type;
+            let declaration = *declaration;
+            let entry = exploration.engine.get(declaration).unwrap();
+            let parameters = entry.parameters();
+            let return_type = entry.return_type();
             if parameters.len() != arguments.len() {
                 diagnostics.push(
                     Diagnostic::new(
@@ -185,7 +186,7 @@ pub(super) fn type_call(
                         "Function is called here",
                     )),
                 );
-                ERROR
+                (Definition::error(), ERROR)
             } else {
                 for (param, arg) in parameters.iter().zip(arguments.iter()) {
                     if exploration.typing.unify(param.ty, arg.ty).is_err() {
@@ -197,7 +198,7 @@ pub(super) fn type_call(
                         ));
                     }
                 }
-                return_type
+                (declaration, return_type)
             }
         }
         ty => {
@@ -212,7 +213,7 @@ pub(super) fn type_call(
                     format!("Call expression requires function, found `{ty}`"),
                 )),
             );
-            ERROR
+            (Definition::error(), ERROR)
         }
     }
 }
@@ -236,14 +237,14 @@ pub(super) fn find_operand_implementation<'a>(
 }
 
 /// Checks the type of a method expression.
-pub(super) fn type_method(
+pub(super) fn type_method<'a>(
     method_call: &MethodCall,
     callee: &TypedExpr,
     arguments: &[TypedExpr],
     diagnostics: &mut Vec<Diagnostic>,
-    exploration: &mut Exploration,
+    exploration: &'a mut Exploration,
     state: TypingState,
-) -> TypeId {
+) -> Option<&'a MethodType> {
     // Directly callable types just have a single method called `apply`
     let method_name = method_call.name.unwrap_or("apply");
     let methods = exploration.engine.get_methods(callee.ty, method_name);
@@ -263,14 +264,14 @@ pub(super) fn type_method(
                 )
             },
         ));
-        return ERROR;
+        return None;
     }
 
     let methods = methods.unwrap(); // We just checked for None
     let method = find_matching_method(methods, arguments);
     if let Some(method) = method {
         // We have an exact match
-        return method.return_type;
+        return Some(method);
     }
 
     if methods.len() == 1 {
@@ -330,7 +331,7 @@ pub(super) fn type_method(
             )),
         );
     }
-    ERROR
+    None
 }
 
 fn diagnose_arg_mismatch(

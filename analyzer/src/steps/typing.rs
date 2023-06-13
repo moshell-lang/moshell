@@ -7,11 +7,12 @@ use crate::steps::typing::exploration::{diagnose_unknown_type, Exploration};
 use crate::steps::typing::function::{
     find_operand_implementation, infer_return, type_call, type_method, type_parameter, Return,
 };
+use crate::steps::typing::lower::convert_into_string;
 use crate::types::ctx::{TypeContext, TypedVariable};
 use crate::types::engine::{Chunk, TypedEngine};
 use crate::types::hir::{ExprKind, TypedExpr};
 use crate::types::operator::name_operator_method;
-use crate::types::ty::Type;
+use crate::types::ty::{Definition, Type};
 use crate::types::{Typing, ERROR, FLOAT, INT, NOTHING, STRING};
 use ast::operation::BinaryOperator;
 use ast::value::LiteralValue;
@@ -21,6 +22,7 @@ use context::source::SourceSegmentHolder;
 
 mod exploration;
 mod function;
+mod lower;
 
 pub fn apply_types(
     engine: &Engine,
@@ -167,8 +169,18 @@ fn ascribe_types(
                 env,
                 it.next().unwrap(),
                 state.without_local_type(),
-            )
-            .cast(STRING);
+            );
+            let acc = convert_into_string(acc, exploration, diagnostics, state);
+            let plus_method = exploration
+                .engine
+                .get_method_exact(
+                    STRING,
+                    name_operator_method(BinaryOperator::Plus),
+                    &[STRING],
+                    STRING,
+                )
+                .expect("string type should have a concatenation method")
+                .definition;
             it.fold(acc, |acc, part| {
                 let current = ascribe_types(
                     exploration,
@@ -177,14 +189,13 @@ fn ascribe_types(
                     env,
                     part,
                     state.without_local_type(),
-                )
-                .cast(STRING);
+                );
                 let segment = acc.segment.start..current.segment.end;
                 TypedExpr {
                     kind: ExprKind::MethodCall {
-                        callee: Box::new(acc),
-                        name: name_operator_method(BinaryOperator::Plus).to_owned(),
+                        callee: Box::new(convert_into_string(acc, exploration, diagnostics, state)),
                         arguments: vec![current],
+                        definition: plus_method,
                     },
                     ty: STRING,
                     segment,
@@ -391,7 +402,9 @@ fn ascribe_types(
         ),
         Expr::FunctionDeclaration(fun) => {
             let declaration = env.get_raw_env(fun.segment.clone()).unwrap();
-            let type_id = exploration.typing.add_type(Type::Function(declaration));
+            let type_id = exploration
+                .typing
+                .add_type(Type::Function(Definition::User(declaration)));
             let local_id = exploration.ctx.push_local_type(state.source, type_id);
 
             // Forward declare the function
@@ -583,8 +596,8 @@ fn ascribe_types(
                 .arguments
                 .iter()
                 .map(|expr| {
-                    ascribe_types(exploration, relations, diagnostics, env, expr, state)
-                        .cast(STRING)
+                    let expr = ascribe_types(exploration, relations, diagnostics, env, expr, state);
+                    convert_into_string(expr, exploration, diagnostics, state)
                 })
                 .collect::<Vec<_>>();
             TypedExpr {
@@ -599,8 +612,10 @@ fn ascribe_types(
                 .iter()
                 .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
                 .collect::<Vec<_>>();
-            let symbol = env.get_raw_symbol(call.segment.clone()).unwrap();
-            let return_type = type_call(
+            let symbol = env
+                .get_raw_symbol(call.segment.clone())
+                .expect("Environment has not tracked the symbol for programmatic call");
+            let (definition, return_type) = type_call(
                 call,
                 &arguments,
                 symbol,
@@ -613,6 +628,7 @@ fn ascribe_types(
                 kind: ExprKind::FunctionCall {
                     name: call.name.to_owned(),
                     arguments,
+                    definition,
                 },
                 ty: return_type,
                 segment: call.segment.clone(),
@@ -632,15 +648,19 @@ fn ascribe_types(
                 .iter()
                 .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
                 .collect::<Vec<_>>();
-            let return_type =
+            let method_type =
                 type_method(method, &callee, &arguments, diagnostics, exploration, state);
             TypedExpr {
                 kind: ExprKind::MethodCall {
                     callee: Box::new(callee),
-                    name: method.name.unwrap_or("apply").to_owned(),
                     arguments,
+                    definition: method_type
+                        .map(|method| method.definition)
+                        .unwrap_or(Definition::error()),
                 },
-                ty: return_type,
+                ty: method_type
+                    .map(|method| method.return_type)
+                    .unwrap_or(ERROR),
                 segment: method.segment.clone(),
             }
         }
@@ -653,7 +673,7 @@ mod tests {
     use super::*;
     use crate::importer::StaticImporter;
     use crate::name::Name;
-    use crate::relations::Symbol;
+    use crate::relations::{NativeObjectId, Symbol};
     use crate::resolve_all;
     use crate::types::ty::Type;
     use context::source::Source;
@@ -671,7 +691,7 @@ mod tests {
         let mut diagnostics = result.diagnostics;
         assert_eq!(diagnostics, vec![]);
         let typed = apply_types(&result.engine, &result.relations, &mut diagnostics);
-        let expr = typed.get(SourceObjectId(0)).unwrap();
+        let expr = typed.get_user(SourceObjectId(0)).unwrap();
         if !diagnostics.is_empty() {
             return Err(diagnostics);
         }
@@ -1172,17 +1192,31 @@ mod tests {
                             segment: find_in(content, "grep"),
                         },
                         TypedExpr {
-                            kind: ExprKind::Reference(Symbol::Local(0)),
-                            ty: INT,
+                            kind: ExprKind::MethodCall {
+                                callee: Box::new(TypedExpr {
+                                    kind: ExprKind::Reference(Symbol::Local(0)),
+                                    ty: INT,
+                                    segment: find_in_nth(content, "$n", 1),
+                                }),
+                                arguments: vec![],
+                                definition: Definition::Native(NativeObjectId(10)),
+                            },
+                            ty: STRING,
                             segment: find_in_nth(content, "$n", 1),
-                        }
-                        .cast(STRING),
+                        },
                         TypedExpr {
-                            kind: ExprKind::Literal(4.2.into()),
-                            ty: FLOAT,
+                            kind: ExprKind::MethodCall {
+                                callee: Box::new(TypedExpr {
+                                    kind: ExprKind::Literal(4.2.into()),
+                                    ty: FLOAT,
+                                    segment: find_in(content, "4.2"),
+                                }),
+                                arguments: vec![],
+                                definition: Definition::Native(NativeObjectId(11)),
+                            },
+                            ty: STRING,
                             segment: find_in(content, "4.2"),
                         }
-                        .cast(STRING)
                     ]),
                     ty: NOTHING,
                     segment: find_in(content, "grep $n 4.2"),
@@ -1278,6 +1312,24 @@ mod tests {
             .with_observation(Observation::with_help(
                 find_in(content, ".sub('a')"),
                 "Arguments to this method are incorrect"
+            ))])
+        );
+    }
+
+    #[test]
+    fn cannot_stringify_void() {
+        let content = "val v = {}; grep $v 'test'";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::UnknownMethod,
+                SourceObjectId(0),
+                "Cannot stringify type `Nothing`",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "$v"),
+                "No method `to_string` on type `Nothing`"
             ))])
         );
     }

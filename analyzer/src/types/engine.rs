@@ -1,7 +1,7 @@
 use crate::relations::SourceObjectId;
 use crate::types::builtin::lang;
 use crate::types::hir::{TypeId, TypedExpr};
-use crate::types::ty::{MethodType, Parameter, TypeDescription};
+use crate::types::ty::{Definition, FunctionType, MethodType, Parameter, TypeDescription};
 use crate::types::NOTHING;
 
 /// A typed [`crate::engine::Engine`].
@@ -10,8 +10,39 @@ use crate::types::NOTHING;
 /// functions and scripts.
 #[derive(Debug)]
 pub struct TypedEngine {
+    /// The user defined chunks of code.
+    ///
+    /// At the end of the compilation, this vector has replaced all its `None` values.
     entries: Vec<Option<Chunk>>,
+
+    /// Descriptions of types.
     descriptions: Vec<TypeDescription>,
+
+    /// Native code that powers the language.
+    ///
+    /// It powers primitives types, and is indexed by [`NativeObjectId`]s.
+    natives: Vec<FunctionType>,
+}
+
+pub enum CodeEntry<'a> {
+    User(&'a Chunk),
+    Native(&'a FunctionType),
+}
+
+impl CodeEntry<'_> {
+    pub fn parameters(&self) -> &[Parameter] {
+        match self {
+            CodeEntry::User(chunk) => chunk.parameters.as_slice(),
+            CodeEntry::Native(native) => native.parameters.as_slice(),
+        }
+    }
+
+    pub fn return_type(&self) -> TypeId {
+        match self {
+            CodeEntry::User(chunk) => chunk.return_type,
+            CodeEntry::Native(native) => native.return_type,
+        }
+    }
 }
 
 /// A chunk of typed code.
@@ -62,18 +93,23 @@ impl TypedEngine {
         let mut builder = Self {
             entries: Vec::new(),
             descriptions: Vec::new(),
+            natives: Vec::new(),
         };
         builder.entries.resize_with(capacity, || None);
-        builder
-            .descriptions
-            .resize_with(10 /* Just a random number for now */, Default::default);
         lang(&mut builder);
         builder
     }
 
     /// Returns the chunk with the given id.
-    pub fn get(&self, id: SourceObjectId) -> Option<&Chunk> {
-        self.entries.get(id.0).and_then(|entry| entry.as_ref())
+    pub fn get(&self, def: Definition) -> Option<CodeEntry> {
+        match def {
+            Definition::User(id) => self.get_user(id).map(CodeEntry::User),
+            Definition::Native(id) => self.natives.get(id.0).map(CodeEntry::Native),
+        }
+    }
+
+    pub fn get_user(&self, id: SourceObjectId) -> Option<&Chunk> {
+        self.entries.get(id.0).and_then(|x| x.as_ref())
     }
 
     /// Inserts a chunk into the engine.
@@ -89,10 +125,31 @@ impl TypedEngine {
         self.descriptions.get(type_id.0)?.methods.get(name)
     }
 
+    /// Gets the method that matches exactly the given arguments and return type.
+    pub fn get_method_exact(
+        &self,
+        type_id: TypeId,
+        name: &str,
+        args: &[TypeId],
+        return_type: TypeId,
+    ) -> Option<&MethodType> {
+        self.get_methods(type_id, name).and_then(|methods| {
+            methods.iter().find(|method| {
+                method.parameters.iter().map(|p| &p.ty).eq(args)
+                    && method.return_type == return_type
+            })
+        })
+    }
+
     /// Adds a new method to a type.
     ///
     /// The method may not conflict with any existing methods.
     pub fn add_method(&mut self, type_id: TypeId, name: &str, method: MethodType) {
+        // Extend the vector of type descriptions if necessary.
+        if type_id.0 >= self.descriptions.len() {
+            self.descriptions
+                .resize_with(type_id.0 + 1, Default::default);
+        }
         self.descriptions[type_id.0]
             .methods
             .entry(name.to_owned())

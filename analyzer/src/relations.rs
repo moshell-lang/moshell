@@ -24,6 +24,10 @@ pub struct GlobalObjectId(pub ObjectId);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct SourceObjectId(pub ObjectId);
 
+/// A native object identifier, that points to a native function in the [`Engine`].
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct NativeObjectId(pub ObjectId);
+
 /// An indication where an object is located.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Symbol {

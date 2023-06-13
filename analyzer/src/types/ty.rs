@@ -1,4 +1,4 @@
-use crate::relations::SourceObjectId;
+use crate::relations::{NativeObjectId, ObjectId, SourceObjectId};
 use crate::types::hir::TypeId;
 use context::source::SourceSegment;
 use std::collections::HashMap;
@@ -32,28 +32,38 @@ pub enum Type {
     /// A string type, that contains a UTF-8 string.
     String,
 
-    /// A callable type, that have a separate environment.
-    Function(SourceObjectId),
+    /// A callable type, that have a separate definition.
+    Function(Definition),
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct UserFunction {
-    pub(crate) parameters: Vec<Parameter>,
-    pub(crate) return_type: TypeId,
-    chunk: Option<SourceObjectId>,
+/// A type identifier in a [`TypedEngine`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Definition {
+    /// A block of code, that the user can define.
+    User(SourceObjectId),
+
+    /// A native function, that is defined in the VM.
+    Native(NativeObjectId),
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct NativeFunction {
-    pub(crate) parameters: Vec<TypeId>,
-    pub(crate) return_type: TypeId,
+impl Definition {
+    /// Builds an erroneous definition that is used for error propagation.
+    pub fn error() -> Self {
+        Self::User(SourceObjectId(ObjectId::MAX))
+    }
 }
 
+/// A callable function signature.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FunctionType {
+    /// The exact parameters that are expected by the function.
     pub(crate) parameters: Vec<Parameter>,
+
+    /// The return type of the function.
     pub(crate) return_type: TypeId,
-    pub(crate) chunk: Option<SourceObjectId>,
+
+    /// The environment of the function, or the native function ID.
+    pub(crate) definition: Definition,
 }
 
 /// A function parameter.
@@ -73,20 +83,33 @@ impl Display for Type {
             Type::Int => write!(f, "Int"),
             Type::Float => write!(f, "Float"),
             Type::String => write!(f, "String"),
-            Type::Function(id) => write!(f, "fun#{}", id.0),
+            Type::Function(id) => write!(
+                f,
+                "fun#{}",
+                match id {
+                    Definition::User(id) => id.0,
+                    Definition::Native(id) => id.0,
+                }
+            ),
         }
     }
 }
 
 impl FunctionType {
-    pub fn native(parameters: Vec<TypeId>, return_type: TypeId) -> Self {
+    /// Creates a new native function.
+    ///
+    /// Natives functions cannot be defined by the user, since it is a
+    /// chicken-and-egg problem. They are defined by the language host,
+    /// usually in a Rust or C++ VM. They are identified by a dedicated
+    /// [`NativeObjectId`], so that the compiler can quickly identify them.
+    pub fn native(parameters: Vec<TypeId>, return_type: TypeId, id: NativeObjectId) -> Self {
         Self {
             parameters: parameters
                 .into_iter()
                 .map(|ty| Parameter { segment: None, ty })
                 .collect(),
             return_type,
-            chunk: None,
+            definition: Definition::Native(id),
         }
     }
 }
@@ -101,4 +124,5 @@ pub struct TypeDescription {
     pub(crate) methods: HashMap<String, Vec<MethodType>>,
 }
 
+/// A method is a function that only exists on a given type.
 pub type MethodType = FunctionType;
