@@ -420,7 +420,7 @@ fn ascribe_types(
             let arguments = call
                 .arguments
                 .iter()
-                .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
+                .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state)) //TODO implicitly convert if the parameter is a primitive
                 .collect::<Vec<_>>();
             let symbol = env.get_raw_symbol(call.segment.clone()).unwrap();
             let return_type = type_call(
