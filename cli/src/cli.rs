@@ -70,8 +70,8 @@ pub fn handle_source(source: Source) -> bool {
         let types = apply_types(&result.engine, &result.relations, &mut diagnostics);
         if diagnostics.is_empty() {
             execute(types);
+            return false;
         }
-        return false;
     }
 
     let mut stdout = stderr();

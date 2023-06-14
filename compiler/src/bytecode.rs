@@ -8,7 +8,7 @@ pub struct Bytecode {
 impl Bytecode {
 
     /// Returns the current byte instruction position in current frame
-    pub fn current_frame_pos(&self) -> usize {
+    pub fn current_frame_ip(&self) -> usize {
         // note: as call frames are not yet supported,
         // this implementation returns the overall bytes length.
         self.bytes.len()
@@ -38,8 +38,11 @@ impl Bytecode {
         self.bytes.extend(constant_ref.to_be_bytes());
     }
 
-    pub fn emit_code_backpatched(&mut self, code: Opcode, placeholder_size: usize) -> usize {
-        self.emit_code(code);
+    pub fn emit_instruction_pointer(&mut self, ip: usize) {
+        self.bytes.extend(ip.to_be_bytes());
+    }
+
+    pub fn create_placeholder(&mut self, placeholder_size: usize) -> usize {
         let pos = self.bytes.len();
         self.bytes.resize(pos + placeholder_size, 0);
         pos
@@ -63,7 +66,10 @@ pub enum Opcode {
     SetLocal,
     Spawn,
 
+    PopInt,
+
     IfJump,
+    IfNotJump,
     Jump,
 
     ConvertIntToStr,

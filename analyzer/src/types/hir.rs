@@ -67,6 +67,12 @@ pub struct Conditional {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct Loop {
+    pub condition: Option<Box<TypedExpr>>,
+    pub body: Box<TypedExpr>
+}
+
+#[derive(Debug, PartialEq)]
 pub struct FunctionCall {
     pub name: String,
     pub arguments: Vec<TypedExpr>,
@@ -82,8 +88,12 @@ pub enum ExprKind {
     Binary(Binary),
     Block(Vec<TypedExpr>),
     Conditional(Conditional),
+    ConditionalLoop(Loop),
     ProcessCall(Vec<TypedExpr>),
     FunctionCall(FunctionCall),
     Return(Option<Box<TypedExpr>>),
+
+    Continue,
+    Break,
     Noop,
 }

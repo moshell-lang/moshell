@@ -15,7 +15,10 @@ enum Opcode {
     OP_SET_LOCAL,
     OP_SPAWN, // 1 byte opcode, 1 byte stack size for process exec()
 
+    OP_POP_INT,
+
     OP_IF_JUMP, //last operand stack, 1 byte opcode for 'then' branch
+    OP_IF_NOT_JUMP, //last operand stack, 1 byte opcode for 'then' branch
     OP_JUMP,
 
     OP_INT_TO_STR,
@@ -23,10 +26,21 @@ enum Opcode {
 };
 
 
-
 constant_pool::constant_pool(int capacity) {
     strings.reserve(capacity);
     sizes.reserve(capacity);
+}
+
+
+void handle_process_state(int status, char current_instruction, unsigned int& ip, OperandStack& stack) {
+    // look ahead for OP_POP_INT instruction in order to avoid useless push/pop operations
+    // which often happens
+    if (current_instruction == OP_POP_INT) {
+        ip++; //skip pop operation and do not push
+        return;
+    }
+    // add status to the stack
+    stack.push_int(status);
 }
 
 
@@ -97,8 +111,7 @@ void run(constant_pool pool, const char* bytes, size_t size) {
                     // Wait for the process to finish
                     waitpid(pid, &status, 0);
 
-                    // add status to the stack
-                    stack.push_int(status);
+                    handle_process_state(status, bytes[ip], ip, stack);
                 }
                 break;
             }
@@ -140,12 +153,14 @@ void run(constant_pool pool, const char* bytes, size_t size) {
                 ip++;
                 break;
             }
-            case OP_IF_JUMP: {
+            case OP_IF_NOT_JUMP:
+            case OP_IF_JUMP : {
                 int64_t value = stack.pop_int();
                 size_t then_branch = ntohl(*(size_t*) (bytes + ip + sizeof(char)));
-                // remember that we are in a shell interpreter thus
+                // as we are in a shell interpreter thus
                 // when value is 0 it means that the test or operation succeeded.
-                if (value == 0) {
+                // the test is reversed if current operation is OP_IF_NOT_JUMP
+                if ((value == 0) == (bytes[ip] == OP_IF_JUMP)) {
                     ip = then_branch;
                 } else {
                     //the length of if-jump opcode and its branch destination
@@ -158,6 +173,11 @@ void run(constant_pool pool, const char* bytes, size_t size) {
                 ip = destination;
                 break;
             }
+            case OP_POP_INT: {
+                stack.pop_int();
+                ip++;
+                break;
+            }
             default: {
                 std::cerr << "Error: Unknown opcode " << (int) bytes[ip] << "\n";
                 exit(1);
@@ -165,3 +185,4 @@ void run(constant_pool pool, const char* bytes, size_t size) {
         }
     }
 }
+

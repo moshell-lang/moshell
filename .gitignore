@@ -16,3 +16,5 @@ CMakeFiles
 a.out
 moshell
 *.bin
+
+sandbox/scripts

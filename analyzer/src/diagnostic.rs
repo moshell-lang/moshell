@@ -53,6 +53,10 @@ pub enum DiagnosticID {
     #[assoc(code = 10)]
     #[assoc(critical = true)]
     CannotInfer,
+
+    #[assoc(code = 11)]
+    #[assoc(critical = true)]
+    InvalidBreakOrContinue,
 }
 
 /// Observations are an area in the source code with an (optional) help message

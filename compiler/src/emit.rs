@@ -1,14 +1,31 @@
 use analyzer::relations::Symbol;
+use analyzer::types::*;
 use analyzer::types::hir::{Declaration, ExprKind, TypedExpr};
 use ast::value::LiteralValue;
 
 use crate::bytecode::{Bytecode, Opcode};
 use crate::constant_pool::ConstantPool;
 use crate::emit::invoke::emit_process_call;
-use crate::emit::jump::emit_conditional;
+use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
 
-pub mod invoke;
-pub mod jump;
+mod invoke;
+mod jump;
+
+
+pub struct EmissionState {
+    pub last_loop_start: usize,
+    pub last_loop_end_placeholders: Vec<usize>,
+}
+
+
+impl EmissionState {
+    pub fn new() -> Self {
+        Self {
+            last_loop_start: 0,
+            last_loop_end_placeholders: Vec::new(),
+        }
+    }
+}
 
 fn emit_literal(literal: &LiteralValue, emitter: &mut Bytecode, cp: &mut ConstantPool) {
     match literal {
@@ -34,27 +51,39 @@ fn emit_ref(symbol: &Symbol, emitter: &mut Bytecode) {
     }
 }
 
-fn emit_declaration(declaration: &Declaration, emitter: &mut Bytecode, cp: &mut ConstantPool) {
+fn emit_declaration(declaration: &Declaration,
+                    emitter: &mut Bytecode,
+                    cp: &mut ConstantPool,
+                    state: &mut EmissionState) {
     let value = declaration.value.as_ref().expect("var declaration without initializer not supported");
-    emit(value, emitter, cp);
+    emit(value, emitter, cp, state);
     emitter.emit_code(Opcode::SetLocal);
     emitter.bytes.push(declaration.identifier.0 as u8);
 }
 
-fn emit_block(exprs: &Vec<TypedExpr>, emitter: &mut Bytecode, cp: &mut ConstantPool) {
+fn emit_block(exprs: &Vec<TypedExpr>,
+              emitter: &mut Bytecode,
+              cp: &mut ConstantPool,
+              state: &mut EmissionState) {
     for expr in exprs {
-        emit(expr, emitter, cp);
+        emit(expr, emitter, cp, state);
     }
 }
 
-pub fn emit(expr: &TypedExpr, emitter: &mut Bytecode, cp: &mut ConstantPool) {
+pub fn emit(expr: &TypedExpr,
+            emitter: &mut Bytecode,
+            cp: &mut ConstantPool,
+            state: &mut EmissionState) {
     match &expr.kind {
-        ExprKind::Declare(d) => emit_declaration(d, emitter, cp),
+        ExprKind::Declare(d) => emit_declaration(d, emitter, cp, state),
         ExprKind::Reference(r) => emit_ref(r, emitter),
         ExprKind::Literal(literal) => emit_literal(literal, emitter, cp),
-        ExprKind::ProcessCall(args) => emit_process_call(args, emitter, cp),
-        ExprKind::Block(exprs) => emit_block(exprs, emitter, cp),
-        ExprKind::Conditional(c) => emit_conditional(c, emitter, cp),
+        ExprKind::ProcessCall(args) => emit_process_call(args, expr.ty != NOTHING, emitter, cp, state),
+        ExprKind::Block(exprs) => emit_block(exprs, emitter, cp, state),
+        ExprKind::Conditional(c) => emit_conditional(c, emitter, cp, state),
+        ExprKind::ConditionalLoop(l) => emit_loop(l, emitter, cp, state),
+        ExprKind::Continue => emit_continue(emitter, state),
+        ExprKind::Break => emit_break(emitter, state),
         _ => {}
     }
 }
