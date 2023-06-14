@@ -3,7 +3,6 @@ use std::io::stderr;
 use std::path::PathBuf;
 
 use clap::Parser;
-use dbg_pls::color;
 
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
@@ -11,10 +10,9 @@ use analyzer::relations::SourceId;
 use analyzer::resolve_all;
 use analyzer::steps::typing::apply_types;
 use analyzer::types::engine::TypedEngine;
-use ast::group::Block;
 use ast::Expr;
-use compiler::bytecode::Bytecode;
-use compiler::{emit, write};
+use ast::group::Block;
+use compiler::compile;
 use context::source::Source;
 use parser::parse;
 
@@ -90,10 +88,8 @@ extern "C" {
 }
 
 fn execute(types: TypedEngine) {
-    let mut emitter = Bytecode::default();
-    emit(&mut emitter, &types.get(SourceId(0)).unwrap().expression);
     let mut bytes: Vec<u8> = Vec::new();
-    write(&mut bytes, emitter).expect("write failed");
+    compile(&types.get(SourceId(0)).unwrap().expression, &mut bytes).expect("write failed");
 
     let len = bytes.len();
     unsafe {

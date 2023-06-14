@@ -40,35 +40,50 @@ impl SourceSegmentHolder for TypedExpr {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub struct Assignment {
+    pub lhs: Box<TypedExpr>,
+    pub rhs: Box<TypedExpr>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Declaration {
+    pub identifier: LocalId,
+    pub value: Option<Box<TypedExpr>>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Binary {
+    pub lhs: Box<TypedExpr>,
+    pub op: BinaryOperator,
+    pub rhs: Box<TypedExpr>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Conditional {
+    pub condition: Box<TypedExpr>,
+    pub then: Box<TypedExpr>,
+    pub otherwise: Option<Box<TypedExpr>>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct FunctionCall {
+    pub name: String,
+    pub arguments: Vec<TypedExpr>,
+}
+
 /// An expression content.
 #[derive(Debug, PartialEq)]
 pub enum ExprKind {
     Literal(LiteralValue),
-    Assign {
-        lhs: Box<TypedExpr>,
-        rhs: Box<TypedExpr>,
-    },
-    Declare {
-        identifier: LocalId,
-        value: Option<Box<TypedExpr>>,
-    },
+    Assign(Assignment),
+    Declare(Declaration),
     Reference(Symbol),
-    Binary {
-        lhs: Box<TypedExpr>,
-        op: BinaryOperator,
-        rhs: Box<TypedExpr>,
-    },
+    Binary(Binary),
     Block(Vec<TypedExpr>),
-    Conditional {
-        condition: Box<TypedExpr>,
-        then: Box<TypedExpr>,
-        otherwise: Option<Box<TypedExpr>>,
-    },
+    Conditional(Conditional),
     ProcessCall(Vec<TypedExpr>),
-    FunctionCall {
-        name: String,
-        arguments: Vec<TypedExpr>,
-    },
+    FunctionCall(FunctionCall),
     Return(Option<Box<TypedExpr>>),
     Noop,
 }

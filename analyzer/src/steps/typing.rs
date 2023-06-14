@@ -7,7 +7,7 @@ use crate::steps::typing::exploration::Exploration;
 use crate::steps::typing::function::{infer_return, type_call, type_parameter, Return};
 use crate::types::ctx::TypeContext;
 use crate::types::engine::{Chunk, TypedEngine};
-use crate::types::hir::{ExprKind, TypedExpr};
+use crate::types::hir::{Binary, Conditional, Declaration, ExprKind, FunctionCall, TypedExpr};
 use crate::types::ty::Type;
 use crate::types::{Typing, ERROR, FLOAT, INT, NOTHING, STRING};
 use ast::value::LiteralValue;
@@ -204,10 +204,10 @@ fn ascribe_types(
                 }
             }
             TypedExpr {
-                kind: ExprKind::Declare {
+                kind: ExprKind::Declare(Declaration {
                     identifier: id,
                     value: Some(initializer),
-                },
+                }),
                 ty: NOTHING,
                 segment: decl.segment.clone(),
             }
@@ -311,10 +311,10 @@ fn ascribe_types(
                 ),
             );
             TypedExpr {
-                kind: ExprKind::Declare {
+                kind: ExprKind::Declare(Declaration {
                     identifier: local_id,
                     value: None,
-                },
+                }),
                 ty: NOTHING,
                 segment: fun.segment.clone(),
             }
@@ -329,11 +329,11 @@ fn ascribe_types(
                 .unify(left_expr.ty, right_expr.ty)
                 .unwrap_or(ERROR);
             TypedExpr {
-                kind: ExprKind::Binary {
+                kind: ExprKind::Binary(Binary {
                     lhs: Box::new(left_expr),
                     op: bin.op,
                     rhs: Box::new(right_expr),
-                },
+                }),
                 ty,
                 segment: bin.segment(),
             }
@@ -395,11 +395,11 @@ fn ascribe_types(
                 NOTHING
             };
             TypedExpr {
-                kind: ExprKind::Conditional {
+                kind: ExprKind::Conditional(Conditional {
                     condition: Box::new(condition),
                     then: Box::new(then),
                     otherwise,
-                },
+                }),
                 ty,
                 segment: block.segment.clone(),
             }
@@ -433,10 +433,10 @@ fn ascribe_types(
                 state,
             );
             TypedExpr {
-                kind: ExprKind::FunctionCall {
+                kind: ExprKind::FunctionCall(FunctionCall {
                     name: call.name.to_owned(),
                     arguments,
-                },
+                }),
                 ty: return_type,
                 segment: call.segment.clone(),
             }
