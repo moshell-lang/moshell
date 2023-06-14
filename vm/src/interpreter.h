@@ -5,6 +5,7 @@
 #include "conversions.h"
 
 #include "vm.h"
+#include "memory/operand_stack.h"
 
 struct constant_pool {
     std::vector<std::unique_ptr<char[]>> strings;
@@ -13,18 +14,20 @@ struct constant_pool {
     explicit constant_pool(int capacity);
 };
 
-
+/// appends in pool given value converted to string,
+/// And returns the new string constant identifier in pool
 template<typename T>
-void append_str_value(T value, int64_t *stack_local, constant_pool &pool) {
+int64_t append_str_value(T value, constant_pool &pool) {
 
     size_t str_len;
     std::unique_ptr<char[]> value_str = to_str(value, str_len);
 
     // replace stack's integer value with a string reference
-    *stack_local = (int64_t) pool.strings.size();
+    int64_t strings_local = pool.strings.size();
     // add the string in constant pools (burk)
     pool.strings.push_back(std::move(value_str));
     pool.sizes.push_back(str_len);
+    return strings_local;
 }
 
-void run(constant_pool pool, int ip, const char *bytes, size_t size);
+void run(constant_pool pool, const char *bytes, size_t size);

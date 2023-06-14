@@ -71,6 +71,7 @@ pub fn handle_source(source: Source) -> bool {
         if diagnostics.is_empty() {
             execute(types);
         }
+        return false;
     }
 
     let mut stdout = stderr();
@@ -92,6 +93,7 @@ fn execute(types: TypedEngine) {
     compile(&types.get(SourceId(0)).unwrap().expression, &mut bytes).expect("write failed");
 
     let len = bytes.len();
+
     unsafe {
         exec(bytes.as_ptr(), len);
     }

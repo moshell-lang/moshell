@@ -11,7 +11,7 @@ if (MSVC)
     set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} /W4 /WX")
 endif()
 
-add_library(vm src/interpreter.cpp src/vm.cpp src/conversions.cpp src/conversions.h)
-add_executable(vm_exe src/main.cpp src/interpreter.cpp src/vm.cpp src/conversions.cpp src/conversions.h)
+add_library(vm src/interpreter.cpp src/vm.cpp src/conversions.cpp src/conversions.h src/memory/operand_stack.cpp src/memory/operand_stack.h)
+add_executable(vm_exe src/main.cpp src/interpreter.cpp src/vm.cpp src/conversions.cpp src/conversions.h src/memory/operand_stack.cpp src/memory/operand_stack.h)
 
 install(TARGETS vm DESTINATION .)
