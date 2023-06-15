@@ -7,14 +7,16 @@ use analyzer::engine::Engine;
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
 use analyzer::relations::SourceId;
+use analyzer::steps::typing::apply_types;
 use ast::Expr;
 use ast::group::Block;
+use compiler::compile;
 use context::source::{Source, SourceSegmentHolder};
 use lexer::lexer::lex;
 use parser::err::ParseReport;
 use parser::parse;
 
-use crate::cli::{Configuration, display_exprs, display_tokens};
+use crate::cli::{Configuration, display_bytecode, display_exprs, display_tokens, execute};
 use crate::formatted_diagnostic::render_diagnostic;
 use crate::formatted_parse_error::render_parse_error;
 use crate::source_importer::FileSourceImporter;
@@ -31,22 +33,36 @@ pub(crate) fn run(source: PathBuf, working_dir: PathBuf, config: Configuration) 
 
     let result = analyzer::resolve_all(entry_point, &mut importer);
 
-    let diagnostics = result.diagnostics;
+    let mut diagnostics = result.diagnostics;
     let engine = result.engine;
+    let relations = result.relations;
 
     if !importer.errors.is_empty() {
         display_import_errors(importer.errors);
         return true;
     }
 
-    let had_errors = diagnostics.is_empty();
-    display_diagnostics(diagnostics, &engine, &importer);
-    visualize_outputs(importer, config);
-    had_errors
+    let typed_engine = apply_types(&engine, &relations, &mut diagnostics);
+
+    if !diagnostics.is_empty() {
+        display_diagnostics(diagnostics, &engine, &importer);
+        return true;
+    }
+
+    let mut bytecode = Vec::new();
+    let root_expr = typed_engine.get(SourceId(0)).map(|c| &c.expression).unwrap();
+    compile(root_expr, &mut bytecode).unwrap();
+
+    visualize_outputs(importer, config, &bytecode);
+
+    execute(bytecode);
+
+    false
 }
 
 fn visualize_outputs(importer: RunnerImporter,
-                     config: Configuration) {
+                     config: Configuration,
+                     bytecode: &Vec<u8>) {
     if !config.needs_visualisation() {
         return;
     }
@@ -60,6 +76,13 @@ fn visualize_outputs(importer: RunnerImporter,
             display_exprs(&parse(source).expr)
         }
     }
+
+    if config.bytecode_visualisation {
+        display_bytecode(bytecode)
+    }
+
+    println!("End of visualisation.");
+    println!("---------------------");
 }
 
 fn get_source_of<'a>(

@@ -10,7 +10,7 @@
 enum Opcode {
     OP_PUSH_INT,    // with 8 byte int value, pushes an int onto the operand stack
     OP_PUSH_FLOAT,  // with 8 byte float value, pushes a float onto the operand stack
-    OP_PUSH_STRING, // with 1 byte string index in constant pool, pushes a string ref onto the operand stack
+    OP_PUSH_STRING, // with 8 byte string index in constant pool, pushes a string ref onto the operand stack
     OP_GET_LOCAL,   // with 1 byte local index, pushes given local value onto the operand stack
     OP_SET_LOCAL,   // with 1 byte local index, set given local value from value popped from the operand stack
     OP_SPAWN,       // with 1 byte stack size for process exec(), pushes process exit status onto the operand stack
@@ -18,9 +18,9 @@ enum Opcode {
     OP_POP_BYTE,    // pops one byte from operand stack
     OP_POP_Q_WORD,  // pops 8 bytes from operand stack
 
-    OP_IF_JUMP,     // with 1 byte opcode for 'then' branch, jumps only if value popped from operand stack is 0
-    OP_IF_NOT_JUMP, // with 1 byte opcode for where to jump, jumps only if value popped from operand stack is not 0
-    OP_JUMP,        // with 1 byte opcode for where to jump
+    OP_IF_JUMP,     // with 8 byte opcode for 'then' branch, jumps only if value popped from operand stack is 0
+    OP_IF_NOT_JUMP, // with 8 byte opcode for where to jump, jumps only if value popped from operand stack is not 0
+    OP_JUMP,        // with 8 byte opcode for where to jump
 
     OP_INT_TO_STR,  // replaces last value of operand stack from int to a string reference
     OP_FLOAT_TO_STR,// replaces last value of operand stack from float to a string reference

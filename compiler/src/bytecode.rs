@@ -1,5 +1,6 @@
 use std::mem::size_of;
-
+use enum_assoc::Assoc;
+use crate::bytecode::Opcode::*;
 #[derive(Default)]
 pub struct Bytecode {
     pub bytes: Vec<u8>,
@@ -61,21 +62,63 @@ impl Bytecode {
 }
 
 #[repr(u8)]
+#[derive(Assoc)]
+#[func(pub fn mnemonic(&self) -> &'static str)]
 pub enum Opcode {
+    #[assoc(mnemonic = "pshi")]
     PushInt,
+    #[assoc(mnemonic = "pshf")]
     PushFloat,
+    #[assoc(mnemonic = "pshs")]
     PushString,
+    #[assoc(mnemonic = "get")]
     GetLocal,
+    #[assoc(mnemonic = "set")]
     SetLocal,
+    #[assoc(mnemonic = "spawn")]
     Spawn,
 
+    #[assoc(mnemonic = "pop")]
     PopByte,
+    #[assoc(mnemonic = "pop8")]
     PopQWord,
 
+    #[assoc(mnemonic = "ifjmp")]
     IfJump,
+    #[assoc(mnemonic = "ifnjmp")]
     IfNotJump,
+    #[assoc(mnemonic = "jmp")]
     Jump,
 
+    #[assoc(mnemonic = "i2s")]
     ConvertIntToStr,
+    #[assoc(mnemonic = "f2s")]
     ConvertFloatToStr,
+}
+
+impl TryFrom<u8> for Opcode {
+    type Error = ();
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        let opcode = match value {
+            0 => PushInt,
+            1 => PushFloat,
+            2 => PushString,
+            3 => GetLocal,
+            4 => SetLocal,
+            5 => Spawn,
+
+            6 => PopByte,
+            7 => PopQWord,
+
+            8 => IfJump,
+            9 => IfNotJump,
+            10 => Jump,
+
+            11 => ConvertIntToStr,
+            12 => ConvertFloatToStr,
+            _ => return Err(()),
+        };
+        Ok(opcode)
+    }
 }

@@ -9,3 +9,5 @@ edition = "2021"
 analyzer = { path = "../analyzer" }
 ast = { path = "../ast" }
 indexmap = "1.9.3"
+enum-assoc = "1.0.0"
+
