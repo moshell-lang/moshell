@@ -13,8 +13,18 @@ mod jump;
 
 
 pub struct EmissionState {
+    // the start instruction position of the enclosing loop
+    // set to 0 if there is no loop
     pub last_loop_start: usize,
+    // All the placeholders waiting for the end of the loop.
+    // When the loop compilation ends, all those placeholder are filled with the
+    // first instruction pointer after the loop.
     pub last_loop_end_placeholders: Vec<usize>,
+
+    // if set to true, the compiler will try
+    // to convert literals to string at compile time
+    // instead of converting to string them via bytecode opcodes (at runtime)
+    pub literal_strings: bool
 }
 
 
@@ -23,20 +33,34 @@ impl EmissionState {
         Self {
             last_loop_start: 0,
             last_loop_end_placeholders: Vec::new(),
+            literal_strings: false
         }
     }
 }
 
-fn emit_literal(literal: &LiteralValue, emitter: &mut Bytecode, cp: &mut ConstantPool) {
+fn emit_literal(literal: &LiteralValue,
+                emitter: &mut Bytecode,
+                cp: &mut ConstantPool,
+                state: &mut EmissionState) {
     match literal {
         LiteralValue::String(string) => {
             let str_ref = cp.insert_string(string.clone());
             emitter.emit_string_constant_ref(str_ref);
         }
         LiteralValue::Int(integer) => {
+            if state.literal_strings {
+                let str_ref = cp.insert_string(integer.to_string());
+                emitter.emit_string_constant_ref(str_ref);
+                return;
+            }
             emitter.emit_int(*integer);
         }
         LiteralValue::Float(f) => {
+            if state.literal_strings {
+                let str_ref = cp.insert_string(f.to_string());
+                emitter.emit_string_constant_ref(str_ref);
+                return;
+            }
             emitter.emit_float(*f);
         }
     }
@@ -77,7 +101,7 @@ pub fn emit(expr: &TypedExpr,
     match &expr.kind {
         ExprKind::Declare(d) => emit_declaration(d, emitter, cp, state),
         ExprKind::Reference(r) => emit_ref(r, emitter),
-        ExprKind::Literal(literal) => emit_literal(literal, emitter, cp),
+        ExprKind::Literal(literal) => emit_literal(literal, emitter, cp, state),
         ExprKind::ProcessCall(args) => emit_process_call(args, expr.ty != NOTHING, emitter, cp, state),
         ExprKind::Block(exprs) => emit_block(exprs, emitter, cp, state),
         ExprKind::Conditional(c) => emit_conditional(c, emitter, cp, state),
