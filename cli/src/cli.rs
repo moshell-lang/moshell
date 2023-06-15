@@ -1,15 +1,14 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use colored::Colorize;
 use dbg_pls::color;
+
 use analyzer::relations::SourceId;
 use analyzer::types::engine::TypedEngine;
-
 use ast::Expr;
-use compiler::bytecode::Bytecode;
-use compiler::{emit, write};
+use compiler::compile;
 use lexer::token::Token;
+use owo_colors::OwoColorize;
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -89,12 +88,11 @@ extern "C" {
 
 
 fn execute(types: TypedEngine) {
-    let mut emitter = Bytecode::default();
-    emit(&mut emitter, &types.get(SourceId(0)).unwrap().expression);
     let mut bytes: Vec<u8> = Vec::new();
-    write(&mut bytes, emitter).expect("write failed");
+    compile(&types.get(SourceId(0)).unwrap().expression, &mut bytes).expect("write failed");
 
     let len = bytes.len();
+
     unsafe {
         exec(bytes.as_ptr(), len);
     }

@@ -1,3 +1,7 @@
+use ast::value::LiteralValue;
+use ast::Expr;
+use context::source::SourceSegmentHolder;
+
 use crate::dependency::topological_sort;
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
@@ -7,12 +11,11 @@ use crate::steps::typing::exploration::Exploration;
 use crate::steps::typing::function::{infer_return, type_call, type_parameter, Return};
 use crate::types::ctx::TypeContext;
 use crate::types::engine::{Chunk, TypedEngine};
-use crate::types::hir::{ExprKind, TypedExpr};
+use crate::types::hir::{
+    Binary, Conditional, Declaration, ExprKind, FunctionCall, Loop, TypedExpr,
+};
 use crate::types::ty::Type;
 use crate::types::{Typing, ERROR, FLOAT, INT, NOTHING, STRING};
-use ast::value::LiteralValue;
-use ast::Expr;
-use context::source::SourceSegmentHolder;
 
 mod exploration;
 mod function;
@@ -48,6 +51,9 @@ pub fn apply_types(
 pub(self) struct TypingState {
     source: SourceId,
     local_type: bool,
+
+    // if not in loop, `continue` and `break` will raise a diagnostic
+    in_loop: bool,
 }
 
 impl TypingState {
@@ -56,6 +62,7 @@ impl TypingState {
         Self {
             source,
             local_type: false,
+            in_loop: false,
         }
     }
 
@@ -71,6 +78,22 @@ impl TypingState {
     fn without_local_type(self) -> Self {
         Self {
             local_type: false,
+            ..self
+        }
+    }
+
+    /// Returns a new state with `in_loop` set to true
+    fn with_in_loop(self) -> Self {
+        Self {
+            in_loop: true,
+            ..self
+        }
+    }
+
+    /// Returns a new state with `in_loop` set to false
+    fn without_in_loop(self) -> Self {
+        Self {
+            in_loop: false,
             ..self
         }
     }
@@ -202,10 +225,10 @@ fn ascribe_types(
                 }
             }
             TypedExpr {
-                kind: ExprKind::Declare {
+                kind: ExprKind::Declare(Declaration {
                     identifier: id,
                     value: Some(initializer),
-                },
+                }),
                 ty: NOTHING,
                 segment: decl.segment.clone(),
             }
@@ -309,10 +332,10 @@ fn ascribe_types(
                 ),
             );
             TypedExpr {
-                kind: ExprKind::Declare {
+                kind: ExprKind::Declare(Declaration {
                     identifier: local_id,
                     value: None,
-                },
+                }),
                 ty: NOTHING,
                 segment: fun.segment.clone(),
             }
@@ -327,11 +350,11 @@ fn ascribe_types(
                 .unify(left_expr.ty, right_expr.ty)
                 .unwrap_or(ERROR);
             TypedExpr {
-                kind: ExprKind::Binary {
+                kind: ExprKind::Binary(Binary {
                     lhs: Box::new(left_expr),
                     op: bin.op,
                     rhs: Box::new(right_expr),
-                },
+                }),
                 ty,
                 segment: bin.segment(),
             }
@@ -343,7 +366,7 @@ fn ascribe_types(
                 diagnostics,
                 env,
                 &block.condition,
-                state,
+                state.with_local_type(),
             );
             let then = ascribe_types(
                 exploration,
@@ -393,11 +416,11 @@ fn ascribe_types(
                 NOTHING
             };
             TypedExpr {
-                kind: ExprKind::Conditional {
+                kind: ExprKind::Conditional(Conditional {
                     condition: Box::new(condition),
                     then: Box::new(then),
                     otherwise,
-                },
+                }),
                 ty,
                 segment: block.segment.clone(),
             }
@@ -408,9 +431,11 @@ fn ascribe_types(
                 .iter()
                 .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
                 .collect::<Vec<_>>();
+
+            let ty = if state.local_type { INT } else { NOTHING };
             TypedExpr {
                 kind: ExprKind::ProcessCall(args),
-                ty: NOTHING,
+                ty,
                 segment: call.segment(),
             }
         }
@@ -431,12 +456,68 @@ fn ascribe_types(
                 state,
             );
             TypedExpr {
-                kind: ExprKind::FunctionCall {
+                kind: ExprKind::FunctionCall(FunctionCall {
                     name: call.name.to_owned(),
                     arguments,
-                },
+                }),
                 ty: return_type,
                 segment: call.segment.clone(),
+            }
+        }
+        e @ (Expr::While(_) | Expr::Loop(_)) => {
+            let (condition, body) = match e {
+                Expr::While(w) => (
+                    Some(ascribe_types(
+                        exploration,
+                        relations,
+                        diagnostics,
+                        env,
+                        &w.condition,
+                        state.without_local_type(),
+                    )),
+                    &w.body,
+                ),
+                Expr::Loop(l) => (None, &l.body),
+                _ => unreachable!(),
+            };
+            let body = ascribe_types(
+                exploration,
+                relations,
+                diagnostics,
+                env,
+                body,
+                state.without_local_type().with_in_loop(),
+            );
+
+            TypedExpr {
+                kind: ExprKind::ConditionalLoop(Loop {
+                    condition: condition.map(Box::new),
+                    body: Box::new(body),
+                }),
+                segment: e.segment(),
+                ty: NOTHING,
+            }
+        }
+        e @ (Expr::Continue(s) | Expr::Break(s)) => {
+            let (kind, kind_name) = match e {
+                Expr::Continue(_) => (ExprKind::Continue, "continue"),
+                Expr::Break(_) => (ExprKind::Break, "break"),
+                _ => unreachable!(),
+            };
+            if !state.in_loop {
+                diagnostics.push(
+                    Diagnostic::new(
+                        DiagnosticID::InvalidBreakOrContinue,
+                        state.source,
+                        format!("`{kind_name}` must be declared inside a loop"),
+                    )
+                    .with_observation(Observation::new(s.clone())),
+                );
+            }
+            TypedExpr {
+                kind,
+                ty: NOTHING,
+                segment: s.clone(),
             }
         }
         _ => todo!("{expr:?}"),
@@ -445,15 +526,19 @@ fn ascribe_types(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use context::source::Source;
+    use context::str_find::find_in;
+    use parser::parse_trusted;
+
     use crate::importer::StaticImporter;
     use crate::name::Name;
     use crate::resolve_all;
     use crate::types::ty::Type;
-    use context::source::Source;
-    use context::str_find::find_in;
-    use parser::parse_trusted;
     use pretty_assertions::assert_eq;
+    use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
+    use crate::relations::SourceId;
+    use crate::steps::typing::apply_types;
+    use crate::types::Typing;
 
     pub(crate) fn extract_type(source: Source) -> Result<Type, Vec<Diagnostic>> {
         let typing = Typing::with_lang();

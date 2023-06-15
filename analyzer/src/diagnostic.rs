@@ -53,6 +53,11 @@ pub enum DiagnosticID {
     #[assoc(code = 10)]
     #[assoc(critical = true)]
     CannotInfer,
+
+    /// Occurs when a `continue` or `break` directive is declared outside of a loop
+    #[assoc(code = 11)]
+    #[assoc(critical = true)]
+    InvalidBreakOrContinue,
 }
 
 /// Observations are an area in the source code with an (optional) help message
