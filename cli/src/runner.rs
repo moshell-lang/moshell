@@ -2,29 +2,24 @@ use std::io;
 use std::ops::Deref;
 use std::path::PathBuf;
 
-
 use analyzer::diagnostic::Diagnostic;
 use analyzer::engine::Engine;
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
-use analyzer::relations::SourceObjectId;
-use ast::group::Block;
+use analyzer::relations::SourceId;
 use ast::Expr;
+use ast::group::Block;
 use context::source::{Source, SourceSegmentHolder};
 use lexer::lexer::lex;
 use parser::err::ParseReport;
 use parser::parse;
 
-use crate::cli::{display_exprs, display_tokens, Configuration};
+use crate::cli::{Configuration, display_exprs, display_tokens};
 use crate::formatted_diagnostic::render_diagnostic;
 use crate::formatted_parse_error::render_parse_error;
 use crate::source_importer::FileSourceImporter;
 
-pub(crate) fn run(
-    source: PathBuf,
-    working_dir: PathBuf,
-    config: Configuration,
-) -> bool {
+pub(crate) fn run(source: PathBuf, working_dir: PathBuf, config: Configuration) -> bool {
     let name = source.to_string_lossy();
     let mut name = name.deref().replace('/', "::");
     if let Some((name_no_extension, _)) = name.rsplit_once('.') {
@@ -34,7 +29,7 @@ pub(crate) fn run(
 
     let mut importer = RunnerImporter::new(working_dir);
 
-    let result = analyzer::analyze_all(entry_point, &mut importer);
+    let result = analyzer::resolve_all(entry_point, &mut importer);
 
     let diagnostics = result.diagnostics;
     let engine = result.engine;
@@ -50,7 +45,8 @@ pub(crate) fn run(
     had_errors
 }
 
-fn visualize_outputs(importer: RunnerImporter, config: Configuration) {
+fn visualize_outputs(importer: RunnerImporter,
+                     config: Configuration) {
     if !config.needs_visualisation() {
         return;
     }
@@ -67,7 +63,7 @@ fn visualize_outputs(importer: RunnerImporter, config: Configuration) {
 }
 
 fn get_source_of<'a>(
-    mut env_id: SourceObjectId,
+    mut env_id: SourceId,
     engine: &Engine<'a>,
     importer: &RunnerImporter,
 ) -> Source<'a> {
@@ -94,23 +90,17 @@ fn display_import_errors(errors: Vec<RunnerImporterError>) {
             }
             RunnerImporterError::Parse(source, report) => {
                 for err in report.errors {
-                    render_parse_error(source, err)
-                        .expect("Could not display parse error");
+                    render_parse_error(source, err).expect("Could not display parse error");
                 }
             }
         }
     }
 }
 
-fn display_diagnostics(
-    diagnostics: Vec<Diagnostic>,
-    engine: &Engine,
-    importer: &RunnerImporter,
-) {
+fn display_diagnostics(diagnostics: Vec<Diagnostic>, engine: &Engine, importer: &RunnerImporter) {
     for diagnostic in diagnostics {
         let source = get_source_of(diagnostic.source, engine, importer);
-        let str =
-            render_diagnostic(source, diagnostic).expect("could not write in stderr");
+        let str = render_diagnostic(source, diagnostic).expect("could not write in stderr");
         eprintln!("{str}")
     }
 }

@@ -16,29 +16,30 @@ pub fn render_diagnostic(
     let mut colormap: HashMap<usize, Color> = HashMap::new();
     let source_name = source_code.name;
 
-
     let (code, color) = if diagnostic.identifier.critical() {
-        (format!("error[E{:04}]", diagnostic.identifier.code()), Color::Red)
+        (
+            format!("error[E{:04}]", diagnostic.identifier.code()),
+            Color::Red,
+        )
     } else {
-        (format!("warn[W{:04}]", diagnostic.identifier.code()), Color::Yellow)
+        (
+            format!("warn[W{:04}]", diagnostic.identifier.code()),
+            Color::Yellow,
+        )
     };
 
-    let labels = diagnostic
-        .observations
-        .into_iter()
-        .map(|o| {
-            let mut label = Label::new((source_name, o.segment))
-                .with_color(o.tag.map(|tag| {
-                    *colormap
-                        .entry(tag)
-                        .or_insert_with(|| colors.next())
-                }).unwrap_or_else(|| colors.next()));
+    let labels = diagnostic.observations.into_iter().map(|o| {
+        let mut label = Label::new((source_name, o.segment)).with_color(
+            o.tag
+                .map(|tag| *colormap.entry(tag).or_insert_with(|| colors.next()))
+                .unwrap_or_else(|| colors.next()),
+        );
 
-            if let Some(help) = o.help {
-                label = label.with_message(help)
-            }
-            label
-        });
+        if let Some(help) = o.help {
+            label = label.with_message(help)
+        }
+        label
+    });
 
     let mut help = None;
     if let Some((head, tail)) = diagnostic.helps.split_first() {
@@ -64,13 +65,8 @@ pub fn render_diagnostic(
         }
     }
 
-
     let mut builder = Report::build(ReportKind::Custom(&code, color), source_name, 0)
-        .with_config(
-            Config::default()
-                .with_compact(true)
-                .with_underlines(true)
-        )
+        .with_config(Config::default().with_compact(true).with_underlines(true))
         .with_message(diagnostic.global_message)
         .with_labels(labels);
 
@@ -83,9 +79,10 @@ pub fn render_diagnostic(
     }
 
     let mut buf = Vec::new();
-    builder
-        .finish()
-        .write_for_stdout((source_name, ariadne::Source::from(source_code.source)), &mut buf)?;
+    builder.finish().write_for_stdout(
+        (source_name, ariadne::Source::from(source_code.source)),
+        &mut buf,
+    )?;
 
     let str = String::from_utf8(buf).unwrap();
     Ok(fix_ariadne_report(str))

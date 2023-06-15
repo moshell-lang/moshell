@@ -22,6 +22,7 @@ fn string_literal() {
             Token::new(TokenType::Identifier, "/true"),
             Token::new(TokenType::Quote, "'"),
             Token::new(TokenType::Space, " "),
+            Token::new(TokenType::NewLine, "\n"),
             Token::new(TokenType::Identifier, "yes"),
         ]
     );

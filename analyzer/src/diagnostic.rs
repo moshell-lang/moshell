@@ -1,4 +1,4 @@
-use crate::relations::SourceObjectId;
+use crate::relations::SourceId;
 use context::source::SourceSegment;
 use enum_assoc::Assoc;
 
@@ -41,15 +41,27 @@ pub enum DiagnosticID {
     #[assoc(code = 7)]
     #[assoc(critical = true)]
     SymbolConflictsWithModule,
+
+    #[assoc(code = 8)]
+    #[assoc(critical = true)]
+    UnknownType,
+
+    #[assoc(code = 9)]
+    #[assoc(critical = true)]
+    TypeMismatch,
+
+    #[assoc(code = 10)]
+    #[assoc(critical = true)]
+    CannotInfer,
 }
 
 /// Observations are an area in the source code with an (optional) help message
 /// that are contained in a [Diagnostic] to emphasis/further explain the causes of the diagnostic.
-#[derive(PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Observation {
-    /// Optional environment if the observation occurs on a different environment than the diagnostic's source 
+    /// Optional environment if the observation occurs on a different environment than the diagnostic's source
     /// if none, this observation will target its diagnostic.
-    pub foreign_env: Option<SourceObjectId>,
+    pub foreign_env: Option<SourceId>,
     /// Observed segment
     pub segment: SourceSegment,
     /// An optional help string to complete the observation
@@ -64,11 +76,11 @@ impl Observation {
             segment,
             foreign_env: None,
             help: None,
-            tag: None
+            tag: None,
         }
     }
-    
-    pub fn within(mut self, env: SourceObjectId) -> Self {
+
+    pub fn within(mut self, env: SourceId) -> Self {
         self.foreign_env = Some(env);
         self
     }
@@ -88,7 +100,7 @@ impl Observation {
 #[derive(PartialEq, Debug)]
 pub struct Diagnostic {
     /// The source where this diagnostic applies
-    pub source: SourceObjectId,
+    pub source: SourceId,
     /// The diagnostic identifier
     pub identifier: DiagnosticID,
     /// The overall message of this diagnostic
@@ -102,7 +114,7 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
-    pub fn new(id: DiagnosticID, source: SourceObjectId, msg: impl Into<String>) -> Self {
+    pub fn new(id: DiagnosticID, source: SourceId, msg: impl Into<String>) -> Self {
         Self {
             source,
             identifier: id,
@@ -118,8 +130,11 @@ impl Diagnostic {
         self
     }
 
-    pub fn with_observations(mut self, o: Vec<Observation>) -> Self {
-        self.observations.extend(o);
+    pub fn with_observations<I: IntoIterator<Item = Observation>>(
+        mut self,
+        observations: I,
+    ) -> Self {
+        self.observations.extend(observations);
         self
     }
 

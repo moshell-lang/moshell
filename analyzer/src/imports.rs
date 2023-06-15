@@ -1,5 +1,5 @@
 use crate::name::Name;
-use crate::relations::{ResolvedSymbol, SourceObjectId};
+use crate::relations::{ResolvedSymbol, SourceId};
 use context::source::SourceSegment;
 use indexmap::IndexMap;
 use std::collections::HashMap;
@@ -12,7 +12,7 @@ pub struct Imports {
     /// Imports may only be declared at the top level of a source. This lets us track the unresolved imports
     /// per [`crate::environment::Environment`]. If a source is not tracked here, it means that it has no
     /// imports.
-    imports: HashMap<SourceObjectId, SourceImports>,
+    imports: HashMap<SourceId, SourceImports>,
 }
 
 impl Imports {
@@ -21,22 +21,19 @@ impl Imports {
     /// This directive may be used later to resolve the import.
     pub fn add_unresolved_import(
         &mut self,
-        source: SourceObjectId,
+        source: SourceId,
         import: UnresolvedImport,
         import_expr: SourceSegment,
     ) -> Option<SourceSegment> {
-        let imports = self
-            .imports
-            .entry(source)
-            .or_insert_with(SourceImports::default);
+        let imports = self.imports.entry(source).or_default();
         imports.add_unresolved_import(import, import_expr)
     }
 
-    pub fn get_imports(&self, source: SourceObjectId) -> Option<&SourceImports> {
+    pub fn get_imports(&self, source: SourceId) -> Option<&SourceImports> {
         self.imports.get(&source)
     }
 
-    pub fn get_imports_mut(&mut self, source: SourceObjectId) -> Option<&mut SourceImports> {
+    pub fn get_imports_mut(&mut self, source: SourceId) -> Option<&mut SourceImports> {
         self.imports.get_mut(&source)
     }
 }
@@ -69,7 +66,7 @@ pub enum ResolvedImport {
     /// The import is a symbol
     Symbol(ResolvedSymbol),
     /// The import is an environment
-    Env(SourceObjectId),
+    Env(SourceId),
 
     /// The import wasn't found
     Dead,

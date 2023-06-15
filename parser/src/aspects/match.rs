@@ -6,7 +6,7 @@ use lexer::token::TokenType::{
 use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
 use crate::err::ParseErrorKind;
 use crate::moves::{
-    aerated, any, blanks, eod, eox, not, of_type, of_types, repeat, MoveOperations,
+    aerated, any, blanks, eox, line_end, not, of_type, of_types, repeat, MoveOperations,
 };
 use crate::parser::{ParseResult, Parser};
 use ast::r#match::MatchPattern::{Literal, Template, VarRef, Wildcard};
@@ -62,15 +62,11 @@ impl<'a> Parser<'a> {
 
         let mut arms: Vec<MatchArm<'a>> = Vec::new();
 
-        while self
-            .cursor
-            .lookahead(blanks().then(eox().or(eod())))
-            .is_none()
-        {
+        while self.cursor.lookahead(blanks().then(eox())).is_none() {
             match self.parse_match_arm(parse_arm.clone()) {
                 Ok(arm) => arms.push(arm),
                 Err(err) => {
-                    self.recover_from(err, eox());
+                    self.recover_from(err, line_end());
                 }
             }
         }
@@ -219,7 +215,7 @@ impl<'a> Parser<'a> {
         self.cursor
             .force(aerated(of_type(FatArrow)), "missing '=>'")?;
         let body = parse_arm(self);
-        self.cursor.advance(repeat(eox()));
+        self.cursor.advance(repeat(line_end()));
         body
     }
 }
@@ -292,7 +288,8 @@ mod tests {
                                             name: "2",
                                             segment: find_in(source.source, "$2"),
                                         }),
-                                    ]
+                                    ],
+                                    segment: find_in(source.source, "\"test $2\""),
                                 }),
                                 MatchPattern::Literal(Literal {
                                     parsed: 2.into(),
@@ -370,7 +367,8 @@ mod tests {
                                         name: "2",
                                         segment: find_in(content, "$2"),
                                     }),
-                                ]
+                                ],
+                                segment: find_in(content, "\"test $2\""),
                             }),
                             MatchPattern::Literal(Literal {
                                 parsed: 2.into(),
@@ -520,7 +518,8 @@ mod tests {
                                 parts: vec![
                                     literal(content, "\"test "),
                                     Expr::VarReference(VarReference { name: "2", segment: find_in(content, "$2") }),
-                                ]
+                                ],
+                                segment: find_in(content, "\"test $2\""),
                             }),
                             MatchPattern::Literal(Literal {
                                 parsed: 2.into(),

@@ -7,8 +7,8 @@ use crate::aspects::r#type::TypeAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{
-    blanks, eod, eox, identifier_parenthesis, like, lookahead, of_type, of_types, repeat, spaces,
-    MoveOperations,
+    blanks, eog, identifier_parenthesis, like, line_end, lookahead, of_type, of_types, repeat,
+    spaces, MoveOperations,
 };
 use crate::parser::{ParseResult, Parser};
 use ast::call::{Call, MethodCall, ProgrammaticCall};
@@ -195,7 +195,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         while !self.cursor.is_at_end()
             && self
                 .cursor
-                .lookahead(spaces().then(eox().or(like(TokenType::is_call_bound))))
+                .lookahead(spaces().then(line_end().or(like(TokenType::is_call_bound))))
                 .is_none()
         {
             arguments.push(self.call_argument()?);
@@ -282,19 +282,19 @@ impl<'a> Parser<'a> {
             self.cursor.advance(spaces());
 
             // Check if the arg list is abnormally terminated.
-            if self.cursor.lookahead(eox()).is_some() {
+            if self.cursor.lookahead(line_end()).is_some() {
                 self.expected(
                     "Expected closing parenthesis.",
                     ParseErrorKind::Unpaired(self.cursor.relative_pos(open_parenthesis.clone())),
                 )?;
             }
-            if self.cursor.lookahead(eod()).is_some() {
+            if self.cursor.lookahead(eog()).is_some() {
                 let closing_parenthesis = self.expect_delimiter(TokenType::RoundedRightBracket)?;
                 segment.end = self.cursor.relative_pos_ctx(closing_parenthesis).end;
                 break;
             }
             self.cursor.force(
-                spaces().then(of_type(TokenType::Comma).or(lookahead(eod()))),
+                spaces().then(of_type(TokenType::Comma).or(lookahead(eog()))),
                 &format!("expected ',', found {}", self.cursor.peek().value),
             )?;
         }

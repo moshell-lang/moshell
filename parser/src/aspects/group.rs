@@ -1,7 +1,7 @@
 use lexer::token::{Token, TokenType};
 
 use crate::err::ParseErrorKind;
-use crate::moves::{eox, of_type, of_types, repeat, repeat_n, spaces, MoveOperations};
+use crate::moves::{line_end, of_type, of_types, repeat, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::group::{Block, Parenthesis, Subshell};
 use ast::Expr;
@@ -129,12 +129,12 @@ impl<'a> Parser<'a> {
                     statements.push(statement);
                 }
                 Err(err) => {
-                    self.recover_from(err, eox());
+                    self.recover_from(err, line_end());
                 }
             }
 
             //expects at least one newline or ';'
-            let eox_res = self.cursor.advance(repeat_n(1, spaces().then(eox())));
+            let eox_res = self.cursor.advance(repeat_n(1, spaces().then(line_end())));
 
             //checks if this group expression is closed after the parsed expression
             let closed = self.cursor.advance(spaces().then(of_type(eog)));

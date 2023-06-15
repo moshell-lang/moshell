@@ -1,4 +1,4 @@
-use context::source::try_join_str;
+use context::source::{try_join_str, SourceSegmentHolder};
 use std::num::IntErrorKind;
 
 use crate::aspects::substitution::SubstitutionAspect;
@@ -171,8 +171,11 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             }));
         }
 
-        self.cursor.advance(next());
-        Ok(TemplateString { parts })
+        let end = self.cursor.next()?;
+        Ok(TemplateString {
+            parts,
+            segment: self.cursor.relative_pos_ctx(start..end),
+        })
     }
 
     /// Parses a single argument.
@@ -284,7 +287,9 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             return Ok(parts.pop().unwrap());
         }
 
-        Ok(Expr::TemplateString(TemplateString { parts }))
+        let start = self.cursor.relative_pos_ctx(current).start;
+        let segment = start..parts.last().unwrap().segment().end;
+        Ok(Expr::TemplateString(TemplateString { parts, segment }))
     }
 }
 
@@ -428,6 +433,19 @@ mod tests {
     }
 
     #[test]
+    fn empty_template_string_literal() {
+        let source = Source::unknown("\"\"");
+        let parsed = Parser::new(source).expression().expect("Failed to parse.");
+        assert_eq!(
+            parsed,
+            Expr::TemplateString(TemplateString {
+                parts: vec![],
+                segment: source.segment()
+            })
+        );
+    }
+
+    #[test]
     fn escaped_template_string_literal() {
         let source = Source::unknown("\"a\\\"a'\"");
         let parsed = Parser::new(source).expression().expect("Failed to parse.");
@@ -437,7 +455,8 @@ mod tests {
                 parts: vec![Expr::Literal(Literal {
                     parsed: "a\"a'".into(),
                     segment: source.segment()
-                }),]
+                })],
+                segment: source.segment()
             })
         );
     }
@@ -467,7 +486,8 @@ mod tests {
                 parts: vec![
                     literal(source.source, "+"),
                     literal(source.source, "'hello'"),
-                ]
+                ],
+                segment: source.segment()
             })
         );
     }
@@ -485,7 +505,8 @@ mod tests {
                         name: "NGINX_PORT",
                         segment: find_in(source.source, "$NGINX_PORT")
                     }),
-                ]
+                ],
+                segment: source.segment()
             })
         );
     }

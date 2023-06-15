@@ -61,8 +61,8 @@ impl<'a> REPLImporter<'a> {
 /// Indefinitely prompts a new expression to the stdin,
 /// displaying back the errors if any and the formed AST
 pub fn repl(config: Configuration) {
-    let mut editor: REPLEditor = DefaultEditor::new()
-        .expect("unable to instantiate terminal editor");
+    let mut editor: REPLEditor =
+        DefaultEditor::new().expect("unable to instantiate terminal editor");
     editor.set_color_mode(ColorMode::Enabled);
     editor.set_history_ignore_dups(true).unwrap();
     editor.set_history_ignore_space(true);
@@ -166,8 +166,8 @@ fn handle_source<'e>(
 
     if !errors.is_empty() {
         for error in errors {
-            let str = render_parse_error(source, error)
-                .expect("IO error when reporting diagnostics");
+            let str =
+                render_parse_error(source, error).expect("IO error when reporting diagnostics");
             eprintln!("{str}")
         }
         return true;
@@ -188,8 +188,8 @@ fn handle_source<'e>(
 
     let had_errors = !diagnostics.is_empty();
     for diagnostic in diagnostics {
-        let str = render_diagnostic(source, diagnostic)
-            .expect("IO errors when reporting diagnostic");
+        let str =
+            render_diagnostic(source, diagnostic).expect("IO errors when reporting diagnostic");
         eprintln!("{str}")
     }
     had_errors

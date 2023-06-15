@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
+use ariadne::{Color, StdoutFmt};
 use std::ops::Deref;
 use std::process::exit;
-use ariadne::{Color, StdoutFmt};
 
 use clap::Parser;
 
@@ -53,8 +53,12 @@ pub fn fix_ariadne_report(report_str: String) -> String {
     let blank_line = format!(" {}  ", "  │".fg(Color::Fixed(240)));
     let mut did_skip_lines = false;
     for line in report_str.lines() {
-
-        if !(line.starts_with(&blank_line) && line.chars().take(blank_line.len()).all(|c| c.is_whitespace())) {
+        if !(line.starts_with(&blank_line)
+            && line
+                .chars()
+                .take(blank_line.len())
+                .all(|c| c.is_whitespace()))
+        {
             if did_skip_lines {
                 did_skip_lines = false;
                 fixed_report.push_str(&blank_line);
@@ -69,3 +73,4 @@ pub fn fix_ariadne_report(report_str: String) -> String {
 
     fixed_report
 }
+

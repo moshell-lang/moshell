@@ -1,7 +1,7 @@
 use lexer::token::{Token, TokenType};
 
 use crate::err::ParseErrorKind;
-use crate::moves::{blanks, eod, eox, of_type, MoveOperations};
+use crate::moves::{blanks, eog, line_end, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::control_flow::{ConditionalFor, For, ForKind, Loop, RangeFor, While};
 use ast::range::FilePattern;
@@ -30,7 +30,7 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
         //consume blanks
         self.cursor.advance(blanks());
         //then consume eox (if any)
-        self.cursor.advance(eox());
+        self.cursor.advance(line_end());
 
         let body = Box::new(self.expression_statement()?);
         let segment = self.cursor.relative_pos(start).start..body.segment().end;
@@ -61,7 +61,7 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
         )?;
         self.cursor.advance(blanks());
         let kind = Box::new(self.parse_for_kind()?);
-        self.cursor.advance(eox());
+        self.cursor.advance(line_end());
         let body = Box::new(self.expression_statement()?);
         let segment = self.cursor.relative_pos(start).start..body.segment().end;
 
@@ -203,7 +203,7 @@ impl<'a> Parser<'a> {
         &mut self,
         outer_opening_parenthesis: Token<'a>,
     ) -> ParseResult<Token<'a>> {
-        if self.cursor.lookahead(eod()).is_some() {
+        if self.cursor.lookahead(eog()).is_some() {
             self.expect_delimiter(TokenType::RoundedRightBracket)
         } else {
             let mut segment = self.cursor.relative_pos(outer_opening_parenthesis.value);

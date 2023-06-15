@@ -3,8 +3,12 @@ use std::path::PathBuf;
 use clap::Parser;
 use colored::Colorize;
 use dbg_pls::color;
+use analyzer::relations::SourceId;
+use analyzer::types::engine::TypedEngine;
 
 use ast::Expr;
+use compiler::bytecode::Bytecode;
+use compiler::{emit, write};
 use lexer::token::Token;
 
 #[derive(Parser, Debug, Clone)]
@@ -75,5 +79,23 @@ pub(crate) fn display_tokens(tokens: Vec<Token>) {
 pub(crate) fn display_exprs(exprs: &Vec<Expr>) {
     for expr in exprs {
         println!("{}", color(expr));
+    }
+}
+
+#[link(name = "vm", kind = "static")]
+extern "C" {
+    fn exec(bytes: *const u8, byte_count: usize);
+}
+
+
+fn execute(types: TypedEngine) {
+    let mut emitter = Bytecode::default();
+    emit(&mut emitter, &types.get(SourceId(0)).unwrap().expression);
+    let mut bytes: Vec<u8> = Vec::new();
+    write(&mut bytes, emitter).expect("write failed");
+
+    let len = bytes.len();
+    unsafe {
+        exec(bytes.as_ptr(), len);
     }
 }

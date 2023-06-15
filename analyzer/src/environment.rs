@@ -1,5 +1,5 @@
 use crate::name::Name;
-use crate::relations::{SourceObjectId, Symbol};
+use crate::relations::{SourceId, Symbol};
 use context::source::{SourceSegment, SourceSegmentHolder};
 use std::collections::HashMap;
 use variables::Variables;
@@ -33,7 +33,7 @@ pub mod variables;
 #[derive(Debug, Clone)]
 pub struct Environment {
     /// The source object id of the parent environment, if the environment is nested.
-    pub parent: Option<SourceObjectId>,
+    pub parent: Option<SourceId>,
 
     ///Fully qualified name of the environment
     pub fqn: Name,
@@ -43,6 +43,9 @@ pub struct Environment {
 
     /// A mapping of expression segments to symbols.
     pub definitions: HashMap<SourceSegment, Symbol>,
+
+    /// A mapping of expression segments to their declaring environment.
+    pub declarations: HashMap<SourceSegment, SourceId>,
 }
 
 impl Environment {
@@ -52,10 +55,11 @@ impl Environment {
             fqn: name,
             variables: Variables::default(),
             definitions: HashMap::new(),
+            declarations: HashMap::new(),
         }
     }
 
-    pub fn fork(&self, source_id: SourceObjectId, name: &str) -> Environment {
+    pub fn fork(&self, source_id: SourceId, name: &str) -> Environment {
         let env_fqn = self.fqn.child(name);
 
         Self {
@@ -63,6 +67,7 @@ impl Environment {
             fqn: env_fqn,
             variables: Variables::default(),
             definitions: HashMap::new(),
+            declarations: HashMap::new(),
         }
     }
 
@@ -86,13 +91,16 @@ impl Environment {
     }
 
     /// Adds an annotation to any segment.
-    ///
-    /// This method exposes a low level API to add annotations to segments, preferably use the
-    /// wrapper methods defined in traits in the `checker` crate.
     pub fn annotate(&mut self, segment: &impl SourceSegmentHolder, symbol: Symbol) {
         self.definitions.insert(segment.segment(), symbol);
     }
 
+    /// Maps the declaring environment of a segment.
+    pub fn bind_source(&mut self, segment: &impl SourceSegmentHolder, source: SourceId) {
+        self.declarations.insert(segment.segment(), source);
+    }
+
+    /// Iterates over the segments that maps to a symbol.
     pub fn list_definitions(&self) -> impl Iterator<Item = (&SourceSegment, &Symbol)> {
         self.definitions.iter()
     }
@@ -100,6 +108,11 @@ impl Environment {
     /// Gets a symbol from the environment.
     pub fn get_raw_symbol(&self, segment: SourceSegment) -> Option<Symbol> {
         self.definitions.get(&segment).copied()
+    }
+
+    /// Gets the declaring environment id of a segment.
+    pub fn get_raw_env(&self, segment: SourceSegment) -> Option<SourceId> {
+        self.declarations.get(&segment).copied()
     }
 
     /// Finds the local segments that references a symbol.

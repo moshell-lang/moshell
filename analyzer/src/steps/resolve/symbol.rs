@@ -2,7 +2,7 @@ use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::imports::{ResolvedImport, SourceImports};
 use crate::name::Name;
-use crate::relations::{ResolvedSymbol, SourceObjectId};
+use crate::relations::{ResolvedSymbol, SourceId};
 use crate::steps::resolve::SymbolResolver;
 
 /// The result of a symbol resolution attempt
@@ -21,14 +21,14 @@ pub enum SymbolResolutionResult {
 
 impl<'a, 'e> SymbolResolver<'a, 'e> {
     pub fn resolve_symbol_from_locals(
-        env_id: SourceObjectId,
+        env_id: SourceId,
         env: &Environment,
         symbol_name: &Name,
     ) -> SymbolResolutionResult {
         if env.has_strict_declaration_order() {
             return SymbolResolutionResult::NotFound;
         }
-        if let Some(var_id) = env.variables.get_exported(symbol_name.root()) {
+        if let Some(var_id) = env.variables.find_exported(symbol_name.root()) {
             let symbol = ResolvedSymbol {
                 source: env_id,
                 object_id: var_id,
@@ -49,7 +49,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         let env_result = engine.find_environment_by_name(&env_name);
 
         if let Some((env_id, env)) = env_result {
-            let resolved_pos = env.variables.get_exported(name.simple_name());
+            let resolved_pos = env.variables.find_exported(name.simple_name());
 
             if let Some(symbol_pos) = resolved_pos {
                 let symbol = ResolvedSymbol::new(env_id, symbol_pos);
@@ -81,7 +81,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                     .get_environment(*resolved_module)
                     .expect("resolved import points to an unknown environment");
 
-                let resolved_pos = env.variables.get_exported(name.simple_name());
+                let resolved_pos = env.variables.find_exported(name.simple_name());
 
                 if let Some(symbol_pos) = resolved_pos {
                     return SymbolResolutionResult::Resolved(ResolvedSymbol::new(
