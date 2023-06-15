@@ -20,10 +20,7 @@ pub struct EmissionState {
     // first instruction pointer after the loop.
     pub enclosing_loop_end_placeholders: Vec<usize>,
 
-    // if set to true, the compiler will try
-    // to convert literals to string at compile time
-    // instead of converting to string them via bytecode opcodes (at runtime)
-    pub literal_strings: bool,
+
 }
 
 impl EmissionState {
@@ -31,7 +28,6 @@ impl EmissionState {
         Self {
             enclosing_loop_start: 0,
             enclosing_loop_end_placeholders: Vec::new(),
-            literal_strings: false,
         }
     }
 }
@@ -40,7 +36,6 @@ fn emit_literal(
     literal: &LiteralValue,
     emitter: &mut Bytecode,
     cp: &mut ConstantPool,
-    state: &mut EmissionState,
 ) {
     match literal {
         LiteralValue::String(string) => {
@@ -48,19 +43,9 @@ fn emit_literal(
             emitter.emit_string_constant_ref(str_ref);
         }
         LiteralValue::Int(integer) => {
-            if state.literal_strings {
-                let str_ref = cp.insert_string(integer.to_string());
-                emitter.emit_string_constant_ref(str_ref);
-                return;
-            }
             emitter.emit_int(*integer);
         }
         LiteralValue::Float(f) => {
-            if state.literal_strings {
-                let str_ref = cp.insert_string(f.to_string());
-                emitter.emit_string_constant_ref(str_ref);
-                return;
-            }
             emitter.emit_float(*f);
         }
     }
@@ -108,7 +93,7 @@ pub fn emit(
     match &expr.kind {
         ExprKind::Declare(d) => emit_declaration(d, emitter, cp, state),
         ExprKind::Reference(r) => emit_ref(r, emitter),
-        ExprKind::Literal(literal) => emit_literal(literal, emitter, cp, state),
+        ExprKind::Literal(literal) => emit_literal(literal, emitter, cp),
         ExprKind::ProcessCall(args) => {
             emit_process_call(args, expr.ty != NOTHING, emitter, cp, state)
         }
