@@ -104,6 +104,7 @@ impl Observation {
 #[derive(Clone, PartialEq, Debug)]
 pub enum ObservationTag {
     InFault,
+    Expected,
     Declaration,
     Other(u8),
 }

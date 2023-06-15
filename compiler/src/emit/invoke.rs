@@ -1,4 +1,4 @@
-use analyzer::types::hir::{TypedExpr};
+use analyzer::types::hir::TypedExpr;
 use analyzer::types::*;
 
 use crate::bytecode::{Bytecode, Opcode};

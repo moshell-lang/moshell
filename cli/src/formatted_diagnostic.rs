@@ -24,6 +24,7 @@ pub fn render_diagnostic(
         match tag {
             Some(ObservationTag::InFault) => Color::Red,
             Some(ObservationTag::Declaration) => Color::Yellow,
+            Some(ObservationTag::Expected) => Color::Green,
             Some(ObservationTag::Other(tag)) => {
                 *colormap.entry(tag).or_insert_with(|| colors.next())
             }

@@ -19,8 +19,6 @@ pub struct EmissionState {
     // When the loop compilation ends, all those placeholder are filled with the
     // first instruction pointer after the loop.
     pub enclosing_loop_end_placeholders: Vec<usize>,
-
-
 }
 
 impl EmissionState {
@@ -32,11 +30,7 @@ impl EmissionState {
     }
 }
 
-fn emit_literal(
-    literal: &LiteralValue,
-    emitter: &mut Bytecode,
-    cp: &mut ConstantPool,
-) {
+fn emit_literal(literal: &LiteralValue, emitter: &mut Bytecode, cp: &mut ConstantPool) {
     match literal {
         LiteralValue::String(string) => {
             let str_ref = cp.insert_string(string.clone());
