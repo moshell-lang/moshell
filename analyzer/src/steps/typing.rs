@@ -13,7 +13,7 @@ use crate::types::engine::{Chunk, TypedEngine};
 use crate::types::hir::{ExprKind, TypedExpr};
 use crate::types::operator::name_operator_method;
 use crate::types::ty::{Definition, Type};
-use crate::types::{Typing, ERROR, FLOAT, INT, NOTHING, STRING};
+use crate::types::{Typing, BOOL, ERROR, EXIT_CODE, FLOAT, INT, NOTHING, STRING};
 use ast::operation::BinaryOperator;
 use ast::value::LiteralValue;
 use ast::variable::VarKind;
@@ -217,8 +217,9 @@ fn ascribe_types(
                 .get(relations, state.source, symbol)
                 .unwrap();
             let var_ty = var_obj.type_id;
-            let cast = match exploration.typing.unify(var_ty, rhs.ty) {
-                Ok(ty) => {
+            let rhs_type = rhs.ty;
+            let rhs = match exploration.unify(var_ty, rhs, diagnostics, state) {
+                Ok(rhs) => {
                     if !var_obj.can_reassign {
                         diagnostics.push(
                             Diagnostic::new(
@@ -235,7 +236,7 @@ fn ascribe_types(
                             )),
                         );
                     }
-                    ty
+                    rhs
                 }
                 Err(_) => {
                     diagnostics.push(
@@ -244,7 +245,7 @@ fn ascribe_types(
                             state.source,
                             format!(
                                 "Cannot assign a value of type `{}` to something of type `{}`",
-                                exploration.get_type(rhs.ty).unwrap(),
+                                exploration.get_type(rhs_type).unwrap(),
                                 exploration.get_type(var_ty).unwrap()
                             ),
                         )
@@ -253,13 +254,17 @@ fn ascribe_types(
                             "Assignment happens here",
                         )),
                     );
-                    ERROR
+                    TypedExpr {
+                        kind: ExprKind::Literal(LiteralValue::String("".to_owned())),
+                        ty: STRING,
+                        segment: assign.segment(),
+                    }
                 }
             };
             TypedExpr {
                 kind: ExprKind::Assign {
                     identifier: symbol,
-                    rhs: Box::new(rhs.cast(cast)),
+                    rhs: Box::new(rhs),
                 },
                 ty: NOTHING,
                 segment: assign.segment(),
@@ -534,6 +539,26 @@ fn ascribe_types(
                 &block.condition,
                 state,
             );
+            let condition = match exploration.unify(BOOL, condition, diagnostics, state) {
+                Ok(condition) => condition,
+                Err(condition) => {
+                    diagnostics.push(
+                        Diagnostic::new(
+                            DiagnosticID::TypeMismatch,
+                            state.source,
+                            "Condition must be a boolean",
+                        )
+                        .with_observation(Observation::with_help(
+                            block.condition.segment(),
+                            format!(
+                                "Type `{}` cannot be used as a condition",
+                                exploration.get_type(condition.ty).unwrap()
+                            ),
+                        )),
+                    );
+                    condition
+                }
+            };
             let then = ascribe_types(
                 exploration,
                 relations,
@@ -602,7 +627,7 @@ fn ascribe_types(
                 .collect::<Vec<_>>();
             TypedExpr {
                 kind: ExprKind::ProcessCall(args),
-                ty: NOTHING,
+                ty: EXIT_CODE,
                 segment: call.segment(),
             }
         }
@@ -808,6 +833,24 @@ mod tests {
             )
             .with_observation(Observation::with_help(
                 find_in(content, "p = 'a'"),
+                "Assignment happens here",
+            ))])
+        );
+    }
+
+    #[test]
+    fn no_implicit_string_conversion() {
+        let content = "var str: String = 'test'; str = 4";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                SourceObjectId(0),
+                "Cannot assign a value of type `Int` to something of type `String`",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "str = 4"),
                 "Assignment happens here",
             ))])
         );
@@ -1199,7 +1242,7 @@ mod tests {
                                     segment: find_in_nth(content, "$n", 1),
                                 }),
                                 arguments: vec![],
-                                definition: Definition::Native(NativeObjectId(10)),
+                                definition: Definition::Native(NativeObjectId(11)),
                             },
                             ty: STRING,
                             segment: find_in_nth(content, "$n", 1),
@@ -1212,13 +1255,13 @@ mod tests {
                                     segment: find_in(content, "4.2"),
                                 }),
                                 arguments: vec![],
-                                definition: Definition::Native(NativeObjectId(11)),
+                                definition: Definition::Native(NativeObjectId(12)),
                             },
                             ty: STRING,
                             segment: find_in(content, "4.2"),
                         }
                     ]),
-                    ty: NOTHING,
+                    ty: EXIT_CODE,
                     segment: find_in(content, "grep $n 4.2"),
                 }
             ])
@@ -1323,7 +1366,7 @@ mod tests {
         assert_eq!(
             res,
             Err(vec![Diagnostic::new(
-                DiagnosticID::UnknownMethod,
+                DiagnosticID::TypeMismatch,
                 SourceObjectId(0),
                 "Cannot stringify type `Nothing`",
             )
@@ -1332,5 +1375,29 @@ mod tests {
                 "No method `to_string` on type `Nothing`"
             ))])
         );
+    }
+
+    #[test]
+    fn condition_must_be_bool() {
+        let content = "if 9.9 { 1 }";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                SourceObjectId(0),
+                "Condition must be a boolean",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "9.9"),
+                "Type `Float` cannot be used as a condition"
+            ))])
+        );
+    }
+
+    #[test]
+    fn condition_command() {
+        let res = extract_type(Source::unknown("if nginx -t { echo 'ok' }"));
+        assert_eq!(res, Ok(Type::Nothing));
     }
 }

@@ -23,6 +23,9 @@ pub enum Type {
     /// A boolean type, either `true` or `false`.
     Bool,
 
+    /// An exit code type, on a single byte.
+    ExitCode,
+
     /// An integer type, that contains a 32-bit signed integer.
     Int,
 
@@ -80,6 +83,7 @@ impl Display for Type {
             Type::Unknown => write!(f, "Unknown"),
             Type::Nothing => write!(f, "Nothing"),
             Type::Bool => write!(f, "Bool"),
+            Type::ExitCode => write!(f, "ExitCode"),
             Type::Int => write!(f, "Int"),
             Type::Float => write!(f, "Float"),
             Type::String => write!(f, "String"),

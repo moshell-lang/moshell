@@ -2,7 +2,7 @@ use crate::relations::NativeObjectId;
 use crate::types::engine::TypedEngine;
 use crate::types::operator::name_operator_method;
 use crate::types::ty::MethodType;
-use crate::types::{FLOAT, INT, STRING};
+use crate::types::{BOOL, EXIT_CODE, FLOAT, INT, STRING};
 use ast::operation::BinaryOperator;
 
 const ARITHMETIC_OPERATORS: &[BinaryOperator] = &[
@@ -15,6 +15,12 @@ const ARITHMETIC_OPERATORS: &[BinaryOperator] = &[
 
 pub fn lang(engine: &mut TypedEngine) {
     let mut id = 0usize;
+    engine.add_method(
+        EXIT_CODE,
+        "to_bool",
+        MethodType::native(vec![], BOOL, NativeObjectId(id)),
+    );
+    id += 1;
     for op in ARITHMETIC_OPERATORS {
         engine.add_method(
             INT,
@@ -28,7 +34,7 @@ pub fn lang(engine: &mut TypedEngine) {
         );
         id += 2;
     }
-    for stringify in [INT, FLOAT, STRING] {
+    for stringify in [INT, FLOAT] {
         engine.add_method(
             stringify,
             "to_string",

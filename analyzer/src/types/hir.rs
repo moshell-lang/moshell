@@ -83,23 +83,3 @@ pub enum ExprKind {
     Return(Option<Box<TypedExpr>>),
     Noop,
 }
-
-impl TypedExpr {
-    /// Wraps the current expression in a conversion to the given type.
-    ///
-    /// If the type is the same, returns the current expression.
-    pub fn cast(self, into: TypeId) -> Self {
-        if self.ty == into {
-            return self;
-        }
-        let segment = self.segment.clone();
-        Self {
-            kind: ExprKind::Convert {
-                inner: Box::new(self),
-                into,
-            },
-            ty: into,
-            segment,
-        }
-    }
-}

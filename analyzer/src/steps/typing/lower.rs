@@ -1,9 +1,19 @@
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::steps::typing::exploration::Exploration;
 use crate::steps::typing::TypingState;
-use crate::types::hir::{ExprKind, TypedExpr};
-use crate::types::STRING;
+use crate::types::hir::{ExprKind, TypeId, TypedExpr};
+use crate::types::ty::Type;
+use crate::types::{BOOL, FLOAT, STRING};
 use context::source::SourceSegmentHolder;
+
+pub fn get_converter(ty: TypeId) -> Option<&'static str> {
+    Some(match ty {
+        BOOL => "to_bool",
+        FLOAT => "to_float",
+        STRING => "to_string",
+        _ => return None,
+    })
+}
 
 /// Try to convert an expression into a string.
 pub(super) fn convert_into_string(
@@ -12,43 +22,62 @@ pub(super) fn convert_into_string(
     diagnostics: &mut Vec<Diagnostic>,
     state: TypingState,
 ) -> TypedExpr {
-    // If the expression is already a string, we don't need to do anything.
-    if expr.ty.is_err() || expr.ty == STRING {
+    call_convert_on(
+        expr,
+        exploration,
+        STRING,
+        |ty| format!("Cannot stringify type `{}`", ty),
+        diagnostics,
+        state,
+    )
+}
+
+pub(super) fn call_convert_on(
+    expr: TypedExpr,
+    exploration: &Exploration,
+    into: TypeId,
+    message: impl FnOnce(&Type) -> String,
+    diagnostics: &mut Vec<Diagnostic>,
+    state: TypingState,
+) -> TypedExpr {
+    // If the expression is already of the needed type, we don't need to do anything.
+    if expr.ty.is_err() || expr.ty == into {
         return expr;
     }
 
+    let method_name = match get_converter(into) {
+        Some(method_name) => method_name,
+        None => {
+            panic!(
+                "No converted defined for type `{}`",
+                exploration.get_type(into).unwrap()
+            );
+        }
+    };
+
     // Else, we try to find a `to_string` method on the type.
-    if let Some(to_string) = exploration
+    if let Some(method) = exploration
         .engine
-        .get_method_exact(expr.ty, "to_string", &[], STRING)
+        .get_method_exact(expr.ty, method_name, &[], into)
     {
         let segment = expr.segment.clone();
         TypedExpr {
             kind: ExprKind::MethodCall {
                 callee: Box::new(expr),
                 arguments: vec![],
-                definition: to_string.definition,
+                definition: method.definition,
             },
-            ty: to_string.return_type,
+            ty: method.return_type,
             segment,
         }
     } else {
+        let ty = exploration.get_type(expr.ty).unwrap();
         diagnostics.push(
-            Diagnostic::new(
-                DiagnosticID::UnknownMethod,
-                state.source,
-                format!(
-                    "Cannot stringify type `{}`",
-                    exploration.get_type(expr.ty).unwrap()
-                ),
-            )
-            .with_observation(Observation::with_help(
-                expr.segment(),
-                format!(
-                    "No method `to_string` on type `{}`",
-                    exploration.get_type(expr.ty).unwrap()
-                ),
-            )),
+            Diagnostic::new(DiagnosticID::TypeMismatch, state.source, message(ty))
+                .with_observation(Observation::with_help(
+                    expr.segment(),
+                    format!("No method `{}` on type `{}`", method_name, ty),
+                )),
         );
         expr
     }
