@@ -1,4 +1,4 @@
-use ast::value::LiteralValue;
+use ast::value::{Literal, LiteralValue};
 use ast::Expr;
 use context::source::SourceSegmentHolder;
 
@@ -52,6 +52,10 @@ pub(self) struct TypingState {
     source: SourceId,
     local_type: bool,
 
+    // if set to true, the analyzer will try
+    // to convert primitive literals to strings
+    literal_strings: bool,
+
     // if not in loop, `continue` and `break` will raise a diagnostic
     in_loop: bool,
 }
@@ -63,6 +67,7 @@ impl TypingState {
             source,
             local_type: false,
             in_loop: false,
+            literal_strings: false
         }
     }
 
@@ -94,6 +99,22 @@ impl TypingState {
     fn without_in_loop(self) -> Self {
         Self {
             in_loop: false,
+            ..self
+        }
+    }
+
+    /// Returns a new state with `literal_strings` set to true
+    fn with_literal_strings(self) -> Self {
+        Self {
+            literal_strings: true,
+            ..self
+        }
+    }
+
+    /// Returns a new state with `literal_strings` set to false
+    fn without_literal_strings(self) -> Self {
+        Self {
+            literal_strings: false,
             ..self
         }
     }
@@ -145,6 +166,31 @@ fn apply_types_to_source(
     }
 }
 
+fn ascribe_literal(force_string: bool, lit: &Literal) -> TypedExpr {
+    if force_string {
+        let str = match &lit.parsed {
+            LiteralValue::Int(i) => i.to_string(),
+            LiteralValue::Float(f) => f.to_string(),
+            LiteralValue::String(s) => s.clone(),
+        };
+        return TypedExpr {
+            kind: ExprKind::Literal(LiteralValue::String(str)),
+            ty: STRING,
+            segment: lit.segment.clone(),
+        }
+    }
+    let ty = match lit.parsed {
+        LiteralValue::Int(_) => INT,
+        LiteralValue::Float(_) => FLOAT,
+        LiteralValue::String(_) => STRING,
+    };
+    TypedExpr {
+        kind: ExprKind::Literal(lit.parsed.clone()),
+        ty,
+        segment: lit.segment.clone(),
+    }
+}
+
 /// Ascribes types to the given expression.
 ///
 /// In case of an error, the expression is still returned, but the type is set to [`ERROR`].
@@ -157,18 +203,7 @@ fn ascribe_types(
     state: TypingState,
 ) -> TypedExpr {
     match expr {
-        Expr::Literal(lit) => {
-            let ty = match lit.parsed {
-                LiteralValue::Int(_) => INT,
-                LiteralValue::Float(_) => FLOAT,
-                LiteralValue::String(_) => STRING,
-            };
-            TypedExpr {
-                kind: ExprKind::Literal(lit.parsed.clone()),
-                ty,
-                segment: lit.segment.clone(),
-            }
-        }
+        Expr::Literal(lit) => ascribe_literal(state.literal_strings, lit),
         Expr::VarDeclaration(decl) => {
             let initializer = decl
                 .initializer
@@ -432,7 +467,7 @@ fn ascribe_types(
             let args = call
                 .arguments
                 .iter()
-                .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
+                .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state.with_literal_strings()))
                 .collect::<Vec<_>>();
 
             let ty = if state.local_type { INT } else { NOTHING };

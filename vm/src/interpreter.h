@@ -1,11 +1,11 @@
 #pragma once
 
+#include "conversions.h"
 #include <memory>
 #include <vector>
-#include "conversions.h"
 
-#include "vm.h"
 #include "memory/operand_stack.h"
+#include "vm.h"
 
 struct constant_pool {
     std::vector<std::unique_ptr<char[]>> strings;
@@ -16,7 +16,7 @@ struct constant_pool {
 
 /// appends in pool given value converted to string,
 /// And returns the new string constant identifier in pool
-template<typename T>
+template <typename T>
 int64_t append_str_value(T value, constant_pool &pool) {
 
     size_t str_len;

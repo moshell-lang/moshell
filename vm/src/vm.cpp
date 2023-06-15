@@ -1,10 +1,10 @@
-#include <cstring>
-#include "interpreter.h"
 #include "conversions.h"
+#include "interpreter.h"
+#include <cstring>
 #include <execution>
 #include <iostream>
 
-constant_pool load_constant_pool(const char* bytes, unsigned int* ip) {
+constant_pool load_constant_pool(const char *bytes, unsigned int *ip) {
     // Read the number of strings on a single byte
     char count = *(bytes + *ip);
     (*ip)++;
@@ -14,7 +14,7 @@ constant_pool load_constant_pool(const char* bytes, unsigned int* ip) {
     // A string is an 8-byte length big endian followed by the string data without a null byte
     for (int i = 0; i < count; i++) {
         // Read the length
-        size_t length = ntohl(*(int64_t*) (bytes + *ip));
+        size_t length = ntohl(*(int64_t *)(bytes + *ip));
         (*ip) += 8;
 
         // Allocate the string
@@ -27,7 +27,7 @@ constant_pool load_constant_pool(const char* bytes, unsigned int* ip) {
     return pool;
 }
 
-extern "C" void exec(const char* bytes, size_t byte_count) {
+extern "C" void exec(const char *bytes, size_t byte_count) {
     unsigned int constant_pool_bytes = 0;
     constant_pool pool = load_constant_pool(bytes, &constant_pool_bytes);
 

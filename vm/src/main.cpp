@@ -15,7 +15,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     std::vector<char> bytes_vec(std::istreambuf_iterator<char>(input), {});
-    const char* bytes = bytes_vec.data();
+    const char *bytes = bytes_vec.data();
     exec(bytes, bytes_vec.size());
     return 0;
 }

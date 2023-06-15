@@ -1,18 +1,13 @@
-//
-// Created by maxime on 6/14/23.
-//
+#pragma once
 
-#ifndef VM_OPERAND_STACK_H
-#define VM_OPERAND_STACK_H
-
-#include <exception>
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
+#include <exception>
 #include <memory>
 
 class OperandStack {
 private:
-    char* bytes;
+    char *bytes;
     size_t capacity;
     size_t current_pos;
 
@@ -39,16 +34,12 @@ public:
 struct OperandStackError : public std::exception {
 
 private:
-    const char* message;
+    const char *message;
 
 public:
-    explicit OperandStackError(const char* message) : message{message} {}
+    explicit OperandStackError(const char *message) : message{message} {}
 
-    [[nodiscard]]
-    const char* what() const noexcept override {
+    [[nodiscard]] const char *what() const noexcept override {
         return message;
     }
 };
-
-
-#endif //VM_OPERAND_STACK_H
