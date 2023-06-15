@@ -71,7 +71,6 @@ pub enum ExprKind {
     },
     ProcessCall(Vec<TypedExpr>),
     FunctionCall {
-        name: String,
         arguments: Vec<TypedExpr>,
         definition: Definition,
     },

@@ -3,6 +3,7 @@ use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::relations::{Relations, SourceObjectId};
+use crate::steps::typing::coercion::{check_type_annotation, unify_and_map};
 use crate::steps::typing::exploration::{diagnose_unknown_type, Exploration};
 use crate::steps::typing::function::{
     find_operand_implementation, infer_return, type_call, type_method, type_parameter, Return,
@@ -20,6 +21,7 @@ use ast::variable::VarKind;
 use ast::Expr;
 use context::source::SourceSegmentHolder;
 
+mod coercion;
 mod exploration;
 mod function;
 mod lower;
@@ -161,16 +163,6 @@ fn ascribe_types(
                     segment: tpl.segment(),
                 };
             }
-            let mut it = tpl.parts.iter();
-            let acc = ascribe_types(
-                exploration,
-                relations,
-                diagnostics,
-                env,
-                it.next().unwrap(),
-                state.without_local_type(),
-            );
-            let acc = convert_into_string(acc, exploration, diagnostics, state);
             let plus_method = exploration
                 .engine
                 .get_method_exact(
@@ -181,8 +173,8 @@ fn ascribe_types(
                 )
                 .expect("string type should have a concatenation method")
                 .definition;
-            it.fold(acc, |acc, part| {
-                let current = ascribe_types(
+            let mut it = tpl.parts.iter().map(|part| {
+                let acc = ascribe_types(
                     exploration,
                     relations,
                     diagnostics,
@@ -190,10 +182,14 @@ fn ascribe_types(
                     part,
                     state.without_local_type(),
                 );
+                convert_into_string(acc, exploration, diagnostics, state)
+            });
+            let acc = it.next().unwrap();
+            it.fold(acc, |acc, current| {
                 let segment = acc.segment.start..current.segment.end;
                 TypedExpr {
                     kind: ExprKind::MethodCall {
-                        callee: Box::new(convert_into_string(acc, exploration, diagnostics, state)),
+                        callee: Box::new(acc),
                         arguments: vec![current],
                         definition: plus_method,
                     },
@@ -218,7 +214,14 @@ fn ascribe_types(
                 .unwrap();
             let var_ty = var_obj.type_id;
             let rhs_type = rhs.ty;
-            let rhs = match exploration.unify(var_ty, rhs, diagnostics, state) {
+            let rhs = match unify_and_map(
+                rhs,
+                var_ty,
+                &mut exploration.typing,
+                &exploration.engine,
+                state,
+                diagnostics,
+            ) {
                 Ok(rhs) => {
                     if !var_obj.can_reassign {
                         diagnostics.push(
@@ -271,18 +274,18 @@ fn ascribe_types(
             }
         }
         Expr::VarDeclaration(decl) => {
-            let initializer = decl
+            let mut initializer = decl
                 .initializer
                 .as_ref()
                 .map(|expr| {
-                    Box::new(ascribe_types(
+                    ascribe_types(
                         exploration,
                         relations,
                         diagnostics,
                         env,
                         expr,
                         state.with_local_type(),
-                    ))
+                    )
                 })
                 .expect("Variables without initializers are not supported yet");
             let id = exploration.ctx.push_local(
@@ -294,41 +297,18 @@ fn ascribe_types(
                 },
             );
             if let Some(type_annotation) = &decl.var.ty {
-                let expected_type = exploration.ctx.resolve(type_annotation).unwrap_or(ERROR);
-                if expected_type == ERROR {
-                    diagnostics.push(diagnose_unknown_type(
-                        state.source,
-                        type_annotation.segment(),
-                    ));
-                } else if initializer.ty.is_ok()
-                    && exploration
-                        .typing
-                        .unify(expected_type, initializer.ty)
-                        .is_err()
-                {
-                    diagnostics.push(
-                        Diagnostic::new(DiagnosticID::TypeMismatch, state.source, "Type mismatch")
-                            .with_observation(Observation::with_help(
-                                type_annotation.segment(),
-                                format!(
-                                    "Expected `{}`",
-                                    exploration.get_type(expected_type).unwrap()
-                                ),
-                            ))
-                            .with_observation(Observation::with_help(
-                                initializer.segment(),
-                                format!(
-                                    "Found `{}`",
-                                    exploration.get_type(initializer.ty).unwrap()
-                                ),
-                            )),
-                    );
-                }
+                initializer = check_type_annotation(
+                    exploration,
+                    type_annotation,
+                    initializer,
+                    diagnostics,
+                    state,
+                );
             }
             TypedExpr {
                 kind: ExprKind::Declare {
                     identifier: id,
-                    value: Some(initializer),
+                    value: Some(Box::new(initializer)),
                 },
                 ty: NOTHING,
                 segment: decl.segment.clone(),
@@ -539,7 +519,14 @@ fn ascribe_types(
                 &block.condition,
                 state,
             );
-            let condition = match exploration.unify(BOOL, condition, diagnostics, state) {
+            let condition = match unify_and_map(
+                condition,
+                BOOL,
+                &mut exploration.typing,
+                &exploration.engine,
+                state,
+                diagnostics,
+            ) {
                 Ok(condition) => condition,
                 Err(condition) => {
                     diagnostics.push(
@@ -559,7 +546,7 @@ fn ascribe_types(
                     condition
                 }
             };
-            let then = ascribe_types(
+            let mut then = ascribe_types(
                 exploration,
                 relations,
                 diagnostics,
@@ -567,22 +554,39 @@ fn ascribe_types(
                 &block.success_branch,
                 state,
             );
-            let otherwise = block.fail_branch.as_ref().map(|expr| {
-                Box::new(ascribe_types(
-                    exploration,
-                    relations,
-                    diagnostics,
-                    env,
-                    expr,
-                    state,
-                ))
-            });
+            let mut otherwise = block
+                .fail_branch
+                .as_ref()
+                .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state));
             let ty = if state.local_type {
                 match exploration.typing.unify(
                     then.ty,
                     otherwise.as_ref().map(|expr| expr.ty).unwrap_or(NOTHING),
                 ) {
-                    Ok(ty) => ty,
+                    Ok(ty) => {
+                        // Generate appropriate casts and implicits conversions
+                        then = unify_and_map(
+                            then,
+                            ty,
+                            &mut exploration.typing,
+                            &exploration.engine,
+                            state,
+                            diagnostics,
+                        )
+                        .expect("Type mismatch should already have been caught");
+                        otherwise = otherwise.map(|expr| {
+                            unify_and_map(
+                                expr,
+                                ty,
+                                &mut exploration.typing,
+                                &exploration.engine,
+                                state,
+                                diagnostics,
+                            )
+                            .expect("Type mismatch should already have been caught")
+                        });
+                        ty
+                    }
                     Err(_) => {
                         let mut diagnostic = Diagnostic::new(
                             DiagnosticID::TypeMismatch,
@@ -610,7 +614,7 @@ fn ascribe_types(
                 kind: ExprKind::Conditional {
                     condition: Box::new(condition),
                     then: Box::new(then),
-                    otherwise,
+                    otherwise: otherwise.map(Box::new),
                 },
                 ty,
                 segment: block.segment.clone(),
@@ -640,9 +644,9 @@ fn ascribe_types(
             let symbol = env
                 .get_raw_symbol(call.segment.clone())
                 .expect("Environment has not tracked the symbol for programmatic call");
-            let (definition, return_type) = type_call(
+            let function_match = type_call(
                 call,
-                &arguments,
+                arguments,
                 symbol,
                 diagnostics,
                 exploration,
@@ -651,11 +655,10 @@ fn ascribe_types(
             );
             TypedExpr {
                 kind: ExprKind::FunctionCall {
-                    name: call.name.to_owned(),
-                    arguments,
-                    definition,
+                    arguments: function_match.arguments,
+                    definition: function_match.definition,
                 },
-                ty: return_type,
+                ty: function_match.return_type,
                 segment: call.segment.clone(),
             }
         }

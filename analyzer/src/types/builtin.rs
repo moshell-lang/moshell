@@ -13,43 +13,55 @@ const ARITHMETIC_OPERATORS: &[BinaryOperator] = &[
     BinaryOperator::Modulo,
 ];
 
+/// A sequential generator for native object ids.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+struct VariableGenerator(usize);
+
+impl VariableGenerator {
+    /// Gets and increments the next native object id.
+    fn next(&mut self) -> NativeObjectId {
+        let id = self.0;
+        self.0 += 1;
+        NativeObjectId(id)
+    }
+}
+
+/// Adds the native methods to the engine.
 pub fn lang(engine: &mut TypedEngine) {
-    let mut id = 0usize;
+    let mut gen = VariableGenerator::default();
     engine.add_method(
         EXIT_CODE,
         "to_bool",
-        MethodType::native(vec![], BOOL, NativeObjectId(id)),
+        MethodType::native(vec![], BOOL, gen.next()),
     );
-    id += 1;
     for op in ARITHMETIC_OPERATORS {
         engine.add_method(
             INT,
             name_operator_method(*op),
-            MethodType::native(vec![INT], INT, NativeObjectId(id)),
+            MethodType::native(vec![INT], INT, gen.next()),
         );
         engine.add_method(
             FLOAT,
             name_operator_method(*op),
-            MethodType::native(vec![FLOAT], FLOAT, NativeObjectId(id + 1)),
+            MethodType::native(vec![FLOAT], FLOAT, gen.next()),
         );
-        id += 2;
     }
     for stringify in [INT, FLOAT] {
         engine.add_method(
             stringify,
             "to_string",
-            MethodType::native(vec![], STRING, NativeObjectId(id)),
+            MethodType::native(vec![], STRING, gen.next()),
         );
-        id += 1;
     }
     engine.add_method(
-        STRING,
-        "len",
-        MethodType::native(vec![], INT, NativeObjectId(id)),
+        INT,
+        "to_float",
+        MethodType::native(vec![], FLOAT, gen.next()),
     );
+    engine.add_method(STRING, "len", MethodType::native(vec![], INT, gen.next()));
     engine.add_method(
         STRING,
         name_operator_method(BinaryOperator::Plus),
-        MethodType::native(vec![STRING], STRING, NativeObjectId(id + 1)),
+        MethodType::native(vec![STRING], STRING, gen.next()),
     );
 }

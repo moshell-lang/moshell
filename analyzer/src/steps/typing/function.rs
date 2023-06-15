@@ -1,5 +1,6 @@
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::relations::{Relations, SourceObjectId, Symbol};
+use crate::steps::typing::coercion::unify_and_map;
 use crate::steps::typing::exploration::Exploration;
 use crate::steps::typing::TypingState;
 use crate::types::ctx::TypeContext;
@@ -14,9 +15,15 @@ use std::fmt;
 use std::fmt::Display;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct Return {
-    pub(crate) ty: TypeId,
-    pub(crate) segment: SourceSegment,
+pub(super) struct Return {
+    pub(super) ty: TypeId,
+    pub(super) segment: SourceSegment,
+}
+
+pub(super) struct FunctionMatch {
+    pub(super) arguments: Vec<TypedExpr>,
+    pub(super) definition: Definition,
+    pub(super) return_type: TypeId,
 }
 
 /// Gets the returned type of a function.
@@ -150,13 +157,13 @@ pub(super) fn infer_return(
 /// Checks the type of a call expression.
 pub(super) fn type_call(
     call: &ProgrammaticCall,
-    arguments: &[TypedExpr],
+    arguments: Vec<TypedExpr>,
     symbol: Symbol,
     diagnostics: &mut Vec<Diagnostic>,
     exploration: &mut Exploration,
     relations: &Relations,
     state: TypingState,
-) -> (Definition, TypeId) {
+) -> FunctionMatch {
     let type_id = exploration
         .ctx
         .get(relations, state.source, symbol)
@@ -186,19 +193,41 @@ pub(super) fn type_call(
                         "Function is called here",
                     )),
                 );
-                (Definition::error(), ERROR)
-            } else {
-                for (param, arg) in parameters.iter().zip(arguments.iter()) {
-                    if exploration.typing.unify(param.ty, arg.ty).is_err() {
-                        diagnostics.push(diagnose_arg_mismatch(
-                            &exploration.typing,
-                            state.source,
-                            param,
-                            arg,
-                        ));
-                    }
+                FunctionMatch {
+                    arguments,
+                    definition: Definition::error(),
+                    return_type,
                 }
-                (declaration, return_type)
+            } else {
+                let mut casted_arguments = Vec::with_capacity(parameters.len());
+                for (param, arg) in parameters.iter().zip(arguments.into_iter()) {
+                    casted_arguments.push(
+                        match unify_and_map(
+                            arg,
+                            param.ty,
+                            &mut exploration.typing,
+                            &exploration.engine,
+                            state,
+                            diagnostics,
+                        ) {
+                            Ok(arg) => arg,
+                            Err(arg) => {
+                                diagnostics.push(diagnose_arg_mismatch(
+                                    &exploration.typing,
+                                    state.source,
+                                    param,
+                                    &arg,
+                                ));
+                                arg
+                            }
+                        },
+                    );
+                }
+                FunctionMatch {
+                    arguments: casted_arguments,
+                    definition: declaration,
+                    return_type,
+                }
             }
         }
         ty => {
@@ -213,7 +242,11 @@ pub(super) fn type_call(
                     format!("Call expression requires function, found `{ty}`"),
                 )),
             );
-            (Definition::error(), ERROR)
+            FunctionMatch {
+                arguments,
+                definition: Definition::error(),
+                return_type: ERROR,
+            }
         }
     }
 }
@@ -268,7 +301,7 @@ pub(super) fn type_method<'a>(
     }
 
     let methods = methods.unwrap(); // We just checked for None
-    let method = find_matching_method(methods, arguments);
+    let method = find_exact_method(methods, arguments);
     if let Some(method) = method {
         // We have an exact match
         return Some(method);
@@ -360,10 +393,7 @@ fn diagnose_arg_mismatch(
 }
 
 /// Find a matching method for the given arguments.
-fn find_matching_method<'a>(
-    methods: &'a [MethodType],
-    args: &[TypedExpr],
-) -> Option<&'a MethodType> {
+fn find_exact_method<'a>(methods: &'a [MethodType], args: &[TypedExpr]) -> Option<&'a MethodType> {
     for method in methods {
         if method.parameters.len() != args.len() {
             continue;

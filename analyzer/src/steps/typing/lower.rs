@@ -1,9 +1,10 @@
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::steps::typing::exploration::Exploration;
 use crate::steps::typing::TypingState;
+use crate::types::engine::TypedEngine;
 use crate::types::hir::{ExprKind, TypeId, TypedExpr};
 use crate::types::ty::Type;
-use crate::types::{BOOL, FLOAT, STRING};
+use crate::types::{Typing, BOOL, FLOAT, STRING};
 use context::source::SourceSegmentHolder;
 
 pub fn get_converter(ty: TypeId) -> Option<&'static str> {
@@ -24,7 +25,8 @@ pub(super) fn convert_into_string(
 ) -> TypedExpr {
     call_convert_on(
         expr,
-        exploration,
+        &exploration.typing,
+        &exploration.engine,
         STRING,
         |ty| format!("Cannot stringify type `{}`", ty),
         diagnostics,
@@ -34,7 +36,8 @@ pub(super) fn convert_into_string(
 
 pub(super) fn call_convert_on(
     expr: TypedExpr,
-    exploration: &Exploration,
+    typing: &Typing,
+    engine: &TypedEngine,
     into: TypeId,
     message: impl FnOnce(&Type) -> String,
     diagnostics: &mut Vec<Diagnostic>,
@@ -50,16 +53,13 @@ pub(super) fn call_convert_on(
         None => {
             panic!(
                 "No converted defined for type `{}`",
-                exploration.get_type(into).unwrap()
+                typing.get_type(into).unwrap()
             );
         }
     };
 
     // Else, we try to find a `to_string` method on the type.
-    if let Some(method) = exploration
-        .engine
-        .get_method_exact(expr.ty, method_name, &[], into)
-    {
+    if let Some(method) = engine.get_method_exact(expr.ty, method_name, &[], into) {
         let segment = expr.segment.clone();
         TypedExpr {
             kind: ExprKind::MethodCall {
@@ -71,7 +71,7 @@ pub(super) fn call_convert_on(
             segment,
         }
     } else {
-        let ty = exploration.get_type(expr.ty).unwrap();
+        let ty = typing.get_type(expr.ty).unwrap();
         diagnostics.push(
             Diagnostic::new(DiagnosticID::TypeMismatch, state.source, message(ty))
                 .with_observation(Observation::with_help(
