@@ -5,12 +5,11 @@ use analyzer::types::hir::TypedExpr;
 
 use crate::bytecode::Bytecode;
 use crate::constant_pool::ConstantPool;
-use crate::emit::{EmissionState, emit};
+use crate::emit::{emit, EmissionState};
 
 pub mod bytecode;
-mod emit;
 mod constant_pool;
-
+mod emit;
 
 pub fn compile(expr: &TypedExpr, writer: &mut impl Write) -> Result<(), io::Error> {
     let mut emitter = Bytecode::default();

@@ -1,5 +1,5 @@
-use ast::Expr;
 use ast::value::LiteralValue;
+use ast::Expr;
 use context::source::SourceSegmentHolder;
 
 use crate::dependency::topological_sort;
@@ -8,12 +8,14 @@ use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::relations::{Relations, SourceId};
 use crate::steps::typing::exploration::Exploration;
-use crate::steps::typing::function::{infer_return, Return, type_call, type_parameter};
-use crate::types::{ERROR, FLOAT, INT, NOTHING, STRING, Typing};
+use crate::steps::typing::function::{infer_return, type_call, type_parameter, Return};
 use crate::types::ctx::TypeContext;
 use crate::types::engine::{Chunk, TypedEngine};
-use crate::types::hir::{Binary, Conditional, Declaration, ExprKind, FunctionCall, Loop, TypedExpr};
+use crate::types::hir::{
+    Binary, Conditional, Declaration, ExprKind, FunctionCall, Loop, TypedExpr,
+};
 use crate::types::ty::Type;
+use crate::types::{Typing, ERROR, FLOAT, INT, NOTHING, STRING};
 
 mod exploration;
 mod function;
@@ -432,11 +434,7 @@ fn ascribe_types(
                 .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
                 .collect::<Vec<_>>();
 
-            let ty = if state.local_type {
-                INT
-            } else {
-                NOTHING
-            };
+            let ty = if state.local_type { INT } else { NOTHING };
             TypedExpr {
                 kind: ExprKind::ProcessCall(args),
                 ty,
@@ -468,49 +466,58 @@ fn ascribe_types(
                 segment: call.segment.clone(),
             }
         }
-        Expr::While(w) => {
-            let condition = ascribe_types(exploration, relations, diagnostics, env, &w.condition, state.without_local_type());
-            let body = ascribe_types(exploration, relations, diagnostics, env, &w.body, state.without_local_type().with_in_loop());
+        e @ (Expr::While(_) | Expr::Loop(_)) => {
+            let (condition, body) = match e {
+                Expr::While(w) => (
+                    Some(ascribe_types(
+                        exploration,
+                        relations,
+                        diagnostics,
+                        env,
+                        &w.condition,
+                        state.without_local_type(),
+                    )),
+                    &w.body,
+                ),
+                Expr::Loop(l) => (None, &l.body),
+                _ => unreachable!(),
+            };
+            let body = ascribe_types(
+                exploration,
+                relations,
+                diagnostics,
+                env,
+                body,
+                state.without_local_type().with_in_loop(),
+            );
 
             TypedExpr {
                 kind: ExprKind::ConditionalLoop(Loop {
-                    condition: Some(Box::new(condition)),
+                    condition: condition.map(Box::new),
                     body: Box::new(body),
                 }),
-                segment: w.segment(),
+                segment: e.segment(),
                 ty: NOTHING,
             }
         }
-        Expr::Loop(l) => {
-            let body = ascribe_types(exploration, relations, diagnostics, env, &l.body, state.without_local_type().with_in_loop());
-
-            TypedExpr {
-                kind: ExprKind::ConditionalLoop(Loop {
-                    condition: None,
-                    body: Box::new(body),
-                }),
-                segment: l.segment(),
-                ty: NOTHING,
-            }
-        }
-        Expr::Continue(s) => {
+        e @ (Expr::Continue(s) | Expr::Break(s)) => {
+            let (kind, kind_name) = match e {
+                Expr::Continue(_) => (ExprKind::Continue, "continue"),
+                Expr::Break(_) => (ExprKind::Break, "break"),
+                _ => unreachable!(),
+            };
             if !state.in_loop {
-                diagnostics.push(Diagnostic::new(DiagnosticID::InvalidBreakOrContinue, state.source, "`continue` must be declared inside a loop")
-                    .with_observation(Observation::new(s.clone())));
+                diagnostics.push(
+                    Diagnostic::new(
+                        DiagnosticID::InvalidBreakOrContinue,
+                        state.source,
+                        format!("`{kind_name}` must be declared inside a loop"),
+                    )
+                    .with_observation(Observation::new(s.clone())),
+                );
             }
             TypedExpr {
-                kind: ExprKind::Continue,
-                ty: NOTHING,
-                segment: s.clone(),
-            }
-        }
-        Expr::Break(s) => {
-            if !state.in_loop {
-                diagnostics.push(Diagnostic::new(DiagnosticID::InvalidBreakOrContinue, state.source, "`break` must be declared inside a loop")
-                    .with_observation(Observation::new(s.clone())));
-            }
-            TypedExpr {
-                kind: ExprKind::Break,
+                kind,
                 ty: NOTHING,
                 segment: s.clone(),
             }

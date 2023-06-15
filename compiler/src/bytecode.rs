@@ -6,7 +6,6 @@ pub struct Bytecode {
 }
 
 impl Bytecode {
-
     /// Returns the current byte instruction position in current frame
     pub fn current_frame_ip(&self) -> usize {
         // note: as call frames are not yet supported,
@@ -42,6 +41,8 @@ impl Bytecode {
         self.bytes.extend(ip.to_be_bytes());
     }
 
+    /// expands the byte vector to let a placeholder of the given size,
+    /// returning the position of the placeholder in the vector
     pub fn create_placeholder(&mut self, placeholder_size: usize) -> usize {
         let pos = self.bytes.len();
         self.bytes.resize(pos + placeholder_size, 0);
@@ -52,8 +53,10 @@ impl Bytecode {
         self.bytes.extend(bytecode.bytes);
     }
 
-    pub fn fill_in_ip(&mut self, ip: usize, at: usize) {
-        self.bytes[ip..ip + size_of::<usize>()].copy_from_slice(at.to_be_bytes()[..].try_into().unwrap())
+    /// Fills an instruction pointer at given instruction pointer in the byte array
+    pub fn fill_in_ip(&mut self, ip_dest: usize, ip: usize) {
+        self.bytes[ip_dest..ip_dest + size_of::<usize>()]
+            .copy_from_slice(ip.to_be_bytes()[..].try_into().unwrap())
     }
 }
 
@@ -66,7 +69,8 @@ pub enum Opcode {
     SetLocal,
     Spawn,
 
-    PopInt,
+    PopByte,
+    PopQWord,
 
     IfJump,
     IfNotJump,

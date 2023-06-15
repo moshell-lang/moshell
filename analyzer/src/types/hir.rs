@@ -69,7 +69,7 @@ pub struct Conditional {
 #[derive(Debug, PartialEq)]
 pub struct Loop {
     pub condition: Option<Box<TypedExpr>>,
-    pub body: Box<TypedExpr>
+    pub body: Box<TypedExpr>,
 }
 
 #[derive(Debug, PartialEq)]

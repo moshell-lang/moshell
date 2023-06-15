@@ -1,15 +1,16 @@
-use std::mem::size_of;
 use analyzer::types::hir::{Conditional, Loop};
+use std::mem::size_of;
 
 use crate::bytecode::{Bytecode, Opcode};
 use crate::constant_pool::ConstantPool;
-use crate::emit::{EmissionState, emit};
+use crate::emit::{emit, EmissionState};
 
-pub fn emit_conditional(conditional: &Conditional,
-                        emitter: &mut Bytecode,
-                        cp: &mut ConstantPool,
-                        state: &mut EmissionState) {
-
+pub fn emit_conditional(
+    conditional: &Conditional,
+    emitter: &mut Bytecode,
+    cp: &mut ConstantPool,
+    state: &mut EmissionState,
+) {
     emit(&conditional.condition, emitter, cp, state);
 
     emitter.emit_code(Opcode::IfJump);
@@ -30,23 +31,28 @@ pub fn emit_conditional(conditional: &Conditional,
     }
 }
 
-pub fn emit_loop(lp: &Loop,
-                 emitter: &mut Bytecode,
-                 cp: &mut ConstantPool,
-                 state: &mut EmissionState) {
+pub fn emit_loop(
+    lp: &Loop,
+    emitter: &mut Bytecode,
+    cp: &mut ConstantPool,
+    state: &mut EmissionState,
+) {
     let start_ip = emitter.current_frame_ip();
 
     let mut loop_state = EmissionState::new();
-    loop_state.last_loop_start = start_ip;
+    loop_state.enclosing_loop_start = start_ip;
 
     if let Some(condition) = &lp.condition {
         emit(condition, emitter, cp, state);
         emitter.emit_code(Opcode::IfNotJump);
         let jump_placeholder = emitter.create_placeholder(size_of::<usize>());
         emit(&lp.body, emitter, cp, &mut loop_state);
+
+        // jump back to loop start
         emitter.emit_code(Opcode::Jump);
         emitter.emit_instruction_pointer(start_ip);
 
+        // if condition is false, jump at end of loop
         emitter.fill_in_ip(jump_placeholder, emitter.current_frame_ip());
     } else {
         emit(&lp.body, emitter, cp, &mut loop_state);
@@ -56,17 +62,19 @@ pub fn emit_loop(lp: &Loop,
 
     // fill break placeholders
     let current_ip = emitter.current_frame_ip();
-    for placeholder in loop_state.last_loop_end_placeholders {
+    for placeholder in loop_state.enclosing_loop_end_placeholders {
         emitter.fill_in_ip(placeholder, current_ip)
     }
 }
 
 pub fn emit_continue(emitter: &mut Bytecode, state: &mut EmissionState) {
     emitter.emit_code(Opcode::Jump);
-    emitter.emit_instruction_pointer(state.last_loop_start);
+    emitter.emit_instruction_pointer(state.enclosing_loop_start);
 }
 
 pub fn emit_break(emitter: &mut Bytecode, state: &mut EmissionState) {
     emitter.emit_code(Opcode::Jump);
-    state.last_loop_end_placeholders.push(emitter.create_placeholder(size_of::<usize>()));
+    state
+        .enclosing_loop_end_placeholders
+        .push(emitter.create_placeholder(size_of::<usize>()));
 }

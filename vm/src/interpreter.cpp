@@ -8,21 +8,22 @@
 #include <unistd.h>
 
 enum Opcode {
-    OP_PUSH_INT,    // 1 byte opcode, 8 byte int value
-    OP_PUSH_FLOAT,  // 1 byte opcode, 8 byte float value
-    OP_PUSH_STRING, // 1 byte opcode, 1 byte string index in constant pool
-    OP_GET_LOCAL,
-    OP_SET_LOCAL,
-    OP_SPAWN, // 1 byte opcode, 1 byte stack size for process exec()
+    OP_PUSH_INT,    // with 8 byte int value, pushes an int onto the operand stack
+    OP_PUSH_FLOAT,  // with 8 byte float value, pushes a float onto the operand stack
+    OP_PUSH_STRING, // with 1 byte string index in constant pool, pushes a string ref onto the operand stack
+    OP_GET_LOCAL,   // with 1 byte local index, pushes given local value onto the operand stack
+    OP_SET_LOCAL,   // with 1 byte local index, set given local value from value popped from the operand stack
+    OP_SPAWN,       // with 1 byte stack size for process exec(), pushes process exit status onto the operand stack
 
-    OP_POP_INT,
+    OP_POP_BYTE,    // pops one byte from operand stack
+    OP_POP_Q_WORD,  // pops 8 bytes from operand stack
 
-    OP_IF_JUMP, //last operand stack, 1 byte opcode for 'then' branch
-    OP_IF_NOT_JUMP, //last operand stack, 1 byte opcode for 'then' branch
-    OP_JUMP,
+    OP_IF_JUMP,     // with 1 byte opcode for 'then' branch, jumps only if value popped from operand stack is 0
+    OP_IF_NOT_JUMP, // with 1 byte opcode for where to jump, jumps only if value popped from operand stack is not 0
+    OP_JUMP,        // with 1 byte opcode for where to jump
 
-    OP_INT_TO_STR,
-    OP_FLOAT_TO_STR,
+    OP_INT_TO_STR,  // replaces last value of operand stack from int to a string reference
+    OP_FLOAT_TO_STR,// replaces last value of operand stack from float to a string reference
 };
 
 
@@ -33,9 +34,9 @@ constant_pool::constant_pool(int capacity) {
 
 
 void handle_process_state(int status, char current_instruction, unsigned int& ip, OperandStack& stack) {
-    // look ahead for OP_POP_INT instruction in order to avoid useless push/pop operations
+    // look ahead for OP_POP_BYTE instruction in order to avoid useless push/pop operations
     // which often happens
-    if (current_instruction == OP_POP_INT) {
+    if (current_instruction == OP_POP_BYTE) {
         ip++; //skip pop operation and do not push
         return;
     }
@@ -173,8 +174,13 @@ void run(constant_pool pool, const char* bytes, size_t size) {
                 ip = destination;
                 break;
             }
-            case OP_POP_INT: {
-                stack.pop_int();
+            case OP_POP_BYTE: {
+                stack.pop_bytes(1);
+                ip++;
+                break;
+            }
+            case OP_POP_Q_WORD: {
+                stack.pop_bytes(8);
                 ip++;
                 break;
             }

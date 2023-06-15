@@ -31,6 +31,8 @@ public:
 
     int64_t pop_string_constant_ref();
 
+    void pop_bytes(size_t size);
+
     ~OperandStack();
 };
 
