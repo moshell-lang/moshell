@@ -1,6 +1,6 @@
 use std::io;
 
-use ariadne::{Color, Label, Report, ReportKind};
+use ariadne::{Color, Config, Label, Report, ReportKind};
 
 use crate::fix_ariadne_report;
 use context::source::Source;
@@ -9,6 +9,7 @@ use parser::err::{ParseError, ParseErrorKind};
 pub fn render_parse_error(source: Source, error: ParseError) -> io::Result<String> {
     let source_name = source.name;
     let mut builder = Report::build(ReportKind::Error, source_name, 0)
+        .with_config(Config::default().with_underlines(false))
         .with_message(error.message)
         .with_label(
             Label::new((source_name, error.position))

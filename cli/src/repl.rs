@@ -1,11 +1,11 @@
-use crate::cli::{display_exprs, display_tokens, Configuration};
+use crate::cli::{display_exprs, display_tokens, Configuration, display_bytecode, execute};
 use crate::formatted_diagnostic::render_diagnostic;
 use crate::formatted_parse_error::render_parse_error;
 use analyzer::engine::Engine;
 use analyzer::importer::ASTImporter;
 use analyzer::imports::Imports;
 use analyzer::name::Name;
-use analyzer::relations::Relations;
+use analyzer::relations::{Relations, SourceId};
 use ast::group::Block;
 use ast::Expr;
 use context::source::{OwnedSource, Source};
@@ -19,6 +19,8 @@ use rustyline::{
 };
 use std::collections::HashMap;
 use std::process::exit;
+use analyzer::steps::typing::apply_types;
+use compiler::compile;
 
 type REPLEditor = Editor<(), DefaultHistory>;
 
@@ -71,12 +73,13 @@ pub fn repl(config: Configuration) {
         EventHandler::from(Cmd::Undo(1)),
     );
 
-    let mut engine = Engine::default();
     let mut relations = Relations::default();
     let mut imports = Imports::default();
     let mut importer = REPLImporter::default();
 
     loop {
+        let mut engine = Engine::default();
+
         let source = parse_input(&mut editor);
         handle_source(
             source,
@@ -184,13 +187,27 @@ fn handle_source<'e>(
 
     importer.imported_modules.insert(name.clone(), expr);
 
-    let diagnostics = analyzer::make_full_resolution(name, importer, engine, relations, imports);
+    let mut diagnostics = analyzer::make_full_resolution(name, importer, engine, relations, imports);
 
-    let had_errors = !diagnostics.is_empty();
-    for diagnostic in diagnostics {
-        let str =
-            render_diagnostic(source, diagnostic).expect("IO errors when reporting diagnostic");
-        eprintln!("{str}")
+    let typed_engine = apply_types(engine, relations, &mut diagnostics);
+    if !diagnostics.is_empty() {
+        for diagnostic in diagnostics {
+            let str =
+                render_diagnostic(source, diagnostic).expect("IO errors when reporting diagnostic");
+            eprintln!("{str}")
+        }
+        return true;
     }
-    had_errors
+
+    let mut bytecode = Vec::new();
+    let root_expr = typed_engine.get(SourceId(0)).map(|c| &c.expression).unwrap();
+    compile(root_expr, &mut bytecode).unwrap();
+
+    if config.bytecode_visualisation {
+        display_bytecode(&bytecode);
+    }
+
+    execute(bytecode);
+
+    false
 }

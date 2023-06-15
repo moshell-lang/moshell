@@ -17,7 +17,7 @@ owo-colors = "3.0.0"
 rustyline = { version = "11.0.0", features = ["custom-bindings"] }
 ariadne = { version = "0.3.0", features = ["auto-color"] }
 thiserror = "1.0.38"
-dbg-pls = { version = "0.3.5", features = ["pretty", "colors"] }
+dbg-pls = { version = "0.4.1", features = ["pretty", "colors"] }
 clap = { version = "4.2.2", features = ["derive"] }
 colored = "2"
 

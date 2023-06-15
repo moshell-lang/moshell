@@ -66,7 +66,7 @@ pub fn render_diagnostic(
     }
 
     let mut builder = Report::build(ReportKind::Custom(&code, color), source_name, 0)
-        .with_config(Config::default().with_compact(true).with_underlines(true))
+        .with_config(Config::default().with_underlines(false))
         .with_message(diagnostic.global_message)
         .with_labels(labels);
 
