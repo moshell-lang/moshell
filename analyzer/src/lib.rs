@@ -35,12 +35,18 @@ pub fn resolve_all<'a>(
     let mut relations = Relations::default();
     let mut imports = Imports::default();
 
-    let diagnostics = make_full_resolution(entry_point, importer, &mut engine, &mut relations, &mut imports);
+    let diagnostics = make_full_resolution(
+        entry_point,
+        importer,
+        &mut engine,
+        &mut relations,
+        &mut imports,
+    );
 
     ResolutionResult {
         engine,
         diagnostics,
-        relations
+        relations,
     }
 }
 

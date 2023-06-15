@@ -1,6 +1,6 @@
-use std::mem::size_of;
-use enum_assoc::Assoc;
 use crate::bytecode::Opcode::*;
+use enum_assoc::Assoc;
+use std::mem::size_of;
 #[derive(Default)]
 pub struct Bytecode {
     pub bytes: Vec<u8>,

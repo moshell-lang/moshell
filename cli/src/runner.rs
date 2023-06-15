@@ -8,15 +8,15 @@ use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
 use analyzer::relations::SourceId;
 use analyzer::steps::typing::apply_types;
-use ast::Expr;
 use ast::group::Block;
+use ast::Expr;
 use compiler::compile;
 use context::source::{Source, SourceSegmentHolder};
 use lexer::lexer::lex;
 use parser::err::ParseReport;
 use parser::parse;
 
-use crate::cli::{Configuration, display_bytecode, display_exprs, display_tokens, execute};
+use crate::cli::{display_bytecode, display_exprs, display_tokens, execute, Configuration};
 use crate::formatted_diagnostic::render_diagnostic;
 use crate::formatted_parse_error::render_parse_error;
 use crate::source_importer::FileSourceImporter;
@@ -50,7 +50,10 @@ pub(crate) fn run(source: PathBuf, working_dir: PathBuf, config: Configuration) 
     }
 
     let mut bytecode = Vec::new();
-    let root_expr = typed_engine.get(SourceId(0)).map(|c| &c.expression).unwrap();
+    let root_expr = typed_engine
+        .get(SourceId(0))
+        .map(|c| &c.expression)
+        .unwrap();
     compile(root_expr, &mut bytecode).unwrap();
 
     visualize_outputs(importer, config, &bytecode);
@@ -60,9 +63,7 @@ pub(crate) fn run(source: PathBuf, working_dir: PathBuf, config: Configuration) 
     false
 }
 
-fn visualize_outputs(importer: RunnerImporter,
-                     config: Configuration,
-                     bytecode: &Vec<u8>) {
+fn visualize_outputs(importer: RunnerImporter, config: Configuration, bytecode: &[u8]) {
     if !config.needs_visualisation() {
         return;
     }

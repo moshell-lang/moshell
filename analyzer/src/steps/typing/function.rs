@@ -56,26 +56,26 @@ pub(super) fn infer_return(
                     state.source,
                     "Unknown type annotation",
                 )
-                    .with_observation(
-                        Observation::new(return_type_annotation.segment())
-                            .with_help("Not found in scope")
-                    )
+                .with_observation(
+                    Observation::new(return_type_annotation.segment())
+                        .with_help("Not found in scope"),
+                ),
             );
         } else {
             for ret in &exploration.returns {
                 if exploration.typing.unify(type_annotation, ret.ty).is_err() {
                     diagnostics.push(
                         Diagnostic::new(DiagnosticID::TypeMismatch, state.source, "Type mismatch")
+                            .with_observation(Observation::new(ret.segment.clone()).with_help(
+                                format!("Found `{}`", exploration.get_type(ret.ty).unwrap()),
+                            ))
                             .with_observation(
-                                Observation::new(ret.segment.clone())
-                                    .with_help(format!("Found `{}`", exploration.get_type(ret.ty).unwrap()))
-                            )
-                            .with_observation(
-                                Observation::new(return_type_annotation.segment())
-                                    .with_help(format!(
+                                Observation::new(return_type_annotation.segment()).with_help(
+                                    format!(
                                         "Expected `{}` because of return type",
                                         exploration.get_type(type_annotation).unwrap()
-                                    ))
+                                    ),
+                                ),
                             ),
                     );
                 }
@@ -97,11 +97,10 @@ pub(super) fn infer_return(
                         state.source,
                         "Return type inference is not supported yet",
                     )
-                        .with_observation(
-                            Observation::new(segment)
-                                .with_help("No return type is specified")
-                        )
-                        .with_help("Add -> Float to the function declaration"),
+                    .with_observation(
+                        Observation::new(segment).with_help("No return type is specified"),
+                    )
+                    .with_help("Add -> Float to the function declaration"),
                 );
                 ty
             }
@@ -112,11 +111,11 @@ pub(super) fn infer_return(
                         state.source,
                         "Failed to infer return type",
                     )
-                        .with_observation(
-                            Observation::new(func.segment())
-                                .with_help("This function returns multiple types")
-                        )
-                        .with_help("Try adding an explicit return type to the function"),
+                    .with_observation(
+                        Observation::new(func.segment())
+                            .with_help("This function returns multiple types"),
+                    )
+                    .with_help("Try adding an explicit return type to the function"),
                 );
                 ERROR
             }
@@ -125,10 +124,10 @@ pub(super) fn infer_return(
         // Explain if there is any return that this function will not be inferred
         let mut observations = Vec::new();
         for ret in &exploration.returns {
-            observations.push(
-                Observation::new(ret.segment.clone())
-                    .with_help(format!("Returning `{}`", exploration.get_type(ret.ty).unwrap()))
-            );
+            observations.push(Observation::new(ret.segment.clone()).with_help(format!(
+                "Returning `{}`",
+                exploration.get_type(ret.ty).unwrap()
+            )));
         }
         if !observations.is_empty() {
             diagnostics.push(
@@ -137,8 +136,8 @@ pub(super) fn infer_return(
                     state.source,
                     "Return type is not inferred for block functions",
                 )
-                    .with_observations(observations)
-                    .with_help("Try adding an explicit return type to the function"),
+                .with_observations(observations)
+                .with_help("Try adding an explicit return type to the function"),
             );
         }
         NOTHING
@@ -176,10 +175,9 @@ pub(super) fn type_call(
                             arguments.len()
                         ),
                     )
-                        .with_observation(
-                            Observation::new(call.segment.clone())
-                                .with_help("Function is called here")
-                        ),
+                    .with_observation(
+                        Observation::new(call.segment.clone()).with_help("Function is called here"),
+                    ),
                 );
                 ERROR
             } else {
@@ -191,18 +189,17 @@ pub(super) fn type_call(
                                 state.source,
                                 "Type mismatch",
                             )
-                                .with_observation(
-                                    Observation::new(arg.segment.clone())
-                                        .with_help(format!(
-                                            "Expected `{}`, found `{}`",
-                                            exploration.get_type(param.ty).unwrap(),
-                                            exploration.get_type(arg.ty).unwrap()
-                                        ))
-                                )
-                                .with_observation(
-                                    Observation::new(param.segment.clone())
-                                        .with_help("Parameter is declared here")
+                            .with_observation(Observation::new(arg.segment.clone()).with_help(
+                                format!(
+                                    "Expected `{}`, found `{}`",
+                                    exploration.get_type(param.ty).unwrap(),
+                                    exploration.get_type(arg.ty).unwrap()
                                 ),
+                            ))
+                            .with_observation(
+                                Observation::new(param.segment.clone())
+                                    .with_help("Parameter is declared here"),
+                            ),
                         );
                     }
                 }
@@ -216,10 +213,10 @@ pub(super) fn type_call(
                     state.source,
                     "Cannot invoke non function type",
                 )
-                    .with_observation(
-                        Observation::new(call.segment())
-                            .with_help(format!("Call expression requires function, found `{ty}`"))
-                    ),
+                .with_observation(
+                    Observation::new(call.segment())
+                        .with_help(format!("Call expression requires function, found `{ty}`")),
+                ),
             );
             ERROR
         }

@@ -6,7 +6,7 @@ use dbg_pls::color;
 use owo_colors::OwoColorize;
 
 use ast::Expr;
-use compiler::bytecode::{Opcode};
+use compiler::bytecode::Opcode;
 use lexer::token::Token;
 
 #[derive(Parser, Debug, Clone)]
@@ -46,7 +46,10 @@ pub struct Configuration {
 
 impl Configuration {
     pub fn needs_visualisation(&self) -> bool {
-        self.lexer_visualisation || self.parser_visualization || self.analyzer_visualisation || self.bytecode_visualisation
+        self.lexer_visualisation
+            || self.parser_visualization
+            || self.analyzer_visualisation
+            || self.bytecode_visualisation
     }
 }
 
@@ -56,7 +59,7 @@ impl From<Cli> for Configuration {
             lexer_visualisation: value.lexer,
             parser_visualization: value.parser,
             analyzer_visualisation: value.parser,
-            bytecode_visualisation: value.bytecode
+            bytecode_visualisation: value.bytecode,
         }
     }
 }
@@ -87,7 +90,7 @@ pub(crate) fn display_exprs(exprs: &Vec<Expr>) {
     }
 }
 
-pub(crate) fn display_bytecode(bytes: &Vec<u8>) {
+pub(crate) fn display_bytecode(bytes: &[u8]) {
     println!("{}", "Bytecode: ".green());
     let (ip, constants) = display_constant_pool(bytes);
     println!();
@@ -104,17 +107,23 @@ fn display_byte_instructions(constants: Vec<String>, bytes: &[u8]) {
     while ip < bytes_len {
         let opcode: Opcode = bytes[ip].try_into().expect("not an opcode");
         macro_rules! get_usize {
-            () => { usize::from_be_bytes((&bytes[ip..ip + 8]).try_into().unwrap()) }
+            () => {
+                usize::from_be_bytes((&bytes[ip..ip + 8]).try_into().unwrap())
+            };
         }
 
-        print!("#{ip:<padding$}: {:7} ", opcode.mnemonic(), padding = byte_padding);
+        print!(
+            "#{ip:<padding$}: {:7} ",
+            opcode.mnemonic(),
+            padding = byte_padding
+        );
 
         ip += 1;
         match opcode {
             Opcode::PushInt => {
                 print!("<local @{}>", get_usize!());
                 ip += 8;
-            },
+            }
             Opcode::PushFloat => {
                 print!("<local @{}>", get_usize!());
                 ip += 8;
@@ -122,7 +131,13 @@ fn display_byte_instructions(constants: Vec<String>, bytes: &[u8]) {
             Opcode::PushString => {
                 let constant_pos = get_usize!();
                 let padding = (byte_padding - constant_pos.to_string().len()) + 10;
-                print!("<constant #{}> {:padding$}// \"{}\"", constant_pos, "", constants[constant_pos], padding = padding);
+                print!(
+                    "<constant #{}> {:padding$}// \"{}\"",
+                    constant_pos,
+                    "",
+                    constants[constant_pos],
+                    padding = padding
+                );
                 ip += 8;
             }
             Opcode::GetLocal => {
@@ -137,10 +152,8 @@ fn display_byte_instructions(constants: Vec<String>, bytes: &[u8]) {
                 print!("<arguments stack size {}>", bytes[ip]);
                 ip += 1;
             }
-            Opcode::PopByte => {
-            }
-            Opcode::PopQWord => {
-            }
+            Opcode::PopByte => {}
+            Opcode::PopQWord => {}
             Opcode::IfJump => {
                 print!("<instruction #{}>", get_usize!());
                 ip += 8;
@@ -167,7 +180,7 @@ fn display_byte_instructions(constants: Vec<String>, bytes: &[u8]) {
     }
 }
 
-fn display_constant_pool(bytes: &Vec<u8>) -> (usize, Vec<String>) {
+fn display_constant_pool(bytes: &[u8]) -> (usize, Vec<String>) {
     println!("\t{}", "Constant pool".green());
 
     let count = bytes[0];
@@ -177,12 +190,14 @@ fn display_constant_pool(bytes: &Vec<u8>) -> (usize, Vec<String>) {
 
     let padding = count.to_string().len();
     for constant_id in 0..count {
-        let str_len = usize::from_be_bytes((&bytes[current_byte..current_byte + 8]).try_into().unwrap());
+        let str_len =
+            usize::from_be_bytes((&bytes[current_byte..current_byte + 8]).try_into().unwrap());
         current_byte += 8;
-        let str = String::from_utf8(bytes[current_byte..current_byte + str_len].to_vec()).expect("not utf8");
+        let str = String::from_utf8(bytes[current_byte..current_byte + str_len].to_vec())
+            .expect("not utf8");
         current_byte += str_len;
 
-        println!("#{constant_id:<padding$} <string utf-8> // \"{str}\" ", padding = padding);
+        println!("#{constant_id:<padding$} <string utf-8> // \"{str}\"");
         constants.push(str);
     }
 
@@ -193,7 +208,6 @@ fn display_constant_pool(bytes: &Vec<u8>) -> (usize, Vec<String>) {
 extern "C" {
     fn exec(bytes: *const u8, byte_count: usize);
 }
-
 
 pub(crate) fn execute(bytes: Vec<u8>) {
     let len = bytes.len();

@@ -1,13 +1,16 @@
-use crate::cli::{display_exprs, display_tokens, Configuration, display_bytecode, execute};
+use crate::cli::{display_bytecode, display_exprs, display_tokens, execute, Configuration};
 use crate::formatted_diagnostic::render_diagnostic;
 use crate::formatted_parse_error::render_parse_error;
+use analyzer::diagnostic::Diagnostic;
 use analyzer::engine::Engine;
 use analyzer::importer::ASTImporter;
 use analyzer::imports::Imports;
 use analyzer::name::Name;
 use analyzer::relations::{Relations, SourceId};
+use analyzer::steps::typing::apply_types;
 use ast::group::Block;
 use ast::Expr;
+use compiler::compile;
 use context::source::{OwnedSource, Source};
 use lexer::lexer::lex;
 use parser::parse;
@@ -19,8 +22,6 @@ use rustyline::{
 };
 use std::collections::HashMap;
 use std::process::exit;
-use analyzer::steps::typing::apply_types;
-use compiler::compile;
 
 type REPLEditor = Editor<(), DefaultHistory>;
 
@@ -145,6 +146,14 @@ fn parse_input(editor: &mut REPLEditor) -> OwnedSource {
     }
 }
 
+fn display_diagnostics(diagnostics: Vec<Diagnostic>, source: Source) {
+    for diagnostic in diagnostics {
+        let str =
+            render_diagnostic(source, diagnostic).expect("IO errors when reporting diagnostic");
+        eprintln!("{str}")
+    }
+}
+
 /// Parses and display errors / diagnostics coming from the given source.
 /// Returning true if the source had at least one error or diagnostic.
 fn handle_source<'e>(
@@ -154,7 +163,7 @@ fn handle_source<'e>(
     importer: &mut REPLImporter<'e>,
     imports: &mut Imports,
     relations: &mut Relations,
-) -> bool {
+) {
     let source = importer.take_source(source);
     let name = Name::new(source.name);
 
@@ -173,7 +182,7 @@ fn handle_source<'e>(
                 render_parse_error(source, error).expect("IO error when reporting diagnostics");
             eprintln!("{str}")
         }
-        return true;
+        return;
     }
 
     if config.parser_visualization {
@@ -187,20 +196,25 @@ fn handle_source<'e>(
 
     importer.imported_modules.insert(name.clone(), expr);
 
-    let mut diagnostics = analyzer::make_full_resolution(name, importer, engine, relations, imports);
+    let mut diagnostics =
+        analyzer::make_full_resolution(name, importer, engine, relations, imports);
+
+    if !diagnostics.is_empty() {
+        display_diagnostics(diagnostics, source);
+        return;
+    }
 
     let typed_engine = apply_types(engine, relations, &mut diagnostics);
     if !diagnostics.is_empty() {
-        for diagnostic in diagnostics {
-            let str =
-                render_diagnostic(source, diagnostic).expect("IO errors when reporting diagnostic");
-            eprintln!("{str}")
-        }
-        return true;
+        display_diagnostics(diagnostics, source);
+        return;
     }
 
     let mut bytecode = Vec::new();
-    let root_expr = typed_engine.get(SourceId(0)).map(|c| &c.expression).unwrap();
+    let root_expr = typed_engine
+        .get(SourceId(0))
+        .map(|c| &c.expression)
+        .unwrap();
     compile(root_expr, &mut bytecode).unwrap();
 
     if config.bytecode_visualisation {
@@ -208,6 +222,4 @@ fn handle_source<'e>(
     }
 
     execute(bytecode);
-
-    false
 }

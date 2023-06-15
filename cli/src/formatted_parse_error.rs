@@ -19,7 +19,7 @@ pub fn render_parse_error(source: Source, error: ParseError) -> io::Result<Strin
 
     builder = match error.kind {
         ParseErrorKind::Expected(e) => builder.with_help(format!("expected: {e}")),
-        ParseErrorKind::UnexpectedInContext(e) => builder.with_help(format!("{e}")),
+        ParseErrorKind::UnexpectedInContext(e) => builder.with_help(e),
         ParseErrorKind::Unpaired(pos) => builder.with_label(
             Label::new((source_name, pos))
                 .with_message("Start")

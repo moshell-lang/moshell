@@ -72,7 +72,7 @@ pub struct Observation {
     /// An optional help string to complete the observation
     pub help: Option<String>,
     /// An optional tag to group observations
-    pub tag: Option<usize>,
+    pub tag: Option<ObservationTag>,
 }
 
 impl Observation {
@@ -95,10 +95,17 @@ impl Observation {
         self
     }
 
-    pub fn with_tag(mut self, tag: usize) -> Self {
+    pub fn with_tag(mut self, tag: ObservationTag) -> Self {
         self.tag = Some(tag);
         self
     }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum ObservationTag {
+    InFault,
+    Declaration,
+    Other(u8),
 }
 
 /// The structure of a diagnostic.

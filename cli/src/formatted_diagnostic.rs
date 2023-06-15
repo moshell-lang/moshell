@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::io;
 
+use analyzer::diagnostic::ObservationTag;
 use ariadne::{Color, ColorGenerator, Config, Label, Report, ReportKind};
 
 use context::source::Source;
@@ -13,7 +14,23 @@ pub fn render_diagnostic(
 ) -> io::Result<String> {
     let mut colors = ColorGenerator::new();
 
-    let mut colormap: HashMap<usize, Color> = HashMap::new();
+    let mut colormap: HashMap<u8, Color> = HashMap::new();
+
+    fn get_color(
+        colors: &mut ColorGenerator,
+        colormap: &mut HashMap<u8, Color>,
+        tag: Option<ObservationTag>,
+    ) -> Color {
+        match tag {
+            Some(ObservationTag::InFault) => Color::Red,
+            Some(ObservationTag::Declaration) => Color::Yellow,
+            Some(ObservationTag::Other(tag)) => {
+                *colormap.entry(tag).or_insert_with(|| colors.next())
+            }
+            None => colors.next(),
+        }
+    }
+
     let source_name = source_code.name;
 
     let (code, color) = if diagnostic.identifier.critical() {
@@ -29,11 +46,11 @@ pub fn render_diagnostic(
     };
 
     let labels = diagnostic.observations.into_iter().map(|o| {
-        let mut label = Label::new((source_name, o.segment)).with_color(
-            o.tag
-                .map(|tag| *colormap.entry(tag).or_insert_with(|| colors.next()))
-                .unwrap_or_else(|| colors.next()),
-        );
+        let mut label = Label::new((source_name, o.segment)).with_color(get_color(
+            &mut colors,
+            &mut colormap,
+            o.tag,
+        ));
 
         if let Some(help) = o.help {
             label = label.with_message(help)

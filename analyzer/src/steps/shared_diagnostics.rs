@@ -1,6 +1,6 @@
 //! contains diagnostics that can be emitted by any step
 
-use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
+use crate::diagnostic::{Diagnostic, DiagnosticID, Observation, ObservationTag};
 use crate::environment::variables::TypeInfo;
 use crate::name::Name;
 use crate::relations::SourceId;
@@ -19,7 +19,7 @@ pub fn diagnose_invalid_symbol(
 
     let mut observations: Vec<_> = segments
         .iter()
-        .map(|seg| Observation::new(seg.clone()).with_tag(0))
+        .map(|seg| Observation::new(seg.clone()).with_tag(ObservationTag::InFault))
         .collect();
     observations.sort_by_key(|s| s.segment.start);
 

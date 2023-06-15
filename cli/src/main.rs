@@ -73,4 +73,3 @@ pub fn fix_ariadne_report(report_str: String) -> String {
 
     fixed_report
 }
-

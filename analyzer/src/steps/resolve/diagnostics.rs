@@ -1,6 +1,6 @@
 //! contains diagnostics only emitted by the resolution state
 
-use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
+use crate::diagnostic::{Diagnostic, DiagnosticID, Observation, ObservationTag};
 use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::imports::SourceImports;
@@ -29,7 +29,7 @@ pub fn diagnose_invalid_symbol_from_dead_import(
 
     let mut segments: Vec<_> = segments
         .iter()
-        .map(|seg| Observation::new(seg.clone()).with_tag(1))
+        .map(|seg| Observation::new(seg.clone()).with_tag(ObservationTag::InFault))
         .collect();
 
     segments.sort_by_key(|s| s.segment.start);
@@ -38,7 +38,7 @@ pub fn diagnose_invalid_symbol_from_dead_import(
         .with_observation(
             Observation::new(invalid_import_seg)
                 .with_help("invalid import introduced here")
-                .with_tag(0),
+                .with_tag(ObservationTag::Declaration),
         )
         .with_observations(segments)
 }
@@ -56,7 +56,8 @@ pub fn diagnose_unresolved_external_symbols(
         DiagnosticID::UnknownSymbol,
         env_id,
         format!("Could not resolve symbol `{name}`."),
-    );
+    )
+    .with_note(format!("could not find `{name}` in current context"));
 
     let mut observations: Vec<_> = env
         .list_definitions()
@@ -64,7 +65,7 @@ pub fn diagnose_unresolved_external_symbols(
             Symbol::Local(_) => false,
             Symbol::External(g) => *g == relation,
         })
-        .map(|(seg, _)| Observation::new(seg.clone()).with_tag(0))
+        .map(|(seg, _)| Observation::new(seg.clone()).with_tag(ObservationTag::InFault))
         .collect();
 
     observations.sort_by_key(|s| s.segment.start);
