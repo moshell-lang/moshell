@@ -120,11 +120,11 @@ fn display_byte_instructions(constants: Vec<String>, bytes: &[u8]) {
         ip += 1;
         match opcode {
             Opcode::PushInt => {
-                print!("<local @{}>", get_usize!());
+                print!("<value {}>", get_usize!());
                 ip += 8;
             }
             Opcode::PushFloat => {
-                print!("<local @{}>", get_usize!());
+                print!("<value {}>", f64::from_be_bytes((&bytes[ip..ip + 8]).try_into().unwrap()));
                 ip += 8;
             }
             Opcode::PushString => {
@@ -151,8 +151,6 @@ fn display_byte_instructions(constants: Vec<String>, bytes: &[u8]) {
                 print!("<arguments stack size {}>", bytes[ip]);
                 ip += 1;
             }
-            Opcode::PopByte => {}
-            Opcode::PopQWord => {}
             Opcode::IfJump => {
                 print!("<instruction #{}>", get_usize!());
                 ip += 8;
@@ -165,14 +163,7 @@ fn display_byte_instructions(constants: Vec<String>, bytes: &[u8]) {
                 print!("<instruction #{}>", get_usize!());
                 ip += 8;
             }
-            Opcode::ConvertIntToStr => {
-                print!("<local @{}>", get_usize!());
-                ip += 8;
-            }
-            Opcode::ConvertFloatToStr => {
-                print!("<local @{}>", get_usize!());
-                ip += 8;
-            }
+            _ => {}
         }
 
         println!()

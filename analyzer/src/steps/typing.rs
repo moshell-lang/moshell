@@ -58,10 +58,6 @@ pub(self) struct TypingState {
     source: SourceId,
     local_type: bool,
 
-    // if set to true, the analyzer will try
-    // to convert primitive literals to strings
-    literal_strings: bool,
-
     // if not in loop, `continue` and `break` will raise a diagnostic
     in_loop: bool,
 }
@@ -73,7 +69,6 @@ impl TypingState {
             source,
             local_type: false,
             in_loop: false,
-            literal_strings: false,
         }
     }
 
@@ -105,22 +100,6 @@ impl TypingState {
     fn without_in_loop(self) -> Self {
         Self {
             in_loop: false,
-            ..self
-        }
-    }
-
-    /// Returns a new state with `literal_strings` set to true
-    fn with_literal_strings(self) -> Self {
-        Self {
-            literal_strings: true,
-            ..self
-        }
-    }
-
-    /// Returns a new state with `literal_strings` set to false
-    fn without_literal_strings(self) -> Self {
-        Self {
-            literal_strings: false,
             ..self
         }
     }
@@ -173,19 +152,7 @@ fn apply_types_to_source(
     }
 }
 
-fn ascribe_literal(force_string: bool, lit: &Literal) -> TypedExpr {
-    if force_string {
-        let str = match &lit.parsed {
-            LiteralValue::Int(i) => i.to_string(),
-            LiteralValue::Float(f) => f.to_string(),
-            LiteralValue::String(s) => s.clone(),
-        };
-        return TypedExpr {
-            kind: ExprKind::Literal(LiteralValue::String(str)),
-            ty: STRING,
-            segment: lit.segment.clone(),
-        };
-    }
+fn ascribe_literal(lit: &Literal) -> TypedExpr {
     let ty = match lit.parsed {
         LiteralValue::Int(_) => INT,
         LiteralValue::Float(_) => FLOAT,
@@ -558,7 +525,7 @@ fn ascribe_call(
                 diagnostics,
                 env,
                 expr,
-                state.with_literal_strings(),
+                state,
             )
         })
         .collect::<Vec<_>>();
@@ -694,7 +661,7 @@ fn ascribe_types(
     state: TypingState,
 ) -> TypedExpr {
     match expr {
-        Expr::Literal(lit) => ascribe_literal(state.literal_strings, lit),
+        Expr::Literal(lit) => ascribe_literal( lit),
         Expr::VarDeclaration(decl) => {
             ascribe_var_declaration(decl, exploration, relations, diagnostics, env, state)
         }
