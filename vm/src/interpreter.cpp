@@ -9,6 +9,7 @@
 
 enum Opcode {
     OP_PUSH_INT,    // with 8 byte int value, pushes an int onto the operand stack
+    OP_PUSH_BYTE,   // with 1 byte value, pushes a byte onto the operand stack
     OP_PUSH_FLOAT,  // with 8 byte float value, pushes a float onto the operand stack
     OP_PUSH_STRING, // with 8 byte string index in constant pool, pushes a string ref onto the operand stack
     OP_GET_LOCAL,   // with 1 byte local index, pushes given local value onto the operand stack
@@ -18,28 +19,20 @@ enum Opcode {
     OP_POP_BYTE,   // pops one byte from operand stack
     OP_POP_Q_WORD, // pops 8 bytes from operand stack
 
-    OP_IF_JUMP,     // with 8 byte opcode for 'then' branch, jumps only if value popped from operand stack is 0
-    OP_IF_NOT_JUMP, // with 8 byte opcode for where to jump, jumps only if value popped from operand stack is not 0
-    OP_JUMP,        // with 8 byte opcode for where to jump
+    OP_IF_JUMP,     // with 1 byte opcode for 'then' branch, jumps only if value popped from operand stack is 0
+    OP_IF_NOT_JUMP, // with 1 byte opcode for where to jump, jumps only if value popped from operand stack is not 0
+    OP_JUMP,        // with 1 byte opcode for where to jump
 
     OP_INT_TO_STR,   // replaces last value of operand stack from int to a string reference
     OP_FLOAT_TO_STR, // replaces last value of operand stack from float to a string reference
+    OP_INT_TO_BYTE,  // replaces last value of operand stack from int to byte
+
+    OP_B_XOR // pops last two bytes, apply xor operation then push the result
 };
 
 constant_pool::constant_pool(int capacity) {
     strings.reserve(capacity);
     sizes.reserve(capacity);
-}
-
-inline void handle_process_state(int status, const char *bytes, size_t byte_count, unsigned int &ip, OperandStack &stack) {
-    // look ahead for OP_POP_BYTE instruction in order to avoid useless push/pop operations
-    // which often happens
-    if (ip < byte_count && bytes[ip] == OP_POP_BYTE) {
-        ip++; // skip pop operation and do not push
-        return;
-    }
-    // add status to the stack
-    stack.push_int(status);
 }
 
 void run(constant_pool pool, const char *bytes, size_t size) {
@@ -58,6 +51,12 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             ip += 9;
             // Push the value onto the stack
             stack.push_int(ntohl(value));
+            break;
+        }
+        case OP_PUSH_BYTE: {
+            char value = *(bytes + ip + 1);
+            ip += 2;
+            stack.push_byte(value);
             break;
         }
         case OP_PUSH_FLOAT: {
@@ -105,11 +104,12 @@ void run(constant_pool pool, const char *bytes, size_t size) {
                     delete[] argv[i];
                 }
                 delete[] argv;
-                int status;
+                int status = 0;
                 // Wait for the process to finish
                 waitpid(pid, &status, 0);
 
-                handle_process_state(status, bytes, size, ip, stack);
+                // add status to the stack
+                stack.push_int(status);
             }
             break;
         }
@@ -151,14 +151,19 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             ip++;
             break;
         }
+        case OP_INT_TO_BYTE: {
+            int64_t i = stack.pop_int();
+            stack.push_byte((char)i);
+            ip++;
+            break;
+        }
         case OP_IF_NOT_JUMP:
         case OP_IF_JUMP: {
-            int64_t value = stack.pop_int();
+            char value = stack.pop_byte();
             size_t then_branch = ntohl(*(size_t *)(bytes + ip + sizeof(char)));
-            // as we are in a shell interpreter thus
-            // when value is 0 it means that the test or operation succeeded.
-            // the test is reversed if current operation is OP_IF_NOT_JUMP
-            if ((value == 0) == (bytes[ip] == OP_IF_JUMP)) {
+            // test below means "test is true if value is 1 and we are in a if-jump,
+            //                    or if value is not 1 and we are in a if-not-jump operation"
+            if (value == (bytes[ip] == OP_IF_JUMP)) {
                 ip = then_branch;
             } else {
                 // the length of if-jump opcode and its branch destination
@@ -172,12 +177,19 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             break;
         }
         case OP_POP_BYTE: {
-            stack.pop_bytes(1);
+            stack.pop_byte();
             ip++;
             break;
         }
         case OP_POP_Q_WORD: {
             stack.pop_bytes(8);
+            ip++;
+            break;
+        }
+        case OP_B_XOR: {
+            char a = stack.pop_byte();
+            char b = stack.pop_byte();
+            stack.push_byte((char)(a ^ b));
             ip++;
             break;
         }

@@ -1,4 +1,5 @@
 use analyzer::types::hir::{Conditional, Loop};
+use analyzer::types::INT;
 use std::mem::size_of;
 
 use crate::bytecode::{Bytecode, Opcode};
@@ -12,6 +13,12 @@ pub fn emit_conditional(
     state: &mut EmissionState,
 ) {
     emit(&conditional.condition, emitter, cp, state);
+
+    if conditional.condition.ty == INT {
+        emitter.emit_code(Opcode::ConvertIntToByte);
+        emitter.emit_byte(1);
+        emitter.emit_code(Opcode::BXor);
+    }
 
     emitter.emit_code(Opcode::IfJump);
     let jump_to_then_placeholder = emitter.create_placeholder(size_of::<usize>());
@@ -46,6 +53,13 @@ pub fn emit_loop(
 
     if let Some(condition) = &lp.condition {
         emit(condition, emitter, cp, state);
+
+        if condition.ty == INT {
+            emitter.emit_code(Opcode::ConvertIntToByte);
+            emitter.emit_byte(1);
+            emitter.emit_code(Opcode::BXor);
+        }
+
         emitter.emit_code(Opcode::IfNotJump);
         let jump_placeholder = emitter.create_placeholder(size_of::<usize>());
         emit(&lp.body, emitter, cp, &mut loop_state);

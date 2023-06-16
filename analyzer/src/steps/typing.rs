@@ -58,10 +58,6 @@ pub(self) struct TypingState {
     source: SourceId,
     local_type: bool,
 
-    // if set to true, the analyzer will try
-    // to convert primitive literals to strings
-    literal_strings: bool,
-
     // if not in loop, `continue` and `break` will raise a diagnostic
     in_loop: bool,
 }
@@ -73,7 +69,6 @@ impl TypingState {
             source,
             local_type: false,
             in_loop: false,
-            literal_strings: false,
         }
     }
 
@@ -105,22 +100,6 @@ impl TypingState {
     fn without_in_loop(self) -> Self {
         Self {
             in_loop: false,
-            ..self
-        }
-    }
-
-    /// Returns a new state with `literal_strings` set to true
-    fn with_literal_strings(self) -> Self {
-        Self {
-            literal_strings: true,
-            ..self
-        }
-    }
-
-    /// Returns a new state with `literal_strings` set to false
-    fn without_literal_strings(self) -> Self {
-        Self {
-            literal_strings: false,
             ..self
         }
     }
@@ -172,19 +151,7 @@ fn apply_types_to_source(
     }
 }
 
-fn ascribe_literal(force_string: bool, lit: &Literal) -> TypedExpr {
-    if force_string {
-        let str = match &lit.parsed {
-            LiteralValue::Int(i) => i.to_string(),
-            LiteralValue::Float(f) => f.to_string(),
-            LiteralValue::String(s) => s.clone(),
-        };
-        return TypedExpr {
-            kind: ExprKind::Literal(LiteralValue::String(str)),
-            ty: STRING,
-            segment: lit.segment.clone(),
-        };
-    }
+fn ascribe_literal(lit: &Literal) -> TypedExpr {
     let ty = match lit.parsed {
         LiteralValue::Int(_) => INT,
         LiteralValue::Float(_) => FLOAT,
@@ -503,16 +470,7 @@ fn ascribe_call(
     let args = call
         .arguments
         .iter()
-        .map(|expr| {
-            ascribe_types(
-                exploration,
-                relations,
-                diagnostics,
-                env,
-                expr,
-                state.with_literal_strings(),
-            )
-        })
+        .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
         .collect::<Vec<_>>();
 
     let ty = if state.local_type { INT } else { NOTHING };
@@ -639,7 +597,7 @@ fn ascribe_types(
 ) -> TypedExpr {
     match expr {
         Expr::FunctionDeclaration(fd) => ascribe_function(fd, state.source, env, exploration),
-        Expr::Literal(lit) => ascribe_literal(state.literal_strings, lit),
+        Expr::Literal(lit) => ascribe_literal(lit),
         Expr::VarDeclaration(decl) => {
             ascribe_var_declaration(decl, exploration, relations, diagnostics, env, state)
         }
@@ -930,6 +888,36 @@ mod tests {
         let content = "fun some() -> Int = return 20";
         let res = extract_type(Source::unknown(content));
         assert_eq!(res, Ok(Type::Nothing));
+    }
+
+    #[test]
+    fn continue_and_break_inside_loops() {
+        let content = "loop { continue }; loop { break }";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(res, Ok(Type::Nothing));
+    }
+
+    #[test]
+    fn continue_or_break_outside_loop() {
+        let content = "continue; break";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![
+                Diagnostic::new(
+                    DiagnosticID::InvalidBreakOrContinue,
+                    SourceId(0),
+                    "`continue` must be declared inside a loop"
+                )
+                .with_observation(Observation::new(find_in(content, "continue"))),
+                Diagnostic::new(
+                    DiagnosticID::InvalidBreakOrContinue,
+                    SourceId(0),
+                    "`break` must be declared inside a loop"
+                )
+                .with_observation(Observation::new(find_in(content, "break")))
+            ])
+        );
     }
 
     #[test]
