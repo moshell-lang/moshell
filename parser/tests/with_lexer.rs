@@ -7,7 +7,7 @@ use ast::value::TemplateString;
 use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
-use context::str_find::{find_in, find_in_nth};
+use context::str_find::{find_between, find_in, find_in_nth};
 use parser::parse;
 use parser::source::{literal, literal_nth};
 use pretty_assertions::assert_eq;
@@ -71,7 +71,8 @@ fn with_lexer_var_reference_two() {
                             name: "cmd",
                             segment: find_in(source.source, "$cmd"),
                         }),
-                    ]
+                    ],
+                    segment: find_in(source.source, "\"fake$cmd\""),
                 }),
                 literal(source.source, "do"),
                 Expr::VarReference(VarReference {
@@ -119,7 +120,8 @@ fn with_lexer_var_reference_three() {
                             segment: find_in(source.source, "${ready}"),
                         }),
                         literal(source.source, "!\""),
-                    ]
+                    ],
+                    segment: find_between(source.source, "\"", "\""),
                 }),
             ],
             type_parameters: Vec::new()
@@ -328,7 +330,8 @@ fn with_lexer_substitution_in_substitution() {
                                             kind: SubstitutionKind::Capture,
                                         }),
                                         literal(source.source, "/test\""),
-                                    ]
+                                    ],
+                                    segment: find_in(source.source, "\"$(pwd)/test\""),
                                 }),
                             ],
                             type_parameters: Vec::new(),
@@ -461,9 +464,10 @@ fn inner_var_ref() {
                         name: "L",
                         segment: find_in(source.source, "$L"),
                     }),
-                ]
+                ],
+                segment: find_between(source.source, "\"", "\""),
             })),
-            segment: 0..source.len() - 1,
+            segment: source.segment(),
         })]
     );
 }

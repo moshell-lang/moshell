@@ -1,4 +1,4 @@
-use crate::relations::{NativeObjectId, ObjectId, SourceObjectId};
+use crate::relations::{NativeId, ObjectId, SourceId};
 use crate::types::hir::TypeId;
 use context::source::SourceSegment;
 use std::collections::HashMap;
@@ -43,16 +43,16 @@ pub enum Type {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Definition {
     /// A block of code, that the user can define.
-    User(SourceObjectId),
+    User(SourceId),
 
     /// A native function, that is defined in the VM.
-    Native(NativeObjectId),
+    Native(NativeId),
 }
 
 impl Definition {
     /// Builds an erroneous definition that is used for error propagation.
     pub fn error() -> Self {
-        Self::User(SourceObjectId(ObjectId::MAX))
+        Self::User(SourceId(ObjectId::MAX))
     }
 }
 
@@ -105,8 +105,8 @@ impl FunctionType {
     /// Natives functions cannot be defined by the user, since it is a
     /// chicken-and-egg problem. They are defined by the language host,
     /// usually in a Rust or C++ VM. They are identified by a dedicated
-    /// [`NativeObjectId`], so that the compiler can quickly identify them.
-    pub fn native(parameters: Vec<TypeId>, return_type: TypeId, id: NativeObjectId) -> Self {
+    /// [`NativeId`], so that the compiler can quickly identify them.
+    pub fn native(parameters: Vec<TypeId>, return_type: TypeId, id: NativeId) -> Self {
         Self {
             parameters: parameters
                 .into_iter()

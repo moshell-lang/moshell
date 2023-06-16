@@ -2,7 +2,7 @@ use crate::dependency::topological_sort;
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::environment::Environment;
-use crate::relations::{Relations, SourceObjectId};
+use crate::relations::{Relations, SourceId};
 use crate::steps::typing::coercion::{check_type_annotation, unify_and_map};
 use crate::steps::typing::exploration::{diagnose_unknown_type, Exploration};
 use crate::steps::typing::function::{
@@ -55,13 +55,13 @@ pub fn apply_types(
 /// checked.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(self) struct TypingState {
-    source: SourceObjectId,
+    source: SourceId,
     local_type: bool,
 }
 
 impl TypingState {
     /// Creates a new initial state, for a script.
-    fn new(source: SourceObjectId) -> Self {
+    fn new(source: SourceId) -> Self {
         Self {
             source,
             local_type: false,
@@ -639,7 +639,7 @@ fn ascribe_types(
             let arguments = call
                 .arguments
                 .iter()
-                .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
+                .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state)) //TODO implicitly convert if the parameter is a primitive
                 .collect::<Vec<_>>();
             let symbol = env
                 .get_raw_symbol(call.segment.clone())
@@ -701,7 +701,7 @@ mod tests {
     use super::*;
     use crate::importer::StaticImporter;
     use crate::name::Name;
-    use crate::relations::{NativeObjectId, Symbol};
+    use crate::relations::{LocalId, NativeId};
     use crate::resolve_all;
     use crate::types::ty::Type;
     use context::source::Source;
@@ -719,7 +719,7 @@ mod tests {
         let mut diagnostics = result.diagnostics;
         assert_eq!(diagnostics, vec![]);
         let typed = apply_types(&result.engine, &result.relations, &mut diagnostics);
-        let expr = typed.get_user(SourceObjectId(0)).unwrap();
+        let expr = typed.get_user(SourceId(0)).unwrap();
         if !diagnostics.is_empty() {
             return Err(diagnostics);
         }
@@ -767,7 +767,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "Type mismatch",
             )
             .with_observation(Observation::with_help(
@@ -789,7 +789,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::UnknownType,
-                SourceObjectId(0),
+                SourceId(0),
                 "Unknown type annotation",
             )
             .with_observation(Observation::with_help(
@@ -813,7 +813,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::CannotReassign,
-                SourceObjectId(0),
+                SourceId(0),
                 "Cannot assign twice to immutable variable `l`",
             )
             .with_observation(Observation::with_help(
@@ -831,7 +831,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "Cannot assign a value of type `String` to something of type `Int`",
             )
             .with_observation(Observation::with_help(
@@ -849,7 +849,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "Cannot assign a value of type `Int` to something of type `String`",
             )
             .with_observation(Observation::with_help(
@@ -867,7 +867,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "Cannot assign a value of type `String` to something of type `fun#1`",
             )
             .with_observation(Observation::with_help(
@@ -897,7 +897,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "`if` and `else` have incompatible types",
             )
             .with_observation(Observation::with_help(
@@ -919,7 +919,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::UnknownType,
-                SourceObjectId(0),
+                SourceId(0),
                 "Unknown type annotation",
             )
             .with_observation(Observation::with_help(
@@ -937,7 +937,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::IncompatibleCast,
-                SourceObjectId(0),
+                SourceId(0),
                 "Casting `String` as `Int` is invalid",
             )
             .with_observation(Observation::with_help(
@@ -974,7 +974,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "This function takes 1 argument but 2 were supplied",
             )
             .with_observation(Observation::with_help(
@@ -992,7 +992,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "Type mismatch",
             )
             .with_observation(Observation::with_help(
@@ -1014,7 +1014,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "Cannot invoke non function type",
             )
             .with_observation(Observation::with_help(
@@ -1032,7 +1032,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(1),
+                SourceId(1),
                 "Type mismatch",
             )
             .with_observation(Observation::with_help(
@@ -1070,7 +1070,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(1),
+                SourceId(1),
                 "Type mismatch",
             )
             .with_observation(Observation::with_help(find_in(content, "0"), "Found `Int`"))
@@ -1106,23 +1106,15 @@ mod tests {
         assert_eq!(
             res,
             Err(vec![
-                Diagnostic::new(
-                    DiagnosticID::TypeMismatch,
-                    SourceObjectId(1),
-                    "Type mismatch",
-                )
-                .with_observation(Observation::with_help(
-                    find_in(content, "return {}"),
-                    "Found `Nothing`"
-                ))
-                .with_observation(return_observation.clone()),
-                Diagnostic::new(
-                    DiagnosticID::TypeMismatch,
-                    SourceObjectId(1),
-                    "Type mismatch",
-                )
-                .with_observation(Observation::with_help(find_in(content, "9"), "Found `Int`"))
-                .with_observation(return_observation)
+                Diagnostic::new(DiagnosticID::TypeMismatch, SourceId(1), "Type mismatch",)
+                    .with_observation(Observation::with_help(
+                        find_in(content, "return {}"),
+                        "Found `Nothing`"
+                    ))
+                    .with_observation(return_observation.clone()),
+                Diagnostic::new(DiagnosticID::TypeMismatch, SourceId(1), "Type mismatch",)
+                    .with_observation(Observation::with_help(find_in(content, "9"), "Found `Int`"))
+                    .with_observation(return_observation)
             ])
         );
     }
@@ -1135,7 +1127,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::CannotInfer,
-                SourceObjectId(1),
+                SourceId(1),
                 "Return type inference is not supported yet",
             )
             .with_observation(Observation::with_help(
@@ -1154,7 +1146,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::CannotInfer,
-                SourceObjectId(1),
+                SourceId(1),
                 "Return type is not inferred for block functions",
             )
             .with_observation(Observation::with_help(
@@ -1179,7 +1171,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::CannotInfer,
-                SourceObjectId(1),
+                SourceId(1),
                 "Failed to infer return type",
             )
             .with_observation(Observation::with_help(
@@ -1201,7 +1193,7 @@ mod tests {
             Ok(vec![
                 TypedExpr {
                     kind: ExprKind::Declare {
-                        identifier: 0,
+                        identifier: LocalId(0),
                         value: Some(Box::new(TypedExpr {
                             kind: ExprKind::Literal(75.into()),
                             ty: INT,
@@ -1213,11 +1205,11 @@ mod tests {
                 },
                 TypedExpr {
                     kind: ExprKind::Declare {
-                        identifier: 1,
+                        identifier: LocalId(1),
                         value: Some(Box::new(TypedExpr {
                             kind: ExprKind::Convert {
                                 inner: Box::new(TypedExpr {
-                                    kind: ExprKind::Reference(Symbol::Local(0)),
+                                    kind: ExprKind::Reference(LocalId(0).into()),
                                     ty: INT,
                                     segment: find_in(content, "$n"),
                                 }),
@@ -1240,12 +1232,12 @@ mod tests {
                         TypedExpr {
                             kind: ExprKind::MethodCall {
                                 callee: Box::new(TypedExpr {
-                                    kind: ExprKind::Reference(Symbol::Local(0)),
+                                    kind: ExprKind::Reference(LocalId(0).into()),
                                     ty: INT,
                                     segment: find_in_nth(content, "$n", 1),
                                 }),
                                 arguments: vec![],
-                                definition: Definition::Native(NativeObjectId(11)),
+                                definition: Definition::Native(NativeId(11)),
                             },
                             ty: STRING,
                             segment: find_in_nth(content, "$n", 1),
@@ -1258,7 +1250,7 @@ mod tests {
                                     segment: find_in(content, "4.2"),
                                 }),
                                 arguments: vec![],
-                                definition: Definition::Native(NativeObjectId(12)),
+                                definition: Definition::Native(NativeId(12)),
                             },
                             ty: STRING,
                             segment: find_in(content, "4.2"),
@@ -1279,7 +1271,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::UnknownMethod,
-                SourceObjectId(0),
+                SourceId(0),
                 "Undefined operator",
             )
             .with_observation(Observation::with_help(
@@ -1297,7 +1289,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::UnknownMethod,
-                SourceObjectId(0),
+                SourceId(0),
                 "Undefined operator",
             )
             .with_observation(Observation::with_help(
@@ -1329,7 +1321,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "This method takes 0 arguments but 1 was supplied",
             )
             .with_observation(Observation::with_help(
@@ -1348,7 +1340,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "Type mismatch",
             )
             .with_observation(Observation::with_help(
@@ -1370,7 +1362,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "Cannot stringify type `Nothing`",
             )
             .with_observation(Observation::with_help(
@@ -1388,7 +1380,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceObjectId(0),
+                SourceId(0),
                 "Condition must be a boolean",
             )
             .with_observation(Observation::with_help(

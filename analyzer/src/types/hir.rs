@@ -1,4 +1,4 @@
-use crate::relations::{ObjectId, Symbol};
+use crate::relations::{LocalId, ObjectId, Symbol};
 use crate::types::ty::Definition;
 use crate::types::{ERROR, NOTHING};
 use ast::operation::BinaryOperator;
@@ -30,9 +30,9 @@ impl TypeId {
 /// A type checked expression attached to a source segment.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypedExpr {
-    pub(crate) kind: ExprKind,
-    pub(crate) ty: TypeId,
-    pub(crate) segment: SourceSegment,
+    pub kind: ExprKind,
+    pub ty: TypeId,
+    pub segment: SourceSegment,
 }
 
 impl SourceSegmentHolder for TypedExpr {
@@ -50,7 +50,7 @@ pub enum ExprKind {
         rhs: Box<TypedExpr>,
     },
     Declare {
-        identifier: ObjectId,
+        identifier: LocalId,
         value: Option<Box<TypedExpr>>,
     },
     Reference(Symbol),

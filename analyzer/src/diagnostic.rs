@@ -1,4 +1,4 @@
-use crate::relations::SourceObjectId;
+use crate::relations::SourceId;
 use context::source::SourceSegment;
 use enum_assoc::Assoc;
 
@@ -97,7 +97,7 @@ impl Observation {
 #[derive(PartialEq, Debug)]
 pub struct Diagnostic {
     /// The source where this diagnostic applies
-    pub source: SourceObjectId,
+    pub source: SourceId,
     /// The diagnostic identifier
     pub identifier: DiagnosticID,
     /// The overall message of this diagnostic
@@ -109,7 +109,7 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
-    pub fn new(id: DiagnosticID, source: SourceObjectId, msg: impl Into<String>) -> Self {
+    pub fn new(id: DiagnosticID, source: SourceId, msg: impl Into<String>) -> Self {
         Self {
             source,
             identifier: id,

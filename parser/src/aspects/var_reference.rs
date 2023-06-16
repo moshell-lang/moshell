@@ -155,7 +155,8 @@ mod tests {
                         parsed: "IABLE".into(),
                         segment: find_in(source.source, "IABLE")
                     }),
-                ]
+                ],
+                segment: source.segment()
             })]
         )
     }
@@ -196,7 +197,8 @@ mod tests {
                         name: "VERY_LONG",
                         segment: find_in(source.source, "${VERY_LONG}")
                     }),
-                ]
+                ],
+                segment: source.segment()
             })]
         )
     }

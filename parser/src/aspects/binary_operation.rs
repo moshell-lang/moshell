@@ -1,4 +1,4 @@
-use crate::moves::{bin_op, eox, spaces, MoveOperations};
+use crate::moves::{bin_op, line_end, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::Expr;
@@ -52,7 +52,7 @@ impl<'p> Parser<'p> {
         let mut operation = self.binary_operation_internal(left, parse)?;
         macro_rules! has_content {
             () => {
-                self.cursor.lookahead(spaces().then(eox())).is_none()
+                self.cursor.lookahead(spaces().then(line_end())).is_none()
             };
         }
 

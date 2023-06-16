@@ -1,4 +1,4 @@
-use crate::relations::NativeObjectId;
+use crate::relations::NativeId;
 use crate::types::engine::TypedEngine;
 use crate::types::operator::name_operator_method;
 use crate::types::ty::MethodType;
@@ -19,10 +19,10 @@ struct VariableGenerator(usize);
 
 impl VariableGenerator {
     /// Gets and increments the next native object id.
-    fn next(&mut self) -> NativeObjectId {
+    fn next(&mut self) -> NativeId {
         let id = self.0;
         self.0 += 1;
-        NativeObjectId(id)
+        NativeId(id)
     }
 }
 

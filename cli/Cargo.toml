@@ -10,8 +10,12 @@ context = { path = "../context", features = ["miette"] }
 parser = { path = "../parser" }
 analyzer = { path = "../analyzer" }
 ast = { path = "../ast" }
+compiler = { path = "../compiler" }
 
 miette = { version = "5.9.0", features = ["fancy"] }
 thiserror = "1.0.38"
 dbg-pls = { version = "0.3.5", features = ["pretty", "colors"] }
 clap = { version = "4.2.2", features = ["derive"] }
+
+[build-dependencies]
+cmake = "0.1.46"

@@ -1,5 +1,5 @@
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
-use crate::relations::{Relations, SourceObjectId, Symbol};
+use crate::relations::{Relations, SourceId, Symbol};
 use crate::steps::typing::coercion::unify_and_map;
 use crate::steps::typing::exploration::Exploration;
 use crate::steps::typing::TypingState;
@@ -369,7 +369,7 @@ pub(super) fn type_method<'a>(
 
 fn diagnose_arg_mismatch(
     typing: &Typing,
-    source: SourceObjectId,
+    source: SourceId,
     param: &Parameter,
     arg: &TypedExpr,
 ) -> Diagnostic {

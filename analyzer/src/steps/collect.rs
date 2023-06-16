@@ -18,7 +18,7 @@ use crate::environment::Environment;
 use crate::importer::ASTImporter;
 use crate::imports::{Imports, UnresolvedImport};
 use crate::name::Name;
-use crate::relations::{ObjectState, Relations, SourceObjectId, Symbol};
+use crate::relations::{RelationState, Relations, SourceId, Symbol};
 use crate::steps::resolve::SymbolResolver;
 use crate::steps::shared_diagnostics::diagnose_invalid_symbol;
 
@@ -26,14 +26,14 @@ use crate::steps::shared_diagnostics::diagnose_invalid_symbol;
 #[derive(Debug, Clone, Copy)]
 struct ResolutionState {
     /// The module id that is currently being explored.
-    module: SourceObjectId,
+    module: SourceId,
 
     /// Whether the current module accepts imports.
     accept_imports: bool,
 }
 
 impl ResolutionState {
-    fn new(module: SourceObjectId) -> Self {
+    fn new(module: SourceId) -> Self {
         Self {
             module,
             accept_imports: true,
@@ -48,7 +48,7 @@ pub struct SymbolCollector<'a, 'e> {
     diagnostics: Vec<Diagnostic>,
 
     /// During the exploration, a parent environment always leaves a reference for its children.
-    stack: Vec<(SourceObjectId, &'e Environment)>,
+    stack: Vec<(SourceId, &'e Environment)>,
 }
 
 impl<'a, 'e> SymbolCollector<'a, 'e> {
@@ -101,7 +101,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             for (declaration_segment, symbol) in &env.definitions {
                 let id = match symbol {
                     Symbol::Local(id) => id,
-                    Symbol::Global(_) => continue, //we check declarations only, thus external symbols are ignored
+                    Symbol::External(_) => continue, //we check declarations only, thus external symbols are ignored
                 };
                 if !reported.insert(id) {
                     continue;
@@ -180,7 +180,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
 
     fn add_checked_import(
         &mut self,
-        mod_id: SourceObjectId,
+        mod_id: SourceId,
         import: UnresolvedImport,
         import_expr: &'e ImportExpr<'e>,
         import_fqn: Name,
@@ -208,7 +208,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         &mut self,
         import: &'e ImportExpr<'e>,
         relative_path: Vec<String>,
-        mod_id: SourceObjectId,
+        mod_id: SourceId,
         to_visit: &mut Vec<Name>,
     ) {
         match import {
@@ -264,7 +264,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
     fn identify_variable(
         &mut self,
         variables: &mut Variables,
-        origin: SourceObjectId,
+        origin: SourceId,
         name: &Name,
         segment: SourceSegment,
     ) -> Symbol {
@@ -276,8 +276,8 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             };
         }
 
-        match variables.get_reachable(name.root()) {
-            None => Symbol::Global(track_global!().0),
+        match variables.find_reachable(name.root()) {
+            None => Symbol::External(track_global!()),
             Some(id) if name.is_qualified() => {
                 let var = variables.get_var(id).unwrap();
                 self.diagnostics
@@ -286,8 +286,8 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 // We could have returned None here to ignore the symbol but it's more appropriate to
                 // bind the variable occurrence with a dead object to signify that it's bound symbol invalid.
                 let id = track_global!();
-                self.relations.objects[id.0].state = ObjectState::Dead;
-                Symbol::Global(id.0)
+                self.relations[id].state = RelationState::Dead;
+                Symbol::External(id)
             }
             Some(id) => Symbol::Local(id),
         }
@@ -577,7 +577,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         parent_env: &Environment,
         parent_state: &ResolutionState,
         capture_env: &Environment,
-        capture_env_id: SourceObjectId,
+        capture_env_id: SourceId,
     ) {
         self.stack.push((parent_state.module, unsafe {
             // SAFETY: the reference will immediately be popped off the stack.
@@ -662,7 +662,7 @@ mod tests {
     use parser::parse_trusted;
 
     use crate::importer::StaticImporter;
-    use crate::relations::{GlobalObjectId, Symbol};
+    use crate::relations::{LocalId, RelationId, Symbol};
 
     use super::*;
 
@@ -686,7 +686,7 @@ mod tests {
         assert_eq!(
             res,
             vec![
-                Diagnostic::new(DiagnosticID::UseBetweenExprs, SourceObjectId(0), "Unexpected use statement between expressions. use statements can only be declared on top of environment"),
+                Diagnostic::new(DiagnosticID::UseBetweenExprs, SourceId(0), "Unexpected use statement between expressions. use statements can only be declared on top of environment"),
             ]
         )
     }
@@ -704,7 +704,7 @@ mod tests {
 
         collector.tree_walk(&mut env, &mut state, &expr, &mut vec![]);
         assert_eq!(collector.diagnostics, vec![]);
-        assert_eq!(relations.objects, vec![]);
+        assert_eq!(relations.iter().collect::<Vec<_>>(), vec![]);
     }
 
     #[test]
@@ -737,7 +737,7 @@ mod tests {
             &mut importer,
         );
         assert_eq!(diagnostics, vec![
-            Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, SourceObjectId(0), "Declared symbol 'multiply' in module math clashes with module math::multiply")
+            Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, SourceId(0), "Declared symbol 'multiply' in module math clashes with module math::multiply")
                 .with_observation(Observation::with_help(find_in(math_source, "fun multiply(a: Int, b: Int) = a * b"), "This symbol has the same fully-qualified name as module math::multiply"))
                 .with_help("You should refactor this symbol with a name that does not conflicts with following modules: math::{divide, multiply, add}")
         ]);
@@ -766,7 +766,7 @@ mod tests {
             vec![
                 Diagnostic::new(
                     DiagnosticID::ShadowedImport,
-                    SourceObjectId(0),
+                    SourceId(0),
                     "A is imported twice."
                 )
                 .with_observation(Observation::with_help(
@@ -779,7 +779,7 @@ mod tests {
                 )),
                 Diagnostic::new(
                     DiagnosticID::ShadowedImport,
-                    SourceObjectId(0),
+                    SourceId(0),
                     "B is imported twice."
                 )
                 .with_observation(Observation::with_help(
@@ -809,18 +809,21 @@ mod tests {
         collector.tree_walk(&mut env, &mut state, &expr, &mut vec![]);
 
         assert_eq!(collector.diagnostics, vec![]);
-        assert_eq!(relations.objects, vec![]);
-        assert_eq!(env.get_raw_symbol(source.segment()), Some(Symbol::Local(0)));
+        assert_eq!(relations.iter().collect::<Vec<_>>(), vec![]);
+        assert_eq!(
+            env.get_raw_symbol(source.segment()),
+            Some(Symbol::Local(LocalId(0)))
+        );
         assert_eq!(env.get_raw_symbol(find_in(src, "a")), None);
         assert_eq!(env.get_raw_symbol(find_in(src, "$a")), None);
-        let func_env = engine.get_environment(SourceObjectId(1)).unwrap();
+        let func_env = engine.get_environment(SourceId(1)).unwrap();
         assert_eq!(
             func_env.get_raw_symbol(find_in(src, "a")),
-            Some(Symbol::Local(0))
+            Some(Symbol::Local(LocalId(0)))
         );
         assert_eq!(
             func_env.get_raw_symbol(find_in(src, "$a")),
-            Some(Symbol::Local(0))
+            Some(Symbol::Local(LocalId(0)))
         );
     }
 
@@ -839,11 +842,11 @@ mod tests {
         collector.tree_walk(&mut env, &mut state, &expr, &mut vec![]);
 
         assert_eq!(collector.diagnostics, vec![]);
-        assert_eq!(relations.objects, vec![]);
+        assert_eq!(relations.iter().collect::<Vec<_>>(), vec![]);
         assert_eq!(env.get_raw_symbol(find_in(src, "read")), None);
         assert_eq!(
             env.get_raw_symbol(find_in(src, "foo")),
-            Some(Symbol::Local(0))
+            Some(Symbol::Local(LocalId(0)))
         );
     }
 
@@ -866,7 +869,7 @@ mod tests {
         engine.attach(state.module, env);
         assert_eq!(
             relations
-                .find_references(&engine, GlobalObjectId(0))
+                .find_references(&engine, RelationId(0))
                 .map(|mut references| {
                     references.sort_by_key(|range| range.start);
                     references
@@ -874,11 +877,11 @@ mod tests {
             Some(vec![find_in(src, "$bar"), find_in_nth(src, "$bar", 1)])
         );
         assert_eq!(
-            relations.find_references(&engine, GlobalObjectId(1)),
+            relations.find_references(&engine, RelationId(1)),
             Some(vec![find_in(src, "baz($foo, $bar)")])
         );
         assert_eq!(
-            relations.find_references(&engine, GlobalObjectId(2)),
+            relations.find_references(&engine, RelationId(2)),
             Some(vec![find_in(src, "$foo")])
         );
     }

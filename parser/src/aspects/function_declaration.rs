@@ -8,7 +8,7 @@ use crate::aspects::r#type::TypeAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{
-    blank, blanks, eod, eox, like, lookahead, next, not, of_type, of_types, repeat, spaces,
+    blank, blanks, eog, eox, like, lookahead, next, not, of_type, of_types, repeat, spaces,
     MoveOperations,
 };
 use crate::parser::{ParseResult, Parser};
@@ -42,7 +42,10 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
         let body = self
             .cursor
             .force(blanks().then(of_type(Equal)), "expected '='")
-            .and_then(|_| self.statement())
+            .and_then(|_| {
+                self.cursor.advance(blanks());
+                self.statement()
+            })
             .map(Box::new)?;
         let segment = self.cursor.relative_pos(fun).start..body.segment().end;
 
@@ -60,9 +63,7 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
         let start = self
             .cursor
             .force(of_type(Return), "'return' keyword expected here")?;
-        if self.cursor.advance(spaces()).is_none()
-            || self.cursor.lookahead(eox().or(eod())).is_some()
-        {
+        if self.cursor.advance(spaces()).is_none() || self.cursor.lookahead(eox()).is_some() {
             return Ok(Return {
                 expr: None,
                 segment: self.cursor.relative_pos(start),
@@ -139,7 +140,7 @@ impl<'a> Parser<'a> {
                 ));
                 self.cursor.advance(blanks());
             }
-            if self.cursor.lookahead(eox().or(eod())).is_some() {
+            if self.cursor.lookahead(eog()).is_some() {
                 break;
             }
             let param = self.parse_fn_parameter();
@@ -150,7 +151,7 @@ impl<'a> Parser<'a> {
                 }
             }
             if let Err(err) = self.cursor.force(
-                blanks().then(of_type(Comma).or(lookahead(eod()))),
+                blanks().then(of_type(Comma).or(lookahead(eog()))),
                 "Expected ','",
             ) {
                 self.cursor.advance(blanks());
@@ -171,7 +172,7 @@ impl<'a> Parser<'a> {
                 let wrong_name_slice = self
                     .cursor
                     .collect(repeat(
-                        not(blank().or(eod()).or(eox()).or(of_types(&[
+                        not(blank().or(eox()).or(of_types(&[
                             CurlyLeftBracket,
                             SquaredLeftBracket,
                             RoundedLeftBracket,
@@ -289,6 +290,22 @@ mod tests {
     }
 
     #[test]
+    fn return_string() {
+        let source = Source::unknown("return 'foo'");
+        let exprs = parse(source).expect("parse fail");
+        assert_eq!(
+            exprs,
+            vec![Expr::Return(Return {
+                expr: Some(Box::new(Expr::Literal(Literal {
+                    parsed: "foo".into(),
+                    segment: find_in(source.source, "'foo'"),
+                }))),
+                segment: source.segment()
+            })]
+        );
+    }
+
+    #[test]
     fn function_no_params() {
         let src = "fun x = y";
         let errs = parse(Source::unknown(src)).errors;
@@ -317,16 +334,27 @@ mod tests {
     }
 
     #[test]
-    fn function_invalid_name_() {
-        let src = "fun 78() = ()";
-        let errs = parse(Source::unknown(src)).errors;
+    fn functions_with_blanks() {
+        let src = Source::unknown("fun test()\n -> Float\n =\n    2.0");
+        let ast = parse(src).expect("parse failed");
         assert_eq!(
-            errs,
-            vec![ParseError {
-                message: "function name is invalid.".to_string(),
-                position: src.find("78").map(|i| i..i + 2).unwrap(),
-                kind: ParseErrorKind::InvalidFormat,
-            }]
+            ast,
+            vec![Expr::FunctionDeclaration(FunctionDeclaration {
+                name: "test",
+                type_parameters: vec![],
+                parameters: vec![],
+                return_type: Some(Type::Parametrized(ParametrizedType {
+                    path: vec![],
+                    name: "Float",
+                    params: vec![],
+                    segment: find_in_nth(src.source, "Float", 0),
+                })),
+                body: Box::new(Expr::Literal(Literal {
+                    parsed: 2.0.into(),
+                    segment: find_in_nth(src.source, "2.0", 0),
+                })),
+                segment: src.segment(),
+            })]
         );
     }
 

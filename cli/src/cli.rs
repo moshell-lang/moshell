@@ -3,14 +3,17 @@ use std::io::stderr;
 use std::path::PathBuf;
 
 use clap::Parser;
-use dbg_pls::color;
 
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
+use analyzer::relations::SourceId;
 use analyzer::resolve_all;
 use analyzer::steps::typing::apply_types;
+use analyzer::types::engine::TypedEngine;
 use ast::group::Block;
 use ast::Expr;
+use compiler::bytecode::Bytecode;
+use compiler::{emit, write};
 use context::source::Source;
 use parser::parse;
 
@@ -41,7 +44,6 @@ pub fn handle_source(source: Source) -> bool {
     let report = parse(source);
     let mut importer = RawImporter::default();
 
-    let source = source;
     let errors: Vec<_> = report.errors;
 
     let out = &mut stderr();
@@ -52,7 +54,7 @@ pub fn handle_source(source: Source) -> bool {
         return true;
     }
 
-    println!("{}", color(&report.expr));
+    //println!("{}", color(&report.expr));
 
     let expr = Expr::Block(Block {
         expressions: report.expr,
@@ -66,7 +68,10 @@ pub fn handle_source(source: Source) -> bool {
 
     let mut diagnostics = result.diagnostics;
     if diagnostics.is_empty() {
-        apply_types(&result.engine, &result.relations, &mut diagnostics);
+        let types = apply_types(&result.engine, &result.relations, &mut diagnostics);
+        if diagnostics.is_empty() {
+            execute(types);
+        }
     }
 
     let mut stdout = stderr();
@@ -76,4 +81,24 @@ pub fn handle_source(source: Source) -> bool {
             .expect("IO errors when reporting diagnostic")
     }
     had_errors
+}
+
+#[link(name = "vm", kind = "static")]
+extern "C" {
+    fn exec(bytes: *const u8, byte_count: usize);
+}
+
+fn execute(types: TypedEngine) {
+    let mut emitter = Bytecode::default();
+    emit(
+        &mut emitter,
+        &types.get_user(SourceId(0)).unwrap().expression,
+    );
+    let mut bytes: Vec<u8> = Vec::new();
+    write(&mut bytes, emitter).expect("write failed");
+
+    let len = bytes.len();
+    unsafe {
+        exec(bytes.as_ptr(), len);
+    }
 }

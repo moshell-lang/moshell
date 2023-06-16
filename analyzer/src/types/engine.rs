@@ -1,4 +1,4 @@
-use crate::relations::SourceObjectId;
+use crate::relations::SourceId;
 use crate::types::builtin::lang;
 use crate::types::hir::{TypeId, TypedExpr};
 use crate::types::ty::{Definition, FunctionType, MethodType, Parameter, TypeDescription};
@@ -108,12 +108,12 @@ impl TypedEngine {
         }
     }
 
-    pub fn get_user(&self, id: SourceObjectId) -> Option<&Chunk> {
+    pub fn get_user(&self, id: SourceId) -> Option<&Chunk> {
         self.entries.get(id.0).and_then(|x| x.as_ref())
     }
 
     /// Inserts a chunk into the engine.
-    pub fn insert(&mut self, id: SourceObjectId, entry: Chunk) {
+    pub fn insert(&mut self, id: SourceId, entry: Chunk) {
         self.entries[id.0] = Some(entry);
     }
 
@@ -160,7 +160,7 @@ impl TypedEngine {
     /// Inserts a chunk into the engine if it is not already present.
     ///
     /// This may be used to insert semi-accurate chunks into the engine.
-    pub fn insert_if_absent(&mut self, id: SourceObjectId, entry: Chunk) {
+    pub fn insert_if_absent(&mut self, id: SourceId, entry: Chunk) {
         if self.entries[id.0].is_none() {
             self.entries[id.0] = Some(entry);
         }

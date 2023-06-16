@@ -6,7 +6,9 @@ use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::imports::Imports;
 use crate::name::Name;
-use crate::relations::{ObjectId, ObjectState, Relations, ResolvedSymbol, SourceObjectId, Symbol};
+use crate::relations::{
+    LocalId, RelationId, RelationState, Relations, ResolvedSymbol, SourceId, Symbol,
+};
 use crate::steps::resolve::diagnostics::*;
 use crate::steps::resolve::symbol::SymbolResolutionResult;
 use crate::steps::shared_diagnostics::diagnose_invalid_symbol;
@@ -54,22 +56,22 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
     /// Imports are on the other hand always resolved after the collection phase is complete, during
     /// a call to [`SymbolResolver::resolve_trees`], when using [`SymbolResolver::resolve_symbols`].
     pub fn resolve_captures(
-        env_stack: &[(SourceObjectId, &Environment)],
+        env_stack: &[(SourceId, &Environment)],
         relations: &mut Relations,
         capture_env: &Environment,
-        capture_env_id: SourceObjectId,
+        capture_env_id: SourceId,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         fn diagnose_invalid_symbol_in_capture(
             env_stack: Vec<&Environment>,
-            capture_env_id: SourceObjectId,
+            capture_env_id: SourceId,
             name: &Name,
-            local: ObjectId,
-            global: ObjectId,
+            local: LocalId,
+            external: RelationId,
         ) -> Diagnostic {
             let mut segments: Vec<_> = env_stack
                 .iter()
-                .flat_map(|env| env.find_references(Symbol::Global(global)))
+                .flat_map(|env| env.find_references(Symbol::External(external)))
                 .collect();
 
             segments.sort_by_key(|s| s.start);
@@ -81,10 +83,10 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
             diagnose_invalid_symbol(var.ty, capture_env_id, name, &segments)
         }
 
-        'capture: for (name, object_id) in capture_env.variables.external_vars() {
+        'capture: for (name, relation_id) in capture_env.variables.external_vars() {
             for (pos, (env_id, env)) in env_stack.iter().rev().enumerate() {
-                if let Some(local) = env.variables.get_reachable(name.root()) {
-                    let object = &mut relations.objects[object_id.0];
+                if let Some(local) = env.variables.find_reachable(name.root()) {
+                    let relation = &mut relations[relation_id];
                     if name.is_qualified() {
                         let erroneous_capture =
                             env_stack.iter().rev().take(pos + 1).map(|(_, s)| *s);
@@ -96,16 +98,16 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                             capture_env_id,
                             name,
                             local,
-                            object_id.0,
+                            relation_id,
                         );
                         diagnostics.push(diagnostic);
-                        object.state = ObjectState::Dead;
+                        relation.state = RelationState::Dead;
                     } else {
                         let symbol = ResolvedSymbol {
                             source: *env_id,
                             object_id: local,
                         };
-                        object.state = ObjectState::Resolved(symbol);
+                        relation.state = RelationState::Resolved(symbol);
                     }
                     continue 'capture;
                 }
@@ -138,8 +140,8 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
     /// This resolution should happen after all imports have been resolved in their respective environments,
     /// to allow child environments to use imports from their parents.
     fn resolve_trees(&mut self, to_visit: &mut Vec<Name>, visited: &mut HashSet<Name>) {
-        for (object_id, object) in self.relations.iter_mut() {
-            if object.state != ObjectState::Unresolved {
+        for (relation_id, object) in self.relations.iter_mut() {
+            if object.state != RelationState::Unresolved {
                 continue;
             }
             let origin = object.origin;
@@ -152,7 +154,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
 
             let symbol_name = origin_env
                 .variables
-                .get_external_symbol_name(object_id)
+                .find_external_symbol_name(relation_id)
                 .expect("Unknown object name");
 
             let mut result = SymbolResolutionResult::NotFound;
@@ -195,7 +197,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
 
             match result {
                 SymbolResolutionResult::Resolved(symbol) => {
-                    object.state = ObjectState::Resolved(symbol);
+                    object.state = RelationState::Resolved(symbol);
                 }
                 SymbolResolutionResult::DeadImport => {
                     self.diagnostics
@@ -203,10 +205,10 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                             self.engine,
                             origin,
                             self.imports.get_imports(origin).unwrap(),
-                            object_id,
+                            relation_id,
                             symbol_name,
                         ));
-                    object.state = ObjectState::Dead;
+                    object.state = RelationState::Dead;
                 }
                 SymbolResolutionResult::Invalid(symbol) => {
                     let env_var = self
@@ -218,7 +220,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                         .get_var(symbol.object_id)
                         .expect("resolved symbol points to an unknown variable in environment");
                     let mut occurrences: Vec<_> =
-                        origin_env.find_references(Symbol::Global(object_id.0));
+                        origin_env.find_references(Symbol::External(relation_id));
                     occurrences.sort_by_key(|s| s.start);
 
                     self.diagnostics.push(diagnose_invalid_symbol(
@@ -227,7 +229,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                         symbol_name,
                         &occurrences,
                     ));
-                    object.state = ObjectState::Dead;
+                    object.state = RelationState::Dead;
                 }
                 // All attempts failed to resolve the symbol
                 SymbolResolutionResult::NotFound => {
@@ -242,12 +244,12 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
 
                     // If we reach this point, the symbol could not be resolved, during any of the previous phases / cycles.
                     self.diagnostics.push(diagnose_unresolved_external_symbols(
-                        object_id,
+                        relation_id,
                         origin,
                         origin_env,
                         symbol_name,
                     ));
-                    object.state = ObjectState::Dead
+                    object.state = RelationState::Dead
                 }
             }
         }
@@ -270,7 +272,7 @@ mod tests {
     use crate::importer::StaticImporter;
     use crate::imports::{Imports, ResolvedImport, SourceImports, UnresolvedImport};
     use crate::name::Name;
-    use crate::relations::{Object, ObjectState, Relations, ResolvedSymbol, SourceObjectId};
+    use crate::relations::{LocalId, Relation, RelationState, Relations, ResolvedSymbol, SourceId};
     use crate::resolve_all;
     use crate::steps::collect::SymbolCollector;
     use crate::steps::resolve::SymbolResolver;
@@ -279,11 +281,7 @@ mod tests {
     fn report_unknown_imported_symbol() {
         let mut importer = StaticImporter::new(
             [
-                (
-                    Name::new("main"),
-                    //Source::new("use math::dummy\nmath::id(9)", "main"),
-                    Source::new("math::id(9)", "main"),
-                ),
+                (Name::new("main"), Source::new("math::id(9)", "main")),
                 (
                     Name::new("math"),
                     Source::new("fun id(n: Int) -> Int = $n\nfun dummy() = {}", "math"),
@@ -294,10 +292,13 @@ mod tests {
         let res = resolve_all(Name::new("main"), &mut importer);
         assert_eq!(res.diagnostics, vec![]);
         assert_eq!(
-            res.relations.objects,
-            vec![Object::resolved(
-                SourceObjectId(0),
-                ResolvedSymbol::new(SourceObjectId(1), 0),
+            res.relations
+                .iter()
+                .map(|(_, r)| r.clone())
+                .collect::<Vec<_>>(),
+            vec![Relation::resolved(
+                SourceId(0),
+                ResolvedSymbol::new(SourceId(1), LocalId(0)),
             )]
         )
     }
@@ -337,7 +338,7 @@ mod tests {
             &mut visited,
             &mut importer,
         );
-        let test_env_imports = imports.get_imports_mut(SourceObjectId(0)).unwrap();
+        let test_env_imports = imports.get_imports_mut(SourceId(0)).unwrap();
         assert_eq!(diagnostics, vec![]);
         assert_eq!(
             test_env_imports,
@@ -387,18 +388,13 @@ mod tests {
             ),
         );
 
-        SymbolResolver::resolve_imports(
-            SourceObjectId(0),
-            test_env_imports,
-            &engine,
-            &mut diagnostics,
-        );
+        SymbolResolver::resolve_imports(SourceId(0), test_env_imports, &engine, &mut diagnostics);
         assert_eq!(to_visit, vec![]);
         assert_eq!(
             diagnostics,
             vec![Diagnostic::new(
                 DiagnosticID::ImportResolution,
-                SourceObjectId(0),
+                SourceId(0),
                 "unable to find imported symbol `foo` in module `std`.",
             )
             .with_observation(Observation::new(find_in(test_src, "foo")))]
@@ -411,10 +407,7 @@ mod tests {
                 HashMap::from([
                     (
                         "io".to_string(),
-                        (
-                            ResolvedImport::Env(SourceObjectId(1)),
-                            find_in(test_src, "io")
-                        )
+                        (ResolvedImport::Env(SourceId(1)), find_in(test_src, "io"))
                     ),
                     (
                         "foo".to_string(),
@@ -423,35 +416,35 @@ mod tests {
                     (
                         "PI".to_string(),
                         (
-                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(12), 0)),
+                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceId(12), LocalId(0))),
                             find_in(test_src, "math::PI")
                         )
                     ),
                     (
                         "Bar".to_string(),
                         (
-                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(7), 1)),
+                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceId(7), LocalId(1))),
                             find_in(test_src, "std::*")
                         )
                     ),
                     (
                         "Foo".to_string(),
                         (
-                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(7), 0)),
+                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceId(7), LocalId(0))),
                             find_in(test_src, "std::*")
                         )
                     ),
                     (
                         "output".to_string(),
                         (
-                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(1), 0)),
+                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceId(1), LocalId(0))),
                             find_in(test_src, "output")
                         )
                     ),
                     (
                         "input".to_string(),
                         (
-                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceObjectId(1), 1)),
+                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceId(1), LocalId(1))),
                             find_in(test_src, "input")
                         )
                     ),
@@ -516,12 +509,12 @@ mod tests {
         assert_eq!(diagnostics, vec![]);
 
         assert_eq!(
-            relations.objects,
+            relations.iter().map(|(_, r)| r.clone()).collect::<Vec<_>>(),
             vec![
-                Object::resolved(SourceObjectId(1), ResolvedSymbol::new(SourceObjectId(0), 2)),
-                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(2), 0)),
-                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(3), 1)),
-                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(4), 0)),
+                Relation::resolved(SourceId(1), ResolvedSymbol::new(SourceId(0), LocalId(2))),
+                Relation::resolved(SourceId(0), ResolvedSymbol::new(SourceId(2), LocalId(0))),
+                Relation::resolved(SourceId(0), ResolvedSymbol::new(SourceId(3), LocalId(1))),
+                Relation::resolved(SourceId(0), ResolvedSymbol::new(SourceId(4), LocalId(0))),
             ]
         )
     }
@@ -618,12 +611,12 @@ mod tests {
         );
 
         assert_eq!(
-            relations.objects,
+            relations.iter().map(|(_, r)| r.clone()).collect::<Vec<_>>(),
             vec![
-                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(3), 0)),
-                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(3), 1)),
-                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(6), 0)),
-                Object::resolved(SourceObjectId(0), ResolvedSymbol::new(SourceObjectId(1), 0)),
+                Relation::resolved(SourceId(0), ResolvedSymbol::new(SourceId(3), LocalId(0))),
+                Relation::resolved(SourceId(0), ResolvedSymbol::new(SourceId(3), LocalId(1))),
+                Relation::resolved(SourceId(0), ResolvedSymbol::new(SourceId(6), LocalId(0))),
+                Relation::resolved(SourceId(0), ResolvedSymbol::new(SourceId(1), LocalId(0))),
             ]
         )
     }
@@ -664,35 +657,35 @@ mod tests {
             vec![
                 Diagnostic::new(
                     DiagnosticID::InvalidSymbol,
-                    SourceObjectId(0),
+                    SourceId(0),
                     "`foo` is a function which cannot export any inner symbols"
                 )
                 .with_observation(Observation::new(find_in(test_src, "foo::x()")))
                 .with_help("`x` is an invalid symbol in function `foo`"),
                 Diagnostic::new(
                     DiagnosticID::InvalidSymbol,
-                    SourceObjectId(0),
+                    SourceId(0),
                     "`foo` is a function which cannot export any inner symbols"
                 )
                 .with_observation(Observation::new(find_in(test_src, "foo::y::z()")))
                 .with_help("`y::z` is an invalid symbol in function `foo`"),
                 Diagnostic::new(
                     DiagnosticID::InvalidSymbol,
-                    SourceObjectId(0),
+                    SourceId(0),
                     "`foo` is a function which cannot export any inner symbols"
                 )
                 .with_observation(Observation::new(find_in_nth(test_src, "foo::y::z()", 1)))
                 .with_help("`y::z` is an invalid symbol in function `foo`"),
                 Diagnostic::new(
                     DiagnosticID::InvalidSymbol,
-                    SourceObjectId(2),
+                    SourceId(2),
                     "`foz` is a function which cannot export any inner symbols"
                 )
                 .with_observation(Observation::new(find_in_nth(test_src, "foz::x()", 1)))
                 .with_help("`x` is an invalid symbol in function `foz`"),
                 Diagnostic::new(
                     DiagnosticID::InvalidSymbol,
-                    SourceObjectId(2),
+                    SourceId(2),
                     "`foo` is a function which cannot export any inner symbols",
                 )
                 .with_observation(Observation::new(find_in_nth(test_src, "foo::y::z()", 2)))
@@ -701,15 +694,15 @@ mod tests {
                 .with_help("`y::z` is an invalid symbol in function `foo`"),
                 Diagnostic::new(
                     DiagnosticID::UnknownSymbol,
-                    SourceObjectId(3),
+                    SourceId(3),
                     "Could not resolve symbol `a::foo::in_local`."
                 )
                 .with_observation(Observation::new(find_in(test_src, "a::foo::in_local()"))),
             ]
         );
 
-        for relation in relations.objects {
-            assert_eq!(relation.state, ObjectState::Dead)
+        for (_, relation) in relations.iter() {
+            assert_eq!(relation.state, RelationState::Dead)
         }
     }
 
@@ -761,25 +754,25 @@ mod tests {
             vec![
                 Diagnostic::new(
                     DiagnosticID::ImportResolution,
-                    SourceObjectId(0),
+                    SourceId(0),
                     "unable to find imported symbol `B` in module `A`.",
                 )
                 .with_observation(Observation::new(find_in(source, "A::B"))),
                 Diagnostic::new(
                     DiagnosticID::ImportResolution,
-                    SourceObjectId(0),
+                    SourceId(0),
                     "unable to find imported symbol `B::C`."
                 )
                 .with_observation(Observation::new(find_in(source, "B::C"))),
                 Diagnostic::new(
                     DiagnosticID::ImportResolution,
-                    SourceObjectId(0),
+                    SourceId(0),
                     "unable to find imported symbol `C`."
                 )
                 .with_observation(Observation::new(find_in(source, "C::*"))),
                 Diagnostic::new(
                     DiagnosticID::UnknownSymbol,
-                    SourceObjectId(0),
+                    SourceId(0),
                     "Could not resolve symbol `a`."
                 )
                 .with_observation(Observation::new(find_in_nth(source, "$a", 0)))
@@ -787,14 +780,14 @@ mod tests {
                 .with_observation(Observation::new(find_in_nth(source, "$a", 2))),
                 Diagnostic::new(
                     DiagnosticID::InvalidSymbol,
-                    SourceObjectId(0),
+                    SourceId(0),
                     "unresolvable symbol `C` has no choice but to be ignored due to invalid import of `C`."
                 )
                 .with_observation(Observation::with_help(find_in_nth(source, "B::C", 0), "invalid import introduced here"))
                     .with_observation(Observation::new(find_in(source, "$C"))),
                 Diagnostic::new(
                     DiagnosticID::InvalidSymbol,
-                    SourceObjectId(0),
+                    SourceId(0),
                     "unresolvable symbol `B` has no choice but to be ignored due to invalid import of `B`."
                 )
                     .with_observation(Observation::with_help(find_in_nth(source, "A::B", 0), "invalid import introduced here"))
@@ -843,14 +836,14 @@ mod tests {
             vec![
                 Diagnostic::new(
                     DiagnosticID::UnknownSymbol,
-                    SourceObjectId(0),
+                    SourceId(0),
                     "Could not resolve symbol `C`."
                 )
                 .with_observation(Observation::new(find_in_nth(source, "$C", 0)))
                 .with_observation(Observation::new(find_in_nth(source, "$C", 1))),
                 Diagnostic::new(
                     DiagnosticID::UnknownSymbol,
-                    SourceObjectId(0),
+                    SourceId(0),
                     "Could not resolve symbol `a`."
                 )
                 .with_observation(Observation::new(find_in_nth(source, "$a", 0)))
@@ -902,14 +895,14 @@ mod tests {
             vec![
                 Diagnostic::new(
                     DiagnosticID::UnknownSymbol,
-                    SourceObjectId(1),
+                    SourceId(1),
                     "Could not resolve symbol `C`.",
                 )
                 .with_observation(Observation::new(find_in(source, "$C")))
                 .with_observation(Observation::new(find_in_nth(source, "$C", 1))),
                 Diagnostic::new(
                     DiagnosticID::UnknownSymbol,
-                    SourceObjectId(1),
+                    SourceId(1),
                     "Could not resolve symbol `a`.",
                 )
                 .with_observation(Observation::new(find_in_nth(source, "$a", 0)))
@@ -953,10 +946,10 @@ mod tests {
         assert_eq!(diagnostics, vec![]);
 
         assert_eq!(
-            relations.objects,
-            vec![Object::resolved(
-                SourceObjectId(1),
-                ResolvedSymbol::new(SourceObjectId(0), 0)
+            relations.iter().map(|(_, r)| r.clone()).collect::<Vec<_>>(),
+            vec![Relation::resolved(
+                SourceId(1),
+                ResolvedSymbol::new(SourceId(0), LocalId(0))
             )]
         )
     }

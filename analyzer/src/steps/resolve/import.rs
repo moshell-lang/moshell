@@ -3,7 +3,7 @@ use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::imports::{ResolvedImport, SourceImports, UnresolvedImport};
 use crate::name::Name;
-use crate::relations::{ResolvedSymbol, SourceObjectId};
+use crate::relations::{ResolvedSymbol, SourceId};
 use crate::steps::resolve::{diagnose_unresolved_import, SymbolResolver};
 
 impl<'a, 'e> SymbolResolver<'a, 'e> {
@@ -11,7 +11,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
     /// imports that could get resolved.
     /// This method will append a new diagnostic for each imports that could not be resolved.
     pub fn resolve_imports(
-        env_id: SourceObjectId,
+        env_id: SourceId,
         imports: &mut SourceImports,
         engine: &Engine,
         diagnostics: &mut Vec<Diagnostic>,
@@ -52,7 +52,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                                 continue;
                             }
 
-                            let symbol_id = found_env.variables.get_exported(&symbol_name);
+                            let symbol_id = found_env.variables.find_exported(&symbol_name);
 
                             if let Some(symbol_id) = symbol_id {
                                 let resolved = ResolvedSymbol::new(found_env_id, symbol_id);
@@ -92,7 +92,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                         }
                         Some((env_id, env)) => {
                             for var in env.variables.exported_vars() {
-                                let var_id = env.variables.get_exported(&var.name).unwrap();
+                                let var_id = env.variables.find_exported(&var.name).unwrap();
 
                                 let import_symbol = ResolvedSymbol::new(env_id, var_id);
                                 imports.set_resolved_import(
@@ -114,7 +114,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
 fn get_mod_from_absolute<'a>(
     engine: &'a Engine,
     name: &Name,
-) -> Option<(SourceObjectId, &'a Environment)> {
+) -> Option<(SourceId, &'a Environment)> {
     let mut env_name = Some(name.clone());
     while let Some(name) = env_name {
         if let Some((id, env)) = engine.find_environment_by_name(&name) {

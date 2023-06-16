@@ -1,5 +1,5 @@
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
-use crate::relations::SourceObjectId;
+use crate::relations::SourceId;
 use crate::steps::typing::function::Return;
 use crate::types::ctx::TypeContext;
 use crate::types::engine::TypedEngine;
@@ -27,7 +27,7 @@ impl Exploration {
 }
 
 /// Generates a diagnostic for an unknown type annotation.
-pub(super) fn diagnose_unknown_type(source: SourceObjectId, segment: SourceSegment) -> Diagnostic {
+pub(super) fn diagnose_unknown_type(source: SourceId, segment: SourceSegment) -> Diagnostic {
     Diagnostic::new(DiagnosticID::UnknownType, source, "Unknown type annotation")
         .with_observation(Observation::with_help(segment, "Not found in scope"))
 }
