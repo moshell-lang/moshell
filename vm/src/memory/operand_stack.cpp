@@ -1,7 +1,3 @@
-//
-// Created by maxime on 6/14/23.
-//
-
 #include "operand_stack.h"
 
 OperandStack::OperandStack(size_t len)

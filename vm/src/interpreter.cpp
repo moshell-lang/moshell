@@ -98,7 +98,7 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             // Fork and exec the process
             pid_t pid = fork();
             if (pid == 0) {
-                // Execute the process then exit
+                // Replace the current process with a new process image
                 execvp(argv[0], argv);
             } else {
                 for (int i = 0; i < frame_size; i++) {
