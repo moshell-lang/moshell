@@ -159,6 +159,7 @@ fn apply_types_to_source(
                     .map(|param| type_parameter(&exploration.ctx, param))
                     .collect(),
                 return_type,
+                func.segment(),
             )
         }
         expr => Chunk::script(ascribe_types(
@@ -239,7 +240,8 @@ fn ascribe_var_declaration(
                 .unify(expected_type, initializer.ty)
                 .is_err()
         {
-            diagnostics.push(
+            let terminal_expr = retrieve_terminal_expr(&initializer);
+            let mut diagnostic =
                 Diagnostic::new(DiagnosticID::TypeMismatch, state.source, "Type mismatch")
                     .with_observation(
                         Observation::new(type_annotation.segment())
@@ -250,14 +252,43 @@ fn ascribe_var_declaration(
                             .with_tag(ObservationTag::Expected),
                     )
                     .with_observation(
-                        Observation::new(initializer.segment())
+                        Observation::new(terminal_expr.segment())
                             .with_help(format!(
                                 "Found `{}`",
                                 exploration.get_type(initializer.ty).unwrap()
                             ))
                             .with_tag(ObservationTag::InFault),
-                    ),
-            );
+                    );
+            match &terminal_expr.kind {
+                ExprKind::FunctionCall(_) => {
+                    let symbol = env.get_raw_symbol(terminal_expr.segment()).unwrap();
+                    let type_id = exploration
+                        .ctx
+                        .get(relations, state.source, symbol)
+                        .unwrap();
+                    let func = exploration.get_type(type_id).unwrap();
+                    let Type::Function(declaration) = func else { unreachable!() };
+                    let func_chunk = exploration.engine.get(*declaration).unwrap();
+                    let func_segment = func_chunk.declaration_segment.clone().unwrap();
+                    diagnostic = diagnostic.with_observation(
+                        Observation::new(func_segment)
+                            .with_help("in function declared here")
+                            .with_tag(ObservationTag::Declaration)
+                            .within(*declaration),
+                    )
+                }
+                ExprKind::Reference(s) => {
+                    let (var_declaration, _) =
+                        env.definitions.iter().find(|(_, v)| *v == s).unwrap();
+                    diagnostic = diagnostic.with_observation(
+                        Observation::new(var_declaration.clone())
+                            .with_help("in variable declared here")
+                            .with_tag(ObservationTag::Declaration),
+                    )
+                }
+                _ => (),
+            }
+            diagnostics.push(diagnostic)
         }
     }
     TypedExpr {
@@ -297,6 +328,9 @@ fn ascribe_block(
     let mut expressions = Vec::with_capacity(block.expressions.len());
     if let Some((last, exprs)) = block.expressions.split_last() {
         for expr in exprs {
+            if matches!(expr, Expr::Use(_)) {
+                continue; // uses are not included in hir
+            }
             expressions.push(ascribe_types(
                 exploration,
                 relations,
@@ -306,14 +340,17 @@ fn ascribe_block(
                 state.without_local_type(),
             ));
         }
-        expressions.push(ascribe_types(
-            exploration,
-            relations,
-            diagnostics,
-            env,
-            last,
-            state,
-        ));
+        // uses are not included in hir
+        if !matches!(last, Expr::Use(_)) {
+            expressions.push(ascribe_types(
+                exploration,
+                relations,
+                diagnostics,
+                env,
+                last,
+                state,
+            ));
+        }
     }
     let ty = expressions.last().map(|expr| expr.ty).unwrap_or(NOTHING);
     TypedExpr {
@@ -383,6 +420,7 @@ fn ascribe_function(
             },
             parameters,
             return_type,
+            fun.segment(),
         ),
     );
     TypedExpr {
@@ -636,6 +674,14 @@ fn ascribe_continue_or_break(
     }
 }
 
+fn retrieve_terminal_expr(expr: &TypedExpr) -> &TypedExpr {
+    match &expr.kind {
+        ExprKind::Block(b) => b.last().map(retrieve_terminal_expr).unwrap_or(expr),
+        ExprKind::Return(Some(r)) => r,
+        _ => expr,
+    }
+}
+
 /// Ascribes types to the given expression.
 ///
 /// In case of an error, the expression is still returned, but the type is set to [`ERROR`].
@@ -684,6 +730,8 @@ fn ascribe_types(
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use context::source::Source;
     use context::str_find::find_in;
     use parser::parse_trusted;
@@ -696,7 +744,6 @@ mod tests {
     use crate::steps::typing::apply_types;
     use crate::types::ty::Type;
     use crate::types::Typing;
-    use pretty_assertions::assert_eq;
 
     pub(crate) fn extract_type(source: Source) -> Result<Type, Vec<Diagnostic>> {
         let typing = Typing::with_lang();
@@ -855,11 +902,15 @@ mod tests {
                 "Type mismatch",
             )
             .with_observation(
-                Observation::new(find_in(content, "4")).with_help("Expected `String`, found `Int`")
+                Observation::new(find_in(content, "4"))
+                    .with_help("Expected `String`, found `Int`")
+                    .with_tag(ObservationTag::InFault)
             )
             .with_observation(
                 Observation::new(find_in(content, "str: String"))
                     .with_help("Parameter is declared here")
+                    .within(SourceId(1))
+                    .with_tag(ObservationTag::Declaration)
             )]),
         );
     }
@@ -902,6 +953,11 @@ mod tests {
                 Observation::new(find_in(content, "$a"))
                     .with_help("Found `String`")
                     .with_tag(ObservationTag::InFault)
+            )
+            .with_observation(
+                Observation::new(find_in(content, "a: String"))
+                    .with_help("in variable declared here")
+                    .with_tag(ObservationTag::Declaration)
             )])
         );
     }

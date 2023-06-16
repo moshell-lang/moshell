@@ -149,7 +149,7 @@ fn parse_input(editor: &mut REPLEditor) -> OwnedSource {
 fn display_diagnostics(diagnostics: Vec<Diagnostic>, source: Source) {
     for diagnostic in diagnostics {
         let str =
-            render_diagnostic(source, diagnostic).expect("IO errors when reporting diagnostic");
+            render_diagnostic(diagnostic, |_| source).expect("IO errors when reporting diagnostic");
         eprintln!("{str}")
     }
 }

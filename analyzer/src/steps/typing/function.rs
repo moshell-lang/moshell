@@ -1,4 +1,4 @@
-use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
+use crate::diagnostic::{Diagnostic, DiagnosticID, Observation, ObservationTag};
 use crate::relations::{Relations, Symbol};
 use crate::steps::typing::exploration::Exploration;
 use crate::steps::typing::TypingState;
@@ -160,7 +160,8 @@ pub(super) fn type_call(
         .unwrap();
     match exploration.get_type(type_id).unwrap() {
         Type::Function(declaration) => {
-            let entry = exploration.engine.get(*declaration).unwrap();
+            let declaration = *declaration;
+            let entry = exploration.engine.get(declaration).unwrap();
             let parameters = &entry.parameters;
             let return_type = entry.return_type;
             if parameters.len() != arguments.len() {
@@ -189,16 +190,20 @@ pub(super) fn type_call(
                                 state.source,
                                 "Type mismatch",
                             )
-                            .with_observation(Observation::new(arg.segment.clone()).with_help(
-                                format!(
-                                    "Expected `{}`, found `{}`",
-                                    exploration.get_type(param.ty).unwrap(),
-                                    exploration.get_type(arg.ty).unwrap()
-                                ),
-                            ))
+                            .with_observation(
+                                Observation::new(arg.segment.clone())
+                                    .with_help(format!(
+                                        "Expected `{}`, found `{}`",
+                                        exploration.get_type(param.ty).unwrap(),
+                                        exploration.get_type(arg.ty).unwrap()
+                                    ))
+                                    .with_tag(ObservationTag::InFault),
+                            )
                             .with_observation(
                                 Observation::new(param.segment.clone())
-                                    .with_help("Parameter is declared here"),
+                                    .within(declaration)
+                                    .with_help("Parameter is declared here")
+                                    .with_tag(ObservationTag::Declaration),
                             ),
                         );
                     }

@@ -19,7 +19,8 @@ ariadne = { version = "0.3.0", features = ["auto-color"] }
 thiserror = "1.0.38"
 dbg-pls = { version = "0.4.1", features = ["pretty", "colors"] }
 clap = { version = "4.2.2", features = ["derive"] }
-colored = "2"
+regex = "1.8.4"
+yansi = "0.5.1"
 
 [build-dependencies]
 cmake = "0.1.46"

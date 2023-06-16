@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use colored::Colorize;
 use dbg_pls::color;
 use owo_colors::OwoColorize;
 

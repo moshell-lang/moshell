@@ -123,8 +123,8 @@ fn display_import_errors(errors: Vec<RunnerImporterError>) {
 
 fn display_diagnostics(diagnostics: Vec<Diagnostic>, engine: &Engine, importer: &RunnerImporter) {
     for diagnostic in diagnostics {
-        let source = get_source_of(diagnostic.source, engine, importer);
-        let str = render_diagnostic(source, diagnostic).expect("could not write in stderr");
+        let str = render_diagnostic(diagnostic, |src| get_source_of(src, engine, importer))
+            .expect("could not write in stderr");
         eprintln!("{str}")
     }
 }
