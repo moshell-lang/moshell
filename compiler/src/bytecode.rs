@@ -1,17 +1,22 @@
 use crate::bytecode::Opcode::*;
 use enum_assoc::Assoc;
 use std::mem::size_of;
+
+/// holds bytecode and contains utility
+/// methods to help compiler write basic instructions
 #[derive(Default)]
 pub struct Bytecode {
     pub bytes: Vec<u8>,
 }
 
 impl Bytecode {
-    /// Returns the current byte instruction position in current frame
-    pub fn current_frame_ip(&self) -> usize {
-        // note: as call frames are not yet supported,
-        // this implementation returns the overall bytes length.
+    /// Returns the bytes count
+    pub fn len(&self) -> usize {
         self.bytes.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub fn emit_code(&mut self, code: Opcode) {
@@ -19,22 +24,22 @@ impl Bytecode {
     }
 
     pub fn emit_get_local(&mut self, identifier: u8) {
-        self.emit_code(Opcode::GetLocal);
+        self.emit_code(GetLocal);
         self.bytes.push(identifier);
     }
 
     pub fn emit_int(&mut self, constant: i64) {
-        self.emit_code(Opcode::PushInt);
+        self.emit_code(PushInt);
         self.bytes.extend(constant.to_be_bytes());
     }
 
     pub fn emit_float(&mut self, constant: f64) {
-        self.emit_code(Opcode::PushFloat);
+        self.emit_code(PushFloat);
         self.bytes.extend(constant.to_be_bytes());
     }
 
     pub fn emit_string_constant_ref(&mut self, constant_ref: usize) {
-        self.emit_code(Opcode::PushString);
+        self.emit_code(PushString);
         self.bytes.extend(constant_ref.to_be_bytes());
     }
 
@@ -61,6 +66,7 @@ impl Bytecode {
     }
 }
 
+/// see vm's `Opcode` enum for more details
 #[repr(u8)]
 #[derive(Assoc)]
 #[func(pub fn mnemonic(&self) -> &'static str)]

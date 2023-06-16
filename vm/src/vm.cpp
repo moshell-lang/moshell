@@ -1,7 +1,6 @@
 #include "conversions.h"
 #include "interpreter.h"
 #include <cstring>
-#include <execution>
 #include <iostream>
 
 constant_pool load_constant_pool(const char *bytes, unsigned int *ip) {

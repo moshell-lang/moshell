@@ -236,9 +236,9 @@ fn ascribe_var_declaration(
             );
         } else if initializer.ty.is_ok()
             && exploration
-                .typing
-                .unify(expected_type, initializer.ty)
-                .is_err()
+            .typing
+            .unify(expected_type, initializer.ty)
+            .is_err()
         {
             let terminal_expr = retrieve_terminal_expr(&initializer);
             let mut diagnostic =
@@ -504,14 +504,14 @@ fn ascribe_if(
                     state.source,
                     "`if` and `else` have incompatible types",
                 )
-                .with_observation(
-                    Observation::new(i.success_branch.segment())
-                        .with_help(format!(
-                            "Found `{}`",
-                            exploration.get_type(then.ty).unwrap()
-                        ))
-                        .with_tag(ObservationTag::InFault),
-                );
+                    .with_observation(
+                        Observation::new(i.success_branch.segment())
+                            .with_help(format!(
+                                "Found `{}`",
+                                exploration.get_type(then.ty).unwrap()
+                            ))
+                            .with_tag(ObservationTag::InFault),
+                    );
                 if let Some(otherwise) = &otherwise {
                     diagnostic = diagnostic.with_observation(
                         Observation::new(otherwise.segment())
@@ -664,7 +664,7 @@ fn ascribe_continue_or_break(
                 source,
                 format!("`{kind_name}` must be declared inside a loop"),
             )
-            .with_observation(Observation::new(e.segment())),
+                .with_observation(Observation::new(e.segment())),
         );
     }
     TypedExpr {
@@ -791,16 +791,16 @@ mod tests {
                 SourceId(0),
                 "Type mismatch",
             )
-            .with_observation(
-                Observation::new(find_in(content, "Int"))
-                    .with_help("Expected `Int`")
-                    .with_tag(ObservationTag::Expected)
-            )
-            .with_observation(
-                Observation::new(find_in(content, "1.6"))
-                    .with_help("Found `Float`")
-                    .with_tag(ObservationTag::InFault)
-            )])
+                .with_observation(
+                    Observation::new(find_in(content, "Int"))
+                        .with_help("Expected `Int`")
+                        .with_tag(ObservationTag::Expected)
+                )
+                .with_observation(
+                    Observation::new(find_in(content, "1.6"))
+                        .with_help("Found `Float`")
+                        .with_tag(ObservationTag::InFault)
+                )])
         );
     }
 
@@ -815,11 +815,11 @@ mod tests {
                 SourceId(0),
                 "Unknown type",
             )
-            .with_observation(
-                Observation::new(find_in(content, "ABC"))
-                    .with_help("Not found in scope")
-                    .with_tag(ObservationTag::InFault)
-            )])
+                .with_observation(
+                    Observation::new(find_in(content, "ABC"))
+                        .with_help("Not found in scope")
+                        .with_tag(ObservationTag::InFault)
+                )])
         );
     }
 
@@ -846,16 +846,16 @@ mod tests {
                 SourceId(0),
                 "`if` and `else` have incompatible types",
             )
-            .with_observation(
-                Observation::new(find_in(content, "4.7"))
-                    .with_help("Found `Float`")
-                    .with_tag(ObservationTag::InFault)
-            )
-            .with_observation(
-                Observation::new(find_in(content, "{}"))
-                    .with_help("Found `Nothing`")
-                    .with_tag(ObservationTag::InFault)
-            )])
+                .with_observation(
+                    Observation::new(find_in(content, "4.7"))
+                        .with_help("Found `Float`")
+                        .with_tag(ObservationTag::InFault)
+                )
+                .with_observation(
+                    Observation::new(find_in(content, "{}"))
+                        .with_help("Found `Nothing`")
+                        .with_tag(ObservationTag::InFault)
+                )])
         );
     }
 
@@ -883,10 +883,10 @@ mod tests {
                 SourceId(0),
                 "This function takes 1 argument but 2 were supplied",
             )
-            .with_observation(
-                Observation::new(find_in(content, "square(9, 9)"))
-                    .with_help("Function is called here")
-            )])
+                .with_observation(
+                    Observation::new(find_in(content, "square(9, 9)"))
+                        .with_help("Function is called here")
+                )])
         );
     }
 
@@ -901,17 +901,17 @@ mod tests {
                 SourceId(0),
                 "Type mismatch",
             )
-            .with_observation(
-                Observation::new(find_in(content, "4"))
-                    .with_help("Expected `String`, found `Int`")
-                    .with_tag(ObservationTag::InFault)
-            )
-            .with_observation(
-                Observation::new(find_in(content, "str: String"))
-                    .with_help("Parameter is declared here")
-                    .within(SourceId(1))
-                    .with_tag(ObservationTag::Declaration)
-            )]),
+                .with_observation(
+                    Observation::new(find_in(content, "4"))
+                        .with_help("Expected `String`, found `Int`")
+                        .with_tag(ObservationTag::InFault)
+                )
+                .with_observation(
+                    Observation::new(find_in(content, "str: String"))
+                        .with_help("Parameter is declared here")
+                        .within(SourceId(1))
+                        .with_tag(ObservationTag::Declaration)
+                )]),
         );
     }
 
@@ -926,10 +926,10 @@ mod tests {
                 SourceId(0),
                 "Cannot invoke non function type",
             )
-            .with_observation(
-                Observation::new(find_in(content, "test()"))
-                    .with_help("Call expression requires function, found `Int`")
-            )])
+                .with_observation(
+                    Observation::new(find_in(content, "test()"))
+                        .with_help("Call expression requires function, found `Int`")
+                )])
         );
     }
 
@@ -944,21 +944,21 @@ mod tests {
                 SourceId(1),
                 "Type mismatch",
             )
-            .with_observation(
-                Observation::new(find_in(content, "Int"))
-                    .with_help("Expected `Int`")
-                    .with_tag(ObservationTag::Expected)
-            )
-            .with_observation(
-                Observation::new(find_in(content, "$a"))
-                    .with_help("Found `String`")
-                    .with_tag(ObservationTag::InFault)
-            )
-            .with_observation(
-                Observation::new(find_in(content, "a: String"))
-                    .with_help("in variable declared here")
-                    .with_tag(ObservationTag::Declaration)
-            )])
+                .with_observation(
+                    Observation::new(find_in(content, "Int"))
+                        .with_help("Expected `Int`")
+                        .with_tag(ObservationTag::Expected)
+                )
+                .with_observation(
+                    Observation::new(find_in(content, "$a"))
+                        .with_help("Found `String`")
+                        .with_tag(ObservationTag::InFault)
+                )
+                .with_observation(
+                    Observation::new(find_in(content, "a: String"))
+                        .with_help("in variable declared here")
+                        .with_tag(ObservationTag::Declaration)
+                )])
         );
     }
 
@@ -989,11 +989,11 @@ mod tests {
                 SourceId(1),
                 "Type mismatch",
             )
-            .with_observation(Observation::new(find_in(content, "0")).with_help("Found `Int`"))
-            .with_observation(
-                Observation::new(find_in(content, "String"))
-                    .with_help("Expected `String` because of return type")
-            )])
+                .with_observation(Observation::new(find_in(content, "0")).with_help("Found `Int`"))
+                .with_observation(
+                    Observation::new(find_in(content, "String"))
+                        .with_help("Expected `String` because of return type")
+                )])
         );
     }
 
@@ -1046,11 +1046,11 @@ mod tests {
                 SourceId(1),
                 "Return type inference is not supported yet",
             )
-            .with_observation(
-                Observation::new(find_in(content, "fun test(n: Float) = "))
-                    .with_help("No return type is specified"),
-            )
-            .with_help("Add -> Float to the function declaration")])
+                .with_observation(
+                    Observation::new(find_in(content, "fun test(n: Float) = "))
+                        .with_help("No return type is specified"),
+                )
+                .with_help("Add -> Float to the function declaration")])
         );
     }
 
@@ -1065,15 +1065,15 @@ mod tests {
                 SourceId(1),
                 "Return type is not inferred for block functions",
             )
-            .with_observation(
-                Observation::new(find_in(content, "return 0")).with_help("Returning `Int`")
-            )
-            .with_observation(
-                Observation::new(find_in(content, "$n")).with_help("Returning `Float`")
-            )
-            .with_help(
-                "Try adding an explicit return type to the function"
-            )])
+                .with_observation(
+                    Observation::new(find_in(content, "return 0")).with_help("Returning `Int`")
+                )
+                .with_observation(
+                    Observation::new(find_in(content, "$n")).with_help("Returning `Float`")
+                )
+                .with_help(
+                    "Try adding an explicit return type to the function"
+                )])
         );
     }
 
@@ -1088,13 +1088,13 @@ mod tests {
                 SourceId(1),
                 "Failed to infer return type",
             )
-            .with_observation(
-                Observation::new(find_in(content, "fun test() = if false; return 5; else {}"))
-                    .with_help("This function returns multiple types")
-            )
-            .with_help(
-                "Try adding an explicit return type to the function"
-            )])
+                .with_observation(
+                    Observation::new(find_in(content, "fun test() = if false; return 5; else {}"))
+                        .with_help("This function returns multiple types")
+                )
+                .with_help(
+                    "Try adding an explicit return type to the function"
+                )])
         );
     }
 }
