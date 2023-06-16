@@ -14,20 +14,22 @@ pub fn emit_conditional(
     emit(&conditional.condition, emitter, cp, state);
 
     emitter.emit_code(Opcode::IfJump);
-    let if_jump_placeholder = emitter.create_placeholder(size_of::<usize>());
-    let mut jump_placeholder = None;
+    let jump_to_then_placeholder = emitter.create_placeholder(size_of::<usize>());
+    //jump out of otherwise instructions
+    let mut jump_oo_otherwise_placeholder = None;
 
     if let Some(otherwise) = &conditional.otherwise {
         emit(otherwise, emitter, cp, state);
 
+        // then we jump out of the otherwise instruction
         emitter.emit_code(Opcode::Jump);
-        jump_placeholder = Some(emitter.create_placeholder(size_of::<usize>()));
+        jump_oo_otherwise_placeholder = Some(emitter.create_placeholder(size_of::<usize>()));
     }
 
-    emitter.fill_in_ip(if_jump_placeholder, emitter.current_frame_ip());
+    emitter.fill_in_ip(jump_to_then_placeholder, emitter.len());
     emit(&conditional.then, emitter, cp, state);
-    if let Some(jump_placeholder) = jump_placeholder {
-        emitter.fill_in_ip(jump_placeholder, emitter.current_frame_ip());
+    if let Some(jump_placeholder) = jump_oo_otherwise_placeholder {
+        emitter.fill_in_ip(jump_placeholder, emitter.len());
     }
 }
 
@@ -37,7 +39,7 @@ pub fn emit_loop(
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
-    let start_ip = emitter.current_frame_ip();
+    let start_ip = emitter.len();
 
     let mut loop_state = EmissionState::new();
     loop_state.enclosing_loop_start = start_ip;
@@ -53,7 +55,7 @@ pub fn emit_loop(
         emitter.emit_instruction_pointer(start_ip);
 
         // if condition is false, jump at end of loop
-        emitter.fill_in_ip(jump_placeholder, emitter.current_frame_ip());
+        emitter.fill_in_ip(jump_placeholder, emitter.len());
     } else {
         emit(&lp.body, emitter, cp, &mut loop_state);
         emitter.emit_code(Opcode::Jump);
@@ -61,7 +63,7 @@ pub fn emit_loop(
     }
 
     // fill break placeholders
-    let current_ip = emitter.current_frame_ip();
+    let current_ip = emitter.len();
     for placeholder in loop_state.enclosing_loop_end_placeholders {
         emitter.fill_in_ip(placeholder, current_ip)
     }

@@ -1,16 +1,20 @@
 use std::mem::size_of;
 
+/// holds bytecode and contains utility
+/// methods to help compiler write basic instructions
 #[derive(Default)]
 pub struct Bytecode {
     pub bytes: Vec<u8>,
 }
 
 impl Bytecode {
-    /// Returns the current byte instruction position in current frame
-    pub fn current_frame_ip(&self) -> usize {
-        // note: as call frames are not yet supported,
-        // this implementation returns the overall bytes length.
+    /// Returns the bytes count
+    pub fn len(&self) -> usize {
         self.bytes.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub fn emit_code(&mut self, code: Opcode) {
@@ -60,6 +64,7 @@ impl Bytecode {
     }
 }
 
+/// see vm's `Opcode` enum for more details
 #[repr(u8)]
 pub enum Opcode {
     PushInt,

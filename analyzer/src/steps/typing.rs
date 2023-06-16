@@ -1,11 +1,11 @@
 use ast::call::{Call, ProgrammaticCall};
 use ast::control_flow::If;
-use ast::Expr;
 use ast::function::FunctionDeclaration;
 use ast::group::Block;
 use ast::operation::BinaryOperation;
 use ast::value::{Literal, LiteralValue};
 use ast::variable::{VarDeclaration, VarReference};
+use ast::Expr;
 use context::source::SourceSegmentHolder;
 
 use crate::dependency::topological_sort;
@@ -14,14 +14,14 @@ use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::relations::{Relations, SourceId};
 use crate::steps::typing::exploration::Exploration;
-use crate::steps::typing::function::{infer_return, Return, type_call, type_parameter};
-use crate::types::{ERROR, FLOAT, INT, NOTHING, STRING, Typing};
+use crate::steps::typing::function::{infer_return, type_call, type_parameter, Return};
 use crate::types::ctx::TypeContext;
 use crate::types::engine::{Chunk, TypedEngine};
 use crate::types::hir::{
     Binary, Conditional, Declaration, ExprKind, FunctionCall, Loop, TypedExpr,
 };
 use crate::types::ty::Type;
+use crate::types::{Typing, ERROR, FLOAT, INT, NOTHING, STRING};
 
 mod exploration;
 mod function;
@@ -73,7 +73,7 @@ impl TypingState {
             source,
             local_type: false,
             in_loop: false,
-            literal_strings: false
+            literal_strings: false,
         }
     }
 
@@ -183,7 +183,7 @@ fn ascribe_literal(force_string: bool, lit: &Literal) -> TypedExpr {
             kind: ExprKind::Literal(LiteralValue::String(str)),
             ty: STRING,
             segment: lit.segment.clone(),
-        }
+        };
     }
     let ty = match lit.parsed {
         LiteralValue::Int(_) => INT,
@@ -197,12 +197,13 @@ fn ascribe_literal(force_string: bool, lit: &Literal) -> TypedExpr {
     }
 }
 
-fn ascribe_var_declaration(decl: &VarDeclaration,
-                           exploration: &mut Exploration,
-                           relations: &Relations,
-                           diagnostics: &mut Vec<Diagnostic>,
-                           env: &Environment,
-                           state: TypingState,
+fn ascribe_var_declaration(
+    decl: &VarDeclaration,
+    exploration: &mut Exploration,
+    relations: &Relations,
+    diagnostics: &mut Vec<Diagnostic>,
+    env: &Environment,
+    state: TypingState,
 ) -> TypedExpr {
     let initializer = decl
         .initializer
@@ -230,32 +231,31 @@ fn ascribe_var_declaration(decl: &VarDeclaration,
                     state.source,
                     "Unknown type annotation",
                 )
-                    .with_observation(
-                        Observation::with_help(type_annotation.segment(), "Not found in scope")
-                    ),
+                .with_observation(Observation::with_help(
+                    type_annotation.segment(),
+                    "Not found in scope",
+                )),
             );
         } else if initializer.ty.is_ok()
             && exploration
-            .typing
-            .unify(expected_type, initializer.ty)
-            .is_err()
+                .typing
+                .unify(expected_type, initializer.ty)
+                .is_err()
         {
             diagnostics.push(
                 Diagnostic::new(DiagnosticID::TypeMismatch, state.source, "Type mismatch")
-                    .with_observation(
-                        Observation::with_help(type_annotation.segment(),
-                                               format!(
-                                                   "Expected `{}`",
-                                                   exploration.get_type(expected_type).unwrap()
-                                               ))
-                    )
-                    .with_observation(
-                        Observation::with_help(initializer.segment(),
-                                               format!(
-                                                   "Found `{}`",
-                                                   exploration.get_type(initializer.ty).unwrap()
-                                               ))
-                    ));
+                    .with_observation(Observation::with_help(
+                        type_annotation.segment(),
+                        format!(
+                            "Expected `{}`",
+                            exploration.get_type(expected_type).unwrap()
+                        ),
+                    ))
+                    .with_observation(Observation::with_help(
+                        initializer.segment(),
+                        format!("Found `{}`", exploration.get_type(initializer.ty).unwrap()),
+                    )),
+            );
         }
     }
     TypedExpr {
@@ -268,12 +268,15 @@ fn ascribe_var_declaration(decl: &VarDeclaration,
     }
 }
 
-fn ascribe_var_reference(var: &VarReference, source: SourceId, env: &Environment, exploration: &Exploration, relations: &Relations) -> TypedExpr {
+fn ascribe_var_reference(
+    var: &VarReference,
+    source: SourceId,
+    env: &Environment,
+    exploration: &Exploration,
+    relations: &Relations,
+) -> TypedExpr {
     let symbol = env.get_raw_symbol(var.segment.clone()).unwrap();
-    let type_id = exploration
-        .ctx
-        .get(relations, source, symbol)
-        .unwrap();
+    let type_id = exploration.ctx.get(relations, source, symbol).unwrap();
     TypedExpr {
         kind: ExprKind::Reference(symbol),
         ty: type_id,
@@ -281,13 +284,14 @@ fn ascribe_var_reference(var: &VarReference, source: SourceId, env: &Environment
     }
 }
 
-
-fn ascribe_block(block: &Block,
-                 exploration: &mut Exploration,
-                 relations: &Relations,
-                 diagnostics: &mut Vec<Diagnostic>,
-                 env: &Environment,
-                 state: TypingState) -> TypedExpr {
+fn ascribe_block(
+    block: &Block,
+    exploration: &mut Exploration,
+    relations: &Relations,
+    diagnostics: &mut Vec<Diagnostic>,
+    env: &Environment,
+    state: TypingState,
+) -> TypedExpr {
     let mut expressions = Vec::with_capacity(block.expressions.len());
     if let Some((last, exprs)) = block.expressions.split_last() {
         for expr in exprs {
@@ -317,12 +321,14 @@ fn ascribe_block(block: &Block,
     }
 }
 
-fn ascribe_return(ret: &ast::function::Return,
-                  exploration: &mut Exploration,
-                  relations: &Relations,
-                  diagnostics: &mut Vec<Diagnostic>,
-                  env: &Environment,
-                  state: TypingState) -> TypedExpr {
+fn ascribe_return(
+    ret: &ast::function::Return,
+    exploration: &mut Exploration,
+    relations: &Relations,
+    diagnostics: &mut Vec<Diagnostic>,
+    env: &Environment,
+    state: TypingState,
+) -> TypedExpr {
     let expr = ret.expr.as_ref().map(|expr| {
         Box::new(ascribe_types(
             exploration,
@@ -344,8 +350,12 @@ fn ascribe_return(ret: &ast::function::Return,
     }
 }
 
-
-fn ascribe_function(fun: &FunctionDeclaration, source: SourceId, env: &Environment, exploration: &mut Exploration) -> TypedExpr {
+fn ascribe_function(
+    fun: &FunctionDeclaration,
+    source: SourceId,
+    env: &Environment,
+    exploration: &mut Exploration,
+) -> TypedExpr {
     let declaration = env.get_raw_env(fun.segment.clone()).unwrap();
     let type_id = exploration.typing.add_type(Type::Function(declaration));
     let local_id = exploration.ctx.push_local_type(source, type_id);
@@ -383,16 +393,16 @@ fn ascribe_function(fun: &FunctionDeclaration, source: SourceId, env: &Environme
     }
 }
 
-fn ascribe_binary(bin: &BinaryOperation,
-                  exploration: &mut Exploration,
-                  relations: &Relations,
-                  diagnostics: &mut Vec<Diagnostic>,
-                  env: &Environment,
-                  state: TypingState) -> TypedExpr {
-    let left_expr =
-        ascribe_types(exploration, relations, diagnostics, env, &bin.left, state);
-    let right_expr =
-        ascribe_types(exploration, relations, diagnostics, env, &bin.right, state);
+fn ascribe_binary(
+    bin: &BinaryOperation,
+    exploration: &mut Exploration,
+    relations: &Relations,
+    diagnostics: &mut Vec<Diagnostic>,
+    env: &Environment,
+    state: TypingState,
+) -> TypedExpr {
+    let left_expr = ascribe_types(exploration, relations, diagnostics, env, &bin.left, state);
+    let right_expr = ascribe_types(exploration, relations, diagnostics, env, &bin.right, state);
     let ty = exploration
         .typing
         .unify(left_expr.ty, right_expr.ty)
@@ -408,12 +418,14 @@ fn ascribe_binary(bin: &BinaryOperation,
     }
 }
 
-fn ascribe_if(i: &If,
-              exploration: &mut Exploration,
-              relations: &Relations,
-              diagnostics: &mut Vec<Diagnostic>,
-              env: &Environment,
-              state: TypingState) -> TypedExpr {
+fn ascribe_if(
+    i: &If,
+    exploration: &mut Exploration,
+    relations: &Relations,
+    diagnostics: &mut Vec<Diagnostic>,
+    env: &Environment,
+    state: TypingState,
+) -> TypedExpr {
     let condition = ascribe_types(
         exploration,
         relations,
@@ -452,15 +464,15 @@ fn ascribe_if(i: &If,
                     state.source,
                     "`if` and `else` have incompatible types",
                 )
-                    .with_observation(
-                        Observation::with_help(i.success_branch.segment(),
-                                               format!("Found `{}`", exploration.get_type(then.ty).unwrap()))
-                    );
+                .with_observation(Observation::with_help(
+                    i.success_branch.segment(),
+                    format!("Found `{}`", exploration.get_type(then.ty).unwrap()),
+                ));
                 if let Some(otherwise) = &otherwise {
-                    diagnostic = diagnostic.with_observation(
-                        Observation::with_help(otherwise.segment(),
-                                               format!("Found `{}`", exploration.get_type(otherwise.ty).unwrap()))
-                    );
+                    diagnostic = diagnostic.with_observation(Observation::with_help(
+                        otherwise.segment(),
+                        format!("Found `{}`", exploration.get_type(otherwise.ty).unwrap()),
+                    ));
                 }
                 diagnostics.push(diagnostic);
                 ERROR
@@ -480,16 +492,27 @@ fn ascribe_if(i: &If,
     }
 }
 
-fn ascribe_call(call: &Call,
-                exploration: &mut Exploration,
-                relations: &Relations,
-                diagnostics: &mut Vec<Diagnostic>,
-                env: &Environment,
-                state: TypingState) -> TypedExpr {
+fn ascribe_call(
+    call: &Call,
+    exploration: &mut Exploration,
+    relations: &Relations,
+    diagnostics: &mut Vec<Diagnostic>,
+    env: &Environment,
+    state: TypingState,
+) -> TypedExpr {
     let args = call
         .arguments
         .iter()
-        .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state.with_literal_strings()))
+        .map(|expr| {
+            ascribe_types(
+                exploration,
+                relations,
+                diagnostics,
+                env,
+                expr,
+                state.with_literal_strings(),
+            )
+        })
         .collect::<Vec<_>>();
 
     let ty = if state.local_type { INT } else { NOTHING };
@@ -500,12 +523,14 @@ fn ascribe_call(call: &Call,
     }
 }
 
-fn ascribe_pfc(call: &ProgrammaticCall,
-               exploration: &mut Exploration,
-               relations: &Relations,
-               diagnostics: &mut Vec<Diagnostic>,
-               env: &Environment,
-               state: TypingState) -> TypedExpr {
+fn ascribe_pfc(
+    call: &ProgrammaticCall,
+    exploration: &mut Exploration,
+    relations: &Relations,
+    diagnostics: &mut Vec<Diagnostic>,
+    env: &Environment,
+    state: TypingState,
+) -> TypedExpr {
     let arguments = call
         .arguments
         .iter()
@@ -531,12 +556,14 @@ fn ascribe_pfc(call: &ProgrammaticCall,
     }
 }
 
-fn ascribe_loop(loo: &Expr,
-                exploration: &mut Exploration,
-                relations: &Relations,
-                diagnostics: &mut Vec<Diagnostic>,
-                env: &Environment,
-                state: TypingState) -> TypedExpr {
+fn ascribe_loop(
+    loo: &Expr,
+    exploration: &mut Exploration,
+    relations: &Relations,
+    diagnostics: &mut Vec<Diagnostic>,
+    env: &Environment,
+    state: TypingState,
+) -> TypedExpr {
     let (condition, body) = match loo {
         Expr::While(w) => (
             Some(ascribe_types(
@@ -571,7 +598,12 @@ fn ascribe_loop(loo: &Expr,
     }
 }
 
-fn ascribe_continue_or_break(e: &Expr, diagnostics: &mut Vec<Diagnostic>, source: SourceId, in_loop: bool) -> TypedExpr {
+fn ascribe_continue_or_break(
+    e: &Expr,
+    diagnostics: &mut Vec<Diagnostic>,
+    source: SourceId,
+    in_loop: bool,
+) -> TypedExpr {
     let (kind, kind_name) = match e {
         Expr::Continue(_) => (ExprKind::Continue, "continue"),
         Expr::Break(_) => (ExprKind::Break, "break"),
@@ -584,7 +616,7 @@ fn ascribe_continue_or_break(e: &Expr, diagnostics: &mut Vec<Diagnostic>, source
                 source,
                 format!("`{kind_name}` must be declared inside a loop"),
             )
-                .with_observation(Observation::new(e.segment())),
+            .with_observation(Observation::new(e.segment())),
         );
     }
     TypedExpr {
@@ -606,39 +638,30 @@ fn ascribe_types(
     state: TypingState,
 ) -> TypedExpr {
     match expr {
-        Expr::Literal(lit) => {
-            ascribe_literal(state.literal_strings, lit)
-        },
+        Expr::FunctionDeclaration(fd) => ascribe_function(fd, state.source, env, exploration),
+        Expr::Literal(lit) => ascribe_literal(state.literal_strings, lit),
         Expr::VarDeclaration(decl) => {
             ascribe_var_declaration(decl, exploration, relations, diagnostics, env, state)
-        },
+        }
         Expr::VarReference(var) => {
             ascribe_var_reference(var, state.source, env, exploration, relations)
-        },
-        Expr::Block(block) => {
-            ascribe_block(block, exploration, relations, diagnostics, env, state)
-        },
-        Expr::Return(ret) => {
-            ascribe_return(ret, exploration, relations, diagnostics, env, state)
-        },
-        Expr::Parenthesis(paren) => {
-            ascribe_types(exploration, relations, diagnostics, env, &paren.expression, state)
-        },
-        Expr::FunctionDeclaration(fun) => {
-            ascribe_function(fun, state.source, env, exploration)
         }
-        Expr::Binary(bin) => {
-            ascribe_binary(bin, exploration, relations, diagnostics, env, state)
-        }
-        Expr::If(block) => {
-            ascribe_if(block, exploration, relations, diagnostics, env, state)
-        }
-        Expr::Call(call) => {
-            ascribe_call(call, exploration, relations, diagnostics, env, state)
-        },
+        Expr::If(block) => ascribe_if(block, exploration, relations, diagnostics, env, state),
+        Expr::Call(call) => ascribe_call(call, exploration, relations, diagnostics, env, state),
         Expr::ProgrammaticCall(call) => {
             ascribe_pfc(call, exploration, relations, diagnostics, env, state)
         }
+        Expr::Block(b) => ascribe_block(b, exploration, relations, diagnostics, env, state),
+        Expr::Return(r) => ascribe_return(r, exploration, relations, diagnostics, env, state),
+        Expr::Parenthesis(paren) => ascribe_types(
+            exploration,
+            relations,
+            diagnostics,
+            env,
+            &paren.expression,
+            state,
+        ),
+        Expr::Binary(bo) => ascribe_binary(bo, exploration, relations, diagnostics, env, state),
         e @ (Expr::While(_) | Expr::Loop(_)) => {
             ascribe_loop(e, exploration, relations, diagnostics, env, state)
         }
@@ -711,9 +734,14 @@ mod tests {
                 SourceId(0),
                 "Type mismatch",
             )
-                .with_observation(Observation::with_help(find_in(content, "Int"), "Expected `Int`"))
-                .with_observation(Observation::with_help(find_in(content, "1.6"), "Found `Float`"))
-            ])
+            .with_observation(Observation::with_help(
+                find_in(content, "Int"),
+                "Expected `Int`",
+            ))
+            .with_observation(Observation::with_help(
+                find_in(content, "1.6"),
+                "Found `Float`",
+            ))])
         );
     }
 
@@ -728,9 +756,10 @@ mod tests {
                 SourceId(0),
                 "Unknown type annotation",
             )
-                .with_observation(
-                    Observation::with_help(find_in(content, "ABC"), "Not found in scope")
-                )])
+            .with_observation(Observation::with_help(
+                find_in(content, "ABC"),
+                "Not found in scope",
+            ))])
         );
     }
 
@@ -757,10 +786,14 @@ mod tests {
                 SourceId(0),
                 "`if` and `else` have incompatible types",
             )
-                .with_observation(Observation::with_help(find_in(content, "4.7"), "Found `Float`"))
-                .with_observation(
-                    Observation::with_help(find_in(content, "{}"), "Found `Nothing`")
-                )])
+            .with_observation(Observation::with_help(
+                find_in(content, "4.7"),
+                "Found `Float`",
+            ))
+            .with_observation(Observation::with_help(
+                find_in(content, "{}"),
+                "Found `Nothing`",
+            ))])
         );
     }
 
@@ -788,9 +821,10 @@ mod tests {
                 SourceId(0),
                 "This function takes 1 argument but 2 were supplied",
             )
-                .with_observation(
-                    Observation::with_help(find_in(content, "square(9, 9)"), "Function is called here")
-                )])
+            .with_observation(Observation::with_help(
+                find_in(content, "square(9, 9)"),
+                "Function is called here",
+            ))])
         );
     }
 
@@ -805,12 +839,14 @@ mod tests {
                 SourceId(0),
                 "Type mismatch",
             )
-                .with_observation(
-                    Observation::with_help(find_in(content, "4"), "Expected `String`, found `Int`")
-                )
-                .with_observation(
-                    Observation::with_help(find_in(content, "str: String"), "Parameter is declared here")
-                )]),
+            .with_observation(Observation::with_help(
+                find_in(content, "4"),
+                "Expected `String`, found `Int`",
+            ))
+            .with_observation(Observation::with_help(
+                find_in(content, "str: String"),
+                "Parameter is declared here",
+            ))]),
         );
     }
 
@@ -825,9 +861,10 @@ mod tests {
                 SourceId(0),
                 "Cannot invoke non function type",
             )
-                .with_observation(
-                    Observation::with_help(find_in(content, "test()"), "Call expression requires function, found `Int`")
-                )])
+            .with_observation(Observation::with_help(
+                find_in(content, "test()"),
+                "Call expression requires function, found `Int`",
+            ))])
         );
     }
 
@@ -842,9 +879,14 @@ mod tests {
                 SourceId(1),
                 "Type mismatch",
             )
-                .with_observation(Observation::with_help(find_in(content, "Int"), "Expected `Int`"))
-                .with_observation(Observation::with_help(find_in(content, "$a"), "Found `String`"))
-                ])
+            .with_observation(Observation::with_help(
+                find_in(content, "Int"),
+                "Expected `Int`",
+            ))
+            .with_observation(Observation::with_help(
+                find_in(content, "$a"),
+                "Found `String`",
+            ))])
         );
     }
 
@@ -875,10 +917,11 @@ mod tests {
                 SourceId(1),
                 "Type mismatch",
             )
-                .with_observation(Observation::with_help(find_in(content, "0"), "Found `Int`"))
-                .with_observation(
-                    Observation::with_help(find_in(content, "String"), "Expected `String` because of return type")
-                )])
+            .with_observation(Observation::with_help(find_in(content, "0"), "Found `Int`"))
+            .with_observation(Observation::with_help(
+                find_in(content, "String"),
+                "Expected `String` because of return type",
+            ))])
         );
     }
 
@@ -900,19 +943,21 @@ mod tests {
     fn explicit_invalid_return() {
         let content = "fun some() -> String = {if true; return {}; 9}";
         let res = extract_type(Source::unknown(content));
-        let return_observation = Observation::with_help(find_in(content, "String"), "Expected `String` because of return type");
+        let return_observation = Observation::with_help(
+            find_in(content, "String"),
+            "Expected `String` because of return type",
+        );
         assert_eq!(
             res,
             Err(vec![
                 Diagnostic::new(DiagnosticID::TypeMismatch, SourceId(1), "Type mismatch")
-                    .with_observation(
-                        Observation::with_help(find_in(content, "return {}"), "Found `Nothing`")
-                    )
+                    .with_observation(Observation::with_help(
+                        find_in(content, "return {}"),
+                        "Found `Nothing`",
+                    ))
                     .with_observation(return_observation.clone()),
                 Diagnostic::new(DiagnosticID::TypeMismatch, SourceId(1), "Type mismatch")
-                    .with_observation(
-                        Observation::with_help(find_in(content, "9"), "Found `Int`")
-                    )
+                    .with_observation(Observation::with_help(find_in(content, "9"), "Found `Int`"))
                     .with_observation(return_observation),
             ])
         );
@@ -929,10 +974,11 @@ mod tests {
                 SourceId(1),
                 "Return type inference is not supported yet",
             )
-                .with_observation(
-                    Observation::with_help(find_in(content, "fun test(n: Float) = "), "No return type is specified"),
-                )
-                .with_help("Add -> Float to the function declaration")])
+            .with_observation(Observation::with_help(
+                find_in(content, "fun test(n: Float) = "),
+                "No return type is specified",
+            ),)
+            .with_help("Add -> Float to the function declaration")])
         );
     }
 
@@ -947,15 +993,17 @@ mod tests {
                 SourceId(1),
                 "Return type is not inferred for block functions",
             )
-                .with_observation(
-                    Observation::with_help(find_in(content, "return 0"), "Returning `Int`")
-                )
-                .with_observation(
-                    Observation::with_help(find_in(content, "$n"), "Returning `Float`")
-                )
-                .with_help(
-                    "Try adding an explicit return type to the function"
-                )])
+            .with_observation(Observation::with_help(
+                find_in(content, "return 0"),
+                "Returning `Int`",
+            ))
+            .with_observation(Observation::with_help(
+                find_in(content, "$n"),
+                "Returning `Float`",
+            ))
+            .with_help(
+                "Try adding an explicit return type to the function"
+            )])
         );
     }
 
@@ -970,12 +1018,13 @@ mod tests {
                 SourceId(1),
                 "Failed to infer return type",
             )
-                .with_observation(
-                    Observation::with_help(find_in(content, "fun test() = if false; return 5; else {}"), "This function returns multiple types")
-                )
-                .with_help(
-                    "Try adding an explicit return type to the function"
-                )])
+            .with_observation(Observation::with_help(
+                find_in(content, "fun test() = if false; return 5; else {}"),
+                "This function returns multiple types",
+            ))
+            .with_help(
+                "Try adding an explicit return type to the function"
+            )])
         );
     }
 }
