@@ -1,8 +1,5 @@
 use std::fmt::Debug;
 
-#[cfg(feature = "miette")]
-use miette::{MietteError, MietteSpanContents, SourceCode, SourceSpan, SpanContents};
-
 pub type SourceSegment = std::ops::Range<usize>;
 
 pub trait SourceSegmentHolder {
@@ -39,28 +36,6 @@ impl<'a> Source<'a> {
     /// Tests if the source is empty.
     pub fn is_empty(&self) -> bool {
         self.source.is_empty()
-    }
-}
-
-#[cfg(feature = "miette")]
-impl<'b> SourceCode for Source<'b> {
-    fn read_span<'a>(
-        &'a self,
-        span: &SourceSpan,
-        context_lines_before: usize,
-        context_lines_after: usize,
-    ) -> Result<Box<dyn SpanContents<'a> + 'a>, MietteError> {
-        let contents = self
-            .source
-            .read_span(span, context_lines_before, context_lines_after)?;
-        Ok(Box::new(MietteSpanContents::new_named(
-            self.name.to_owned(),
-            contents.data(),
-            *contents.span(),
-            contents.line(),
-            contents.column(),
-            contents.line_count(),
-        )))
     }
 }
 

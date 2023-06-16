@@ -5,7 +5,7 @@ use std::ops::Add;
 
 use analyzer::diagnostic::ObservationTag;
 use analyzer::relations::SourceId;
-use ariadne::{Cache, Color, ColorGenerator, Config, Fmt, Label, Report, ReportKind};
+use ariadne::{Cache, Color, ColorGenerator, Config, Label, Report, ReportKind};
 use regex::Regex;
 use yansi::Paint;
 
@@ -125,7 +125,6 @@ fn colorize_message(msg: String, color: Color) -> String {
 
     let mut color_msg = String::new();
 
-
     for cap in regex.captures_iter(&msg) {
         if let Some(mach) = cap.get(1) {
             let start = mach.start();
@@ -138,9 +137,7 @@ fn colorize_message(msg: String, color: Color) -> String {
             last = end;
         }
     }
-    color_msg
-        .add(&msg[last..])
-        .to_string()
+    color_msg.add(&msg[last..])
 }
 
 struct CacheMap<'a> {
