@@ -2,6 +2,7 @@
 
 use ariadne::{Color, StdoutFmt};
 use std::ops::Deref;
+use std::path::{PathBuf};
 use std::process::exit;
 
 use clap::Parser;
@@ -22,28 +23,35 @@ fn main() {
 
     let config = Configuration::from(cli.clone());
 
+    let working_dir = update_working_dir(cli.working_dir);
+
     if let Some(source) = cli.source {
-        let current_dir =
-            std::env::current_dir().expect("Unable to retrieve current working directory.");
-
-        let mut working_dir = cli.working_dir.unwrap_or(current_dir.clone());
-        if !working_dir.is_absolute() {
-            let mut absolute_wd = current_dir;
-            absolute_wd.push(working_dir);
-            working_dir = absolute_wd;
-        }
-
-        if !working_dir.exists() {
-            eprintln!(
-                "working directory {} does not exists",
-                working_dir.to_string_lossy().deref()
-            );
-            exit(1);
-        }
-
         exit(run(source, working_dir, config) as i32)
     }
     repl(config);
+}
+
+fn update_working_dir(working_dir: Option<PathBuf>) -> PathBuf {
+    let current_dir =
+        std::env::current_dir().expect("Unable to retrieve current working directory.");
+
+    let mut working_dir = working_dir.unwrap_or(current_dir.clone());
+    if !working_dir.is_absolute() {
+        let mut absolute_wd = current_dir;
+        absolute_wd.push(working_dir);
+        working_dir = absolute_wd;
+    }
+
+    if !working_dir.exists() {
+        eprintln!(
+            "working directory {} does not exists",
+            working_dir.to_string_lossy().deref()
+        );
+        exit(1);
+    }
+
+    std::env::set_current_dir(working_dir.clone()).expect("could not set current dir");
+    working_dir
 }
 
 /// https://github.com/zesterer/ariadne/issues/51
