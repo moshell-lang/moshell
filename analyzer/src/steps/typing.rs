@@ -2,7 +2,7 @@ use crate::dependency::topological_sort;
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::environment::Environment;
-use crate::relations::{Relations, SourceId};
+use crate::relations::{Definition, Relations, SourceId};
 use crate::steps::typing::coercion::{check_type_annotation, unify_and_map};
 use crate::steps::typing::exploration::{diagnose_unknown_type, Exploration};
 use crate::steps::typing::function::{
@@ -16,7 +16,7 @@ use crate::types::hir::{
     TypedExpr,
 };
 use crate::types::operator::name_operator_method;
-use crate::types::ty::{Definition, Type};
+use crate::types::ty::Type;
 use crate::types::{Typing, BOOL, ERROR, EXIT_CODE, FLOAT, INT, NOTHING, STRING};
 use ast::call::{Call, ProgrammaticCall};
 use ast::control_flow::If;
@@ -202,7 +202,7 @@ fn ascribe_template_string(
     });
     let acc = it.next().unwrap();
     it.fold(acc, |acc, current| {
-        let segment = acc.segment.start..current.segment.end;
+        let segment = current.segment.clone();
         TypedExpr {
             kind: ExprKind::MethodCall(MethodCall {
                 callee: Box::new(acc),
@@ -1505,7 +1505,7 @@ mod tests {
                                     segment: find_in_nth(content, "$n", 1),
                                 }),
                                 arguments: vec![],
-                                definition: Definition::Native(NativeId(11)),
+                                definition: Definition::Native(NativeId(13)),
                             }),
                             ty: STRING,
                             segment: find_in_nth(content, "$n", 1),
@@ -1518,7 +1518,7 @@ mod tests {
                                     segment: find_in(content, "4.2"),
                                 }),
                                 arguments: vec![],
-                                definition: Definition::Native(NativeId(12)),
+                                definition: Definition::Native(NativeId(14)),
                             }),
                             ty: STRING,
                             segment: find_in(content, "4.2"),

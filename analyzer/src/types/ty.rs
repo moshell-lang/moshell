@@ -1,4 +1,4 @@
-use crate::relations::{NativeId, ObjectId, SourceId};
+use crate::relations::{Definition, NativeId, ObjectId, SourceId};
 use crate::types::hir::TypeId;
 use context::source::SourceSegment;
 use std::collections::HashMap;
@@ -37,16 +37,6 @@ pub enum Type {
 
     /// A callable type, that have a separate definition.
     Function(Definition),
-}
-
-/// A type identifier in a [`TypedEngine`].
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Definition {
-    /// A block of code, defined by the user.
-    User(SourceId),
-
-    /// A native function, that is defined in the VM.
-    Native(NativeId),
 }
 
 impl Definition {

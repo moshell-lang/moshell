@@ -1,11 +1,11 @@
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
-use crate::relations::{Relations, SourceId, Symbol};
+use crate::relations::{Definition, Relations, SourceId, Symbol};
 use crate::steps::typing::coercion::unify_and_map;
 use crate::steps::typing::exploration::Exploration;
 use crate::steps::typing::TypingState;
 use crate::types::ctx::TypeContext;
 use crate::types::hir::{ExprKind, TypeId, TypedExpr};
-use crate::types::ty::{Definition, FunctionType, MethodType, Parameter, Type};
+use crate::types::ty::{FunctionType, MethodType, Parameter, Type};
 use crate::types::{Typing, ERROR, NOTHING, STRING};
 use ast::call::{MethodCall, ProgrammaticCall};
 use ast::function::{FunctionDeclaration, FunctionParameter};

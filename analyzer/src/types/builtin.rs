@@ -46,7 +46,7 @@ pub fn lang(engine: &mut TypedEngine) {
             MethodType::native(vec![FLOAT], FLOAT, gen.next()),
         );
     }
-    for stringify in [INT, FLOAT] {
+    for stringify in [BOOL, EXIT_CODE, INT, FLOAT] {
         engine.add_method(
             stringify,
             "to_string",

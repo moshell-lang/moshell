@@ -1,5 +1,4 @@
-use crate::relations::{LocalId, ObjectId, Symbol};
-use crate::types::ty::Definition;
+use crate::relations::{Definition, LocalId, ObjectId, Symbol};
 use crate::types::{ERROR, NOTHING};
 use ast::value::LiteralValue;
 use context::source::{SourceSegment, SourceSegmentHolder};

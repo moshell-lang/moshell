@@ -14,6 +14,7 @@ use crate::engine::Engine;
 /// - [`RelationId`] points to a relation in [`Relation`].
 /// - [`SourceId`] points to a source in [`Engine`], sources are a root AST expression bound to an [`Environment`].
 /// - [`LocalId`] points to a local object in an environment's [`crate::environment::variables::Variables`].
+/// - [`NativeId`] refers to an intrinsic function or method.
 /// - [`crate::types::TypeId`] points to a type registered in [`Typing`]
 ///
 /// Some main structures are based on object identifiers
@@ -41,11 +42,24 @@ pub struct NativeId(pub ObjectId);
 /// An indication where an object is located.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Symbol {
-    /// A local object, referenced by its index in the [`crate::environment::Environment`] it is defined in.
+    /// A local object, referenced by its index in the [`Environment`] it is defined in.
     Local(LocalId),
 
     /// An external symbol, where the relation is contained in the [`Resolver`].
     External(RelationId),
+}
+
+/// A identifier in an engine.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Definition {
+    /// A block of code, defined by the user.
+    User(SourceId),
+
+    /// A native function, that is defined in the VM.
+    ///
+    /// It can also have a special treatment in the compiler, but it is abstracted away
+    /// during the analysis.
+    Native(NativeId),
 }
 
 impl From<RelationId> for Symbol {

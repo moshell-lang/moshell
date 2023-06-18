@@ -1,7 +1,7 @@
-use crate::relations::SourceId;
+use crate::relations::{Definition, SourceId};
 use crate::types::builtin::lang;
 use crate::types::hir::{TypeId, TypedExpr};
-use crate::types::ty::{Definition, FunctionType, MethodType, Parameter, TypeDescription};
+use crate::types::ty::{FunctionType, MethodType, Parameter, TypeDescription};
 use crate::types::NOTHING;
 
 /// A typed [`crate::engine::Engine`].
