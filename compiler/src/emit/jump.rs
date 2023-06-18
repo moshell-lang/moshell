@@ -1,6 +1,5 @@
 use analyzer::types::hir::{Conditional, Loop};
 use analyzer::types::INT;
-use std::mem::size_of;
 
 use crate::bytecode::{Bytecode, Opcode};
 use crate::constant_pool::ConstantPool;
@@ -66,7 +65,7 @@ pub fn emit_loop(
     // Evaluate the loop body.
     emit(&lp.body, emitter, cp, &mut loop_state);
     // Go to START.
-    emitter.emit_loop(loop_start);
+    emitter.jump_back_to(loop_start);
     // END:
     for jump_to_end in &loop_state.enclosing_loop_end_placeholders {
         emitter.patch_jump(*jump_to_end);

@@ -76,6 +76,12 @@ impl Bytecode {
         self.fill_in_ip(offset_idx, ip);
     }
 
+    /// Emits a jump instruction to the given instruction pointer.
+    pub fn jump_back_to(&mut self, start_idx: usize) {
+        self.emit_code(Opcode::Jump);
+        self.emit_instruction_pointer(start_idx);
+    }
+
     pub fn extend(&mut self, bytecode: Bytecode) {
         self.bytes.extend(bytecode.bytes);
     }
@@ -83,6 +89,11 @@ impl Bytecode {
     /// Fills an instruction pointer at given instruction pointer in the byte array
     pub fn fill_in_ip(&mut self, ip_dest: usize, ip: usize) {
         self.bytes[ip_dest..ip_dest + size_of::<usize>()].copy_from_slice(&ip.to_be_bytes())
+    }
+
+    /// Returns the current instruction pointer
+    pub fn current_ip(&self) -> usize {
+        self.len()
     }
 }
 
