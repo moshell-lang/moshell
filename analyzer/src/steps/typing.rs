@@ -12,8 +12,8 @@ use crate::steps::typing::lower::convert_into_string;
 use crate::types::ctx::{TypeContext, TypedVariable};
 use crate::types::engine::{Chunk, TypedEngine};
 use crate::types::hir::{
-    Assignment, Binary, Conditional, Convert, Declaration, ExprKind, FunctionCall, Loop,
-    MethodCall, TypedExpr,
+    Assignment, Conditional, Convert, Declaration, ExprKind, FunctionCall, Loop, MethodCall,
+    TypedExpr,
 };
 use crate::types::operator::name_operator_method;
 use crate::types::ty::{Definition, Type};
@@ -516,10 +516,12 @@ fn ascribe_binary(
         }
     };
     TypedExpr {
-        kind: ExprKind::Binary(Binary {
-            lhs: Box::new(left_expr),
-            op: bin.op,
-            rhs: Box::new(right_expr),
+        kind: ExprKind::MethodCall(MethodCall {
+            callee: Box::new(left_expr),
+            arguments: vec![right_expr],
+            definition: method
+                .map(|method| method.definition)
+                .unwrap_or(Definition::error()),
         }),
         ty,
         segment: bin.segment(),
@@ -1440,7 +1442,7 @@ mod tests {
 
     #[test]
     fn conversions() {
-        let content = "val n = 75;val j = $n as Float\ngrep $n 4.2";
+        let content = "val n = 75 + 1;val j = $n as Float\ngrep $n 4.2";
         let res = extract_expr(Source::unknown(content));
         assert_eq!(
             res,
@@ -1449,13 +1451,25 @@ mod tests {
                     kind: ExprKind::Declare(Declaration {
                         identifier: LocalId(0),
                         value: Some(Box::new(TypedExpr {
-                            kind: ExprKind::Literal(75.into()),
+                            kind: ExprKind::MethodCall(MethodCall {
+                                callee: Box::new(TypedExpr {
+                                    kind: ExprKind::Literal(75.into()),
+                                    ty: INT,
+                                    segment: find_in(content, "75"),
+                                }),
+                                arguments: vec![TypedExpr {
+                                    kind: ExprKind::Literal(1.into()),
+                                    ty: INT,
+                                    segment: find_in(content, "1"),
+                                }],
+                                definition: Definition::Native(NativeId(1)),
+                            }),
                             ty: INT,
-                            segment: find_in(content, "75"),
+                            segment: find_in(content, "75 + 1"),
                         })),
                     }),
                     ty: NOTHING,
-                    segment: find_in(content, "val n = 75"),
+                    segment: find_in(content, "val n = 75 + 1"),
                 },
                 TypedExpr {
                     kind: ExprKind::Declare(Declaration {

@@ -1,7 +1,6 @@
 use crate::relations::{LocalId, ObjectId, Symbol};
 use crate::types::ty::Definition;
 use crate::types::{ERROR, NOTHING};
-use ast::operation::BinaryOperator;
 use ast::value::LiteralValue;
 use context::source::{SourceSegment, SourceSegmentHolder};
 
@@ -54,13 +53,6 @@ pub struct Declaration {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Binary {
-    pub lhs: Box<TypedExpr>,
-    pub op: BinaryOperator,
-    pub rhs: Box<TypedExpr>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
 pub struct Conditional {
     pub condition: Box<TypedExpr>,
     pub then: Box<TypedExpr>,
@@ -99,7 +91,6 @@ pub enum ExprKind {
     Assign(Assignment),
     Declare(Declaration),
     Reference(Symbol),
-    Binary(Binary),
     Block(Vec<TypedExpr>),
     Conditional(Conditional),
     ConditionalLoop(Loop),
