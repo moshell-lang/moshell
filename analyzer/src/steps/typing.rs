@@ -30,7 +30,7 @@ pub fn apply_types(
     engine: &Engine,
     relations: &Relations,
     diagnostics: &mut Vec<Diagnostic>,
-) -> TypedEngine {
+) -> (TypedEngine, Typing) {
     let environments = topological_sort(&relations.as_dependencies(engine));
     let mut exploration = Exploration {
         engine: TypedEngine::new(engine.len()),
@@ -48,7 +48,7 @@ pub fn apply_types(
         );
         exploration.engine.insert(env_id, entry);
     }
-    exploration.engine
+    (exploration.engine, exploration.typing)
 }
 
 /// A state holder, used to informs the type checker about what should be
@@ -309,7 +309,7 @@ fn ascribe_return(
     }
 }
 
-fn ascribe_function(
+fn ascribe_function_declaration(
     fun: &FunctionDeclaration,
     source: SourceId,
     env: &Environment,
@@ -588,7 +588,7 @@ fn ascribe_types(
     state: TypingState,
 ) -> TypedExpr {
     match expr {
-        Expr::FunctionDeclaration(fd) => ascribe_function(fd, state.source, env, exploration),
+        Expr::FunctionDeclaration(fd) => ascribe_function_declaration(fd, state.source, env, exploration),
         Expr::Literal(lit) => ascribe_literal(lit),
         Expr::VarDeclaration(decl) => {
             ascribe_var_declaration(decl, exploration, relations, diagnostics, env, state)
@@ -647,7 +647,7 @@ mod tests {
         );
         let mut diagnostics = result.diagnostics;
         assert_eq!(diagnostics, vec![]);
-        let typed = apply_types(&result.engine, &result.relations, &mut diagnostics);
+        let (typed, _) = apply_types(&result.engine, &result.relations, &mut diagnostics);
         let expr = typed.get(SourceId(0)).unwrap();
         if !diagnostics.is_empty() {
             return Err(diagnostics);

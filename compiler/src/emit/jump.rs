@@ -1,45 +1,47 @@
 use analyzer::types::hir::{Conditional, Loop};
-use analyzer::types::INT;
+use analyzer::types::{INT, Typing};
 
-use crate::bytecode::{Bytecode, Opcode};
+use crate::bytecode::{Instructions, Opcode};
 use crate::constant_pool::ConstantPool;
 use crate::emit::{emit, EmissionState};
 
 pub fn emit_conditional(
     conditional: &Conditional,
-    emitter: &mut Bytecode,
+    instructions: &mut Instructions,
+    typing: &Typing,
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
-    emit(&conditional.condition, emitter, cp, state);
+    emit(&conditional.condition, instructions, typing, cp, state);
 
     if conditional.condition.ty == INT {
-        emitter.emit_code(Opcode::ConvertIntToByte);
-        emitter.emit_byte(1);
-        emitter.emit_code(Opcode::BXor);
+        instructions.emit_code(Opcode::ConvertIntToByte);
+        instructions.emit_push_byte(1);
+        instructions.emit_code(Opcode::BXor);
     }
 
     // If the condition is false, go to ELSE.
-    let jump_to_else = emitter.emit_jump(Opcode::IfNotJump);
+    let jump_to_else = instructions.emit_jump(Opcode::IfNotJump);
     // Evaluate the if branch.
-    emit(&conditional.then, emitter, cp, state);
+    emit(&conditional.then, instructions, typing,cp, state);
 
     // Go to END.
-    let jump_to_end = emitter.emit_jump(Opcode::Jump);
+    let jump_to_end = instructions.emit_jump(Opcode::Jump);
 
     // ELSE:
-    emitter.patch_jump(jump_to_else);
+    instructions.patch_jump(jump_to_else);
     if let Some(otherwise) = &conditional.otherwise {
-        emit(otherwise, emitter, cp, state);
+        emit(otherwise, instructions, typing,cp, state);
     }
 
     // END:
-    emitter.patch_jump(jump_to_end);
+    instructions.patch_jump(jump_to_end);
 }
 
 pub fn emit_loop(
     lp: &Loop,
-    emitter: &mut Bytecode,
+    emitter: &mut Instructions,
+    typing: &Typing,
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
@@ -49,10 +51,10 @@ pub fn emit_loop(
 
     if let Some(condition) = &lp.condition {
         // Evaluate the condition.
-        emit(condition, emitter, cp, state);
+        emit(condition, emitter, typing, cp, state);
         if condition.ty == INT {
             emitter.emit_code(Opcode::ConvertIntToByte);
-            emitter.emit_byte(1);
+            emitter.emit_push_byte(1);
             emitter.emit_code(Opcode::BXor);
         }
         // If the condition is false, go to END.
@@ -63,7 +65,7 @@ pub fn emit_loop(
     loop_state.enclosing_loop_start = loop_start;
 
     // Evaluate the loop body.
-    emit(&lp.body, emitter, cp, &mut loop_state);
+    emit(&lp.body, emitter, typing, cp, &mut loop_state);
     // Go to START.
     emitter.jump_back_to(loop_start);
     // END:
@@ -72,12 +74,12 @@ pub fn emit_loop(
     }
 }
 
-pub fn emit_continue(emitter: &mut Bytecode, state: &mut EmissionState) {
+pub fn emit_continue(emitter: &mut Instructions, state: &mut EmissionState) {
     emitter.emit_code(Opcode::Jump);
     emitter.emit_instruction_pointer(state.enclosing_loop_start);
 }
 
-pub fn emit_break(emitter: &mut Bytecode, state: &mut EmissionState) {
+pub fn emit_break(emitter: &mut Instructions, state: &mut EmissionState) {
     state
         .enclosing_loop_end_placeholders
         .push(emitter.emit_jump(Opcode::Jump));

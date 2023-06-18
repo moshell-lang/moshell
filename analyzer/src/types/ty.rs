@@ -35,8 +35,8 @@ pub enum Type {
 /// A function parameter.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Parameter {
-    pub(crate) segment: SourceSegment,
-    pub(crate) ty: TypeId,
+    pub segment: SourceSegment,
+    pub ty: TypeId,
 }
 
 impl Display for Type {

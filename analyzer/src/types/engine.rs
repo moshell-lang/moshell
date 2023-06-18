@@ -82,4 +82,11 @@ impl TypedEngine {
             self.entries[id.0] = Some(entry);
         }
     }
+
+    pub fn iter_chunks(&self) -> impl Iterator<Item=(SourceId, &Chunk)> {
+        self.entries
+            .iter()
+            .enumerate()
+            .filter_map(|(id, chunk)| chunk.as_ref().map(|chunk| (SourceId(id), chunk)))
+    }
 }

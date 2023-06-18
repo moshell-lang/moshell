@@ -3,13 +3,14 @@ use std::io::stderr;
 use std::path::PathBuf;
 
 use clap::Parser;
+use analyzer::engine::Engine;
 
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
-use analyzer::relations::SourceId;
 use analyzer::resolve_all;
 use analyzer::steps::typing::apply_types;
 use analyzer::types::engine::TypedEngine;
+use analyzer::types::Typing;
 use ast::group::Block;
 use ast::Expr;
 use compiler::compile;
@@ -67,9 +68,9 @@ pub fn handle_source(source: Source) -> bool {
 
     let mut diagnostics = result.diagnostics;
     if diagnostics.is_empty() {
-        let types = apply_types(&result.engine, &result.relations, &mut diagnostics);
+        let (types, typing) = apply_types(&result.engine, &result.relations, &mut diagnostics);
         if diagnostics.is_empty() {
-            execute(types);
+            execute(types, result.engine, typing);
             return false;
         }
     }
@@ -88,9 +89,9 @@ extern "C" {
     fn exec(bytes: *const u8, byte_count: usize);
 }
 
-fn execute(types: TypedEngine) {
+fn execute(types: TypedEngine, engine: Engine, typing: Typing) {
     let mut bytes: Vec<u8> = Vec::new();
-    compile(&types.get(SourceId(0)).unwrap().expression, &mut bytes).expect("write failed");
+    compile(&types, &engine, &typing, &mut bytes).expect("write failed");
 
     let len = bytes.len();
 

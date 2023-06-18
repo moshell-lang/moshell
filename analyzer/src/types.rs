@@ -69,7 +69,7 @@ impl Typing {
         type_id
     }
 
-    pub(crate) fn get_type(&self, type_id: TypeId) -> Option<&Type> {
+    pub fn get_type(&self, type_id: TypeId) -> Option<&Type> {
         self.types.get(type_id.0)
     }
 }
