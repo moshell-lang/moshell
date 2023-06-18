@@ -1,9 +1,9 @@
-#include <cstring>
-#include "interpreter.h"
 #include "conversions.h"
+#include "interpreter.h"
+#include <cstring>
+#include <iostream>
 
-
-constant_pool load_constant_pool(const char *bytes, int *ip) {
+constant_pool load_constant_pool(const char *bytes, unsigned int *ip) {
     // Read the number of strings on a single byte
     char count = *(bytes + *ip);
     (*ip)++;
@@ -26,8 +26,13 @@ constant_pool load_constant_pool(const char *bytes, int *ip) {
     return pool;
 }
 
-extern "C" void exec(const char* bytes, size_t byte_count) {
-    int ip = 0;
-    constant_pool pool = load_constant_pool(bytes, &ip);
-    run(std::move(pool), ip, bytes, byte_count);
+extern "C" void exec(const char *bytes, size_t byte_count) {
+    unsigned int constant_pool_bytes = 0;
+    constant_pool pool = load_constant_pool(bytes, &constant_pool_bytes);
+
+    try {
+        run(std::move(pool), bytes + constant_pool_bytes, byte_count - constant_pool_bytes);
+    } catch (std::exception &e) {
+        std::cerr << e.what() << std::endl;
+    }
 }
