@@ -42,7 +42,7 @@ pub enum Type {
 /// A type identifier in a [`TypedEngine`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Definition {
-    /// A block of code, that the user can define.
+    /// A block of code, defined by the user.
     User(SourceId),
 
     /// A native function, that is defined in the VM.

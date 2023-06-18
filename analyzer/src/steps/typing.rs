@@ -158,7 +158,7 @@ fn ascribe_types(
         Expr::TemplateString(tpl) => {
             if tpl.parts.is_empty() {
                 return TypedExpr {
-                    kind: ExprKind::Literal(LiteralValue::String("".to_owned())),
+                    kind: ExprKind::Literal(LiteralValue::String(String::new())),
                     ty: STRING,
                     segment: tpl.segment(),
                 };
@@ -174,7 +174,7 @@ fn ascribe_types(
                 .expect("string type should have a concatenation method")
                 .definition;
             let mut it = tpl.parts.iter().map(|part| {
-                let acc = ascribe_types(
+                let typed_part = ascribe_types(
                     exploration,
                     relations,
                     diagnostics,
@@ -182,7 +182,7 @@ fn ascribe_types(
                     part,
                     state.without_local_type(),
                 );
-                convert_into_string(acc, exploration, diagnostics, state)
+                convert_into_string(typed_part, exploration, diagnostics, state)
             });
             let acc = it.next().unwrap();
             it.fold(acc, |acc, current| {

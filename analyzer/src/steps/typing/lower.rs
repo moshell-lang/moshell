@@ -58,10 +58,10 @@ pub(super) fn call_convert_on(
         }
     };
 
-    // Else, we try to find a `to_string` method on the type.
+    // Else, we try to find the expected conversion method on the expression's type 
     if let Some(method) = engine.get_method_exact(expr.ty, method_name, &[], into) {
         let segment = expr.segment.clone();
-        TypedExpr {
+        return TypedExpr {
             kind: ExprKind::MethodCall {
                 callee: Box::new(expr),
                 arguments: vec![],
@@ -70,15 +70,15 @@ pub(super) fn call_convert_on(
             ty: method.return_type,
             segment,
         }
-    } else {
-        let ty = typing.get_type(expr.ty).unwrap();
-        diagnostics.push(
-            Diagnostic::new(DiagnosticID::TypeMismatch, state.source, message(ty))
-                .with_observation(Observation::with_help(
-                    expr.segment(),
-                    format!("No method `{}` on type `{}`", method_name, ty),
-                )),
-        );
-        expr
-    }
+    } 
+    
+    let ty = typing.get_type(expr.ty).unwrap();
+    diagnostics.push(
+        Diagnostic::new(DiagnosticID::TypeMismatch, state.source, message(ty))
+            .with_observation(Observation::with_help(
+                expr.segment(),
+                format!("No method `{}` on type `{}`", method_name, ty),
+            )),
+    );
+    expr
 }
