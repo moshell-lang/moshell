@@ -108,8 +108,9 @@ void run(constant_pool pool, const char *bytes, size_t size) {
                 // Wait for the process to finish
                 waitpid(pid, &status, 0);
 
-                // add status to the stack
-                stack.push_int(status);
+                // Add the exit status to the stack
+                // TODO: introduce Exitcode type to push a byte here instead
+                stack.push_int(WEXITSTATUS(status));
             }
             break;
         }

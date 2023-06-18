@@ -60,6 +60,22 @@ impl Bytecode {
         pos
     }
 
+    /// Emits a jump instruction.
+    ///
+    /// It returns the index of the offset which is to be patched.
+    #[must_use = "the jump address must be patched later"]
+    pub fn emit_jump(&mut self, opcode: Opcode) -> usize {
+        self.emit_code(opcode);
+        self.create_placeholder(size_of::<usize>())
+    }
+
+    /// Takes the index of the jump offset to be patched as input, and patches
+    /// it to point to the current instruction.
+    pub fn patch_jump(&mut self, offset_idx: usize) {
+        let ip = self.len();
+        self.fill_in_ip(offset_idx, ip);
+    }
+
     pub fn extend(&mut self, bytecode: Bytecode) {
         self.bytes.extend(bytecode.bytes);
     }

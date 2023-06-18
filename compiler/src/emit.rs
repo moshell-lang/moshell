@@ -58,13 +58,11 @@ fn emit_declaration(
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
-    let value = declaration
-        .value
-        .as_ref()
-        .expect("var declaration without initializer not supported");
-    emit(value, emitter, cp, state);
-    emitter.emit_code(Opcode::SetLocal);
-    emitter.bytes.push(declaration.identifier.0 as u8);
+    if let Some(value) = &declaration.value {
+        emit(value, emitter, cp, state);
+        emitter.emit_code(Opcode::SetLocal);
+        emitter.bytes.push(declaration.identifier.0 as u8);
+    }
 }
 
 fn emit_block(
@@ -84,18 +82,25 @@ pub fn emit(
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
+    let use_return = expr.ty != NOTHING;
     match &expr.kind {
         ExprKind::Declare(d) => emit_declaration(d, emitter, cp, state),
-        ExprKind::Reference(r) => emit_ref(r, emitter),
-        ExprKind::Literal(literal) => emit_literal(literal, emitter, cp),
-        ExprKind::ProcessCall(args) => {
-            emit_process_call(args, expr.ty != NOTHING, emitter, cp, state)
-        }
         ExprKind::Block(exprs) => emit_block(exprs, emitter, cp, state),
         ExprKind::Conditional(c) => emit_conditional(c, emitter, cp, state),
         ExprKind::ConditionalLoop(l) => emit_loop(l, emitter, cp, state),
         ExprKind::Continue => emit_continue(emitter, state),
         ExprKind::Break => emit_break(emitter, state),
+        ExprKind::Reference(r) => {
+            if use_return {
+                emit_ref(r, emitter)
+            }
+        }
+        ExprKind::Literal(literal) => {
+            if use_return {
+                emit_literal(literal, emitter, cp)
+            }
+        }
+        ExprKind::ProcessCall(args) => emit_process_call(args, use_return, emitter, cp, state),
         _ => {}
     }
 }

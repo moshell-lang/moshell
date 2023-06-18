@@ -557,12 +557,12 @@ fn ascribe_loop(
 }
 
 fn ascribe_continue_or_break(
-    e: &Expr,
+    expr: &Expr,
     diagnostics: &mut Vec<Diagnostic>,
     source: SourceId,
     in_loop: bool,
 ) -> TypedExpr {
-    let (kind, kind_name) = match e {
+    let (kind, kind_name) = match expr {
         Expr::Continue(_) => (ExprKind::Continue, "continue"),
         Expr::Break(_) => (ExprKind::Break, "break"),
         _ => panic!("e is not a loop"),
@@ -574,13 +574,13 @@ fn ascribe_continue_or_break(
                 source,
                 format!("`{kind_name}` must be declared inside a loop"),
             )
-            .with_observation(Observation::new(e.segment())),
+            .with_observation(Observation::new(expr.segment())),
         );
     }
     TypedExpr {
         kind,
         ty: NOTHING,
-        segment: e.segment(),
+        segment: expr.segment(),
     }
 }
 

@@ -37,9 +37,27 @@ double OperandStack::pop_double() {
     return pop<double>();
 }
 
+template <typename T>
+void OperandStack::push(T t) {
+    if (current_pos + sizeof(T) >= capacity) {
+        throw OperandStackOutOfBoundError("exceeded operand stack capacity");
+    }
+    *(T *)(bytes.get() + current_pos) = t;
+    current_pos += sizeof(T);
+}
+
+template <typename T>
+T OperandStack::pop() {
+    if (current_pos < sizeof(T)) {
+        throw OperandStackOutOfBoundError("operand stack is empty");
+    }
+    current_pos -= sizeof(T);
+    return *(T *)(bytes.get() + current_pos);
+}
+
 void OperandStack::pop_bytes(size_t size) {
     if (current_pos < size) {
-        throw OperandStackError("operand stack is empty");
+        throw OperandStackOutOfBoundError("operand stack is empty");
     }
     current_pos -= size;
 }

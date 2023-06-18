@@ -4,18 +4,12 @@
 #include <cstdint>
 #include <exception>
 #include <memory>
+#include <stdexcept>
 
-struct OperandStackError : public std::exception {
-
-private:
-    const char *message;
+struct OperandStackOutOfBoundError : public std::out_of_range {
 
 public:
-    explicit OperandStackError(const char *message) : message{message} {}
-
-    [[nodiscard]] const char *what() const noexcept override {
-        return message;
-    }
+    explicit OperandStackOutOfBoundError(const char *message) : std::out_of_range{message} {}
 };
 
 class OperandStack {
@@ -47,20 +41,8 @@ public:
 
 private:
     template <typename T>
-    void push(T t) {
-        if (current_pos + sizeof(T) >= capacity) {
-            throw OperandStackError("exceeded operand stack capacity");
-        }
-        *(T *)(bytes.get() + current_pos) = t;
-        current_pos += sizeof(T);
-    }
+    void push(T t);
 
     template <typename T>
-    T pop() {
-        if (current_pos < sizeof(T)) {
-            throw OperandStackError("operand stack is empty");
-        }
-        current_pos -= sizeof(T);
-        return *(T *)(bytes.get() + current_pos);
-    }
+    T pop();
 };

@@ -20,24 +20,22 @@ pub fn emit_conditional(
         emitter.emit_code(Opcode::BXor);
     }
 
-    emitter.emit_code(Opcode::IfJump);
-    let jump_to_then_placeholder = emitter.create_placeholder(size_of::<usize>());
-    //jump out of otherwise instructions
-    let mut jump_oo_otherwise_placeholder = None;
+    // If the condition is false, go to ELSE.
+    let jump_to_else = emitter.emit_jump(Opcode::IfNotJump);
+    // Evaluate the if branch.
+    emit(&conditional.then, emitter, cp, state);
 
+    // Go to END.
+    let jump_to_end = emitter.emit_jump(Opcode::Jump);
+
+    // ELSE:
+    emitter.patch_jump(jump_to_else);
     if let Some(otherwise) = &conditional.otherwise {
         emit(otherwise, emitter, cp, state);
-
-        // then we jump out of the otherwise instruction
-        emitter.emit_code(Opcode::Jump);
-        jump_oo_otherwise_placeholder = Some(emitter.create_placeholder(size_of::<usize>()));
     }
 
-    emitter.fill_in_ip(jump_to_then_placeholder, emitter.len());
-    emit(&conditional.then, emitter, cp, state);
-    if let Some(jump_placeholder) = jump_oo_otherwise_placeholder {
-        emitter.fill_in_ip(jump_placeholder, emitter.len());
-    }
+    // END:
+    emitter.patch_jump(jump_to_end);
 }
 
 pub fn emit_loop(
