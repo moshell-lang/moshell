@@ -12,8 +12,7 @@ use analyzer::steps::typing::apply_types;
 use analyzer::types::engine::TypedEngine;
 use ast::group::Block;
 use ast::Expr;
-use compiler::bytecode::Bytecode;
-use compiler::{emit, write};
+use compiler::compile;
 use context::source::Source;
 use parser::parse;
 
@@ -71,6 +70,7 @@ pub fn handle_source(source: Source) -> bool {
         let types = apply_types(&result.engine, &result.relations, &mut diagnostics);
         if diagnostics.is_empty() {
             execute(types);
+            return false;
         }
     }
 
@@ -89,15 +89,11 @@ extern "C" {
 }
 
 fn execute(types: TypedEngine) {
-    let mut emitter = Bytecode::default();
-    emit(
-        &mut emitter,
-        &types.get_user(SourceId(0)).unwrap().expression,
-    );
     let mut bytes: Vec<u8> = Vec::new();
-    write(&mut bytes, emitter).expect("write failed");
+    compile(&types.get_user(SourceId(0)).unwrap().expression, &mut bytes).expect("write failed");
 
     let len = bytes.len();
+
     unsafe {
         exec(bytes.as_ptr(), len);
     }

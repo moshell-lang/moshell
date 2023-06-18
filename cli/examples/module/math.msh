@@ -1,3 +1,0 @@
-fun round(n: Float) = $n
-
-fun floor(n: Float) = $n

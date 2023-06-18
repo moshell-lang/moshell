@@ -41,44 +41,75 @@ impl SourceSegmentHolder for TypedExpr {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct Assignment {
+    pub identifier: Symbol,
+    pub rhs: Box<TypedExpr>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Declaration {
+    pub identifier: LocalId,
+    pub value: Option<Box<TypedExpr>>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Binary {
+    pub lhs: Box<TypedExpr>,
+    pub op: BinaryOperator,
+    pub rhs: Box<TypedExpr>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Conditional {
+    pub condition: Box<TypedExpr>,
+    pub then: Box<TypedExpr>,
+    pub otherwise: Option<Box<TypedExpr>>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Convert {
+    pub inner: Box<TypedExpr>,
+    pub into: TypeId,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Loop {
+    pub condition: Option<Box<TypedExpr>>,
+    pub body: Box<TypedExpr>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct FunctionCall {
+    pub arguments: Vec<TypedExpr>,
+    pub definition: Definition,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct MethodCall {
+    pub callee: Box<TypedExpr>,
+    pub arguments: Vec<TypedExpr>,
+    pub definition: Definition,
+}
+
 /// An expression content.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExprKind {
     Literal(LiteralValue),
-    Assign {
-        identifier: Symbol,
-        rhs: Box<TypedExpr>,
-    },
-    Declare {
-        identifier: LocalId,
-        value: Option<Box<TypedExpr>>,
-    },
+    Assign(Assignment),
+    Declare(Declaration),
     Reference(Symbol),
-    Binary {
-        lhs: Box<TypedExpr>,
-        op: BinaryOperator,
-        rhs: Box<TypedExpr>,
-    },
+    Binary(Binary),
     Block(Vec<TypedExpr>),
-    Conditional {
-        condition: Box<TypedExpr>,
-        then: Box<TypedExpr>,
-        otherwise: Option<Box<TypedExpr>>,
-    },
-    Convert {
-        inner: Box<TypedExpr>,
-        into: TypeId,
-    },
+    Conditional(Conditional),
+    ConditionalLoop(Loop),
+    Convert(Convert),
     ProcessCall(Vec<TypedExpr>),
-    FunctionCall {
-        arguments: Vec<TypedExpr>,
-        definition: Definition,
-    },
-    MethodCall {
-        callee: Box<TypedExpr>,
-        arguments: Vec<TypedExpr>,
-        definition: Definition,
-    },
+    FunctionCall(FunctionCall),
+    MethodCall(MethodCall),
     Return(Option<Box<TypedExpr>>),
+
+    Continue,
+    Break,
     Noop,
 }

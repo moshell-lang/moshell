@@ -3,3 +3,4 @@ IndentWidth: 4
 FixNamespaceComments: false
 NamespaceIndentation: All
 AccessModifierOffset: -4
+PointerAlignment: Right

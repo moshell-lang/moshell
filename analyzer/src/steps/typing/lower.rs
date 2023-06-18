@@ -2,7 +2,7 @@ use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::steps::typing::exploration::Exploration;
 use crate::steps::typing::TypingState;
 use crate::types::engine::TypedEngine;
-use crate::types::hir::{ExprKind, TypeId, TypedExpr};
+use crate::types::hir::{ExprKind, MethodCall, TypeId, TypedExpr};
 use crate::types::ty::Type;
 use crate::types::{Typing, BOOL, FLOAT, STRING};
 use context::source::SourceSegmentHolder;
@@ -58,27 +58,28 @@ pub(super) fn call_convert_on(
         }
     };
 
-    // Else, we try to find the expected conversion method on the expression's type 
+    // Else, we try to find the expected conversion method on the expression's type
     if let Some(method) = engine.get_method_exact(expr.ty, method_name, &[], into) {
         let segment = expr.segment.clone();
         return TypedExpr {
-            kind: ExprKind::MethodCall {
+            kind: ExprKind::MethodCall(MethodCall {
                 callee: Box::new(expr),
                 arguments: vec![],
                 definition: method.definition,
-            },
+            }),
             ty: method.return_type,
             segment,
-        }
-    } 
-    
+        };
+    }
+
     let ty = typing.get_type(expr.ty).unwrap();
     diagnostics.push(
-        Diagnostic::new(DiagnosticID::TypeMismatch, state.source, message(ty))
-            .with_observation(Observation::with_help(
+        Diagnostic::new(DiagnosticID::TypeMismatch, state.source, message(ty)).with_observation(
+            Observation::with_help(
                 expr.segment(),
                 format!("No method `{}` on type `{}`", method_name, ty),
-            )),
+            ),
+        ),
     );
     expr
 }

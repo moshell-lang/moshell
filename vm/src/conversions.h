@@ -1,12 +1,9 @@
 #pragma once
 
 #include <cstdint>
-#include <string>
-#include <valarray>
-#include <cstdio>
+#include <cstring>
 #include <memory>
 #include <string>
-#include <cstring>
 
 int64_t ntohl(int64_t net);
 
