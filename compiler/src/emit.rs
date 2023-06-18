@@ -11,6 +11,7 @@ use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
 mod invoke;
 mod jump;
 
+#[derive(Debug, Clone, Default)]
 pub struct EmissionState {
     // the start instruction position of the enclosing loop
     // set to 0 if there is no loop
@@ -22,9 +23,15 @@ pub struct EmissionState {
 }
 
 impl EmissionState {
+    /// Create a new emission state.
     pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create a new emission state for a loop.
+    pub fn in_loop(loop_start: usize) -> Self {
         Self {
-            enclosing_loop_start: 0,
+            enclosing_loop_start: loop_start,
             enclosing_loop_end_placeholders: Vec::new(),
         }
     }

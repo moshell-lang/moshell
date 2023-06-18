@@ -95,14 +95,6 @@ impl TypingState {
             ..self
         }
     }
-
-    /// Returns a new state with `in_loop` set to false
-    fn without_in_loop(self) -> Self {
-        Self {
-            in_loop: false,
-            ..self
-        }
-    }
 }
 
 fn apply_types_to_source(
@@ -535,7 +527,7 @@ fn ascribe_loop(
             &w.body,
         ),
         Expr::Loop(l) => (None, &l.body),
-        _ => unreachable!(),
+        _ => unreachable!("Expression is not a loop"),
     };
     let body = ascribe_types(
         exploration,

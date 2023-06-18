@@ -44,40 +44,32 @@ pub fn emit_loop(
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
-    let start_ip = emitter.len();
-
-    let mut loop_state = EmissionState::new();
-    loop_state.enclosing_loop_start = start_ip;
+    // START:
+    let loop_start = emitter.current_ip();
+    let mut loop_state = EmissionState::in_loop(loop_start);
 
     if let Some(condition) = &lp.condition {
+        // Evaluate the condition.
         emit(condition, emitter, cp, state);
-
         if condition.ty == INT {
             emitter.emit_code(Opcode::ConvertIntToByte);
             emitter.emit_byte(1);
             emitter.emit_code(Opcode::BXor);
         }
-
-        emitter.emit_code(Opcode::IfNotJump);
-        let jump_placeholder = emitter.create_placeholder(size_of::<usize>());
-        emit(&lp.body, emitter, cp, &mut loop_state);
-
-        // jump back to loop start
-        emitter.emit_code(Opcode::Jump);
-        emitter.emit_instruction_pointer(start_ip);
-
-        // if condition is false, jump at end of loop
-        emitter.fill_in_ip(jump_placeholder, emitter.len());
-    } else {
-        emit(&lp.body, emitter, cp, &mut loop_state);
-        emitter.emit_code(Opcode::Jump);
-        emitter.emit_instruction_pointer(start_ip)
+        // If the condition is false, go to END.
+        let jump_to_end = emitter.emit_jump(Opcode::IfNotJump);
+        loop_state.enclosing_loop_end_placeholders.push(jump_to_end);
     }
 
-    // fill break placeholders
-    let current_ip = emitter.len();
-    for placeholder in loop_state.enclosing_loop_end_placeholders {
-        emitter.fill_in_ip(placeholder, current_ip)
+    loop_state.enclosing_loop_start = loop_start;
+
+    // Evaluate the loop body.
+    emit(&lp.body, emitter, cp, &mut loop_state);
+    // Go to START.
+    emitter.emit_loop(loop_start);
+    // END:
+    for jump_to_end in &loop_state.enclosing_loop_end_placeholders {
+        emitter.patch_jump(*jump_to_end);
     }
 }
 
@@ -87,8 +79,7 @@ pub fn emit_continue(emitter: &mut Bytecode, state: &mut EmissionState) {
 }
 
 pub fn emit_break(emitter: &mut Bytecode, state: &mut EmissionState) {
-    emitter.emit_code(Opcode::Jump);
     state
         .enclosing_loop_end_placeholders
-        .push(emitter.create_placeholder(size_of::<usize>()));
+        .push(emitter.emit_jump(Opcode::Jump));
 }
