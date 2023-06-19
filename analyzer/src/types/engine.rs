@@ -108,6 +108,10 @@ impl TypedEngine {
         }
     }
 
+    /// Returns the chunk with the given source id.
+    ///
+    /// If the chunk is not a user defined chunk, [`None`] is returned.
+    /// Use [`Self::get`] to get both user defined and native chunks.
     pub fn get_user(&self, id: SourceId) -> Option<&Chunk> {
         self.entries.get(id.0).and_then(|x| x.as_ref())
     }

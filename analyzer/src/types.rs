@@ -36,8 +36,16 @@ impl Typing {
         }
     }
 
-    /// Unifies two types, returning the type that the right hand side was unified to.
-    pub(crate) fn unify(
+    /// Unifies two type identifiers, returning the type that the right hand side was unified to.
+    ///
+    /// Unification is successful when the assignation type is a superset of the rvalue type, i.e
+    /// when the assignation type is a parent conceptually or technically of the rvalue type.
+    /// It is not reflexive, i.e. `unify(a, b)` is not the same as `unify(b, a)`.
+    ///
+    /// A conversion may be not as simple as a reinterpretation of the value, and may require
+    /// a conversion function to be called. Use [`crate::steps::typing::convert_expression`] to
+    /// generate the conversion code for a typed expression.
+    pub(crate) fn convert_description(
         &mut self,
         assign_to: TypeId,
         rvalue: TypeId,
@@ -55,14 +63,16 @@ impl Typing {
         Err(UnificationError())
     }
 
-    pub fn unify_many(
+    /// Unifies multiple type identifiers in any direction.
+    pub fn convert_many(
         &mut self,
         types: impl Iterator<Item = TypeId>,
     ) -> Result<TypeId, UnificationError> {
         let mut types = types.peekable();
         let first = types.next().unwrap();
         types.try_fold(first, |acc, ty| {
-            self.unify(acc, ty).or_else(|_| self.unify(ty, acc))
+            self.convert_description(acc, ty)
+                .or_else(|_| self.convert_description(ty, acc))
         })
     }
 

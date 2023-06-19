@@ -1,6 +1,6 @@
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::relations::{Definition, Relations, SourceId, Symbol};
-use crate::steps::typing::coercion::unify_and_map;
+use crate::steps::typing::coercion::convert_expression;
 use crate::steps::typing::exploration::Exploration;
 use crate::steps::typing::TypingState;
 use crate::types::ctx::TypeContext;
@@ -14,15 +14,28 @@ use context::source::{SourceSegment, SourceSegmentHolder};
 use std::fmt;
 use std::fmt::Display;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// An identified return during the exploration.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct Return {
+    /// The returned type.
     pub(super) ty: TypeId,
+
+    /// The segment where the return is located.
     pub(super) segment: SourceSegment,
 }
 
+/// Identifies a function that correspond to a call.
+#[derive(Debug, Clone, PartialEq)]
 pub(super) struct FunctionMatch {
+    /// The converted arguments to pass to the function.
+    ///
+    /// If any conversion is required, it will be done here.
     pub(super) arguments: Vec<TypedExpr>,
+
+    /// The function identifier to call.
     pub(super) definition: Definition,
+
+    /// The function return type.
     pub(super) return_type: TypeId,
 }
 
@@ -72,7 +85,11 @@ pub(super) fn infer_return(
             );
         } else {
             for ret in &exploration.returns {
-                if exploration.typing.unify(type_annotation, ret.ty).is_err() {
+                if exploration
+                    .typing
+                    .convert_description(type_annotation, ret.ty)
+                    .is_err()
+                {
                     diagnostics.push(
                         Diagnostic::new(DiagnosticID::TypeMismatch, state.source, "Type mismatch")
                             .with_observation(Observation::with_help(
@@ -95,7 +112,7 @@ pub(super) fn infer_return(
         // We may want to infer, or leave it as a empty return type
         match exploration
             .typing
-            .unify_many(exploration.returns.iter().map(|ret| ret.ty))
+            .convert_many(exploration.returns.iter().map(|ret| ret.ty))
         {
             Ok(ty) if ty.is_nothing() => ty,
             Ok(ty) => {
@@ -202,7 +219,7 @@ pub(super) fn type_call(
                 let mut casted_arguments = Vec::with_capacity(parameters.len());
                 for (param, arg) in parameters.iter().zip(arguments.into_iter()) {
                     casted_arguments.push(
-                        match unify_and_map(
+                        match convert_expression(
                             arg,
                             param.ty,
                             &mut exploration.typing,
@@ -336,7 +353,11 @@ pub(super) fn type_method<'a>(
             );
         } else {
             for (param, arg) in method.parameters.iter().zip(arguments.iter()) {
-                if exploration.typing.unify(param.ty, arg.ty).is_err() {
+                if exploration
+                    .typing
+                    .convert_description(param.ty, arg.ty)
+                    .is_err()
+                {
                     let diagnostic =
                         diagnose_arg_mismatch(&exploration.typing, state.source, param, arg)
                             .with_observation(Observation::with_help(
@@ -367,6 +388,7 @@ pub(super) fn type_method<'a>(
     None
 }
 
+/// Generates a type mismatch between a parameter and an argument.
 fn diagnose_arg_mismatch(
     typing: &Typing,
     source: SourceId,

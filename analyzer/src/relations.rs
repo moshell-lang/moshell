@@ -49,8 +49,8 @@ pub enum Symbol {
     External(RelationId),
 }
 
-/// A identifier in an engine.
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// An identifier in an engine.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Definition {
     /// A block of code, defined by the user.
     User(SourceId),
@@ -60,6 +60,13 @@ pub enum Definition {
     /// It can also have a special treatment in the compiler, but it is abstracted away
     /// during the analysis.
     Native(NativeId),
+}
+
+impl Definition {
+    /// Builds an erroneous definition that is used for error propagation.
+    pub fn error() -> Self {
+        Self::User(SourceId(ObjectId::MAX))
+    }
 }
 
 impl From<RelationId> for Symbol {

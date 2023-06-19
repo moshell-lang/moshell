@@ -1,4 +1,4 @@
-use crate::relations::{Definition, NativeId, ObjectId, SourceId};
+use crate::relations::{Definition, NativeId};
 use crate::types::hir::TypeId;
 use context::source::SourceSegment;
 use std::collections::HashMap;
@@ -39,10 +39,10 @@ pub enum Type {
     Function(Definition),
 }
 
-impl Definition {
-    /// Builds an erroneous definition that is used for error propagation.
-    pub fn error() -> Self {
-        Self::User(SourceId(ObjectId::MAX))
+impl Type {
+    /// Returns whether the type is callable.
+    pub fn is_callable(&self) -> bool {
+        matches!(self, Self::Function(_))
     }
 }
 
@@ -111,7 +111,7 @@ impl FunctionType {
 /// The attributes and methods of a class.
 ///
 /// This describes how a class behaves, while the [`Type`] describes the
-/// instanciation of a type description. If a description is generic, it can
+/// instantiation of a type description. If a description is generic, it can
 /// be instantiated multiple times with different [`Type`] parameters.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct TypeDescription {

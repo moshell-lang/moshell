@@ -34,6 +34,11 @@ pub(super) fn convert_into_string(
     )
 }
 
+/// Generates a conversion method call if needed.
+///
+/// This function must be called only if a conversion has been accepted by the type engine,
+/// use the upper level function [`crate::steps::typing::coercion::convert_expression`] to
+/// do the proper checks.
 pub(super) fn call_convert_on(
     expr: TypedExpr,
     typing: &Typing,
@@ -51,10 +56,18 @@ pub(super) fn call_convert_on(
     let method_name = match get_converter(into) {
         Some(method_name) => method_name,
         None => {
-            panic!(
-                "No converted defined for type `{}`",
-                typing.get_type(into).unwrap()
+            diagnostics.push(
+                Diagnostic::new(
+                    DiagnosticID::UnknownMethod,
+                    state.source,
+                    format!(
+                        "No converted defined for type `{}`",
+                        typing.get_type(into).unwrap()
+                    ),
+                )
+                .with_observation(Observation::new(expr.segment())),
             );
+            return expr;
         }
     };
 

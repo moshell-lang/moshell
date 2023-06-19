@@ -1,9 +1,0 @@
-/// Global configuration
-val LDAP_DOMAIN = 'dc=ldap,dc=example,dc=com'
-val SERVERS_DIR = '/opt/example/SERVERS'
-
-/// Queries the LDAP server to list the groups a user has access to.
-fun list_groups_via_ldap(user: String) -> List[String] = {
-    val result=$(ldapsearch -x -LLL -b ou=Groups,$LDAP_DOMAIN -s one member=uid=$user,ou=Users,$LDAP_DOMAIN cn | grep -- '^cn:' | cut -d ' ' -f 2)
-    $result.split(' ')
-}

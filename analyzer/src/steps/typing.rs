@@ -3,7 +3,7 @@ use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::relations::{Definition, Relations, SourceId};
-use crate::steps::typing::coercion::{check_type_annotation, coerce_condition, unify_and_map};
+use crate::steps::typing::coercion::{check_type_annotation, coerce_condition, convert_expression};
 use crate::steps::typing::exploration::{diagnose_unknown_type, Exploration};
 use crate::steps::typing::function::{
     find_operand_implementation, infer_return, type_call, type_method, type_parameter, Return,
@@ -232,13 +232,36 @@ fn ascribe_assign(
         state.with_local_type(),
     );
     let symbol = env.get_raw_symbol(assign.segment()).unwrap();
+    let actual_type = exploration
+        .get_type(
+            exploration
+                .ctx
+                .get(relations, state.source, symbol)
+                .unwrap()
+                .type_id,
+        )
+        .unwrap();
+    if actual_type.is_callable() {
+        diagnostics.push(
+            Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                state.source,
+                format!("Cannot treat function `{}` as a variable", assign.name),
+            )
+            .with_observation(Observation::with_help(
+                assign.segment(),
+                "Assignment happens here",
+            )),
+        );
+        return rhs;
+    }
     let var_obj = exploration
         .ctx
         .get(relations, state.source, symbol)
         .unwrap();
     let var_ty = var_obj.type_id;
     let rhs_type = rhs.ty;
-    let rhs = match unify_and_map(
+    let rhs = match convert_expression(
         rhs,
         var_ty,
         &mut exploration.typing,
@@ -246,25 +269,7 @@ fn ascribe_assign(
         state,
         diagnostics,
     ) {
-        Ok(rhs) => {
-            if !var_obj.can_reassign {
-                diagnostics.push(
-                    Diagnostic::new(
-                        DiagnosticID::CannotReassign,
-                        state.source,
-                        format!(
-                            "Cannot assign twice to immutable variable `{}`",
-                            assign.name
-                        ),
-                    )
-                    .with_observation(Observation::with_help(
-                        assign.segment(),
-                        "Assignment happens here",
-                    )),
-                );
-            }
-            rhs
-        }
+        Ok(rhs) => rhs,
         Err(_) => {
             diagnostics.push(
                 Diagnostic::new(
@@ -288,6 +293,24 @@ fn ascribe_assign(
             }
         }
     };
+
+    if !var_obj.can_reassign {
+        diagnostics.push(
+            Diagnostic::new(
+                DiagnosticID::CannotReassign,
+                state.source,
+                format!(
+                    "Cannot assign twice to immutable variable `{}`",
+                    assign.name
+                ),
+            )
+            .with_observation(Observation::with_help(
+                assign.segment(),
+                "Assignment happens here",
+            )),
+        );
+    }
+
     TypedExpr {
         kind: ExprKind::Assign(Assignment {
             identifier: symbol,
@@ -553,7 +576,7 @@ fn ascribe_casted(
             state.source,
             casted.casted_type.segment(),
         ))
-    } else if expr.ty.is_ok() && exploration.typing.unify(ty, expr.ty).is_err() {
+    } else if expr.ty.is_ok() && exploration.typing.convert_description(ty, expr.ty).is_err() {
         diagnostics.push(
             Diagnostic::new(
                 DiagnosticID::IncompatibleCast,
@@ -610,13 +633,13 @@ fn ascribe_if(
         .as_ref()
         .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state));
     let ty = if state.local_type {
-        match exploration.typing.unify(
+        match exploration.typing.convert_description(
             then.ty,
             otherwise.as_ref().map(|expr| expr.ty).unwrap_or(NOTHING),
         ) {
             Ok(ty) => {
                 // Generate appropriate casts and implicits conversions
-                then = unify_and_map(
+                then = convert_expression(
                     then,
                     ty,
                     &mut exploration.typing,
@@ -626,7 +649,7 @@ fn ascribe_if(
                 )
                 .expect("Type mismatch should already have been caught");
                 otherwise = otherwise.map(|expr| {
-                    unify_and_map(
+                    convert_expression(
                         expr,
                         ty,
                         &mut exploration.typing,
@@ -1071,7 +1094,7 @@ mod tests {
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
                 SourceId(0),
-                "Cannot assign a value of type `String` to something of type `fun#1`",
+                "Cannot treat function `a` as a variable",
             )
             .with_observation(Observation::with_help(
                 find_in(content, "a = 'a'"),

@@ -1,5 +1,6 @@
 use ast::operation::BinaryOperator;
 
+/// Gets the name of the method that translates the given operator.
 pub fn name_operator_method(bin_op: BinaryOperator) -> &'static str {
     use BinaryOperator::*;
     match bin_op {

@@ -1,8 +1,0 @@
-use daemon_lib::list_groups_via_ldap
-
-val DATA_PATH = "/datas/$(hostname -s)"
-
-echo 'Name the server:'
-read server_name
-
-val groups = list_groups_via_ldap('test')

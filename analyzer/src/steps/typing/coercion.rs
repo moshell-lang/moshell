@@ -8,6 +8,8 @@ use crate::types::{Typing, BOOL, ERROR};
 use context::source::SourceSegmentHolder;
 
 /// Ensures that the type annotation accepts the given value.
+///
+/// A type annotation might generate a conversion function call, which is returned.
 pub(super) fn check_type_annotation(
     exploration: &mut Exploration,
     type_annotation: &ast::r#type::Type,
@@ -27,7 +29,7 @@ pub(super) fn check_type_annotation(
         return value;
     }
 
-    unify_and_map(
+    convert_expression(
         value,
         expected_type,
         &mut exploration.typing,
@@ -63,7 +65,7 @@ pub(super) fn check_type_annotation(
 /// Most of the times, it will not generate any diagnostic, since diagnostics
 /// would only be generated if an implicit conversion is incorrect (i.e. if
 /// it is registered but if the appropriate method is not found).
-pub(super) fn unify_and_map(
+pub(super) fn convert_expression(
     rvalue: TypedExpr,
     assign_to: TypeId,
     typing: &mut Typing,
@@ -71,7 +73,7 @@ pub(super) fn unify_and_map(
     state: TypingState,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<TypedExpr, TypedExpr> {
-    match typing.unify(assign_to, rvalue.ty) {
+    match typing.convert_description(assign_to, rvalue.ty) {
         Ok(ty) => Ok(call_convert_on(
             rvalue,
             typing,
@@ -95,7 +97,7 @@ pub(super) fn coerce_condition(
     state: TypingState,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> TypedExpr {
-    match unify_and_map(
+    match convert_expression(
         condition,
         BOOL,
         &mut exploration.typing,
