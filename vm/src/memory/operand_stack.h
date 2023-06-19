@@ -14,12 +14,12 @@ public:
 
 class OperandStack {
 private:
-    std::unique_ptr<char[]> bytes;
+    char* bytes;
     size_t capacity;
     size_t current_pos;
 
 public:
-    explicit OperandStack(size_t len);
+    explicit OperandStack(char* buff, size_t capacity);
 
     void push_int(int64_t i);
 

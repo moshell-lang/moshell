@@ -28,12 +28,16 @@ impl Bytecode {
         self.bytes.push(constant);
     }
 
+    pub fn emit_u32(&mut self, constant: u32) {
+        self.bytes.extend(constant.to_be_bytes());
+    }
+
     pub fn emit_float(&mut self, constant: f64) {
         self.bytes.extend(constant.to_be_bytes());
     }
 
     pub fn emit_constant_ref(&mut self, constant: u32) {
-        self.bytes.extend(constant.to_be_bytes());
+        self.emit_u32(constant);
     }
 
     pub fn extend(&mut self, bytecode: Bytecode) {
@@ -158,26 +162,4 @@ pub enum Opcode {
 
     BXor,
 
-}
-
-pub struct FileInstructions<'a> {
-    pub bytecode: &'a mut Bytecode,
-}
-
-impl<'a> FileInstructions<'a> {
-    pub fn wrap(bytecode: &'a mut Bytecode) -> Self {
-        Self {
-            bytecode
-        }
-    }
-
-    pub fn emit_code(&mut self, code: FileOpcode) {
-        self.bytecode.emit_byte(code as u8)
-    }
-}
-
-#[repr(u8)]
-pub enum FileOpcode {
-    StartFun,
-    ScriptCode,
 }

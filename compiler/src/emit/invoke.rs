@@ -51,7 +51,7 @@ pub fn emit_function_call(
     }
 
     let params = function_call.arguments.iter().map(|e| e.ty);
-    let signature = FunctionSignature::make(params, return_type, typing, cp);
+    let signature = FunctionSignature::make(&function_call.name, params, return_type, typing, cp);
     instructions.emit_code(Opcode::Invoke);
     instructions.bytecode.emit_constant_ref(cp.insert_signature(signature))
 }

@@ -34,27 +34,41 @@ impl ConstantPool {
 
 #[derive(Hash, Eq, PartialEq)]
 pub struct FunctionSignature {
+    pub name: u32,
     pub params: Vec<u32>,
     pub ret: u32,
 }
 
 impl FunctionSignature {
-    pub fn make(params: impl Iterator<Item=TypeId>,
+    pub fn make(name: &str,
+                params: impl Iterator<Item=TypeId>,
                 return_type: TypeId,
                 typing: &Typing,
                 cp: &mut ConstantPool) -> Self {
+        let name = cp.insert_string(name);
+
         let mut map_type = |ty| {
             let ty = typing.get_type(ty).unwrap();
-            if let Type::Function(_) = ty {
-                panic!("Can only support primitives")
-            }
-            let type_identifier = ty.to_string().to_lowercase();
-            cp.insert_string(&type_identifier)
+            let type_identifier = match ty {
+                Type::Bool => "byte",
+                Type::Int => "int",
+                Type::Float => "float",
+                Type::Unit => "void",
+                Type::String => "String",
+                Type::Error | Type::Unknown | Type::Nothing => {
+                    panic!("{ty} is not a compilable type")
+                }
+                Type::Function(_) => {
+                    panic!("Can only support primitives")
+                }
+            };
+            cp.insert_string(type_identifier)
         };
 
         Self {
+            name,
             params: params
-                .map(|s| map_type(s))
+                .map(&mut map_type)
                 .collect(),
             ret: map_type(return_type),
         }

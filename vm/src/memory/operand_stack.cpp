@@ -1,8 +1,8 @@
 #include "operand_stack.h"
 
-OperandStack::OperandStack(size_t len)
-    : bytes{std::make_unique<char[]>(len)},
-      capacity{len},
+OperandStack::OperandStack(char* buff, size_t capacity)
+    : bytes{buff},
+      capacity{capacity},
       current_pos{0} {}
 
 void OperandStack::push_int(int64_t i) {
@@ -42,7 +42,7 @@ void OperandStack::push(T t) {
     if (current_pos + sizeof(T) >= capacity) {
         throw OperandStackOutOfBoundError("exceeded operand stack capacity");
     }
-    *(T *)(bytes.get() + current_pos) = t;
+    *(T *)(bytes + current_pos) = t;
     current_pos += sizeof(T);
 }
 
@@ -52,7 +52,7 @@ T OperandStack::pop() {
         throw OperandStackOutOfBoundError("operand stack is empty");
     }
     current_pos -= sizeof(T);
-    return *(T *)(bytes.get() + current_pos);
+    return *(T *)(bytes + current_pos);
 }
 
 void OperandStack::pop_bytes(size_t size) {

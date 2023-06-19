@@ -1,4 +1,5 @@
 #include "interpreter.h"
+#include "memory/call_stack.h"
 #include "memory/operand_stack.h"
 #include <cstdlib>
 #include <cstring>
@@ -30,18 +31,15 @@ enum Opcode {
     OP_B_XOR // pops last two bytes, apply xor operation then push the result
 };
 
-constant_pool::constant_pool(int capacity) {
-    strings.reserve(capacity);
-    sizes.reserve(capacity);
-}
-
-void run(constant_pool pool, const char *bytes, size_t size) {
-    std::unique_ptr<char[]> locals_buf = std::make_unique<char[]>(1024);
-    OperandStack stack = OperandStack(1024);
+void run_instructions(const ConstantPool &pool,
+                      const char *bytes,
+                      size_t size,
+                      OperandStack operands,
+                      Locals locals,
+                      std::vector<std::string> &strings) {
 
     unsigned int ip = 0;
-    char *locals = locals_buf.get();
-    int local_frame = 0;
+
     while (ip < size) {
         // Read the opcode
         switch (bytes[ip]) {
@@ -50,13 +48,13 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             int64_t value = *(int64_t *)(bytes + ip + 1);
             ip += 9;
             // Push the value onto the stack
-            stack.push_int(ntohl(value));
+            operands.push_int(ntohl(value));
             break;
         }
         case OP_PUSH_BYTE: {
             char value = *(bytes + ip + 1);
             ip += 2;
-            stack.push_byte(value);
+            operands.push_byte(value);
             break;
         }
         case OP_PUSH_FLOAT: {
@@ -64,7 +62,7 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             int64_t value = ntohl(*(int64_t *)(bytes + ip + 1));
             ip += 9;
             // Push the value onto the stack
-            stack.push_double(reinterpret_cast<double &>(value));
+            operands.push_double(reinterpret_cast<double &>(value));
             break;
         }
         case OP_PUSH_STRING: {
@@ -72,7 +70,7 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             int64_t index = ntohl(*(int64_t *)(bytes + ip + 1));
             ip += 1 + sizeof(int64_t);
             // Push the string index onto the stack
-            stack.push_string_constant_ref(index);
+            operands.push_string_constant_ref(index);
             break;
         }
         case OP_SPAWN: {
@@ -84,13 +82,15 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             char **argv = new char *[frame_size + 1];
             for (int i = frame_size - 1; i >= 0; i--) {
                 // pop the string index
-                int64_t index = stack.pop_string_constant_ref();
+                int64_t index = operands.pop_string_constant_ref();
+                const std::string &arg = pool.get_string(index);
+                size_t arg_length = arg.length();
                 // Allocate the string
-                argv[i] = new char[pool.sizes[index] + 1];
+                argv[i] = new char[arg_length + 1];
                 // Copy the string data
-                memcpy(argv[i], pool.strings[index].get(), pool.sizes[index]);
+                memcpy(argv[i], arg.data(), arg_length);
                 // Add the null byte
-                argv[i][pool.sizes[index]] = '\0';
+                argv[i][arg_length] = '\0';
             }
             argv[frame_size] = nullptr;
 
@@ -110,7 +110,7 @@ void run(constant_pool pool, const char *bytes, size_t size) {
 
                 // Add the exit status to the stack
                 // TODO: introduce Exitcode type to push a byte here instead
-                stack.push_int(WEXITSTATUS(status));
+                operands.push_int(WEXITSTATUS(status));
             }
             break;
         }
@@ -118,8 +118,9 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             // Read the 1 byte local local_index
             char local_index = *(bytes + ip + 1);
             ip += 2;
+            int64_t value = locals.get_int64(local_index);
             // Push the local onto the stack
-            stack.push_int(*(int64_t *)(locals + local_frame + local_index * 8));
+            operands.push_int(value);
             break;
         }
         case OP_SET_LOCAL: {
@@ -127,40 +128,41 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             char index = *(bytes + ip + 1);
             ip += 2;
             // Pop the value from the stack
-            int64_t value = stack.pop_int();
+            int64_t value = operands.pop_int();
             // Set the local
-            *(int64_t *)(locals + local_frame + index * 8) = value;
+            locals.set_int64(value, index);
             break;
         }
         case OP_INT_TO_STR: {
-            int64_t value = stack.pop_int();
+            int64_t value = operands.pop_int();
 
-            int64_t string_ref = append_str_value(value, pool);
-            stack.push_string_constant_ref(string_ref);
+            int64_t string_ref = strings.size();
+            strings.push_back(std::to_string(value));
+            operands.push_string_constant_ref(string_ref);
 
             // goto next operation
             ip++;
             break;
         }
         case OP_FLOAT_TO_STR: {
-            double value = stack.pop_double();
+            // double value = operands.pop_double();
 
-            int64_t string_ref = append_str_value(value, pool);
-            stack.push_string_constant_ref(string_ref);
+            int64_t string_ref = 0; // append_str_value(value, pool);
+            operands.push_string_constant_ref(string_ref);
 
             // goto next operation
             ip++;
             break;
         }
         case OP_INT_TO_BYTE: {
-            int64_t i = stack.pop_int();
-            stack.push_byte((char)i);
+            int64_t i = operands.pop_int();
+            operands.push_byte((char)i);
             ip++;
             break;
         }
         case OP_IF_NOT_JUMP:
         case OP_IF_JUMP: {
-            char value = stack.pop_byte();
+            char value = operands.pop_byte();
             size_t then_branch = ntohl(*(size_t *)(bytes + ip + sizeof(char)));
             // test below means "test is true if value is 1 and we are in a if-jump,
             //                    or if value is not 1 and we are in a if-not-jump operation"
@@ -178,19 +180,19 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             break;
         }
         case OP_POP_BYTE: {
-            stack.pop_byte();
+            operands.pop_byte();
             ip++;
             break;
         }
         case OP_POP_Q_WORD: {
-            stack.pop_bytes(8);
+            operands.pop_bytes(8);
             ip++;
             break;
         }
         case OP_B_XOR: {
-            char a = stack.pop_byte();
-            char b = stack.pop_byte();
-            stack.push_byte((char)(a ^ b));
+            char a = operands.pop_byte();
+            char b = operands.pop_byte();
+            operands.push_byte((char)(a ^ b));
             ip++;
             break;
         }
@@ -200,4 +202,11 @@ void run(constant_pool pool, const char *bytes, size_t size) {
         }
         }
     }
+}
+
+void run(const ConstantPool &pool, const char *bytes, size_t size, std::vector<std::string> &strings) {
+    auto [call_stack, root_operands, root_locals] =
+        CallStack::create(1024, 50, 50);
+
+    run_instructions(pool, bytes, size, root_operands, root_locals, strings);
 }
