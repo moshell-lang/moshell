@@ -1,5 +1,4 @@
 use analyzer::types::hir::{Conditional, Loop};
-use analyzer::types::INT;
 
 use crate::bytecode::{Bytecode, Opcode};
 use crate::constant_pool::ConstantPool;
@@ -12,12 +11,6 @@ pub fn emit_conditional(
     state: &mut EmissionState,
 ) {
     emit(&conditional.condition, emitter, cp, state);
-
-    if conditional.condition.ty == INT {
-        emitter.emit_code(Opcode::ConvertIntToByte);
-        emitter.emit_byte(1);
-        emitter.emit_code(Opcode::BXor);
-    }
 
     // If the condition is false, go to ELSE.
     let jump_to_else = emitter.emit_jump(Opcode::IfNotJump);
@@ -50,11 +43,6 @@ pub fn emit_loop(
     if let Some(condition) = &lp.condition {
         // Evaluate the condition.
         emit(condition, emitter, cp, state);
-        if condition.ty == INT {
-            emitter.emit_code(Opcode::ConvertIntToByte);
-            emitter.emit_byte(1);
-            emitter.emit_code(Opcode::BXor);
-        }
         // If the condition is false, go to END.
         let jump_to_end = emitter.emit_jump(Opcode::IfNotJump);
         loop_state.enclosing_loop_end_placeholders.push(jump_to_end);

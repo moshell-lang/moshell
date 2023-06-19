@@ -27,12 +27,36 @@ enum Opcode {
     OP_FLOAT_TO_STR, // replaces last value of operand stack from float to a string reference
     OP_INT_TO_BYTE,  // replaces last value of operand stack from int to byte
 
-    OP_B_XOR // pops last two bytes, apply xor operation then push the result
+    OP_B_XOR, // pops last two bytes, apply xor operation then push the result
+    OP_INT_ADD, // takes two ints, adds them, and pushes the result
+    OP_INT_SUB, // takes two ints, subtracts them, and pushes the result
+    OP_INT_MUL, // takes two ints, multiplies them, and pushes the result
+    OP_INT_DIV, // takes two ints, divides them, and pushes the result
+    OP_INT_MOD, // takes two ints, mods them, and pushes the result
 };
 
 constant_pool::constant_pool(int capacity) {
     strings.reserve(capacity);
     sizes.reserve(capacity);
+}
+
+// Apply an arithmetic operation to two integers
+int64_t apply_op(Opcode code, int64_t a, int64_t b) {
+    switch (code) {
+    case OP_INT_ADD:
+        return a + b;
+    case OP_INT_SUB:
+        return a - b;
+    case OP_INT_MUL:
+        return a * b;
+    case OP_INT_DIV:
+        return a / b;
+    case OP_INT_MOD:
+        return a % b;
+    default:
+        std::cerr << "Error: Unknown opcode " << (int)code << "\n";
+        exit(1);
+    }
 }
 
 void run(constant_pool pool, const char *bytes, size_t size) {
@@ -109,8 +133,7 @@ void run(constant_pool pool, const char *bytes, size_t size) {
                 waitpid(pid, &status, 0);
 
                 // Add the exit status to the stack
-                // TODO: introduce Exitcode type to push a byte here instead
-                stack.push_int(WEXITSTATUS(status));
+                stack.push_byte(WEXITSTATUS(status) & 0xFF);
             }
             break;
         }
@@ -191,6 +214,18 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             char a = stack.pop_byte();
             char b = stack.pop_byte();
             stack.push_byte((char)(a ^ b));
+            ip++;
+            break;
+        }
+        case OP_INT_ADD:
+        case OP_INT_SUB:
+        case OP_INT_MUL:
+        case OP_INT_DIV:
+        case OP_INT_MOD: {
+            int64_t b = stack.pop_int();
+            int64_t a = stack.pop_int();
+            int64_t res = apply_op(static_cast<Opcode>(bytes[ip]), a, b);
+            stack.push_int(res);
             ip++;
             break;
         }

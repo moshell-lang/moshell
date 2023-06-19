@@ -1,4 +1,4 @@
-use analyzer::relations::Symbol;
+use analyzer::relations::{Definition, Symbol};
 use analyzer::types::hir::{Declaration, ExprKind, TypedExpr};
 use analyzer::types::*;
 use ast::value::LiteralValue;
@@ -7,9 +7,11 @@ use crate::bytecode::{Bytecode, Opcode};
 use crate::constant_pool::ConstantPool;
 use crate::emit::invoke::emit_process_call;
 use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
+use crate::emit::native::emit_native;
 
 mod invoke;
 mod jump;
+mod native;
 
 #[derive(Debug, Clone, Default)]
 pub struct EmissionState {
@@ -108,6 +110,12 @@ pub fn emit(
             }
         }
         ExprKind::ProcessCall(args) => emit_process_call(args, use_return, emitter, cp, state),
+        ExprKind::MethodCall(method) => match method.definition {
+            Definition::Native(id) => {
+                emit_native(id, &method.callee, &method.arguments, emitter, cp, state)
+            }
+            _ => todo!("user defined method"),
+        },
         _ => {}
     }
 }

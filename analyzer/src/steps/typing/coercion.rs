@@ -4,7 +4,7 @@ use crate::steps::typing::lower::call_convert_on;
 use crate::steps::typing::TypingState;
 use crate::types::engine::TypedEngine;
 use crate::types::hir::{TypeId, TypedExpr};
-use crate::types::{Typing, ERROR};
+use crate::types::{Typing, BOOL, ERROR};
 use context::source::SourceSegmentHolder;
 
 /// Ensures that the type annotation accepts the given value.
@@ -82,5 +82,44 @@ pub(super) fn unify_and_map(
             state,
         )),
         Err(_) => Err(rvalue),
+    }
+}
+
+/// Ensures that the expression is a boolean.
+///
+/// If not, a diagnostic is generated and the expression is returned.
+/// Otherwise, the converted expression is returned.
+pub(super) fn coerce_condition(
+    condition: TypedExpr,
+    exploration: &mut Exploration,
+    state: TypingState,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> TypedExpr {
+    match unify_and_map(
+        condition,
+        BOOL,
+        &mut exploration.typing,
+        &exploration.engine,
+        state,
+        diagnostics,
+    ) {
+        Ok(condition) => condition,
+        Err(condition) => {
+            diagnostics.push(
+                Diagnostic::new(
+                    DiagnosticID::TypeMismatch,
+                    state.source,
+                    "Condition must be a boolean",
+                )
+                .with_observation(Observation::with_help(
+                    condition.segment(),
+                    format!(
+                        "Type `{}` cannot be used as a condition",
+                        exploration.get_type(condition.ty).unwrap()
+                    ),
+                )),
+            );
+            condition
+        }
     }
 }

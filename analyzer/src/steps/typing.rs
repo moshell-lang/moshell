@@ -3,7 +3,7 @@ use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::relations::{Definition, Relations, SourceId};
-use crate::steps::typing::coercion::{check_type_annotation, unify_and_map};
+use crate::steps::typing::coercion::{check_type_annotation, coerce_condition, unify_and_map};
 use crate::steps::typing::exploration::{diagnose_unknown_type, Exploration};
 use crate::steps::typing::function::{
     find_operand_implementation, infer_return, type_call, type_method, type_parameter, Return,
@@ -17,7 +17,7 @@ use crate::types::hir::{
 };
 use crate::types::operator::name_operator_method;
 use crate::types::ty::Type;
-use crate::types::{Typing, BOOL, ERROR, EXIT_CODE, FLOAT, INT, NOTHING, STRING};
+use crate::types::{Typing, ERROR, EXIT_CODE, FLOAT, INT, NOTHING, STRING};
 use ast::call::{Call, ProgrammaticCall};
 use ast::control_flow::If;
 use ast::function::FunctionDeclaration;
@@ -596,33 +596,7 @@ fn ascribe_if(
         &block.condition,
         state,
     );
-    let condition = match unify_and_map(
-        condition,
-        BOOL,
-        &mut exploration.typing,
-        &exploration.engine,
-        state,
-        diagnostics,
-    ) {
-        Ok(condition) => condition,
-        Err(condition) => {
-            diagnostics.push(
-                Diagnostic::new(
-                    DiagnosticID::TypeMismatch,
-                    state.source,
-                    "Condition must be a boolean",
-                )
-                .with_observation(Observation::with_help(
-                    block.condition.segment(),
-                    format!(
-                        "Type `{}` cannot be used as a condition",
-                        exploration.get_type(condition.ty).unwrap()
-                    ),
-                )),
-            );
-            condition
-        }
-    };
+    let condition = coerce_condition(condition, exploration, state, diagnostics);
     let mut then = ascribe_types(
         exploration,
         relations,
@@ -802,17 +776,20 @@ fn ascribe_loop(
     state: TypingState,
 ) -> TypedExpr {
     let (condition, body) = match loo {
-        Expr::While(w) => (
-            Some(ascribe_types(
+        Expr::While(w) => {
+            let condition = ascribe_types(
                 exploration,
                 relations,
                 diagnostics,
                 env,
                 &w.condition,
                 state.with_local_type(),
-            )),
-            &w.body,
-        ),
+            );
+            (
+                Some(coerce_condition(condition, exploration, state, diagnostics)),
+                &w.body,
+            )
+        }
         Expr::Loop(l) => (None, &l.body),
         _ => unreachable!("Expression is not a loop"),
     };

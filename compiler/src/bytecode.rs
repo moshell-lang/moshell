@@ -120,4 +120,9 @@ pub enum Opcode {
     ConvertIntToByte,
 
     BXor,
+    IntAdd,
+    IntSub,
+    IntMul,
+    IntDiv,
+    IntMod,
 }
