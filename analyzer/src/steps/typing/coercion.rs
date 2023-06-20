@@ -37,28 +37,28 @@ pub(super) fn check_type_annotation(
         state,
         diagnostics,
     )
-        .unwrap_or_else(|value| {
-            diagnostics.push(
-                Diagnostic::new(DiagnosticID::TypeMismatch, state.source, "Type mismatch")
-                    .with_observation(
-                        Observation::new(type_annotation.segment())
-                            .with_help(format!(
-                                "Expected `{}`",
-                                exploration.get_type(expected_type).unwrap()
-                            ))
-                            .with_tag(ObservationTag::Expected),
-                    )
-                    .with_observation(
-                        Observation::new(value.segment())
-                            .with_help(format!(
-                                "Found `{}`",
-                                exploration.get_type(value.ty).unwrap()
-                            ))
-                            .with_tag(ObservationTag::InFault)
-                    ),
-            );
-            value
-        })
+    .unwrap_or_else(|value| {
+        diagnostics.push(
+            Diagnostic::new(DiagnosticID::TypeMismatch, state.source, "Type mismatch")
+                .with_observation(
+                    Observation::new(type_annotation.segment())
+                        .with_help(format!(
+                            "Expected `{}`",
+                            exploration.get_type(expected_type).unwrap()
+                        ))
+                        .with_tag(ObservationTag::Expected),
+                )
+                .with_observation(
+                    Observation::new(value.segment())
+                        .with_help(format!(
+                            "Found `{}`",
+                            exploration.get_type(value.ty).unwrap()
+                        ))
+                        .with_tag(ObservationTag::InFault),
+                ),
+        );
+        value
+    })
 }
 
 /// Tries to convert an expression to the given assignation type.
@@ -118,12 +118,12 @@ pub(super) fn coerce_condition(
                     state.source,
                     "Condition must be a boolean",
                 )
-                    .with_observation(Observation::new(condition.segment()).with_help(
-                        format!(
-                            "Type `{}` cannot be used as a condition",
-                            exploration.get_type(condition.ty).unwrap()
-                        ),
-                    )),
+                .with_observation(Observation::new(condition.segment()).with_help(
+                    format!(
+                        "Type `{}` cannot be used as a condition",
+                        exploration.get_type(condition.ty).unwrap()
+                    ),
+                )),
             );
             condition
         }

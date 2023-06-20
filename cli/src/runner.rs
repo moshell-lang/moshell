@@ -17,7 +17,8 @@ use lexer::lexer::lex;
 use parser::err::ParseReport;
 use parser::parse;
 
-use crate::cli::{display_bytecode, display_exprs, display_tokens, execute, Configuration};
+use crate::cli::{display_exprs, display_tokens, execute, Configuration};
+use crate::display_bytecode::display_bytecode;
 use crate::formatted_diagnostic::render_diagnostic;
 use crate::formatted_parse_error::render_parse_error;
 use crate::source_importer::FileSourceImporter;

@@ -12,6 +12,7 @@ use crate::repl::repl;
 use crate::runner::run;
 
 mod cli;
+mod display_bytecode;
 mod formatted_diagnostic;
 mod formatted_parse_error;
 mod repl;

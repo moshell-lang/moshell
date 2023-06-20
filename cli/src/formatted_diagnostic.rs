@@ -118,6 +118,7 @@ fn agg_strings(strings: Vec<String>) -> Option<String> {
     agg
 }
 
+/// parses given string and colorizes segments between anti quotes (`) with given color
 fn colorize_message(msg: String, color: Color) -> String {
     let regex = Regex::new(r"`([^`]*)`").unwrap();
 
