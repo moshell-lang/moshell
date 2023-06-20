@@ -1,9 +1,9 @@
 use analyzer::relations::{Definition, Symbol};
-use analyzer::types::hir::{Declaration, ExprKind, TypedExpr};
+use analyzer::types::hir::{Assignment, Declaration, ExprKind, TypedExpr};
 use analyzer::types::*;
 use ast::value::LiteralValue;
 
-use crate::bytecode::{Bytecode, Opcode};
+use crate::bytecode::Bytecode;
 use crate::constant_pool::ConstantPool;
 use crate::emit::invoke::emit_process_call;
 use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
@@ -69,8 +69,7 @@ fn emit_declaration(
 ) {
     if let Some(value) = &declaration.value {
         emit(value, emitter, cp, state);
-        emitter.emit_code(Opcode::SetLocal);
-        emitter.bytes.push(declaration.identifier.0 as u8);
+        emitter.emit_set_local(declaration.identifier.0 as u8)
     }
 }
 
@@ -83,6 +82,20 @@ fn emit_block(
     for expr in exprs {
         emit(expr, emitter, cp, state);
     }
+}
+
+fn emit_assignment(
+    assignment: &Assignment,
+    emitter: &mut Bytecode,
+    cp: &mut ConstantPool,
+    state: &mut EmissionState,
+) {
+    emit(&assignment.rhs, emitter, cp, state);
+    if let Symbol::Local(id) = assignment.identifier {
+        emitter.emit_set_local(id.0 as u8);
+        return;
+    }
+    unimplemented!("cannot support external variables assignations")
 }
 
 pub fn emit(
@@ -99,6 +112,7 @@ pub fn emit(
         ExprKind::ConditionalLoop(l) => emit_loop(l, emitter, cp, state),
         ExprKind::Continue => emit_continue(emitter, state),
         ExprKind::Break => emit_break(emitter, state),
+        ExprKind::Assign(ass) => emit_assignment(ass, emitter, cp, state),
         ExprKind::Reference(r) => {
             if use_return {
                 emit_ref(r, emitter)
