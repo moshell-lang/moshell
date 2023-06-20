@@ -2,7 +2,7 @@
 
 use ariadne::{Color, StdoutFmt};
 use std::ops::Deref;
-use std::path::{PathBuf};
+use std::path::PathBuf;
 use std::process::exit;
 
 use clap::Parser;

@@ -6,8 +6,9 @@ use analyzer::engine::Engine;
 use analyzer::importer::ASTImporter;
 use analyzer::imports::Imports;
 use analyzer::name::Name;
-use analyzer::relations::{Relations, SourceId};
+use analyzer::relations::{Definition, Relations, SourceId};
 use analyzer::steps::typing::apply_types;
+use analyzer::types::engine::CodeEntry;
 use ast::group::Block;
 use ast::Expr;
 use compiler::compile;
@@ -212,8 +213,11 @@ fn handle_source<'e>(
 
     let mut bytecode = Vec::new();
     let root_expr = typed_engine
-        .get(SourceId(0))
-        .map(|c| &c.expression)
+        .get(Definition::User(SourceId(0)))
+        .map(|c| match c {
+            CodeEntry::User(c) => &c.expression,
+            _ => unreachable!(),
+        })
         .unwrap();
     compile(root_expr, &mut bytecode).unwrap();
 

@@ -1,5 +1,4 @@
 use analyzer::types::hir::{Conditional, Loop};
-use std::mem::size_of;
 
 use crate::bytecode::{Bytecode, Opcode};
 use crate::constant_pool::ConstantPool;
@@ -13,24 +12,22 @@ pub fn emit_conditional(
 ) {
     emit(&conditional.condition, emitter, cp, state);
 
-    emitter.emit_code(Opcode::IfJump);
-    let jump_to_then_placeholder = emitter.create_placeholder(size_of::<usize>());
-    //jump out of otherwise instructions
-    let mut jump_oo_otherwise_placeholder = None;
+    // If the condition is false, go to ELSE.
+    let jump_to_else = emitter.emit_jump(Opcode::IfNotJump);
+    // Evaluate the if branch.
+    emit(&conditional.then, emitter, cp, state);
 
+    // Go to END.
+    let jump_to_end = emitter.emit_jump(Opcode::Jump);
+
+    // ELSE:
+    emitter.patch_jump(jump_to_else);
     if let Some(otherwise) = &conditional.otherwise {
         emit(otherwise, emitter, cp, state);
-
-        // then we jump out of the otherwise instruction
-        emitter.emit_code(Opcode::Jump);
-        jump_oo_otherwise_placeholder = Some(emitter.create_placeholder(size_of::<usize>()));
     }
 
-    emitter.fill_in_ip(jump_to_then_placeholder, emitter.len());
-    emit(&conditional.then, emitter, cp, state);
-    if let Some(jump_placeholder) = jump_oo_otherwise_placeholder {
-        emitter.fill_in_ip(jump_placeholder, emitter.len());
-    }
+    // END:
+    emitter.patch_jump(jump_to_end);
 }
 
 pub fn emit_loop(
@@ -39,33 +36,27 @@ pub fn emit_loop(
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
-    let start_ip = emitter.len();
-
-    let mut loop_state = EmissionState::new();
-    loop_state.enclosing_loop_start = start_ip;
+    // START:
+    let loop_start = emitter.current_ip();
+    let mut loop_state = EmissionState::in_loop(loop_start);
 
     if let Some(condition) = &lp.condition {
+        // Evaluate the condition.
         emit(condition, emitter, cp, state);
-        emitter.emit_code(Opcode::IfNotJump);
-        let jump_placeholder = emitter.create_placeholder(size_of::<usize>());
-        emit(&lp.body, emitter, cp, &mut loop_state);
-
-        // jump back to loop start
-        emitter.emit_code(Opcode::Jump);
-        emitter.emit_instruction_pointer(start_ip);
-
-        // if condition is false, jump at end of loop
-        emitter.fill_in_ip(jump_placeholder, emitter.len());
-    } else {
-        emit(&lp.body, emitter, cp, &mut loop_state);
-        emitter.emit_code(Opcode::Jump);
-        emitter.emit_instruction_pointer(start_ip)
+        // If the condition is false, go to END.
+        let jump_to_end = emitter.emit_jump(Opcode::IfNotJump);
+        loop_state.enclosing_loop_end_placeholders.push(jump_to_end);
     }
 
-    // fill break placeholders
-    let current_ip = emitter.len();
-    for placeholder in loop_state.enclosing_loop_end_placeholders {
-        emitter.fill_in_ip(placeholder, current_ip)
+    loop_state.enclosing_loop_start = loop_start;
+
+    // Evaluate the loop body.
+    emit(&lp.body, emitter, cp, &mut loop_state);
+    // Go to START.
+    emitter.jump_back_to(loop_start);
+    // END:
+    for jump_to_end in &loop_state.enclosing_loop_end_placeholders {
+        emitter.patch_jump(*jump_to_end);
     }
 }
 
@@ -75,8 +66,7 @@ pub fn emit_continue(emitter: &mut Bytecode, state: &mut EmissionState) {
 }
 
 pub fn emit_break(emitter: &mut Bytecode, state: &mut EmissionState) {
-    emitter.emit_code(Opcode::Jump);
     state
         .enclosing_loop_end_placeholders
-        .push(emitter.create_placeholder(size_of::<usize>()));
+        .push(emitter.emit_jump(Opcode::Jump));
 }

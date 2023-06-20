@@ -124,7 +124,10 @@ fn display_byte_instructions(constants: Vec<String>, bytes: &[u8]) {
                 ip += 8;
             }
             Opcode::PushFloat => {
-                print!("<value {}>", f64::from_be_bytes((&bytes[ip..ip + 8]).try_into().unwrap()));
+                print!(
+                    "<value {}>",
+                    f64::from_be_bytes((&bytes[ip..ip + 8]).try_into().unwrap())
+                );
                 ip += 8;
             }
             Opcode::PushString => {

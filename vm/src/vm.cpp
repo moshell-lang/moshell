@@ -34,6 +34,5 @@ extern "C" void exec(const char *bytes, size_t byte_count) {
         run(std::move(pool), bytes + constant_pool_bytes, byte_count - constant_pool_bytes);
     } catch (std::exception &e) {
         std::cerr << e.what() << std::endl;
-        exit(1);
     }
 }

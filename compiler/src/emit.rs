@@ -1,4 +1,4 @@
-use analyzer::relations::Symbol;
+use analyzer::relations::{Definition, Symbol};
 use analyzer::types::hir::{Declaration, ExprKind, TypedExpr};
 use analyzer::types::*;
 use ast::value::LiteralValue;
@@ -7,10 +7,13 @@ use crate::bytecode::{Bytecode, Opcode};
 use crate::constant_pool::ConstantPool;
 use crate::emit::invoke::emit_process_call;
 use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
+use crate::emit::native::emit_primitive_op;
 
 mod invoke;
 mod jump;
+mod native;
 
+#[derive(Debug, Clone, Default)]
 pub struct EmissionState {
     // the start instruction position of the enclosing loop
     // set to 0 if there is no loop
@@ -22,9 +25,15 @@ pub struct EmissionState {
 }
 
 impl EmissionState {
+    /// Create a new emission state.
     pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create a new emission state for a loop.
+    pub fn in_loop(loop_start: usize) -> Self {
         Self {
-            enclosing_loop_start: 0,
+            enclosing_loop_start: loop_start,
             enclosing_loop_end_placeholders: Vec::new(),
         }
     }
@@ -58,13 +67,11 @@ fn emit_declaration(
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
-    let value = declaration
-        .value
-        .as_ref()
-        .expect("var declaration without initializer not supported");
-    emit(value, emitter, cp, state);
-    emitter.emit_code(Opcode::SetLocal);
-    emitter.bytes.push(declaration.identifier.0 as u8);
+    if let Some(value) = &declaration.value {
+        emit(value, emitter, cp, state);
+        emitter.emit_code(Opcode::SetLocal);
+        emitter.bytes.push(declaration.identifier.0 as u8);
+    }
 }
 
 fn emit_block(
@@ -84,18 +91,31 @@ pub fn emit(
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
+    let use_return = expr.ty != NOTHING;
     match &expr.kind {
         ExprKind::Declare(d) => emit_declaration(d, emitter, cp, state),
-        ExprKind::Reference(r) => emit_ref(r, emitter),
-        ExprKind::Literal(literal) => emit_literal(literal, emitter, cp),
-        ExprKind::ProcessCall(args) => {
-            emit_process_call(args, expr.ty != NOTHING, emitter, cp, state)
-        }
         ExprKind::Block(exprs) => emit_block(exprs, emitter, cp, state),
         ExprKind::Conditional(c) => emit_conditional(c, emitter, cp, state),
         ExprKind::ConditionalLoop(l) => emit_loop(l, emitter, cp, state),
         ExprKind::Continue => emit_continue(emitter, state),
         ExprKind::Break => emit_break(emitter, state),
+        ExprKind::Reference(r) => {
+            if use_return {
+                emit_ref(r, emitter)
+            }
+        }
+        ExprKind::Literal(literal) => {
+            if use_return {
+                emit_literal(literal, emitter, cp)
+            }
+        }
+        ExprKind::ProcessCall(args) => emit_process_call(args, use_return, emitter, cp, state),
+        ExprKind::MethodCall(method) => match method.definition {
+            Definition::Native(id) => {
+                emit_primitive_op(id, &method.callee, &method.arguments, emitter, cp, state);
+            }
+            Definition::User(_) => todo!("user defined method"),
+        },
         _ => {}
     }
 }

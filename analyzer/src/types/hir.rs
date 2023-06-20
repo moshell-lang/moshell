@@ -1,6 +1,5 @@
-use crate::relations::{LocalId, ObjectId, Symbol};
+use crate::relations::{Definition, LocalId, ObjectId, Symbol};
 use crate::types::{ERROR, NOTHING};
-use ast::operation::BinaryOperator;
 use ast::value::LiteralValue;
 use context::source::{SourceSegment, SourceSegmentHolder};
 
@@ -27,7 +26,7 @@ impl TypeId {
 }
 
 /// A type checked expression attached to a source segment.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TypedExpr {
     pub kind: ExprKind,
     pub ty: TypeId,
@@ -40,57 +39,64 @@ impl SourceSegmentHolder for TypedExpr {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Assignment {
-    pub lhs: Box<TypedExpr>,
+    pub identifier: Symbol,
     pub rhs: Box<TypedExpr>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Declaration {
     pub identifier: LocalId,
     pub value: Option<Box<TypedExpr>>,
 }
 
-#[derive(Debug, PartialEq)]
-pub struct Binary {
-    pub lhs: Box<TypedExpr>,
-    pub op: BinaryOperator,
-    pub rhs: Box<TypedExpr>,
-}
-
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Conditional {
     pub condition: Box<TypedExpr>,
     pub then: Box<TypedExpr>,
     pub otherwise: Option<Box<TypedExpr>>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct Convert {
+    pub inner: Box<TypedExpr>,
+    pub into: TypeId,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct Loop {
     pub condition: Option<Box<TypedExpr>>,
     pub body: Box<TypedExpr>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct FunctionCall {
-    pub name: String,
     pub arguments: Vec<TypedExpr>,
+    pub definition: Definition,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct MethodCall {
+    pub callee: Box<TypedExpr>,
+    pub arguments: Vec<TypedExpr>,
+    pub definition: Definition,
 }
 
 /// An expression content.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ExprKind {
     Literal(LiteralValue),
     Assign(Assignment),
     Declare(Declaration),
     Reference(Symbol),
-    Binary(Binary),
     Block(Vec<TypedExpr>),
     Conditional(Conditional),
     ConditionalLoop(Loop),
+    Convert(Convert),
     ProcessCall(Vec<TypedExpr>),
     FunctionCall(FunctionCall),
+    MethodCall(MethodCall),
     Return(Option<Box<TypedExpr>>),
 
     Continue,

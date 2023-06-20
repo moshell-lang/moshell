@@ -42,22 +42,40 @@ pub enum DiagnosticID {
     #[assoc(critical = true)]
     SymbolConflictsWithModule,
 
+    /// A type annotation refers to an unknown type.
     #[assoc(code = 8)]
     #[assoc(critical = true)]
     UnknownType,
 
+    /// A type annotation is not matching the expected type.
     #[assoc(code = 9)]
     #[assoc(critical = true)]
     TypeMismatch,
 
+    /// A type annotation is missing, and cannot be inferred.
     #[assoc(code = 10)]
     #[assoc(critical = true)]
     CannotInfer,
 
-    /// Occurs when a `continue` or `break` directive is declared outside of a loop
+    /// Occurs when a `continue` or `break` directive is declared outside of a loop.
     #[assoc(code = 11)]
     #[assoc(critical = true)]
     InvalidBreakOrContinue,
+
+    /// A type cannot be casted to another type.
+    #[assoc(code = 12)]
+    #[assoc(critical = true)]
+    IncompatibleCast,
+
+    /// A named method is unknown or does not match the expected signature.
+    #[assoc(code = 13)]
+    #[assoc(critical = true)]
+    UnknownMethod,
+
+    /// A variable is being reassigned, but it is not mutable.
+    #[assoc(code = 14)]
+    #[assoc(critical = true)]
+    CannotReassign,
 }
 
 /// Observations are an area in the source code with an (optional) help message
@@ -76,9 +94,9 @@ pub struct Observation {
 }
 
 impl Observation {
-    pub fn new(segment: SourceSegment) -> Self {
+    pub fn new(segment: impl Into<SourceSegment>) -> Self {
         Self {
-            segment,
+            segment: segment.into(),
             foreign_env: None,
             help: None,
             tag: None,

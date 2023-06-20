@@ -1,5 +1,8 @@
 #include "interpreter.h"
+#include "conversions.h"
 #include "memory/operand_stack.h"
+#include "pool.h"
+
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -9,6 +12,7 @@
 
 enum Opcode {
     OP_PUSH_INT,    // with 8 byte int value, pushes an int onto the operand stack
+    OP_PUSH_BYTE,   // with 1 byte value, pushes a byte onto the operand stack
     OP_PUSH_FLOAT,  // with 8 byte float value, pushes a float onto the operand stack
     OP_PUSH_STRING, // with 8 byte string index in constant pool, pushes a string ref onto the operand stack
     OP_GET_LOCAL,   // with 1 byte local index, pushes given local value onto the operand stack
@@ -18,28 +22,40 @@ enum Opcode {
     OP_POP_BYTE,   // pops one byte from operand stack
     OP_POP_Q_WORD, // pops 8 bytes from operand stack
 
-    OP_IF_JUMP,     // with 8 byte opcode for 'then' branch, jumps only if value popped from operand stack is 0
-    OP_IF_NOT_JUMP, // with 8 byte opcode for where to jump, jumps only if value popped from operand stack is not 0
-    OP_JUMP,        // with 8 byte opcode for where to jump
+    OP_IF_JUMP,     // with 1 byte opcode for 'then' branch, jumps only if value popped from operand stack is 0
+    OP_IF_NOT_JUMP, // with 1 byte opcode for where to jump, jumps only if value popped from operand stack is not 0
+    OP_JUMP,        // with 1 byte opcode for where to jump
 
     OP_INT_TO_STR,   // replaces last value of operand stack from int to a string reference
     OP_FLOAT_TO_STR, // replaces last value of operand stack from float to a string reference
+    OP_INT_TO_BYTE,  // replaces last value of operand stack from int to byte
+    OP_CONCAT,       // pops two string references, concatenates them, and pushes the result
+
+    OP_B_XOR,   // pops last two bytes, apply xor operation then push the result
+    OP_INT_ADD, // takes two ints, adds them, and pushes the result
+    OP_INT_SUB, // takes two ints, subtracts them, and pushes the result
+    OP_INT_MUL, // takes two ints, multiplies them, and pushes the result
+    OP_INT_DIV, // takes two ints, divides them, and pushes the result
+    OP_INT_MOD, // takes two ints, mods them, and pushes the result
 };
 
-constant_pool::constant_pool(int capacity) {
-    strings.reserve(capacity);
-    sizes.reserve(capacity);
-}
-
-inline void handle_process_state(int status, const char *bytes, size_t byte_count, unsigned int &ip, OperandStack &stack) {
-    // look ahead for OP_POP_BYTE instruction in order to avoid useless push/pop operations
-    // which often happens
-    if (ip < byte_count && bytes[ip] == OP_POP_BYTE) {
-        ip++; // skip pop operation and do not push
-        return;
+// Apply an arithmetic operation to two integers
+int64_t apply_op(Opcode code, int64_t a, int64_t b) {
+    switch (code) {
+    case OP_INT_ADD:
+        return a + b;
+    case OP_INT_SUB:
+        return a - b;
+    case OP_INT_MUL:
+        return a * b;
+    case OP_INT_DIV:
+        return a / b;
+    case OP_INT_MOD:
+        return a % b;
+    default:
+        std::cerr << "Error: Unknown opcode " << (int)code << "\n";
+        exit(1);
     }
-    // add status to the stack
-    stack.push_int(status);
 }
 
 void run(constant_pool pool, const char *bytes, size_t size) {
@@ -58,6 +74,12 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             ip += 9;
             // Push the value onto the stack
             stack.push_int(ntohl(value));
+            break;
+        }
+        case OP_PUSH_BYTE: {
+            char value = *(bytes + ip + 1);
+            ip += 2;
+            stack.push_byte(value);
             break;
         }
         case OP_PUSH_FLOAT: {
@@ -98,18 +120,19 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             // Fork and exec the process
             pid_t pid = fork();
             if (pid == 0) {
-                // Execute the process then exit
+                // Replace the current process with a new process image
                 execvp(argv[0], argv);
             } else {
                 for (int i = 0; i < frame_size; i++) {
                     delete[] argv[i];
                 }
                 delete[] argv;
-                int status;
+                int status = 0;
                 // Wait for the process to finish
                 waitpid(pid, &status, 0);
 
-                handle_process_state(status, bytes, size, ip, stack);
+                // Add the exit status to the stack
+                stack.push_byte(WEXITSTATUS(status) & 0xFF);
             }
             break;
         }
@@ -151,14 +174,29 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             ip++;
             break;
         }
+        case OP_INT_TO_BYTE: {
+            int64_t i = stack.pop_int();
+            stack.push_byte((char)i);
+            ip++;
+            break;
+        }
+        case OP_CONCAT: {
+            int64_t right = stack.pop_string_constant_ref();
+            int64_t left = stack.pop_string_constant_ref();
+
+            int64_t string_ref = pool.concat(left, right);
+            stack.push_string_constant_ref(string_ref);
+
+            ip++;
+            break;
+        }
         case OP_IF_NOT_JUMP:
         case OP_IF_JUMP: {
-            int64_t value = stack.pop_int();
+            char value = stack.pop_byte();
             size_t then_branch = ntohl(*(size_t *)(bytes + ip + sizeof(char)));
-            // as we are in a shell interpreter thus
-            // when value is 0 it means that the test or operation succeeded.
-            // the test is reversed if current operation is OP_IF_NOT_JUMP
-            if ((value == 0) == (bytes[ip] == OP_IF_JUMP)) {
+            // test below means "test is true if value is 1 and we are in a if-jump,
+            //                    or if value is not 1 and we are in a if-not-jump operation"
+            if (value == (bytes[ip] == OP_IF_JUMP)) {
                 ip = then_branch;
             } else {
                 // the length of if-jump opcode and its branch destination
@@ -172,12 +210,31 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             break;
         }
         case OP_POP_BYTE: {
-            stack.pop_bytes(1);
+            stack.pop_byte();
             ip++;
             break;
         }
         case OP_POP_Q_WORD: {
             stack.pop_bytes(8);
+            ip++;
+            break;
+        }
+        case OP_B_XOR: {
+            char a = stack.pop_byte();
+            char b = stack.pop_byte();
+            stack.push_byte((char)(a ^ b));
+            ip++;
+            break;
+        }
+        case OP_INT_ADD:
+        case OP_INT_SUB:
+        case OP_INT_MUL:
+        case OP_INT_DIV:
+        case OP_INT_MOD: {
+            int64_t b = stack.pop_int();
+            int64_t a = stack.pop_int();
+            int64_t res = apply_op(static_cast<Opcode>(bytes[ip]), a, b);
+            stack.push_int(res);
             ip++;
             break;
         }

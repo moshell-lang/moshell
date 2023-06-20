@@ -4,10 +4,17 @@
 #include <cstdint>
 #include <exception>
 #include <memory>
+#include <stdexcept>
+
+struct OperandStackOutOfBoundError : public std::out_of_range {
+
+public:
+    explicit OperandStackOutOfBoundError(const char *message) : std::out_of_range{message} {}
+};
 
 class OperandStack {
 private:
-    char *bytes;
+    std::unique_ptr<char[]> bytes;
     size_t capacity;
     size_t current_pos;
 
@@ -16,11 +23,15 @@ public:
 
     void push_int(int64_t i);
 
+    void push_byte(char b);
+
     void push_double(double d);
 
     void push_string_constant_ref(int64_t s);
 
     int64_t pop_int();
+
+    char pop_byte();
 
     double pop_double();
 
@@ -28,18 +39,10 @@ public:
 
     void pop_bytes(size_t size);
 
-    ~OperandStack();
-};
-
-struct OperandStackError : public std::exception {
-
 private:
-    const char *message;
+    template <typename T>
+    void push(T t);
 
-public:
-    explicit OperandStackError(const char *message) : message{message} {}
-
-    [[nodiscard]] const char *what() const noexcept override {
-        return message;
-    }
+    template <typename T>
+    T pop();
 };
