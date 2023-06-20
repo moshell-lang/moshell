@@ -3,8 +3,8 @@ use std::io::stderr;
 use std::path::PathBuf;
 use std::process::exit;
 
-use clap::Parser;
 use analyzer::engine::Engine;
+use clap::Parser;
 
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;

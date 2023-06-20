@@ -1,6 +1,8 @@
 #include "interpreter.h"
 #include "memory/call_stack.h"
+#include "conversions.h"
 #include "memory/operand_stack.h"
+
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -28,8 +30,15 @@ enum Opcode {
     OP_INT_TO_STR,   // replaces last value of operand stack from int to a string reference
     OP_FLOAT_TO_STR, // replaces last value of operand stack from float to a string reference
     OP_INT_TO_BYTE,  // replaces last value of operand stack from int to byte
+    OP_CONCAT,       // pops two string references, concatenates them, and pushes the result
 
-    OP_B_XOR // pops last two instructions, apply xor operation then push the result
+
+    OP_B_XOR,   // pops last two bytes, apply xor operation then push the result
+    OP_INT_ADD, // takes two ints, adds them, and pushes the result
+    OP_INT_SUB, // takes two ints, subtracts them, and pushes the result
+    OP_INT_MUL, // takes two ints, multiplies them, and pushes the result
+    OP_INT_DIV, // takes two ints, divides them, and pushes the result
+    OP_INT_MOD, // takes two ints, mods them, and pushes the result
 };
 
 void spawn_process(OperandStack &operands, const ConstantPool &pool, int frame_size) {
@@ -54,18 +63,40 @@ void spawn_process(OperandStack &operands, const ConstantPool &pool, int frame_s
     if (pid == 0) {
         // Replace the current process with a new process image
         execvp(argv[0], argv);
-    } else {
-        for (int i = 0; i < frame_size; i++) {
-            delete[] argv[i];
-        }
-        delete[] argv;
-        int status = 0;
-        // Wait for the process to finish
-        waitpid(pid, &status, 0);
+        //it technically never returns buts this is to keep the source code semantic
+        return;
+    }
 
-        // Add the exit status to the stack
-        // TODO: introduce Exitcode type to push a byte here instead
-        operands.push_int(WEXITSTATUS(status));
+    for (int i = 0; i < frame_size; i++) {
+        delete[] argv[i];
+    }
+    delete[] argv;
+    int status = 0;
+    // Wait for the process to finish
+    waitpid(pid, &status, 0);
+
+    // Add the exit status to the stack
+    // TODO: introduce Exitcode type to push a byte here instead
+    operands.push_int(WEXITSTATUS(status));
+
+}
+
+// Apply an arithmetic operation to two integers
+inline int64_t apply_op(Opcode code, int64_t a, int64_t b) {
+    switch (code) {
+    case OP_INT_ADD:
+        return a + b;
+    case OP_INT_SUB:
+        return a - b;
+    case OP_INT_MUL:
+        return a * b;
+    case OP_INT_DIV:
+        return a / b;
+    case OP_INT_MOD:
+        return a % b;
+    default:
+        std::cerr << "Error: Unknown opcode " << (int)code << "\n";
+        exit(1);
     }
 }
 
@@ -206,7 +237,17 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
         case OP_INT_TO_BYTE: {
             int64_t i = operands.pop_int();
             operands.push_byte((char)i);
-            ip++;
+            break;
+        }
+        case OP_CONCAT: {
+            const std::string& right = pool.get_string(operands.pop_string_constant_ref());
+            const std::string& left = pool.get_string(operands.pop_string_constant_ref());
+
+            std::string result = left + right;
+            size_t string_ref = state.strings.size();
+            state.strings.push_back(result);
+
+            operands.push_string_constant_ref(string_ref);
             break;
         }
         case OP_IF_NOT_JUMP:
@@ -240,6 +281,17 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
             char a = operands.pop_byte();
             char b = operands.pop_byte();
             operands.push_byte((char)(a ^ b));
+            break;
+        }
+        case OP_INT_ADD:
+        case OP_INT_SUB:
+        case OP_INT_MUL:
+        case OP_INT_DIV:
+        case OP_INT_MOD: {
+            int64_t b = operands.pop_int();
+            int64_t a = operands.pop_int();
+            int64_t res = apply_op(static_cast<Opcode>(instructions[ip]), a, b);
+            operands.push_int(res);
             break;
         }
         default: {

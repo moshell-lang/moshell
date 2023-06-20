@@ -1,8 +1,6 @@
 #pragma once
 
-#include "conversions.h"
-#include <memory>
-#include <vector>
+#include <cstdint>
 
 #include "definitions/module_definition.h"
 #include "memory/call_stack.h"

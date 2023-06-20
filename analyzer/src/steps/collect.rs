@@ -315,6 +315,13 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 return;
             }
             Expr::Assign(assign) => {
+                let symbol = self.identify_variable(
+                    &mut env.variables,
+                    state.module,
+                    &Name::new(assign.name),
+                    assign.segment(),
+                );
+                env.annotate(assign, symbol);
                 self.tree_walk(env, state, &assign.value, to_visit);
             }
             Expr::Binary(binary) => {

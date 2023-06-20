@@ -1,8 +1,8 @@
 use indexmap::IndexSet;
 
+use crate::r#type::transform_to_vm_type;
 use analyzer::types::hir::TypeId;
 use analyzer::types::Typing;
-use crate::r#type::transform_to_vm_type;
 
 /// Contains the constants defined in constant pool
 #[derive(Default)]
@@ -40,11 +40,13 @@ pub struct FunctionSignature {
 }
 
 impl FunctionSignature {
-    pub fn make(name: &str,
-                params: impl Iterator<Item=TypeId>,
-                return_type: TypeId,
-                typing: &Typing,
-                cp: &mut ConstantPool) -> Self {
+    pub fn make(
+        name: &str,
+        params: impl Iterator<Item = TypeId>,
+        return_type: TypeId,
+        typing: &Typing,
+        cp: &mut ConstantPool,
+    ) -> Self {
         let name = cp.insert_string(name);
 
         let mut map_type = |ty| {
@@ -54,9 +56,7 @@ impl FunctionSignature {
 
         Self {
             name,
-            params: params
-                .map(&mut map_type)
-                .collect(),
+            params: params.map(&mut map_type).collect(),
             ret: map_type(return_type),
         }
     }

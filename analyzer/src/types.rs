@@ -2,9 +2,11 @@ use crate::types::hir::TypeId;
 use crate::types::ty::Type;
 use std::collections::HashMap;
 
+pub(self) mod builtin;
 pub mod ctx;
 pub mod engine;
 pub mod hir;
+pub mod operator;
 pub mod ty;
 
 /// Holds all the known types.
@@ -26,16 +28,25 @@ impl Typing {
                 Type::Nothing,
                 Type::Unit,
                 Type::Bool,
+                Type::ExitCode,
                 Type::Int,
                 Type::Float,
                 Type::String,
             ],
-            implicits: HashMap::from([(INT, FLOAT)]),
+            implicits: HashMap::from([(EXIT_CODE, BOOL), (INT, FLOAT)]),
         }
     }
 
-    /// Unifies two types, returning the type that the right hand side was unified to.
-    pub(crate) fn unify(
+    /// Unifies two type identifiers, returning the type that the right hand side was unified to.
+    ///
+    /// Unification is successful when the assignation type is a superset of the rvalue type, i.e
+    /// when the assignation type is a parent conceptually or technically of the rvalue type.
+    /// It is not reflexive, i.e. `unify(a, b)` is not the same as `unify(b, a)`.
+    ///
+    /// A conversion may be not as simple as a reinterpretation of the value, and may require
+    /// a conversion function to be called. Use [`crate::steps::typing::convert_expression`] to
+    /// generate the conversion code for a typed expression.
+    pub(crate) fn convert_description(
         &mut self,
         assign_to: TypeId,
         rvalue: TypeId,
@@ -46,7 +57,7 @@ impl Typing {
             return Ok(assign_to);
         }
 
-        // apply the `A U Nothing => A` rule
+        // apply the `A U Nothing <=> A` rule
         if *lhs == Type::Nothing {
             return Ok(rvalue);
         }
@@ -62,14 +73,16 @@ impl Typing {
         Err(UnificationError())
     }
 
-    pub fn unify_many(
+    /// Unifies multiple type identifiers in any direction.
+    pub fn convert_many(
         &mut self,
         types: impl Iterator<Item = TypeId>,
     ) -> Result<TypeId, UnificationError> {
         let mut types = types.peekable();
         let first = types.next().unwrap();
         types.try_fold(first, |acc, ty| {
-            self.unify(acc, ty).or_else(|_| self.unify(ty, acc))
+            self.convert_description(acc, ty)
+                .or_else(|_| self.convert_description(ty, acc))
         })
     }
 
@@ -88,9 +101,10 @@ pub const ERROR: TypeId = TypeId(0);
 pub const NOTHING: TypeId = TypeId(1);
 pub const UNIT: TypeId = TypeId(2);
 pub const BOOL: TypeId = TypeId(3);
-pub const INT: TypeId = TypeId(4);
-pub const FLOAT: TypeId = TypeId(5);
-pub const STRING: TypeId = TypeId(6);
+pub const EXIT_CODE: TypeId = TypeId(4);
+pub const INT: TypeId = TypeId(5);
+pub const FLOAT: TypeId = TypeId(6);
+pub const STRING: TypeId = TypeId(7);
 
 /// An error that occurs when two types are not compatible.
 #[derive(Debug, PartialEq)]

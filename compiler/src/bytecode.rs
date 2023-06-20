@@ -69,9 +69,7 @@ pub struct Instructions<'a> {
 
 impl<'a> Instructions<'a> {
     pub fn wrap(bytecode: &'a mut Bytecode) -> Self {
-        Self {
-            bytecode
-        }
+        Self { bytecode }
     }
 
     pub fn emit_code(&mut self, code: Opcode) {
@@ -129,7 +127,6 @@ impl<'a> Instructions<'a> {
         self.emit_instruction_pointer(start_idx);
     }
 
-
     /// Returns the current instruction pointer
     pub fn current_ip(&self) -> u32 {
         self.bytecode.len() as u32
@@ -159,7 +156,12 @@ pub enum Opcode {
     ConvertIntToStr,
     ConvertFloatToStr,
     ConvertIntToByte,
+    Concat,
 
     BXor,
-
+    IntAdd,
+    IntSub,
+    IntMul,
+    IntDiv,
+    IntMod,
 }

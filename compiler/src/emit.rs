@@ -1,15 +1,19 @@
-use analyzer::relations::Symbol;
-use analyzer::types::*;
+use analyzer::engine::Engine;
+use analyzer::relations::{Definition, Symbol};
+
 use analyzer::types::hir::{Declaration, ExprKind, TypedExpr};
+use analyzer::types::*;
 use ast::value::LiteralValue;
 
 use crate::bytecode::{Instructions, Opcode, Placeholder};
 use crate::constant_pool::ConstantPool;
 use crate::emit::invoke::{emit_function_call, emit_process_call};
 use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
+use crate::emit::native::emit_primitive_op;
 
 mod invoke;
 mod jump;
+mod native;
 
 #[derive(Debug, Clone, Default)]
 pub struct EmissionState {
@@ -58,11 +62,12 @@ fn emit_declaration(
     declaration: &Declaration,
     emitter: &mut Instructions,
     typing: &Typing,
+    engine: &Engine,
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
     if let Some(value) = &declaration.value {
-        emit(value, emitter, typing, cp, state);
+        emit(value, emitter, typing, engine, cp, state);
         emitter.emit_code(Opcode::SetLocal);
         emitter.bytecode.emit_byte(declaration.identifier.0 as u8);
     }
@@ -72,38 +77,62 @@ fn emit_block(
     exprs: &Vec<TypedExpr>,
     emitter: &mut Instructions,
     typing: &Typing,
+    engine: &Engine,
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
     for expr in exprs {
-        emit(expr, emitter, typing, cp, state);
+        emit(expr, emitter, typing, engine, cp, state);
     }
 }
-
 
 pub fn emit(
     expr: &TypedExpr,
     instructions: &mut Instructions,
     typing: &Typing,
+    engine: &Engine,
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
     let use_return = expr.ty != NOTHING;
     match &expr.kind {
-        ExprKind::Declare(d) => emit_declaration(d, instructions, typing, cp, state),
-        ExprKind::Block(exprs) => emit_block(exprs, instructions, typing, cp, state),
-        ExprKind::Conditional(c) => emit_conditional(c, instructions, typing, cp, state),
-        ExprKind::ConditionalLoop(l) => emit_loop(l, instructions, typing, cp, state),
+        ExprKind::Declare(d) => emit_declaration(d, instructions, typing, engine, cp, state),
+        ExprKind::Block(exprs) => emit_block(exprs, instructions, typing, engine, cp, state),
+        ExprKind::Conditional(c) => emit_conditional(c, instructions, typing, engine, cp, state),
+        ExprKind::ConditionalLoop(l) => emit_loop(l, instructions, typing, engine, cp, state),
         ExprKind::Continue => emit_continue(instructions, state),
         ExprKind::Break => emit_break(instructions, state),
-        ExprKind::Reference(r) => if use_return {
-            emit_ref(r, instructions)
+        ExprKind::Reference(r) => {
+            if use_return {
+                emit_ref(r, instructions)
+            }
         }
-        ExprKind::Literal(literal) => if use_return {
-            emit_literal(literal, instructions, cp)
+        ExprKind::Literal(literal) => {
+            if use_return {
+                emit_literal(literal, instructions, cp)
+            }
         }
-        ExprKind::ProcessCall(args) => emit_process_call(args, use_return, instructions, typing, cp, state),
-        ExprKind::FunctionCall(fc) => emit_function_call(fc, expr.ty, instructions, typing, cp, state),
-        _ => unimplemented!()
+        ExprKind::FunctionCall(fc) => {
+            emit_function_call(fc, expr.ty, instructions, typing, engine, cp, state)
+        }
+        ExprKind::ProcessCall(args) => {
+            emit_process_call(args, use_return, instructions, typing, engine, cp, state)
+        }
+        ExprKind::MethodCall(method) => match method.definition {
+            Definition::Native(id) => {
+                emit_primitive_op(
+                    id,
+                    &method.callee,
+                    &method.arguments,
+                    instructions,
+                    typing,
+                    engine,
+                    cp,
+                    state,
+                );
+            }
+            Definition::User(_) => todo!("invocation of user defined methods"),
+        },
+        _ => unimplemented!(),
     }
 }
