@@ -90,7 +90,7 @@ extern "C" {
 
 fn execute(types: TypedEngine) {
     let mut bytes: Vec<u8> = Vec::new();
-    compile(&types.get(SourceId(0)).unwrap().expression, &mut bytes).expect("write failed");
+    compile(&types.get_user(SourceId(0)).unwrap().expression, &mut bytes).expect("write failed");
 
     let len = bytes.len();
 
