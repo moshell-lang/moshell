@@ -79,7 +79,7 @@ pub(super) fn convert_expression(
             typing,
             engine,
             ty,
-            |ty| format!("Cannot convert type `{}`", ty),
+            |ty| format!("Cannot convert type `{ty}`"),
             diagnostics,
             state,
         )),

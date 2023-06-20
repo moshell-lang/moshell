@@ -241,12 +241,15 @@ fn ascribe_assign(
                 .type_id,
         )
         .unwrap();
-    if actual_type.is_callable() {
+    if actual_type.is_named() {
         diagnostics.push(
             Diagnostic::new(
                 DiagnosticID::TypeMismatch,
                 state.source,
-                format!("Cannot treat function `{}` as a variable", assign.name),
+                format!(
+                    "Named object `{}` cannot be assigned like a variable",
+                    assign.name
+                ),
             )
             .with_observation(Observation::with_help(
                 assign.segment(),
@@ -419,7 +422,7 @@ fn ascribe_block(
             state,
         ));
     }
-    let ty = expressions.last().map(|expr| expr.ty).unwrap_or(NOTHING);
+    let ty = expressions.last().map_or(NOTHING, |expr| expr.ty);
     TypedExpr {
         kind: ExprKind::Block(expressions),
         ty,
@@ -446,7 +449,7 @@ fn ascribe_return(
         ))
     });
     exploration.returns.push(Return {
-        ty: expr.as_ref().map(|expr| expr.ty).unwrap_or(NOTHING),
+        ty: expr.as_ref().map_or(NOTHING, |expr| expr.ty),
         segment: ret.segment.clone(),
     });
     TypedExpr {
@@ -477,8 +480,7 @@ fn ascribe_function(
     let return_type = fun
         .return_type
         .as_ref()
-        .map(|ty| exploration.ctx.resolve(ty).unwrap_or(ERROR))
-        .unwrap_or(NOTHING);
+        .map_or(NOTHING, |ty| exploration.ctx.resolve(ty).unwrap_or(ERROR));
     exploration.engine.insert_if_absent(
         declaration,
         Chunk::function(
@@ -542,9 +544,7 @@ fn ascribe_binary(
         kind: ExprKind::MethodCall(MethodCall {
             callee: Box::new(left_expr),
             arguments: vec![right_expr],
-            definition: method
-                .map(|method| method.definition)
-                .unwrap_or(Definition::error()),
+            definition: method.map_or(Definition::error(), |method| method.definition),
         }),
         ty,
         segment: bin.segment(),
@@ -633,10 +633,10 @@ fn ascribe_if(
         .as_ref()
         .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state));
     let ty = if state.local_type {
-        match exploration.typing.convert_description(
-            then.ty,
-            otherwise.as_ref().map(|expr| expr.ty).unwrap_or(NOTHING),
-        ) {
+        match exploration
+            .typing
+            .convert_description(then.ty, otherwise.as_ref().map_or(NOTHING, |expr| expr.ty))
+        {
             Ok(ty) => {
                 // Generate appropriate casts and implicits conversions
                 then = convert_expression(
@@ -779,13 +779,9 @@ fn ascribe_method_call(
         kind: ExprKind::MethodCall(MethodCall {
             callee: Box::new(callee),
             arguments,
-            definition: method_type
-                .map(|method| method.definition)
-                .unwrap_or(Definition::error()),
+            definition: method_type.map_or(Definition::error(), |method| method.definition),
         }),
-        ty: method_type
-            .map(|method| method.return_type)
-            .unwrap_or(ERROR),
+        ty: method_type.map_or(ERROR, |method| method.return_type),
         segment: method.segment.clone(),
     }
 }
@@ -1094,7 +1090,7 @@ mod tests {
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
                 SourceId(0),
-                "Cannot treat function `a` as a variable",
+                "Named object `a` cannot be assigned like a variable",
             )
             .with_observation(Observation::with_help(
                 find_in(content, "a = 'a'"),

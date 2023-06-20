@@ -40,8 +40,10 @@ pub enum Type {
 }
 
 impl Type {
-    /// Returns whether the type is callable.
-    pub fn is_callable(&self) -> bool {
+    /// Returns whether the type is named.
+    ///
+    /// Named types convey a non-positional definition, such as a function.
+    pub fn is_named(&self) -> bool {
         matches!(self, Self::Function(_))
     }
 }

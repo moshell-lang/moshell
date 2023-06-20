@@ -7,7 +7,7 @@ use crate::bytecode::{Bytecode, Opcode};
 use crate::constant_pool::ConstantPool;
 use crate::emit::invoke::emit_process_call;
 use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
-use crate::emit::native::emit_native;
+use crate::emit::native::emit_primitive_op;
 
 mod invoke;
 mod jump;
@@ -112,9 +112,9 @@ pub fn emit(
         ExprKind::ProcessCall(args) => emit_process_call(args, use_return, emitter, cp, state),
         ExprKind::MethodCall(method) => match method.definition {
             Definition::Native(id) => {
-                emit_native(id, &method.callee, &method.arguments, emitter, cp, state)
+                emit_primitive_op(id, &method.callee, &method.arguments, emitter, cp, state);
             }
-            _ => todo!("user defined method"),
+            Definition::User(_) => todo!("user defined method"),
         },
         _ => {}
     }

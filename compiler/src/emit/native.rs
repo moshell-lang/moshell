@@ -4,8 +4,8 @@ use crate::emit::{emit, EmissionState};
 use analyzer::relations::NativeId;
 use analyzer::types::hir::TypedExpr;
 
-/// Emits a native sequence of instructions.
-pub(crate) fn emit_native(
+/// Emits a primitive sequence of instructions.
+pub(crate) fn emit_primitive_op(
     native: NativeId,
     callee: &TypedExpr,
     args: &[TypedExpr],
@@ -13,7 +13,7 @@ pub(crate) fn emit_native(
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
-    emit(&callee, emitter, cp, state);
+    emit(callee, emitter, cp, state);
     match native.0 {
         0 => {
             // ExitCode -> Bool

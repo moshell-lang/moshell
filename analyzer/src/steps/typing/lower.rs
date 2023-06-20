@@ -28,7 +28,7 @@ pub(super) fn convert_into_string(
         &exploration.typing,
         &exploration.engine,
         STRING,
-        |ty| format!("Cannot stringify type `{}`", ty),
+        |ty| format!("Cannot stringify type `{ty}`"),
         diagnostics,
         state,
     )
@@ -90,7 +90,7 @@ pub(super) fn call_convert_on(
         Diagnostic::new(DiagnosticID::TypeMismatch, state.source, message(ty)).with_observation(
             Observation::with_help(
                 expr.segment(),
-                format!("No method `{}` on type `{}`", method_name, ty),
+                format!("No method `{method_name}` on type `{ty}`"),
             ),
         ),
     );

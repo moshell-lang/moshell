@@ -55,8 +55,7 @@ pub(super) fn infer_return(
     if exploration
         .returns
         .last()
-        .map(|ret| ret.segment != last.segment)
-        .unwrap_or(true)
+        .map_or(true, |ret| ret.segment != last.segment)
         && (last.ty.is_something() || !exploration.returns.is_empty() && func.return_type.is_none())
     {
         exploration.returns.push(Return {
@@ -441,8 +440,7 @@ pub(crate) fn type_parameter(ctx: &TypeContext, param: &FunctionParameter) -> Pa
             let type_id = named
                 .ty
                 .as_ref()
-                .map(|ty| ctx.resolve(ty).unwrap_or(ERROR))
-                .unwrap_or(STRING);
+                .map_or(STRING, |ty| ctx.resolve(ty).unwrap_or(ERROR));
             Parameter {
                 segment: Some(named.segment.clone()),
                 ty: type_id,
@@ -454,7 +452,7 @@ pub(crate) fn type_parameter(ctx: &TypeContext, param: &FunctionParameter) -> Pa
 
 fn get_last_segment(expr: &TypedExpr) -> &TypedExpr {
     match &expr.kind {
-        ExprKind::Block(expressions) => expressions.last().map(get_last_segment).unwrap_or(expr),
+        ExprKind::Block(expressions) => expressions.last().map_or(expr, get_last_segment),
         _ => expr,
     }
 }
