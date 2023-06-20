@@ -11,7 +11,7 @@ pub trait Move {
     /// # Arguments
     /// `None` if the move did not take effect.
     ///* `at` - get token at given position
-    ///* `pos` - the position in ParserCursor at beginning of the move
+    ///* `size` - the position in ParserCursor at beginning of the move
     fn apply<'a, F>(&self, at: F, pos: usize) -> MoveResult
     where
         F: Fn(usize) -> Token<'a>;
@@ -169,7 +169,7 @@ pub(crate) fn aerated<M: Move + Copy>(
 
 /// A Move to inverse the matching status of underlying move.
 /// If underlying succeeds: fail
-/// if underlying fails: succeed at given pos.
+/// if underlying fails: succeed at given size.
 #[derive(Copy, Clone)]
 pub(crate) struct NotMove<M: Move + Copy> {
     underlying: M,
@@ -189,7 +189,7 @@ impl<M: Move + Copy> Move for NotMove<M> {
 
 /// inverse the matching status of input move.
 /// If underlying succeeds: fail
-/// if underlying fails: succeed at given pos.
+/// if underlying fails: succeed at given size.
 pub(crate) fn not<M: Move + Copy>(m: M) -> NotMove<M> {
     NotMove { underlying: m }
 }
@@ -324,7 +324,7 @@ impl<A: Move + Copy, B: Move + Copy> Move for OrMove<A, B> {
     }
 }
 
-///A move that will succeed if underlying succeeds but the returned position is the starting pos of this move.
+///A move that will succeed if underlying succeeds but the returned position is the starting size of this move.
 /// This move is useful for mutable movement procedure that wants to make a _partial_ lookahead.
 #[derive(Copy, Clone)]
 pub(crate) struct LookaheadMove<A: Move + Copy> {

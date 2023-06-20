@@ -17,7 +17,14 @@ struct function_signature {
 };
 
 struct function_definition {
-    const char* instructions;
-    const size_t instruction_count;
-    explicit function_definition(const char* instructions, size_t instruction_count);
+    const char *instructions;
+    size_t instruction_count;
+
+    size_t operand_stack_capacity;
+    size_t locals_size;
+};
+
+class InvalidFunctionDefinition : public VirtualMachineError {
+public:
+    explicit InvalidFunctionDefinition(const char *msg) : VirtualMachineError(msg) {}
 };

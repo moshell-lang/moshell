@@ -63,7 +63,7 @@ impl<'a> ParserCursor<'a> {
     }
 
     /// Returns the token where the move ended if the move succeeds, or None instead.
-    /// This method is similar to `advance` except that it does not makes the cursor change its current pos.
+    /// This method is similar to `advance` except that it does not makes the cursor change its current size.
     pub fn lookahead(&self, mov: impl Move) -> Option<Token<'a>> {
         let result = mov.apply(|pos| self.at(pos), self.pos);
 

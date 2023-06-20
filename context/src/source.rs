@@ -31,7 +31,7 @@ impl<'a> Source<'a> {
         Self::new(source, "unknown")
     }
 
-    /// Gets the length in bytes of the source.
+    /// Gets the length in instructions of the source.
     pub fn len(&self) -> usize {
         self.source.len()
     }

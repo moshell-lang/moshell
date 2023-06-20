@@ -12,7 +12,7 @@ public:
 
 class Locals {
     char *bytes;
-    size_t capacity;
+    const size_t capacity;
 
 public:
     explicit Locals(char *bytes, size_t capacity);

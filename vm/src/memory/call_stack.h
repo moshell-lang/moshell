@@ -1,24 +1,48 @@
 #pragma once
 
+#include "definitions/function_definition.h"
+#include "interpreter.h"
 #include "locals.h"
 #include "operand_stack.h"
 #include <cstddef>
 #include <tuple>
 
-/// A thread callstack
-class CallStack {
-    char* block;
-    size_t capacity;
-
-    size_t current_frame_start;
-    size_t current_frame_end;
-    explicit CallStack(size_t capacity);
+class StackOverflowError : public MemoryError {
 
 public:
-    static std::tuple<CallStack, OperandStack, Locals> create(size_t capacity, size_t root_frame_operand_size, size_t root_frame_locals_size);
+    explicit StackOverflowError(const char *message) : MemoryError{message} {}
+};
 
+struct stack_frame {
+    constant_index function_signature_idx;
+    size_t *instruction_pointer;
+    OperandStack operands;
+    Locals locals;
+};
 
-    std::tuple<OperandStack, Locals> push_frame(size_t operand_size, size_t locals_size);
+/// A thread callstack
+class CallStack {
+    std::unique_ptr<char[]> block;
 
-    char* pop_frame();
+    size_t frame_headers_pos;
+    size_t capacity;
+    size_t pos;
+
+    void push_frame_with_overlap(const function_definition &callee, constant_index callee_ref, size_t start_offset);
+
+    /// creates an empty call stack
+    explicit CallStack(size_t capacity);
+public:
+
+    size_t size() const;
+
+    static CallStack create(size_t capacity, const function_definition& root, constant_index root_ref);
+
+    void push_frame(const function_definition &callee, constant_index callee_ref, const OperandStack &caller_operands);
+
+    void pop_frame();
+
+    stack_frame peek_frame();
+
+    bool is_empty();
 };

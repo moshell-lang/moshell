@@ -2,4 +2,4 @@
 #include <cstddef>
 
 
-extern "C" void exec(const char *bytes, size_t byte_count);
+extern "C" int exec(const char *bytes, size_t byte_count);

@@ -5,6 +5,9 @@ Type get_type(const std::string& name) {
     if (name == "int") {
         return Type::INT;
     }
+    if (name == "void") {
+        return Type::VOID;
+    }
     if (name == "float") {
         return Type::FLOAT;
     }

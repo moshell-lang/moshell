@@ -12,6 +12,7 @@ enum class Type {
     INT,
     FLOAT,
     BYTE,
+    VOID,
 
     STRING
 };

@@ -21,7 +21,7 @@ use crate::types::hir::{
     Binary, Conditional, Declaration, ExprKind, FunctionCall, Loop, TypedExpr,
 };
 use crate::types::ty::Type;
-use crate::types::{Typing, ERROR, FLOAT, INT, NOTHING, STRING};
+use crate::types::{Typing, ERROR, FLOAT, INT, UNIT, NOTHING, STRING};
 
 mod exploration;
 mod function;
@@ -222,7 +222,7 @@ fn ascribe_var_declaration(
             identifier: id,
             value: Some(initializer),
         }),
-        ty: NOTHING,
+        ty: UNIT,
         segment: decl.segment.clone(),
     }
 }
@@ -272,7 +272,7 @@ fn ascribe_block(
             state,
         ));
     }
-    let ty = expressions.last().map(|expr| expr.ty).unwrap_or(NOTHING);
+    let ty = expressions.last().map(|expr| expr.ty).unwrap_or(UNIT);
     TypedExpr {
         kind: ExprKind::Block(expressions),
         ty,
@@ -299,7 +299,7 @@ fn ascribe_return(
         ))
     });
     exploration.returns.push(Return {
-        ty: expr.as_ref().map(|expr| expr.ty).unwrap_or(NOTHING),
+        ty: expr.as_ref().map(|expr| expr.ty).unwrap_or(UNIT),
         segment: ret.segment.clone(),
     });
     TypedExpr {
@@ -329,7 +329,7 @@ fn ascribe_function_declaration(
         .return_type
         .as_ref()
         .map(|ty| exploration.ctx.resolve(ty).unwrap_or(ERROR))
-        .unwrap_or(NOTHING);
+        .unwrap_or(UNIT);
     exploration.engine.insert_if_absent(
         declaration,
         Chunk::function(
@@ -347,7 +347,7 @@ fn ascribe_function_declaration(
             identifier: local_id,
             value: None,
         }),
-        ty: NOTHING,
+        ty: UNIT,
         segment: fun.segment.clone(),
     }
 }
@@ -438,7 +438,7 @@ fn ascribe_if(
             }
         }
     } else {
-        NOTHING
+        UNIT
     };
     TypedExpr {
         kind: ExprKind::Conditional(Conditional {
@@ -465,7 +465,7 @@ fn ascribe_call(
         .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
         .collect::<Vec<_>>();
 
-    let ty = if state.local_type { INT } else { NOTHING };
+    let ty = if state.local_type { INT } else { UNIT };
     TypedExpr {
         kind: ExprKind::ProcessCall(args),
         ty,
@@ -544,7 +544,7 @@ fn ascribe_loop(
             body: Box::new(body),
         }),
         segment: loo.segment(),
-        ty: NOTHING,
+        ty: UNIT,
     }
 }
 
@@ -664,13 +664,13 @@ mod tests {
     #[test]
     fn correct_type_annotation() {
         let res = extract_type(Source::unknown("val a: Int = 1"));
-        assert_eq!(res, Ok(Type::Nothing));
+        assert_eq!(res, Ok(Type::Unit));
     }
 
     #[test]
     fn coerce_type_annotation() {
         let res = extract_type(Source::unknown("val a: Float = 4"));
-        assert_eq!(res, Ok(Type::Nothing));
+        assert_eq!(res, Ok(Type::Unit));
     }
 
     #[test]
@@ -716,13 +716,13 @@ mod tests {
     #[test]
     fn condition_same_type() {
         let res = extract_type(Source::unknown("if true; 1; else 2"));
-        assert_eq!(res, Ok(Type::Nothing));
+        assert_eq!(res, Ok(Type::Unit));
     }
 
     #[test]
     fn condition_different_type() {
         let res = extract_type(Source::unknown("if false; 4.7; else {}"));
-        assert_eq!(res, Ok(Type::Nothing));
+        assert_eq!(res, Ok(Type::Unit));
     }
 
     #[test]
@@ -742,7 +742,7 @@ mod tests {
             ))
             .with_observation(Observation::with_help(
                 find_in(content, "{}"),
-                "Found `Nothing`",
+                "Found `Unit`",
             ))])
         );
     }
@@ -820,7 +820,7 @@ mod tests {
 
     #[test]
     fn type_function_parameters() {
-        let content = "fun test(a: String) = { var b: Int = $a }";
+        let content = "fun test(a: String) -> Unit = { var b: Int = $a }";
         let res = extract_type(Source::unknown(content));
         assert_eq!(
             res,
@@ -879,14 +879,14 @@ mod tests {
     fn explicit_valid_return() {
         let content = "fun some() -> Int = return 20";
         let res = extract_type(Source::unknown(content));
-        assert_eq!(res, Ok(Type::Nothing));
+        assert_eq!(res, Ok(Type::Unit));
     }
 
     #[test]
     fn continue_and_break_inside_loops() {
         let content = "loop { continue }; loop { break }";
         let res = extract_type(Source::unknown(content));
-        assert_eq!(res, Ok(Type::Nothing));
+        assert_eq!(res, Ok(Type::Unit));
     }
 
     #[test]
@@ -916,7 +916,7 @@ mod tests {
     fn explicit_valid_return_mixed() {
         let content = "fun some() -> Int = {\nif true; return 5; 9\n}";
         let res = extract_type(Source::unknown(content));
-        assert_eq!(res, Ok(Type::Nothing));
+        assert_eq!(res, Ok(Type::Unit));
     }
 
     #[test]
@@ -933,7 +933,7 @@ mod tests {
                 Diagnostic::new(DiagnosticID::TypeMismatch, SourceId(1), "Type mismatch")
                     .with_observation(Observation::with_help(
                         find_in(content, "return {}"),
-                        "Found `Nothing`",
+                        "Found `Unit`",
                     ))
                     .with_observation(return_observation.clone()),
                 Diagnostic::new(DiagnosticID::TypeMismatch, SourceId(1), "Type mismatch")

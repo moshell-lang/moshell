@@ -6,15 +6,14 @@
 
 
 
-extern "C" void exec(const char *bytes, size_t byte_count) {
-    unsigned int constant_pool_bytes = 0;
+extern "C" int exec(const char *bytes, size_t byte_count) {
 
     // read function definitions
-    auto module_def = load_module(bytes, constant_pool_bytes);
+    auto module_def = load_module(bytes);
 
     std::vector<std::string> strings;
     try {
-        run(module_def.pool, bytes + constant_pool_bytes, byte_count - constant_pool_bytes, strings);
+        return run_module(module_def, strings);
     } catch (std::exception &e) {
         std::cerr << e.what() << std::endl;
     }

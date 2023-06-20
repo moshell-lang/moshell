@@ -24,6 +24,7 @@ impl Typing {
             types: vec![
                 Type::Error,
                 Type::Nothing,
+                Type::Unit,
                 Type::Bool,
                 Type::Int,
                 Type::Float,
@@ -44,6 +45,15 @@ impl Typing {
         if lhs == rhs {
             return Ok(assign_to);
         }
+
+        // apply the `A U Nothing => A` rule
+        if *lhs == Type::Nothing {
+            return Ok(rvalue);
+        }
+        if *rhs == Type::Nothing {
+            return Ok(assign_to);
+        }
+
         if let Some(implicit) = self.implicits.get(&rvalue) {
             if lhs == &self.types[implicit.0] {
                 return Ok(assign_to);
@@ -76,10 +86,11 @@ impl Typing {
 
 pub const ERROR: TypeId = TypeId(0);
 pub const NOTHING: TypeId = TypeId(1);
-pub const BOOL: TypeId = TypeId(2);
-pub const INT: TypeId = TypeId(3);
-pub const FLOAT: TypeId = TypeId(4);
-pub const STRING: TypeId = TypeId(5);
+pub const UNIT: TypeId = TypeId(2);
+pub const BOOL: TypeId = TypeId(3);
+pub const INT: TypeId = TypeId(4);
+pub const FLOAT: TypeId = TypeId(5);
+pub const STRING: TypeId = TypeId(6);
 
 /// An error that occurs when two types are not compatible.
 #[derive(Debug, PartialEq)]

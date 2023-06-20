@@ -13,8 +13,3 @@ public:
     explicit MemoryError(const char *msg): VirtualMachineError(msg) {}
 };
 
-class StackOverflowError: public MemoryError {
-public:
-    explicit StackOverflowError(const char *msg): MemoryError(msg) {}
-};
-

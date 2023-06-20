@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::io::stderr;
 use std::path::PathBuf;
+use std::process::exit;
 
 use clap::Parser;
 use analyzer::engine::Engine;
@@ -86,7 +87,7 @@ pub fn handle_source(source: Source) -> bool {
 
 #[link(name = "vm", kind = "static")]
 extern "C" {
-    fn exec(bytes: *const u8, byte_count: usize);
+    fn exec(bytes: *const u8, byte_count: usize) -> i32;
 }
 
 fn execute(types: TypedEngine, engine: Engine, typing: Typing) {
@@ -96,6 +97,6 @@ fn execute(types: TypedEngine, engine: Engine, typing: Typing) {
     let len = bytes.len();
 
     unsafe {
-        exec(bytes.as_ptr(), len);
+        exit(exec(bytes.as_ptr(), len));
     }
 }

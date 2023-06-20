@@ -1,8 +1,8 @@
 use indexmap::IndexSet;
 
 use analyzer::types::hir::TypeId;
-use analyzer::types::ty::{Type};
 use analyzer::types::Typing;
+use crate::r#type::transform_to_vm_type;
 
 /// Contains the constants defined in constant pool
 #[derive(Default)]
@@ -49,20 +49,7 @@ impl FunctionSignature {
 
         let mut map_type = |ty| {
             let ty = typing.get_type(ty).unwrap();
-            let type_identifier = match ty {
-                Type::Bool => "byte",
-                Type::Int => "int",
-                Type::Float => "float",
-                Type::Unit => "void",
-                Type::String => "String",
-                Type::Error | Type::Unknown | Type::Nothing => {
-                    panic!("{ty} is not a compilable type")
-                }
-                Type::Function(_) => {
-                    panic!("Can only support primitives")
-                }
-            };
-            cp.insert_string(type_identifier)
+            transform_to_vm_type(ty, cp)
         };
 
         Self {

@@ -1,9 +1,17 @@
 #include "operand_stack.h"
 
-OperandStack::OperandStack(char* buff, size_t capacity)
+OperandStack::OperandStack(char* buff, size_t &position, size_t capacity)
     : bytes{buff},
-      capacity{capacity},
-      current_pos{0} {}
+      current_pos{position},
+      capacity{capacity} {}
+
+size_t OperandStack::size() const {
+    return current_pos;
+}
+
+size_t OperandStack::get_capacity() const {
+    return capacity;
+}
 
 void OperandStack::push_int(int64_t i) {
     push(i);

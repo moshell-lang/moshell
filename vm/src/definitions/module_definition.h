@@ -1,3 +1,5 @@
+#pragma once
+
 #include "memory/constant_pool.h"
 #include <unordered_map>
 
@@ -12,4 +14,4 @@ struct module_definition {
 };
 
 
-module_definition load_module(const char *bytes, unsigned int &ip);
+module_definition load_module(const char *bytes);

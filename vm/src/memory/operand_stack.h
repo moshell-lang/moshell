@@ -14,12 +14,15 @@ public:
 
 class OperandStack {
 private:
-    char* bytes;
-    size_t capacity;
-    size_t current_pos;
+    char *bytes;
+    size_t &current_pos;
+    const size_t capacity;
 
 public:
-    explicit OperandStack(char* buff, size_t capacity);
+    explicit OperandStack(char *buff, size_t &initial_pos, size_t capacity);
+
+    size_t size() const;
+    size_t get_capacity() const;
 
     void push_int(int64_t i);
 

@@ -14,6 +14,7 @@ use crate::emit::{EmissionState, emit};
 pub mod bytecode;
 mod constant_pool;
 mod emit;
+mod r#type;
 
 
 pub fn compile(typed_engine: &TypedEngine, engine: &Engine, typing: &Typing, writer: &mut impl Write) -> Result<(), io::Error> {
