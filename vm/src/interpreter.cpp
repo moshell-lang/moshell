@@ -2,6 +2,7 @@
 #include "conversions.h"
 #include "memory/operand_stack.h"
 #include "pool.h"
+#include "vm.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -64,8 +65,7 @@ int64_t apply_op(Opcode code, int64_t a, int64_t b) {
     case OP_INT_MOD:
         return a % b;
     default:
-        std::cerr << "Error: Unknown opcode " << (int)code << "\n";
-        exit(1);
+        throw std::invalid_argument("Unknown opcode");
     }
 }
 
@@ -82,8 +82,7 @@ bool apply_comparison(Opcode code, int64_t a, int64_t b) {
     case OP_INT_LE:
         return a <= b;
     default:
-        std::cerr << "Error: Unknown opcode " << (int)code << "\n";
-        exit(1);
+        throw std::invalid_argument("Unknown opcode");
     }
 }
 
@@ -167,7 +166,20 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             pid_t pid = fork();
             if (pid == 0) {
                 // Replace the current process with a new process image
-                execvp(argv[0], argv);
+                if (execvp(argv[0], argv) == -1) {
+                    for (int i = 0; i < frame_size; i++) {
+                        delete[] argv[i];
+                    }
+                    delete[] argv;
+                    perror("execvp");
+                    _exit(MOSHELL_COMMAND_NOT_RUNNABLE);
+                }
+            } else if (pid == -1) {
+                for (int i = 0; i < frame_size; i++) {
+                    delete[] argv[i];
+                }
+                delete[] argv;
+                perror("fork");
             } else {
                 for (int i = 0; i < frame_size; i++) {
                     delete[] argv[i];
@@ -314,8 +326,7 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             break;
         }
         default: {
-            std::cerr << "Error: Unknown opcode " << (int)bytes[ip] << "\n";
-            exit(1);
+            throw std::invalid_argument("Unknown opcode " + std::to_string(bytes[ip]));
         }
         }
     }

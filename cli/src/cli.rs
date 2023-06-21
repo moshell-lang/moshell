@@ -85,7 +85,11 @@ pub fn handle_source(source: Source) -> bool {
 
 #[link(name = "vm", kind = "static")]
 extern "C" {
-    fn exec(bytes: *const u8, byte_count: usize);
+    /// Execute the given bytecode.
+    ///
+    /// # Safety
+    /// If the given bytecode is invalid, this function will cause undefined behavior.
+    fn moshell_exec(bytes: *const u8, byte_count: usize);
 }
 
 fn execute(types: TypedEngine) {
@@ -95,6 +99,6 @@ fn execute(types: TypedEngine) {
     let len = bytes.len();
 
     unsafe {
-        exec(bytes.as_ptr(), len);
+        moshell_exec(bytes.as_ptr(), len);
     }
 }
