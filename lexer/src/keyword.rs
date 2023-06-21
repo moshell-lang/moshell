@@ -13,14 +13,16 @@ impl<'a> Lexer<'a> {
             'c' => self.emit_keyword("ontinue", TokenType::Continue),
             'e' => self.emit_keyword("lse", TokenType::Else),
             'f' => self
-                .emit_keyword("un", TokenType::Fun)
-                .or_else(|| self.emit_keyword("or", TokenType::For)),
+                .emit_keyword("alse", TokenType::False)
+                .or_else(|| self.emit_keyword("or", TokenType::For))
+                .or_else(|| self.emit_keyword("un", TokenType::Fun)),
             'i' => self
                 .emit_keyword("f", TokenType::If)
                 .or_else(|| self.emit_keyword("n", TokenType::In)),
             'l' => self.emit_keyword("oop", TokenType::Loop),
             'm' => self.emit_keyword("atch", TokenType::Match),
             'r' => self.emit_keyword("eturn", TokenType::Return),
+            't' => self.emit_keyword("rue", TokenType::True),
             'u' => self.emit_keyword("se", TokenType::Use),
             'v' => self
                 .emit_keyword("ar", TokenType::Var)

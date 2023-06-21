@@ -59,7 +59,9 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         match pivot {
             Quote => self.string_literal().map(Expr::Literal),
             DoubleQuote => self.templated_string_literal().map(Expr::TemplateString),
-
+            False | True if leniency == LiteralLeniency::Strict => {
+                self.boolean_literal().map(Expr::Literal)
+            }
             _ if pivot.is_keyword() => self.expected(
                 format!("Unexpected keyword '{}'", token.value),
                 ParseErrorKind::Unexpected,
@@ -211,15 +213,15 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         let mut parts = Vec::new();
         let mut builder = String::new();
         let mut lexeme = current.value;
-        let mut numeric: Option<Token> = None;
+        let mut non_string: Option<Token> = None;
 
         //pushes current token then advance
         macro_rules! append_current {
             () => {
                 let token = self.cursor.next()?;
                 let value = token.value;
-                if matches!(token.token_type, IntLiteral | FloatLiteral) {
-                    numeric = Some(token);
+                if matches!(token.token_type, IntLiteral | FloatLiteral | True | False) {
+                    non_string = Some(token);
                 }
                 builder.push_str(value);
                 if lexeme.is_empty() {
@@ -266,7 +268,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                         parts.push(self.literal_or_wildcard(
                             builder.clone(),
                             lexeme,
-                            numeric.take(),
+                            non_string.take(),
                         )?);
                         builder.clear();
                     }
@@ -277,7 +279,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                         parts.push(self.literal_or_wildcard(
                             builder.clone(),
                             lexeme,
-                            numeric.take(),
+                            non_string.take(),
                         )?);
                         builder.clear();
                     }
@@ -288,7 +290,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                         parts.push(self.literal_or_wildcard(
                             builder.clone(),
                             lexeme,
-                            numeric.take(),
+                            non_string.take(),
                         )?);
                         builder.clear();
                     }
@@ -305,7 +307,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         }
 
         if !builder.is_empty() {
-            parts.push(self.literal_or_wildcard(builder.clone(), lexeme, numeric)?);
+            parts.push(self.literal_or_wildcard(builder.clone(), lexeme, non_string)?);
         }
         if parts.len() == 1 {
             return Ok(parts.pop().unwrap());
@@ -329,6 +331,20 @@ pub(crate) fn literal_expr(source: &str, literal: &str) -> Literal {
 }
 
 impl<'a> Parser<'a> {
+    fn boolean_literal(&mut self) -> ParseResult<Literal> {
+        let token = self.cursor.next()?;
+        Ok(Literal {
+            parsed: LiteralValue::Bool(match token.token_type {
+                True => true,
+                False => false,
+                _ => {
+                    return self.expected("Expected a boolean literal.", ParseErrorKind::Unexpected)
+                }
+            }),
+            segment: self.cursor.relative_pos_ctx(token),
+        })
+    }
+
     fn parse_number_value(&self, token: Token<'a>) -> ParseResult<LiteralValue> {
         match token.token_type {
             IntLiteral => Ok(LiteralValue::Int(token.value.parse::<i64>().map_err(
@@ -358,7 +374,11 @@ impl<'a> Parser<'a> {
         if let Some(token) = numeric {
             if token.value == read {
                 return Ok(Expr::Literal(Literal {
-                    parsed: self.parse_number_value(token)?,
+                    parsed: match token.token_type {
+                        True => LiteralValue::Bool(true),
+                        False => LiteralValue::Bool(false),
+                        _ => self.parse_number_value(token)?,
+                    },
                     segment,
                 }));
             }

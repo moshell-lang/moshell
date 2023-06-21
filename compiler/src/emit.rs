@@ -63,6 +63,9 @@ fn emit_literal(literal: &LiteralValue, emitter: &mut Bytecode, cp: &mut Constan
         LiteralValue::Float(f) => {
             emitter.emit_float(*f);
         }
+        LiteralValue::Bool(b) => {
+            emitter.emit_byte(*b as u8);
+        }
     }
 }
 

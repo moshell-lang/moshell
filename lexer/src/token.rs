@@ -42,6 +42,10 @@ pub enum TokenType {
     #[assoc(str = "\\n")]
     NewLine,
 
+    #[assoc(str = "false")]
+    False,
+    #[assoc(str = "true")]
+    True,
     #[assoc(str = "fun")]
     Fun,
     #[assoc(str = "use")]
