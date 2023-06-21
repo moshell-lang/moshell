@@ -48,7 +48,7 @@ pub fn emit_loop(
         // Evaluate the condition.
         emit(condition, emitter, cp, state);
         state.use_values(last);
-        
+
         // If the condition is false, go to END.
         let jump_to_end = emitter.emit_jump(Opcode::IfNotJump);
         loop_state.enclosing_loop_end_placeholders.push(jump_to_end);
