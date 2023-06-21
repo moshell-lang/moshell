@@ -11,21 +11,26 @@
 #include <unistd.h>
 
 enum Opcode {
-    OP_PUSH_INT,    // with 8 byte int value, pushes an int onto the operand stack
-    OP_PUSH_BYTE,   // with 1 byte value, pushes a byte onto the operand stack
-    OP_PUSH_FLOAT,  // with 8 byte float value, pushes a float onto the operand stack
-    OP_PUSH_STRING, // with 8 byte string index in constant pool, pushes a string ref onto the operand stack
-    OP_GET_LOCAL,   // with 1 byte local index, pushes given local value onto the operand stack
-    OP_SET_LOCAL,   // with 1 byte local index, set given local value from value popped from the operand stack
-    OP_SPAWN,       // with 1 byte stack size for process exec(), pushes process exit status onto the operand stack
-    OP_INVOKE,      // with 4 byte function signature ref in constant pool, pops parameters from operands then pushes invoked function return in operand stack (if non-void)
+    OP_PUSH_INT,     // with 8 byte int value, pushes an int onto the operand stack
+    OP_PUSH_BYTE,    // with 1 byte value, pushes a byte onto the operand stack
+    OP_PUSH_FLOAT,   // with 8 byte float value, pushes a float onto the operand stack
+    OP_PUSH_STRING,  // with 8 byte string index in constant pool, pushes a string ref onto the operand stack
 
-    OP_POP_BYTE,   // pops one byte from operand stack
-    OP_POP_Q_WORD, // pops 8 instructions from operand stack
+    OP_GET_WORD,     // with 1 byte local index, pushes given local value onto the operand stack
+    OP_SET_WORD,     // with 1 byte local index, pushes given local value onto the operand stack
 
-    OP_IF_JUMP,     // with 1 byte opcode for 'then' branch, jumps only if value popped from operand stack is 0
-    OP_IF_NOT_JUMP, // with 1 byte opcode for where to jump, jumps only if value popped from operand stack is not 0
-    OP_JUMP,        // with 1 byte opcode for where to jump
+    OP_GET_Q_WORD,   // with 1 byte local index, pushes given local value onto the operand stack
+    OP_SET_Q_WORD,   // with 1 byte local index, set given local value from value popped from the operand stack
+
+    OP_SPAWN,        // with 1 byte stack size for process exec(), pushes process exit status onto the operand stack
+    OP_INVOKE,       // with 4 byte function signature ref in constant pool, pops parameters from operands then pushes invoked function return in operand stack (if non-void)
+
+    OP_POP_BYTE,     // pops one byte from operand stack
+    OP_POP_Q_WORD,   // pops 8 instructions from operand stack
+
+    OP_IF_JUMP,      // with 1 byte opcode for 'then' branch, jumps only if value popped from operand stack is 0
+    OP_IF_NOT_JUMP,  // with 1 byte opcode for where to jump, jumps only if value popped from operand stack is not 0
+    OP_JUMP,         // with 1 byte opcode for where to jump
 
     OP_INT_TO_STR,   // replaces last value of operand stack from int to a string reference
     OP_FLOAT_TO_STR, // replaces last value of operand stack from float to a string reference
@@ -197,7 +202,7 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
             push_function_invocation(signature_idx, state, operands, call_stack);
             return false; // terminate this frame run
         }
-        case OP_GET_LOCAL: {
+        case OP_GET_Q_WORD: {
             // Read the 1 byte local local_index
             char local_index = *(instructions + ip);
             ip++;
@@ -206,7 +211,7 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
             operands.push_int(value);
             break;
         }
-        case OP_SET_LOCAL: {
+        case OP_SET_Q_WORD: {
             // Read the 1 byte local index
             char index = *(instructions + ip);
             ip++;

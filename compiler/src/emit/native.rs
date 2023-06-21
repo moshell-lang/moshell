@@ -23,7 +23,7 @@ pub(crate) fn emit_primitive_op(
         0 => {
             // ExitCode -> Bool
             emitter.emit_push_byte(1);
-            emitter.emit_code(Opcode::BXor);
+            emitter.emit_byte_binary_op(Opcode::BXor);
         }
         1..=9 => {
             // Arithmetic expression
@@ -35,14 +35,15 @@ pub(crate) fn emit_primitive_op(
                 cp,
                 state,
             );
-            emitter.emit_code(match native.0 {
+            emitter.emit_q_word_binary_op(match native.0 {
                 1 => Opcode::IntAdd,
                 3 => Opcode::IntSub,
                 5 => Opcode::IntMul,
                 7 => Opcode::IntDiv,
                 9 => Opcode::IntMod,
-                _ => todo!("Binary expression with float type"),
+                _ => todo!("Binary expression with float and byte types"),
             });
+
         }
         13 => {
             // Int -> String
@@ -63,7 +64,7 @@ pub(crate) fn emit_primitive_op(
                 cp,
                 state,
             );
-            emitter.emit_code(Opcode::Concat);
+            emitter.emit_q_word_binary_op(Opcode::Concat);
         }
         id => todo!("Native function with id {id}"),
     }

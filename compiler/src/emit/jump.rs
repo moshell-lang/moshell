@@ -67,15 +67,15 @@ pub fn emit_loop(
     emit(&lp.body, emitter, typing, engine, cp, &mut loop_state);
     // Go to START.
     emitter.jump_back_to(loop_start);
+
     // END:
-    for jump_to_end in &loop_state.enclosing_loop_end_placeholders {
-        emitter.patch_jump(*jump_to_end);
+    for jump_to_end in loop_state.enclosing_loop_end_placeholders {
+        emitter.patch_jump(jump_to_end);
     }
 }
 
 pub fn emit_continue(emitter: &mut Instructions, state: &mut EmissionState) {
-    emitter.emit_code(Opcode::Jump);
-    emitter.emit_instruction_pointer(state.enclosing_loop_start);
+    emitter.jump_back_to(state.enclosing_loop_start);
 }
 
 pub fn emit_break(emitter: &mut Instructions, state: &mut EmissionState) {

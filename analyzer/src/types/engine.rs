@@ -2,7 +2,7 @@ use crate::relations::{Definition, SourceId};
 use crate::types::builtin::lang;
 use crate::types::hir::{TypeId, TypedExpr};
 use crate::types::ty::{FunctionType, MethodType, Parameter, TypeDescription};
-use crate::types::NOTHING;
+use crate::types::{UNIT};
 
 /// A typed [`crate::engine::Engine`].
 ///
@@ -66,7 +66,7 @@ impl Chunk {
         Self {
             expression,
             parameters: Vec::new(),
-            return_type: NOTHING,
+            return_type: UNIT,
         }
     }
 

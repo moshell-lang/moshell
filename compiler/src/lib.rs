@@ -5,7 +5,7 @@ use std::iter::{empty, once};
 use analyzer::engine::Engine;
 use analyzer::types::engine::TypedEngine;
 use analyzer::types::hir::TypedExpr;
-use analyzer::types::{Typing, NOTHING};
+use analyzer::types::{Typing, NOTHING, UNIT};
 
 use crate::bytecode::{Bytecode, Instructions};
 use crate::constant_pool::{ConstantPool, FunctionSignature, PoolConstant};
@@ -30,7 +30,7 @@ pub fn compile(
     let function_count_ph = bytecode.emit_u32_placeholder();
     let mut function_count = 0;
     for (id, chunk) in typed_engine.iter_chunks() {
-        if chunk.return_type == NOTHING {
+        if chunk.return_type == UNIT {
             scripts.push(chunk);
             continue;
         }
@@ -84,6 +84,8 @@ fn compile_instruction_set<'a>(
     // emit instruction count placeholder
     let instruction_count = bytecode.emit_u32_placeholder();
     let start = bytecode.len();
+    // emit operand capacity placeholder
+    let operand_capacity = bytecode.emit_u32_placeholder();
 
     // write instructions
     let mut instructions = Instructions::wrap(bytecode);
@@ -98,6 +100,14 @@ fn compile_instruction_set<'a>(
         );
     }
 
+    if instructions.current_operand_stack_pos != 0 {
+        panic!("Compilation lets a non-empty operand stack")
+    }
+
+    let operands_capacity = instructions.max_operand_stack_size;
+
+    // patch operand capacity placeholder
+    bytecode.patch_u32_placeholder(operand_capacity, operands_capacity);
     // patch instruction count placeholder
     bytecode.patch_u32_placeholder(instruction_count, (bytecode.len() - start) as u32);
 }

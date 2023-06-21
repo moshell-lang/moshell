@@ -5,17 +5,18 @@ use analyzer::types::hir::{Declaration, ExprKind, TypedExpr};
 use analyzer::types::*;
 use ast::value::LiteralValue;
 
-use crate::bytecode::{Instructions, Opcode, Placeholder};
+use crate::bytecode::{Instructions, Placeholder};
 use crate::constant_pool::ConstantPool;
 use crate::emit::invoke::{emit_function_call, emit_process_call};
 use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
 use crate::emit::native::emit_primitive_op;
+use crate::r#type::{get_type_size, TypeSize};
 
 mod invoke;
 mod jump;
 mod native;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct EmissionState {
     // the start instruction position of the enclosing loop
     // set to 0 if there is no loop
@@ -31,7 +32,7 @@ impl EmissionState {
     pub fn in_loop(loop_start: u32) -> Self {
         Self {
             enclosing_loop_start: loop_start,
-            enclosing_loop_end_placeholders: Vec::new(),
+            ..Self::default()
         }
     }
 }
@@ -53,7 +54,7 @@ fn emit_literal(literal: &LiteralValue, emitter: &mut Instructions, cp: &mut Con
 
 fn emit_ref(symbol: &Symbol, emitter: &mut Instructions) {
     match symbol {
-        Symbol::Local(id) => emitter.emit_get_local(id.0 as u8),
+        Symbol::Local(id) => emitter.emit_get_u8_local(id.0 as u8),
         _ => todo!(),
     }
 }
@@ -68,8 +69,13 @@ fn emit_declaration(
 ) {
     if let Some(value) = &declaration.value {
         emit(value, emitter, typing, engine, cp, state);
-        emitter.emit_code(Opcode::SetLocal);
-        emitter.bytecode.emit_byte(declaration.identifier.0 as u8);
+
+        let id = declaration.identifier.0 as u8;
+        match get_type_size(&value.ty) {
+            TypeSize::Byte => emitter.emit_set_u8_local(id),
+            TypeSize::QWord => emitter.emit_set_u32_local(id),
+            TypeSize::Zero => panic!("Received value declaration with zero-sized type")
+        }
     }
 }
 
@@ -104,12 +110,12 @@ pub fn emit(
         ExprKind::Break => emit_break(instructions, state),
         ExprKind::Reference(r) => {
             if use_return {
-                emit_ref(r, instructions)
+                emit_ref(r, instructions);
             }
         }
         ExprKind::Literal(literal) => {
             if use_return {
-                emit_literal(literal, instructions, cp)
+                emit_literal(literal, instructions, cp);
             }
         }
         ExprKind::FunctionCall(fc) => {
