@@ -13,12 +13,16 @@ pub(crate) fn emit_primitive_op(
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
+    let last = state.use_values(true);
     emit(callee, emitter, cp, state);
-    match native.0 {
+    state.use_values(last);
+
+    let pop_opcode= match native.0 {
         0 => {
             // ExitCode -> Bool
             emitter.emit_byte(1);
             emitter.emit_code(Opcode::BXor);
+            Opcode::PopByte
         }
         1..=9 => {
             // Arithmetic expression
@@ -36,14 +40,17 @@ pub(crate) fn emit_primitive_op(
                 9 => Opcode::IntMod,
                 _ => todo!("Binary expression with float type"),
             });
+            Opcode::PopQWord
         }
         13 => {
             // Int -> String
             emitter.emit_code(Opcode::ConvertIntToStr);
+            Opcode::PopQWord
         }
         14 => {
             // Float -> String
             emitter.emit_code(Opcode::ConvertFloatToStr);
+            Opcode::PopQWord
         }
         17 => {
             // String + String -> String
@@ -55,7 +62,12 @@ pub(crate) fn emit_primitive_op(
                 state,
             );
             emitter.emit_code(Opcode::Concat);
+            Opcode::PopQWord
         }
         id => todo!("Native function with id {id}"),
+    };
+
+    if state.use_values {
+        emitter.emit_code(pop_opcode)
     }
 }
