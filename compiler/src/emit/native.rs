@@ -17,7 +17,7 @@ pub(crate) fn emit_primitive_op(
     emit(callee, emitter, cp, state);
     state.use_values(last);
 
-    let pop_opcode= match native.0 {
+    let pop_opcode = match native.0 {
         0 => {
             // ExitCode -> Bool
             emitter.emit_byte(1);

@@ -25,7 +25,7 @@ pub struct EmissionState {
     // if set to false, the compiler will avoid emitting literals, var references or will
     // instantly pop values returned from functions, methods and process calls
     // we don't use values by default
-    pub use_values: bool
+    pub use_values: bool,
 }
 
 impl EmissionState {
@@ -39,7 +39,7 @@ impl EmissionState {
         Self {
             enclosing_loop_start: loop_start,
             enclosing_loop_end_placeholders: Vec::new(),
-            use_values: false
+            use_values: false,
         }
     }
 

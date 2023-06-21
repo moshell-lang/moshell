@@ -53,7 +53,7 @@ pub fn emit_loop(
         let jump_to_end = emitter.emit_jump(Opcode::IfNotJump);
         loop_state.enclosing_loop_end_placeholders.push(jump_to_end);
     }
-    
+
     loop_state.enclosing_loop_start = loop_start;
 
     // Evaluate the loop body.
