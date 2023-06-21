@@ -20,8 +20,7 @@ pub(crate) fn emit_primitive_op(
     let pop_opcode = match native.0 {
         0 => {
             // ExitCode -> Bool
-            emitter.emit_byte(1);
-            emitter.emit_code(Opcode::BXor);
+            emitter.invert_bool();
             Opcode::PopByte
         }
         1..=9 => {
@@ -34,25 +33,72 @@ pub(crate) fn emit_primitive_op(
             );
             emitter.emit_code(match native.0 {
                 1 => Opcode::IntAdd,
+                2 => Opcode::FloatAdd,
                 3 => Opcode::IntSub,
+                4 => Opcode::FloatSub,
                 5 => Opcode::IntMul,
+                6 => Opcode::FloatMul,
                 7 => Opcode::IntDiv,
+                8 => Opcode::FloatDiv,
                 9 => Opcode::IntMod,
-                _ => todo!("Binary expression with float type"),
+                _ => unreachable!("Not a numeric binary expression"),
             });
             Opcode::PopQWord
         }
-        13 => {
+        10..=23 => {
+            // Comparison expression
+            emit(
+                args.get(0).expect("A comparison takes two operands"),
+                emitter,
+                cp,
+                state,
+            );
+            match native.0 {
+                10 => { /* Bool == true */ }
+                11 => {
+                    // Bool == false
+                    emitter.invert_bool()
+                }
+                12 => {
+                    // Int == Int
+                    emitter.emit_code(Opcode::IntEqual)
+                }
+                13 => {
+                    // Int != Int
+                    emitter.emit_code(Opcode::IntEqual);
+                    emitter.invert_bool();
+                }
+                14 => emitter.emit_code(Opcode::IntLessThan),
+                15 => emitter.emit_code(Opcode::IntLessOrEqual),
+                16 => emitter.emit_code(Opcode::IntGreaterThan),
+                17 => emitter.emit_code(Opcode::IntGreaterOrEqual),
+                _ => todo!("Comparison expression"),
+            }
+            Opcode::PopByte
+        }
+        24 => {
+            // Bool -> String
+            emitter.emit_code(Opcode::ConvertByteToInt);
+            emitter.emit_code(Opcode::ConvertIntToStr);
+            Opcode::PopQWord
+        }
+        25 => {
+            // ExitCode -> String
+            emitter.emit_code(Opcode::ConvertByteToInt);
+            emitter.emit_code(Opcode::ConvertIntToStr);
+            Opcode::PopQWord
+        }
+        26 => {
             // Int -> String
             emitter.emit_code(Opcode::ConvertIntToStr);
             Opcode::PopQWord
         }
-        14 => {
+        27 => {
             // Float -> String
             emitter.emit_code(Opcode::ConvertFloatToStr);
             Opcode::PopQWord
         }
-        17 => {
+        30 => {
             // String + String -> String
             emit(
                 args.get(0)

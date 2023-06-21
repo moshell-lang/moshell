@@ -57,6 +57,12 @@ impl Bytecode {
         self.bytes.extend(ip.to_be_bytes());
     }
 
+    /// Inverts the boolean value on top of the stack.
+    pub fn invert_bool(&mut self) {
+        self.emit_byte(1);
+        self.emit_code(Opcode::BXor);
+    }
+
     /// expands the byte vector to let a placeholder of the given size,
     /// returning the position of the placeholder in the vector
     pub fn create_placeholder(&mut self, placeholder_size: usize) -> usize {
@@ -120,6 +126,7 @@ pub enum Opcode {
     IfNotJump,
     Jump,
 
+    ConvertByteToInt,
     ConvertIntToStr,
     ConvertFloatToStr,
     ConvertIntToByte,
@@ -131,4 +138,14 @@ pub enum Opcode {
     IntMul,
     IntDiv,
     IntMod,
+    FloatAdd,
+    FloatSub,
+    FloatMul,
+    FloatDiv,
+
+    IntEqual,
+    IntLessThan,
+    IntLessOrEqual,
+    IntGreaterThan,
+    IntGreaterOrEqual,
 }

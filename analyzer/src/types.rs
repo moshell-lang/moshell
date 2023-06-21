@@ -50,6 +50,9 @@ impl Typing {
         assign_to: TypeId,
         rvalue: TypeId,
     ) -> Result<TypeId, UnificationError> {
+        if rvalue == ERROR {
+            return Ok(assign_to); // An error is compatible with everything, as it is a placeholder.
+        }
         let lhs = &self.types[assign_to.0];
         let rhs = &self.types[rvalue.0];
         if lhs == rhs {

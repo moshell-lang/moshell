@@ -907,6 +907,14 @@ fn ascribe_types(
         Expr::Casted(casted) => {
             ascribe_casted(casted, exploration, relations, diagnostics, env, state)
         }
+        Expr::Test(test) => ascribe_types(
+            exploration,
+            relations,
+            diagnostics,
+            env,
+            &test.expression,
+            state,
+        ),
         e @ (Expr::While(_) | Expr::Loop(_)) => {
             ascribe_loop(e, exploration, relations, diagnostics, env, state)
         }
@@ -1501,7 +1509,7 @@ mod tests {
                                     segment: find_in_nth(content, "$n", 1),
                                 }),
                                 arguments: vec![],
-                                definition: Definition::Native(NativeId(13)),
+                                definition: Definition::Native(NativeId(26)),
                             }),
                             ty: STRING,
                             segment: find_in_nth(content, "$n", 1),
@@ -1514,7 +1522,7 @@ mod tests {
                                     segment: find_in(content, "4.2"),
                                 }),
                                 arguments: vec![],
-                                definition: Definition::Native(NativeId(14)),
+                                definition: Definition::Native(NativeId(27)),
                             }),
                             ty: STRING,
                             segment: find_in(content, "4.2"),
@@ -1652,6 +1660,31 @@ mod tests {
                 "Type `Float` cannot be used as a condition"
             ))])
         );
+    }
+
+    #[test]
+    fn condition_previous_error() {
+        let content = "if [ 9.9 % 3.3 ] { echo 'ok' }";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::UnknownMethod,
+                SourceId(0),
+                "Undefined operator",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "9.9 % 3.3"),
+                "No operator `mod` between type `Float` and `Float`"
+            ))])
+        );
+    }
+
+    #[test]
+    fn operation_and_test() {
+        let content = "val m = 101; val is_even = $m % 2 == 0; $is_even";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(res, Ok(Type::Bool),);
     }
 
     #[test]

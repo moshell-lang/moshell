@@ -26,6 +26,7 @@ enum Opcode {
     OP_IF_NOT_JUMP, // with 1 byte opcode for where to jump, jumps only if value popped from operand stack is not 0
     OP_JUMP,        // with 1 byte opcode for where to jump
 
+    OP_BYTE_TO_INT,  // replaces last value of operand stack from byte to int
     OP_INT_TO_STR,   // replaces last value of operand stack from int to a string reference
     OP_FLOAT_TO_STR, // replaces last value of operand stack from float to a string reference
     OP_INT_TO_BYTE,  // replaces last value of operand stack from int to byte
@@ -37,6 +38,16 @@ enum Opcode {
     OP_INT_MUL, // takes two ints, multiplies them, and pushes the result
     OP_INT_DIV, // takes two ints, divides them, and pushes the result
     OP_INT_MOD, // takes two ints, mods them, and pushes the result
+    OP_FLOAT_ADD,
+    OP_FLOAT_SUB,
+    OP_FLOAT_MUL,
+    OP_FLOAT_DIV,
+
+    OP_INT_EQ, // takes two ints, checks if they are equal, and pushes the result
+    OP_INT_LT, // takes two ints, checks if the first is less than the second, and pushes the result
+    OP_INT_LE, // takes two ints, checks if the first is less than or equal to the second, and pushes the result
+    OP_INT_GT, // takes two ints, checks if the first is greater than the second, and pushes the result
+    OP_INT_GE, // takes two ints, checks if the first is greater than or equal to the second, and pushes the result
 };
 
 // Apply an arithmetic operation to two integers
@@ -52,6 +63,41 @@ int64_t apply_op(Opcode code, int64_t a, int64_t b) {
         return a / b;
     case OP_INT_MOD:
         return a % b;
+    default:
+        std::cerr << "Error: Unknown opcode " << (int)code << "\n";
+        exit(1);
+    }
+}
+
+bool apply_comparison(Opcode code, int64_t a, int64_t b) {
+    switch (code) {
+    case OP_INT_EQ:
+        return a == b;
+    case OP_INT_GT:
+        return a > b;
+    case OP_INT_GE:
+        return a >= b;
+    case OP_INT_LT:
+        return a < b;
+    case OP_INT_LE:
+        return a <= b;
+    default:
+        std::cerr << "Error: Unknown opcode " << (int)code << "\n";
+        exit(1);
+    }
+}
+
+// Apply an arithmetic operation to two doubles
+double apply_op(Opcode code, double a, double b) {
+    switch (code) {
+    case OP_FLOAT_ADD:
+        return a + b;
+    case OP_FLOAT_SUB:
+        return a - b;
+    case OP_FLOAT_MUL:
+        return a * b;
+    case OP_FLOAT_DIV:
+        return a / b;
     default:
         std::cerr << "Error: Unknown opcode " << (int)code << "\n";
         exit(1);
@@ -154,6 +200,12 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             *(int64_t *)(locals + local_frame + index * 8) = value;
             break;
         }
+        case OP_BYTE_TO_INT: {
+            char value = stack.pop_byte();
+            stack.push_int(value);
+            ip++;
+            break;
+        }
         case OP_INT_TO_STR: {
             int64_t value = stack.pop_int();
 
@@ -235,6 +287,29 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             int64_t a = stack.pop_int();
             int64_t res = apply_op(static_cast<Opcode>(bytes[ip]), a, b);
             stack.push_int(res);
+            ip++;
+            break;
+        }
+        case OP_FLOAT_ADD:
+        case OP_FLOAT_SUB:
+        case OP_FLOAT_MUL:
+        case OP_FLOAT_DIV: {
+            double b = stack.pop_double();
+            double a = stack.pop_int();
+            double res = apply_op(static_cast<Opcode>(bytes[ip]), a, b);
+            stack.push_double(res);
+            ip++;
+            break;
+        }
+        case OP_INT_EQ:
+        case OP_INT_LT:
+        case OP_INT_LE:
+        case OP_INT_GT:
+        case OP_INT_GE: {
+            int64_t b = stack.pop_int();
+            int64_t a = stack.pop_int();
+            char res = apply_comparison(static_cast<Opcode>(bytes[ip]), a, b);
+            stack.push_byte(res);
             ip++;
             break;
         }
