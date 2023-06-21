@@ -617,7 +617,7 @@ fn ascribe_if(
         diagnostics,
         env,
         &block.condition,
-        state.with_local_type(),
+        state,
     );
     let condition = coerce_condition(condition, exploration, state, diagnostics);
     let mut then = ascribe_types(
@@ -711,12 +711,9 @@ fn ascribe_call(
             convert_into_string(expr, exploration, diagnostics, state)
         })
         .collect::<Vec<_>>();
-
-    let ty = if state.local_type { EXIT_CODE } else { NOTHING };
-
     TypedExpr {
         kind: ExprKind::ProcessCall(args),
-        ty,
+        ty: EXIT_CODE,
         segment: call.segment(),
     }
 }
@@ -1523,7 +1520,7 @@ mod tests {
                             segment: find_in(content, "4.2"),
                         }
                     ]),
-                    ty: NOTHING,
+                    ty: EXIT_CODE,
                     segment: find_in(content, "grep $n 4.2"),
                 }
             ])

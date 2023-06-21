@@ -91,11 +91,12 @@ fn emit_assignment(
     state: &mut EmissionState,
 ) {
     emit(&assignment.rhs, emitter, cp, state);
-    if let Symbol::Local(id) = assignment.identifier {
-        emitter.emit_set_local(id.0 as u8);
-        return;
+    match assignment.identifier {
+        Symbol::Local(id) => emitter.emit_set_local(id.0 as u8),
+        Symbol::External(_) => {
+            unimplemented!("External variable assignations are not implemented yet")
+        }
     }
-    unimplemented!("cannot support external variables assignations")
 }
 
 pub fn emit(
