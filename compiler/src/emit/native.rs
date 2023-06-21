@@ -78,8 +78,20 @@ pub(crate) fn emit_primitive_op(
         }
         24 => {
             // Bool -> String
-            emitter.emit_code(Opcode::ConvertByteToInt);
-            emitter.emit_code(Opcode::ConvertIntToStr);
+            // Emit the opcodes for:
+            // if (bool) {
+            //     "true"
+            // } else {
+            //     "false"
+            // }
+            let true_string = cp.insert_string("true".to_owned());
+            let false_string = cp.insert_string("false".to_owned());
+            let jump_to_else = emitter.emit_jump(Opcode::IfNotJump);
+            emitter.emit_string_constant_ref(true_string);
+            let jump_to_end = emitter.emit_jump(Opcode::Jump);
+            emitter.patch_jump(jump_to_else);
+            emitter.emit_string_constant_ref(false_string);
+            emitter.patch_jump(jump_to_end);
             Opcode::PopQWord
         }
         25 => {
