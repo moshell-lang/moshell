@@ -67,7 +67,7 @@ pub(crate) fn emit_primitive_op(
         id => todo!("Native function with id {id}"),
     };
 
-    if state.use_values {
+    if !state.use_values {
         emitter.emit_code(pop_opcode)
     }
 }

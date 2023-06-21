@@ -80,9 +80,10 @@ fn emit_declaration(
     state: &mut EmissionState,
 ) {
     if let Some(value) = &declaration.value {
-        state.use_values = true;
+        let last = state.use_values(true);
         emit(value, emitter, cp, state);
-        state.use_values = false;
+        state.use_values(last);
+
         emitter.emit_code(Opcode::SetLocal);
         emitter.bytes.push(declaration.identifier.0 as u8);
     }
@@ -99,7 +100,7 @@ fn emit_block(
         for expr in exprs {
             emit(expr, emitter, cp, state);
         }
-        state.use_values = used;
+        state.use_values(used);
         emit(last_expr, emitter, cp, state);
     }
 }
@@ -110,7 +111,10 @@ fn emit_assignment(
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
+    let last = state.use_values(true);
     emit(&assignment.rhs, emitter, cp, state);
+    state.use_values(last);
+
     match assignment.identifier {
         Symbol::Local(id) => emitter.emit_set_local(id.0 as u8),
         Symbol::External(_) => {

@@ -12,6 +12,7 @@ pub fn emit_process_call(
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
+    let last = state.use_values(true);
     for arg in arguments {
         emit(arg, emitter, cp, state);
 
@@ -23,6 +24,7 @@ pub fn emit_process_call(
             _ => todo!("Convert to other types"),
         }
     }
+    state.use_values(last);
 
     emitter.emit_code(Opcode::Spawn);
     emitter.bytes.push(arguments.len() as u8);
