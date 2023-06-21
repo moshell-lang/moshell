@@ -28,6 +28,11 @@ impl Bytecode {
         self.bytes.push(identifier);
     }
 
+    pub fn emit_set_local(&mut self, identifier: u8) {
+        self.emit_code(Opcode::SetLocal);
+        self.bytes.push(identifier);
+    }
+
     pub fn emit_int(&mut self, constant: i64) {
         self.emit_code(Opcode::PushInt);
         self.bytes.extend(constant.to_be_bytes());
