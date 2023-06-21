@@ -70,8 +70,8 @@ void CallStack::pop_frame() {
     const frame_headers* headers = (frame_headers *)(block.get() + pos);
 
     frame_headers_pos = headers->previous_frame_headers_pos;
-    // pop headers and locals
-    pos -= sizeof(frame_headers) + headers->locals_capacity;
+    // pop locals
+    pos -= headers->locals_capacity;
 }
 
 stack_frame CallStack::peek_frame() {

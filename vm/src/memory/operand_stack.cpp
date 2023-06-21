@@ -47,7 +47,7 @@ double OperandStack::pop_double() {
 
 template <typename T>
 void OperandStack::push(T t) {
-    if (current_pos + sizeof(T) >= capacity) {
+    if (current_pos + sizeof(T) > capacity) {
         throw OperandStackOutOfBoundError("exceeded operand stack capacity");
     }
     *(T *)(bytes + current_pos) = t;

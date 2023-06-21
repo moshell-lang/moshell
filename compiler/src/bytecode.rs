@@ -102,20 +102,24 @@ impl<'a> Instructions<'a> {
         self.emit_bytes_and_reduce(code, &[], TypeSize::Byte);
     }
 
-    pub fn emit_get_u8_local(&mut self, identifier: u8) {
-        self.emit_bytes_and_extend(Opcode::GetByte, &[identifier], TypeSize::Byte);
+    pub fn emit_set_local(&mut self, identifier: u32, size: impl Into<TypeSize>) {
+        let size = size.into();
+        let opcode = match size {
+            TypeSize::Byte => Opcode::SetByte,
+            TypeSize::QWord => Opcode::SetQWord,
+            TypeSize::Zero => panic!("set_local for value whose type is zero-sized")
+        };
+        self.emit_bytes_and_reduce(opcode, &identifier.to_be_bytes(), size);
     }
 
-    pub fn emit_set_u8_local(&mut self, identifier: u8) {
-        self.emit_bytes_and_reduce(Opcode::SetByte, &[identifier], TypeSize::Byte);
-    }
-
-    pub fn emit_get_u32_local(&mut self, identifier: u8) {
-        self.emit_bytes_and_extend(Opcode::GetQWord, &[identifier], TypeSize::QWord);
-    }
-
-    pub fn emit_set_u32_local(&mut self, identifier: u8) {
-        self.emit_bytes_and_reduce(Opcode::SetQWord, &[identifier], TypeSize::QWord);
+    pub fn emit_get_local(&mut self, identifier: u32, size: impl Into<TypeSize>) {
+        let size = size.into();
+        let opcode = match size {
+            TypeSize::Byte => Opcode::GetByte,
+            TypeSize::QWord => Opcode::GetQWord,
+            TypeSize::Zero => panic!("get_local for value whose type is zero-sized")
+        };
+        self.emit_bytes_and_extend(opcode, &identifier.to_be_bytes(), size);
     }
 
     pub fn emit_push_int(&mut self, constant: i64) {

@@ -204,8 +204,8 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
         }
         case OP_GET_Q_WORD: {
             // Read the 1 byte local local_index
-            char local_index = *(instructions + ip);
-            ip++;
+            uint32_t local_index = *(uint32_t *)(instructions + ip);
+            ip += 2;
             int64_t value = locals.get_int64(local_index);
             // Push the local onto the stack
             operands.push_int(value);
@@ -213,8 +213,8 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
         }
         case OP_SET_Q_WORD: {
             // Read the 1 byte local index
-            char index = *(instructions + ip);
-            ip++;
+            uint32_t index = *(uint32_t *)(instructions + ip);
+            ip += 2;
             // Pop the value from the stack
             int64_t value = operands.pop_int();
             // Set the local

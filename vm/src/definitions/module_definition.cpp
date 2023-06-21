@@ -21,7 +21,9 @@ load_functions_definitions(const char *bytes, unsigned int &ip, const ConstantPo
         ip += 4;
         u_int32_t instruction_count = ntohl(*(u_int32_t *)(bytes + ip));
         ip += 4;
-        function_definition def {bytes + ip, instruction_count, 45, 55};
+        u_int32_t operand_stack_size = ntohl(*(u_int32_t *)(bytes + ip));
+        ip += 4;
+        function_definition def {bytes + ip, instruction_count, operand_stack_size, 55};
         map.insert(std::pair(signature, def));
         bytes += instruction_count;
     }
