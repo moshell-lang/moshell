@@ -18,13 +18,13 @@ Moshell also comes with different data types, such as `Int`, `Float`, `Bool` or 
 
 Moshell is a project in its early stages.
 
-- [x] [Lexer + Parser](https://github.com/orgs/moshell-lang/projects/1)
+- [x] Lexer + Parser]
     - [x] Standard shell expressions
     - [x] Control flow
     - [x] Type hints
     - [ ] Array indexing and ranges *(in progress)*
     - [ ] User defined types
-- [x] [Static analysis](https://github.com/orgs/moshell-lang/projects/2)
+- [x] Static analysis
     - [x] Symbol resolution
     - [x] Imports resolution
     - [x] Qualified names
