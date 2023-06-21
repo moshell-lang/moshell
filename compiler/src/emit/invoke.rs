@@ -8,11 +8,11 @@ use crate::emit::EmissionState;
 
 pub fn emit_process_call(
     arguments: &Vec<TypedExpr>,
-    use_return: bool,
     emitter: &mut Bytecode,
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
+    let last = state.use_values(true);
     for arg in arguments {
         emit(arg, emitter, cp, state);
 
@@ -24,11 +24,12 @@ pub fn emit_process_call(
             _ => todo!("Convert to other types"),
         }
     }
+    state.use_values(last);
 
     emitter.emit_code(Opcode::Spawn);
     emitter.bytes.push(arguments.len() as u8);
 
-    if !use_return {
+    if !state.use_values {
         // The Spawn operation will push the process's exitcode onto the stack
         // in order to maintain the stack's size, we instantly pop
         // the stack if the value isn't used later in the code

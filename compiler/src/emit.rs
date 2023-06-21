@@ -1,9 +1,8 @@
 use analyzer::relations::{Definition, Symbol};
 use analyzer::types::hir::{Assignment, Declaration, ExprKind, TypedExpr};
-use analyzer::types::*;
 use ast::value::LiteralValue;
 
-use crate::bytecode::Bytecode;
+use crate::bytecode::{Bytecode, Opcode};
 use crate::constant_pool::ConstantPool;
 use crate::emit::invoke::emit_process_call;
 use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
@@ -22,6 +21,11 @@ pub struct EmissionState {
     // When the loop compilation ends, all those placeholder are filled with the
     // first instruction pointer after the loop.
     pub enclosing_loop_end_placeholders: Vec<usize>,
+
+    // if set to false, the compiler will avoid emitting literals, var references or will
+    // instantly pop values returned from functions, methods and process calls
+    // we don't use values by default
+    pub use_values: bool,
 }
 
 impl EmissionState {
@@ -35,7 +39,15 @@ impl EmissionState {
         Self {
             enclosing_loop_start: loop_start,
             enclosing_loop_end_placeholders: Vec::new(),
+            use_values: false,
         }
+    }
+
+    /// sets use_values to given value, and return last value
+    pub fn use_values(&mut self, used: bool) -> bool {
+        let last_state = self.use_values;
+        self.use_values = used;
+        last_state
     }
 }
 
@@ -68,19 +80,28 @@ fn emit_declaration(
     state: &mut EmissionState,
 ) {
     if let Some(value) = &declaration.value {
+        let last = state.use_values(true);
         emit(value, emitter, cp, state);
-        emitter.emit_set_local(declaration.identifier.0 as u8)
+        state.use_values(last);
+
+        emitter.emit_code(Opcode::SetLocal);
+        emitter.bytes.push(declaration.identifier.0 as u8);
     }
 }
 
 fn emit_block(
-    exprs: &Vec<TypedExpr>,
+    exprs: &[TypedExpr],
     emitter: &mut Bytecode,
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
-    for expr in exprs {
-        emit(expr, emitter, cp, state);
+    if let Some((last_expr, exprs)) = exprs.split_last() {
+        let used = state.use_values(false);
+        for expr in exprs {
+            emit(expr, emitter, cp, state);
+        }
+        state.use_values(used);
+        emit(last_expr, emitter, cp, state);
     }
 }
 
@@ -90,7 +111,10 @@ fn emit_assignment(
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
+    let last = state.use_values(true);
     emit(&assignment.rhs, emitter, cp, state);
+    state.use_values(last);
+
     match assignment.identifier {
         Symbol::Local(id) => emitter.emit_set_local(id.0 as u8),
         Symbol::External(_) => {
@@ -105,7 +129,6 @@ pub fn emit(
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
-    let use_return = expr.ty != NOTHING;
     match &expr.kind {
         ExprKind::Declare(d) => emit_declaration(d, emitter, cp, state),
         ExprKind::Block(exprs) => emit_block(exprs, emitter, cp, state),
@@ -115,16 +138,18 @@ pub fn emit(
         ExprKind::Break => emit_break(emitter, state),
         ExprKind::Assign(ass) => emit_assignment(ass, emitter, cp, state),
         ExprKind::Reference(r) => {
-            if use_return {
+            // if the reference's value is not used, then simply do not emit it
+            if state.use_values {
                 emit_ref(r, emitter)
             }
         }
         ExprKind::Literal(literal) => {
-            if use_return {
+            // if the literal's value is not used, then simply do not emit it
+            if state.use_values {
                 emit_literal(literal, emitter, cp)
             }
         }
-        ExprKind::ProcessCall(args) => emit_process_call(args, use_return, emitter, cp, state),
+        ExprKind::ProcessCall(args) => emit_process_call(args, emitter, cp, state),
         ExprKind::MethodCall(method) => match method.definition {
             Definition::Native(id) => {
                 emit_primitive_op(id, &method.callee, &method.arguments, emitter, cp, state);
