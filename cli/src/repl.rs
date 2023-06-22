@@ -95,26 +95,12 @@ pub fn repl(config: Configuration) {
     }
 }
 
-fn strip_indent(line: &mut String) -> String {
-    let mut indent = String::new();
-    let line_clone = line.to_string();
-    let chars = line_clone.chars();
-    for c in chars {
-        if !c.is_whitespace() {
-            return indent;
-        }
-        line.remove(0);
-        indent.push(c);
-    }
-    indent
-}
-
 /// Parses stdin until the user's input forms a source code with no unclosed delimiters
 /// and return the source.
 fn parse_input(editor: &mut REPLEditor) -> OwnedSource {
     let mut content = String::new();
     let mut prompt_prefix = "=> ".to_string();
-    let mut indent_prefix = String::new();
+    let mut indent_prefix = "";
     loop {
         let line = editor.readline_with_initial(&prompt_prefix, (&indent_prefix, ""));
         let mut line = match line {
@@ -122,12 +108,16 @@ fn parse_input(editor: &mut REPLEditor) -> OwnedSource {
             Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => exit(1),
             e => e.expect("error when reading next line from editor"),
         };
+        // Re-add the newline stripped by readline
+        line.push('\n');
 
-        indent_prefix = strip_indent(&mut line);
-
+        // Take the indent prefix from the buffer since the current line will be dropped at the end of the iteration
+        let trimmed_len = line.trim_start().len();
+        let content_start = content.len();
         content.push_str(&line);
+        indent_prefix = &content[content_start..content.len() - trimmed_len];
+
         if line.ends_with('\\') {
-            content.push('\n');
             prompt_prefix = "-> ".to_string();
             continue;
         }
@@ -135,8 +125,10 @@ fn parse_input(editor: &mut REPLEditor) -> OwnedSource {
         let source = Source::new(&content, "stdin");
         let report = parse(source);
         if let Some(last) = report.delimiter_stack.last() {
-            content.push('\n');
-            prompt_prefix = format!("{}> ", last.str().unwrap());
+            prompt_prefix = format!(
+                "{}> ",
+                last.str().expect("Invalid delimiter passed to stack")
+            );
             continue; // Silently ignore incomplete input
         }
 
