@@ -14,12 +14,12 @@ lexer = { path = "../lexer" }
 compiler = { path = "../compiler" }
 
 owo-colors = "3.0.0"
+concolor = "0.1.1"
 rustyline = { version = "11.0.0", features = ["custom-bindings"] }
 ariadne = { version = "0.3.0", features = ["auto-color"] }
 thiserror = "1.0.38"
 dbg-pls = { version = "0.4.1", features = ["pretty", "colors"] }
 clap = { version = "4.2.2", features = ["derive"] }
-regex = "1.8.4"
 yansi = "0.5.1"
 
 [build-dependencies]

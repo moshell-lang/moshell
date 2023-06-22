@@ -1,7 +1,8 @@
 use crate::cli::{display_exprs, display_tokens, execute, Configuration};
-use crate::display_bytecode::display_bytecode;
-use crate::formatted_diagnostic::render_diagnostic;
-use crate::formatted_parse_error::render_parse_error;
+use crate::disassemble::display_bytecode;
+use crate::render::diagnostic::render_diagnostic;
+use crate::render::parse_error::render_parse_error;
+use crate::render::SourcesCache;
 use analyzer::diagnostic::Diagnostic;
 use analyzer::engine::Engine;
 use analyzer::importer::ASTImporter;
@@ -23,6 +24,7 @@ use rustyline::{
     Cmd, ColorMode, DefaultEditor, Editor, Event, EventHandler, KeyCode, KeyEvent, Modifiers,
 };
 use std::collections::HashMap;
+use std::io::stderr;
 use std::process::exit;
 
 type REPLEditor = Editor<(), DefaultHistory>;
@@ -31,7 +33,7 @@ type REPLEditor = Editor<(), DefaultHistory>;
 struct REPLImporter<'a> {
     #[allow(clippy::vec_box)]
     // Box is used to ensure that the reference behind is still valid after vector's realloc
-    sources: Vec<Box<OwnedSource>>,
+    sources: Vec<OwnedSource>,
     imported_modules: HashMap<Name, Expr<'a>>,
 }
 
@@ -52,7 +54,7 @@ impl<'a> ASTImporter<'a> for REPLImporter<'a> {
 
 impl<'a> REPLImporter<'a> {
     pub fn take_source(&mut self, source: OwnedSource) -> Source<'a> {
-        self.sources.push(Box::new(source));
+        self.sources.push(source);
         let src = self.sources[self.sources.len() - 1].as_source();
         unsafe {
             // SAFETY: The sources will never be removed from the self.sources vector as the REPLImporter's
@@ -102,10 +104,11 @@ fn parse_input(editor: &mut REPLEditor) -> OwnedSource {
     let mut prompt_prefix = "=> ".to_string();
     let mut indent_prefix = "";
     loop {
-        let line = editor.readline_with_initial(&prompt_prefix, (&indent_prefix, ""));
+        let line = editor.readline_with_initial(&prompt_prefix, (indent_prefix, ""));
         let mut line = match line {
             Ok(line) => line,
-            Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => exit(1),
+            Err(ReadlineError::Eof) => exit(0),
+            Err(ReadlineError::Interrupted) => exit(1),
             e => e.expect("error when reading next line from editor"),
         };
         // Re-add the newline stripped by readline
@@ -124,10 +127,10 @@ fn parse_input(editor: &mut REPLEditor) -> OwnedSource {
 
         let source = Source::new(&content, "stdin");
         let report = parse(source);
-        if let Some(last) = report.delimiter_stack.last() {
+        if let Some(delimiter) = report.unclosed_delimiter {
             prompt_prefix = format!(
                 "{}> ",
-                last.str().expect("Invalid delimiter passed to stack")
+                delimiter.str().expect("Invalid delimiter passed to stack")
             );
             continue; // Silently ignore incomplete input
         }
@@ -141,10 +144,10 @@ fn parse_input(editor: &mut REPLEditor) -> OwnedSource {
 }
 
 fn display_diagnostics(diagnostics: Vec<Diagnostic>, source: Source) {
+    let mut cache = SourcesCache::new(|_| source);
     for diagnostic in diagnostics {
-        let str =
-            render_diagnostic(diagnostic, |_| source).expect("IO errors when reporting diagnostic");
-        eprintln!("{str}")
+        render_diagnostic(diagnostic, &mut cache, &mut stderr())
+            .expect("IO errors when reporting diagnostic");
     }
 }
 
@@ -172,9 +175,8 @@ fn handle_source<'e>(
 
     if !errors.is_empty() {
         for error in errors {
-            let str =
-                render_parse_error(source, error).expect("IO error when reporting diagnostics");
-            eprintln!("{str}")
+            render_parse_error(source, error, &mut stderr())
+                .expect("IO error when reporting diagnostics");
         }
         return;
     }

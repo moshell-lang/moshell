@@ -1,4 +1,5 @@
 use std::io;
+use std::io::stderr;
 use std::ops::Deref;
 use std::path::PathBuf;
 
@@ -18,11 +19,13 @@ use parser::err::ParseReport;
 use parser::parse;
 
 use crate::cli::{display_exprs, display_tokens, execute, Configuration};
-use crate::display_bytecode::display_bytecode;
-use crate::formatted_diagnostic::render_diagnostic;
-use crate::formatted_parse_error::render_parse_error;
+use crate::disassemble::display_bytecode;
+use crate::render::diagnostic::render_diagnostic;
+use crate::render::parse_error::render_parse_error;
+use crate::render::SourcesCache;
 use crate::source_importer::FileSourceImporter;
 
+/// returns true if any error occurred
 pub(crate) fn run(source: PathBuf, working_dir: PathBuf, config: Configuration) -> bool {
     let name = source.to_string_lossy();
     let mut name = name.deref().replace('/', "::");
@@ -119,7 +122,8 @@ fn display_import_errors(errors: Vec<RunnerImporterError>) {
             }
             RunnerImporterError::Parse(source, report) => {
                 for err in report.errors {
-                    render_parse_error(source, err).expect("Could not display parse error");
+                    render_parse_error(source, err, &mut stderr())
+                        .expect("Could not display parse error");
                 }
             }
         }
@@ -127,10 +131,10 @@ fn display_import_errors(errors: Vec<RunnerImporterError>) {
 }
 
 fn display_diagnostics(diagnostics: Vec<Diagnostic>, engine: &Engine, importer: &RunnerImporter) {
+    let mut cache = SourcesCache::new(|src| get_source_of(src, engine, importer));
     for diagnostic in diagnostics {
-        let str = render_diagnostic(diagnostic, |src| get_source_of(src, engine, importer))
+        render_diagnostic(diagnostic, &mut cache, &mut stderr())
             .expect("could not write in stderr");
-        eprintln!("{str}")
     }
 }
 

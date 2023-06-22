@@ -83,11 +83,7 @@ impl<'a> Parser<'a> {
         ParseReport {
             expr: statements,
             errors: self.errors,
-            delimiter_stack: self
-                .delimiter_stack
-                .into_iter()
-                .map(|t| t.token_type)
-                .collect(),
+            unclosed_delimiter: self.delimiter_stack.pop_back().map(|t| t.token_type),
         }
     }
 

@@ -19,11 +19,11 @@ pub fn diagnose_invalid_symbol(
 
     let mut observations: Vec<_> = segments
         .iter()
-        .map(|seg| Observation::new(seg.clone()).with_tag(ObservationTag::InFault))
+        .map(|seg| Observation::new(seg.clone(), env_id).with_tag(ObservationTag::InFault))
         .collect();
     observations.sort_by_key(|s| s.segment.start);
 
-    Diagnostic::new(DiagnosticID::InvalidSymbol, env_id, msg)
+    Diagnostic::new(DiagnosticID::InvalidSymbol, msg)
         .with_observations(observations)
         .with_help(format!(
             "`{}` is an invalid symbol in {base_type_name} `{name_root}`",

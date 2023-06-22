@@ -66,7 +66,7 @@ fn repos_delimiter_stack() {
                     kind: ParseErrorKind::Unexpected
                 }
             ],
-            delimiter_stack: vec![],
+            unclosed_delimiter: None,
         }
     );
 }
@@ -168,7 +168,7 @@ fn tolerance_in_multiple_groups() {
                     kind: ParseErrorKind::Unexpected
                 }
             ],
-            delimiter_stack: vec![],
+            unclosed_delimiter: None,
         }
     );
 }
@@ -197,7 +197,7 @@ fn invalid_binary_operator_cause_one_error() {
                 position: content.find('!').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected
             }],
-            delimiter_stack: vec![],
+            unclosed_delimiter: None,
         }
     );
 }
@@ -263,7 +263,7 @@ fn no_comma_or_two() {
                     kind: ParseErrorKind::Unpaired(content.find('\'').map(|p| p..p + 1).unwrap())
                 }
             ],
-            delimiter_stack: vec![],
+            unclosed_delimiter: None,
         }
     );
 }
@@ -294,7 +294,7 @@ fn multiple_errors_in_parameters() {
                     kind: ParseErrorKind::Unpaired(content.find('(').map(|p| p..p + 1).unwrap())
                 }
             ],
-            delimiter_stack: vec![RoundedLeftBracket],
+            unclosed_delimiter: Some(RoundedLeftBracket),
         }
     );
 }
@@ -335,7 +335,7 @@ fn do_not_self_lock() {
                     kind: ParseErrorKind::Unexpected
                 }
             ],
-            delimiter_stack: vec![],
+            unclosed_delimiter: None,
         }
     );
 }
@@ -354,7 +354,7 @@ fn list_are_not_tricked_by_blanks() {
                 position: content.len()..content.len(),
                 kind: ParseErrorKind::Unpaired(content.find('[').map(|p| p..p + 1).unwrap())
             }],
-            delimiter_stack: vec![SquaredLeftBracket],
+            unclosed_delimiter: Some(SquaredLeftBracket),
         }
     );
 }
@@ -373,7 +373,7 @@ fn expected_value_found_eof() {
                 position: content.find('=').map(|p| p + 1..p + 2).unwrap(),
                 kind: ParseErrorKind::Unexpected
             }],
-            delimiter_stack: vec![],
+            unclosed_delimiter: None,
         }
     );
 }
@@ -392,7 +392,7 @@ fn expected_value_found_semicolon() {
                 position: content.find(';').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected
             }],
-            delimiter_stack: vec![],
+            unclosed_delimiter: None,
         }
     );
 }
@@ -411,7 +411,7 @@ fn arithmetic_help() {
                 position: 0..content.len(),
                 kind: ParseErrorKind::UnexpectedInContext("$(( 6 + 3 * 9 ))".to_string())
             }],
-            delimiter_stack: vec![],
+            unclosed_delimiter: None,
         }
     );
 }
@@ -432,7 +432,7 @@ fn for_no_dollar_help() {
                     "Consider removing the '$' prefix: for i in 5..9".to_string()
                 )
             }],
-            delimiter_stack: vec![],
+            unclosed_delimiter: None,
         }
     );
 }
@@ -451,7 +451,7 @@ fn expected_double_delimiter_for() {
                 position: content.find(')').map(|p| p + 1..p + 2).unwrap(),
                 kind: ParseErrorKind::Unpaired(content.find('(').map(|p| p..p + 2).unwrap())
             }],
-            delimiter_stack: vec![RoundedLeftBracket],
+            unclosed_delimiter: Some(RoundedLeftBracket),
         }
     );
 }
@@ -470,7 +470,7 @@ fn expected_double_delimiter_mismatched() {
                 position: content.find(']').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unpaired(content.find('(').map(|p| p + 1..p + 2).unwrap())
             }],
-            delimiter_stack: vec![],
+            unclosed_delimiter: None,
         }
     );
 }
@@ -495,7 +495,7 @@ fn double_comma_parentheses() {
                 position: content.rfind(',').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected
             }],
-            delimiter_stack: vec![],
+            unclosed_delimiter: None,
         }
     );
 }
@@ -521,7 +521,7 @@ fn double_comma_function() {
                     kind: ParseErrorKind::Unexpected
                 }
             ],
-            delimiter_stack: vec![],
+            unclosed_delimiter: None,
         }
     );
 }
@@ -540,7 +540,7 @@ fn quotes_are_delimiters() {
                 position: content.find('"').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected
             }],
-            delimiter_stack: vec![],
+            unclosed_delimiter: None,
         }
     );
 }

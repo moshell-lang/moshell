@@ -3,7 +3,6 @@ use crate::types::builtin::lang;
 use crate::types::hir::{TypeId, TypedExpr};
 use crate::types::ty::{FunctionType, MethodType, Parameter, TypeDescription};
 use crate::types::NOTHING;
-use context::source::SourceSegment;
 
 /// A typed [`crate::engine::Engine`].
 ///
@@ -59,9 +58,6 @@ pub struct Chunk {
 
     /// The return type of the chunk.
     pub return_type: TypeId,
-
-    /// Segment of declaration
-    pub declaration_segment: Option<SourceSegment>,
 }
 
 impl Chunk {
@@ -71,7 +67,6 @@ impl Chunk {
             expression,
             parameters: Vec::new(),
             return_type: NOTHING,
-            declaration_segment: None,
         }
     }
 
@@ -80,13 +75,11 @@ impl Chunk {
         expression: TypedExpr,
         parameters: Vec<Parameter>,
         return_type: TypeId,
-        declaration_segment: SourceSegment,
     ) -> Self {
         Self {
             expression,
             parameters,
             return_type,
-            declaration_segment: Some(declaration_segment),
         }
     }
 }

@@ -139,8 +139,10 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                         var.name, &clashed_module.fqn
                     );
                     let diagnostic = {
-                        Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, env_id, msg)
-                            .with_observation(Observation::new(declaration_segment.clone()).with_help(format!("This symbol has the same fully-qualified name as module {}", clashed_module.fqn)))
+                        Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, msg)
+                            .with_observation(
+                                Observation::new(declaration_segment.clone(), env_id)
+                                    .with_help(format!("This symbol has the same fully-qualified name as module {}", clashed_module.fqn)))
                             .with_help(format!("You should refactor this symbol with a name that does not conflicts with following modules: {inner_modules}"))
                     };
                     self.diagnostics.push(diagnostic)
@@ -191,12 +193,11 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         {
             let diagnostic = Diagnostic::new(
                 DiagnosticID::ShadowedImport,
-                mod_id,
                 format!("{import_fqn} is imported twice."),
             )
-            .with_observation(Observation::new(shadowed).with_help("useless import here"))
+            .with_observation(Observation::new(shadowed, mod_id).with_help("useless import here"))
             .with_observation(
-                Observation::new(import_expr.segment())
+                Observation::new(import_expr.segment(), mod_id)
                     .with_help("This statement shadows previous import"),
             );
             self.diagnostics.push(diagnostic)
@@ -240,10 +241,9 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             ImportExpr::Environment(_, _) => {
                 let diagnostic = Diagnostic::new(
                     DiagnosticID::UnsupportedFeature,
-                    mod_id,
                     "import of environment variables and commands are not yet supported.",
                 )
-                .with_observation(Observation::new(import.segment()));
+                .with_observation(Observation::new(import.segment(), mod_id));
 
                 self.diagnostics.push(diagnostic);
             }
@@ -305,9 +305,8 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 if !state.accept_imports {
                     let diagnostic = Diagnostic::new(
                         DiagnosticID::UseBetweenExprs,
-                        state.module,
                         "Unexpected use statement between expressions. use statements can only be declared on top of environment",
-                    );
+                    ).with_observation(Observation::new(import.segment(), state.module));
                     self.diagnostics.push(diagnostic);
                     return;
                 }
@@ -671,10 +670,9 @@ mod tests {
         let mut engine = Engine::default();
         let mut relations = Relations::default();
         let mut imports = Imports::default();
-        let mut importer = StaticImporter::new(
-            [(Name::new("test"), Source::unknown("use a; $a; use c; $c"))],
-            parse_trusted,
-        );
+        let src = "use a; $a; use c; $c";
+        let mut importer =
+            StaticImporter::new([(Name::new("test"), Source::unknown(src))], parse_trusted);
         let res = SymbolCollector::collect_symbols(
             &mut engine,
             &mut relations,
@@ -686,7 +684,8 @@ mod tests {
         assert_eq!(
             res,
             vec![
-                Diagnostic::new(DiagnosticID::UseBetweenExprs, SourceId(0), "Unexpected use statement between expressions. use statements can only be declared on top of environment"),
+                Diagnostic::new(DiagnosticID::UseBetweenExprs, "Unexpected use statement between expressions. use statements can only be declared on top of environment")
+                    .with_observation(Observation::new(find_in(src, "use c"), SourceId(0))),
             ]
         )
     }
@@ -737,8 +736,11 @@ mod tests {
             &mut importer,
         );
         assert_eq!(diagnostics, vec![
-            Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, SourceId(0), "Declared symbol 'multiply' in module math clashes with module math::multiply")
-                .with_observation(Observation::new(find_in(math_source, "fun multiply(a: Int, b: Int) = a * b")).with_help("This symbol has the same fully-qualified name as module math::multiply"))
+            Diagnostic::new(DiagnosticID::SymbolConflictsWithModule,  "Declared symbol 'multiply' in module math clashes with module math::multiply")
+                .with_observation(
+                    Observation::new(find_in(math_source, "fun multiply(a: Int, b: Int) = a * b"), SourceId(0))
+                    .with_help("This symbol has the same fully-qualified name as module math::multiply")
+                )
                 .with_help("You should refactor this symbol with a name that does not conflicts with following modules: math::{divide, multiply, add}")
         ]);
     }
@@ -764,30 +766,24 @@ mod tests {
         assert_eq!(
             diagnostics,
             vec![
-                Diagnostic::new(
-                    DiagnosticID::ShadowedImport,
-                    SourceId(0),
-                    "A is imported twice."
-                )
-                .with_observation(
-                    Observation::new(find_in(source, "A")).with_help("useless import here")
-                )
-                .with_observation(
-                    Observation::new(find_in_nth(source, "A", 1))
-                        .with_help("This statement shadows previous import"),
-                ),
-                Diagnostic::new(
-                    DiagnosticID::ShadowedImport,
-                    SourceId(0),
-                    "B is imported twice."
-                )
-                .with_observation(
-                    Observation::new(find_in(source, "B")).with_help("useless import here")
-                )
-                .with_observation(
-                    Observation::new(find_in_nth(source, "B", 1))
-                        .with_help("This statement shadows previous import")
-                ),
+                Diagnostic::new(DiagnosticID::ShadowedImport, "A is imported twice.")
+                    .with_observation(
+                        Observation::new(find_in(source, "A"), SourceId(0))
+                            .with_help("useless import here")
+                    )
+                    .with_observation(
+                        Observation::new(find_in_nth(source, "A", 1), SourceId(0))
+                            .with_help("This statement shadows previous import"),
+                    ),
+                Diagnostic::new(DiagnosticID::ShadowedImport, "B is imported twice.")
+                    .with_observation(
+                        Observation::new(find_in(source, "B"), SourceId(0))
+                            .with_help("useless import here")
+                    )
+                    .with_observation(
+                        Observation::new(find_in_nth(source, "B", 1), SourceId(0))
+                            .with_help("This statement shadows previous import")
+                    ),
             ]
         )
     }

@@ -138,7 +138,6 @@ fn apply_types_to_source(
                     .map(|param| type_parameter(&exploration.ctx, param))
                     .collect(),
                 return_type,
-                func.segment(),
             )
         }
         expr => Chunk::script(ascribe_types(
@@ -246,14 +245,15 @@ fn ascribe_assign(
         diagnostics.push(
             Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                state.source,
                 format!(
                     "Named object `{}` cannot be assigned like a variable",
                     assign.name
                 ),
             )
             .with_observation(
-                Observation::new(assign.segment()).with_help("Assignment happens here"),
+                Observation::new(assign.segment(), state.source)
+                    .with_help("Assignment happens here")
+                    .with_tag(ObservationTag::InFault),
             ),
         );
         return rhs;
@@ -277,7 +277,6 @@ fn ascribe_assign(
             diagnostics.push(
                 Diagnostic::new(
                     DiagnosticID::TypeMismatch,
-                    state.source,
                     format!(
                         "Cannot assign a value of type `{}` to something of type `{}`",
                         exploration.get_type(rhs_type).unwrap(),
@@ -285,7 +284,9 @@ fn ascribe_assign(
                     ),
                 )
                 .with_observation(
-                    Observation::new(assign.segment()).with_help("Assignment happens here"),
+                    Observation::new(assign.segment(), state.source)
+                        .with_help("Assignment happens here")
+                        .with_tag(ObservationTag::InFault),
                 ),
             );
             TypedExpr {
@@ -300,14 +301,15 @@ fn ascribe_assign(
         diagnostics.push(
             Diagnostic::new(
                 DiagnosticID::CannotReassign,
-                state.source,
                 format!(
                     "Cannot assign twice to immutable variable `{}`",
                     assign.name
                 ),
             )
             .with_observation(
-                Observation::new(assign.segment()).with_help("Assignment happens here"),
+                Observation::new(assign.segment(), state.source)
+                    .with_help("Assignment happens here")
+                    .with_tag(ObservationTag::InFault),
             ),
         );
     }
@@ -495,7 +497,6 @@ fn ascribe_function(
             },
             parameters,
             return_type,
-            fun.segment(),
         ),
     );
     TypedExpr {
@@ -527,19 +528,17 @@ fn ascribe_binary(
         Some(method) => method.return_type,
         _ => {
             diagnostics.push(
-                Diagnostic::new(
-                    DiagnosticID::UnknownMethod,
-                    state.source,
-                    "Undefined operator",
-                )
-                .with_observation(Observation::new(bin.segment()).with_help(
-                    format!(
-                        "No operator `{}` between type `{}` and `{}`",
-                        name,
-                        exploration.get_type(left_expr.ty).unwrap(),
-                        exploration.get_type(right_expr.ty).unwrap()
+                Diagnostic::new(DiagnosticID::UnknownMethod, "Undefined operator")
+                    .with_observation(
+                        Observation::new(bin.segment(), state.source)
+                            .with_help(format!(
+                                "No operator `{}` between type `{}` and `{}`",
+                                name,
+                                exploration.get_type(left_expr.ty).unwrap(),
+                                exploration.get_type(right_expr.ty).unwrap()
+                            ))
+                            .with_tag(ObservationTag::InFault),
                     ),
-                )),
             );
             ERROR
         }
@@ -584,14 +583,15 @@ fn ascribe_casted(
         diagnostics.push(
             Diagnostic::new(
                 DiagnosticID::IncompatibleCast,
-                state.source,
                 format!(
                     "Casting `{}` as `{}` is invalid",
                     exploration.get_type(expr.ty).unwrap(),
                     exploration.get_type(ty).unwrap()
                 ),
             )
-            .with_observation(Observation::new(casted.segment()).with_help("Incompatible cast")),
+            .with_observation(
+                Observation::new(casted.segment(), state.source).with_help("Incompatible cast"),
+            ),
         );
     }
     TypedExpr {
@@ -665,11 +665,10 @@ fn ascribe_if(
             Err(_) => {
                 let mut diagnostic = Diagnostic::new(
                     DiagnosticID::TypeMismatch,
-                    state.source,
                     "`if` and `else` have incompatible types",
                 )
                 .with_observation(
-                    Observation::new(block.success_branch.segment())
+                    Observation::new(block.success_branch.segment(), state.source)
                         .with_help(format!(
                             "Found `{}`",
                             exploration.get_type(then.ty).unwrap()
@@ -678,7 +677,7 @@ fn ascribe_if(
                 );
                 if let Some(otherwise) = &otherwise {
                     diagnostic = diagnostic.with_observation(
-                        Observation::new(otherwise.segment())
+                        Observation::new(otherwise.segment(), state.source)
                             .with_help(format!(
                                 "Found `{}`",
                                 exploration.get_type(otherwise.ty).unwrap()
@@ -855,10 +854,9 @@ fn ascribe_continue_or_break(
         diagnostics.push(
             Diagnostic::new(
                 DiagnosticID::InvalidBreakOrContinue,
-                source,
                 format!("`{kind_name}` must be declared inside a loop"),
             )
-            .with_observation(Observation::new(expr.segment())),
+            .with_observation(Observation::new(expr.segment(), source)),
         );
     }
     TypedExpr {
@@ -1009,16 +1007,15 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceId(0),
                 "Type mismatch",
             )
             .with_observation(
-                Observation::new(find_in(content, "Int"))
+                Observation::new(find_in(content, "Int"), SourceId(0))
                     .with_help("Expected `Int`")
                     .with_tag(ObservationTag::Expected)
             )
             .with_observation(
-                Observation::new(find_in(content, "1.6"))
+                Observation::new(find_in(content, "1.6"), SourceId(0))
                     .with_help("Found `Float`")
                     .with_tag(ObservationTag::InFault)
             )])
@@ -1033,11 +1030,10 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::UnknownType,
-                SourceId(0),
                 "Unknown type annotation",
             )
             .with_observation(
-                Observation::new(find_in(content, "ABC"))
+                Observation::new(find_in(content, "ABC"), SourceId(0))
                     .with_help("Not found in scope")
                     .with_tag(ObservationTag::InFault)
             )])
@@ -1058,11 +1054,12 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::CannotReassign,
-                SourceId(0),
                 "Cannot assign twice to immutable variable `l`",
             )
             .with_observation(
-                Observation::new(find_in(content, "l = 2")).with_help("Assignment happens here")
+                Observation::new(find_in(content, "l = 2"), SourceId(0))
+                    .with_help("Assignment happens here")
+                    .with_tag(ObservationTag::InFault)
             )])
         );
     }
@@ -1075,11 +1072,12 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceId(0),
                 "Cannot assign a value of type `String` to something of type `Int`",
             )
             .with_observation(
-                Observation::new(find_in(content, "p = 'a'")).with_help("Assignment happens here")
+                Observation::new(find_in(content, "p = 'a'"), SourceId(0))
+                    .with_help("Assignment happens here")
+                    .with_tag(ObservationTag::InFault)
             )])
         );
     }
@@ -1092,11 +1090,12 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceId(0),
                 "Cannot assign a value of type `Int` to something of type `String`",
             )
             .with_observation(
-                Observation::new(find_in(content, "str = 4")).with_help("Assignment happens here")
+                Observation::new(find_in(content, "str = 4"), SourceId(0))
+                    .with_help("Assignment happens here")
+                    .with_tag(ObservationTag::InFault)
             )])
         );
     }
@@ -1109,11 +1108,12 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceId(0),
                 "Named object `a` cannot be assigned like a variable",
             )
             .with_observation(
-                Observation::new(find_in(content, "a = 'a'")).with_help("Assignment happens here")
+                Observation::new(find_in(content, "a = 'a'"), SourceId(0))
+                    .with_help("Assignment happens here")
+                    .with_tag(ObservationTag::InFault)
             )])
         );
     }
@@ -1138,16 +1138,15 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceId(0),
                 "`if` and `else` have incompatible types",
             )
             .with_observation(
-                Observation::new(find_in(content, "4.7"))
+                Observation::new(find_in(content, "4.7"), SourceId(0))
                     .with_help("Found `Float`")
                     .with_tag(ObservationTag::InFault)
             )
             .with_observation(
-                Observation::new(find_in(content, "{}"))
+                Observation::new(find_in(content, "{}"), SourceId(0))
                     .with_help("Found `Nothing`")
                     .with_tag(ObservationTag::InFault)
             )])
@@ -1162,11 +1161,10 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::UnknownType,
-                SourceId(0),
                 "Unknown type annotation",
             )
             .with_observation(
-                Observation::new(find_in(content, "Imaginary"))
+                Observation::new(find_in(content, "Imaginary"), SourceId(0))
                     .with_help("Not found in scope")
                     .with_tag(ObservationTag::InFault)
             )])
@@ -1181,11 +1179,11 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::IncompatibleCast,
-                SourceId(0),
                 "Casting `String` as `Int` is invalid",
             )
             .with_observation(
-                Observation::new(find_in(content, "'a' as Int")).with_help("Incompatible cast")
+                Observation::new(find_in(content, "'a' as Int"), SourceId(0))
+                    .with_help("Incompatible cast")
             )])
         );
     }
@@ -1217,11 +1215,10 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceId(0),
                 "This function takes 1 argument but 2 were supplied",
             )
             .with_observation(
-                Observation::new(find_in(content, "square(9, 9)"))
+                Observation::new(find_in(content, "square(9, 9)"), SourceId(0))
                     .with_help("Function is called here")
             )])
         );
@@ -1235,18 +1232,16 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceId(0),
                 "Type mismatch",
             )
             .with_observation(
-                Observation::new(find_in(content, "4"))
+                Observation::new(find_in(content, "4"), SourceId(0))
                     .with_help("Expected `String`, found `Int`")
                     .with_tag(ObservationTag::InFault)
             )
             .with_observation(
-                Observation::new(find_in(content, "str: String"))
+                Observation::new(find_in(content, "str: String"), SourceId(1))
                     .with_help("Parameter is declared here")
-                    .within(SourceId(1))
                     .with_tag(ObservationTag::Declaration)
             )]),
         );
@@ -1260,11 +1255,10 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceId(0),
                 "Cannot invoke non function type",
             )
             .with_observation(
-                Observation::new(find_in(content, "test()"))
+                Observation::new(find_in(content, "test()"), SourceId(0))
                     .with_help("Call expression requires function, found `Int`")
             )])
         );
@@ -1278,16 +1272,15 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceId(1),
                 "Type mismatch",
             )
             .with_observation(
-                Observation::new(find_in(content, "Int"))
+                Observation::new(find_in(content, "Int"), SourceId(1))
                     .with_help("Expected `Int`")
                     .with_tag(ObservationTag::Expected)
             )
             .with_observation(
-                Observation::new(find_in(content, "$a"))
+                Observation::new(find_in(content, "$a"), SourceId(1))
                     .with_help("Found `String`")
                     .with_tag(ObservationTag::InFault)
             )])
@@ -1318,12 +1311,13 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceId(1),
                 "Type mismatch",
             )
-            .with_observation(Observation::new(find_in(content, "0")).with_help("Found `Int`"))
             .with_observation(
-                Observation::new(find_in(content, "String"))
+                Observation::new(find_in(content, "0"), SourceId(1)).with_help("Found `Int`")
+            )
+            .with_observation(
+                Observation::new(find_in(content, "String"), SourceId(1))
                     .with_help("Expected `String` because of return type")
                     .with_tag(ObservationTag::Expected)
             )])
@@ -1353,16 +1347,14 @@ mod tests {
             Err(vec![
                 Diagnostic::new(
                     DiagnosticID::InvalidBreakOrContinue,
-                    SourceId(0),
                     "`continue` must be declared inside a loop",
                 )
-                .with_observation(Observation::new(find_in(content, "continue"))),
+                .with_observation(Observation::new(find_in(content, "continue"), SourceId(0))),
                 Diagnostic::new(
                     DiagnosticID::InvalidBreakOrContinue,
-                    SourceId(0),
                     "`break` must be declared inside a loop",
                 )
-                .with_observation(Observation::new(find_in(content, "break"))),
+                .with_observation(Observation::new(find_in(content, "break"), SourceId(0))),
             ])
         );
     }
@@ -1378,21 +1370,22 @@ mod tests {
     fn explicit_invalid_return() {
         let content = "fun some() -> String = {if true; return {}; 9}";
         let res = extract_type(Source::unknown(content));
-        let return_observation = Observation::new(find_in(content, "String"))
+        let return_observation = Observation::new(find_in(content, "String"), SourceId(1))
             .with_help("Expected `String` because of return type")
             .with_tag(ObservationTag::Expected);
         assert_eq!(
             res,
             Err(vec![
-                Diagnostic::new(DiagnosticID::TypeMismatch, SourceId(1), "Type mismatch")
+                Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
                     .with_observation(
-                        Observation::new(find_in(content, "return {}"))
+                        Observation::new(find_in(content, "return {}"), SourceId(1))
                             .with_help("Found `Nothing`"),
                     )
                     .with_observation(return_observation.clone()),
-                Diagnostic::new(DiagnosticID::TypeMismatch, SourceId(1), "Type mismatch")
+                Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
                     .with_observation(
-                        Observation::new(find_in(content, "9")).with_help("Found `Int`")
+                        Observation::new(find_in(content, "9"), SourceId(1))
+                            .with_help("Found `Int`")
                     )
                     .with_observation(return_observation),
             ])
@@ -1407,11 +1400,10 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::CannotInfer,
-                SourceId(1),
                 "Return type inference is not supported yet",
             )
             .with_observation(
-                Observation::new(find_in(content, "fun test(n: Float) = "))
+                Observation::new(find_in(content, "fun test(n: Float) = "), SourceId(1))
                     .with_help("No return type is specified"),
             )
             .with_help("Add -> Float to the function declaration")])
@@ -1426,14 +1418,15 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::CannotInfer,
-                SourceId(1),
                 "Return type is not inferred for block functions",
             )
             .with_observation(
-                Observation::new(find_in(content, "return 0")).with_help("Returning `Int`")
+                Observation::new(find_in(content, "return 0"), SourceId(1))
+                    .with_help("Returning `Int`")
             )
             .with_observation(
-                Observation::new(find_in(content, "$n")).with_help("Returning `Float`")
+                Observation::new(find_in(content, "$n"), SourceId(1))
+                    .with_help("Returning `Float`")
             )
             .with_help(
                 "Try adding an explicit return type to the function"
@@ -1449,12 +1442,14 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::CannotInfer,
-                SourceId(1),
                 "Failed to infer return type",
             )
             .with_observation(
-                Observation::new(find_in(content, "fun test() = if false; return 5; else {}"))
-                    .with_help("This function returns multiple types")
+                Observation::new(
+                    find_in(content, "fun test() = if false; return 5; else {}"),
+                    SourceId(1)
+                )
+                .with_help("This function returns multiple types")
             )
             .with_help(
                 "Try adding an explicit return type to the function"
@@ -1561,11 +1556,11 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::UnknownMethod,
-                SourceId(0),
                 "Undefined operator",
             )
             .with_observation(
-                Observation::new(find_in(content, "4 / 'a'"))
+                Observation::new(find_in(content, "4 / 'a'"), SourceId(0))
+                    .with_tag(ObservationTag::InFault)
                     .with_help("No operator `div` between type `Int` and `String`")
             )]),
         );
@@ -1579,12 +1574,12 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::UnknownMethod,
-                SourceId(0),
                 "Undefined operator",
             )
             .with_observation(
-                Observation::new(find_in(content, "'operator' - 2.4"))
+                Observation::new(find_in(content, "'operator' - 2.4"), SourceId(0))
                     .with_help("No operator `sub` between type `String` and `Float`")
+                    .with_tag(ObservationTag::InFault)
             )]),
         );
     }
@@ -1611,11 +1606,11 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceId(0),
                 "This method takes 0 arguments but 1 was supplied",
             )
             .with_observation(
-                Observation::new(find_in(content, ".len(5)")).with_help("Method is called here")
+                Observation::new(find_in(content, ".len(5)"), SourceId(0))
+                    .with_help("Method is called here")
             )
             .with_help("The method signature is `String::len() -> Int`")])
         );
@@ -1629,16 +1624,15 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceId(0),
                 "Type mismatch",
             )
             .with_observation(
-                Observation::new(find_in(content, "'a'"))
+                Observation::new(find_in(content, "'a'"), SourceId(0))
                     .with_help("Expected `Float`, found `String`")
                     .with_tag(ObservationTag::InFault)
             )
             .with_observation(
-                Observation::new(find_in(content, ".sub('a')"))
+                Observation::new(find_in(content, ".sub('a')"), SourceId(0))
                     .with_help("Arguments to this method are incorrect")
                     .with_tag(ObservationTag::InFault)
             )])
@@ -1653,11 +1647,10 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceId(0),
                 "Cannot stringify type `Nothing`",
             )
             .with_observation(
-                Observation::new(find_in(content, "$v"))
+                Observation::new(find_in(content, "$v"), SourceId(0))
                     .with_help("No method `to_string` on type `Nothing`")
             )])
         );
@@ -1671,11 +1664,10 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceId(0),
                 "Condition must be a boolean",
             )
             .with_observation(
-                Observation::new(find_in(content, "9.9"))
+                Observation::new(find_in(content, "9.9"), SourceId(0))
                     .with_help("Type `Float` cannot be used as a condition")
             )])
         );

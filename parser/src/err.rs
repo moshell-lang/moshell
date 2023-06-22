@@ -107,18 +107,18 @@ pub struct ParseReport<'a> {
     /// This may be empty if the parsing process succeeded.
     pub errors: Vec<ParseError>,
 
-    /// contains the delimiter stack that were not closed,
-    /// This ParseReport is considered as valid if the delimiter stack is empty
-    pub delimiter_stack: Vec<TokenType>,
+    /// contains the last delimiter that were not closed,
+    /// This ParseReport is considered as valid if the unclosed delimiter is none
+    pub unclosed_delimiter: Option<TokenType>,
 }
 
 impl<'a> ParseReport<'a> {
     pub fn is_ok(&self) -> bool {
-        self.errors.is_empty() && self.delimiter_stack.is_empty()
+        self.errors.is_empty() && self.unclosed_delimiter.is_none()
     }
 
     pub fn is_err(&self) -> bool {
-        !self.errors.is_empty()
+        !self.is_ok()
     }
 
     pub fn expect(self, msg: &str) -> Vec<Expr<'a>> {
@@ -148,12 +148,12 @@ impl<'a> From<ParseResult<Vec<Expr<'a>>>> for ParseReport<'a> {
             Ok(expr) => Self {
                 expr,
                 errors: Vec::new(),
-                delimiter_stack: vec![],
+                unclosed_delimiter: None,
             },
             Err(err) => Self {
                 expr: Vec::new(),
                 errors: vec![err],
-                delimiter_stack: vec![],
+                unclosed_delimiter: None,
             },
         }
     }

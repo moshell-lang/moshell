@@ -39,9 +39,9 @@ pub(super) fn check_type_annotation(
     )
     .unwrap_or_else(|value| {
         diagnostics.push(
-            Diagnostic::new(DiagnosticID::TypeMismatch, state.source, "Type mismatch")
+            Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
                 .with_observation(
-                    Observation::new(type_annotation.segment())
+                    Observation::new(type_annotation.segment(), state.source)
                         .with_help(format!(
                             "Expected `{}`",
                             exploration.get_type(expected_type).unwrap()
@@ -49,7 +49,7 @@ pub(super) fn check_type_annotation(
                         .with_tag(ObservationTag::Expected),
                 )
                 .with_observation(
-                    Observation::new(value.segment())
+                    Observation::new(value.segment(), state.source)
                         .with_help(format!(
                             "Found `{}`",
                             exploration.get_type(value.ty).unwrap()
@@ -113,17 +113,13 @@ pub(super) fn coerce_condition(
         Ok(condition) => condition,
         Err(condition) => {
             diagnostics.push(
-                Diagnostic::new(
-                    DiagnosticID::TypeMismatch,
-                    state.source,
-                    "Condition must be a boolean",
-                )
-                .with_observation(Observation::new(condition.segment()).with_help(
-                    format!(
-                        "Type `{}` cannot be used as a condition",
-                        exploration.get_type(condition.ty).unwrap()
+                Diagnostic::new(DiagnosticID::TypeMismatch, "Condition must be a boolean")
+                    .with_observation(
+                        Observation::new(condition.segment(), state.source).with_help(format!(
+                            "Type `{}` cannot be used as a condition",
+                            exploration.get_type(condition.ty).unwrap()
+                        )),
                     ),
-                )),
             );
             condition
         }

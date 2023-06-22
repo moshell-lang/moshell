@@ -28,8 +28,8 @@ impl Exploration {
 
 /// Generates a diagnostic for an unknown type annotation.
 pub(super) fn diagnose_unknown_type(source: SourceId, segment: SourceSegment) -> Diagnostic {
-    Diagnostic::new(DiagnosticID::UnknownType, source, "Unknown type annotation").with_observation(
-        Observation::new(segment)
+    Diagnostic::new(DiagnosticID::UnknownType, "Unknown type annotation").with_observation(
+        Observation::new(segment, source)
             .with_help("Not found in scope")
             .with_tag(ObservationTag::InFault),
     )

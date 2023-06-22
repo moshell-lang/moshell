@@ -74,16 +74,12 @@ pub(super) fn infer_return(
             .unwrap_or(ERROR);
         if type_annotation == ERROR {
             diagnostics.push(
-                Diagnostic::new(
-                    DiagnosticID::UnknownType,
-                    state.source,
-                    "Unknown type annotation",
-                )
-                .with_observation(
-                    Observation::new(return_type_annotation.segment())
-                        .with_help("Not found in scope")
-                        .with_tag(ObservationTag::InFault),
-                ),
+                Diagnostic::new(DiagnosticID::UnknownType, "Unknown type annotation")
+                    .with_observation(
+                        Observation::new(return_type_annotation.segment(), state.source)
+                            .with_help("Not found in scope")
+                            .with_tag(ObservationTag::InFault),
+                    ),
             );
         } else {
             for ret in &exploration.returns {
@@ -93,12 +89,14 @@ pub(super) fn infer_return(
                     .is_err()
                 {
                     diagnostics.push(
-                        Diagnostic::new(DiagnosticID::TypeMismatch, state.source, "Type mismatch")
-                            .with_observation(Observation::new(ret.segment.clone()).with_help(
-                                format!("Found `{}`", exploration.get_type(ret.ty).unwrap()),
-                            ))
+                        Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
                             .with_observation(
-                                Observation::new(return_type_annotation.segment())
+                                Observation::new(ret.segment.clone(), state.source).with_help(
+                                    format!("Found `{}`", exploration.get_type(ret.ty).unwrap()),
+                                ),
+                            )
+                            .with_observation(
+                                Observation::new(return_type_annotation.segment(), state.source)
                                     .with_help(format!(
                                         "Expected `{}` because of return type",
                                         exploration.get_type(type_annotation).unwrap()
@@ -122,11 +120,11 @@ pub(super) fn infer_return(
                 diagnostics.push(
                     Diagnostic::new(
                         DiagnosticID::CannotInfer,
-                        state.source,
                         "Return type inference is not supported yet",
                     )
                     .with_observation(
-                        Observation::new(segment).with_help("No return type is specified"),
+                        Observation::new(segment, state.source)
+                            .with_help("No return type is specified"),
                     )
                     .with_help("Add -> Float to the function declaration"),
                 );
@@ -134,16 +132,12 @@ pub(super) fn infer_return(
             }
             Err(_) => {
                 diagnostics.push(
-                    Diagnostic::new(
-                        DiagnosticID::CannotInfer,
-                        state.source,
-                        "Failed to infer return type",
-                    )
-                    .with_observation(
-                        Observation::new(func.segment())
-                            .with_help("This function returns multiple types"),
-                    )
-                    .with_help("Try adding an explicit return type to the function"),
+                    Diagnostic::new(DiagnosticID::CannotInfer, "Failed to infer return type")
+                        .with_observation(
+                            Observation::new(func.segment(), state.source)
+                                .with_help("This function returns multiple types"),
+                        )
+                        .with_help("Try adding an explicit return type to the function"),
                 );
                 ERROR
             }
@@ -152,16 +146,17 @@ pub(super) fn infer_return(
         // Explain if there is any return that this function will not be inferred
         let mut observations = Vec::new();
         for ret in &exploration.returns {
-            observations.push(Observation::new(ret.segment.clone()).with_help(format!(
-                "Returning `{}`",
-                exploration.get_type(ret.ty).unwrap()
-            )));
+            observations.push(
+                Observation::new(ret.segment.clone(), state.source).with_help(format!(
+                    "Returning `{}`",
+                    exploration.get_type(ret.ty).unwrap()
+                )),
+            );
         }
         if !observations.is_empty() {
             diagnostics.push(
                 Diagnostic::new(
                     DiagnosticID::CannotInfer,
-                    state.source,
                     "Return type is not inferred for block functions",
                 )
                 .with_observations(observations)
@@ -197,7 +192,6 @@ pub(super) fn type_call(
                 diagnostics.push(
                     Diagnostic::new(
                         DiagnosticID::TypeMismatch,
-                        state.source,
                         format!(
                             "This function takes {} {} but {} {} supplied",
                             parameters.len(),
@@ -207,7 +201,8 @@ pub(super) fn type_call(
                         ),
                     )
                     .with_observation(
-                        Observation::new(call.segment.clone()).with_help("Function is called here"),
+                        Observation::new(call.segment.clone(), state.source)
+                            .with_help("Function is called here"),
                     ),
                 );
                 FunctionMatch {
@@ -252,11 +247,10 @@ pub(super) fn type_call(
             diagnostics.push(
                 Diagnostic::new(
                     DiagnosticID::TypeMismatch,
-                    state.source,
                     "Cannot invoke non function type",
                 )
                 .with_observation(
-                    Observation::new(call.segment())
+                    Observation::new(call.segment(), state.source)
                         .with_help(format!("Call expression requires function, found `{ty}`")),
                 ),
             );
@@ -300,21 +294,23 @@ pub(super) fn type_method<'a>(
     let method_name = method_call.name.unwrap_or("apply");
     let methods = exploration.engine.get_methods(callee.ty, method_name);
     if methods.is_none() {
-        diagnostics.push(Diagnostic::new(
-            DiagnosticID::UnknownMethod,
-            state.source,
-            if method_call.name.is_some() {
-                format!(
-                    "No method named `{method_name}` found for type `{}`",
-                    exploration.get_type(callee.ty).unwrap()
-                )
-            } else {
-                format!(
-                    "Type `{}` is not directly callable",
-                    exploration.get_type(callee.ty).unwrap()
-                )
-            },
-        ));
+        diagnostics.push(
+            Diagnostic::new(
+                DiagnosticID::UnknownMethod,
+                if method_call.name.is_some() {
+                    format!(
+                        "No method named `{method_name}` found for type `{}`",
+                        exploration.get_type(callee.ty).unwrap()
+                    )
+                } else {
+                    format!(
+                        "Type `{}` is not directly callable",
+                        exploration.get_type(callee.ty).unwrap()
+                    )
+                },
+            )
+            .with_observation(Observation::new(method_call.segment(), state.source)),
+        );
         return None;
     }
 
@@ -333,7 +329,6 @@ pub(super) fn type_method<'a>(
             diagnostics.push(
                 Diagnostic::new(
                     DiagnosticID::TypeMismatch,
-                    state.source,
                     format!(
                         "This method takes {} {} but {} {} supplied",
                         method.parameters.len(),
@@ -343,7 +338,8 @@ pub(super) fn type_method<'a>(
                     ),
                 )
                 .with_observation(
-                    Observation::new(method_call.segment()).with_help("Method is called here"),
+                    Observation::new(method_call.segment(), state.source)
+                        .with_help("Method is called here"),
                 )
                 .with_help(format!(
                     "The method signature is `{}::{}`",
@@ -366,7 +362,7 @@ pub(super) fn type_method<'a>(
                         arg,
                     )
                     .with_observation(
-                        Observation::new(method_call.segment())
+                        Observation::new(method_call.segment(), state.source)
                             .with_help("Arguments to this method are incorrect")
                             .with_tag(ObservationTag::InFault),
                     );
@@ -379,14 +375,14 @@ pub(super) fn type_method<'a>(
         diagnostics.push(
             Diagnostic::new(
                 DiagnosticID::UnknownMethod,
-                state.source,
                 format!(
                     "No matching method found for `{method_name}::{}`",
                     exploration.get_type(callee.ty).unwrap()
                 ),
             )
             .with_observation(
-                Observation::new(method_call.segment()).with_help("Method is called here"),
+                Observation::new(method_call.segment(), state.source)
+                    .with_help("Method is called here"),
             ),
         );
     }
@@ -401,9 +397,9 @@ fn diagnose_arg_mismatch(
     param: &Parameter,
     arg: &TypedExpr,
 ) -> Diagnostic {
-    let mut diagnostic = Diagnostic::new(DiagnosticID::TypeMismatch, source, "Type mismatch")
+    let mut diagnostic = Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
         .with_observation(
-            Observation::new(arg.segment.clone())
+            Observation::new(arg.segment.clone(), source)
                 .with_help(format!(
                     "Expected `{}`, found `{}`",
                     typing.get_type(param.ty).unwrap(),
@@ -414,9 +410,8 @@ fn diagnose_arg_mismatch(
     if let Some(decl) = &param.segment {
         if let Definition::User(fn_source) = fn_def {
             diagnostic = diagnostic.with_observation(
-                Observation::new(decl.clone())
+                Observation::new(decl.clone(), fn_source)
                     .with_help("Parameter is declared here")
-                    .within(fn_source)
                     .with_tag(ObservationTag::Declaration),
             )
         }

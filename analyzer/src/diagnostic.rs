@@ -82,10 +82,9 @@ pub enum DiagnosticID {
 /// that are contained in a [Diagnostic] to emphasis/further explain the causes of the diagnostic.
 #[derive(Clone, PartialEq, Debug)]
 pub struct Observation {
-    /// Optional environment if the observation occurs on a different environment than the diagnostic's source
-    /// if none, this observation will target its diagnostic.
-    pub foreign_env: Option<SourceId>,
-    /// Observed segment
+    /// Observed source
+    pub source: SourceId,
+    /// Observed source's segment
     pub segment: SourceSegment,
     /// An optional help string to complete the observation
     pub help: Option<String>,
@@ -94,18 +93,20 @@ pub struct Observation {
 }
 
 impl Observation {
-    pub fn new(segment: impl Into<SourceSegment>) -> Self {
+    pub fn new(segment: impl Into<SourceSegment>, source: SourceId) -> Self {
         Self {
             segment: segment.into(),
-            foreign_env: None,
+            source,
             help: None,
             tag: None,
         }
     }
-
-    pub fn within(mut self, env: SourceId) -> Self {
-        self.foreign_env = Some(env);
-        self
+    pub fn labelled(
+        segment: impl Into<SourceSegment>,
+        source: SourceId,
+        help: impl Into<String>,
+    ) -> Self {
+        Self::new(segment, source).with_help(help)
     }
 
     pub fn with_help(mut self, help: impl Into<String>) -> Self {
@@ -124,14 +125,11 @@ pub enum ObservationTag {
     InFault,
     Expected,
     Declaration,
-    Other(u8),
 }
 
 /// The structure of a diagnostic.
 #[derive(PartialEq, Debug)]
 pub struct Diagnostic {
-    /// The source where this diagnostic applies
-    pub source: SourceId,
     /// The diagnostic identifier
     pub identifier: DiagnosticID,
     /// The overall message of this diagnostic
@@ -145,9 +143,8 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
-    pub fn new(id: DiagnosticID, source: SourceId, msg: impl Into<String>) -> Self {
+    pub fn new(id: DiagnosticID, msg: impl Into<String>) -> Self {
         Self {
-            source,
             identifier: id,
             global_message: msg.into(),
             observations: Vec::new(),

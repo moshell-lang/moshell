@@ -14,10 +14,6 @@ pub struct Cli {
     #[arg(short, long, value_name = "FILE")]
     pub(crate) source: Option<PathBuf>,
 
-    /// Defines the working directory of the cli.
-    #[arg(short, long, value_name = "FILE")]
-    pub(crate) working_dir: Option<PathBuf>,
-
     /// Activate lexer output visualisation
     #[arg(short = 'L', long)]
     pub(crate) lexer: bool,
@@ -29,6 +25,10 @@ pub struct Cli {
     /// Activate compiler output visualisation
     #[arg(short = 'B', long)]
     pub(crate) bytecode: bool,
+
+    /// Disable code execution
+    #[arg(long = "no-exec")]
+    pub(crate) no_exec: bool,
 }
 
 pub struct Configuration {
