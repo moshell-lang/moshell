@@ -774,7 +774,11 @@ fn ascribe_method_call(
         .iter()
         .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
         .collect::<Vec<_>>();
-    let method_type = type_method(method, &callee, &arguments, diagnostics, exploration, state);
+    let method_type = callee
+        .ty
+        .is_ok()
+        .then(|| type_method(method, &callee, &arguments, diagnostics, exploration, state))
+        .flatten();
     TypedExpr {
         kind: ExprKind::MethodCall(MethodCall {
             callee: Box::new(callee),
@@ -1684,12 +1688,30 @@ mod tests {
     fn operation_and_test() {
         let content = "val m = 101; val is_even = $m % 2 == 0; $is_even";
         let res = extract_type(Source::unknown(content));
-        assert_eq!(res, Ok(Type::Bool),);
+        assert_eq!(res, Ok(Type::Bool));
     }
 
     #[test]
     fn condition_command() {
         let res = extract_type(Source::unknown("if nginx -t { echo 'ok' }"));
         assert_eq!(res, Ok(Type::Nothing));
+    }
+
+    #[test]
+    fn no_cumulative_errors() {
+        let content = "var p = 'text' % 9; val r = $p.foo(); p = 4";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::UnknownMethod,
+                SourceId(0),
+                "Undefined operator",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "'text' % 9"),
+                "No operator `mod` between type `String` and `Int`"
+            ))])
+        );
     }
 }
