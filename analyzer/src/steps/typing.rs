@@ -774,11 +774,7 @@ fn ascribe_method_call(
         .iter()
         .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
         .collect::<Vec<_>>();
-    let method_type = callee
-        .ty
-        .is_ok()
-        .then(|| type_method(method, &callee, &arguments, diagnostics, exploration, state))
-        .flatten();
+    let method_type = type_method(method, &callee, &arguments, diagnostics, exploration, state);
     TypedExpr {
         kind: ExprKind::MethodCall(MethodCall {
             callee: Box::new(callee),
