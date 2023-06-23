@@ -1,9 +1,9 @@
+use std::fmt::Write as FmtWrite;
 use std::io;
 use std::io::Write;
 
-use ariadne::{Cache, Color, ColorGenerator, Config, Label, Report, ReportKind};
+use ariadne::{Cache, Color, ColorGenerator, Label, Report, ReportKind};
 use concolor::Stream;
-use std::fmt::Write as FmtWrite;
 use yansi::Paint;
 
 use analyzer::diagnostic::ObservationTag;
@@ -68,7 +68,6 @@ where
         SourceId(ObjectId::MAX), /*this id is never used*/
         0,
     )
-    .with_config(Config::default().with_underlines(false))
     .with_message(colorize_message(diagnostic.global_message, Color::Blue))
     .with_labels(labels);
 

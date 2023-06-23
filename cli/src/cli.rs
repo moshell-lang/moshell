@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use dbg_pls::color;
-use owo_colors::OwoColorize;
 
 use ast::Expr;
 use lexer::token::Token;
@@ -54,15 +53,15 @@ impl From<Cli> for Configuration {
 }
 
 pub(crate) fn display_tokens(tokens: Vec<Token>) {
-    println!("{}", "Lexer tokens: ".bright_black());
+    println!("Lexer tokens:");
     println!("\t- {} tokens lexed from input", tokens.len());
 
     let mut count = 0;
     for token in tokens {
         print!(
             "{:10}: '{}', ",
-            format!("{:?}", token.token_type).bright_blue(),
-            token.value.white()
+            format!("{:?}", token.token_type),
+            token.value
         );
         count += 1;
         if count % 5 == 0 {
@@ -73,7 +72,7 @@ pub(crate) fn display_tokens(tokens: Vec<Token>) {
 }
 
 pub(crate) fn display_exprs(exprs: &Vec<Expr>) {
-    println!("{}", "AST: ".cyan());
+    println!("AST:");
     for expr in exprs {
         println!("{}", color(expr));
     }

@@ -7,9 +7,8 @@ use analyzer::diagnostic::Diagnostic;
 use analyzer::engine::Engine;
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
-use analyzer::relations::{Definition, SourceId};
+use analyzer::relations::SourceId;
 use analyzer::steps::typing::apply_types;
-use analyzer::types::engine::CodeEntry;
 use ast::group::Block;
 use ast::Expr;
 use compiler::compile;
@@ -25,8 +24,8 @@ use crate::render::parse_error::render_parse_error;
 use crate::render::SourcesCache;
 use crate::source_importer::FileSourceImporter;
 
-/// returns true if any error occurred
-pub(crate) fn run(source: PathBuf, working_dir: PathBuf, config: Configuration) -> bool {
+/// returns true if no error occurred
+pub(crate) fn run(source: PathBuf, source_dir: PathBuf, config: Configuration) -> bool {
     let name = source.to_string_lossy();
     let mut name = name.deref().replace('/', "::");
     if let Some((name_no_extension, _)) = name.rsplit_once('.') {
@@ -34,7 +33,7 @@ pub(crate) fn run(source: PathBuf, working_dir: PathBuf, config: Configuration) 
     }
     let entry_point = Name::new(&name);
 
-    let mut importer = RunnerImporter::new(working_dir);
+    let mut importer = RunnerImporter::new(source_dir);
 
     let result = analyzer::resolve_all(entry_point, &mut importer);
 
@@ -44,31 +43,25 @@ pub(crate) fn run(source: PathBuf, working_dir: PathBuf, config: Configuration) 
 
     if !importer.errors.is_empty() {
         display_import_errors(importer.errors);
-        return true;
+        return false;
     }
 
     let typed_engine = apply_types(&engine, &relations, &mut diagnostics);
 
     if !diagnostics.is_empty() {
         display_diagnostics(diagnostics, &engine, &importer);
-        return true;
+        return false;
     }
 
     let mut bytecode = Vec::new();
-    let root_expr = typed_engine
-        .get(Definition::User(SourceId(0)))
-        .map(|c| match c {
-            CodeEntry::User(c) => &c.expression,
-            _ => unreachable!(),
-        })
-        .unwrap();
+    let root_expr = &typed_engine.get_user(SourceId(0)).unwrap().expression;
     compile(root_expr, &mut bytecode).unwrap();
 
     visualize_outputs(importer, config, &bytecode);
 
     execute(bytecode);
 
-    false
+    true
 }
 
 fn visualize_outputs(importer: RunnerImporter, config: Configuration, bytecode: &[u8]) {

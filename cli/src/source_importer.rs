@@ -54,7 +54,7 @@ impl<'a> FileSourceImporter {
     fn get_already_imported(&self, mut path: PathBuf) -> Option<&OwnedSource> {
         self.cache.get(&path).or_else(|| {
             path.pop();
-            path.set_extension("msh");
+            path.set_extension(MOSHELL_EXTENSION);
             self.cache.get(&path)
         })
     }

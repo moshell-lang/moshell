@@ -1,38 +1,36 @@
-use crate::cli::{display_exprs, display_tokens, execute, Configuration};
-use crate::disassemble::display_bytecode;
-use crate::render::diagnostic::render_diagnostic;
-use crate::render::parse_error::render_parse_error;
-use crate::render::SourcesCache;
+use std::collections::HashMap;
+use std::io::stderr;
+use std::process::exit;
+
+use rustyline::config::Configurer;
+use rustyline::error::ReadlineError;
+use rustyline::history::DefaultHistory;
+use rustyline::{DefaultEditor, Editor};
+
 use analyzer::diagnostic::Diagnostic;
 use analyzer::engine::Engine;
 use analyzer::importer::ASTImporter;
 use analyzer::imports::Imports;
 use analyzer::name::Name;
-use analyzer::relations::{Definition, Relations, SourceId};
+use analyzer::relations::{Relations, SourceId};
 use analyzer::steps::typing::apply_types;
-use analyzer::types::engine::CodeEntry;
 use ast::group::Block;
 use ast::Expr;
 use compiler::compile;
-use context::source::{OwnedSource, Source};
+use context::source::{OwnedSource, Source, SourceSegmentHolder};
 use lexer::lexer::lex;
 use parser::parse;
-use rustyline::config::Configurer;
-use rustyline::error::ReadlineError;
-use rustyline::history::DefaultHistory;
-use rustyline::{
-    Cmd, ColorMode, DefaultEditor, Editor, Event, EventHandler, KeyCode, KeyEvent, Modifiers,
-};
-use std::collections::HashMap;
-use std::io::stderr;
-use std::process::exit;
+
+use crate::cli::{display_exprs, display_tokens, execute, Configuration};
+use crate::disassemble::display_bytecode;
+use crate::render::diagnostic::render_diagnostic;
+use crate::render::parse_error::render_parse_error;
+use crate::render::SourcesCache;
 
 type REPLEditor = Editor<(), DefaultHistory>;
 
 #[derive(Default)]
 struct REPLImporter<'a> {
-    #[allow(clippy::vec_box)]
-    // Box is used to ensure that the reference behind is still valid after vector's realloc
     sources: Vec<OwnedSource>,
     imported_modules: HashMap<Name, Expr<'a>>,
 }
@@ -70,13 +68,8 @@ impl<'a> REPLImporter<'a> {
 pub fn repl(config: Configuration) {
     let mut editor: REPLEditor =
         DefaultEditor::new().expect("unable to instantiate terminal editor");
-    editor.set_color_mode(ColorMode::Enabled);
     editor.set_history_ignore_dups(true).unwrap();
     editor.set_history_ignore_space(true);
-    editor.bind_sequence(
-        Event::KeySeq(vec![KeyEvent(KeyCode::Char('u'), Modifiers::ALT)]),
-        EventHandler::from(Cmd::Undo(1)),
-    );
 
     let mut relations = Relations::default();
     let mut imports = Imports::default();
@@ -107,8 +100,7 @@ fn parse_input(editor: &mut REPLEditor) -> OwnedSource {
         let line = editor.readline_with_initial(&prompt_prefix, (indent_prefix, ""));
         let mut line = match line {
             Ok(line) => line,
-            Err(ReadlineError::Eof) => exit(0),
-            Err(ReadlineError::Interrupted) => exit(1),
+            Err(ReadlineError::Eof | ReadlineError::Interrupted) => exit(0),
             e => e.expect("error when reading next line from editor"),
         };
         // Re-add the newline stripped by readline
@@ -135,9 +127,7 @@ fn parse_input(editor: &mut REPLEditor) -> OwnedSource {
             continue; // Silently ignore incomplete input
         }
 
-        editor
-            .add_history_entry(source.source.to_string())
-            .expect("terminal has no history");
+        editor.add_history_entry(source.source.to_string()).ok();
 
         return OwnedSource::new(source.source.to_string(), source.name.to_string());
     }
@@ -170,7 +160,6 @@ fn handle_source<'e>(
 
     let report = parse(source);
 
-    let source = source;
     let errors: Vec<_> = report.errors;
 
     if !errors.is_empty() {
@@ -187,7 +176,7 @@ fn handle_source<'e>(
 
     let expr = Expr::Block(Block {
         expressions: report.expr,
-        segment: 0..0,
+        segment: source.segment(),
     });
 
     importer.imported_modules.insert(name.clone(), expr);
@@ -207,13 +196,7 @@ fn handle_source<'e>(
     }
 
     let mut bytecode = Vec::new();
-    let root_expr = typed_engine
-        .get(Definition::User(SourceId(0)))
-        .map(|c| match c {
-            CodeEntry::User(c) => &c.expression,
-            _ => unreachable!(),
-        })
-        .unwrap();
+    let root_expr = &typed_engine.get_user(SourceId(0)).unwrap().expression;
     compile(root_expr, &mut bytecode).unwrap();
 
     if config.bytecode_visualisation {

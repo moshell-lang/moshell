@@ -1,15 +1,14 @@
 use compiler::bytecode::Opcode;
-use owo_colors::OwoColorize;
 
 pub(crate) fn display_bytecode(bytes: &[u8]) {
-    println!("{}", "Bytecode: ".green());
+    println!("Bytecode:");
     let (ip, constants) = display_constant_pool(bytes);
     println!();
     display_byte_instructions(constants, &bytes[ip..])
 }
 
 fn display_byte_instructions(constants: Vec<String>, bytes: &[u8]) {
-    println!("\t{}", "Instructions".green());
+    println!("\tInstructions");
     let mut ip = 0;
     let bytes_len = bytes.len();
 
@@ -128,7 +127,7 @@ fn get_opcode_mnemonic(opcode: &Opcode) -> &'static str {
 }
 
 fn display_constant_pool(bytes: &[u8]) -> (usize, Vec<String>) {
-    println!("\t{}", "Constant pool".green());
+    println!("\tConstant pool");
 
     let count = bytes[0];
     let mut current_byte = 1;

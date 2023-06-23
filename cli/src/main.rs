@@ -22,7 +22,7 @@ fn main() {
 
     if let Some(source) = cli.source {
         let working_dir = std::env::current_dir().expect("No working dir set");
-        exit(run(source, working_dir, config) as i32)
+        exit(!run(source, working_dir, config) as i32)
     }
     repl(config);
 }
