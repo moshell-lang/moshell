@@ -5,6 +5,7 @@
 #include <exception>
 #include <memory>
 #include <stdexcept>
+#include "constant_pool.h"
 
 struct OperandStackOutOfBoundError : public std::out_of_range {
 
@@ -30,7 +31,7 @@ public:
 
     void push_double(double d);
 
-    void push_string_constant_ref(int64_t s);
+    void push_reference(std::ptrdiff_t s);
 
     int64_t pop_int();
 
@@ -38,7 +39,7 @@ public:
 
     double pop_double();
 
-    int64_t pop_string_constant_ref();
+    std::ptrdiff_t pop_reference();
 
     void pop_bytes(size_t size);
 

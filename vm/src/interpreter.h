@@ -10,14 +10,12 @@
 
 
 struct runtime_state {
-    std::vector<std::string> &strings;
+    strings_t &strings;
 
     const std::unordered_map<constant_index, function_definition> &functions;
     const ConstantPool &pool;
 };
 
-
-
-int run_module(const module_definition &module_def, std::vector<std::string> &strings);
+int run_module(const module_definition &module_def, strings_t &strings);
 
 

@@ -14,4 +14,4 @@ struct module_definition {
 };
 
 
-module_definition load_module(const char *bytes);
+module_definition load_module(const char *bytes, strings_t& strings);

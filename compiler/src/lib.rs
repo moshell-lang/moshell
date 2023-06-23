@@ -1,15 +1,16 @@
 use std::io;
 use std::io::Write;
-use std::iter::{empty, once};
+use std::iter::once;
 
 use analyzer::engine::Engine;
+use analyzer::types::{NOTHING, Typing, UNIT};
 use analyzer::types::engine::TypedEngine;
 use analyzer::types::hir::TypedExpr;
-use analyzer::types::{Typing, NOTHING, UNIT};
 
 use crate::bytecode::{Bytecode, Instructions};
 use crate::constant_pool::{ConstantPool, FunctionSignature, PoolConstant};
-use crate::emit::{emit, EmissionState};
+use crate::emit::{EmissionState, emit};
+use crate::r#type::{get_type_size, TypeSize};
 
 pub mod bytecode;
 mod constant_pool;
@@ -35,16 +36,20 @@ pub fn compile(
             continue;
         }
         let chunk_fqn = &engine.get_environment(id).unwrap().fqn;
-        let params = chunk.parameters.iter().map(|p| p.ty);
+        let params: Vec<_> = chunk.parameters
+            .iter()
+            .map(|p| p.ty)
+            .collect();
         let signature = FunctionSignature::make(
             chunk_fqn.simple_name(),
-            params,
+            &params,
             chunk.return_type,
             typing,
             &mut cp,
         );
         bytecode.emit_constant_ref(cp.insert_signature(signature));
         compile_instruction_set(
+            get_type_size(chunk.return_type) != TypeSize::Zero,
             once(&chunk.expression),
             &mut bytecode,
             typing,
@@ -59,9 +64,10 @@ pub fn compile(
     // because file paths are not yet handled in VM
     // the script codes are written in a <module_main> method
     // write main method signature
-    let signature = FunctionSignature::make("<module_main>", empty(), NOTHING, typing, &mut cp);
+    let signature = FunctionSignature::make("<module_main>", &[], NOTHING, typing, &mut cp);
     bytecode.emit_constant_ref(cp.insert_signature(signature));
     compile_instruction_set(
+        false,
         scripts.iter().map(|c| &c.expression),
         &mut bytecode,
         typing,
@@ -75,6 +81,7 @@ pub fn compile(
 }
 
 fn compile_instruction_set<'a>(
+    use_value: bool,
     expressions: impl Iterator<Item = &'a TypedExpr>,
     bytecode: &mut Bytecode,
     typing: &Typing,
@@ -89,6 +96,9 @@ fn compile_instruction_set<'a>(
 
     // write instructions
     let mut instructions = Instructions::wrap(bytecode);
+
+    let mut state = EmissionState::default();
+    state.use_values(use_value);
     for expr in expressions {
         emit(
             expr,
@@ -96,12 +106,20 @@ fn compile_instruction_set<'a>(
             typing,
             engine,
             cp,
-            &mut EmissionState::default(),
+            &mut state,
         );
     }
 
-    if instructions.current_operand_stack_pos != 0 {
-        panic!("Compilation lets a non-empty operand stack")
+    // test if the
+    match instructions.push_offset {
+        0 if use_value => panic!("Compilation lets an empty operand stack but value is needed"),
+        2.. if use_value => panic!("Compilation lets an operand stack with more than one value"),
+        1.. if !use_value => panic!("Compilation lets a non empty operand stack which will never be used"),
+        _ => () //no issue with operand stack
+    }
+
+    if use_value && instructions.push_offset == 0 {
+
     }
 
     let operands_capacity = instructions.max_operand_stack_size;

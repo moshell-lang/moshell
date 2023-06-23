@@ -1,5 +1,7 @@
 use std::mem::size_of;
-use crate::r#type::TypeSize;
+use analyzer::types::hir::TypeId;
+use analyzer::types::STRING;
+use crate::r#type::{get_type_size, TypeSize};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Placeholder {
@@ -71,7 +73,9 @@ impl Bytecode {
 /// this structure also evaluates the maximum operand stack size needed
 pub struct Instructions<'a> {
     pub bytecode: &'a mut Bytecode,
+    pub ip_offset: usize,
 
+    pub push_offset: u32,
     pub max_operand_stack_size: u32,
     pub current_operand_stack_pos: u32,
 }
@@ -79,7 +83,9 @@ pub struct Instructions<'a> {
 impl<'a> Instructions<'a> {
     pub fn wrap(bytecode: &'a mut Bytecode) -> Self {
         Self {
+            ip_offset: bytecode.len(),
             bytecode,
+            push_offset: 0,
             max_operand_stack_size: 0,
             current_operand_stack_pos: 0,
         }
@@ -179,6 +185,28 @@ impl<'a> Instructions<'a> {
         self.bytecode.emit_u32_placeholder()
     }
 
+    pub fn emit_spawn(&mut self, arg_count: u8) {
+        self.emit_code(Opcode::Spawn);
+        self.bytecode.emit_byte(arg_count);
+
+        let arg_count = arg_count as u32;
+        self.current_operand_stack_pos -= arg_count * get_type_size(STRING) as u32;
+        self.push_offset -= arg_count;
+
+        // the spawn opcode will push the process's exitcode in stack
+        self.extend_operands_size(TypeSize::Byte)
+    }
+
+    pub fn emit_invoke(&mut self, arg_types: &[TypeId], return_type: TypeId, signature_idx: u32) {
+        self.emit_code(Opcode::Invoke);
+        self.bytecode.emit_constant_ref(signature_idx);
+
+        for arg_type in arg_types {
+            self.reduce_operands_size(*arg_type)
+        }
+        self.extend_operands_size(return_type);
+    }
+
     /// Takes the index of the jump offset to be patched as input, and patches
     /// it to point to the current instruction.
     pub fn patch_jump(&mut self, offset_idx: Placeholder) {
@@ -194,7 +222,7 @@ impl<'a> Instructions<'a> {
 
     /// Returns the current instruction pointer
     pub fn current_ip(&self) -> u32 {
-        self.bytecode.len() as u32
+        (self.bytecode.len() - self.ip_offset) as u32
     }
 
     // prefer using method wrappers instead
@@ -208,12 +236,14 @@ impl<'a> Instructions<'a> {
             panic!("operand stack would get popped by {size} bytes where it's sized to {} at this point", self.current_operand_stack_pos)
         }
 
+        self.push_offset -= 1;
         self.current_operand_stack_pos -= size;
     }
 
     // prefer using method wrappers instead
     pub fn extend_operands_size(&mut self, size: impl Into<TypeSize>) {
         self.current_operand_stack_pos += size.into() as u32;
+        self.push_offset += 1;
         if self.current_operand_stack_pos > self.max_operand_stack_size {
             self.max_operand_stack_size = self.current_operand_stack_pos;
         }

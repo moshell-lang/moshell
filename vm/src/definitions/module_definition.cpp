@@ -31,10 +31,10 @@ load_functions_definitions(const char *bytes, unsigned int &ip, const ConstantPo
     return map;
 }
 
-module_definition load_module(const char *bytes) {
+module_definition load_module(const char *bytes, strings_t& strings) {
     unsigned int ip = 0;
     // read constant pool
-    const ConstantPool pool = load_constant_pool(bytes, ip);
+    const ConstantPool pool = load_constant_pool(bytes, ip, strings);
     const auto functions = load_functions_definitions(bytes, ip, pool);
     return {pool, functions};
 }

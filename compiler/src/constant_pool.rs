@@ -42,7 +42,7 @@ pub struct FunctionSignature {
 impl FunctionSignature {
     pub fn make(
         name: &str,
-        params: impl Iterator<Item = TypeId>,
+        params: &[TypeId],
         return_type: TypeId,
         typing: &Typing,
         cp: &mut ConstantPool,
@@ -56,7 +56,7 @@ impl FunctionSignature {
 
         Self {
             name,
-            params: params.map(&mut map_type).collect(),
+            params: params.iter().map(|t| map_type(*t)).collect(),
             ret: map_type(return_type),
         }
     }

@@ -17,7 +17,7 @@ void OperandStack::push_int(int64_t i) {
     push(i);
 }
 
-void OperandStack::push_string_constant_ref(int64_t s) {
+void OperandStack::push_reference(std::ptrdiff_t s) {
     push(s);
 }
 
@@ -37,8 +37,8 @@ char OperandStack::pop_byte() {
     return pop<char>();
 }
 
-int64_t OperandStack::pop_string_constant_ref() {
-    return pop<int64_t>();
+std::ptrdiff_t OperandStack::pop_reference() {
+    return pop<std::ptrdiff_t>();
 }
 
 double OperandStack::pop_double() {

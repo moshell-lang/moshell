@@ -37,7 +37,6 @@ enum Opcode {
     OP_INT_TO_BYTE,  // replaces last value of operand stack from int to byte
     OP_CONCAT,       // pops two string references, concatenates them, and pushes the result
 
-
     OP_B_XOR,   // pops last two bytes, apply xor operation then push the result
     OP_INT_ADD, // takes two ints, adds them, and pushes the result
     OP_INT_SUB, // takes two ints, subtracts them, and pushes the result
@@ -46,13 +45,14 @@ enum Opcode {
     OP_INT_MOD, // takes two ints, mods them, and pushes the result
 };
 
-void spawn_process(OperandStack &operands, const ConstantPool &pool, int frame_size) {
+void spawn_process(OperandStack &operands, int frame_size) {
     // Create argv of the given frame_size, and create a new string for each arg with a null byte after each string
     char **argv = new char *[frame_size + 1];
     for (int i = frame_size - 1; i >= 0; i--) {
         // pop the string index
-        int64_t index = operands.pop_string_constant_ref();
-        const std::string &arg = pool.get_string(index);
+        size_t reference = operands.pop_reference();
+
+        const std::string &arg = *(std::string*) reference;
         size_t arg_length = arg.length();
         // Allocate the string
         argv[i] = new char[arg_length + 1];
@@ -81,8 +81,7 @@ void spawn_process(OperandStack &operands, const ConstantPool &pool, int frame_s
     waitpid(pid, &status, 0);
 
     // Add the exit status to the stack
-    // TODO: introduce Exitcode type to push a byte here instead
-    operands.push_int(WEXITSTATUS(status));
+    operands.push_byte(WEXITSTATUS(status));
 
 }
 
@@ -117,7 +116,7 @@ void push_function_invocation(constant_index callee_signature_idx,
     for (Type param_type : callee_signature.params) {
         switch (param_type) {
         case Type::STRING: {
-            int64_t str_ref = caller_operands.pop_string_constant_ref();
+            int64_t str_ref = caller_operands.pop_reference();
             if (str_ref < 0 || str_ref >= (int64_t)state.strings.size()) {
                 throw MemoryError("Wrong String Reference: popped string from caller operands does not refers to any string");
             }
@@ -183,16 +182,19 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
         }
         case OP_PUSH_STRING: {
             // Read the string reference
-            int64_t index = ntohl(*(int64_t *)(instructions + ip));
-            ip += sizeof(int64_t);
+            constant_index index = ntohl(*(constant_index *)(instructions + ip));
+            ip += sizeof(constant_index);
+
+            const std::string *str_ref = &pool.get_string(index);
+
             // Push the string index onto the stack
-            operands.push_string_constant_ref(index);
+            operands.push_reference((std::ptrdiff_t)str_ref);
             break;
         }
         case OP_SPAWN: {
             // Read the 1 byte stack size
-            char frame_size = instructions[ip];
-            spawn_process(operands, pool, frame_size);
+            char frame_size = instructions[ip++];
+            spawn_process(operands,  frame_size);
             break;
         }
         case OP_INVOKE: {
@@ -204,8 +206,8 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
         }
         case OP_GET_Q_WORD: {
             // Read the 1 byte local local_index
-            uint32_t local_index = *(uint32_t *)(instructions + ip);
-            ip += 2;
+            uint32_t local_index = ntohl(*(uint32_t *)(instructions + ip));
+            ip += 4;
             int64_t value = locals.get_int64(local_index);
             // Push the local onto the stack
             operands.push_int(value);
@@ -213,8 +215,8 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
         }
         case OP_SET_Q_WORD: {
             // Read the 1 byte local index
-            uint32_t index = *(uint32_t *)(instructions + ip);
-            ip += 2;
+            uint32_t index = ntohl(*(uint32_t *)(instructions + ip));
+            ip += 4;
             // Pop the value from the stack
             int64_t value = operands.pop_int();
             // Set the local
@@ -224,18 +226,16 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
         case OP_INT_TO_STR: {
             int64_t value = operands.pop_int();
 
-            int64_t string_ref = state.strings.size();
-            state.strings.push_back(std::to_string(value));
-            operands.push_string_constant_ref(string_ref);
+            auto [it, _] = state.strings.insert(std::make_unique<std::string>(std::to_string(value)));
+            operands.push_reference((std::ptrdiff_t)it->get());
 
             break;
         }
         case OP_FLOAT_TO_STR: {
             double value = operands.pop_double();
 
-            int64_t string_ref = state.strings.size();
-            state.strings.push_back(std::to_string(value));
-            operands.push_string_constant_ref(string_ref);
+            auto [it, _] = state.strings.insert(std::make_unique<std::string>(std::to_string(value)));
+            operands.push_reference((std::ptrdiff_t)it->get());
 
             break;
         }
@@ -245,23 +245,22 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
             break;
         }
         case OP_CONCAT: {
-            const std::string& right = pool.get_string(operands.pop_string_constant_ref());
-            const std::string& left = pool.get_string(operands.pop_string_constant_ref());
+            const std::string &right = pool.get_string(operands.pop_reference());
+            const std::string &left = pool.get_string(operands.pop_reference());
 
             std::string result = left + right;
-            size_t string_ref = state.strings.size();
-            state.strings.push_back(result);
 
-            operands.push_string_constant_ref(string_ref);
+            auto [it, _] = state.strings.insert(std::make_unique<std::string>(result));
+            operands.push_reference((std::ptrdiff_t)it->get());
             break;
         }
         case OP_IF_NOT_JUMP:
         case OP_IF_JUMP: {
             char value = operands.pop_byte();
-            u_int32_t then_branch = ntohl(*(u_int32_t *)(instructions + ip + sizeof(char)));
+            u_int32_t then_branch = ntohl(*(u_int32_t *)(instructions + ip));
             // test below means "test is true if value is 1 and we are in a if-jump,
             //                    or if value is not 1 and we are in a if-not-jump operation"
-            if (value == (instructions[ip] == OP_IF_JUMP)) {
+            if (value == (opcode == OP_IF_JUMP)) {
                 ip = then_branch;
             } else {
                 // the length of branch destination
@@ -270,7 +269,7 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
             break;
         }
         case OP_JUMP: {
-            size_t destination = ntohl(*(size_t *)(instructions + ip + sizeof(char)));
+            u_int32_t destination = ntohl(*(u_int32_t *)(instructions + ip));
             ip = destination;
             break;
         }
@@ -295,12 +294,12 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
         case OP_INT_MOD: {
             int64_t b = operands.pop_int();
             int64_t a = operands.pop_int();
-            int64_t res = apply_op(static_cast<Opcode>(instructions[ip]), a, b);
+            int64_t res = apply_op(static_cast<Opcode>(opcode), a, b);
             operands.push_int(res);
             break;
         }
         default: {
-            std::cerr << "Error: Unknown opcode " << (int)instructions[ip] << "\n";
+            std::cerr << "Error: Unknown opcode " << (int)opcode << "\n";
             exit(1);
         }
         }
@@ -310,15 +309,10 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
 
 void handle_frame_return(Type return_type,
                          OperandStack &caller_operands,
-                         OperandStack &frame_operands,
-                         const std::vector<std::string> &strings) {
+                         OperandStack &frame_operands) {
     switch (return_type) {
     case Type::STRING: {
-        int64_t str_ref = frame_operands.pop_string_constant_ref();
-        if (str_ref < 0 || str_ref >= (int64_t)strings.size()) {
-            throw MemoryError("Wrong String Reference: popped string from caller operands does not refers to any string");
-        }
-        caller_operands.push_string_constant_ref(str_ref);
+        caller_operands.push_reference(frame_operands.pop_reference());
         break;
     }
     case Type::FLOAT: {
@@ -359,14 +353,14 @@ int run(runtime_state state, constant_index root_def_idx) {
 
             stack_frame caller_frame = call_stack.peek_frame();
 
-            handle_frame_return(fs.return_type, caller_frame.operands, current_frame.operands, state.strings);
+            handle_frame_return(fs.return_type, caller_frame.operands, current_frame.operands);
         }
     }
 
     return 0;
 }
 
-int run_module(const module_definition &module_def, std::vector<std::string> &strings) {
+int run_module(const module_definition &module_def, strings_t &strings) {
 
     const ConstantPool &pool = module_def.pool;
 

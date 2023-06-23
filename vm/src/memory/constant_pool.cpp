@@ -3,6 +3,7 @@
 #include "types.h"
 #include <iostream>
 #include <utility>
+#include "memory/strings.h"
 
 template <typename T>
 class PoolConstantWrappedValue : public PoolConstantValue {
@@ -11,7 +12,7 @@ public:
     explicit PoolConstantWrappedValue(PoolConstantType type, T value) : PoolConstantValue{type}, value{std::move(value)} {}
 };
 
-std::unique_ptr<PoolConstantWrappedValue<std::string>> read_string(const char *bytes, unsigned int &ip) {
+std::unique_ptr<PoolConstantWrappedValue<const std::string*>> read_string(const char *bytes, unsigned int &ip, strings_t& strings) {
     // A string is an 8-byte length big endian followed by the string data without a null byte
 
     // Read the length
@@ -21,14 +22,16 @@ std::unique_ptr<PoolConstantWrappedValue<std::string>> read_string(const char *b
     // Allocate the string
     std::string str(bytes + ip, length);
 
+    auto [str_it, _] = strings.insert(std::make_unique<std::string>(str));
     ip += length;
-    return std::make_unique<PoolConstantWrappedValue<std::string>>(PoolConstantWrappedValue(C_STR, str));
+    const std::string* pool_str = str_it->get();
+    return std::make_unique<PoolConstantWrappedValue<const std::string*>>(PoolConstantWrappedValue(C_STR, pool_str));
 }
 
 std::unique_ptr<PoolConstantWrappedValue<function_signature>> read_signature(const char *bytes, unsigned int &ip, ConstantPool &pool) {
     // Read the function name
-    const std::string &name = pool.get_string(ntohl(*(u_int32_t *)(bytes + ip)));
-    ip += 4;
+    const std::string &name = pool.get_string(ntohl(*(constant_index *)(bytes + ip)));
+    ip += sizeof(constant_index);
 
     // Read the param count
     unsigned char param_count = bytes[ip];
@@ -39,19 +42,19 @@ std::unique_ptr<PoolConstantWrappedValue<function_signature>> read_signature(con
     params.reserve(param_count + 1);
 
     for (int p = 0; p < param_count + 1; p++) {
-        auto constant_idx = ntohl(*(u_int32_t *)(bytes + ip));
+        auto constant_idx = ntohl(*(constant_index *)(bytes + ip));
         const std::string &param_type_name = pool.get_string(constant_idx);
         params.push_back(get_type(param_type_name));
-        ip += 4;
+        ip += sizeof(constant_index);
     }
 
     Type return_type = params.back();
     params.pop_back();
-    function_signature signature(name, params, return_type);
+    function_signature signature(std::string(name), std::move(params), std::move(return_type));
     return std::make_unique<PoolConstantWrappedValue<function_signature>>(PoolConstantWrappedValue(C_SIGNATURE, signature));
 }
 
-ConstantPool load_constant_pool(const char *bytes, unsigned int &ip) {
+ConstantPool load_constant_pool(const char *bytes, unsigned int &ip, strings_t& strings) {
     // Read the number of strings on a single byte
     char count = *(bytes + ip);
     ip++;
@@ -65,7 +68,7 @@ ConstantPool load_constant_pool(const char *bytes, unsigned int &ip) {
 
         switch (type) {
         case 1: {
-            pool.constants[i] = read_string(bytes, ip);
+            pool.constants[i] = read_string(bytes, ip, strings);
             break;
         }
         case 2: {
@@ -96,7 +99,7 @@ ConstantPool::ConstantPool(uint32_t size)
       size{size} {}
 
 [[nodiscard]] const std::string &ConstantPool::get_string(constant_index at) const {
-    return get<std::string>(at, C_STR, "string");
+    return *get<const std::string*>(at, C_STR, "string");
 }
 
 const function_signature &ConstantPool::get_signature(constant_index at) const {

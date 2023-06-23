@@ -2,6 +2,7 @@
 
 #include "definitions/function_definition.h"
 #include "errors.h"
+#include "strings.h"
 #include <memory>
 #include <vector>
 
@@ -30,7 +31,7 @@ class ConstantPool {
 
     explicit ConstantPool(uint32_t size);
 
-    friend ConstantPool load_constant_pool(const char *bytes, unsigned int &ip);
+    friend ConstantPool load_constant_pool(const char *bytes, unsigned int &ip, strings_t& strings);
 
     template <typename T>
     [[nodiscard]] const T& get(constant_index at, PoolConstantType type, const char *type_name) const;
@@ -43,4 +44,4 @@ public:
 
 };
 
-ConstantPool load_constant_pool(const char *bytes, unsigned int &ip);
+ConstantPool load_constant_pool(const char *bytes, unsigned int &ip, strings_t& strings);
