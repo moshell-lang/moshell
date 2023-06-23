@@ -18,7 +18,7 @@ Moshell also comes with different data types, such as `Int`, `Float`, `Bool` or 
 
 Moshell is a project in its early stages.
 
-- [x] Lexer + Parser]
+- [x] Lexer + Parser
     - [x] Standard shell expressions
     - [x] Control flow
     - [x] Type hints
