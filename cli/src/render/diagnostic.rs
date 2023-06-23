@@ -2,7 +2,7 @@ use std::fmt::Write as FmtWrite;
 use std::io;
 use std::io::Write;
 
-use ariadne::{Cache, Color, ColorGenerator, Label, Report, ReportKind};
+use ariadne::{Cache, Color, Label, Report, ReportKind};
 use concolor::Stream;
 use yansi::Paint;
 
@@ -20,17 +20,6 @@ pub fn render_diagnostic<'a, S>(
 where
     S: Fn(SourceId) -> Source<'a>,
 {
-    let mut colors = ColorGenerator::new();
-
-    fn get_color(colors: &mut ColorGenerator, tag: Option<ObservationTag>) -> Color {
-        match tag {
-            Some(ObservationTag::InFault) => Color::Red,
-            Some(ObservationTag::Declaration) => Color::Yellow,
-            Some(ObservationTag::Expected) => Color::Green,
-            None => colors.next(),
-        }
-    }
-
     let (code, color) = if diagnostic.identifier.critical() {
         (
             format!("error[E{:04}]", diagnostic.identifier.code()),
@@ -47,11 +36,11 @@ where
         let mut label = Label::new((o.source, o.segment));
         cache.fetch(&o.source).expect("Could not fetch source");
 
-        if let Some(ObservationTag::Expected) = o.tag {
+        if o.tag == ObservationTag::Expected {
             label = label.with_order(100)
         }
 
-        let color = get_color(&mut colors, o.tag);
+        let color = get_color(o.tag);
         label = label.with_color(color);
 
         if let Some(help) = o.help {
@@ -80,6 +69,14 @@ where
     }
 
     builder.finish().write(cache, w)
+}
+
+fn get_color(tag: ObservationTag) -> Color {
+    match tag {
+        ObservationTag::InFault => Color::Red,
+        ObservationTag::Declaration => Color::Yellow,
+        ObservationTag::Expected => Color::Green,
+    }
 }
 
 fn agg_strings(mut strings: Vec<String>) -> Option<String> {

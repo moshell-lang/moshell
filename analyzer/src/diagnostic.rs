@@ -89,7 +89,8 @@ pub struct Observation {
     /// An optional help string to complete the observation
     pub help: Option<String>,
     /// An optional tag to group observations
-    pub tag: Option<ObservationTag>,
+    /// is Observation::InFault by default
+    pub tag: ObservationTag,
 }
 
 impl Observation {
@@ -98,7 +99,7 @@ impl Observation {
             segment: segment.into(),
             source,
             help: None,
-            tag: None,
+            tag: ObservationTag::InFault,
         }
     }
     pub fn labelled(
@@ -115,7 +116,7 @@ impl Observation {
     }
 
     pub fn with_tag(mut self, tag: ObservationTag) -> Self {
-        self.tag = Some(tag);
+        self.tag = tag;
         self
     }
 }
