@@ -148,4 +148,9 @@ pub enum Opcode {
     IntLessOrEqual,
     IntGreaterThan,
     IntGreaterOrEqual,
+    FloatEqual,
+    FloatLessThan,
+    FloatLessOrEqual,
+    FloatGreaterThan,
+    FloatGreaterOrEqual,
 }

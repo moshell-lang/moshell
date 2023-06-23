@@ -59,10 +59,7 @@ pub(crate) fn emit_primitive_op(
                     // Bool == false
                     emitter.invert_bool()
                 }
-                12 => {
-                    // Int == Int
-                    emitter.emit_code(Opcode::IntEqual)
-                }
+                12 => emitter.emit_code(Opcode::IntEqual),
                 13 => {
                     // Int != Int
                     emitter.emit_code(Opcode::IntEqual);
@@ -72,7 +69,17 @@ pub(crate) fn emit_primitive_op(
                 15 => emitter.emit_code(Opcode::IntLessOrEqual),
                 16 => emitter.emit_code(Opcode::IntGreaterThan),
                 17 => emitter.emit_code(Opcode::IntGreaterOrEqual),
-                _ => todo!("Comparison expression"),
+                18 => emitter.emit_code(Opcode::FloatEqual),
+                19 => {
+                    // Float != Float
+                    emitter.emit_code(Opcode::FloatEqual);
+                    emitter.invert_bool();
+                }
+                20 => emitter.emit_code(Opcode::FloatLessThan),
+                21 => emitter.emit_code(Opcode::FloatLessOrEqual),
+                22 => emitter.emit_code(Opcode::FloatGreaterThan),
+                23 => emitter.emit_code(Opcode::FloatGreaterOrEqual),
+                _ => unreachable!("Not a comparison expression"),
             }
             Opcode::PopByte
         }

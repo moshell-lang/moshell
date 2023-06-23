@@ -39,19 +39,31 @@ enum Opcode {
     OP_INT_MUL, // takes two ints, multiplies them, and pushes the result
     OP_INT_DIV, // takes two ints, divides them, and pushes the result
     OP_INT_MOD, // takes two ints, mods them, and pushes the result
-    OP_FLOAT_ADD,
-    OP_FLOAT_SUB,
-    OP_FLOAT_MUL,
-    OP_FLOAT_DIV,
+    OP_FLOAT_ADD, // takes two floats, adds them, and pushes the result
+    OP_FLOAT_SUB, // takes two floats, subtracts them, and pushes the result
+    OP_FLOAT_MUL, // takes two floats, multiplies them, and pushes the result
+    OP_FLOAT_DIV, // takes two floats, divides them, and pushes the result
 
     OP_INT_EQ, // takes two ints, checks if they are equal, and pushes the result
     OP_INT_LT, // takes two ints, checks if the first is less than the second, and pushes the result
     OP_INT_LE, // takes two ints, checks if the first is less than or equal to the second, and pushes the result
     OP_INT_GT, // takes two ints, checks if the first is greater than the second, and pushes the result
     OP_INT_GE, // takes two ints, checks if the first is greater than or equal to the second, and pushes the result
+
+    OP_FLOAT_EQ, // takes two floats, checks if they are equal, and pushes the result
+    OP_FLOAT_LT, // takes two floats, checks if the first is less than the second, and pushes the result
+    OP_FLOAT_LE, // takes two floats, checks if the first is less than or equal to the second, and pushes the result
+    OP_FLOAT_GT, // takes two floats, checks if the first is greater than the second, and pushes the result
+    OP_FLOAT_GE, // takes two floats, checks if the first is greater than or equal to the second, and pushes the result
 };
 
-// Apply an arithmetic operation to two integers
+/**
+ * Apply an arithmetic operation to two integers
+ * @param code The opcode to apply
+ * @param a The first integer
+ * @param b The second integer
+ * @return The result of the arithmetic operation
+ */
 int64_t apply_op(Opcode code, int64_t a, int64_t b) {
     switch (code) {
     case OP_INT_ADD:
@@ -69,6 +81,35 @@ int64_t apply_op(Opcode code, int64_t a, int64_t b) {
     }
 }
 
+/**
+ * Apply an arithmetic operation to two floats
+ * @param code The opcode to apply
+ * @param a The first float
+ * @param b The second float
+ * @return The result of the arithmetic operation
+ */
+double apply_op(Opcode code, double a, double b) {
+    switch (code) {
+    case OP_FLOAT_ADD:
+        return a + b;
+    case OP_FLOAT_SUB:
+        return a - b;
+    case OP_FLOAT_MUL:
+        return a * b;
+    case OP_FLOAT_DIV:
+        return a / b;
+    default:
+        throw std::invalid_argument("Unknown opcode");
+    }
+}
+
+/**
+ * Apply a comparison operation to two integers
+ * @param code The opcode to apply
+ * @param a The first integer
+ * @param b The second integer
+ * @return The result of the comparison
+ */
 bool apply_comparison(Opcode code, int64_t a, int64_t b) {
     switch (code) {
     case OP_INT_EQ:
@@ -86,20 +127,27 @@ bool apply_comparison(Opcode code, int64_t a, int64_t b) {
     }
 }
 
-// Apply an arithmetic operation to two doubles
-double apply_op(Opcode code, double a, double b) {
+/**
+ * Apply a comparison operation to two floats
+ * @param code The opcode to apply
+ * @param a The first float
+ * @param b The second float
+ * @return The result of the comparison
+ */
+bool apply_comparison(Opcode code, double a, double b) {
     switch (code) {
-    case OP_FLOAT_ADD:
-        return a + b;
-    case OP_FLOAT_SUB:
-        return a - b;
-    case OP_FLOAT_MUL:
-        return a * b;
-    case OP_FLOAT_DIV:
-        return a / b;
+    case OP_FLOAT_EQ:
+        return a == b;
+    case OP_FLOAT_GT:
+        return a > b;
+    case OP_FLOAT_GE:
+        return a >= b;
+    case OP_FLOAT_LT:
+        return a < b;
+    case OP_FLOAT_LE:
+        return a <= b;
     default:
-        std::cerr << "Error: Unknown opcode " << (int)code << "\n";
-        exit(1);
+        throw std::invalid_argument("Unknown opcode");
     }
 }
 
@@ -307,7 +355,7 @@ void run(constant_pool pool, const char *bytes, size_t size) {
         case OP_FLOAT_MUL:
         case OP_FLOAT_DIV: {
             double b = stack.pop_double();
-            double a = stack.pop_int();
+            double a = stack.pop_double();
             double res = apply_op(static_cast<Opcode>(bytes[ip]), a, b);
             stack.push_double(res);
             ip++;
@@ -320,6 +368,18 @@ void run(constant_pool pool, const char *bytes, size_t size) {
         case OP_INT_GE: {
             int64_t b = stack.pop_int();
             int64_t a = stack.pop_int();
+            char res = apply_comparison(static_cast<Opcode>(bytes[ip]), a, b);
+            stack.push_byte(res);
+            ip++;
+            break;
+        }
+        case OP_FLOAT_EQ:
+        case OP_FLOAT_LT:
+        case OP_FLOAT_LE:
+        case OP_FLOAT_GT:
+        case OP_FLOAT_GE: {
+            double b = stack.pop_double();
+            double a = stack.pop_double();
             char res = apply_comparison(static_cast<Opcode>(bytes[ip]), a, b);
             stack.push_byte(res);
             ip++;
