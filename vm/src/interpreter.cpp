@@ -199,42 +199,29 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             ip += 2;
 
             // Create argv of the given frame_size, and create a new string for each arg with a null byte after each string
-            char **argv = new char *[frame_size + 1];
+            std::vector<std::unique_ptr<char[]>> argv(frame_size + 1);
             for (int i = frame_size - 1; i >= 0; i--) {
-                // pop the string index
+                // Pop the string index
                 int64_t index = stack.pop_string_constant_ref();
                 // Allocate the string
-                argv[i] = new char[pool.sizes[index] + 1];
+                argv[i] = std::make_unique<char[]>(pool.sizes[index] + 1);
                 // Copy the string data
-                memcpy(argv[i], pool.strings[index].get(), pool.sizes[index]);
+                std::copy(pool.strings[index].get(), &pool.strings[index][pool.sizes[index]], argv[i].get());
                 // Add the null byte
                 argv[i][pool.sizes[index]] = '\0';
             }
-            argv[frame_size] = nullptr;
 
             // Fork and exec the process
             pid_t pid = fork();
             if (pid == 0) {
                 // Replace the current process with a new process image
-                if (execvp(argv[0], argv) == -1) {
-                    for (int i = 0; i < frame_size; i++) {
-                        delete[] argv[i];
-                    }
-                    delete[] argv;
+                if (execvp(argv[0].get(), reinterpret_cast<char *const *>(argv.data())) == -1) {
                     perror("execvp");
                     _exit(MOSHELL_COMMAND_NOT_RUNNABLE);
                 }
             } else if (pid == -1) {
-                for (int i = 0; i < frame_size; i++) {
-                    delete[] argv[i];
-                }
-                delete[] argv;
                 perror("fork");
             } else {
-                for (int i = 0; i < frame_size; i++) {
-                    delete[] argv[i];
-                }
-                delete[] argv;
                 int status = 0;
                 // Wait for the process to finish
                 waitpid(pid, &status, 0);
