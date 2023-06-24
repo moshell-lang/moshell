@@ -17,7 +17,7 @@ use crate::types::hir::{
 };
 use crate::types::operator::name_operator_method;
 use crate::types::ty::Type;
-use crate::types::{Typing, ERROR, EXIT_CODE, FLOAT, INT, NOTHING, STRING};
+use crate::types::{Typing, BOOL, ERROR, EXIT_CODE, FLOAT, INT, NOTHING, STRING};
 use ast::call::{Call, ProgrammaticCall};
 use ast::control_flow::If;
 use ast::function::FunctionDeclaration;
@@ -156,6 +156,7 @@ fn ascribe_literal(lit: &Literal) -> TypedExpr {
         LiteralValue::Int(_) => INT,
         LiteralValue::Float(_) => FLOAT,
         LiteralValue::String(_) => STRING,
+        LiteralValue::Bool(_) => BOOL,
     };
     TypedExpr {
         kind: ExprKind::Literal(lit.parsed.clone()),

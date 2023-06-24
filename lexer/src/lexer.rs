@@ -181,11 +181,7 @@ impl<'a> Lexer<'a> {
                 return self.next_number(pos);
             }
             c => {
-                return if let Some(keyword) = self.read_keyword(c) {
-                    keyword
-                } else {
-                    self.next_identifier(pos, c)
-                }
+                return self.next_identifier(pos, c);
             }
         };
         Token::new(token_type, &self.input[pos..pos + size])

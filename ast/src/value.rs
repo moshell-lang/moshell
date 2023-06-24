@@ -15,6 +15,7 @@ pub enum LiteralValue {
     String(String),
     Int(i64),
     Float(f64),
+    Bool(bool),
 }
 
 /// A group of expressions that can be interpolated into a string.
@@ -39,5 +40,11 @@ impl From<i64> for LiteralValue {
 impl From<f64> for LiteralValue {
     fn from(s: f64) -> Self {
         Self::Float(s)
+    }
+}
+
+impl From<bool> for LiteralValue {
+    fn from(s: bool) -> Self {
+        Self::Bool(s)
     }
 }

@@ -243,7 +243,7 @@ mod tests {
 
     #[test]
     fn in_test() {
-        let content = "[ test == [] ]";
+        let content = "[ 'test' == [] ]";
         let source = Source::unknown(content);
         let result: ParseResult<_> = parse(source).into();
         assert_eq!(
@@ -258,7 +258,7 @@ mod tests {
 
     #[test]
     fn unclosed_test() {
-        let content = "[ test == $USER ";
+        let content = "[ 'test' == $USER ";
         let source = Source::unknown(content);
         let result: ParseResult<_> = parse(source).into();
         assert_eq!(

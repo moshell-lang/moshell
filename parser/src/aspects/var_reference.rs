@@ -77,7 +77,7 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
-    use crate::source::{literal, literal_nth};
+    use crate::source::literal;
     use ast::call::MethodCall;
     use ast::value::{Literal, TemplateString};
     use ast::variable::VarReference;
@@ -142,10 +142,12 @@ mod tests {
     #[test]
     fn wrapped_ref() {
         let source = Source::unknown("${VAR}IABLE");
-        let ast = parse(source).expect("failed to parse");
+        let ast = Parser::new(source)
+            .parse_specific(Parser::call_argument)
+            .expect("failed to parse");
         assert_eq!(
             ast,
-            vec![Expr::TemplateString(TemplateString {
+            Expr::TemplateString(TemplateString {
                 parts: vec![
                     Expr::VarReference(VarReference {
                         name: "VAR",
@@ -157,7 +159,7 @@ mod tests {
                     }),
                 ],
                 segment: source.segment()
-            })]
+            })
         )
     }
 
@@ -179,10 +181,12 @@ mod tests {
     #[test]
     fn multiple_wrapped_ref() {
         let source = Source::unknown("${VAR}IABLE${LONG}${VERY_LONG}");
-        let ast = parse(source).expect("failed to parse");
+        let ast = Parser::new(source)
+            .parse_specific(Parser::call_argument)
+            .expect("failed to parse");
         assert_eq!(
             ast,
-            vec![Expr::TemplateString(TemplateString {
+            Expr::TemplateString(TemplateString {
                 parts: vec![
                     Expr::VarReference(VarReference {
                         name: "VAR",
@@ -199,13 +203,13 @@ mod tests {
                     }),
                 ],
                 segment: source.segment()
-            })]
+            })
         )
     }
 
     #[test]
     fn call_ref() {
-        let source = Source::unknown("$callable(a, b, c)");
+        let source = Source::unknown("$callable('a', 'b', 'c')");
         let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,
@@ -216,9 +220,9 @@ mod tests {
                 })),
                 name: None,
                 arguments: vec![
-                    literal_nth(source.source, "a", 2),
-                    literal_nth(source.source, "b", 1),
-                    literal_nth(source.source, "c", 1),
+                    literal(source.source, "'a'"),
+                    literal(source.source, "'b'"),
+                    literal(source.source, "'c'"),
                 ],
                 type_parameters: vec![],
                 segment: source.segment()

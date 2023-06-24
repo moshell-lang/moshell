@@ -914,7 +914,7 @@ mod tests {
 
     #[test]
     fn find_in_parent_environment() {
-        let source = Source::unknown("val found = false; fun find() = $found");
+        let source = Source::unknown("val found = 'false'; fun find() = $found");
 
         let mut engine = Engine::default();
         let mut relations = Relations::default();
