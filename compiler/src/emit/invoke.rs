@@ -66,5 +66,5 @@ pub fn emit_function_call(
 
     let signature = FunctionSignature::make(&name, &args_types, return_type, typing, cp);
     let signature_idx = cp.insert_signature(signature);
-    instructions.emit_invoke(&args_types, return_type, signature_idx);
+    instructions.emit_invoke(signature_idx);
 }

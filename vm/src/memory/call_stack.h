@@ -28,8 +28,6 @@ class CallStack {
     size_t capacity;
     size_t pos;
 
-    void push_frame_with_overlap(const function_definition &callee, constant_index callee_ref, size_t start_offset);
-
     /// creates an empty call stack
     explicit CallStack(size_t capacity);
 public:
@@ -38,11 +36,11 @@ public:
 
     static CallStack create(size_t capacity, const function_definition& root, constant_index root_ref);
 
-    void push_frame(const function_definition &callee, constant_index callee_ref, const OperandStack &caller_operands);
+    void push_frame(const function_definition &callee, constant_index callee_ref);
 
     void pop_frame();
 
-    stack_frame peek_frame();
+    stack_frame peek_frame() const;
 
-    bool is_empty();
+    bool is_empty() const;
 };

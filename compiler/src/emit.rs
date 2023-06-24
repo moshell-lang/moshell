@@ -5,7 +5,7 @@ use analyzer::types::*;
 use analyzer::types::hir::{Declaration, ExprKind, TypedExpr, TypeId};
 use ast::value::LiteralValue;
 
-use crate::bytecode::{Instructions, Placeholder};
+use crate::bytecode::{Instructions, Opcode, Placeholder};
 use crate::constant_pool::ConstantPool;
 use crate::emit::invoke::{emit_function_call, emit_process_call};
 use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
@@ -27,7 +27,6 @@ pub struct EmissionState {
 
     // if set to false, the compiler will avoid emitting literals, var references or will
     // instantly pop values returned from functions, methods and process calls
-    // we don't use values by default
     pub use_values: bool,
 }
 
@@ -126,6 +125,19 @@ fn emit_assignment(
     }
 }
 
+fn emit_return(value: &Option<Box<TypedExpr>>,
+               instructions: &mut Instructions,
+               typing: &Typing,
+               engine: &Engine,
+               cp: &mut ConstantPool,
+               state: &mut EmissionState) {
+
+    if let Some(value) = &value {
+        emit(value, instructions, typing, engine, cp, state);
+    }
+    instructions.emit_code(Opcode::Return);
+}
+
 pub fn emit(
     expr: &TypedExpr,
     instructions: &mut Instructions,
@@ -141,6 +153,7 @@ pub fn emit(
         ExprKind::ConditionalLoop(l) => emit_loop(l, instructions, typing, engine, cp, state),
         ExprKind::Continue => emit_continue(instructions, state),
         ExprKind::Break => emit_break(instructions, state),
+        ExprKind::Return(val) => emit_return(val, instructions, typing, engine, cp, state),
         ExprKind::Assign(ass) => emit_assignment(&ass.rhs, ass.identifier, instructions, typing, engine,cp, state),
         ExprKind::Reference(r) => {
             if state.use_values {

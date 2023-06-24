@@ -1,7 +1,6 @@
 use std::mem::size_of;
-use analyzer::types::hir::TypeId;
-use analyzer::types::STRING;
-use crate::r#type::{get_type_size, TypeSize};
+
+use crate::r#type::TypeSize;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Placeholder {
@@ -74,10 +73,6 @@ impl Bytecode {
 pub struct Instructions<'a> {
     pub bytecode: &'a mut Bytecode,
     pub ip_offset: usize,
-
-    pub push_offset: u32,
-    pub max_operand_stack_size: u32,
-    pub current_operand_stack_pos: u32,
 }
 
 impl<'a> Instructions<'a> {
@@ -85,27 +80,12 @@ impl<'a> Instructions<'a> {
         Self {
             ip_offset: bytecode.len(),
             bytecode,
-            push_offset: 0,
-            max_operand_stack_size: 0,
-            current_operand_stack_pos: 0,
         }
     }
 
     // prefer wrapper methods instead
     pub fn emit_code(&mut self, code: Opcode) {
         self.bytecode.emit_byte(code as u8)
-    }
-
-    pub fn emit_q_word_binary_op(&mut self, code: Opcode) {
-        // this actually reduces operand stack by one qword as the two qwords gets pop
-        // and the resulting qword gets pushed
-        self.emit_bytes_and_reduce(code, &[], TypeSize::QWord);
-    }
-
-    pub fn emit_byte_binary_op(&mut self, code: Opcode) {
-        // this actually reduces operand stack by one byte as the two bytes gets pop
-        // and the resulting string gets pushed
-        self.emit_bytes_and_reduce(code, &[], TypeSize::Byte);
     }
 
     pub fn emit_set_local(&mut self, identifier: u32, size: impl Into<TypeSize>) {
@@ -115,7 +95,8 @@ impl<'a> Instructions<'a> {
             TypeSize::QWord => Opcode::SetQWord,
             TypeSize::Zero => panic!("set_local for value whose type is zero-sized")
         };
-        self.emit_bytes_and_reduce(opcode, &identifier.to_be_bytes(), size);
+        self.emit_code(opcode);
+        self.bytecode.emit_u32(identifier);
     }
 
     pub fn emit_get_local(&mut self, identifier: u32, size: impl Into<TypeSize>) {
@@ -125,45 +106,36 @@ impl<'a> Instructions<'a> {
             TypeSize::QWord => Opcode::GetQWord,
             TypeSize::Zero => panic!("get_local for value whose type is zero-sized")
         };
-        self.emit_bytes_and_extend(opcode, &identifier.to_be_bytes(), size);
+        self.emit_code(opcode);
+        self.bytecode.emit_u32(identifier);
     }
 
     pub fn emit_push_int(&mut self, constant: i64) {
-        self.emit_bytes_and_extend(Opcode::PushInt, &constant.to_be_bytes(), TypeSize::QWord);
+        self.emit_code(Opcode::PushInt);
+        self.bytecode.emit_int(constant);
     }
 
     pub fn emit_push_byte(&mut self, constant: u8) {
-        self.emit_bytes_and_extend(Opcode::PushByte, &constant.to_be_bytes(), TypeSize::Byte);
+        self.emit_code(Opcode::PushByte);
+        self.bytecode.emit_byte(constant);
     }
 
     pub fn emit_push_float(&mut self, constant: f64) {
-        self.emit_bytes_and_extend(Opcode::PushFloat, &constant.to_be_bytes(), TypeSize::QWord);
+        self.emit_code(Opcode::PushFloat);
+        self.bytecode.emit_float(constant)
     }
 
     pub fn emit_push_string_constant(&mut self, constant_ref: u32) {
-        self.emit_bytes_and_extend(Opcode::PushString, &constant_ref.to_be_bytes(), TypeSize::QWord);
+        self.emit_code(Opcode::PushString);
+        self.bytecode.emit_constant_ref(constant_ref)
     }
 
     pub fn emit_pop_byte(&mut self) {
         self.emit_code(Opcode::PopByte);
-        self.reduce_operands_size(TypeSize::Byte);
     }
 
     pub fn emit_pop_q_word(&mut self) {
         self.emit_code(Opcode::PopQWord);
-        self.reduce_operands_size(TypeSize::QWord);
-    }
-
-    fn emit_bytes_and_extend(&mut self, opcode: Opcode, bytes: &[u8], size: TypeSize) {
-        self.emit_code(opcode);
-        self.bytecode.bytes.extend(bytes);
-        self.extend_operands_size(size);
-    }
-
-    fn emit_bytes_and_reduce(&mut self, opcode: Opcode, bytes: &[u8], size: TypeSize) {
-        self.emit_code(opcode);
-        self.bytecode.bytes.extend(bytes);
-        self.reduce_operands_size(size);
     }
 
     fn emit_instruction_pointer(&mut self, ip: u32) {
@@ -175,36 +147,18 @@ impl<'a> Instructions<'a> {
     /// It returns the index of the offset which is to be patched.
     #[must_use = "the jump address must be patched later"]
     pub fn emit_jump(&mut self, opcode: Opcode) -> Placeholder {
-        // if-jump operations pops the tested value from stack
-        if opcode != Opcode::Jump {
-            self.reduce_operands_size(TypeSize::Byte);
-        }
-
         self.emit_code(opcode);
-
         self.bytecode.emit_u32_placeholder()
     }
 
     pub fn emit_spawn(&mut self, arg_count: u8) {
         self.emit_code(Opcode::Spawn);
         self.bytecode.emit_byte(arg_count);
-
-        let arg_count = arg_count as u32;
-        self.current_operand_stack_pos -= arg_count * get_type_size(STRING) as u32;
-        self.push_offset -= arg_count;
-
-        // the spawn opcode will push the process's exitcode in stack
-        self.extend_operands_size(TypeSize::Byte)
     }
 
-    pub fn emit_invoke(&mut self, arg_types: &[TypeId], return_type: TypeId, signature_idx: u32) {
+    pub fn emit_invoke(&mut self, signature_idx: u32) {
         self.emit_code(Opcode::Invoke);
         self.bytecode.emit_constant_ref(signature_idx);
-
-        for arg_type in arg_types {
-            self.reduce_operands_size(*arg_type)
-        }
-        self.extend_operands_size(return_type);
     }
 
     /// Takes the index of the jump offset to be patched as input, and patches
@@ -223,30 +177,6 @@ impl<'a> Instructions<'a> {
     /// Returns the current instruction pointer
     pub fn current_ip(&self) -> u32 {
         (self.bytecode.len() - self.ip_offset) as u32
-    }
-
-    // prefer using method wrappers instead
-    pub fn reduce_operands_size(&mut self, size: impl Into<TypeSize>) {
-        if self.current_operand_stack_pos == 0 {
-            panic!("operand stack size is empty")
-        }
-
-        let size = size.into() as u32;
-        if self.current_operand_stack_pos < size {
-            panic!("operand stack would get popped by {size} bytes where it's sized to {} at this point", self.current_operand_stack_pos)
-        }
-
-        self.push_offset -= 1;
-        self.current_operand_stack_pos -= size;
-    }
-
-    // prefer using method wrappers instead
-    pub fn extend_operands_size(&mut self, size: impl Into<TypeSize>) {
-        self.current_operand_stack_pos += size.into() as u32;
-        self.push_offset += 1;
-        if self.current_operand_stack_pos > self.max_operand_stack_size {
-            self.max_operand_stack_size = self.current_operand_stack_pos;
-        }
     }
 }
 
@@ -273,6 +203,7 @@ pub enum Opcode {
     IfJump,
     IfNotJump,
     Jump,
+    Return,
 
     ConvertIntToStr,
     ConvertFloatToStr,

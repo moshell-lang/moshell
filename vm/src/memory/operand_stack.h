@@ -7,22 +7,23 @@
 #include <stdexcept>
 #include "constant_pool.h"
 
-struct OperandStackOutOfBoundError : public std::out_of_range {
+struct OperandStackUnderflowError : public std::out_of_range {
 
 public:
-    explicit OperandStackOutOfBoundError(const char *message) : std::out_of_range{message} {}
+    explicit OperandStackUnderflowError(const char *message) : std::out_of_range{message} {}
 };
 
 class OperandStack {
 private:
     char *bytes;
     size_t &current_pos;
-    const size_t capacity;
+    const size_t stack_capacity;
 
 public:
-    explicit OperandStack(char *buff, size_t &initial_pos, size_t capacity);
+    explicit OperandStack(char *buff, size_t &initial_pos, size_t stack_capacity);
 
     size_t size() const;
+
     size_t get_capacity() const;
 
     void push_int(int64_t i);
@@ -31,7 +32,7 @@ public:
 
     void push_double(double d);
 
-    void push_reference(std::ptrdiff_t s);
+    void push_reference(uintptr_t r);
 
     int64_t pop_int();
 
@@ -39,7 +40,7 @@ public:
 
     double pop_double();
 
-    std::ptrdiff_t pop_reference();
+    uintptr_t pop_reference();
 
     void pop_bytes(size_t size);
 

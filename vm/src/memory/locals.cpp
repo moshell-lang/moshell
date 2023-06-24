@@ -3,7 +3,7 @@
 
 Locals::Locals(char *bytes, size_t capacity) : bytes{bytes}, capacity{capacity} {}
 
-int64_t Locals::get_int64(size_t at) const {
+int64_t Locals::get_int(size_t at) const {
     return get<int64_t>(at);
 }
 double Locals::get_double(size_t at) const {
@@ -16,7 +16,7 @@ size_t Locals::get_ref(size_t at) const {
     return get<size_t>(at);
 }
 
-void Locals::set_int64(int64_t i, size_t at) {
+void Locals::set_int(int64_t i, size_t at) {
     set<int64_t>(i, at);
 }
 void Locals::set_double(double d, size_t at) {

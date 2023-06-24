@@ -18,7 +18,6 @@ enum Opcode {
 
     OP_GET_WORD,     // with 1 byte local index, pushes given local value onto the operand stack
     OP_SET_WORD,     // with 1 byte local index, pushes given local value onto the operand stack
-
     OP_GET_Q_WORD,   // with 1 byte local index, pushes given local value onto the operand stack
     OP_SET_Q_WORD,   // with 1 byte local index, set given local value from value popped from the operand stack
 
@@ -31,6 +30,7 @@ enum Opcode {
     OP_IF_JUMP,      // with 1 byte opcode for 'then' branch, jumps only if value popped from operand stack is 0
     OP_IF_NOT_JUMP,  // with 1 byte opcode for where to jump, jumps only if value popped from operand stack is not 0
     OP_JUMP,         // with 1 byte opcode for where to jump
+    OP_RETURN,       // stops frame interpretation
 
     OP_INT_TO_STR,   // replaces last value of operand stack from int to a string reference
     OP_FLOAT_TO_STR, // replaces last value of operand stack from float to a string reference
@@ -112,26 +112,29 @@ void push_function_invocation(constant_index callee_signature_idx,
     const function_signature &callee_signature = state.pool.get_signature(callee_signature_idx);
     const function_definition &callee_def = state.functions.at(callee_signature_idx);
 
-    // check parameters
-    for (Type param_type : callee_signature.params) {
+    call_stack.push_frame(callee_def, callee_signature_idx);
+    stack_frame callee_frame = call_stack.peek_frame();
+    Locals callee_locals = callee_frame.locals;
+
+    // check parameters and transfer them to callee's locals;
+    for (size_t i = 0; i < callee_signature.params.size(); i++) {
+        Type param_type = callee_signature.params[i];
+
         switch (param_type) {
         case Type::STRING: {
-            int64_t str_ref = caller_operands.pop_reference();
-            if (str_ref < 0 || str_ref >= (int64_t)state.strings.size()) {
-                throw MemoryError("Wrong String Reference: popped string from caller operands does not refers to any string");
-            }
+            callee_locals.set_ref(caller_operands.pop_reference(), i);
             break;
         }
         case Type::FLOAT: {
-            caller_operands.pop_double();
+            callee_locals.set_double(caller_operands.pop_double(), i);
             break;
         }
         case Type::INT: {
-            caller_operands.pop_int();
+            callee_locals.set_int(caller_operands.pop_int(), i);
             break;
         }
         case Type::BYTE: {
-            caller_operands.pop_byte();
+            callee_locals.set_int(caller_operands.pop_byte(), i);
             break;
         }
         case Type::VOID: {
@@ -141,8 +144,6 @@ void push_function_invocation(constant_index callee_signature_idx,
         }
         }
     }
-
-    call_stack.push_frame(callee_def, callee_signature_idx, caller_operands);
 }
 
 /// returns true if this frame has returned
@@ -158,6 +159,7 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
         // Read the opcode
         char opcode = instructions[ip++];
         switch (opcode) {
+        case OP_RETURN: return true;
         case OP_PUSH_INT: {
             // Read the 8 byte int value
             int64_t value = ntohl(*(int64_t *)(instructions + ip));
@@ -204,11 +206,29 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
             push_function_invocation(signature_idx, state, operands, call_stack);
             return false; // terminate this frame run
         }
+        case OP_GET_WORD: {
+            // Read the 1 byte local local_index
+            uint32_t local_index = ntohl(*(uint32_t *)(instructions + ip));
+            ip++;
+            char value = locals.get_byte(local_index);
+            // Push the local onto the stack
+            operands.push_byte(value);
+            break;
+        }
+        case OP_SET_WORD: {
+            // Read the 1 byte local index
+            uint32_t index = ntohl(*(uint32_t *)(instructions + ip));
+            ip++;
+            // Pop the value from the stack
+            char value = operands.pop_byte();
+            // Set the local
+            locals.set_byte(value, index);
+        }
         case OP_GET_Q_WORD: {
             // Read the 1 byte local local_index
             uint32_t local_index = ntohl(*(uint32_t *)(instructions + ip));
             ip += 4;
-            int64_t value = locals.get_int64(local_index);
+            int64_t value = locals.get_int(local_index);
             // Push the local onto the stack
             operands.push_int(value);
             break;
@@ -220,7 +240,7 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
             // Pop the value from the stack
             int64_t value = operands.pop_int();
             // Set the local
-            locals.set_int64(value, index);
+            locals.set_int(value, index);
             break;
         }
         case OP_INT_TO_STR: {
@@ -245,10 +265,10 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
             break;
         }
         case OP_CONCAT: {
-            const std::string &right = pool.get_string(operands.pop_reference());
-            const std::string &left = pool.get_string(operands.pop_reference());
+            auto right = (const std::string *) operands.pop_reference();
+            auto left = (const std::string *) operands.pop_reference();
 
-            std::string result = left + right;
+            std::string result = *left + *right;
 
             auto [it, _] = state.strings.insert(std::make_unique<std::string>(result));
             operands.push_reference((std::ptrdiff_t)it->get());
@@ -334,7 +354,7 @@ void handle_frame_return(Type return_type,
 
 int run(runtime_state state, constant_index root_def_idx) {
     const function_definition &root_def = state.functions.at(root_def_idx);
-    CallStack call_stack = CallStack::create(1024, root_def, root_def_idx);
+    CallStack call_stack = CallStack::create(10000, root_def, root_def_idx);
 
     while (!call_stack.is_empty()) {
         stack_frame current_frame = call_stack.peek_frame();
@@ -370,7 +390,7 @@ int run_module(const module_definition &module_def, strings_t &strings) {
         const function_signature &signature = pool.get_signature(signature_id);
 
         // we found our main function
-        if (signature.name == "<module_main>" && signature.params.empty()) {
+        if (signature.name == "<main>" && signature.params.empty()) {
             runtime_state state{strings, module_def.functions, pool};
 
             return run(state, signature_id);

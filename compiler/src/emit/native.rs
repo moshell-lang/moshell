@@ -26,7 +26,7 @@ pub(crate) fn emit_primitive_op(
         0 => {
             // ExitCode -> Bool
             emitter.emit_push_byte(1);
-            emitter.emit_byte_binary_op(Opcode::BXor);
+            emitter.emit_code(Opcode::BXor);
             false
         }
         1..=9 => {
@@ -39,7 +39,7 @@ pub(crate) fn emit_primitive_op(
                 cp,
                 state,
             );
-            emitter.emit_q_word_binary_op(match native.0 {
+            emitter.emit_code(match native.0 {
                 1 => Opcode::IntAdd,
                 3 => Opcode::IntSub,
                 5 => Opcode::IntMul,
@@ -70,7 +70,7 @@ pub(crate) fn emit_primitive_op(
                 cp,
                 state,
             );
-            emitter.emit_q_word_binary_op(Opcode::Concat);
+            emitter.emit_code(Opcode::Concat);
             true
         }
         id => todo!("Native function with id {id}"),

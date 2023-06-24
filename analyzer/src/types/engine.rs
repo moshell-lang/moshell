@@ -58,6 +58,8 @@ pub struct Chunk {
 
     /// The return type of the chunk.
     pub return_type: TypeId,
+
+    pub is_script: bool,
 }
 
 impl Chunk {
@@ -67,6 +69,7 @@ impl Chunk {
             expression,
             parameters: Vec::new(),
             return_type: UNIT,
+            is_script: true,
         }
     }
 
@@ -80,14 +83,15 @@ impl Chunk {
             expression,
             parameters,
             return_type,
+            is_script: false
         }
     }
 }
 
 impl TypedEngine {
-    /// Initializes a new typed engine with the given capacity.
+    /// Initializes a new typed engine with the given stack_capacity.
     ///
-    /// In most cases, the capacity is equal to the number of source objects in
+    /// In most cases, the stack_capacity is equal to the number of source objects in
     /// the source engine.
     pub fn with_lang(capacity: usize) -> Self {
         let mut builder = Self {

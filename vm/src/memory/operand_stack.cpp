@@ -1,24 +1,25 @@
 #include "operand_stack.h"
+#include "call_stack.h"
 
-OperandStack::OperandStack(char* buff, size_t &position, size_t capacity)
+OperandStack::OperandStack(char* buff, size_t &position, size_t stack_capacity)
     : bytes{buff},
       current_pos{position},
-      capacity{capacity} {}
+      stack_capacity{stack_capacity} {}
 
 size_t OperandStack::size() const {
     return current_pos;
 }
 
 size_t OperandStack::get_capacity() const {
-    return capacity;
+    return stack_capacity;
 }
 
 void OperandStack::push_int(int64_t i) {
     push(i);
 }
 
-void OperandStack::push_reference(std::ptrdiff_t s) {
-    push(s);
+void OperandStack::push_reference(uintptr_t r) {
+    push(r);
 }
 
 void OperandStack::push_byte(char b) {
@@ -37,8 +38,8 @@ char OperandStack::pop_byte() {
     return pop<char>();
 }
 
-std::ptrdiff_t OperandStack::pop_reference() {
-    return pop<std::ptrdiff_t>();
+uintptr_t OperandStack::pop_reference() {
+    return pop<uintptr_t>();
 }
 
 double OperandStack::pop_double() {
@@ -47,8 +48,8 @@ double OperandStack::pop_double() {
 
 template <typename T>
 void OperandStack::push(T t) {
-    if (current_pos + sizeof(T) > capacity) {
-        throw OperandStackOutOfBoundError("exceeded operand stack capacity");
+    if (current_pos + sizeof(T) > stack_capacity) {
+        throw StackOverflowError("exceeded stack stack_capacity via operand stack");
     }
     *(T *)(bytes + current_pos) = t;
     current_pos += sizeof(T);
@@ -57,7 +58,7 @@ void OperandStack::push(T t) {
 template <typename T>
 T OperandStack::pop() {
     if (current_pos < sizeof(T)) {
-        throw OperandStackOutOfBoundError("operand stack is empty");
+        throw OperandStackUnderflowError("operand stack is empty");
     }
     current_pos -= sizeof(T);
     return *(T *)(bytes + current_pos);
@@ -65,7 +66,7 @@ T OperandStack::pop() {
 
 void OperandStack::pop_bytes(size_t size) {
     if (current_pos < size) {
-        throw OperandStackOutOfBoundError("operand stack is empty");
+        throw OperandStackUnderflowError("operand stack is empty");
     }
     current_pos -= size;
 }
