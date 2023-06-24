@@ -17,13 +17,14 @@ use crate::types::hir::{
 };
 use crate::types::operator::name_operator_method;
 use crate::types::ty::Type;
-use crate::types::{Typing, ERROR, EXIT_CODE, FLOAT, INT, NOTHING, STRING};
+use crate::types::{Typing, BOOL, ERROR, EXIT_CODE, FLOAT, INT, NOTHING, STRING};
 use ast::call::{Call, ProgrammaticCall};
 use ast::control_flow::If;
 use ast::function::FunctionDeclaration;
 use ast::group::Block;
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::r#type::CastedExpr;
+use ast::test::Not;
 use ast::value::{Literal, LiteralValue, TemplateString};
 use ast::variable::{Assign, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
@@ -603,6 +604,63 @@ fn ascribe_casted(
     }
 }
 
+fn ascribe_not(
+    not: &Not,
+    exploration: &mut Exploration,
+    relations: &Relations,
+    diagnostics: &mut Vec<Diagnostic>,
+    env: &Environment,
+    state: TypingState,
+) -> TypedExpr {
+    let expr = ascribe_types(
+        exploration,
+        relations,
+        diagnostics,
+        env,
+        &not.underlying,
+        state.with_local_type(),
+    );
+    let not_method = exploration
+        .engine
+        .get_method_exact(BOOL, "not", &[], BOOL)
+        .expect("A Bool should be invertible");
+    match convert_expression(
+        expr,
+        BOOL,
+        &mut exploration.typing,
+        &exploration.engine,
+        state,
+        diagnostics,
+    ) {
+        Ok(expr) => TypedExpr {
+            kind: ExprKind::MethodCall(MethodCall {
+                callee: Box::new(expr),
+                arguments: vec![],
+                definition: not_method.definition,
+            }),
+            ty: not_method.return_type,
+            segment: not.segment(),
+        },
+        Err(expr) => {
+            diagnostics.push(
+                Diagnostic::new(
+                    DiagnosticID::TypeMismatch,
+                    state.source,
+                    "Cannot invert type",
+                )
+                .with_observation(Observation::with_help(
+                    not.segment(),
+                    format!(
+                        "Cannot invert non-boolean type `{}`",
+                        exploration.get_type(expr.ty).unwrap()
+                    ),
+                )),
+            );
+            expr
+        }
+    }
+}
+
 fn ascribe_if(
     block: &If,
     exploration: &mut Exploration,
@@ -915,6 +973,7 @@ fn ascribe_types(
             &test.expression,
             state,
         ),
+        Expr::Not(not) => ascribe_not(not, exploration, relations, diagnostics, env, state),
         e @ (Expr::While(_) | Expr::Loop(_)) => {
             ascribe_loop(e, exploration, relations, diagnostics, env, state)
         }
@@ -1691,6 +1750,30 @@ mod tests {
     fn condition_command() {
         let res = extract_type(Source::unknown("if nginx -t { echo 'ok' }"));
         assert_eq!(res, Ok(Type::Nothing));
+    }
+
+    #[test]
+    fn condition_invert_command() {
+        let res = extract_type(Source::unknown("if ! nginx -t { echo 'invalid config' }"));
+        assert_eq!(res, Ok(Type::Nothing));
+    }
+
+    #[test]
+    fn cannot_invert_string() {
+        let content = "val s = 'test'; val is_empty = !$s";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                SourceId(0),
+                "Cannot invert type",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "!$s"),
+                "Cannot invert non-boolean type `String`"
+            ))])
+        );
     }
 
     #[test]
