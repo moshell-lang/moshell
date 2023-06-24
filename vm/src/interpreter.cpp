@@ -33,16 +33,18 @@ enum Opcode {
     OP_INT_TO_BYTE,  // replaces last value of operand stack from int to byte
     OP_CONCAT,       // pops two string references, concatenates them, and pushes the result
 
-    OP_B_XOR,   // pops last two bytes, apply xor operation then push the result
-    OP_INT_ADD, // takes two ints, adds them, and pushes the result
-    OP_INT_SUB, // takes two ints, subtracts them, and pushes the result
-    OP_INT_MUL, // takes two ints, multiplies them, and pushes the result
-    OP_INT_DIV, // takes two ints, divides them, and pushes the result
-    OP_INT_MOD, // takes two ints, mods them, and pushes the result
+    OP_B_XOR,     // pops last two bytes, apply xor operation then push the result
+    OP_INT_ADD,   // takes two ints, adds them, and pushes the result
+    OP_INT_SUB,   // takes two ints, subtracts them, and pushes the result
+    OP_INT_MUL,   // takes two ints, multiplies them, and pushes the result
+    OP_INT_DIV,   // takes two ints, divides them, and pushes the result
+    OP_INT_MOD,   // takes two ints, mods them, and pushes the result
     OP_FLOAT_ADD, // takes two floats, adds them, and pushes the result
     OP_FLOAT_SUB, // takes two floats, subtracts them, and pushes the result
     OP_FLOAT_MUL, // takes two floats, multiplies them, and pushes the result
     OP_FLOAT_DIV, // takes two floats, divides them, and pushes the result
+
+    OP_STR_EQ, // takes two string references, checks if they are equal, and pushes the result
 
     OP_INT_EQ, // takes two ints, checks if they are equal, and pushes the result
     OP_INT_LT, // takes two ints, checks if the first is less than the second, and pushes the result
@@ -358,6 +360,14 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             double a = stack.pop_double();
             double res = apply_op(static_cast<Opcode>(bytes[ip]), a, b);
             stack.push_double(res);
+            ip++;
+            break;
+        }
+        case OP_STR_EQ: {
+            int64_t b = stack.pop_string_constant_ref();
+            int64_t a = stack.pop_string_constant_ref();
+            bool cmp = pool.sizes[a] == pool.sizes[b] && std::memcmp(pool.strings[a].get(), pool.strings[b].get(), pool.sizes[a]) == 0;
+            stack.push_byte(cmp);
             ip++;
             break;
         }

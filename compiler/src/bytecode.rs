@@ -143,6 +143,7 @@ pub enum Opcode {
     FloatMul,
     FloatDiv,
 
+    StringEqual,
     IntEqual,
     IntLessThan,
     IntLessOrEqual,

@@ -45,7 +45,11 @@ pub(crate) fn emit_primitive_op(
             });
             Opcode::PopQWord
         }
-        10..=23 => {
+        10 => {
+            emitter.invert_bool();
+            Opcode::PopByte
+        }
+        11..=26 => {
             // Comparison expression
             emit(
                 args.get(0).expect("A comparison takes two operands"),
@@ -54,36 +58,45 @@ pub(crate) fn emit_primitive_op(
                 state,
             );
             match native.0 {
-                10 => { /* Bool == true */ }
-                11 => {
+                11 => { /* Bool == true */ }
+                12 => {
                     // Bool == false
                     emitter.invert_bool()
                 }
-                12 => emitter.emit_code(Opcode::IntEqual),
                 13 => {
+                    // String == String
+                    emitter.emit_code(Opcode::StringEqual);
+                }
+                14 => {
+                    // String != String
+                    emitter.emit_code(Opcode::StringEqual);
+                    emitter.invert_bool();
+                }
+                15 => emitter.emit_code(Opcode::IntEqual),
+                16 => {
                     // Int != Int
                     emitter.emit_code(Opcode::IntEqual);
                     emitter.invert_bool();
                 }
-                14 => emitter.emit_code(Opcode::IntLessThan),
-                15 => emitter.emit_code(Opcode::IntLessOrEqual),
-                16 => emitter.emit_code(Opcode::IntGreaterThan),
-                17 => emitter.emit_code(Opcode::IntGreaterOrEqual),
-                18 => emitter.emit_code(Opcode::FloatEqual),
-                19 => {
+                17 => emitter.emit_code(Opcode::IntLessThan),
+                18 => emitter.emit_code(Opcode::IntLessOrEqual),
+                19 => emitter.emit_code(Opcode::IntGreaterThan),
+                20 => emitter.emit_code(Opcode::IntGreaterOrEqual),
+                21 => emitter.emit_code(Opcode::FloatEqual),
+                22 => {
                     // Float != Float
                     emitter.emit_code(Opcode::FloatEqual);
                     emitter.invert_bool();
                 }
-                20 => emitter.emit_code(Opcode::FloatLessThan),
-                21 => emitter.emit_code(Opcode::FloatLessOrEqual),
-                22 => emitter.emit_code(Opcode::FloatGreaterThan),
-                23 => emitter.emit_code(Opcode::FloatGreaterOrEqual),
+                23 => emitter.emit_code(Opcode::FloatLessThan),
+                24 => emitter.emit_code(Opcode::FloatLessOrEqual),
+                25 => emitter.emit_code(Opcode::FloatGreaterThan),
+                26 => emitter.emit_code(Opcode::FloatGreaterOrEqual),
                 _ => unreachable!("Not a comparison expression"),
             }
             Opcode::PopByte
         }
-        24 => {
+        27 => {
             // Bool -> String
             // Emit the opcodes for:
             // if (bool) {
@@ -101,23 +114,23 @@ pub(crate) fn emit_primitive_op(
             emitter.patch_jump(jump_to_end);
             Opcode::PopQWord
         }
-        25 => {
+        28 => {
             // ExitCode -> String
             emitter.emit_code(Opcode::ConvertByteToInt);
             emitter.emit_code(Opcode::ConvertIntToStr);
             Opcode::PopQWord
         }
-        26 => {
+        29 => {
             // Int -> String
             emitter.emit_code(Opcode::ConvertIntToStr);
             Opcode::PopQWord
         }
-        27 => {
+        30 => {
             // Float -> String
             emitter.emit_code(Opcode::ConvertFloatToStr);
             Opcode::PopQWord
         }
-        30 => {
+        33 => {
             // String + String -> String
             emit(
                 args.get(0)

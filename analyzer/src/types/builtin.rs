@@ -19,6 +19,8 @@ const COMPARISON_OPERATORS: &[BinaryOperator] = &[
     BinaryOperator::Greater,
     BinaryOperator::GreaterEqual,
 ];
+const EQUALITY_OPERATORS: &[BinaryOperator] =
+    &[BinaryOperator::EqualEqual, BinaryOperator::NotEqual];
 
 /// A sequential generator for native object ids.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
@@ -58,12 +60,15 @@ pub fn lang(engine: &mut TypedEngine) {
         name_operator_method(BinaryOperator::Modulo),
         MethodType::native(vec![INT], INT, gen.next()),
     );
-    for op in [BinaryOperator::EqualEqual, BinaryOperator::NotEqual] {
-        engine.add_method(
-            BOOL,
-            name_operator_method(op),
-            MethodType::native(vec![BOOL], BOOL, gen.next()),
-        );
+    engine.add_method(BOOL, "not", MethodType::native(vec![], BOOL, gen.next()));
+    for ty in [BOOL, STRING] {
+        for op in EQUALITY_OPERATORS {
+            engine.add_method(
+                ty,
+                name_operator_method(*op),
+                MethodType::native(vec![ty], BOOL, gen.next()),
+            );
+        }
     }
     for ty in [INT, FLOAT] {
         for op in COMPARISON_OPERATORS {
