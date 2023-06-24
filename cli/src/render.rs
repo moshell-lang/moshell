@@ -3,10 +3,10 @@ use std::fmt::{Debug, Display};
 use std::io;
 use std::io::Write;
 
+use analyzer::diagnostic::ObservationTag;
 use ariadne::{Cache, Label, Report, ReportKind};
 use concolor::Stream;
 use yansi::{Color, Paint};
-use analyzer::diagnostic::ObservationTag;
 
 use analyzer::relations::{ObjectId, SourceId};
 use context::source::Source;
@@ -14,16 +14,20 @@ use parser::err::{ParseError, ParseErrorKind};
 use std::fmt::Write as FmtWrite;
 
 /// contains the sources bound to each [SourceId]
-pub struct SourcesCache<'a, S> where
-    S: Fn(SourceId) -> Source<'a>, {
+pub struct SourcesCache<'a, S>
+where
+    S: Fn(SourceId) -> Source<'a>,
+{
     /// supplier used to fetch a source bound to given [SourceId]
     supplier: S,
     names: HashMap<SourceId, String>,
     sources: HashMap<String, ariadne::Source>,
 }
 
-impl<'a, S> SourcesCache<'a, S> where
-    S: Fn(SourceId) -> Source<'a> {
+impl<'a, S> SourcesCache<'a, S>
+where
+    S: Fn(SourceId) -> Source<'a>,
+{
     pub fn new(supplier: S) -> Self {
         Self {
             supplier,
@@ -59,8 +63,6 @@ where
     }
 }
 
-
-
 pub fn render_parse_error(source: Source, error: ParseError, w: &mut impl Write) -> io::Result<()> {
     let source_name = source.name;
     let mut builder = Report::build(ReportKind::Error, source_name, 0)
@@ -88,14 +90,13 @@ pub fn render_parse_error(source: Source, error: ParseError, w: &mut impl Write)
         .write((source_name, ariadne::Source::from(source.source)), w)
 }
 
-
 pub fn render_diagnostic<'a, S>(
     diagnostic: analyzer::diagnostic::Diagnostic,
     cache: &mut SourcesCache<'a, S>,
     w: &mut impl Write,
 ) -> io::Result<()>
-    where
-        S: Fn(SourceId) -> Source<'a>,
+where
+    S: Fn(SourceId) -> Source<'a>,
 {
     let (code, color) = if diagnostic.identifier.critical() {
         (
@@ -134,8 +135,8 @@ pub fn render_diagnostic<'a, S>(
         SourceId(ObjectId::MAX), /*this id is never used*/
         0,
     )
-        .with_message(colorize_message(diagnostic.global_message, Color::Blue))
-        .with_labels(labels);
+    .with_message(colorize_message(diagnostic.global_message, Color::Blue))
+    .with_labels(labels);
 
     if let Some(help) = help {
         builder = builder.with_help(colorize_message(help, Color::Green))
