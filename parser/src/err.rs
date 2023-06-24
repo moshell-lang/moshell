@@ -107,8 +107,10 @@ pub struct ParseReport<'a> {
     /// This may be empty if the parsing process succeeded.
     pub errors: Vec<ParseError>,
 
-    /// contains the last delimiter that were not closed,
-    /// This ParseReport is considered as valid if the unclosed delimiter is none
+    /// Holds the last opening delimiter that was not closed.
+    ///
+    /// If a value is present, the input has been reached too early and
+    /// the parser is waiting for more input.
     pub unclosed_delimiter: Option<TokenType>,
 }
 

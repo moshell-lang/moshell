@@ -19,9 +19,7 @@ use parser::parse;
 
 use crate::cli::{display_exprs, display_tokens, execute, Configuration};
 use crate::disassemble::display_bytecode;
-use crate::render::diagnostic::render_diagnostic;
-use crate::render::parse_error::render_parse_error;
-use crate::render::SourcesCache;
+use crate::render::{render_diagnostic, render_parse_error, SourcesCache};
 use crate::source_importer::FileSourceImporter;
 
 /// returns true if no error occurred

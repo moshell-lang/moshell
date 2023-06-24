@@ -56,14 +56,12 @@ pub(crate) fn display_tokens(tokens: Vec<Token>) {
     println!("Lexer tokens:");
     println!("\t- {} tokens lexed from input", tokens.len());
 
-    let mut count = 0;
-    for token in tokens {
+    for (count, token) in tokens.iter().enumerate() {
         print!(
             "{:10}: '{}', ",
             format!("{:?}", token.token_type),
             token.value
         );
-        count += 1;
         if count % 5 == 0 {
             println!()
         }
@@ -71,7 +69,7 @@ pub(crate) fn display_tokens(tokens: Vec<Token>) {
     println!()
 }
 
-pub(crate) fn display_exprs(exprs: &Vec<Expr>) {
+pub(crate) fn display_exprs(exprs: &[Expr]) {
     println!("AST:");
     for expr in exprs {
         println!("{}", color(expr));

@@ -4,10 +4,10 @@ pub(crate) fn display_bytecode(bytes: &[u8]) {
     println!("Bytecode:");
     let (ip, constants) = display_constant_pool(bytes);
     println!();
-    display_byte_instructions(constants, &bytes[ip..])
+    display_byte_instructions(&constants, &bytes[ip..])
 }
 
-fn display_byte_instructions(constants: Vec<String>, bytes: &[u8]) {
+fn display_byte_instructions(constants: &[String], bytes: &[u8]) {
     println!("\tInstructions");
     let mut ip = 0;
     let bytes_len = bytes.len();
@@ -66,7 +66,7 @@ fn display_byte_instructions(constants: Vec<String>, bytes: &[u8]) {
                 ip += 1;
             }
             Opcode::Spawn => {
-                print!("<arguments stack size {}>", bytes[ip]);
+                print!("<arity {}>", bytes[ip]);
                 ip += 1;
             }
             Opcode::IfJump => {
