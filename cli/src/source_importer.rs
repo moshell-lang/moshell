@@ -71,12 +71,10 @@ impl<'a> FileSourceImporter {
             });
         }
         let source = read_to_string(&path)
-            .or_else(|_| {
-                path.pop();
-                path.set_extension(MOSHELL_EXTENSION);
-                read_to_string(&path)
-            })
-            .map(|content| OwnedSource::new(content, path.to_string_lossy().to_string()))?;
+            .map(|content| {
+                let source_name = path.to_string_lossy().to_string();
+                OwnedSource::new(content, source_name)
+            })?;
 
         let source = self.cache.entry(path.clone()).or_insert(source).as_source();
         Ok(unsafe {
