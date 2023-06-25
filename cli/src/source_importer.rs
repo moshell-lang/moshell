@@ -70,11 +70,10 @@ impl<'a> FileSourceImporter {
                 std::mem::transmute::<Source, Source<'a>>(source.as_source())
             });
         }
-        let source = read_to_string(&path)
-            .map(|content| {
-                let source_name = path.to_string_lossy().to_string();
-                OwnedSource::new(content, source_name)
-            })?;
+        let source = read_to_string(&path).map(|content| {
+            let source_name = path.to_string_lossy().to_string();
+            OwnedSource::new(content, source_name)
+        })?;
 
         let source = self.cache.entry(path.clone()).or_insert(source).as_source();
         Ok(unsafe {

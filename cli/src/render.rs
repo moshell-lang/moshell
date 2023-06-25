@@ -118,14 +118,14 @@ where
         cache.fetch(&o.source).expect("Could not fetch source");
 
         if o.tag == ObservationTag::Expected {
-            label = label.with_order(100)
+            label = label.with_order(100);
         }
 
         let color = get_color(o.tag);
         label = label.with_color(color);
 
         if let Some(help) = o.help {
-            label = label.with_message(colorize_message(help, color))
+            label = label.with_message(colorize_message(help, color));
         }
         label
     });
