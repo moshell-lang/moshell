@@ -17,13 +17,13 @@ use lexer::lexer::lex;
 use parser::err::ParseReport;
 use parser::parse;
 
-use crate::cli::{display_exprs, display_tokens, execute, Configuration};
+use crate::cli::{display_exprs, display_tokens, execute, CliConfiguration};
 use crate::disassemble::display_bytecode;
 use crate::render::{render_diagnostic, render_parse_error, SourcesCache};
 use crate::source_importer::FileSourceImporter;
 
 /// returns true if no error occurred
-pub(crate) fn run(source: PathBuf, source_dir: PathBuf, config: Configuration) -> bool {
+pub(crate) fn run(source: PathBuf, source_dir: PathBuf, config: CliConfiguration) -> bool {
     let name = source.to_string_lossy();
     let mut name = name.deref().replace('/', "::");
     if let Some((name_no_extension, _)) = name.rsplit_once('.') {
@@ -55,14 +55,16 @@ pub(crate) fn run(source: PathBuf, source_dir: PathBuf, config: Configuration) -
     let root_expr = &typed_engine.get_user(SourceId(0)).unwrap().expression;
     compile(root_expr, &mut bytecode).unwrap();
 
-    visualize_outputs(importer, config, &bytecode);
+    visualize_outputs(importer, &config, &bytecode);
 
-    execute(bytecode);
+    if config.execute {
+        execute(&bytecode);
+    }
 
     true
 }
 
-fn visualize_outputs(importer: RunnerImporter, config: Configuration, bytecode: &[u8]) {
+fn visualize_outputs(importer: RunnerImporter, config: &CliConfiguration, bytecode: &[u8]) {
     if !config.needs_visualisation() {
         return;
     }
@@ -142,7 +144,7 @@ struct RunnerImporter<'a> {
 impl<'a> ASTImporter<'a> for RunnerImporter<'a> {
     fn import(&mut self, name: &Name) -> Option<Expr<'a>> {
         match self.source_importer.import_source(name) {
-            Ok(src) => self.import_expr(src),
+            Ok(src) => self.parse_source(src),
             Err(e) => {
                 self.errors.push(RunnerImporterError::IO(name.clone(), e));
                 None
@@ -159,7 +161,7 @@ impl<'a> RunnerImporter<'a> {
         }
     }
 
-    fn import_expr(&mut self, source: Source<'a>) -> Option<Expr<'a>> {
+    fn parse_source(&mut self, source: Source<'a>) -> Option<Expr<'a>> {
         let report = parse(source);
         if report.is_err() {
             self.errors.push(RunnerImporterError::Parse(source, report));

@@ -4,10 +4,10 @@ pub(crate) fn display_bytecode(bytes: &[u8]) {
     println!("Bytecode:");
     let (ip, constants) = display_constant_pool(bytes);
     println!();
-    display_byte_instructions(&constants, &bytes[ip..])
+    display_disassembled_instructions(&constants, &bytes[ip..])
 }
 
-fn display_byte_instructions(constants: &[String], bytes: &[u8]) {
+fn display_disassembled_instructions(constants: &[String], bytes: &[u8]) {
     println!("\tInstructions");
     let mut ip = 0;
     let bytes_len = bytes.len();

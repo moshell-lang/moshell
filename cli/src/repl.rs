@@ -21,7 +21,7 @@ use context::source::{OwnedSource, Source, SourceSegmentHolder};
 use lexer::lexer::lex;
 use parser::parse;
 
-use crate::cli::{display_exprs, display_tokens, execute, Configuration};
+use crate::cli::{display_exprs, display_tokens, execute, CliConfiguration};
 use crate::disassemble::display_bytecode;
 use crate::render::{render_diagnostic, render_parse_error, SourcesCache};
 
@@ -53,9 +53,10 @@ impl<'a> REPLImporter<'a> {
         self.sources.push(source);
         let src = self.sources[self.sources.len() - 1].as_source();
         unsafe {
-            // SAFETY: The sources will never be removed from the self.sources vector as the REPLImporter's
-            // role is to be the owner of the user's sources.
-            // The reference behind Box does not change and is valid for the lifetime of the importer.
+            // SAFETY: A source is owned by the importer and is never removed.
+            // A Source is the reference version to the Strings inside the OwnedSource,
+            // so if the OwnedSource moves, the strings are still valid.
+            // 'a is used here to disambiguate the lifetime of the source and the mutable borrow.
             std::mem::transmute::<Source, Source<'a>>(src)
         }
     }
@@ -63,7 +64,7 @@ impl<'a> REPLImporter<'a> {
 
 /// Indefinitely prompts a new expression to the stdin,
 /// displaying back the errors if any and the formed AST
-pub fn repl(config: Configuration) {
+pub fn repl(config: CliConfiguration) {
     let mut editor: REPLEditor =
         DefaultEditor::new().expect("unable to instantiate terminal editor");
     editor.set_history_ignore_dups(true).unwrap();
@@ -143,7 +144,7 @@ fn display_diagnostics(diagnostics: Vec<Diagnostic>, source: Source) {
 /// Returning true if the source had at least one error or diagnostic.
 fn handle_source<'e>(
     source: OwnedSource,
-    config: &Configuration,
+    config: &CliConfiguration,
     engine: &mut Engine<'e>,
     importer: &mut REPLImporter<'e>,
     imports: &mut Imports,
@@ -201,5 +202,7 @@ fn handle_source<'e>(
         display_bytecode(&bytecode);
     }
 
-    execute(bytecode);
+    if config.execute {
+        execute(&bytecode);
+    }
 }

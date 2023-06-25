@@ -13,7 +13,10 @@ use context::source::Source;
 use parser::err::{ParseError, ParseErrorKind};
 use std::fmt::Write as FmtWrite;
 
-/// contains the sources bound to each [SourceId]
+/// Associates a [`SourceId`] to the appropriate [`ariadne::Source`] type.
+///
+/// This cache is used to integrate with the ariadne crate, and is not used for
+/// any other purpose.
 pub struct SourcesCache<'a, S>
 where
     S: Fn(SourceId) -> Source<'a>,

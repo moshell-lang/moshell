@@ -4,7 +4,7 @@ use std::process::exit;
 
 use clap::Parser;
 
-use crate::cli::{Cli, Configuration};
+use crate::cli::{Cli, CliConfiguration};
 use crate::repl::repl;
 use crate::runner::run;
 
@@ -18,7 +18,7 @@ mod source_importer;
 fn main() {
     let cli = Cli::parse();
 
-    let config = Configuration::from(cli.clone());
+    let config = CliConfiguration::from(&cli);
 
     if let Some(source) = cli.source {
         let source_dir = std::env::current_dir().expect("No working dir set");

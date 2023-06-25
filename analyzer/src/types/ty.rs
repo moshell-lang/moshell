@@ -64,6 +64,7 @@ pub struct FunctionType {
 /// A function parameter.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Parameter {
+    pub(crate) fn_def: Definition,
     pub(crate) segment: Option<SourceSegment>,
     pub(crate) ty: TypeId,
 }
@@ -102,7 +103,11 @@ impl FunctionType {
         Self {
             parameters: parameters
                 .into_iter()
-                .map(|ty| Parameter { segment: None, ty })
+                .map(|ty| Parameter {
+                    fn_def: Definition::Native(id),
+                    segment: None,
+                    ty,
+                })
                 .collect(),
             return_type,
             definition: Definition::Native(id),

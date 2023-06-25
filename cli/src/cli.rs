@@ -26,34 +26,36 @@ pub struct Cli {
     pub(crate) bytecode: bool,
 
     /// Disable code execution
-    #[arg(long = "no-exec")]
-    pub(crate) no_exec: bool,
+    #[arg(long = "execute", default_value = "true")]
+    pub(crate) execute: bool,
 }
 
-pub struct Configuration {
+pub struct CliConfiguration {
     pub lexer_visualisation: bool,
     pub parser_visualization: bool,
     pub bytecode_visualisation: bool,
+    pub execute: bool,
 }
 
-impl Configuration {
+impl CliConfiguration {
     pub fn needs_visualisation(&self) -> bool {
         self.lexer_visualisation || self.parser_visualization || self.bytecode_visualisation
     }
 }
 
-impl From<Cli> for Configuration {
-    fn from(value: Cli) -> Self {
+impl<'a> From<&'a Cli> for CliConfiguration {
+    fn from(value: &'a Cli) -> Self {
         Self {
             lexer_visualisation: value.lexer,
             parser_visualization: value.parser,
             bytecode_visualisation: value.bytecode,
+            execute: value.execute,
         }
     }
 }
 
 pub(crate) fn display_tokens(tokens: Vec<Token>) {
-    println!("Lexer tokens:");
+    println!("Lexed tokens:");
     println!("\t- {} tokens lexed from input", tokens.len());
 
     for (count, token) in tokens.iter().enumerate() {
@@ -81,7 +83,7 @@ extern "C" {
     fn exec(bytes: *const u8, byte_count: usize);
 }
 
-pub(crate) fn execute(bytes: Vec<u8>) {
+pub(crate) fn execute(bytes: &[u8]) {
     let len = bytes.len();
     unsafe {
         exec(bytes.as_ptr(), len);

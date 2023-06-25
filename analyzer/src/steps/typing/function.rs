@@ -227,7 +227,6 @@ pub(super) fn type_call(
                                 diagnostics.push(diagnose_arg_mismatch(
                                     &exploration.typing,
                                     state.source,
-                                    declaration,
                                     param,
                                     &arg,
                                 ));
@@ -354,18 +353,13 @@ pub(super) fn type_method<'a>(
                     .convert_description(param.ty, arg.ty)
                     .is_err()
                 {
-                    let diagnostic = diagnose_arg_mismatch(
-                        &exploration.typing,
-                        state.source,
-                        method.definition,
-                        param,
-                        arg,
-                    )
-                    .with_observation(
-                        Observation::new(method_call.segment(), state.source)
-                            .with_help("Arguments to this method are incorrect")
-                            .with_tag(ObservationTag::InFault),
-                    );
+                    let diagnostic =
+                        diagnose_arg_mismatch(&exploration.typing, state.source, param, arg)
+                            .with_observation(
+                                Observation::new(method_call.segment(), state.source)
+                                    .with_help("Arguments to this method are incorrect")
+                                    .with_tag(ObservationTag::InFault),
+                            );
                     diagnostics.push(diagnostic);
                 }
             }
@@ -393,7 +387,6 @@ pub(super) fn type_method<'a>(
 fn diagnose_arg_mismatch(
     typing: &Typing,
     source: SourceId,
-    fn_def: Definition,
     param: &Parameter,
     arg: &TypedExpr,
 ) -> Diagnostic {
@@ -408,7 +401,7 @@ fn diagnose_arg_mismatch(
                 .with_tag(ObservationTag::InFault),
         );
     if let Some(decl) = &param.segment {
-        if let Definition::User(fn_source) = fn_def {
+        if let Definition::User(fn_source) = param.fn_def {
             diagnostic = diagnostic.with_observation(
                 Observation::new(decl.clone(), fn_source)
                     .with_help("Parameter is declared here")
@@ -440,7 +433,11 @@ fn find_exact_method<'a>(methods: &'a [MethodType], args: &[TypedExpr]) -> Optio
 }
 
 /// Type check a single function parameter.
-pub(crate) fn type_parameter(ctx: &TypeContext, param: &FunctionParameter) -> Parameter {
+pub(crate) fn type_parameter(
+    ctx: &TypeContext,
+    fn_def: Definition,
+    param: &FunctionParameter,
+) -> Parameter {
     match param {
         FunctionParameter::Named(named) => {
             let type_id = named
@@ -448,6 +445,7 @@ pub(crate) fn type_parameter(ctx: &TypeContext, param: &FunctionParameter) -> Pa
                 .as_ref()
                 .map_or(STRING, |ty| ctx.resolve(ty).unwrap_or(ERROR));
             Parameter {
+                fn_def,
                 segment: Some(named.segment.clone()),
                 ty: type_id,
             }

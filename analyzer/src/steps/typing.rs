@@ -116,10 +116,11 @@ fn apply_types_to_source(
     let expr = engine.get_expression(source_id).unwrap();
     let env = engine.get_environment(source_id).unwrap();
     exploration.prepare();
+    let definition = Definition::User(source_id);
     match expr {
         Expr::FunctionDeclaration(func) => {
             for param in &func.parameters {
-                let param = type_parameter(&exploration.ctx, param);
+                let param = type_parameter(&exploration.ctx, definition, param);
                 exploration.ctx.push_local_type(state.source, param.ty);
             }
             let typed_expr = ascribe_types(
@@ -135,7 +136,7 @@ fn apply_types_to_source(
                 typed_expr,
                 func.parameters
                     .iter()
-                    .map(|param| type_parameter(&exploration.ctx, param))
+                    .map(|param| type_parameter(&exploration.ctx, definition, param))
                     .collect(),
                 return_type,
             )
@@ -472,16 +473,15 @@ fn ascribe_function(
     exploration: &mut Exploration,
 ) -> TypedExpr {
     let declaration = env.get_raw_env(fun.segment.clone()).unwrap();
-    let type_id = exploration
-        .typing
-        .add_type(Type::Function(Definition::User(declaration)));
+    let definition = Definition::User(declaration);
+    let type_id = exploration.typing.add_type(Type::Function(definition));
     let local_id = exploration.ctx.push_local_type(source, type_id);
 
     // Forward declare the function
     let parameters = fun
         .parameters
         .iter()
-        .map(|param| type_parameter(&exploration.ctx, param))
+        .map(|param| type_parameter(&exploration.ctx, definition, param))
         .collect::<Vec<_>>();
     let return_type = fun
         .return_type
