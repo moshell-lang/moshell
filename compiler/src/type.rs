@@ -27,7 +27,7 @@ pub fn get_type_size(tpe: TypeId) -> TypeSize {
         NOTHING | UNIT => TypeSize::Zero,
         BOOL | EXIT_CODE => TypeSize::Byte,
         INT | FLOAT => TypeSize::QWord,
-        ERROR  => panic!("Received 'ERROR' type in compilation phase."),
+        ERROR => panic!("Received 'ERROR' type in compilation phase."),
         _ => TypeSize::QWord, //other types are object types whose reference size is 8
     }
 }
@@ -36,7 +36,7 @@ pub fn get_type_size(tpe: TypeId) -> TypeSize {
 pub enum TypeSize {
     Zero = 0,
     Byte = 1,
-    QWord = 8
+    QWord = 8,
 }
 
 impl From<TypeId> for TypeSize {

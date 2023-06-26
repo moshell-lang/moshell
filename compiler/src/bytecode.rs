@@ -16,7 +16,6 @@ pub struct Bytecode {
     pub bytes: Vec<u8>,
 }
 
-
 impl Bytecode {
     /// Returns the instructions count
     pub fn len(&self) -> usize {
@@ -45,10 +44,6 @@ impl Bytecode {
 
     pub fn emit_constant_ref(&mut self, constant: u32) {
         self.emit_u32(constant);
-    }
-
-    pub fn extend(&mut self, bytecode: Bytecode) {
-        self.bytes.extend(bytecode.bytes);
     }
 
     /// Fills an instruction pointer at given instruction pointer in the byte array
@@ -93,7 +88,7 @@ impl<'a> Instructions<'a> {
         let opcode = match size {
             TypeSize::Byte => Opcode::SetByte,
             TypeSize::QWord => Opcode::SetQWord,
-            TypeSize::Zero => panic!("set_local for value whose type is zero-sized")
+            TypeSize::Zero => panic!("set_local for value whose type is zero-sized"),
         };
         self.emit_code(opcode);
         self.bytecode.emit_u32(identifier);
@@ -104,7 +99,7 @@ impl<'a> Instructions<'a> {
         let opcode = match size {
             TypeSize::Byte => Opcode::GetByte,
             TypeSize::QWord => Opcode::GetQWord,
-            TypeSize::Zero => panic!("get_local for value whose type is zero-sized")
+            TypeSize::Zero => panic!("get_local for value whose type is zero-sized"),
         };
         self.emit_code(opcode);
         self.bytecode.emit_u32(identifier);
@@ -130,6 +125,12 @@ impl<'a> Instructions<'a> {
         self.bytecode.emit_constant_ref(constant_ref)
     }
 
+    /// Inverts the boolean value on top of the stack.
+    pub fn emit_bool_inversion(&mut self) {
+        self.emit_push_byte(1);
+        self.emit_code(Opcode::BXor);
+    }
+
     pub fn emit_pop_byte(&mut self) {
         self.emit_code(Opcode::PopByte);
     }
@@ -144,7 +145,7 @@ impl<'a> Instructions<'a> {
 
     /// Emits a jump instruction.
     ///
-    /// It returns the index of the offset which is to be patched.
+    /// It returns the Placeholder of the offset which is to be patched
     #[must_use = "the jump address must be patched later"]
     pub fn emit_jump(&mut self, opcode: Opcode) -> Placeholder {
         self.emit_code(opcode);
@@ -205,6 +206,7 @@ pub enum Opcode {
     Jump,
     Return,
 
+    ConvertByteToInt,
     ConvertIntToStr,
     ConvertFloatToStr,
     ConvertIntToByte,
@@ -216,4 +218,21 @@ pub enum Opcode {
     IntMul,
     IntDiv,
     IntMod,
+    FloatAdd,
+    FloatSub,
+    FloatMul,
+    FloatDiv,
+
+    StringEqual,
+    ByteEqual,
+    IntEqual,
+    IntLessThan,
+    IntLessOrEqual,
+    IntGreaterThan,
+    IntGreaterOrEqual,
+    FloatEqual,
+    FloatLessThan,
+    FloatLessOrEqual,
+    FloatGreaterThan,
+    FloatGreaterOrEqual,
 }

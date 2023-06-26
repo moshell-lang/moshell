@@ -294,6 +294,10 @@ pub(super) fn type_method<'a>(
     exploration: &'a mut Exploration,
     state: TypingState,
 ) -> Option<&'a MethodType> {
+    if callee.ty.is_err() {
+        return None;
+    }
+
     // Directly callable types just have a single method called `apply`
     let method_name = method_call.name.unwrap_or("apply");
     let methods = exploration.engine.get_methods(callee.ty, method_name);

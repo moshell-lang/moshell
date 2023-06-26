@@ -503,7 +503,7 @@ fn constructor_assign() {
 
 #[test]
 fn programmatic_call() {
-    let source = Source::unknown("ssh(localhost, 'ls -l', 8 / 2)");
+    let source = Source::unknown("ssh('localhost', 'ls -l', 8 / 2)");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
@@ -511,7 +511,7 @@ fn programmatic_call() {
             path: vec![],
             name: "ssh",
             arguments: vec![
-                literal(source.source, "localhost"),
+                literal(source.source, "'localhost'"),
                 literal(source.source, "'ls -l'"),
                 Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Literal(Literal {
@@ -698,7 +698,7 @@ fn comments_mix_with_spaces() {
 
 #[test]
 fn classic_call_no_regression() {
-    let source = Source::unknown("test '=>' ,,here, ->..3 54a2 => 1..=9");
+    let source = Source::unknown("test '=>' ,,here, ->..3 54a2 => 1..=9 true$a");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
@@ -712,8 +712,43 @@ fn classic_call_no_regression() {
                 literal(source.source, "54a2"),
                 literal_nth(source.source, "=>", 1),
                 literal(source.source, "1..=9"),
+                Expr::TemplateString(TemplateString {
+                    parts: vec![
+                        Expr::Literal(Literal {
+                            parsed: true.into(),
+                            segment: find_in(source.source, "true")
+                        }),
+                        Expr::VarReference(VarReference {
+                            name: "a",
+                            segment: find_in(source.source, "$a")
+                        })
+                    ],
+                    segment: find_in(source.source, "true$a")
+                }),
             ],
             type_parameters: Vec::new()
+        })]
+    );
+}
+
+#[test]
+fn call_method_on_int() {
+    let source = Source::unknown("1.foo(true)");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::MethodCall(MethodCall {
+            source: Box::new(Expr::Literal(Literal {
+                parsed: 1.into(),
+                segment: find_in(source.source, "1")
+            })),
+            name: Some("foo"),
+            arguments: vec![Expr::Literal(Literal {
+                parsed: true.into(),
+                segment: find_in(source.source, "true")
+            })],
+            type_parameters: Vec::new(),
+            segment: find_between(source.source, ".", ")")
         })]
     );
 }

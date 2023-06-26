@@ -10,8 +10,17 @@ const ARITHMETIC_OPERATORS: &[BinaryOperator] = &[
     BinaryOperator::Minus,
     BinaryOperator::Times,
     BinaryOperator::Divide,
-    BinaryOperator::Modulo,
 ];
+const COMPARISON_OPERATORS: &[BinaryOperator] = &[
+    BinaryOperator::EqualEqual,
+    BinaryOperator::NotEqual,
+    BinaryOperator::Less,
+    BinaryOperator::LessEqual,
+    BinaryOperator::Greater,
+    BinaryOperator::GreaterEqual,
+];
+const EQUALITY_OPERATORS: &[BinaryOperator] =
+    &[BinaryOperator::EqualEqual, BinaryOperator::NotEqual];
 
 /// A sequential generator for native object ids.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
@@ -45,6 +54,30 @@ pub fn lang(engine: &mut TypedEngine) {
             name_operator_method(*op),
             MethodType::native(vec![FLOAT], FLOAT, gen.next()),
         );
+    }
+    engine.add_method(
+        INT,
+        name_operator_method(BinaryOperator::Modulo),
+        MethodType::native(vec![INT], INT, gen.next()),
+    );
+    engine.add_method(BOOL, "not", MethodType::native(vec![], BOOL, gen.next()));
+    for ty in [BOOL, STRING] {
+        for op in EQUALITY_OPERATORS {
+            engine.add_method(
+                ty,
+                name_operator_method(*op),
+                MethodType::native(vec![ty], BOOL, gen.next()),
+            );
+        }
+    }
+    for ty in [INT, FLOAT] {
+        for op in COMPARISON_OPERATORS {
+            engine.add_method(
+                ty,
+                name_operator_method(*op),
+                MethodType::native(vec![ty], BOOL, gen.next()),
+            );
+        }
     }
     for stringify in [BOOL, EXIT_CODE, INT, FLOAT] {
         engine.add_method(

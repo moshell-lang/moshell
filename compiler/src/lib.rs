@@ -2,13 +2,13 @@ use std::io;
 use std::io::Write;
 
 use analyzer::engine::Engine;
-use analyzer::types::{Typing, UNIT};
 use analyzer::types::engine::TypedEngine;
 use analyzer::types::hir::TypedExpr;
+use analyzer::types::{Typing, UNIT};
 
 use crate::bytecode::{Bytecode, Instructions};
 use crate::constant_pool::{ConstantPool, FunctionSignature, PoolConstant};
-use crate::emit::{EmissionState, emit};
+use crate::emit::{emit, EmissionState};
 use crate::r#type::{get_type_size, TypeSize};
 
 pub mod bytecode;
@@ -35,10 +35,7 @@ pub fn compile(
     for (id, chunk) in typed_engine.iter_chunks() {
         let chunk_env = engine.get_environment(id).unwrap();
         let chunk_fqn = &chunk_env.fqn;
-        let params: Vec<_> = chunk.parameters
-            .iter()
-            .map(|p| p.ty)
-            .collect();
+        let params: Vec<_> = chunk.parameters.iter().map(|p| p.ty).collect();
 
         let signature = if chunk.is_script {
             if is_main_compiled {

@@ -95,7 +95,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
             };
         }
 
-        let operand = self.next_value()?;
+        let operand = self.call_argument()?;
         let segment = self.cursor.relative_pos_ctx(start).start..operand.segment().end;
         Ok(Redir {
             fd,

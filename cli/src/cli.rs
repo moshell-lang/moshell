@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::io::stderr;
 use std::path::PathBuf;
-use std::process::exit;
 
 use analyzer::engine::Engine;
 use clap::Parser;
@@ -87,7 +86,11 @@ pub fn handle_source(source: Source) -> bool {
 
 #[link(name = "vm", kind = "static")]
 extern "C" {
-    fn exec(bytes: *const u8, byte_count: usize) -> i32;
+    /// Execute the given bytecode.
+    ///
+    /// # Safety
+    /// If the given bytecode is invalid, this function will cause undefined behavior.
+    fn moshell_exec(bytes: *const u8, byte_count: usize);
 }
 
 fn execute(types: TypedEngine, engine: Engine, typing: Typing) {
@@ -97,6 +100,6 @@ fn execute(types: TypedEngine, engine: Engine, typing: Typing) {
     let len = bytes.len();
 
     unsafe {
-        exit(exec(bytes.as_ptr(), len));
+        moshell_exec(bytes.as_ptr(), len);
     }
 }

@@ -24,6 +24,7 @@ use ast::function::FunctionDeclaration;
 use ast::group::Block;
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::r#type::CastedExpr;
+use ast::test::Not;
 use ast::value::{Literal, LiteralValue, TemplateString};
 use ast::variable::{Assign, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
@@ -156,6 +157,7 @@ fn ascribe_literal(lit: &Literal) -> TypedExpr {
         LiteralValue::Int(_) => INT,
         LiteralValue::Float(_) => FLOAT,
         LiteralValue::String(_) => STRING,
+        LiteralValue::Bool(_) => BOOL,
     };
     TypedExpr {
         kind: ExprKind::Literal(lit.parsed.clone()),
@@ -604,6 +606,63 @@ fn ascribe_casted(
     }
 }
 
+fn ascribe_not(
+    not: &Not,
+    exploration: &mut Exploration,
+    relations: &Relations,
+    diagnostics: &mut Vec<Diagnostic>,
+    env: &Environment,
+    state: TypingState,
+) -> TypedExpr {
+    let expr = ascribe_types(
+        exploration,
+        relations,
+        diagnostics,
+        env,
+        &not.underlying,
+        state.with_local_type(),
+    );
+    let not_method = exploration
+        .engine
+        .get_method_exact(BOOL, "not", &[], BOOL)
+        .expect("A Bool should be invertible");
+    match convert_expression(
+        expr,
+        BOOL,
+        &mut exploration.typing,
+        &exploration.engine,
+        state,
+        diagnostics,
+    ) {
+        Ok(expr) => TypedExpr {
+            kind: ExprKind::MethodCall(MethodCall {
+                callee: Box::new(expr),
+                arguments: vec![],
+                definition: not_method.definition,
+            }),
+            ty: not_method.return_type,
+            segment: not.segment(),
+        },
+        Err(expr) => {
+            diagnostics.push(
+                Diagnostic::new(
+                    DiagnosticID::TypeMismatch,
+                    state.source,
+                    "Cannot invert type",
+                )
+                .with_observation(Observation::with_help(
+                    not.segment(),
+                    format!(
+                        "Cannot invert non-boolean type `{}`",
+                        exploration.get_type(expr.ty).unwrap()
+                    ),
+                )),
+            );
+            expr
+        }
+    }
+}
+
 fn ascribe_if(
     block: &If,
     exploration: &mut Exploration,
@@ -912,6 +971,15 @@ fn ascribe_types(
         Expr::Casted(casted) => {
             ascribe_casted(casted, exploration, relations, diagnostics, env, state)
         }
+        Expr::Test(test) => ascribe_types(
+            exploration,
+            relations,
+            diagnostics,
+            env,
+            &test.expression,
+            state,
+        ),
+        Expr::Not(not) => ascribe_not(not, exploration, relations, diagnostics, env, state),
         e @ (Expr::While(_) | Expr::Loop(_)) => {
             ascribe_loop(e, exploration, relations, diagnostics, env, state)
         }
@@ -1507,7 +1575,7 @@ mod tests {
                                     segment: find_in_nth(content, "$n", 1),
                                 }),
                                 arguments: vec![],
-                                definition: Definition::Native(NativeId(13)),
+                                definition: Definition::Native(NativeId(29)),
                             }),
                             ty: STRING,
                             segment: find_in_nth(content, "$n", 1),
@@ -1520,7 +1588,7 @@ mod tests {
                                     segment: find_in(content, "4.2"),
                                 }),
                                 arguments: vec![],
-                                definition: Definition::Native(NativeId(14)),
+                                definition: Definition::Native(NativeId(30)),
                             }),
                             ty: STRING,
                             segment: find_in(content, "4.2"),
@@ -1661,8 +1729,75 @@ mod tests {
     }
 
     #[test]
+    fn condition_previous_error() {
+        let content = "if [ 9.9 % 3.3 ] { echo 'ok' }";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::UnknownMethod,
+                SourceId(0),
+                "Undefined operator",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "9.9 % 3.3"),
+                "No operator `mod` between type `Float` and `Float`"
+            ))])
+        );
+    }
+
+    #[test]
+    fn operation_and_test() {
+        let content = "val m = 101; val is_even = $m % 2 == 0; $is_even";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(res, Ok(Type::Bool));
+    }
+
+    #[test]
     fn condition_command() {
         let res = extract_type(Source::unknown("if nginx -t { echo 'ok' }"));
         assert_eq!(res, Ok(Type::Unit));
+    }
+
+    #[test]
+    fn condition_invert_command() {
+        let res = extract_type(Source::unknown("if ! nginx -t { echo 'invalid config' }"));
+        assert_eq!(res, Ok(Type::Nothing));
+    }
+
+    #[test]
+    fn cannot_invert_string() {
+        let content = "val s = 'test'; val is_empty = !$s";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                SourceId(0),
+                "Cannot invert type",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "!$s"),
+                "Cannot invert non-boolean type `String`"
+            ))])
+        );
+    }
+
+    #[test]
+    fn no_cumulative_errors() {
+        let content = "var p = 'text' % 9; val r = $p.foo(); p = 4";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::UnknownMethod,
+                SourceId(0),
+                "Undefined operator",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "'text' % 9"),
+                "No operator `mod` between type `String` and `Int`"
+            ))])
+        );
     }
 }

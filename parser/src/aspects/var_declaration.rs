@@ -181,8 +181,8 @@ mod tests {
         assert_eq!(
             err.errors,
             vec![ParseError {
-                message: "invalid infix operator".to_string(),
-                position: content.rfind('a').map(|p| (p..p + 1)).unwrap(),
+                message: "Unexpected word literal".to_string(),
+                position: find_in(content, "echo"),
                 kind: ParseErrorKind::Unexpected,
             }]
         )

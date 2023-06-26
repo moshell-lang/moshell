@@ -1,8 +1,8 @@
 use analyzer::engine::Engine;
 use analyzer::relations::{Definition, Symbol};
 
+use analyzer::types::hir::{Declaration, ExprKind, TypeId, TypedExpr};
 use analyzer::types::*;
-use analyzer::types::hir::{Declaration, ExprKind, TypedExpr, TypeId};
 use ast::value::LiteralValue;
 
 use crate::bytecode::{Instructions, Opcode, Placeholder};
@@ -59,14 +59,15 @@ fn emit_literal(literal: &LiteralValue, emitter: &mut Instructions, cp: &mut Con
         LiteralValue::Float(f) => {
             emitter.emit_push_float(*f);
         }
+        LiteralValue::Bool(b) => {
+            emitter.emit_push_byte(*b as u8);
+        }
     }
 }
 
 fn emit_ref(symbol: &Symbol, ref_type: TypeId, emitter: &mut Instructions) {
     match symbol {
-        Symbol::Local(id) => {
-            emitter.emit_get_local(id.0 as u32, ref_type)
-        },
+        Symbol::Local(id) => emitter.emit_get_local(id.0 as u32, ref_type),
         _ => todo!(),
     }
 }
@@ -80,7 +81,15 @@ fn emit_declaration(
     state: &mut EmissionState,
 ) {
     if let Some(value) = &declaration.value {
-        emit_assignment(value, Symbol::Local(declaration.identifier), instructions, typing, engine,  cp, state)
+        emit_assignment(
+            value,
+            Symbol::Local(declaration.identifier),
+            instructions,
+            typing,
+            engine,
+            cp,
+            state,
+        )
     }
 }
 
@@ -116,22 +125,21 @@ fn emit_assignment(
     state.use_values(last);
 
     match identifier {
-        Symbol::Local(id) => {
-            instructions.emit_set_local(id.0 as u32, value.ty)
-        },
+        Symbol::Local(id) => instructions.emit_set_local(id.0 as u32, value.ty),
         Symbol::External(_) => {
             unimplemented!("External variable assignations are not implemented yet")
         }
     }
 }
 
-fn emit_return(value: &Option<Box<TypedExpr>>,
-               instructions: &mut Instructions,
-               typing: &Typing,
-               engine: &Engine,
-               cp: &mut ConstantPool,
-               state: &mut EmissionState) {
-
+fn emit_return(
+    value: &Option<Box<TypedExpr>>,
+    instructions: &mut Instructions,
+    typing: &Typing,
+    engine: &Engine,
+    cp: &mut ConstantPool,
+    state: &mut EmissionState,
+) {
     if let Some(value) = &value {
         emit(value, instructions, typing, engine, cp, state);
     }
@@ -154,7 +162,15 @@ pub fn emit(
         ExprKind::Continue => emit_continue(instructions, state),
         ExprKind::Break => emit_break(instructions, state),
         ExprKind::Return(val) => emit_return(val, instructions, typing, engine, cp, state),
-        ExprKind::Assign(ass) => emit_assignment(&ass.rhs, ass.identifier, instructions, typing, engine,cp, state),
+        ExprKind::Assign(ass) => emit_assignment(
+            &ass.rhs,
+            ass.identifier,
+            instructions,
+            typing,
+            engine,
+            cp,
+            state,
+        ),
         ExprKind::Reference(r) => {
             if state.use_values {
                 emit_ref(r, expr.ty, instructions);

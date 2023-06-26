@@ -3,14 +3,14 @@
 #include <cxxabi.h>
 #include <iostream>
 
-extern "C" int exec(const char *bytes, size_t byte_count) {
+extern "C" void moshell_exec(const char *bytes, size_t byte_count) {
     strings_t strings;
     try {
 
         // read function definitions
         auto module_def = load_module(bytes, strings);
 
-        return run_module(module_def, strings);
+        run_module(module_def, strings);
     } catch (std::exception &e) {
         int status;
         char *exception_type = abi::__cxa_demangle(typeid(e).name(), nullptr, 0, &status);

@@ -41,7 +41,28 @@ impl<'a> Lexer<'a> {
             pos = p + c.len_utf8();
             self.iter.next();
         }
-        Token::new(TokenType::Identifier, &self.input[start_pos..pos])
+        let value = &self.input[start_pos..pos];
+        let token_type = match value {
+            "as" => TokenType::As,
+            "break" => TokenType::Break,
+            "continue" => TokenType::Continue,
+            "else" => TokenType::Else,
+            "false" => TokenType::False,
+            "for" => TokenType::For,
+            "fun" => TokenType::Fun,
+            "if" => TokenType::If,
+            "in" => TokenType::In,
+            "loop" => TokenType::Loop,
+            "match" => TokenType::Match,
+            "return" => TokenType::Return,
+            "true" => TokenType::True,
+            "use" => TokenType::Use,
+            "var" => TokenType::Var,
+            "val" => TokenType::Val,
+            "while" => TokenType::While,
+            _ => TokenType::Identifier,
+        };
+        Token::new(token_type, value)
     }
 
     pub(crate) fn next_number(&mut self, start_pos: usize) -> Token<'a> {

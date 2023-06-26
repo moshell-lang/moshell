@@ -1,7 +1,7 @@
 use analyzer::engine::Engine;
 use analyzer::relations::Definition;
+use analyzer::types::hir::{FunctionCall, TypeId, TypedExpr};
 use analyzer::types::*;
-use analyzer::types::hir::{FunctionCall, TypedExpr, TypeId};
 
 use crate::bytecode::{Instructions, Opcode};
 use crate::constant_pool::{ConstantPool, FunctionSignature};
@@ -49,16 +49,11 @@ pub fn emit_function_call(
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
-
     for arg in &function_call.arguments {
         emit(arg, instructions, typing, engine, cp, state);
     }
 
-    let args_types: Vec<_> = function_call
-        .arguments
-        .iter()
-        .map(|e| e.ty)
-        .collect();
+    let args_types: Vec<_> = function_call.arguments.iter().map(|e| e.ty).collect();
     let name = match function_call.definition {
         Definition::User(u) => engine.get_environment(u).unwrap().fqn.to_string(),
         Definition::Native(_) => todo!("native call to functions are not supported"),
