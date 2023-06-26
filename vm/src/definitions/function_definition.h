@@ -17,13 +17,14 @@ struct function_signature {
 };
 
 struct function_definition {
-    const char *instructions;
-    size_t instruction_count;
-
     size_t locals_size;
+    size_t instruction_count;
+    const char *instructions;
 };
 
 class InvalidFunctionDefinition : public VirtualMachineError {
 public:
     explicit InvalidFunctionDefinition(const char *msg) : VirtualMachineError(msg) {}
 };
+
+void check_signature(const function_signature &signature);

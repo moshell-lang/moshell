@@ -12,7 +12,7 @@ public:
     explicit PoolConstantWrappedValue(PoolConstantType type, T value) : PoolConstantValue{type}, value{std::move(value)} {}
 };
 
-std::unique_ptr<PoolConstantWrappedValue<const std::string*>> read_string(const char *bytes, unsigned int &ip, strings_t& strings) {
+std::unique_ptr<PoolConstantWrappedValue<const std::string*>> read_string(const char *bytes, size_t &ip, strings_t& strings) {
     // A string is an 8-byte length big endian followed by the string data without a null byte
 
     // Read the length
@@ -28,7 +28,7 @@ std::unique_ptr<PoolConstantWrappedValue<const std::string*>> read_string(const 
     return std::make_unique<PoolConstantWrappedValue<const std::string*>>(PoolConstantWrappedValue(C_STR, pool_str));
 }
 
-std::unique_ptr<PoolConstantWrappedValue<function_signature>> read_signature(const char *bytes, unsigned int &ip, ConstantPool &pool) {
+std::unique_ptr<PoolConstantWrappedValue<function_signature>> read_signature(const char *bytes, size_t &ip, ConstantPool &pool) {
     // Read the function name
     const std::string &name = pool.get_string(ntohl(*(constant_index *)(bytes + ip)));
     ip += sizeof(constant_index);
@@ -54,7 +54,7 @@ std::unique_ptr<PoolConstantWrappedValue<function_signature>> read_signature(con
     return std::make_unique<PoolConstantWrappedValue<function_signature>>(PoolConstantWrappedValue(C_SIGNATURE, signature));
 }
 
-ConstantPool load_constant_pool(const char *bytes, unsigned int &ip, strings_t& strings) {
+ConstantPool load_constant_pool(const char *bytes, size_t &ip, strings_t& strings) {
     // Read the number of strings on a single byte
     char count = *(bytes + ip);
     ip++;
@@ -88,7 +88,7 @@ template <typename T>
 [[nodiscard]] const T &ConstantPool::get(constant_index at, PoolConstantType type, const char *type_name) const {
     const PoolConstantValue *value = constants.get()[at].get();
     if (value->type != type) {
-        throw ConstantPoolAccessError(("attempted to access " + std::string(type_name) + " in constant pool at index " + std::to_string(at) + " which is not a string").c_str());
+        throw BadConstantType(("attempted to access " + std::string(type_name) + " in constant pool at index " + std::to_string(at) + " which is not a string").c_str());
     }
     // we already checked that the constant value is of type PoolConstantWrappedValue<std::string>
     return static_cast<const PoolConstantWrappedValue<T> *>(value)->value;

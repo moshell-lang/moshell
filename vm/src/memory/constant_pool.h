@@ -17,9 +17,9 @@ public:
     explicit PoolConstantValue(PoolConstantType type) : type{type} {}
 };
 
-class ConstantPoolAccessError: public MemoryError {
+class BadConstantType : public MemoryError {
 public:
-    explicit ConstantPoolAccessError(const char* msg): MemoryError(msg) {}
+    explicit BadConstantType(const char* msg): MemoryError(msg) {}
 };
 
 
@@ -31,7 +31,7 @@ class ConstantPool {
 
     explicit ConstantPool(uint32_t size);
 
-    friend ConstantPool load_constant_pool(const char *bytes, unsigned int &ip, strings_t& strings);
+    friend ConstantPool load_constant_pool(const char *bytes, size_t &ip, strings_t& strings);
 
     template <typename T>
     [[nodiscard]] const T& get(constant_index at, PoolConstantType type, const char *type_name) const;
@@ -44,4 +44,4 @@ public:
 
 };
 
-ConstantPool load_constant_pool(const char *bytes, unsigned int &ip, strings_t& strings);
+ConstantPool load_constant_pool(const char *bytes, size_t &ip, strings_t& strings);
