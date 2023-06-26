@@ -36,7 +36,7 @@ pub fn emit_process_call(
         // The Spawn operation will push the process's exitcode onto the stack
         // in order to maintain the stack's size, we instantly pop
         // the stack if the value isn't used later in the code
-        instructions.emit_pop_byte();
+        instructions.emit_code(Opcode::PopByte);
     }
 }
 
@@ -49,13 +49,24 @@ pub fn emit_function_call(
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
+    let last = state.use_values(true);
     for arg in &function_call.arguments {
         emit(arg, instructions, typing, engine, cp, state);
     }
+    state.use_values(last);
 
-    let args_types: Vec<_> = function_call.arguments.iter().map(|e| e.ty).collect();
+    let args_types: Vec<_> = function_call.arguments
+        .iter()
+        .map(|e| e.ty)
+        .collect();
+
     let name = match function_call.definition {
-        Definition::User(u) => engine.get_environment(u).unwrap().fqn.to_string(),
+        Definition::User(u) => {
+            engine.get_environment(u)
+                .unwrap()
+                .fqn
+                .to_string()
+        },
         Definition::Native(_) => todo!("native call to functions are not supported"),
     };
 

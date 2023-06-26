@@ -9,7 +9,7 @@
 /**
  * Executes the given Moshell bytecode.
  *
- * The bytecode will be immediately executed without any sanity checks.
+ * The bytecode will be immediately executed.
  * This function will not return until the interpreter halts.
  * Due to the C++ interop, this function might throw a C++ exception
  * if the given bytecode is invalid, which will be caught and printed to

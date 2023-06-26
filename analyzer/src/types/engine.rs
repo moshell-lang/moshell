@@ -174,6 +174,7 @@ impl TypedEngine {
         }
     }
 
+    /// returns an iterator over all contained chunks with their identifier
     pub fn iter_chunks(&self) -> impl Iterator<Item = (SourceId, &Chunk)> {
         self.entries
             .iter()

@@ -25,17 +25,13 @@ inline void check_overflow(size_t capacity, size_t current_pos, const function_d
     }
 }
 
-size_t CallStack::size() const {
-    return pos;
-}
-
 CallStack CallStack::create(size_t capacity, const function_definition &root, constant_index root_ref) {
     CallStack stack(capacity);
     stack.push_frame(root, root_ref);
     return stack;
 }
 
-void CallStack::push_frame(const function_definition &callee, constant_index callee_ref) {
+void CallStack::push_frame(const function_definition &callee, constant_index callee_signature) {
     check_overflow(capacity, pos, callee);
 
     char *block = this->block.get();
@@ -50,7 +46,7 @@ void CallStack::push_frame(const function_definition &callee, constant_index cal
 
     *(frame_headers *)(block + pos) = {
         frame_headers_pos,
-        callee_ref,
+        callee_signature,
         0,
         0,
         callee.locals_size,
@@ -62,6 +58,9 @@ void CallStack::push_frame(const function_definition &callee, constant_index cal
 }
 
 void CallStack::pop_frame() {
+    if (is_empty()) {
+        throw MemoryError("Could not pop call stack: stack is already empty.");
+    }
     pos = frame_headers_pos; // go to headers position, this also skips operands according to frame layout
 
     //retrieve headers
@@ -77,12 +76,22 @@ stack_frame CallStack::peek_frame() const {
 
     frame_headers* headers = (frame_headers *)(block + frame_headers_pos);
 
-    OperandStack frame_operands(block + frame_headers_pos + sizeof(frame_headers), headers->operands_pos, this->capacity);
+    //first byte position of operands
+    size_t operands_first_byte = frame_headers_pos + sizeof(frame_headers);
+    OperandStack frame_operands(block + operands_first_byte, headers->operands_pos, this->capacity - operands_first_byte);
 
     Locals frame_locals(block + (frame_headers_pos - headers->locals_capacity), headers->locals_capacity);
     return {headers->signature_index, &headers->instruction_pointer, frame_operands, frame_locals};
 }
 
-bool CallStack::is_empty() const {
-    return pos == 0;
+size_t CallStack::get_capacity() const {
+    return capacity;
+}
+
+size_t CallStack::size() const {
+    return pos;
+}
+
+inline bool CallStack::is_empty() const {
+    return size() == 0;
 }

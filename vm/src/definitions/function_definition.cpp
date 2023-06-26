@@ -1,9 +1,9 @@
 #include "function_definition.h"
-#include "conversions.h"
 
 #include <utility>
 
-void check_signature(const function_signature &signature) {
+
+void validate_signature(const function_signature &signature) {
     for (Type param : signature.params) {
         if (param == Type::VOID) {
             throw InvalidFunctionDefinition("Function signature contains void parameters");

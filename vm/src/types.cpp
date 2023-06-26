@@ -1,7 +1,9 @@
 #include "types.h"
 
-
-Type get_type(const std::string& name) {
+/**
+ * maps name inputs to its `Type` variant
+ * */
+Type get_type(const std::string_view& name) {
     if (name == "int") {
         return Type::INT;
     }
@@ -14,8 +16,8 @@ Type get_type(const std::string& name) {
     if (name == "byte") {
         return Type::BYTE;
     }
-    if (name == "String") {
+    if (name == "string") {
         return Type::STRING;
     }
-    throw NoSuchTypeError(("Unknown type " + name).c_str());
+    throw NoSuchTypeError("Unknown type " + std::string(name));
 }

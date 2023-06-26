@@ -25,9 +25,9 @@ pub fn compile(
     let mut bytecode = Bytecode::default();
     let mut cp = ConstantPool::default();
 
-    //have we already met a script main method ?
+    //have we already met a script's main method ?
     // compiler cannot currently handle multiple modules so this flag is meant to make the compiler panic
-    // if two script chunks are detected
+    // if more than one script chunk is detected
     let mut is_main_compiled = false;
 
     let function_count_ph = bytecode.emit_u32_placeholder();

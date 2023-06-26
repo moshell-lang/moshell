@@ -1,10 +1,10 @@
 use indexmap::IndexSet;
 
-use crate::r#type::transform_to_vm_type;
+use crate::r#type::transform_to_primitive_type;
 use analyzer::types::hir::TypeId;
 use analyzer::types::Typing;
 
-/// Contains the constants defined in constant pool
+/// Contains the constants defined in a module constant pool
 #[derive(Default)]
 pub struct ConstantPool {
     pub constants: IndexSet<PoolConstant>,
@@ -32,6 +32,8 @@ impl ConstantPool {
     }
 }
 
+/// Function signature where all the strings are
+/// u32 indexes in the bound constant pool
 #[derive(Hash, Eq, PartialEq)]
 pub struct FunctionSignature {
     pub name: u32,
@@ -51,7 +53,7 @@ impl FunctionSignature {
 
         let mut map_type = |ty| {
             let ty = typing.get_type(ty).unwrap();
-            transform_to_vm_type(ty, cp)
+            transform_to_primitive_type(ty, cp)
         };
 
         Self {

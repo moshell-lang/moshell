@@ -46,46 +46,46 @@ pub fn emit_conditional(
 
 pub fn emit_loop(
     lp: &Loop,
-    emitter: &mut Instructions,
+    instructions: &mut Instructions,
     typing: &Typing,
     engine: &Engine,
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
     // START:
-    let loop_start = emitter.current_ip();
+    let loop_start = instructions.current_ip();
     let mut loop_state = EmissionState::in_loop(loop_start);
 
     if let Some(condition) = &lp.condition {
         let last = state.use_values(true);
         // Evaluate the condition.
-        emit(condition, emitter, typing, engine, cp, state);
+        emit(condition, instructions, typing, engine, cp, state);
         state.use_values(last);
 
         // If the condition is false, go to END.
-        let jump_to_end = emitter.emit_jump(Opcode::IfNotJump);
+        let jump_to_end = instructions.emit_jump(Opcode::IfNotJump);
         loop_state.enclosing_loop_end_placeholders.push(jump_to_end);
     }
 
     loop_state.enclosing_loop_start = loop_start;
 
     // Evaluate the loop body.
-    emit(&lp.body, emitter, typing, engine, cp, &mut loop_state);
+    emit(&lp.body, instructions, typing, engine, cp, &mut loop_state);
     // Go to START.
-    emitter.jump_back_to(loop_start);
+    instructions.jump_back_to(loop_start);
 
     // END:
     for jump_to_end in loop_state.enclosing_loop_end_placeholders {
-        emitter.patch_jump(jump_to_end);
+        instructions.patch_jump(jump_to_end);
     }
 }
 
-pub fn emit_continue(emitter: &mut Instructions, state: &mut EmissionState) {
-    emitter.jump_back_to(state.enclosing_loop_start);
+pub fn emit_continue(instructions: &mut Instructions, state: &mut EmissionState) {
+    instructions.jump_back_to(state.enclosing_loop_start);
 }
 
-pub fn emit_break(emitter: &mut Instructions, state: &mut EmissionState) {
+pub fn emit_break(instructions: &mut Instructions, state: &mut EmissionState) {
     state
         .enclosing_loop_end_placeholders
-        .push(emitter.emit_jump(Opcode::Jump));
+        .push(instructions.emit_jump(Opcode::Jump));
 }

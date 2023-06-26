@@ -12,36 +12,38 @@ pub(crate) fn emit_primitive_op(
     native: NativeId,
     callee: &TypedExpr,
     args: &[TypedExpr],
-    emitter: &mut Instructions,
+    instructions: &mut Instructions,
     typing: &Typing,
     engine: &Engine,
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
     let last = state.use_values(true);
-    emit(callee, emitter, typing, engine, cp, state);
+    emit(callee, instructions, typing, engine, cp, state);
     state.use_values(last);
 
-    //set this to false if the emitted code does not pushes a q_word value.
-    let mut q_word_pushed = true;
+    // The opcode to emit if state.use_value is set to false.
+    // defaults to PopQWord but you may want to set it to other variants
+    // if the resulting value is anything but an 8 byte value
+    let mut pop_opcode = Opcode::PopQWord;
 
     match native.0 {
         0 => {
             // ExitCode -> Bool
-            emitter.emit_bool_inversion();
-            q_word_pushed = false
+            instructions.emit_bool_inversion();
+            pop_opcode = Opcode::PopByte;
         }
         1..=9 => {
             // Arithmetic expression
             emit(
                 args.get(0).expect("A binary expression takes two operands"),
-                emitter,
+                instructions,
                 typing,
                 engine,
                 cp,
                 state,
             );
-            emitter.emit_code(match native.0 {
+            instructions.emit_code(match native.0 {
                 1 => Opcode::IntAdd,
                 2 => Opcode::FloatAdd,
                 3 => Opcode::IntSub,
@@ -56,14 +58,14 @@ pub(crate) fn emit_primitive_op(
         }
         10 => {
             // !bool
-            emitter.emit_bool_inversion();
-            q_word_pushed = false
+            instructions.emit_bool_inversion();
+            pop_opcode = Opcode::PopByte;
         }
         11..=26 => {
             // Comparison expression
             emit(
                 args.get(0).expect("A comparison takes two operands"),
-                emitter,
+                instructions,
                 typing,
                 engine,
                 cp,
@@ -73,44 +75,44 @@ pub(crate) fn emit_primitive_op(
             match native.0 {
                 11 => {
                     // bool == bool
-                    emitter.emit_code(Opcode::ByteEqual);
-                    q_word_pushed = false;
+                    instructions.emit_code(Opcode::ByteEqual);
+                    pop_opcode = Opcode::PopByte;
                 }
                 12 => {
                     // bool != bool
-                    emitter.emit_code(Opcode::ByteEqual);
-                    emitter.emit_bool_inversion();
-                    q_word_pushed = false;
+                    instructions.emit_code(Opcode::ByteEqual);
+                    instructions.emit_bool_inversion();
+                    pop_opcode = Opcode::PopByte;
                 }
                 13 => {
                     // String == String
-                    emitter.emit_code(Opcode::StringEqual);
+                    instructions.emit_code(Opcode::StringEqual);
                 }
                 14 => {
                     // String != String
-                    emitter.emit_code(Opcode::StringEqual);
-                    emitter.emit_bool_inversion();
+                    instructions.emit_code(Opcode::StringEqual);
+                    instructions.emit_bool_inversion();
                 }
-                15 => emitter.emit_code(Opcode::IntEqual),
+                15 => instructions.emit_code(Opcode::IntEqual),
                 16 => {
                     // Int != Int
-                    emitter.emit_code(Opcode::IntEqual);
-                    emitter.emit_bool_inversion();
+                    instructions.emit_code(Opcode::IntEqual);
+                    instructions.emit_bool_inversion();
                 }
-                17 => emitter.emit_code(Opcode::IntLessThan),
-                18 => emitter.emit_code(Opcode::IntLessOrEqual),
-                19 => emitter.emit_code(Opcode::IntGreaterThan),
-                20 => emitter.emit_code(Opcode::IntGreaterOrEqual),
-                21 => emitter.emit_code(Opcode::FloatEqual),
+                17 => instructions.emit_code(Opcode::IntLessThan),
+                18 => instructions.emit_code(Opcode::IntLessOrEqual),
+                19 => instructions.emit_code(Opcode::IntGreaterThan),
+                20 => instructions.emit_code(Opcode::IntGreaterOrEqual),
+                21 => instructions.emit_code(Opcode::FloatEqual),
                 22 => {
                     // Float != Float
-                    emitter.emit_code(Opcode::FloatEqual);
-                    emitter.emit_bool_inversion();
+                    instructions.emit_code(Opcode::FloatEqual);
+                    instructions.emit_bool_inversion();
                 }
-                23 => emitter.emit_code(Opcode::FloatLessThan),
-                24 => emitter.emit_code(Opcode::FloatLessOrEqual),
-                25 => emitter.emit_code(Opcode::FloatGreaterThan),
-                26 => emitter.emit_code(Opcode::FloatGreaterOrEqual),
+                23 => instructions.emit_code(Opcode::FloatLessThan),
+                24 => instructions.emit_code(Opcode::FloatLessOrEqual),
+                25 => instructions.emit_code(Opcode::FloatGreaterThan),
+                26 => instructions.emit_code(Opcode::FloatGreaterOrEqual),
                 _ => unreachable!("Not a comparison expression"),
             }
         }
@@ -124,47 +126,43 @@ pub(crate) fn emit_primitive_op(
             // }
             let true_string = cp.insert_string("true");
             let false_string = cp.insert_string("false");
-            let jump_to_else = emitter.emit_jump(Opcode::IfNotJump);
-            emitter.bytecode.emit_constant_ref(true_string);
-            let jump_to_end = emitter.emit_jump(Opcode::Jump);
-            emitter.patch_jump(jump_to_else);
-            emitter.bytecode.emit_constant_ref(false_string);
-            emitter.patch_jump(jump_to_end);
+            let jump_to_else = instructions.emit_jump(Opcode::IfNotJump);
+            instructions.emit_push_constant_ref(true_string);
+            let jump_to_end = instructions.emit_jump(Opcode::Jump);
+            instructions.patch_jump(jump_to_else);
+            instructions.emit_push_constant_ref(false_string);
+            instructions.patch_jump(jump_to_end);
         }
         28 => {
             // ExitCode -> String
-            emitter.emit_code(Opcode::ConvertByteToInt);
-            emitter.emit_code(Opcode::ConvertIntToStr);
+            instructions.emit_code(Opcode::ConvertByteToInt);
+            instructions.emit_code(Opcode::ConvertIntToStr);
         }
         29 => {
             // Int -> String
-            emitter.emit_code(Opcode::ConvertIntToStr);
+            instructions.emit_code(Opcode::ConvertIntToStr);
         }
         30 => {
             // Float -> String
-            emitter.emit_code(Opcode::ConvertFloatToStr);
+            instructions.emit_code(Opcode::ConvertFloatToStr);
         }
         33 => {
             // String + String -> String
             emit(
                 args.get(0)
                     .expect("Cannot concatenate a string without a second string"),
-                emitter,
+                instructions,
                 typing,
                 engine,
                 cp,
                 state,
             );
-            emitter.emit_code(Opcode::Concat);
+            instructions.emit_code(Opcode::Concat);
         }
         id => todo!("Native function with id {id}"),
     };
 
     if !state.use_values {
-        if q_word_pushed {
-            emitter.emit_pop_q_word()
-        } else {
-            emitter.emit_pop_byte()
-        }
+        instructions.emit_code(pop_opcode);
     }
 }

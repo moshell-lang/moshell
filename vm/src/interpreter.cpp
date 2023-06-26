@@ -2,25 +2,27 @@
 #include "conversions.h"
 #include "memory/call_stack.h"
 #include "memory/operand_stack.h"
+#include "memory/strings.h"
 #include "vm.h"
 
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 #include <memory>
 #include <sys/wait.h>
 #include <unistd.h>
 
 enum Opcode {
-    OP_PUSH_INT,     // with 8 byte int value, pushes an int onto the operand stack
+    OP_PUSH_INT,    // with 8 byte int value, pushes an int onto the operand stack
     OP_PUSH_BYTE,   // with 1 byte value, pushes a byte onto the operand stack
     OP_PUSH_FLOAT,  // with 8 byte float value, pushes a float onto the operand stack
-    OP_PUSH_STRING, // with 8 byte string index in constant pool, pushes a string ref onto the operand stack
+    OP_PUSH_STRING, // with 8 byte string index in constant pool, pushes a string slice onto the operand stack
 
-    OP_GET_WORD,   // with 1 byte local index, pushes given local value onto the operand stack
-    OP_SET_WORD,   // with 1 byte local index, pushes given local value onto the operand stack
+    OP_GET_BYTE,   // with 1 byte local index, pushes given local value onto the operand stack
+    OP_SET_BYTE,   // with 1 byte local index, set given local value from value popped from the operand stack
     OP_GET_Q_WORD, // with 1 byte local index, pushes given local value onto the operand stack
     OP_SET_Q_WORD, // with 1 byte local index, set given local value from value popped from the operand stack
+    OP_GET_REF,    // with 1 byte local index, pushes given local value onto the operand stack
+    OP_SET_REF,    // with 1 byte local index, set given local value from value popped from the operand stack
 
     OP_SPAWN,  // with 1 byte stack size for process exec(), pushes process exit status onto the operand stack
     OP_INVOKE, // with 4 byte function signature ref in constant pool, pops parameters from operands then pushes invoked function return in operand stack (if non-void)
@@ -65,7 +67,28 @@ enum Opcode {
     OP_FLOAT_GE, // pops two floats, checks if the first is greater than or equal to the second, and pushes the resulting byte
 };
 
-void spawn_process(OperandStack &operands, int frame_size) {
+/// contains values needed during runtime interpretation
+struct runtime_state {
+    /// strings heap space
+    strings_t &strings;
+
+    /// loaded function definitions, bound with their signature index in constant pool
+    const std::unordered_map<constant_index, function_definition> functions;
+
+    /// The used constant pool
+    const ConstantPool pool;
+};
+
+/**
+ * Spawn a new process inside a fork, and wait for its exit status.
+ * Will pop from `operand` stack `frame_size` string references elements.
+ * where the last popped operand element is the process path.
+ * The resulting exitcode status of the child is pushed in the operands stack
+ *
+ * @param operands the operands to pop arguments / push result
+ * @param frame_size number of arguments to pop from the operands, including
+ * */
+void spawn_process(OperandStack &operands, uint8_t frame_size) {
     // Create argv of the given frame_size, and create a new string for each arg with a null byte after each string
     std::vector<std::unique_ptr<char[]>> argv(frame_size + 1);
     for (int i = frame_size - 1; i >= 0; i--) {
@@ -121,7 +144,7 @@ inline int64_t apply_arithmetic(Opcode code, int64_t a, int64_t b) {
     case OP_INT_MOD:
         return a % b;
     default:
-        throw std::invalid_argument("Unknown opcode");
+        throw InvalidBytecodeError("Unknown opcode");
     }
 }
 
@@ -143,7 +166,7 @@ inline double apply_arithmetic(Opcode code, double a, double b) {
     case OP_FLOAT_DIV:
         return a / b;
     default:
-        throw std::invalid_argument("Unknown opcode");
+        throw InvalidBytecodeError("Unknown opcode");
     }
 }
 
@@ -167,7 +190,7 @@ inline bool apply_comparison(Opcode code, int64_t a, int64_t b) {
     case OP_INT_LE:
         return a <= b;
     default:
-        throw std::invalid_argument("Unknown opcode");
+        throw InvalidBytecodeError("Unknown opcode");
     }
 }
 
@@ -191,7 +214,7 @@ inline bool apply_comparison(Opcode code, double a, double b) {
     case OP_FLOAT_LE:
         return a <= b;
     default:
-        throw std::invalid_argument("Unknown opcode");
+        throw InvalidBytecodeError("Unknown opcode");
     }
 }
 
@@ -209,7 +232,7 @@ inline bool apply_comparison(Opcode code, char a, char b) {
     case OP_BYTE_XOR:
         return a ^ b;
     default:
-        throw std::invalid_argument("Unknown opcode");
+        throw InvalidBytecodeError("Unknown opcode");
     }
 }
 
@@ -226,7 +249,7 @@ void push_function_invocation(constant_index callee_signature_idx,
     Locals callee_locals = callee_frame.locals;
 
     // check parameters and transfer them to callee's locals;
-    for (size_t i = 0; i < callee_signature.params.size(); i++) {
+    for (int i = callee_signature.params.size() - 1; i >= 0; i--) {
         Type param_type = callee_signature.params[i];
 
         switch (param_type) {
@@ -255,8 +278,11 @@ void push_function_invocation(constant_index callee_signature_idx,
     }
 }
 
-/// returns true if this frame has returned
-bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, const char *instructions, size_t instruction_count) {
+/**
+ * Will run a frame until it returns or pushes a new method inside the call_stack
+ * @return true if this function returned because the current frame has ended, or false if it returned because it pushed a new frame
+ * */
+bool run_frame(runtime_state& state, stack_frame &frame, CallStack &call_stack, const char *instructions, size_t instruction_count) {
     const ConstantPool &pool = state.pool;
 
     // the instruction pointer
@@ -286,7 +312,7 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
         case OP_PUSH_FLOAT: {
             // Read the 8 byte float value
             int64_t value = ntohl(*(int64_t *)(instructions + ip));
-            ip++;
+            ip += 8;
             // Push the value onto the stack
             operands.push_double(reinterpret_cast<double &>(value));
             break;
@@ -304,8 +330,9 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
         }
         case OP_SPAWN: {
             // Read the 1 byte stack size
-            char frame_size = instructions[ip++];
-            spawn_process(operands,  frame_size);
+            char frame_size = instructions[ip];
+            ip++;
+            spawn_process(operands, frame_size);
             break;
         }
         case OP_INVOKE: {
@@ -315,23 +342,24 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
             push_function_invocation(signature_idx, state, operands, call_stack);
             return false; // terminate this frame run
         }
-        case OP_GET_WORD: {
+        case OP_GET_BYTE: {
             // Read the 1 byte local local_index
             uint32_t local_index = ntohl(*(uint32_t *)(instructions + ip));
-            ip++;
+            ip += 4;
             char value = locals.get_byte(local_index);
             // Push the local onto the stack
             operands.push_byte(value);
             break;
         }
-        case OP_SET_WORD: {
+        case OP_SET_BYTE: {
             // Read the 1 byte local index
             uint32_t index = ntohl(*(uint32_t *)(instructions + ip));
-            ip++;
+            ip += 4;
             // Pop the value from the stack
             char value = operands.pop_byte();
             // Set the local
             locals.set_byte(value, index);
+            break;
         }
         case OP_GET_Q_WORD: {
             // Read the 1 byte local local_index
@@ -352,10 +380,28 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
             locals.set_int(value, index);
             break;
         }
+        case OP_GET_REF: {
+            // Read the 1 byte local local_index
+            uint32_t local_index = ntohl(*(uint32_t *)(instructions + ip));
+            ip += 4;
+            int64_t value = locals.get_ref(local_index);
+            // Push the local onto the stack
+            operands.push_reference(value);
+            break;
+        }
+        case OP_SET_REF: {
+            // Read the 1 byte local index
+            uint32_t index = ntohl(*(uint32_t *)(instructions + ip));
+            ip += 4;
+            // Pop the value from the stack
+            uintptr_t value = operands.pop_reference();
+            // Set the local
+            locals.set_ref(value, index);
+            break;
+        }
         case OP_BYTE_TO_INT: {
             char value = operands.pop_byte();
             operands.push_int(value);
-            ip++;
             break;
         }
         case OP_INT_TO_STR: {
@@ -474,7 +520,7 @@ bool run_frame(runtime_state state, stack_frame &frame, CallStack &call_stack, c
             break;
         }
         default: {
-            throw std::invalid_argument(("Unknown opcode " + std::to_string(opcode)).c_str());
+            throw InvalidBytecodeError("Unknown opcode " + std::to_string(opcode));
         }
         }
     }
@@ -506,7 +552,12 @@ void handle_frame_return(Type return_type,
     }
 }
 
-int run(runtime_state state, constant_index root_def_idx) {
+/**
+ * runs the interpreter, where the first function to be executed
+ * is the given definition from state functions
+ * */
+void run(runtime_state& state, constant_index root_def_idx) {
+    // prepare the call stack, containing the given root function on top of the stack
     const function_definition &root_def = state.functions.at(root_def_idx);
     CallStack call_stack = CallStack::create(10000, root_def, root_def_idx);
 
@@ -530,11 +581,9 @@ int run(runtime_state state, constant_index root_def_idx) {
             handle_frame_return(fs.return_type, caller_frame.operands, current_frame.operands);
         }
     }
-
-    return 0;
 }
 
-int run_module(const module_definition &module_def, strings_t &strings) {
+void run_module(const module_definition &module_def, strings_t &strings) {
 
     const ConstantPool &pool = module_def.pool;
 
@@ -547,9 +596,10 @@ int run_module(const module_definition &module_def, strings_t &strings) {
         if (signature.name == "<main>" && signature.params.empty()) {
             runtime_state state{strings, module_def.functions, pool};
 
-            return run(state, signature_id);
+            run(state, signature_id);
+            return;
         }
     }
 
-    throw InvalidModuleDescription("Module does not contains any main function");
+    throw InvalidModuleDescription("Module does not contains any `<main>()` function");
 }

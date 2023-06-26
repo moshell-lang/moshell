@@ -677,7 +677,7 @@ fn ascribe_if(
         diagnostics,
         env,
         &block.condition,
-        state.with_local_type(),
+        state,
     );
     let condition = coerce_condition(condition, exploration, state, diagnostics);
     let mut then = ascribe_types(

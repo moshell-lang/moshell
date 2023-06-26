@@ -15,7 +15,7 @@ mod invoke;
 mod jump;
 mod native;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct EmissionState {
     // the start instruction position of the enclosing loop
     // set to 0 if there is no loop
@@ -47,27 +47,27 @@ impl EmissionState {
     }
 }
 
-fn emit_literal(literal: &LiteralValue, emitter: &mut Instructions, cp: &mut ConstantPool) {
+fn emit_literal(literal: &LiteralValue, instructions: &mut Instructions, cp: &mut ConstantPool) {
     match literal {
         LiteralValue::String(string) => {
             let str_ref = cp.insert_string(string);
-            emitter.emit_push_string_constant(str_ref);
+            instructions.emit_push_constant_ref(str_ref);
         }
         LiteralValue::Int(integer) => {
-            emitter.emit_push_int(*integer);
+            instructions.emit_push_int(*integer);
         }
         LiteralValue::Float(f) => {
-            emitter.emit_push_float(*f);
+            instructions.emit_push_float(*f);
         }
         LiteralValue::Bool(b) => {
-            emitter.emit_push_byte(*b as u8);
+            instructions.emit_push_byte(*b as u8);
         }
     }
 }
 
-fn emit_ref(symbol: &Symbol, ref_type: TypeId, emitter: &mut Instructions) {
+fn emit_ref(symbol: &Symbol, ref_type: TypeId, instructions: &mut Instructions) {
     match symbol {
-        Symbol::Local(id) => emitter.emit_get_local(id.0 as u32, ref_type),
+        Symbol::Local(id) => instructions.emit_get_local(id.0 as u32, ref_type),
         _ => todo!(),
     }
 }
@@ -141,7 +141,9 @@ fn emit_return(
     state: &mut EmissionState,
 ) {
     if let Some(value) = &value {
+        let last = state.use_values(true);
         emit(value, instructions, typing, engine, cp, state);
+        state.use_values(last);
     }
     instructions.emit_code(Opcode::Return);
 }

@@ -1,7 +1,7 @@
 #include "errors.h"
 
-VirtualMachineError::VirtualMachineError(const char *msg) : msg{msg} {}
+VirtualMachineError::VirtualMachineError(std::string msg) : msg{msg} {}
 const char *VirtualMachineError::what() const noexcept {
-    return msg;
+    return msg.c_str();
 }
 

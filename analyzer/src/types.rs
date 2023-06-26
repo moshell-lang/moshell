@@ -60,7 +60,7 @@ impl Typing {
             return Ok(assign_to);
         }
 
-        // apply the `A U Nothing <=> A` rule
+        // apply the `A U Nothing => A` rule
         if *lhs == Type::Nothing {
             return Ok(rvalue);
         }

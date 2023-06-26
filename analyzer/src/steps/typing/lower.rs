@@ -63,7 +63,7 @@ pub(super) fn call_convert_on(
                     DiagnosticID::UnknownMethod,
                     state.source,
                     format!(
-                        "No conversion defined for type `{}`",
+                        "No conversion method defined for type `{}`",
                         typing.get_type(into).unwrap()
                     ),
                 )
