@@ -26,16 +26,20 @@ std::unique_ptr<PoolConstantWrappedValue<const std::string *>> read_string(ByteR
 }
 
 ConstantPool load_constant_pool(ByteReader &reader, strings_t &strings) {
-    // Read the number of strings on a single byte
-    char count = reader.read<char>();
+    try {
+        // Read the number of strings on a single byte
+        char count = reader.read<char>();
 
-    ConstantPool pool(count);
-    // Read each constant and store them in the constant pool
-    for (int i = 0; i < count; i++) {
-        std::unique_ptr<const PoolConstantValue> value = read_string(reader, strings);
-        pool.constants[i] = std::move(value);
+        ConstantPool pool(count);
+        // Read each constant and store them in the constant pool
+        for (int i = 0; i < count; i++) {
+            std::unique_ptr<const PoolConstantValue> value = read_string(reader, strings);
+            pool.constants[i] = std::move(value);
+        }
+        return pool;
+    } catch (std::out_of_range e) {
+        throw InvalidBytecodeError("Error when reading module bytecode: " + std::string(e.what()));
     }
-    return pool;
 }
 
 template <typename T>

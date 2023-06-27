@@ -68,5 +68,6 @@ public:
  * loads constant pool from given byte reader
  * @param reader the byte reader to read
  * @param strings all the read string constants are interned inside this `strings_t` argument
+ * @throws InvalidBytecodeError if the reader reaches end of stream while reading the constant pool
  * */
 ConstantPool load_constant_pool(ByteReader& reader, strings_t& strings);
