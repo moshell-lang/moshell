@@ -71,7 +71,7 @@ fn emit_literal(literal: &LiteralValue, emitter: &mut Bytecode, cp: &mut Constan
 
 fn emit_ref(symbol: &Symbol, ref_type: TypeId, emitter: &mut Bytecode) {
     match symbol {
-        Symbol::Local(id) => emitter.emit_get_local(id.0 as u8, ref_type),
+        Symbol::Local(id) => emitter.emit_get_local(*id, ref_type.into()),
         _ => todo!(),
     }
 }
@@ -121,7 +121,7 @@ fn emit_assignment(
     state.use_values(last);
 
     match identifier {
-        Symbol::Local(id) => emitter.emit_set_local(id.0 as u8, value.ty),
+        Symbol::Local(id) => emitter.emit_set_local(id, value.ty.into()),
         Symbol::External(_) => {
             unimplemented!("External variable assignations are not implemented yet")
         }

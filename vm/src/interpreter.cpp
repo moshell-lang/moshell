@@ -399,8 +399,8 @@ void run(const ConstantPool &pool, const char *bytes, size_t size, strings_t &st
             break;
         }
         case OP_STR_EQ: {
-            const std::string &b = *(std::string *)stack.pop_reference();
-            const std::string &a = *(std::string *)stack.pop_reference();
+            const std::string &b = *(const std::string *)stack.pop_reference();
+            const std::string &a = *(const std::string *)stack.pop_reference();
             stack.push_byte(a == b);
             ip++;
             break;

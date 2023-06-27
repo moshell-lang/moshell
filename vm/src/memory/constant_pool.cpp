@@ -15,12 +15,12 @@ public:
 
 std::unique_ptr<PoolConstantWrappedValue<const std::string *>> read_string(ByteReader &reader, strings_t &strings) {
     // Read the length
-    size_t length = ntohl(reader.read<size_t>());
+    uint64_t length = ntohl(reader.read<uint64_t>());
 
     // Allocate the string
     std::string str(reader.read_n<char>(length), length);
 
-    auto [str_it, _] = strings.insert(std::make_unique<std::string>(str));
+    auto [str_it, _] = strings.insert(std::make_unique<std::string>(std::move(str)));
     const std::string *pool_str = str_it->get();
     return std::make_unique<PoolConstantWrappedValue<const std::string *>>(PoolConstantWrappedValue(C_STR, pool_str));
 }

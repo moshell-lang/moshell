@@ -11,7 +11,7 @@ class VirtualMachineError: public std::exception {
 public:
     explicit VirtualMachineError(std::string msg);
 
-    const char *what() const _GLIBCXX_TXN_SAFE_DYN _GLIBCXX_NOTHROW override;
+    [[nodiscard]] const char *what() const noexcept override;
 };
 
 /**
