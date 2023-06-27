@@ -191,6 +191,7 @@ impl<'a> Parser<'a> {
             If => self.parse_if(Parser::statement).map(Expr::If),
             Match => self.parse_match(Parser::statement).map(Expr::Match),
             Identifier | Quote | DoubleQuote => self.any_call(),
+            Not => self.not(Self::next_expression_statement),
 
             _ if pivot.is_bin_operator() => self.call(),
 
@@ -219,7 +220,7 @@ impl<'a> Parser<'a> {
             }
             Return => self.parse_return().map(Expr::Return),
 
-            Not => self.not(Parser::next_expression_statement),
+            Not => self.not(Parser::expression),
 
             _ => self.next_value(),
         }
