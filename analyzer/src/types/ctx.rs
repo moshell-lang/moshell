@@ -1,6 +1,6 @@
 use crate::relations::{LocalId, Relations, SourceId, Symbol};
 use crate::types::hir::TypeId;
-use crate::types::{BOOL, FLOAT, INT, NOTHING, STRING};
+use crate::types::{BOOL, EXIT_CODE, FLOAT, INT, NOTHING, STRING};
 use std::collections::HashMap;
 
 /// Holds the symbol to type mapping.
@@ -18,6 +18,7 @@ impl TypeContext {
             names: HashMap::from([
                 ("Nothing".to_owned(), NOTHING),
                 ("Bool".to_owned(), BOOL),
+                ("Exitcode".to_owned(), EXIT_CODE),
                 ("Int".to_owned(), INT),
                 ("Float".to_owned(), FLOAT),
                 ("String".to_owned(), STRING),

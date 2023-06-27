@@ -10,6 +10,7 @@ use crate::emit::{emit, EmissionState};
 pub mod bytecode;
 mod constant_pool;
 mod emit;
+mod r#type;
 
 pub fn compile(expr: &TypedExpr, writer: &mut impl Write) -> Result<(), io::Error> {
     let mut emitter = Bytecode::default();

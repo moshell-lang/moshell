@@ -1,8 +1,8 @@
 use analyzer::relations::{Definition, Symbol};
-use analyzer::types::hir::{Assignment, Declaration, ExprKind, TypedExpr};
+use analyzer::types::hir::{Declaration, ExprKind, TypedExpr, TypeId};
 use ast::value::LiteralValue;
 
-use crate::bytecode::{Bytecode, Opcode};
+use crate::bytecode::{Bytecode};
 use crate::constant_pool::ConstantPool;
 use crate::emit::invoke::emit_process_call;
 use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
@@ -54,7 +54,7 @@ impl EmissionState {
 fn emit_literal(literal: &LiteralValue, emitter: &mut Bytecode, cp: &mut ConstantPool) {
     match literal {
         LiteralValue::String(string) => {
-            let str_ref = cp.insert_string(string.clone());
+            let str_ref = cp.insert_string(string);
             emitter.emit_string_constant_ref(str_ref);
         }
         LiteralValue::Int(integer) => {
@@ -69,9 +69,9 @@ fn emit_literal(literal: &LiteralValue, emitter: &mut Bytecode, cp: &mut Constan
     }
 }
 
-fn emit_ref(symbol: &Symbol, emitter: &mut Bytecode) {
+fn emit_ref(symbol: &Symbol, ref_type: TypeId, emitter: &mut Bytecode) {
     match symbol {
-        Symbol::Local(id) => emitter.emit_get_local(id.0 as u8),
+        Symbol::Local(id) => emitter.emit_get_local(id.0 as u8, ref_type),
         _ => todo!(),
     }
 }
@@ -83,12 +83,13 @@ fn emit_declaration(
     state: &mut EmissionState,
 ) {
     if let Some(value) = &declaration.value {
-        let last = state.use_values(true);
-        emit(value, emitter, cp, state);
-        state.use_values(last);
-
-        emitter.emit_code(Opcode::SetLocal);
-        emitter.bytes.push(declaration.identifier.0 as u8);
+        emit_assignment(
+            value,
+            Symbol::Local(declaration.identifier),
+            emitter,
+            cp,
+            state,
+        )
     }
 }
 
@@ -109,22 +110,24 @@ fn emit_block(
 }
 
 fn emit_assignment(
-    assignment: &Assignment,
+    value: &TypedExpr,
+    identifier: Symbol,
     emitter: &mut Bytecode,
     cp: &mut ConstantPool,
     state: &mut EmissionState,
 ) {
     let last = state.use_values(true);
-    emit(&assignment.rhs, emitter, cp, state);
+    emit(&value, emitter, cp, state);
     state.use_values(last);
 
-    match assignment.identifier {
-        Symbol::Local(id) => emitter.emit_set_local(id.0 as u8),
+    match identifier {
+        Symbol::Local(id) => emitter.emit_set_local(id.0 as u8, value.ty),
         Symbol::External(_) => {
             unimplemented!("External variable assignations are not implemented yet")
         }
     }
 }
+
 
 pub fn emit(
     expr: &TypedExpr,
@@ -139,11 +142,11 @@ pub fn emit(
         ExprKind::ConditionalLoop(l) => emit_loop(l, emitter, cp, state),
         ExprKind::Continue => emit_continue(emitter, state),
         ExprKind::Break => emit_break(emitter, state),
-        ExprKind::Assign(ass) => emit_assignment(ass, emitter, cp, state),
+        ExprKind::Assign(ass) => emit_assignment(&ass.rhs, ass.identifier, emitter, cp, state),
         ExprKind::Reference(r) => {
             // if the reference's value is not used, then simply do not emit it
             if state.use_values {
-                emit_ref(r, emitter)
+                emit_ref(r, expr.ty, emitter)
             }
         }
         ExprKind::Literal(literal) => {

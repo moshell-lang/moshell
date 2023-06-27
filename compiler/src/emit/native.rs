@@ -104,8 +104,8 @@ pub(crate) fn emit_primitive_op(
             // } else {
             //     "false"
             // }
-            let true_string = cp.insert_string("true".to_owned());
-            let false_string = cp.insert_string("false".to_owned());
+            let true_string = cp.insert_string("true");
+            let false_string = cp.insert_string("false");
             let jump_to_else = emitter.emit_jump(Opcode::IfNotJump);
             emitter.emit_string_constant_ref(true_string);
             let jump_to_end = emitter.emit_jump(Opcode::Jump);
