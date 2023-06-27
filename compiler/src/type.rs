@@ -1,5 +1,5 @@
-use analyzer::types::*;
 use analyzer::types::hir::TypeId;
+use analyzer::types::*;
 
 /// returns the size of a given type identifier
 pub fn get_type_size(tpe: TypeId) -> TypeSize {
@@ -17,7 +17,7 @@ pub enum TypeSize {
     Zero,
     Byte,
     QWord,
-    Reference
+    Reference,
 }
 
 impl From<TypeId> for TypeSize {

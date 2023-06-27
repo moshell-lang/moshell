@@ -1,8 +1,8 @@
 use analyzer::relations::{Definition, Symbol};
-use analyzer::types::hir::{Declaration, ExprKind, TypedExpr, TypeId};
+use analyzer::types::hir::{Declaration, ExprKind, TypeId, TypedExpr};
 use ast::value::LiteralValue;
 
-use crate::bytecode::{Bytecode};
+use crate::bytecode::Bytecode;
 use crate::constant_pool::ConstantPool;
 use crate::emit::invoke::emit_process_call;
 use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
@@ -117,7 +117,7 @@ fn emit_assignment(
     state: &mut EmissionState,
 ) {
     let last = state.use_values(true);
-    emit(&value, emitter, cp, state);
+    emit(value, emitter, cp, state);
     state.use_values(last);
 
     match identifier {
@@ -127,7 +127,6 @@ fn emit_assignment(
         }
     }
 }
-
 
 pub fn emit(
     expr: &TypedExpr,
