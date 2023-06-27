@@ -66,6 +66,8 @@ pub enum TokenType {
     Match,
     #[assoc(str = "as")]
     As,
+    #[assoc(str = "dyn")]
+    Dyn,
 
     #[assoc(str = "continue")]
     Continue,

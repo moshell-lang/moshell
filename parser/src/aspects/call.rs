@@ -25,6 +25,9 @@ pub trait CallAspect<'a> {
     /// Parses a raw call, a programmatic call or a lambda definition.
     fn any_call(&mut self) -> ParseResult<Expr<'a>>;
 
+    /// Parses a process call where the command name is only known at runtime.
+    fn dyn_call(&mut self) -> ParseResult<Expr<'a>>;
+
     /// Attempts to parse the next raw call expression
     fn call(&mut self) -> ParseResult<Expr<'a>>;
 
@@ -107,6 +110,12 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         } else {
             self.call_arguments(path, callee, type_parameters)
         }
+    }
+
+    fn dyn_call(&mut self) -> ParseResult<Expr<'a>> {
+        self.cursor
+            .force(of_type(TokenType::Dyn), "Expected 'dyn' keyword.")?;
+        self.call()
     }
 
     fn call(&mut self) -> ParseResult<Expr<'a>> {

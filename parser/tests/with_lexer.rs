@@ -56,7 +56,7 @@ fn with_lexer_var_reference_one() {
 
 #[test]
 fn with_lexer_var_reference_two() {
-    let source = Source::unknown("\"fake$cmd\" do $arg2");
+    let source = Source::unknown("dyn \"fake$cmd\" do $arg2");
     let parsed = parse(source).expect("Failed to parse");
 
     assert_eq!(

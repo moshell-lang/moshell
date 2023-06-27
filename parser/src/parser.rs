@@ -190,7 +190,8 @@ impl<'a> Parser<'a> {
         let expr = match pivot {
             If => self.parse_if(Parser::statement).map(Expr::If),
             Match => self.parse_match(Parser::statement).map(Expr::Match),
-            Identifier | Quote | DoubleQuote => self.any_call(),
+            Identifier => self.any_call(),
+            Dyn => self.dyn_call(),
             Not => self.not(Self::next_expression_statement),
 
             _ if pivot.is_bin_operator() => self.call(),
