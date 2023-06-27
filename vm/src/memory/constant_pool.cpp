@@ -46,7 +46,7 @@ template <typename T>
 const T &ConstantPool::get(constant_index pos, PoolConstantType type, const char *type_name) const {
     const PoolConstantValue *value = constants.at(pos).get();
     if (value->type != type) {
-        throw BadConstantType("attempted to access " + std::string(type_name) + " in constant pool pos index " + std::to_string(pos) + " which is not a string");
+        throw BadConstantType("attempted to access " + std::string(type_name) + " in constant pool at index " + std::to_string(pos) + " which is not a string");
     }
     // we already checked that the constant value is of type PoolConstantWrappedValue<std::string>
     return static_cast<const PoolConstantWrappedValue<T> *>(value)->value;
