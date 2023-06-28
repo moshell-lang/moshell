@@ -1,8 +1,7 @@
 #include "constant_pool.h"
 #include "byte_reader.h"
 #include "conversions.h"
-#include "strings.h"
-#include <vector>
+#include "errors.h"
 
 const std::string *read_string(ByteReader &reader, strings_t &strings) {
     // Read the length
@@ -33,7 +32,7 @@ ConstantPool load_constant_pool(ByteReader &reader, strings_t &strings) {
 }
 
 ConstantPool::ConstantPool(uint32_t size)
-    : constants{static_cast<std::string const **>(malloc(size * sizeof(std::string *)))},
+    : constants{std::make_unique<const std::string*[]>(size)},
       size{size} {}
 
 const std::string &ConstantPool::get_string(constant_index at) const {

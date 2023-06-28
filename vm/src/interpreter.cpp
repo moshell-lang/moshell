@@ -210,8 +210,8 @@ void run(const ConstantPool &pool, const char *bytes, size_t size, strings_t &st
             // Create argv of the given frame_size, and create a new string for each arg with a null byte after each string
             std::vector<std::unique_ptr<char[]>> argv(frame_size + 1);
             for (int i = frame_size - 1; i >= 0; i--) {
-                // pop the string index
-                size_t reference = stack.pop_reference();
+                // Pop the string reference
+                uintptr_t reference = stack.pop_reference();
                 // cast the ref to a string pointer
                 const std::string &arg = *(std::string *)reference;
                 size_t arg_length = arg.length() + 1; // add 1 for the trailing '\0' char
@@ -333,7 +333,7 @@ void run(const ConstantPool &pool, const char *bytes, size_t size, strings_t &st
 
             std::string result = *left + *right;
 
-            auto [it, _] = strings.insert(std::make_unique<std::string>(result));
+            auto [it, _] = strings.insert(std::make_unique<std::string>(std::move(result)));
             stack.push_reference((uintptr_t)it->get());
 
             ip++;

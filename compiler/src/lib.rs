@@ -23,7 +23,7 @@ pub fn compile(expr: &TypedExpr, writer: &mut impl Write) -> Result<(), io::Erro
 fn write(writer: &mut impl Write, emitter: Bytecode, pool: ConstantPool) -> Result<(), io::Error> {
     writer.write_all(
         &u32::try_from(pool.strings.len())
-            .expect("too much strings in constant pool")
+            .expect("too many strings in constant pool")
             .to_be_bytes(),
     )?;
     for constant in pool.strings {

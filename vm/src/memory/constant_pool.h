@@ -1,9 +1,9 @@
 #pragma once
 
-#include "errors.h"
-#include "memory/strings.h"
 #include <memory>
 #include <vector>
+
+#include "memory/strings.h"
 
 class ByteReader;
 
@@ -16,9 +16,11 @@ typedef uint32_t constant_index;
  * Contains the constants defined in a module bytecode.
  * */
 class ConstantPool {
-    /// As the constant pool isn't the owner of its strings,
-    /// The string constants is simply an array of strings pointers
-    std::string const **constants;
+    /**
+     * The constant pool isn't the owner of its strings, so
+     * it is simply an array of string pointers.
+     */
+    std::unique_ptr<const std::string *[]> constants;
     uint32_t size;
 
     explicit ConstantPool(uint32_t size);

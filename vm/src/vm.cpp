@@ -12,7 +12,7 @@ extern "C" void moshell_exec(const char *bytes, size_t byte_count) {
         ConstantPool pool = load_constant_pool(reader, strings);
 
         run(pool, bytes + reader.position(), byte_count - reader.position(), strings);
-    } catch (std::exception e) {
+    } catch (const std::exception &e) {
         std::cerr << e.what() << '\n';
     }
 }
