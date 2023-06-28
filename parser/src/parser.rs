@@ -25,7 +25,7 @@ use crate::cursor::ParserCursor;
 use crate::err::ParseErrorKind::Unexpected;
 use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
 use crate::moves::{
-    any, bin_op, blanks, eox, like, line_end, next, of_type, of_types, repeat, spaces, Move,
+    any, bin_op, blanks, eox, like, line_end, next, not, of_type, of_types, repeat, spaces, Move,
     MoveOperations,
 };
 use ast::range::Iterable;
@@ -52,6 +52,7 @@ macro_rules! non_infix {
             DoubleQuote,
             Comma,
             FatArrow,
+            Ampersand,
         ]))
     };
 }
@@ -190,8 +191,22 @@ impl<'a> Parser<'a> {
             If => self.parse_if(Parser::statement).map(Expr::If),
             Match => self.parse_match(Parser::statement).map(Expr::Match),
             Identifier => self.any_call(),
-            Dyn => self.dyn_call(),
-            Not => self.not(Self::next_expression_statement),
+            Dyn => {
+                self.cursor.next_opt();
+                self.cursor.advance(spaces());
+                if self.cursor.peek().token_type == CurlyLeftBracket {
+                    self.block().map(Expr::Block)
+                } else {
+                    self.any_call()
+                }
+            }
+            Not if self
+                .cursor
+                .lookahead(next().then(spaces().then(of_types(&[RoundedLeftBracket, Identifier]))))
+                .is_some() =>
+            {
+                self.not(Self::next_expression_statement)
+            }
 
             _ if pivot.is_bin_operator() => self.call(),
 
@@ -220,9 +235,7 @@ impl<'a> Parser<'a> {
             }
             Return => self.parse_return().map(Expr::Return),
 
-            Not => self.not(Parser::expression),
-
-            _ => self.next_value(),
+            _ => self.value(),
         }
     }
 
@@ -483,7 +496,11 @@ impl<'a> Parser<'a> {
 
         //now, we know that there is something right after the expression.
         //test if this 'something' is a redirection.
-        if self.cursor.lookahead(bin_op()).is_some() {
+        if self
+            .cursor
+            .lookahead(bin_op().and_then(spaces().then(not(eox()))))
+            .is_some()
+        {
             return self.binary_operation(expr, Parser::next_value);
         }
 

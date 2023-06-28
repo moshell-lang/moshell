@@ -109,7 +109,7 @@ fn what_is_an_import() {
                 kind: ParseErrorKind::Unexpected
             },
             ParseError {
-                message: "invalid expression operator".to_owned(),
+                message: "invalid infix operator".to_owned(),
                 position: content.find('%').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected
             },
@@ -397,25 +397,6 @@ fn expected_value_found_semicolon() {
 }
 
 #[test]
-fn arithmetic_help() {
-    let content = "6 + 3 * 9";
-    let source = Source::unknown(content);
-    let report = parse(source);
-    assert_eq!(
-        report,
-        ParseReport {
-            expr: vec![],
-            errors: vec![ParseError {
-                message: "Binary operations must be enclosed in a value expression.".to_string(),
-                position: 0..content.len(),
-                kind: ParseErrorKind::UnexpectedInContext("$(( 6 + 3 * 9 ))".to_string())
-            }],
-            stack_ended: true,
-        }
-    );
-}
-
-#[test]
 fn for_no_dollar_help() {
     let content = "for $i in 5..9";
     let source = Source::unknown(content);
@@ -501,7 +482,7 @@ fn double_comma_parentheses() {
 
 #[test]
 fn double_comma_function() {
-    let content = "fun foo(a: Int, , b: Int) = $a + $b";
+    let content = "fun foo(a: Int, , b: Int) = $a + $b /";
     let source = Source::unknown(content);
     let report = parse(source);
     assert_eq!(
@@ -515,8 +496,8 @@ fn double_comma_function() {
                     kind: ParseErrorKind::Unexpected
                 },
                 ParseError {
-                    message: "invalid expression operator".to_string(),
-                    position: content.rfind('+').map(|p| p..p + 1).unwrap(),
+                    message: "Expected value".to_string(),
+                    position: content.len()..content.len(),
                     kind: ParseErrorKind::Unexpected
                 }
             ],

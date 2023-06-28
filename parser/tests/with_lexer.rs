@@ -392,7 +392,7 @@ fn pipe_expressions() {
 
 #[test]
 fn pipe_to_command() {
-    let source = Source::unknown("{ echo '1\n2' } | cat");
+    let source = Source::unknown("dyn { echo '1\n2' } | cat");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,

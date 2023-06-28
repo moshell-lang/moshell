@@ -181,7 +181,7 @@ mod test {
 
     #[test]
     fn expr_redirection() {
-        let content = "{ls; cd;} > /tmp/out";
+        let content = "dyn {ls; cd;} > /tmp/out";
         let source = Source::unknown(content);
         let parsed = parse(source).expect("Failed to parse");
         assert_eq!(
