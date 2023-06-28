@@ -32,7 +32,7 @@ pub enum BinaryOperator {
     #[assoc(token = TokenType::And)]
     And,
     /// The '||' operator.
-    #[assoc(priority = -2)]
+    #[assoc(priority = -3)]
     #[assoc(token = TokenType::Or)]
     Or,
 

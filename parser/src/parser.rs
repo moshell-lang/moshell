@@ -120,7 +120,6 @@ impl<'a> Parser<'a> {
         !self.cursor.is_at_end()
     }
 
-    #[inline]
     pub(crate) fn parse_full_expr<P>(&mut self, mut next: P) -> ParseResult<Expr<'a>>
     where
         P: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
@@ -425,7 +424,7 @@ impl<'a> Parser<'a> {
         }
 
         if self.cursor.lookahead(of_types(&[Or, And])).is_some() {
-            return self.binary_operation_right(expr, Parser::next_expression_statement);
+            return self.binary_operation(expr, Parser::next_expression_statement);
         }
 
         //now, we know that there is something right after the expression.
@@ -438,7 +437,7 @@ impl<'a> Parser<'a> {
             if self.cursor.lookahead(bin_op()).is_some() {
                 let start_pos = literal.segment.start;
                 if self
-                    .binary_operation_right(expr.clone(), Parser::next_value)
+                    .binary_operation(expr.clone(), Parser::next_value)
                     .is_ok()
                 {
                     let end_pos = self.cursor.relative_pos(self.cursor.peek()).end;
@@ -485,7 +484,7 @@ impl<'a> Parser<'a> {
         //now, we know that there is something right after the expression.
         //test if this 'something' is a redirection.
         if self.cursor.lookahead(bin_op()).is_some() {
-            return self.binary_operation_right(expr, Parser::next_value);
+            return self.binary_operation(expr, Parser::next_value);
         }
 
         //else, we hit an invalid binary expression.
