@@ -10,11 +10,10 @@ class ByteReader;
 /**
  * Thrown when a module gets invalidated during the loading phase
  * */
-class InvalidModuleDescription: public VirtualMachineError {
+class InvalidModuleDescription : public VirtualMachineError {
 public:
-    explicit InvalidModuleDescription(std::string msg): VirtualMachineError(msg) {}
+    explicit InvalidModuleDescription(std::string msg) : VirtualMachineError(msg) {}
 };
-
 
 struct module_definition {
     /// all the constants used by this module.
@@ -27,4 +26,4 @@ struct module_definition {
 /**
  * Loads a module, assuming that given bytes
  * */
-module_definition load_module(ByteReader& reader, strings_t& strings);
+module_definition load_module(ByteReader &reader, strings_t &strings);

@@ -24,26 +24,27 @@ pub fn transform_to_primitive_type(tpe: &Type, cp: &mut ConstantPool) -> u32 {
 }
 
 /// returns the size of a given type identifier
-pub fn get_type_size(tpe: TypeId) -> TypeSize {
+pub fn get_type_stack_size(tpe: TypeId) -> ValueStackSize {
     match tpe {
-        NOTHING | UNIT => TypeSize::Zero,
-        BOOL | EXIT_CODE => TypeSize::Byte,
-        INT | FLOAT => TypeSize::QWord,
+        NOTHING => ValueStackSize::Zero,
+        BOOL | EXIT_CODE => ValueStackSize::Byte,
+        INT | FLOAT => ValueStackSize::QWord,
         ERROR => panic!("Received 'ERROR' type in compilation phase."),
-        _ => TypeSize::Reference, //other types are object types which are references
+        _ => ValueStackSize::Reference, //other types are object types which are references
     }
 }
 
+/// Different sizes a value can have on the stack.
 #[derive(Copy, Clone, Eq, PartialEq)]
-pub enum TypeSize {
+pub enum ValueStackSize {
     Zero,
     Byte,
     QWord,
-    Reference
+    Reference,
 }
 
-impl From<TypeId> for TypeSize {
+impl From<TypeId> for ValueStackSize {
     fn from(value: TypeId) -> Self {
-        get_type_size(value)
+        get_type_stack_size(value)
     }
 }

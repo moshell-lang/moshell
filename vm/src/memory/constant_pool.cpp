@@ -13,7 +13,7 @@ public:
     explicit PoolConstantWrappedValue(PoolConstantType type, T value) : PoolConstantValue{type}, value{std::move(value)} {}
 };
 
-std::unique_ptr<PoolConstantWrappedValue<const std::string*>> read_string(ByteReader &reader, strings_t &strings) {
+std::unique_ptr<PoolConstantWrappedValue<const std::string *>> read_string(ByteReader &reader, strings_t &strings) {
     // Read the length
     size_t length = ntohl(reader.read<size_t>());
 
@@ -21,8 +21,8 @@ std::unique_ptr<PoolConstantWrappedValue<const std::string*>> read_string(ByteRe
     std::string str(reader.read_n<char>(length), length);
 
     auto [str_it, _] = strings.insert(std::make_unique<std::string>(str));
-    const std::string* pool_str = str_it->get();
-    return std::make_unique<PoolConstantWrappedValue<const std::string*>>(PoolConstantWrappedValue(C_STR, pool_str));
+    const std::string *pool_str = str_it->get();
+    return std::make_unique<PoolConstantWrappedValue<const std::string *>>(PoolConstantWrappedValue(C_STR, pool_str));
 }
 
 std::unique_ptr<PoolConstantWrappedValue<function_signature>> read_signature(ByteReader &reader, ConstantPool &pool) {
@@ -75,7 +75,6 @@ ConstantPool load_constant_pool(ByteReader &reader, strings_t &strings) {
     return pool;
 }
 
-
 template <typename T>
 const T &ConstantPool::get(constant_index pos, PoolConstantType type, const char *type_name) const {
     const PoolConstantValue *value = constants.get()[pos].get();
@@ -90,11 +89,10 @@ ConstantPool::ConstantPool(uint32_t size)
     : constants{std::make_unique<std::unique_ptr<const PoolConstantValue>[]>(size)},
       size{size} {}
 
- const std::string &ConstantPool::get_string(constant_index at) const {
-    return *get<const std::string*>(at, C_STR, "string");
+const std::string &ConstantPool::get_string(constant_index at) const {
+    return *get<const std::string *>(at, C_STR, "string");
 }
 
 const function_signature &ConstantPool::get_signature(constant_index at) const {
     return get<function_signature>(at, C_SIGNATURE, "function signature");
 }
-

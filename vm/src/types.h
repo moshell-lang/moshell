@@ -3,10 +3,9 @@
 #include "errors.h"
 #include <string>
 
-
 class NoSuchTypeError : public VirtualMachineError {
 public:
-    explicit NoSuchTypeError(std::string msg): VirtualMachineError(msg) {}
+    explicit NoSuchTypeError(std::string msg) : VirtualMachineError(msg) {}
 };
 
 enum class Type {
@@ -18,4 +17,4 @@ enum class Type {
     STRING
 };
 
-Type get_type(const std::string_view& name);
+Type get_type(const std::string_view &name);

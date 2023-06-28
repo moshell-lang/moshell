@@ -772,10 +772,9 @@ fn ascribe_call(
         })
         .collect::<Vec<_>>();
 
-    let ty = if state.local_type { EXIT_CODE } else { UNIT };
     TypedExpr {
         kind: ExprKind::ProcessCall(args),
-        ty,
+        ty: EXIT_CODE,
         segment: call.segment(),
     }
 }
@@ -1594,7 +1593,7 @@ mod tests {
                             segment: find_in(content, "4.2"),
                         }
                     ]),
-                    ty: UNIT,
+                    ty: EXIT_CODE,
                     segment: find_in(content, "grep $n 4.2"),
                 }
             ])
@@ -1762,7 +1761,7 @@ mod tests {
     #[test]
     fn condition_invert_command() {
         let res = extract_type(Source::unknown("if ! nginx -t { echo 'invalid config' }"));
-        assert_eq!(res, Ok(Type::Nothing));
+        assert_eq!(res, Ok(Type::Unit));
     }
 
     #[test]

@@ -1,5 +1,5 @@
 use ast::call::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
-use ast::control_flow::While;
+use ast::control_flow::{Loop, While};
 use ast::function::Return;
 use ast::group::{Block, Subshell};
 use ast::substitution::{Substitution, SubstitutionKind};
@@ -440,6 +440,24 @@ fn empty_return() {
         })]
     );
 }
+
+#[test]
+fn loop_assign() {
+    let source = Source::unknown("loop a = 'a'");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Loop(Loop {
+            body: Box::new(Expr::Assign(Assign {
+                name: "a",
+                value: Box::new(literal(source.source, "'a'")),
+                segment: find_in(source.source, "a = 'a'"),
+            })),
+            segment: source.segment(),
+        })]
+    );
+}
+
 #[test]
 fn inner_var_ref() {
     let source = Source::unknown("dest = \"$DEST/shard_$SHARD_NUMBER/$L\"");

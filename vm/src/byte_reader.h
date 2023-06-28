@@ -15,6 +15,10 @@ public:
     ByteReader(const char *bytes, size_t byte_count);
 
     ByteReader(const ByteReader &other) = delete;
+    ByteReader &operator=(const ByteReader &other) = delete;
+
+    /// returns current byte position in given byte array
+    size_t position();
 
     template <typename T>
     T &read() {

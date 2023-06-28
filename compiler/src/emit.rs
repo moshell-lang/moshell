@@ -6,6 +6,7 @@ use analyzer::types::*;
 use ast::value::LiteralValue;
 
 use crate::bytecode::{Instructions, Opcode, Placeholder};
+
 use crate::constant_pool::ConstantPool;
 use crate::emit::invoke::{emit_function_call, emit_process_call};
 use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
@@ -67,7 +68,7 @@ fn emit_literal(literal: &LiteralValue, instructions: &mut Instructions, cp: &mu
 
 fn emit_ref(symbol: &Symbol, ref_type: TypeId, instructions: &mut Instructions) {
     match symbol {
-        Symbol::Local(id) => instructions.emit_get_local(id.0 as u32, ref_type),
+        Symbol::Local(id) => instructions.emit_get_local(*id, ref_type),
         _ => todo!(),
     }
 }
@@ -94,7 +95,7 @@ fn emit_declaration(
 }
 
 fn emit_block(
-    exprs: &Vec<TypedExpr>,
+    exprs: &[TypedExpr],
     instructions: &mut Instructions,
     typing: &Typing,
     engine: &Engine,
@@ -121,11 +122,12 @@ fn emit_assignment(
     state: &mut EmissionState,
 ) {
     let last = state.use_values(true);
-    emit(&value, instructions, typing, engine, cp, state);
+
+    emit(value, instructions, typing, engine, cp, state);
     state.use_values(last);
 
     match identifier {
-        Symbol::Local(id) => instructions.emit_set_local(id.0 as u32, value.ty),
+        Symbol::Local(id) => instructions.emit_set_local(id, value.ty),
         Symbol::External(_) => {
             unimplemented!("External variable assignations are not implemented yet")
         }

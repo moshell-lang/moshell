@@ -1,8 +1,9 @@
 #include "interpreter.h"
 #include "conversions.h"
+
 #include "memory/call_stack.h"
+#include "memory/constant_pool.h"
 #include "memory/operand_stack.h"
-#include "memory/strings.h"
 #include "vm.h"
 
 #include <cstdlib>
@@ -10,6 +11,7 @@
 #include <memory>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <vector>
 
 enum Opcode {
     OP_PUSH_INT,    // with 8 byte int value, pushes an int onto the operand stack
@@ -95,8 +97,8 @@ void spawn_process(OperandStack &operands, uint8_t frame_size) {
         // pop the string index
         size_t reference = operands.pop_reference();
         // cast the ref to a string pointer
-        const std::string &arg = *(std::string*) reference;
-        size_t arg_length = arg.length() + 1; //add 1 for the trailing '\0' char
+        const std::string &arg = *(std::string *)reference;
+        size_t arg_length = arg.length() + 1; // add 1 for the trailing '\0' char
         // Allocate the string
         argv[i] = std::make_unique<char[]>(arg_length);
         // copy the string fata
@@ -282,7 +284,7 @@ void push_function_invocation(constant_index callee_signature_idx,
  * Will run a frame until it returns or pushes a new method inside the call_stack
  * @return true if this function returned because the current frame has ended, or false if it returned because it pushed a new frame
  * */
-bool run_frame(runtime_state& state, stack_frame &frame, CallStack &call_stack, const char *instructions, size_t instruction_count) {
+bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, const char *instructions, size_t instruction_count) {
     const ConstantPool &pool = state.pool;
 
     // the instruction pointer
@@ -294,7 +296,8 @@ bool run_frame(runtime_state& state, stack_frame &frame, CallStack &call_stack, 
         // Read the opcode
         Opcode opcode = static_cast<Opcode>(instructions[ip++]);
         switch (opcode) {
-        case OP_RETURN: return true;
+        case OP_RETURN:
+            return true;
         case OP_PUSH_INT: {
             // Read the 8 byte int value
             int64_t value = ntohl(*(int64_t *)(instructions + ip));
@@ -426,8 +429,8 @@ bool run_frame(runtime_state& state, stack_frame &frame, CallStack &call_stack, 
             break;
         }
         case OP_CONCAT: {
-            auto right = (const std::string *) operands.pop_reference();
-            auto left = (const std::string *) operands.pop_reference();
+            auto right = (const std::string *)operands.pop_reference();
+            auto left = (const std::string *)operands.pop_reference();
 
             std::string result = *left + *right;
 
@@ -492,8 +495,8 @@ bool run_frame(runtime_state& state, stack_frame &frame, CallStack &call_stack, 
             break;
         }
         case OP_STR_EQ: {
-            const std::string &b = *(std::string *)operands.pop_reference();
-            const std::string &a = *(std::string *)operands.pop_reference();
+            const std::string &b = *(const std::string *)operands.pop_reference();
+            const std::string &a = *(const std::string *)operands.pop_reference();
             operands.push_byte(a == b);
             break;
         }
@@ -556,7 +559,7 @@ void handle_frame_return(Type return_type,
  * runs the interpreter, where the first function to be executed
  * is the given definition from state functions
  * */
-void run(runtime_state& state, constant_index root_def_idx) {
+void run(runtime_state &state, constant_index root_def_idx) {
     // prepare the call stack, containing the given root function on top of the stack
     const function_definition &root_def = state.functions.at(root_def_idx);
     CallStack call_stack = CallStack::create(10000, root_def, root_def_idx);

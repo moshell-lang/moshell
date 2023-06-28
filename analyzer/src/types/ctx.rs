@@ -1,6 +1,6 @@
 use crate::relations::{LocalId, Relations, SourceId, Symbol};
 use crate::types::hir::TypeId;
-use crate::types::{BOOL, EXIT_CODE, FLOAT, INT, NOTHING, STRING, UNIT};
+use crate::types::*;
 use std::collections::HashMap;
 
 /// Holds the symbol to type mapping.

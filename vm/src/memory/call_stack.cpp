@@ -18,7 +18,7 @@ CallStack::CallStack(size_t capacity)
 }
 
 inline void check_overflow(size_t capacity, size_t current_pos, const function_definition &callee) {
-    //as the operand stack stack_capacity is the end of the call stack, we do not include it in this check
+    // as the operand stack stack_capacity is the end of the call stack, we do not include it in this check
     size_t total_frame_size = callee.locals_size + sizeof(frame_headers);
     if (current_pos + total_frame_size >= capacity) {
         throw StackOverflowError("Call stack exceeded stack_capacity");
@@ -37,7 +37,7 @@ void CallStack::push_frame(const function_definition &callee, constant_index cal
     char *block = this->block.get();
 
     if (!is_empty()) {
-        frame_headers* previous_frame = (frame_headers *)(block + frame_headers_pos);
+        frame_headers *previous_frame = (frame_headers *)(block + frame_headers_pos);
         pos += previous_frame->operands_pos;
     }
 
@@ -54,7 +54,6 @@ void CallStack::push_frame(const function_definition &callee, constant_index cal
     frame_headers_pos = pos;
 
     pos += sizeof(frame_headers);
-
 }
 
 void CallStack::pop_frame() {
@@ -63,8 +62,8 @@ void CallStack::pop_frame() {
     }
     pos = frame_headers_pos; // go to headers position, this also skips operands according to frame layout
 
-    //retrieve headers
-    const frame_headers* headers = (frame_headers *)(block.get() + pos);
+    // retrieve headers
+    const frame_headers *headers = (frame_headers *)(block.get() + pos);
 
     frame_headers_pos = headers->previous_frame_headers_pos;
     // pop locals
@@ -74,9 +73,9 @@ void CallStack::pop_frame() {
 stack_frame CallStack::peek_frame() const {
     char *block = this->block.get();
 
-    frame_headers* headers = (frame_headers *)(block + frame_headers_pos);
+    frame_headers *headers = (frame_headers *)(block + frame_headers_pos);
 
-    //first byte position of operands
+    // first byte position of operands
     size_t operands_first_byte = frame_headers_pos + sizeof(frame_headers);
     OperandStack frame_operands(block + operands_first_byte, headers->operands_pos, this->capacity - operands_first_byte);
 

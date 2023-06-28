@@ -32,7 +32,7 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
         //then consume eox (if any)
         self.cursor.advance(line_end());
 
-        let body = Box::new(self.expression_statement()?);
+        let body = Box::new(self.statement()?);
         let segment = self.cursor.relative_pos(start).start..body.segment().end;
 
         Ok(While {
@@ -48,7 +48,7 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
             "expected 'loop' at start of loop expression",
         )?;
         self.cursor.advance(blanks());
-        let body = Box::new(self.expression_statement()?);
+        let body = Box::new(self.statement()?);
         let segment = self.cursor.relative_pos(start).start..body.segment().end;
 
         Ok(Loop { body, segment })
@@ -62,7 +62,7 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
         self.cursor.advance(blanks());
         let kind = Box::new(self.parse_for_kind()?);
         self.cursor.advance(line_end());
-        let body = Box::new(self.expression_statement()?);
+        let body = Box::new(self.statement()?);
         let segment = self.cursor.relative_pos(start).start..body.segment().end;
 
         Ok(For {
@@ -331,7 +331,7 @@ mod tests {
         assert_eq!(
             res,
             Err(ParseError {
-                message: "Expected expression statement".to_string(),
+                message: "Expected statement".to_string(),
                 position: content.len()..content.len(),
                 kind: Unexpected,
             })
@@ -630,7 +630,7 @@ mod tests {
         assert_eq!(
             res,
             Err(ParseError {
-                message: "Expected expression statement".to_string(),
+                message: "Expected statement".to_string(),
                 position: content.len()..content.len(),
                 kind: Unexpected,
             })

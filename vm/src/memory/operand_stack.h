@@ -1,16 +1,17 @@
 #pragma once
 
+#include "constant_pool.h"
+#include "errors.h"
 #include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <memory>
 #include <stdexcept>
-#include "constant_pool.h"
 
-struct OperandStackUnderflowError : public std::out_of_range {
+struct OperandStackUnderflowError : public MemoryError {
 
 public:
-    explicit OperandStackUnderflowError(const char *message) : std::out_of_range{message} {}
+    explicit OperandStackUnderflowError(std::string message) : MemoryError{std::move(message)} {}
 };
 
 class OperandStack {

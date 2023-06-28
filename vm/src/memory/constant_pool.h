@@ -8,7 +8,6 @@
 
 class ByteReader;
 
-
 /**
  * defines the type for an index inside the constant pool.
  * */
@@ -32,9 +31,8 @@ public:
 
 class BadConstantType : public MemoryError {
 public:
-    explicit BadConstantType(std::string msg): MemoryError(msg) {}
+    explicit BadConstantType(std::string msg) : MemoryError(msg) {}
 };
-
 
 /**
  * Contains the constants defined in a module bytecode.
@@ -45,7 +43,7 @@ class ConstantPool {
 
     explicit ConstantPool(uint32_t size);
 
-    friend ConstantPool load_constant_pool(ByteReader& reader, strings_t& strings);
+    friend ConstantPool load_constant_pool(ByteReader &reader, strings_t &strings);
     /**
      * get given constant assuming it is of type `T`
      * @param pos the constant's index to get
@@ -55,29 +53,29 @@ class ConstantPool {
      * @returns a reference to the expected value inside the pool
      * */
     template <typename T>
-    const T& get(constant_index pos, PoolConstantType type, const char *type_name) const;
+    const T &get(constant_index pos, PoolConstantType type, const char *type_name) const;
 
 public:
-
     /**
      * get given function signature constant
      * @param at the constant's index to get
      * @throws BadConstantType if the value is not a function signature
      * @returns a constant reference of the function signature inside the pool
      * */
-    const function_signature& get_signature(constant_index at) const;
+    const function_signature &get_signature(constant_index at) const;
     /**
      * get given string constant
      * @param at the constant's index to get
      * @throws BadConstantType if the value is not a string
      * @returns a string slice of the string inside the pool
      * */
-     const std::string& get_string(constant_index at) const;
+    const std::string &get_string(constant_index at) const;
 };
 
 /**
  * loads constant pool from given byte reader
  * @param reader the byte reader to read
  * @param strings all the read string constants are interned inside this `strings_t` argument
- * */
-ConstantPool load_constant_pool(ByteReader& reader, strings_t& strings);
+ * @throws InvalidBytecodeError if the reader reaches end of stream while reading the constant pool
+ */
+ConstantPool load_constant_pool(ByteReader &reader, strings_t &strings);

@@ -2,8 +2,8 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <string>
 #include <errors.h>
+#include <string>
 
 constexpr int LOCAL_CELL_SIZE = std::max(sizeof(double), std::max(sizeof(int64_t), sizeof(uintptr_t)));
 

@@ -9,7 +9,7 @@ use analyzer::types::{Typing, UNIT};
 use crate::bytecode::{Bytecode, Instructions};
 use crate::constant_pool::{ConstantPool, FunctionSignature, PoolConstant};
 use crate::emit::{emit, EmissionState};
-use crate::r#type::{get_type_size, TypeSize};
+use crate::r#type::{get_type_stack_size, ValueStackSize};
 
 pub mod bytecode;
 mod constant_pool;
@@ -59,7 +59,7 @@ pub fn compile(
         bytecode.emit_constant_ref(signature_idx);
         compile_instruction_set(
             locals_count,
-            get_type_size(chunk.return_type) != TypeSize::Zero,
+            get_type_stack_size(chunk.return_type) != ValueStackSize::Zero,
             &chunk.expression,
             &mut bytecode,
             typing,

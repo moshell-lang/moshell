@@ -1,7 +1,6 @@
 #pragma once
 
-
-template<typename T>
+template <typename T>
 T ntohl(T net) {
     T host = 0;
     for (size_t i = 0; i < sizeof(T); i++) {

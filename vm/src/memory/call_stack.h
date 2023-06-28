@@ -30,12 +30,13 @@ class CallStack {
 
     /// creates an empty call stack
     explicit CallStack(size_t capacity);
+
 public:
     /**
      * Creates a new CallStack, with root function set on top of the stack
      * @throws StackOverflowError if the root's frame size exceeds given capacity
      * */
-    static CallStack create(size_t capacity, const function_definition & root, constant_index root_ref);
+    static CallStack create(size_t capacity, const function_definition &root, constant_index root_ref);
 
     /**
      * Pushes a new frame inside this call stack.

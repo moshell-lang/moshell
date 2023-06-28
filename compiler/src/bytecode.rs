@@ -1,6 +1,6 @@
+use crate::r#type::ValueStackSize;
+use analyzer::relations::LocalId;
 use std::mem::size_of;
-
-use crate::r#type::TypeSize;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Placeholder {
@@ -58,6 +58,10 @@ impl Bytecode {
         self.bytes[pos..pos + size_of::<u32>()].copy_from_slice(&value.to_be_bytes())
     }
 
+    pub fn emit_instruction_pointer(&mut self, ip: usize) {
+        self.bytes.extend(ip.to_be_bytes());
+    }
+
     /// expands the byte vector to let a placeholder of the given size,
     /// returning the position of the placeholder in the vector
     pub fn emit_u32_placeholder(&mut self) -> Placeholder {
@@ -89,28 +93,30 @@ impl<'a> Instructions<'a> {
 
     /// emits instructions to assign given local identifier with last operand stack value
     /// assuming the local's size is the given `size` argument
-    pub fn emit_set_local(&mut self, identifier: u32, size: impl Into<TypeSize>) {
+    pub fn emit_set_local(&mut self, identifier: LocalId, size: impl Into<ValueStackSize>) {
         let opcode = match size.into() {
-            TypeSize::Byte => Opcode::SetByte,
-            TypeSize::QWord => Opcode::SetQWord,
-            TypeSize::Reference => Opcode::SetRef,
-            TypeSize::Zero => panic!("set_local for value whose type is zero-sized"),
+            ValueStackSize::Byte => Opcode::SetByte,
+            ValueStackSize::QWord => Opcode::SetQWord,
+            ValueStackSize::Reference => Opcode::SetRef,
+            ValueStackSize::Zero => panic!("set_local for value whose type is zero-sized"),
         };
         self.emit_code(opcode);
-        self.bytecode.emit_u32(identifier);
+        self.bytecode
+            .emit_u32(u32::try_from(identifier.0).expect("local id too high"));
     }
 
     /// emits instructions to push to operand stack given local identifier
     /// assuming the local's size is the given `size` argument
-    pub fn emit_get_local(&mut self, identifier: u32, size: impl Into<TypeSize>) {
+    pub fn emit_get_local(&mut self, identifier: LocalId, size: impl Into<ValueStackSize>) {
         let opcode = match size.into() {
-            TypeSize::Byte => Opcode::GetByte,
-            TypeSize::QWord => Opcode::GetQWord,
-            TypeSize::Reference => Opcode::GetRef,
-            TypeSize::Zero => panic!("get_local for value whose type is zero-sized"),
+            ValueStackSize::Byte => Opcode::GetByte,
+            ValueStackSize::QWord => Opcode::GetQWord,
+            ValueStackSize::Reference => Opcode::GetRef,
+            ValueStackSize::Zero => panic!("get_local for value whose type is zero-sized"),
         };
         self.emit_code(opcode);
-        self.bytecode.emit_u32(identifier);
+        self.bytecode
+            .emit_u32(u32::try_from(identifier.0).expect("local id too high"));
     }
 
     /// emits instructions to push an integer in the operand stack
