@@ -1,15 +1,16 @@
 #pragma once
 
+#include "errors.h"
 #include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <memory>
 #include <stdexcept>
 
-struct OperandStackOutOfBoundError : public std::out_of_range {
+struct OperandStackOutOfBoundError : public MemoryError {
 
 public:
-    explicit OperandStackOutOfBoundError(const char *message) : std::out_of_range{message} {}
+    explicit OperandStackOutOfBoundError(std::string message) : MemoryError{std::move(message)} {}
 };
 
 class OperandStack {
@@ -27,7 +28,7 @@ public:
 
     void push_double(double d);
 
-    void push_string_constant_ref(int64_t s);
+    void push_reference(uintptr_t r);
 
     int64_t pop_int();
 
@@ -35,7 +36,7 @@ public:
 
     double pop_double();
 
-    int64_t pop_string_constant_ref();
+    uintptr_t pop_reference();
 
     void pop_bytes(size_t size);
 

@@ -1,7 +1,7 @@
 #include "interpreter.h"
 #include "conversions.h"
+#include "memory/constant_pool.h"
 #include "memory/operand_stack.h"
-#include "pool.h"
 #include "vm.h"
 
 #include <cstdlib>
@@ -10,15 +10,22 @@
 #include <memory>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <vector>
 
 enum Opcode {
     OP_PUSH_INT,    // with 8 byte int value, pushes an int onto the operand stack
     OP_PUSH_BYTE,   // with 1 byte value, pushes a byte onto the operand stack
     OP_PUSH_FLOAT,  // with 8 byte float value, pushes a float onto the operand stack
     OP_PUSH_STRING, // with 8 byte string index in constant pool, pushes a string ref onto the operand stack
-    OP_GET_LOCAL,   // with 1 byte local index, pushes given local value onto the operand stack
-    OP_SET_LOCAL,   // with 1 byte local index, set given local value from value popped from the operand stack
-    OP_SPAWN,       // with 1 byte stack size for process exec(), pushes process exit status onto the operand stack
+
+    OP_GET_BYTE,   // with 1 byte local index, pushes given local value onto the operand stack
+    OP_SET_BYTE,   // with 1 byte local index, set given local value from value popped from the operand stack
+    OP_GET_Q_WORD, // with 1 byte local index, pushes given local value onto the operand stack
+    OP_SET_Q_WORD, // with 1 byte local index, set given local value from value popped from the operand stack
+    OP_GET_REF,    // with 1 byte local index, pushes given local value onto the operand stack
+    OP_SET_REF,    // with 1 byte local index, set given local value from value popped from the operand stack
+
+    OP_SPAWN, // with 1 byte stack size for process exec(), pushes process exit status onto the operand stack
 
     OP_POP_BYTE,   // pops one byte from operand stack
     OP_POP_Q_WORD, // pops 8 bytes from operand stack
@@ -79,7 +86,7 @@ int64_t apply_op(Opcode code, int64_t a, int64_t b) {
     case OP_INT_MOD:
         return a % b;
     default:
-        throw std::invalid_argument("Unknown opcode");
+        throw InvalidBytecodeError("Unknown opcode");
     }
 }
 
@@ -101,7 +108,7 @@ double apply_op(Opcode code, double a, double b) {
     case OP_FLOAT_DIV:
         return a / b;
     default:
-        throw std::invalid_argument("Unknown opcode");
+        throw InvalidBytecodeError("Unknown opcode");
     }
 }
 
@@ -125,7 +132,7 @@ bool apply_comparison(Opcode code, int64_t a, int64_t b) {
     case OP_INT_LE:
         return a <= b;
     default:
-        throw std::invalid_argument("Unknown opcode");
+        throw InvalidBytecodeError("Unknown opcode");
     }
 }
 
@@ -149,11 +156,10 @@ bool apply_comparison(Opcode code, double a, double b) {
     case OP_FLOAT_LE:
         return a <= b;
     default:
-        throw std::invalid_argument("Unknown opcode");
+        throw InvalidBytecodeError("Unknown opcode");
     }
 }
-
-void run(constant_pool pool, const char *bytes, size_t size) {
+void run(const ConstantPool &pool, const char *bytes, size_t size, strings_t &strings) {
     std::unique_ptr<char[]> locals_buf = std::make_unique<char[]>(1024);
     OperandStack stack = OperandStack(1024);
 
@@ -187,28 +193,32 @@ void run(constant_pool pool, const char *bytes, size_t size) {
         }
         case OP_PUSH_STRING: {
             // Read the string reference
-            int64_t index = ntohl(*(int64_t *)(bytes + ip + 1));
-            ip += 1 + sizeof(int64_t);
+            constant_index index = ntohl(*(constant_index *)(bytes + ip + 1));
+            ip += sizeof(constant_index) + 1;
+
+            const std::string *str_ref = &pool.get_string(index);
+
             // Push the string index onto the stack
-            stack.push_string_constant_ref(index);
+            stack.push_reference((uintptr_t)str_ref);
             break;
         }
         case OP_SPAWN: {
             // Read the 1 byte stack size
-            int frame_size = *(bytes + ip + 1);
+            char frame_size = *(bytes + ip + 1);
             ip += 2;
 
             // Create argv of the given frame_size, and create a new string for each arg with a null byte after each string
             std::vector<std::unique_ptr<char[]>> argv(frame_size + 1);
             for (int i = frame_size - 1; i >= 0; i--) {
-                // Pop the string index
-                int64_t index = stack.pop_string_constant_ref();
+                // Pop the string reference
+                uintptr_t reference = stack.pop_reference();
+                // cast the ref to a string pointer
+                const std::string &arg = *(std::string *)reference;
+                size_t arg_length = arg.length() + 1; // add 1 for the trailing '\0' char
                 // Allocate the string
-                argv[i] = std::make_unique<char[]>(pool.sizes[index] + 1);
-                // Copy the string data
-                std::copy(pool.strings[index].get(), &pool.strings[index][pool.sizes[index]], argv[i].get());
-                // Add the null byte
-                argv[i][pool.sizes[index]] = '\0';
+                argv[i] = std::make_unique<char[]>(arg_length);
+                // copy the string fata
+                memcpy(argv[i].get(), arg.c_str(), arg_length);
             }
 
             // Fork and exec the process
@@ -231,22 +241,58 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             }
             break;
         }
-        case OP_GET_LOCAL: {
+        case OP_GET_BYTE: {
             // Read the 1 byte local local_index
             char local_index = *(bytes + ip + 1);
             ip += 2;
             // Push the local onto the stack
-            stack.push_int(*(int64_t *)(locals + local_frame + local_index * 8));
+            stack.push_byte(*(locals + local_frame + local_index * 8));
             break;
         }
-        case OP_SET_LOCAL: {
+        case OP_SET_BYTE: {
             // Read the 1 byte local index
-            char index = *(bytes + ip + 1);
+            char local_index = *(bytes + ip + 1);
+            ip += 2;
+            // Pop the value from the stack
+            char value = stack.pop_byte();
+            // Set the local
+            *(locals + local_frame + local_index * 8) = value;
+            break;
+        }
+        case OP_GET_Q_WORD: {
+            // Read the 1 byte local local_index
+            char local_index = *(bytes + ip + 1);
+            ip += 2;
+            // Push the local onto the stack
+            stack.push_reference(*(uint64_t *)(locals + local_frame + local_index * 8));
+            break;
+        }
+        case OP_SET_Q_WORD: {
+            // Read the 1 byte local index
+            char local_index = *(bytes + ip + 1);
             ip += 2;
             // Pop the value from the stack
             int64_t value = stack.pop_int();
             // Set the local
-            *(int64_t *)(locals + local_frame + index * 8) = value;
+            *(uintptr_t *)(locals + local_frame + local_index * 8) = value;
+            break;
+        }
+        case OP_GET_REF: {
+            // Read the 1 byte local local_index
+            char local_index = *(bytes + ip + 1);
+            ip += 2;
+            // Push the local onto the stack
+            stack.push_reference(*(uintptr_t *)(locals + local_frame + local_index * 8));
+            break;
+        }
+        case OP_SET_REF: {
+            // Read the 1 byte local index
+            char local_index = *(bytes + ip + 1);
+            ip += 2;
+            // Pop the value from the stack
+            uintptr_t value = stack.pop_reference();
+            // Set the local
+            *(uintptr_t *)(locals + local_frame + local_index * 8) = value;
             break;
         }
         case OP_BYTE_TO_INT: {
@@ -258,8 +304,8 @@ void run(constant_pool pool, const char *bytes, size_t size) {
         case OP_INT_TO_STR: {
             int64_t value = stack.pop_int();
 
-            int64_t string_ref = append_str_value(value, pool);
-            stack.push_string_constant_ref(string_ref);
+            auto [it, _] = strings.insert(std::make_unique<std::string>(std::to_string(value)));
+            stack.push_reference((uintptr_t)it->get());
 
             // goto next operation
             ip++;
@@ -268,8 +314,8 @@ void run(constant_pool pool, const char *bytes, size_t size) {
         case OP_FLOAT_TO_STR: {
             double value = stack.pop_double();
 
-            int64_t string_ref = append_str_value(value, pool);
-            stack.push_string_constant_ref(string_ref);
+            auto [it, _] = strings.insert(std::make_unique<std::string>(std::to_string(value)));
+            stack.push_reference((uintptr_t)it->get());
 
             // goto next operation
             ip++;
@@ -282,11 +328,13 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             break;
         }
         case OP_CONCAT: {
-            int64_t right = stack.pop_string_constant_ref();
-            int64_t left = stack.pop_string_constant_ref();
+            auto right = (const std::string *)stack.pop_reference();
+            auto left = (const std::string *)stack.pop_reference();
 
-            int64_t string_ref = pool.concat(left, right);
-            stack.push_string_constant_ref(string_ref);
+            std::string result = *left + *right;
+
+            auto [it, _] = strings.insert(std::make_unique<std::string>(std::move(result)));
+            stack.push_reference((uintptr_t)it->get());
 
             ip++;
             break;
@@ -351,10 +399,9 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             break;
         }
         case OP_STR_EQ: {
-            int64_t b = stack.pop_string_constant_ref();
-            int64_t a = stack.pop_string_constant_ref();
-            bool cmp = pool.sizes[a] == pool.sizes[b] && std::memcmp(pool.strings[a].get(), pool.strings[b].get(), pool.sizes[a]) == 0;
-            stack.push_byte(cmp);
+            const std::string &b = *(const std::string *)stack.pop_reference();
+            const std::string &a = *(const std::string *)stack.pop_reference();
+            stack.push_byte(a == b);
             ip++;
             break;
         }
@@ -383,7 +430,7 @@ void run(constant_pool pool, const char *bytes, size_t size) {
             break;
         }
         default: {
-            throw std::invalid_argument("Unknown opcode " + std::to_string(bytes[ip]));
+            throw InvalidBytecodeError("Unknown opcode " + std::to_string(bytes[ip]));
         }
         }
     }

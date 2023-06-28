@@ -1,7 +1,7 @@
 #pragma once
 
+#include "memory/constant_pool.h"
+#include <cstddef>
 #include <cstdint>
 
-#include "pool.h"
-
-void run(constant_pool pool, const char *bytes, size_t size);
+void run(const ConstantPool &pool, const char *bytes, size_t size, strings_t &strings);

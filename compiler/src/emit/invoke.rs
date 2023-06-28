@@ -27,7 +27,9 @@ pub fn emit_process_call(
     state.use_values(last);
 
     emitter.emit_code(Opcode::Spawn);
-    emitter.bytes.push(arguments.len() as u8);
+    emitter
+        .bytes
+        .push(u8::try_from(arguments.len()).expect("too many arguments in process call"));
 
     if !state.use_values {
         // The Spawn operation will push the process's exitcode onto the stack
