@@ -35,7 +35,8 @@ impl Bytecode {
             ValueStackSize::Zero => panic!("set_local for value whose type is zero-sized"),
         };
         self.emit_code(opcode);
-        self.bytes.push(identifier.0 as u8);
+        self.bytes
+            .push(u8::try_from(identifier.0).expect("local identifier too large"));
     }
 
     /// emits instructions to push to operand stack given local identifier
@@ -48,7 +49,8 @@ impl Bytecode {
             ValueStackSize::Zero => panic!("get_local for value whose type is zero-sized"),
         };
         self.emit_code(opcode);
-        self.bytes.push(identifier.0 as u8);
+        self.bytes
+            .push(u8::try_from(identifier.0).expect("local identifier too large"));
     }
 
     pub fn emit_int(&mut self, constant: i64) {

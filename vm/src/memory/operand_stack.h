@@ -10,7 +10,7 @@
 struct OperandStackOutOfBoundError : public MemoryError {
 
 public:
-    explicit OperandStackOutOfBoundError(std::string message) : MemoryError{message} {}
+    explicit OperandStackOutOfBoundError(std::string message) : MemoryError{std::move(message)} {}
 };
 
 class OperandStack {
