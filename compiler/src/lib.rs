@@ -6,11 +6,10 @@ use analyzer::name::Name;
 use analyzer::relations::LocalId;
 use analyzer::types::engine::{Chunk, TypedEngine};
 use analyzer::types::hir::ExprKind;
-use analyzer::types::ty::Type;
 use analyzer::types::Typing;
 
 use crate::bytecode::{Bytecode, Instructions};
-use crate::constant_pool::{ConstantPool, FunctionSignature};
+use crate::constant_pool::ConstantPool;
 use crate::emit::{emit, EmissionState};
 use crate::locals::LocalsLayout;
 use crate::r#type::get_type_stack_size;
@@ -41,29 +40,18 @@ pub fn compile(
         let chunk_env = engine.get_environment(id).unwrap();
         let chunk_fqn = &chunk_env.fqn;
 
-        let signature = if chunk.is_script {
+        let name = if chunk.is_script {
             if is_main_compiled {
                 todo!("Compiler cannot support multiple modules")
             }
             is_main_compiled = true;
-            FunctionSignature::new(chunk_fqn.appended(Name::new("<main>")), vec![], Type::Unit)
+            chunk_fqn.appended(Name::new("<main>"))
         } else {
-            let params: Vec<_> = chunk
-                .parameters
-                .iter()
-                .map(|p| typing.get_type(p.ty).unwrap())
-                .cloned()
-                .collect();
-
-            FunctionSignature::new(
-                chunk_fqn.clone(),
-                params,
-                typing.get_type(chunk.return_type).unwrap().clone(),
-            )
+            chunk_fqn.clone()
         };
 
-        // emit the function's signature
-        let signature_idx = cp.insert_signature(signature);
+        // emit the function's name
+        let signature_idx = cp.insert_string(name);
         bytecode.emit_constant_ref(signature_idx);
 
         compile_instruction_set(chunk, &mut bytecode, typing, engine, &mut cp);

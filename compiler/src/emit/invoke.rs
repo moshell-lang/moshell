@@ -4,7 +4,7 @@ use analyzer::types::hir::{FunctionCall, TypeId, TypedExpr};
 use analyzer::types::*;
 
 use crate::bytecode::{Instructions, Opcode};
-use crate::constant_pool::{ConstantPool, FunctionSignature};
+use crate::constant_pool::ConstantPool;
 use crate::emit;
 use crate::emit::EmissionState;
 use crate::locals::LocalsLayout;
@@ -70,13 +70,6 @@ pub fn emit_function_call(
     state.use_values(last_used);
     state.returning_value(last_returns);
 
-    let args_types: Vec<_> = function_call
-        .arguments
-        .iter()
-        .map(|e| typing.get_type(e.ty).unwrap())
-        .cloned()
-        .collect();
-
     let name = match function_call.definition {
         Definition::User(u) => engine.get_environment(u).unwrap().fqn.clone(),
         Definition::Native(_) => todo!("native call to functions are not supported"),
@@ -84,9 +77,7 @@ pub fn emit_function_call(
 
     let return_type_size = return_type.into();
 
-    let return_type = typing.get_type(return_type).unwrap().clone();
-    let signature = FunctionSignature::new(name, args_types, return_type);
-    let signature_idx = cp.insert_signature(signature);
+    let signature_idx = cp.insert_string(name);
     instructions.emit_invoke(signature_idx);
 
     // The Invoke operation will push the return value onto the stack

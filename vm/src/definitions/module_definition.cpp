@@ -13,25 +13,29 @@ load_functions_definitions(ByteReader &reader, const ConstantPool &pool) {
     uint32_t function_count = ntohl(reader.read<uint32_t>());
 
     for (uint32_t i = 0; i < function_count; i++) {
-        constant_index signature_idx = ntohl(reader.read<constant_index>());
-        const std::string *signature = &pool.get_string(signature_idx);
+        // read the function's string identifier
+        constant_index id_idx = ntohl(reader.read<constant_index>());
+        const std::string *identifier = &pool.get_string(id_idx);
 
         uint32_t parameters_byte_count = ntohl(reader.read<uint32_t>());
         uint8_t return_byte_count = reader.read<uint8_t>();
         uint32_t instruction_count = ntohl(reader.read<uint32_t>());
         uint32_t locals_byte_count = ntohl(reader.read<uint32_t>());
+
         char *instructions = reader.read_n<char>(instruction_count);
 
+        // returned bytes must be <= allocated bytes for locals
         if (return_byte_count > locals_byte_count) {
-            throw InvalidModuleDescription("Function " + *signature + " declares more return bytes than allocated locals capacity.");
+            throw InvalidModuleDescription("Function " + *identifier + " declares more return bytes than allocated locals capacity.");
         }
 
+        // parameters bytes must be <= allocated bytes for locals
         if (parameters_byte_count > locals_byte_count) {
-            throw InvalidModuleDescription("Function " + *signature + " declares more parameters bytes than allocated locals capacity.");
+            throw InvalidModuleDescription("Function " + *identifier + " declares more parameters bytes than allocated locals capacity.");
         }
 
         if (return_byte_count > sizeof(uintptr_t)) {
-            throw InvalidModuleDescription("Function " + *signature + " declares a return byte count which is greater than maximum allocated size " + std::to_string(sizeof(uintptr_t)) + " (" + std::to_string(return_byte_count) + ").");
+            throw InvalidModuleDescription("Function " + *identifier + " declares a return byte count which is greater than maximum allocated size " + std::to_string(sizeof(uintptr_t)) + " (" + std::to_string(return_byte_count) + ").");
         }
 
         function_definition def{
@@ -41,7 +45,8 @@ load_functions_definitions(ByteReader &reader, const ConstantPool &pool) {
             instruction_count,
             instructions,
         };
-        map[signature] = def;
+
+        map[identifier] = def;
     }
 
     return map;

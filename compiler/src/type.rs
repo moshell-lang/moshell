@@ -1,25 +1,7 @@
-use analyzer::types::hir::TypeId;
-use analyzer::types::ty::Type;
-use analyzer::types::*;
 use std::mem::size_of;
 
-/// Transforms given type name to a type name compatible with bytecode specifications.
-pub fn type_to_bytecode_str(tpe: &Type) -> &'static str {
-    match tpe {
-        Type::Bool | Type::ExitCode => "B",
-        Type::Int => "I",
-        Type::Float => "F",
-        Type::String => "S",
-        Type::Unit | Type::Nothing => "V", //zero sized types
-        Type::Error | Type::Unknown => {
-            panic!("{tpe} is not a compilable type")
-        }
-        // object types are not yet supported
-        Type::Function(_) => {
-            panic!("Can only support primitives")
-        }
-    }
-}
+use analyzer::types::hir::TypeId;
+use analyzer::types::*;
 
 /// returns the size of a given type identifier
 pub fn get_type_stack_size(tpe: TypeId) -> ValueStackSize {

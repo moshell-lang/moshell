@@ -27,7 +27,7 @@ enum Opcode {
     OP_SET_REF,    // with 1 byte local index, set given local value from value popped from the operand stack
 
     OP_SPAWN,  // with 1 byte stack size for process exec(), pushes process exit status onto the operand stack
-    OP_INVOKE, // with 4 byte function signature ref in constant pool, pops parameters from operands then pushes invoked function return in operand stack (if non-void)
+    OP_INVOKE, // with 4 byte function ref string in constant pool, pops parameters from operands then pushes invoked function return in operand stack (if non-void)
 
     OP_POP_BYTE,   // pops one byte from operand stack
     OP_POP_Q_WORD, // pops 8 bytes from operand stack
@@ -75,7 +75,7 @@ struct runtime_state {
     /// strings heap space
     strings_t &strings;
 
-    /// loaded function definitions, bound with their signature index in constant pool
+    /// loaded function definitions, bound with their string identifier
     const std::unordered_map<const std::string *, function_definition> functions;
 
     /// The used constant pool
@@ -239,17 +239,17 @@ inline bool apply_comparison(Opcode code, char a, char b) {
     }
 }
 
-inline void push_function_invocation(constant_index callee_signature_idx,
+inline void push_function_invocation(constant_index callee_identifier_idx,
                                      const runtime_state &state,
                                      OperandStack &caller_operands,
                                      CallStack &call_stack) {
 
-    const std::string *callee_signature = &state.pool.get_string(callee_signature_idx);
-    const function_definition &callee_def = state.functions.at(callee_signature);
+    const std::string *callee_identifier = &state.pool.get_string(callee_identifier_idx);
+    const function_definition &callee_def = state.functions.at(callee_identifier);
 
     caller_operands.pop_bytes(callee_def.parameters_byte_count);
 
-    call_stack.push_frame(callee_def, callee_signature);
+    call_stack.push_frame(callee_def, callee_identifier);
 }
 
 /**
@@ -311,10 +311,10 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             break;
         }
         case OP_INVOKE: {
-            constant_index signature_idx = ntohl(*(constant_index *)(instructions + ip));
+            constant_index identifier_idx = ntohl(*(constant_index *)(instructions + ip));
             ip += sizeof(constant_index);
 
-            push_function_invocation(signature_idx, state, operands, call_stack);
+            push_function_invocation(identifier_idx, state, operands, call_stack);
             return false; // terminate this frame run
         }
         case OP_GET_BYTE: {
@@ -510,14 +510,14 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
  * runs the interpreter, where the first function to be executed
  * is the given definition from state functions
  */
-void run(runtime_state &state, const std::string *root_signature) {
+void run(runtime_state &state, const std::string *root_identifier) {
     // prepare the call stack, containing the given root function on top of the stack
-    const function_definition &root_def = state.functions.at(root_signature);
-    CallStack call_stack = CallStack::create(10000, root_def, root_signature);
+    const function_definition &root_def = state.functions.at(root_identifier);
+    CallStack call_stack = CallStack::create(10000, root_def, root_identifier);
 
     while (!call_stack.is_empty()) {
         stack_frame current_frame = call_stack.peek_frame();
-        const function_definition &current_def = state.functions.at(current_frame.function_signature);
+        const function_definition &current_def = state.functions.at(current_frame.function_identifier);
 
         bool has_returned = run_frame(state, current_frame, call_stack, current_def.instructions, current_def.instruction_count);
 
@@ -550,13 +550,13 @@ void run_module(const module_definition &module_def, strings_t &strings) {
 
     // find module main function
     for (auto function : module_def.functions) {
-        const std::string &signature = *function.first;
+        const std::string &identifier = *function.first;
 
         // we found our main function, we search for a function named `<main>` with no parameters, regardless of the return type
-        if (signature.rfind("::<main>()", signature.length() - strlen("<main>")) != signature.npos) {
+        if (identifier.rfind("::<main>\0", identifier.length() - strlen("<main>")) != identifier.npos) {
             runtime_state state{strings, module_def.functions, pool};
 
-            run(state, &signature);
+            run(state, &identifier);
             return;
         }
     }
