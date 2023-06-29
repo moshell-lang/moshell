@@ -7,6 +7,8 @@ use crate::bytecode::{Instructions, Opcode};
 use crate::constant_pool::{ConstantPool, FunctionSignature};
 use crate::emit;
 use crate::emit::EmissionState;
+use crate::locals::LocalsLayout;
+use crate::r#type::ValueStackSize;
 
 pub fn emit_process_call(
     arguments: &Vec<TypedExpr>,
@@ -14,11 +16,14 @@ pub fn emit_process_call(
     typing: &Typing,
     engine: &Engine,
     cp: &mut ConstantPool,
+    locals: &mut LocalsLayout,
     state: &mut EmissionState,
 ) {
-    let last = state.use_values(true);
+    let last_use = state.use_values(true);
+    let last_returns = state.returning_value(false);
+
     for arg in arguments {
-        emit(arg, instructions, typing, engine, cp, state);
+        emit(arg, instructions, typing, engine, cp, locals, state);
 
         // convert argument to string if needed
         match arg.ty {
@@ -28,18 +33,23 @@ pub fn emit_process_call(
             _ => todo!("Convert to other types"),
         }
     }
-    state.use_values(last);
+    state.use_values(last_use);
+    state.returning_value(last_returns);
 
     instructions.emit_spawn(arguments.len() as u8);
 
-    if !state.use_values {
-        // The Spawn operation will push the process's exitcode onto the stack
+    // The Spawn operation will push the process's exitcode onto the stack
+    if state.is_returning_value {
+        // The value of this spawn is returned
+        instructions.emit_set_return(ValueStackSize::Byte);
+    } else if !state.use_values {
         // in order to maintain the stack's size, we instantly pop
         // the stack if the value isn't used later in the code
-        instructions.emit_code(Opcode::PopByte);
+        instructions.emit_pop(ValueStackSize::Byte);
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn emit_function_call(
     function_call: &FunctionCall,
     return_type: TypeId,
@@ -47,22 +57,45 @@ pub fn emit_function_call(
     typing: &Typing,
     engine: &Engine,
     cp: &mut ConstantPool,
+    locals: &mut LocalsLayout,
     state: &mut EmissionState,
 ) {
-    let last = state.use_values(true);
-    for arg in &function_call.arguments {
-        emit(arg, instructions, typing, engine, cp, state);
-    }
-    state.use_values(last);
+    let last_used = state.use_values(true);
+    let last_returns = state.returning_value(false);
 
-    let args_types: Vec<_> = function_call.arguments.iter().map(|e| e.ty).collect();
+    for arg in &function_call.arguments {
+        emit(arg, instructions, typing, engine, cp, locals, state);
+    }
+
+    state.use_values(last_used);
+    state.returning_value(last_returns);
+
+    let args_types: Vec<_> = function_call
+        .arguments
+        .iter()
+        .map(|e| typing.get_type(e.ty).unwrap())
+        .cloned()
+        .collect();
 
     let name = match function_call.definition {
-        Definition::User(u) => engine.get_environment(u).unwrap().fqn.to_string(),
+        Definition::User(u) => engine.get_environment(u).unwrap().fqn.clone(),
         Definition::Native(_) => todo!("native call to functions are not supported"),
     };
 
-    let signature = FunctionSignature::make(&name, &args_types, return_type, typing, cp);
+    let return_type_size = return_type.into();
+
+    let return_type = typing.get_type(return_type).unwrap().clone();
+    let signature = FunctionSignature::new(name, args_types, return_type);
     let signature_idx = cp.insert_signature(signature);
     instructions.emit_invoke(signature_idx);
+
+    // The Invoke operation will push the return value onto the stack
+    if state.is_returning_value {
+        // The value of this invocation is returned
+        instructions.emit_set_return(return_type_size);
+    } else if !state.use_values {
+        // in order to maintain the stack's size, we instantly pop
+        // the stack if the value isn't used later in the code
+        instructions.emit_pop(return_type_size);
+    }
 }

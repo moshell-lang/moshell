@@ -5,7 +5,7 @@
 
 /**
  * reader utility class to read fixed byte arrays
- * */
+ */
 class ByteReader {
     const char *bytes;
     const size_t byte_count;

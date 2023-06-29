@@ -1,65 +1,61 @@
-use indexmap::IndexSet;
+use std::fmt::{Display, Formatter};
 
-use crate::r#type::transform_to_primitive_type;
-use analyzer::types::hir::TypeId;
-use analyzer::types::Typing;
+use crate::r#type::type_to_bytecode_str;
+use analyzer::name::Name;
+use analyzer::types::ty::Type;
+use indexmap::IndexSet;
 
 /// Contains the constants defined in a module constant pool
 #[derive(Default)]
 pub struct ConstantPool {
-    pub constants: IndexSet<PoolConstant>,
-}
-
-#[derive(Hash, Eq, PartialEq)]
-pub enum PoolConstant {
-    String(String),
-    Signature(FunctionSignature),
+    pub strings: IndexSet<String>,
 }
 
 impl ConstantPool {
     /// inserts if not already contained a string in the constant pool, returning it's pool identifier
     pub fn insert_string(&mut self, str: &str) -> u32 {
-        self.insert(PoolConstant::String(str.to_string()))
+        self.insert(str.to_string())
     }
 
     /// inserts if not already contained a function signature in the constant pool, returning it's pool identifier
     pub fn insert_signature(&mut self, signature: FunctionSignature) -> u32 {
-        self.insert(PoolConstant::Signature(signature))
+        self.insert(signature.to_string())
     }
 
-    fn insert(&mut self, constant: PoolConstant) -> u32 {
-        self.constants.insert_full(constant).0 as u32
+    fn insert(&mut self, str: String) -> u32 {
+        u32::try_from(self.strings.insert_full(str).0).expect("constant pool exceeded max capacity")
     }
 }
 
 /// Function signature where all the strings are
 /// u32 indexes in the bound constant pool
-#[derive(Hash, Eq, PartialEq)]
 pub struct FunctionSignature {
-    pub name: u32,
-    pub params: Vec<u32>,
-    pub ret: u32,
+    pub full_name: Name,
+    pub params: Vec<Type>,
+    pub return_type: Type,
 }
 
 impl FunctionSignature {
-    pub fn make(
-        name: &str,
-        params: &[TypeId],
-        return_type: TypeId,
-        typing: &Typing,
-        cp: &mut ConstantPool,
-    ) -> Self {
-        let name = cp.insert_string(name);
-
-        let mut map_type = |ty| {
-            let ty = typing.get_type(ty).unwrap();
-            transform_to_primitive_type(ty, cp)
-        };
-
+    pub fn new(full_name: Name, params: Vec<Type>, return_type: Type) -> Self {
         Self {
-            name,
-            params: params.iter().map(|t| map_type(*t)).collect(),
-            ret: map_type(return_type),
+            full_name,
+            params,
+            return_type,
         }
+    }
+}
+
+impl Display for FunctionSignature {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}(", self.full_name)?;
+
+        if let Some((head, tail)) = self.params.split_first() {
+            write!(f, "{}", type_to_bytecode_str(head))?;
+            for it in tail {
+                write!(f, ";{}", type_to_bytecode_str(it))?;
+            }
+        }
+
+        write!(f, "){}", type_to_bytecode_str(&self.return_type))
     }
 }

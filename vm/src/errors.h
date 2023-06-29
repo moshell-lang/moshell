@@ -6,7 +6,7 @@
 /**
  * Base class for fatal errors that occurs inside the virtual machine
 <<<<<<< HEAD
- * */
+ */
 class VirtualMachineError : public std::exception {
     const std::string msg;
 

@@ -31,16 +31,16 @@ void Locals::set_ref(size_t r, size_t at) {
 
 template <typename T>
 T Locals::get(size_t at) const {
-    if (at * LOCAL_CELL_SIZE >= capacity) {
-        throw LocalsOutOfBoundError("locals out of bound when setting value at " + std::to_string(at));
+    if (at + sizeof(T) > capacity) {
+        throw LocalsOutOfBoundError("locals out of bound when accessing value at index " + std::to_string(at));
     }
-    return *(T *)(bytes + (at * LOCAL_CELL_SIZE));
+    return *(T *)(bytes + (at));
 }
 
 template <typename T>
 void Locals::set(T t, size_t at) {
-    if (at * LOCAL_CELL_SIZE >= capacity) {
-        throw LocalsOutOfBoundError("locals out of bound when setting value at " + std::to_string(at));
+    if (at + sizeof(T) > capacity) {
+        throw LocalsOutOfBoundError("locals out of bound when updating value at index " + std::to_string(at));
     }
-    *(T *)(bytes + at * LOCAL_CELL_SIZE) = t;
+    *(T *)(bytes + at) = t;
 }

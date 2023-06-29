@@ -1,8 +1,9 @@
+use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
 use analyzer::relations::LocalId;
 use std::mem::size_of;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Placeholder {
     pos: u32,
 }
@@ -91,32 +92,63 @@ impl<'a> Instructions<'a> {
         self.bytecode.emit_byte(code as u8)
     }
 
+    pub fn emit_pop(&mut self, size: ValueStackSize) {
+        let pop_opcode = match size {
+            ValueStackSize::Zero => panic!("Cannot pop zero sized types"),
+            ValueStackSize::Byte => Opcode::PopByte,
+            ValueStackSize::QWord => Opcode::PopQWord,
+            ValueStackSize::Reference => Opcode::PopRef,
+        };
+        self.emit_code(pop_opcode);
+    }
+
+    /// initializes from the operand stack the return value.
+    /// the return value is placed at index 0 of the locals size
+    pub fn emit_set_return(&mut self, return_size: ValueStackSize) {
+        self.emit_set_local_at(0, return_size);
+    }
+
     /// emits instructions to assign given local identifier with last operand stack value
     /// assuming the local's size is the given `size` argument
-    pub fn emit_set_local(&mut self, identifier: LocalId, size: impl Into<ValueStackSize>) {
-        let opcode = match size.into() {
+    pub fn emit_set_local(
+        &mut self,
+        identifier: LocalId,
+        size: ValueStackSize,
+        layout: &LocalsLayout,
+    ) {
+        let index = layout.get_index(identifier);
+        self.emit_set_local_at(index, size);
+    }
+
+    fn emit_set_local_at(&mut self, at: u32, size: ValueStackSize) {
+        let opcode = match size {
             ValueStackSize::Byte => Opcode::SetByte,
             ValueStackSize::QWord => Opcode::SetQWord,
             ValueStackSize::Reference => Opcode::SetRef,
             ValueStackSize::Zero => panic!("set_local for value whose type is zero-sized"),
         };
         self.emit_code(opcode);
-        self.bytecode
-            .emit_u32(u32::try_from(identifier.0).expect("local id too high"));
+        self.bytecode.emit_u32(at);
     }
 
     /// emits instructions to push to operand stack given local identifier
     /// assuming the local's size is the given `size` argument
-    pub fn emit_get_local(&mut self, identifier: LocalId, size: impl Into<ValueStackSize>) {
-        let opcode = match size.into() {
+    pub fn emit_get_local(
+        &mut self,
+        identifier: LocalId,
+        size: ValueStackSize,
+        layout: &LocalsLayout,
+    ) {
+        let opcode = match size {
             ValueStackSize::Byte => Opcode::GetByte,
             ValueStackSize::QWord => Opcode::GetQWord,
             ValueStackSize::Reference => Opcode::GetRef,
             ValueStackSize::Zero => panic!("get_local for value whose type is zero-sized"),
         };
+
         self.emit_code(opcode);
-        self.bytecode
-            .emit_u32(u32::try_from(identifier.0).expect("local id too high"));
+        let index = layout.get_index(identifier);
+        self.bytecode.emit_u32(index);
     }
 
     /// emits instructions to push an integer in the operand stack
@@ -215,6 +247,7 @@ pub enum Opcode {
 
     PopByte,
     PopQWord,
+    PopRef,
 
     IfJump,
     IfNotJump,

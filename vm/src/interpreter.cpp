@@ -30,7 +30,8 @@ enum Opcode {
     OP_INVOKE, // with 4 byte function signature ref in constant pool, pops parameters from operands then pushes invoked function return in operand stack (if non-void)
 
     OP_POP_BYTE,   // pops one byte from operand stack
-    OP_POP_Q_WORD, // pops 8 instructions from operand stack
+    OP_POP_Q_WORD, // pops 8 bytes from operand stack
+    OP_POP_REF,    // pops a reference from operand stack, the number of bytes is architecture specific
 
     OP_IF_JUMP,     // with 1 byte opcode for 'then' branch, jumps only if value popped from operand stack is 0
     OP_IF_NOT_JUMP, // with 1 byte opcode for where to jump, jumps only if value popped from operand stack is not 0
@@ -75,10 +76,10 @@ struct runtime_state {
     strings_t &strings;
 
     /// loaded function definitions, bound with their signature index in constant pool
-    const std::unordered_map<constant_index, function_definition> functions;
+    const std::unordered_map<const std::string *, function_definition> functions;
 
     /// The used constant pool
-    const ConstantPool pool;
+    const ConstantPool &pool;
 };
 
 /**
@@ -89,7 +90,7 @@ struct runtime_state {
  *
  * @param operands the operands to pop arguments / push result
  * @param frame_size number of arguments to pop from the operands, including
- * */
+ */
 void spawn_process(OperandStack &operands, uint8_t frame_size) {
     // Create argv of the given frame_size, and create a new string for each arg with a null byte after each string
     std::vector<std::unique_ptr<char[]>> argv(frame_size + 1);
@@ -238,52 +239,23 @@ inline bool apply_comparison(Opcode code, char a, char b) {
     }
 }
 
-void push_function_invocation(constant_index callee_signature_idx,
-                              const runtime_state &state,
-                              OperandStack &caller_operands,
-                              CallStack &call_stack) {
+inline void push_function_invocation(constant_index callee_signature_idx,
+                                     const runtime_state &state,
+                                     OperandStack &caller_operands,
+                                     CallStack &call_stack) {
 
-    const function_signature &callee_signature = state.pool.get_signature(callee_signature_idx);
-    const function_definition &callee_def = state.functions.at(callee_signature_idx);
+    const std::string *callee_signature = &state.pool.get_string(callee_signature_idx);
+    const function_definition &callee_def = state.functions.at(callee_signature);
 
-    call_stack.push_frame(callee_def, callee_signature_idx);
-    stack_frame callee_frame = call_stack.peek_frame();
-    Locals callee_locals = callee_frame.locals;
+    caller_operands.pop_bytes(callee_def.parameters_byte_count);
 
-    // check parameters and transfer them to callee's locals;
-    for (int i = callee_signature.params.size() - 1; i >= 0; i--) {
-        Type param_type = callee_signature.params[i];
-
-        switch (param_type) {
-        case Type::STRING: {
-            callee_locals.set_ref(caller_operands.pop_reference(), i);
-            break;
-        }
-        case Type::FLOAT: {
-            callee_locals.set_double(caller_operands.pop_double(), i);
-            break;
-        }
-        case Type::INT: {
-            callee_locals.set_int(caller_operands.pop_int(), i);
-            break;
-        }
-        case Type::BYTE: {
-            callee_locals.set_int(caller_operands.pop_byte(), i);
-            break;
-        }
-        case Type::VOID: {
-            // This case should never be activated as the VM checked descriptions before, thus no
-            // void parameters would be present at runtime
-            throw VirtualMachineError("got void parameter in callee signature");
-        }
-        }
-    }
+    call_stack.push_frame(callee_def, callee_signature);
 }
 
 /**
  * Will run a frame until it returns or pushes a new method inside the call_stack
  * @return true if this function returned because the current frame has ended, or false if it returned because it pushed a new frame
- * */
+ */
 bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, const char *instructions, size_t instruction_count) {
     const ConstantPool &pool = state.pool;
 
@@ -441,19 +413,19 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
         case OP_IF_NOT_JUMP:
         case OP_IF_JUMP: {
             char value = operands.pop_byte();
-            u_int32_t then_branch = ntohl(*(u_int32_t *)(instructions + ip));
+            uint32_t then_branch = ntohl(*(uint32_t *)(instructions + ip));
             // test below means "test is true if value is 1 and we are in a if-jump,
             //                    or if value is not 1 and we are in a if-not-jump operation"
             if (value == (opcode == OP_IF_JUMP)) {
                 ip = then_branch;
             } else {
                 // the length of branch destination
-                ip += sizeof(u_int32_t);
+                ip += sizeof(uint32_t);
             }
             break;
         }
         case OP_JUMP: {
-            u_int32_t destination = ntohl(*(u_int32_t *)(instructions + ip));
+            uint32_t destination = ntohl(*(uint32_t *)(instructions + ip));
             ip = destination;
             break;
         }
@@ -463,6 +435,10 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
         }
         case OP_POP_Q_WORD: {
             operands.pop_bytes(8);
+            break;
+        }
+        case OP_POP_REF: {
+            operands.pop_reference();
             break;
         }
         case OP_BYTE_XOR:
@@ -530,58 +506,40 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
     return true; // this frame has returned
 }
 
-void handle_frame_return(Type return_type,
-                         OperandStack &caller_operands,
-                         OperandStack &frame_operands) {
-    switch (return_type) {
-    case Type::STRING: {
-        caller_operands.push_reference(frame_operands.pop_reference());
-        break;
-    }
-    case Type::FLOAT: {
-        caller_operands.push_double(frame_operands.pop_double());
-        break;
-    }
-    case Type::INT: {
-        caller_operands.push_int(frame_operands.pop_int());
-        break;
-    }
-    case Type::BYTE: {
-        caller_operands.push_byte(frame_operands.pop_byte());
-        break;
-    }
-    case Type::VOID: {
-    } // do nothing when function returns void
-    }
-}
-
 /**
  * runs the interpreter, where the first function to be executed
  * is the given definition from state functions
- * */
-void run(runtime_state &state, constant_index root_def_idx) {
+ */
+void run(runtime_state &state, const std::string *root_signature) {
     // prepare the call stack, containing the given root function on top of the stack
-    const function_definition &root_def = state.functions.at(root_def_idx);
-    CallStack call_stack = CallStack::create(10000, root_def, root_def_idx);
+    const function_definition &root_def = state.functions.at(root_signature);
+    CallStack call_stack = CallStack::create(10000, root_def, root_signature);
 
     while (!call_stack.is_empty()) {
         stack_frame current_frame = call_stack.peek_frame();
-        const function_definition &current_def = state.functions.at(current_frame.function_signature_idx);
+        const function_definition &current_def = state.functions.at(current_frame.function_signature);
 
         bool has_returned = run_frame(state, current_frame, call_stack, current_def.instructions, current_def.instruction_count);
 
         if (has_returned) {
-            function_signature fs = state.pool.get_signature(current_frame.function_signature_idx);
             call_stack.pop_frame();
 
             if (call_stack.is_empty()) {
-                // the main method returned
+                // the root method has returned
                 break;
             }
-
             stack_frame caller_frame = call_stack.peek_frame();
 
-            handle_frame_return(fs.return_type, caller_frame.operands, current_frame.operands);
+            // JUSTIFY: According to bytecode specs, the returning frame must place its return value
+            // at the very first index of its locals.
+            // locals of the callee frame and operands of the caller frame are adjacent in memory thanks to
+            // call stack's layout. This operation will move the return value in the operand stack of the caller
+            // by advancing the caller's operands of the declared byte count in the callee's function definition.
+            //
+            // JUSTIFY: This also cannot cause UB as a minimal frame size is equal to `sizeof(frame_headers)`,
+            // that contains ints and pointers, which is greater than the maximum return byte count allowed of `sizeof(uintptr_t)`.
+            // stack overflow is impossible here because the callee frame would already have caused it earlier.
+            caller_frame.operands.advance_unchecked(current_def.return_byte_count);
         }
     }
 }
@@ -592,14 +550,13 @@ void run_module(const module_definition &module_def, strings_t &strings) {
 
     // find module main function
     for (auto function : module_def.functions) {
-        constant_index signature_id = function.first;
-        const function_signature &signature = pool.get_signature(signature_id);
+        const std::string &signature = *function.first;
 
-        // we found our main function
-        if (signature.name == "<main>" && signature.params.empty()) {
+        // we found our main function, we search for a function named `<main>` with no parameters, regardless of the return type
+        if (signature.rfind("::<main>()", signature.length() - strlen("<main>")) != signature.npos) {
             runtime_state state{strings, module_def.functions, pool};
 
-            run(state, signature_id);
+            run(state, &signature);
             return;
         }
     }

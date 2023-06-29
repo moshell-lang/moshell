@@ -1,6 +1,8 @@
 use crate::bytecode::{Instructions, Opcode};
 use crate::constant_pool::ConstantPool;
 use crate::emit::{emit, EmissionState};
+use crate::locals::LocalsLayout;
+use crate::r#type::ValueStackSize;
 use analyzer::engine::Engine;
 use analyzer::relations::NativeId;
 use analyzer::types::hir::TypedExpr;
@@ -16,22 +18,23 @@ pub(crate) fn emit_primitive_op(
     typing: &Typing,
     engine: &Engine,
     cp: &mut ConstantPool,
+    locals: &mut LocalsLayout,
     state: &mut EmissionState,
 ) {
-    let last = state.use_values(true);
-    emit(callee, instructions, typing, engine, cp, state);
-    state.use_values(last);
+    let last_used = state.use_values(true);
+    let last_returns = state.returning_value(false);
+    emit(callee, instructions, typing, engine, cp, locals, state);
 
     // The opcode to emit if state.use_value is set to false.
     // defaults to PopQWord but you may want to set it to other variants
     // if the resulting value is anything but an 8 byte value
-    let mut pop_opcode = Opcode::PopQWord;
+    let mut pushed_size = ValueStackSize::QWord;
 
     match native.0 {
         0 => {
             // ExitCode -> Bool
             instructions.emit_bool_inversion();
-            pop_opcode = Opcode::PopByte;
+            pushed_size = ValueStackSize::Byte;
         }
         1..=9 => {
             // Arithmetic expression
@@ -41,6 +44,7 @@ pub(crate) fn emit_primitive_op(
                 typing,
                 engine,
                 cp,
+                locals,
                 state,
             );
             instructions.emit_code(match native.0 {
@@ -59,7 +63,7 @@ pub(crate) fn emit_primitive_op(
         10 => {
             // !bool
             instructions.emit_bool_inversion();
-            pop_opcode = Opcode::PopByte;
+            pushed_size = ValueStackSize::Byte;
         }
         11..=26 => {
             // Comparison expression
@@ -69,6 +73,7 @@ pub(crate) fn emit_primitive_op(
                 typing,
                 engine,
                 cp,
+                locals,
                 state,
             );
 
@@ -76,22 +81,24 @@ pub(crate) fn emit_primitive_op(
                 11 => {
                     // bool == bool
                     instructions.emit_code(Opcode::ByteEqual);
-                    pop_opcode = Opcode::PopByte;
+                    pushed_size = ValueStackSize::Byte;
                 }
                 12 => {
                     // bool != bool
                     instructions.emit_code(Opcode::ByteEqual);
                     instructions.emit_bool_inversion();
-                    pop_opcode = Opcode::PopByte;
+                    pushed_size = ValueStackSize::Byte;
                 }
                 13 => {
                     // String == String
                     instructions.emit_code(Opcode::StringEqual);
+                    pushed_size = ValueStackSize::Reference;
                 }
                 14 => {
                     // String != String
                     instructions.emit_code(Opcode::StringEqual);
                     instructions.emit_bool_inversion();
+                    pushed_size = ValueStackSize::Reference;
                 }
                 15 => instructions.emit_code(Opcode::IntEqual),
                 16 => {
@@ -132,19 +139,23 @@ pub(crate) fn emit_primitive_op(
             instructions.patch_jump(jump_to_else);
             instructions.emit_push_constant_ref(false_string);
             instructions.patch_jump(jump_to_end);
+            pushed_size = ValueStackSize::Reference;
         }
         28 => {
             // ExitCode -> String
             instructions.emit_code(Opcode::ConvertByteToInt);
             instructions.emit_code(Opcode::ConvertIntToStr);
+            pushed_size = ValueStackSize::Reference;
         }
         29 => {
             // Int -> String
             instructions.emit_code(Opcode::ConvertIntToStr);
+            pushed_size = ValueStackSize::Reference;
         }
         30 => {
             // Float -> String
             instructions.emit_code(Opcode::ConvertFloatToStr);
+            pushed_size = ValueStackSize::Reference;
         }
         33 => {
             // String + String -> String
@@ -155,14 +166,22 @@ pub(crate) fn emit_primitive_op(
                 typing,
                 engine,
                 cp,
+                locals,
                 state,
             );
             instructions.emit_code(Opcode::Concat);
+            pushed_size = ValueStackSize::Reference;
         }
         id => todo!("Native function with id {id}"),
     };
 
-    if !state.use_values {
-        instructions.emit_code(pop_opcode);
+    // restore last state of use_values
+    state.use_values(last_used);
+    state.returning_value(last_returns);
+
+    if state.is_returning_value {
+        instructions.emit_set_return(pushed_size);
+    } else if !state.use_values {
+        instructions.emit_pop(pushed_size);
     }
 }

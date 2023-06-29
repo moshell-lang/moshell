@@ -5,27 +5,39 @@
 #include "memory/constant_pool.h"
 #include "memory/locals.h"
 
-std::unordered_map<constant_index, function_definition>
+std::unordered_map<const std::string *, function_definition>
 load_functions_definitions(ByteReader &reader, const ConstantPool &pool) {
 
-    std::unordered_map<constant_index, function_definition> map;
+    std::unordered_map<const std::string *, function_definition> map;
 
-    u_int32_t function_count = ntohl(reader.read<u_int32_t>());
+    uint32_t function_count = ntohl(reader.read<uint32_t>());
 
-    for (u_int32_t i = 0; i < function_count; i++) {
-        constant_index signature = ntohl(reader.read<u_int32_t>());
+    for (uint32_t i = 0; i < function_count; i++) {
+        constant_index signature_idx = ntohl(reader.read<constant_index>());
+        const std::string *signature = &pool.get_string(signature_idx);
 
-        try {
-            validate_signature(pool.get_signature(signature));
-        } catch (const BadConstantType &e) {
-            throw InvalidModuleDescription("invalid function declaration signature: the constant index read at function declaration does not points to a signature in module's constant pool");
+        uint32_t parameters_byte_count = ntohl(reader.read<uint32_t>());
+        uint8_t return_byte_count = reader.read<uint8_t>();
+        uint32_t instruction_count = ntohl(reader.read<uint32_t>());
+        uint32_t locals_byte_count = ntohl(reader.read<uint32_t>());
+        char *instructions = reader.read_n<char>(instruction_count);
+
+        if (return_byte_count > locals_byte_count) {
+            throw InvalidModuleDescription("Function " + *signature + " declares more return bytes than allocated locals capacity.");
         }
 
-        u_int32_t instruction_count = ntohl(reader.read<u_int32_t>());
-        u_int32_t locals_size = ntohl(reader.read<u_int32_t>());
-        char *instructions = reader.read_n<char>(instruction_count);
+        if (parameters_byte_count > locals_byte_count) {
+            throw InvalidModuleDescription("Function " + *signature + " declares more parameters bytes than allocated locals capacity.");
+        }
+
+        if (return_byte_count > sizeof(uintptr_t)) {
+            throw InvalidModuleDescription("Function " + *signature + " declares a return byte count which is greater than maximum allocated size " + std::to_string(sizeof(uintptr_t)) + " (" + std::to_string(return_byte_count) + ").");
+        }
+
         function_definition def{
-            locals_size * LOCAL_CELL_SIZE,
+            locals_byte_count,
+            parameters_byte_count,
+            return_byte_count,
             instruction_count,
             instructions,
         };
@@ -35,12 +47,45 @@ load_functions_definitions(ByteReader &reader, const ConstantPool &pool) {
     return map;
 }
 
+void check_bytecode_flags(ByteReader &reader) {
+    // read supported architecture and check it is supported
+    char arch = reader.read<char>();
+
+#if UINTPTR_MAX == 0xFFFFFFFF // 32 bits
+    char expected = 1;
+    std::string arch_name = "32 bits";
+#elif UINTPTR_MAX == 0xFFFFFFFFFFFFFFFFu // 64 bits
+    char expected = 2;
+    std::string arch_name = "64 bits";
+#else
+#error "VM only supports 32 and 64 bits architectures"
+#endif
+
+    if (arch != expected) {
+        std::string received_architecture;
+        switch (arch) {
+        case 1: {
+            received_architecture = "32 bits";
+            break;
+        }
+        case 2: {
+            received_architecture = "64 bits";
+            break;
+        }
+        }
+        throw InvalidBytecodeError("Specified architecture is invalid, this VM instance attempted to read bytecode for " + received_architecture + " systems but can only support " + arch_name);
+    }
+}
+
 module_definition load_module(ByteReader &reader, strings_t &strings) {
     try {
-        // read constant pool
-        const ConstantPool pool = load_constant_pool(reader, strings);
+        check_bytecode_flags(reader);
+
+        ConstantPool pool = load_constant_pool(reader, strings);
+
         const auto functions = load_functions_definitions(reader, pool);
-        return module_definition{pool, functions};
+
+        return module_definition{std::move(pool), functions};
     } catch (const std::out_of_range &e) {
         throw InvalidBytecodeError("Error when reading module bytecode: " + std::string(e.what()));
     }

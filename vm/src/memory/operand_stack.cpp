@@ -46,6 +46,17 @@ double OperandStack::pop_double() {
     return pop<double>();
 }
 
+void OperandStack::pop_bytes(size_t size) {
+    if (current_pos < size) {
+        throw OperandStackUnderflowError("operand stack is empty");
+    }
+    current_pos -= size;
+}
+
+void OperandStack::advance_unchecked(size_t size) {
+    current_pos += size;
+}
+
 template <typename T>
 void OperandStack::push(T t) {
     if (current_pos + sizeof(T) > stack_capacity) {
@@ -57,16 +68,6 @@ void OperandStack::push(T t) {
 
 template <typename T>
 T OperandStack::pop() {
-    if (current_pos < sizeof(T)) {
-        throw OperandStackUnderflowError("operand stack is empty");
-    }
-    current_pos -= sizeof(T);
+    pop_bytes(sizeof(T));
     return *(T *)(bytes + current_pos);
-}
-
-void OperandStack::pop_bytes(size_t size) {
-    if (current_pos < size) {
-        throw OperandStackUnderflowError("operand stack is empty");
-    }
-    current_pos -= size;
 }

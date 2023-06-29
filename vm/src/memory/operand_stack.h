@@ -45,6 +45,12 @@ public:
 
     void pop_bytes(size_t size);
 
+    /**
+     * advances, without checking for stack overflow, the position of the operand stack.
+     * The call of this method must be JUSTIFIED
+     */
+    void advance_unchecked(size_t size);
+
 private:
     template <typename T>
     void push(T t);

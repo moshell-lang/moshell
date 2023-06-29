@@ -77,8 +77,17 @@ impl Variables {
     /// This exposes their current state, which is only interesting for debugging.
     /// Use [`Variables::find_reachable`] to lookup any variable during the collection phase,
     /// or [`Variables::find_exported`] to lookup an exported variable after the collection phase.
-    pub fn all_vars(&self) -> &[Variable] {
+    pub fn vars(&self) -> &[Variable] {
         &self.locals.vars
+    }
+
+    /// Iterates over all declared variables in order from first declared variable (LocalId 0) to last
+    pub fn iter_vars(&self) -> impl Iterator<Item = (LocalId, &Variable)> {
+        self.locals
+            .vars
+            .iter()
+            .enumerate()
+            .map(|(pos, v)| (LocalId(pos), v))
     }
 
     /// Iterates over all the exported variables, local to the environment.

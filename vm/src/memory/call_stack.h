@@ -14,7 +14,7 @@ public:
 /// The information about a stack frame.
 /// Each function invocation implies a stack frame, that contains the functions' locals and operands stack
 struct stack_frame {
-    constant_index function_signature_idx;
+    const std::string *function_signature;
     size_t *instruction_pointer;
     OperandStack operands;
     Locals locals;
@@ -26,7 +26,7 @@ class CallStack {
 
     size_t frame_headers_pos;
     size_t capacity;
-    size_t pos;
+    size_t frame_count;
 
     /// creates an empty call stack
     explicit CallStack(size_t capacity);
@@ -35,40 +35,40 @@ public:
     /**
      * Creates a new CallStack, with root function set on top of the stack
      * @throws StackOverflowError if the root's frame size exceeds given capacity
-     * */
-    static CallStack create(size_t capacity, const function_definition &root, constant_index root_ref);
+     */
+    static CallStack create(size_t capacity, const function_definition &root, const std::string *root_signature);
 
     /**
      * Pushes a new frame inside this call stack.
      * @callee the function definition of the new frame to create and push
      * @callee_ref the ref in bound constant pool of the callee's function signature
-     * */
-    void push_frame(const function_definition &callee, constant_index callee_signature);
+     */
+    void push_frame(const function_definition &callee, const std::string *callee_signature);
 
     /**
      * pops last frame from the call_stack.
-     * */
+     */
     void pop_frame();
 
     /**
      * peeks last frame, returning a `stack_frame` structure representing the frame
      * note that the structure holds references into the stack, thus the caller must ensure that
      * the returned stack_frame is manipulated only if the frame is still present in this call stack (not popped)
-     * */
+     */
     stack_frame peek_frame() const;
 
     /**
      * @return the capacity in bytes of this call stack
-     * */
+     */
     size_t get_capacity() const;
 
     /**
-     * @return currently occupied bytes of this call stack
-     * */
+     * @return the number of frames present in this calls tack
+     */
     size_t size() const;
 
     /**
      * @return true if the size is equal to 0
-     * */
-    inline bool is_empty() const;
+     */
+    bool is_empty() const;
 };

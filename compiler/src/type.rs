@@ -1,17 +1,16 @@
 use analyzer::types::hir::TypeId;
 use analyzer::types::ty::Type;
 use analyzer::types::*;
+use std::mem::size_of;
 
-use crate::constant_pool::ConstantPool;
-
-/// Transforms given type name to a type name compatible with bytecode specification.
-pub fn transform_to_primitive_type(tpe: &Type, cp: &mut ConstantPool) -> u32 {
-    let type_identifier = match tpe {
-        Type::Bool | Type::ExitCode => "byte",
-        Type::Int => "int",
-        Type::Float => "float",
-        Type::String => "string",
-        Type::Unit | Type::Nothing => "void", //zero sized types
+/// Transforms given type name to a type name compatible with bytecode specifications.
+pub fn type_to_bytecode_str(tpe: &Type) -> &'static str {
+    match tpe {
+        Type::Bool | Type::ExitCode => "B",
+        Type::Int => "I",
+        Type::Float => "F",
+        Type::String => "S",
+        Type::Unit | Type::Nothing => "V", //zero sized types
         Type::Error | Type::Unknown => {
             panic!("{tpe} is not a compilable type")
         }
@@ -19,8 +18,7 @@ pub fn transform_to_primitive_type(tpe: &Type, cp: &mut ConstantPool) -> u32 {
         Type::Function(_) => {
             panic!("Can only support primitives")
         }
-    };
-    cp.insert_string(type_identifier)
+    }
 }
 
 /// returns the size of a given type identifier
@@ -41,6 +39,19 @@ pub enum ValueStackSize {
     Byte,
     QWord,
     Reference,
+}
+
+impl From<ValueStackSize> for u8 {
+    fn from(val: ValueStackSize) -> Self {
+        match val {
+            ValueStackSize::Zero => 0,
+            ValueStackSize::Byte => 1,
+            ValueStackSize::QWord => 8,
+            // As the size of an address is platform dependant, the bytecode specification
+            // defines a flag to set the type of architecture the bytecode is compiled for
+            ValueStackSize::Reference => size_of::<*const u8>() as u8,
+        }
+    }
 }
 
 impl From<TypeId> for ValueStackSize {
