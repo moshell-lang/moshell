@@ -89,9 +89,9 @@ impl Chunk {
 }
 
 impl TypedEngine {
-    /// Initializes a new typed engine with the given stack_capacity.
+    /// Initializes a new typed engine with the given capacity.
     ///
-    /// In most cases, the stack_capacity is equal to the number of source objects in
+    /// In most cases, the capacity is equal to the number of source objects in
     /// the source engine.
     pub fn with_lang(capacity: usize) -> Self {
         let mut builder = Self {

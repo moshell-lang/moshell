@@ -71,6 +71,9 @@ fn compile_instruction_set(
     engine: &Engine,
     cp: &mut ConstantPool,
 ) {
+    // emit locals byte count
+    let locals_byte_count = bytecode.emit_u32_placeholder();
+
     // emit the function's parameters bytes length
     let parameters_bytes_count: u32 = chunk
         .parameters
@@ -88,9 +91,6 @@ fn compile_instruction_set(
 
     // emit instruction count placeholder
     let instruction_count = bytecode.emit_u32_placeholder();
-
-    // emit locals byte count
-    let locals_byte_count = bytecode.emit_u32_placeholder();
 
     let start = bytecode.len();
 
@@ -138,6 +138,8 @@ fn compile_instruction_set(
     let instruction_byte_count =
         u32::try_from(bytecode.len() - start).expect("too much instructions");
     bytecode.patch_u32_placeholder(instruction_count, instruction_byte_count);
+
+    // patch locals length
     bytecode.patch_u32_placeholder(
         locals_byte_count,
         locals.length().max(return_bytes_count as u32),
@@ -170,8 +172,7 @@ fn write_constant_pool(cp: &ConstantPool, writer: &mut impl Write) -> Result<(),
     writer.write_all(&pool_len.to_be_bytes())?;
 
     for str in &cp.strings {
-        let str_len = u32::try_from(str.len()).expect("string too large");
-        writer.write_all(&str_len.to_be_bytes())?;
+        writer.write_all(&str.len().to_be_bytes())?;
         writer.write_all(str.as_bytes())?;
     }
     Ok(())

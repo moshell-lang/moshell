@@ -76,7 +76,7 @@ struct runtime_state {
     strings_t &strings;
 
     /// loaded function definitions, bound with their string identifier
-    const std::unordered_map<const std::string *, function_definition> functions;
+    const std::unordered_map<const std::string *, function_definition> &functions;
 
     /// The used constant pool
     const ConstantPool &pool;
@@ -508,9 +508,9 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
 
 /**
  * runs the interpreter, where the first function to be executed
- * is the given definition from state functions
+ * is the given identifier
  */
-void run(runtime_state &state, const std::string *root_identifier) {
+void run(runtime_state state, const std::string *root_identifier) {
     // prepare the call stack, containing the given root function on top of the stack
     const function_definition &root_def = state.functions.at(root_identifier);
     CallStack call_stack = CallStack::create(10000, root_def, root_identifier);
@@ -556,7 +556,7 @@ void run_module(const module_definition &module_def, strings_t &strings) {
         if (identifier.rfind("::<main>\0", identifier.length() - strlen("<main>")) != identifier.npos) {
             runtime_state state{strings, module_def.functions, pool};
 
-            run(state, &identifier);
+            run(std::move(state), &identifier);
             return;
         }
     }

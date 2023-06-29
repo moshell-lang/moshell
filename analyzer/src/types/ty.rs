@@ -17,7 +17,7 @@ pub enum Type {
     #[default]
     Unknown,
 
-    /// A type for nothingness, usually attributed to expressions that never returns
+    /// A type for nothingness, attributed to expressions that never returns
     Nothing,
 
     /// A void type, that contains no value.

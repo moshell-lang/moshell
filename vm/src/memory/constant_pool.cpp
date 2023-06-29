@@ -4,7 +4,7 @@
 
 const std::string *read_string(ByteReader &reader, strings_t &strings) {
     // Read the length
-    uint32_t length = ntohl(reader.read<uint32_t>());
+    uint64_t length = ntohl(reader.read<uint64_t>());
 
     // Allocate the string
     std::string str(reader.read_n<char>(length), length);

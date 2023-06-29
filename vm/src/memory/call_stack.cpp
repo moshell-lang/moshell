@@ -103,7 +103,7 @@ stack_frame CallStack::peek_frame() const {
     OperandStack frame_operands(block + operands_first_byte, headers->operands_pos, this->capacity - operands_first_byte);
 
     Locals frame_locals(block + (frame_headers_pos - headers->locals_capacity), headers->locals_capacity);
-    return {headers->function_identifier, &headers->instruction_pointer, frame_operands, frame_locals};
+    return stack_frame{headers->function_identifier, &headers->instruction_pointer, std::move(frame_operands), std::move(frame_locals)};
 }
 
 size_t CallStack::get_capacity() const {

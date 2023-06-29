@@ -3,7 +3,7 @@ use analyzer::relations::Definition;
 use analyzer::types::hir::{FunctionCall, TypeId, TypedExpr};
 use analyzer::types::*;
 
-use crate::bytecode::{Instructions, Opcode};
+use crate::bytecode::Instructions;
 use crate::constant_pool::ConstantPool;
 use crate::emit;
 use crate::emit::EmissionState;
@@ -24,14 +24,6 @@ pub fn emit_process_call(
 
     for arg in arguments {
         emit(arg, instructions, typing, engine, cp, locals, state);
-
-        // convert argument to string if needed
-        match arg.ty {
-            INT => instructions.emit_code(Opcode::ConvertIntToStr),
-            FLOAT => instructions.emit_code(Opcode::ConvertFloatToStr),
-            STRING => {}
-            _ => todo!("Convert to other types"),
-        }
     }
     state.use_values(last_use);
     state.returning_value(last_returns);

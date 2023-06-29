@@ -17,10 +17,10 @@ load_functions_definitions(ByteReader &reader, const ConstantPool &pool) {
         constant_index id_idx = ntohl(reader.read<constant_index>());
         const std::string *identifier = &pool.get_string(id_idx);
 
+        uint32_t locals_byte_count = ntohl(reader.read<uint32_t>());
         uint32_t parameters_byte_count = ntohl(reader.read<uint32_t>());
         uint8_t return_byte_count = reader.read<uint8_t>();
         uint32_t instruction_count = ntohl(reader.read<uint32_t>());
-        uint32_t locals_byte_count = ntohl(reader.read<uint32_t>());
 
         char *instructions = reader.read_n<char>(instruction_count);
 
@@ -90,7 +90,7 @@ module_definition load_module(ByteReader &reader, strings_t &strings) {
 
         const auto functions = load_functions_definitions(reader, pool);
 
-        return module_definition{std::move(pool), functions};
+        return module_definition{std::move(pool), std::move(functions)};
     } catch (const std::out_of_range &e) {
         throw InvalidBytecodeError("Error when reading module bytecode: " + std::string(e.what()));
     }
