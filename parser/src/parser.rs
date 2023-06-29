@@ -191,7 +191,7 @@ impl<'a> Parser<'a> {
             If => self.parse_if(Parser::statement).map(Expr::If),
             Match => self.parse_match(Parser::statement).map(Expr::Match),
             Identifier => self.any_call(),
-            Dyn => {
+            Shell => {
                 self.cursor.next_opt();
                 self.cursor.advance(spaces());
                 if self.cursor.peek().token_type == CurlyLeftBracket {

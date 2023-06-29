@@ -114,7 +114,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
     fn dyn_call(&mut self) -> ParseResult<Expr<'a>> {
         self.cursor
-            .force(of_type(TokenType::Dyn), "Expected 'dyn' keyword.")?;
+            .force(of_type(TokenType::Shell), "Expected 'dyn' keyword.")?;
         self.call()
     }
 
