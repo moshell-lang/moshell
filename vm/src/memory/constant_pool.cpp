@@ -9,7 +9,7 @@ const std::string *read_string(ByteReader &reader, strings_t &strings) {
     // Allocate the string
     std::string str(reader.read_n<char>(length), length);
 
-    auto [str_it, _] = strings.insert(std::make_unique<std::string>(str));
+    auto [str_it, _] = strings.insert(std::make_unique<std::string>(std::move(str)));
     return str_it->get();
 }
 

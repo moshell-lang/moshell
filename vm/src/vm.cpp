@@ -13,6 +13,7 @@ extern "C" void moshell_exec(const char *bytes, size_t byte_count) {
         auto module_def = load_module(reader, strings);
 
         run_module(module_def, strings);
+
     } catch (const std::exception &e) {
         int status;
         char *exception_type = abi::__cxa_demangle(typeid(e).name(), nullptr, 0, &status);

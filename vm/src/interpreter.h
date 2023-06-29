@@ -1,6 +1,7 @@
 #pragma once
 
 #include "definitions/module_definition.h"
+#include "memory/strings.h"
 
 /**
  * Will run given module's main method.

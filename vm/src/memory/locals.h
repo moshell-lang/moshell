@@ -12,10 +12,13 @@ public:
 };
 
 /**
- * Contains the local values of a frame
+ * Encapsulates the allocated locals area of a stack frame
  */
 class Locals {
-    char *bytes;
+    /// encapsulated bytes in the stack frame
+    const char *bytes;
+
+    /// number of bytes reserved
     const size_t capacity;
 
 public:
@@ -24,11 +27,7 @@ public:
     /**
      * @throws LocalsOutOfBoundError if `at` is out of bound
      */
-    int64_t get_int(size_t at) const;
-    /**
-     * @throws LocalsOutOfBoundError if `at` is out of bound
-     */
-    double get_double(size_t at) const;
+    int64_t get_q_word(size_t at) const;
     /**
      * @throws LocalsOutOfBoundError if `at` is out of bound
      */
@@ -41,11 +40,7 @@ public:
     /**
      * @throws LocalsOutOfBoundError if `at` is out of bound
      */
-    void set_int(int64_t i, size_t at);
-    /**
-     * @throws LocalsOutOfBoundError if `at` is out of bound
-     */
-    void set_double(double d, size_t at);
+    void set_q_word(int64_t i, size_t at);
     /**
      * @throws LocalsOutOfBoundError if `at` is out of bound
      */

@@ -1,12 +1,29 @@
 #include "call_stack.h"
 
-/// Contains all the additional information of a running frame
+/// Contains all the runtime information about a frame
 struct frame_headers {
+    /**
+     * position of the previous frame header.
+     * 0 if this frame is the root headers
+     */
     size_t previous_frame_headers_pos;
+    /**
+     * Address of this frame's function identifier
+     */
     const std::string *function_identifier;
+
+    /**
+     * Current position of the instruction being executed
+     */
     size_t instruction_pointer;
 
+    /**
+     * The position of the frame's operands stack
+     */
     size_t operands_pos;
+    /**
+     * The amount of bytes allocated for the locals area of this frame
+     */
     size_t locals_capacity;
 };
 

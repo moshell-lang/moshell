@@ -17,13 +17,17 @@ public:
 
 struct module_definition {
     /// all the constants used by this module.
-    /// The functions instructions always references this pool
+    /// The functions instructions of this module always references to the indexes of this pool
     const ConstantPool pool;
     /// contains the functions declared in this module
     const std::unordered_map<const std::string *, function_definition> functions;
 };
 
 /**
- * Loads a module, assuming that given bytes
+ * Loads a module, placing all string constants in the `strings` argument
+ * @param reader the bytes to reader / load
+ * @param strings the strings set where all the strings constants are interned.
+ * @throws InvalidBytecodeDefinition if the reader ran out of bytes while reading the module
+ * @throws InvalidModuleDefinition if the constant pool or a function isn't validated
  */
 module_definition load_module(ByteReader &reader, strings_t &strings);

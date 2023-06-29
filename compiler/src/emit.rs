@@ -101,6 +101,7 @@ fn emit_ref(
 ) {
     match symbol {
         Symbol::Local(id) => instructions.emit_get_local(*id, ref_type.into(), locals),
+
         _ => todo!(),
     }
 }
@@ -179,6 +180,7 @@ fn emit_assignment(
                 instructions.emit_set_local(id, returned_value_type, locals)
             }
         }
+
         Symbol::External(_) => {
             unimplemented!("External variable assignations are not implemented yet")
         }
@@ -241,6 +243,7 @@ pub fn emit(
             locals,
             state,
         ),
+
         ExprKind::Reference(r) => {
             if state.use_values {
                 emit_ref(r, expr.ty, instructions, locals);

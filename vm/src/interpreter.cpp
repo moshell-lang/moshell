@@ -17,7 +17,7 @@ enum Opcode {
     OP_PUSH_INT,    // with 8 byte int value, pushes an int onto the operand stack
     OP_PUSH_BYTE,   // with 1 byte value, pushes a byte onto the operand stack
     OP_PUSH_FLOAT,  // with 8 byte float value, pushes a float onto the operand stack
-    OP_PUSH_STRING, // with 8 byte string index in constant pool, pushes a string slice onto the operand stack
+    OP_PUSH_STRING, // with 8 byte string index in constant pool, pushes a string ref onto the operand stack
 
     OP_GET_BYTE,   // with 1 byte local index, pushes given local value onto the operand stack
     OP_SET_BYTE,   // with 1 byte local index, set given local value from value popped from the operand stack
@@ -340,7 +340,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             // Read the 1 byte local local_index
             uint32_t local_index = ntohl(*(uint32_t *)(instructions + ip));
             ip += 4;
-            int64_t value = locals.get_int(local_index);
+            int64_t value = locals.get_q_word(local_index);
             // Push the local onto the stack
             operands.push_int(value);
             break;
@@ -352,7 +352,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             // Pop the value from the stack
             int64_t value = operands.pop_int();
             // Set the local
-            locals.set_int(value, index);
+            locals.set_q_word(value, index);
             break;
         }
         case OP_GET_REF: {

@@ -24,8 +24,18 @@ struct stack_frame {
 class CallStack {
     std::unique_ptr<char[]> block;
 
+    /**
+     * position of the current frame headers
+     * is 0 if this call stack is empty
+     */
     size_t frame_headers_pos;
+    /**
+     * Total amount of bytes allocated for this stack.
+     */
     size_t capacity;
+    /**
+     * amount of frames contained in the call stack
+     */
     size_t frame_count;
 
     /// creates an empty call stack
