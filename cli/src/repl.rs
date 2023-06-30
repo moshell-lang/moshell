@@ -4,9 +4,8 @@ use std::io::Write;
 
 use analyzer::importer::{ASTImporter, ImportError};
 use analyzer::name::Name;
-use analyzer::relations::SourceId;
 use ast::Expr;
-use context::source::{OwnedSource, Source};
+use context::source::{ContentId, OwnedSource, Source};
 use parser::parse;
 
 use crate::cli::resolve_and_execute;
@@ -50,7 +49,7 @@ impl ErrorReporter for InputImporter {
         self.files.take_errors()
     }
 
-    fn get_source(&self, id: SourceId) -> Option<Source> {
+    fn get_source(&self, id: ContentId) -> Option<Source> {
         self.files.get_source(id)
     }
 }

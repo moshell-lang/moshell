@@ -64,9 +64,11 @@ pub fn resolve_and_execute<'a>(
     let mut stdout = stderr();
     let had_errors = !diagnostics.is_empty();
     for diagnostic in diagnostics {
-        let source = importer
-            .get_source(diagnostic.source)
+        let content_id = result
+            .engine
+            .get_original_content(diagnostic.source)
             .expect("Unknown source");
+        let source = importer.get_source(content_id).expect("Unknown source");
         display_diagnostic(source, diagnostic, &mut stdout)
             .expect("IO errors when reporting diagnostic")
     }

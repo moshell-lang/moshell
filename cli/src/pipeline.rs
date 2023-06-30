@@ -4,17 +4,16 @@ use std::path::{MAIN_SEPARATOR_STR, PathBuf};
 
 use analyzer::importer::{ASTImporter, ImportError};
 use analyzer::name::Name;
-use analyzer::relations::SourceId;
 use ast::Expr;
 use ast::group::Block;
-use context::source::{OwnedSource, Source, SourceSegmentHolder};
+use context::source::{ContentId, OwnedSource, Source, SourceSegmentHolder};
 use parser::err::ParseError;
 use parser::parse;
 
 /// A collection of parse errors that are bound to a unique source.
 pub struct SourceAwareParseErrors {
     /// The source identifier from which the errors were generated.
-    pub source: SourceId,
+    pub source: ContentId,
 
     /// The generated errors.
     pub errors: Vec<ParseError>,
@@ -80,7 +79,7 @@ impl FileImporter {
         } else {
             self.errors
                 .push(FileImportError::Parse(SourceAwareParseErrors {
-                    source: SourceId(id),
+                    source: ContentId(id),
                     errors: report.errors,
                 }));
             Err(ImportError)
@@ -121,7 +120,7 @@ pub trait ErrorReporter {
     fn take_errors(&mut self) -> Vec<FileImportError>;
 
     /// Gets a source from the importer.
-    fn get_source(&self, id: SourceId) -> Option<Source>;
+    fn get_source(&self, id: ContentId) -> Option<Source>;
 }
 
 impl ErrorReporter for FileImporter {
@@ -129,7 +128,7 @@ impl ErrorReporter for FileImporter {
         std::mem::take(&mut self.errors)
     }
 
-    fn get_source(&self, id: SourceId) -> Option<Source> {
+    fn get_source(&self, id: ContentId) -> Option<Source> {
         self.sources.get(id.0).map(|s| s.as_source())
     }
 }
