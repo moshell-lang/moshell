@@ -630,9 +630,16 @@ fn import_ast<'a, 'b>(
     while !parts.is_empty() {
         let name = Name::from(parts.clone());
         match importer.import(&name) {
-            Some(expr) => return Some((expr, name)),
-            None => {
+            Ok(Some(expr)) => return Some((expr, name)),
+            Ok(None) => {
+                // Nothing has been found, but we might have a chance by
+                // importing the parent module.
                 parts.pop();
+            }
+            Err(_) => {
+                // Something has been found, but cannot be fully imported,
+                // so don't try to import anything else.
+                return None;
             }
         }
     }

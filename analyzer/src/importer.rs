@@ -5,13 +5,19 @@ use context::source::Source;
 
 use crate::name::Name;
 
-/// An importer is responsible for importing an AST from a given name
-/// The user of the analyzer must provide its own implementation
+#[derive(Debug)]
+pub struct ImportError;
+
+/// Import an abstract syntax tree from a given name.
 pub trait ASTImporter<'a> {
-    /// Gets a source reference from the given import name.
-    /// Returning None if the importer encountered any error (IO, parsing errors etc).
-    /// It's up to the implementation to handle those errors and report them to the user.
-    fn import(&mut self, name: &Name) -> Option<Expr<'a>>;
+    /// Gets an expression from the given import name.
+    ///
+    /// This method should return `Ok(None)` if a source with the given name
+    /// could not be found. If the source could be found, but for any reason
+    /// could not be retrieved (because of IO or parsing errors), this method
+    /// should return `Err(())`. Implementers of this traits may expose the
+    /// actual error types.
+    fn import(&mut self, name: &Name) -> Result<Option<Expr<'a>>, ImportError>;
 }
 
 /// An importer with predefined sources.
@@ -40,7 +46,7 @@ impl<'a, P> ASTImporter<'a> for StaticImporter<'a, P>
 where
     P: Fn(Source<'a>) -> Expr<'a>,
 {
-    fn import(&mut self, name: &Name) -> Option<Expr<'a>> {
-        self.sources.get(name).map(|src| (self.ast_factory)(*src))
+    fn import(&mut self, name: &Name) -> Result<Option<Expr<'a>>, ImportError> {
+        Ok(self.sources.get(name).map(|src| (self.ast_factory)(*src)))
     }
 }
