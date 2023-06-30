@@ -405,24 +405,23 @@ fn ascribe_block(
     state: TypingState,
 ) -> TypedExpr {
     let mut expressions = Vec::with_capacity(block.expressions.len());
-    if let Some((last, exprs)) = block.expressions.split_last() {
-        for expr in exprs {
-            expressions.push(ascribe_types(
-                exploration,
-                relations,
-                diagnostics,
-                env,
-                expr,
-                state.without_local_type(),
-            ));
-        }
+    let mut it = block
+        .expressions
+        .iter()
+        .filter(|expr| !matches!(expr, Expr::Use(_)))
+        .peekable();
+    while let Some(expr) = it.next() {
         expressions.push(ascribe_types(
             exploration,
             relations,
             diagnostics,
             env,
-            last,
-            state,
+            expr,
+            if it.peek().is_some() {
+                state.without_local_type()
+            } else {
+                state
+            },
         ));
     }
     let ty = expressions.last().map_or(UNIT, |expr| expr.ty);
