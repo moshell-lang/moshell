@@ -2,13 +2,13 @@ use std::io;
 use std::io::BufRead;
 use std::io::Write;
 
-use analyzer::importer::{ASTImporter, Imported, ImportError};
+use analyzer::importer::{ASTImporter, ImportError, Imported};
 use analyzer::name::Name;
 use context::source::{ContentId, OwnedSource, Source};
 use parser::parse;
 
 use crate::cli::resolve_and_execute;
-use crate::pipeline::{ErrorReporter, FileImporter, FileImportError};
+use crate::pipeline::{ErrorReporter, FileImportError, FileImporter};
 use crate::report::print_flush;
 
 /// A wrapper around a [`FileImporter`] that short-circuits the file system for

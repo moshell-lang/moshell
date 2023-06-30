@@ -27,9 +27,14 @@ pub fn resolve_and_execute<'a>(
     entry_point: Name,
     importer: &mut (impl ASTImporter<'a> + ErrorReporter),
 ) -> bool {
-    let result = resolve_all(entry_point, importer);
+    let result = resolve_all(entry_point.clone(), importer);
 
     let errors = importer.take_errors();
+    if errors.is_empty() && result.engine.is_empty() {
+        eprintln!("No module found for entry point {entry_point}");
+        return true;
+    }
+
     let has_errors = !errors.is_empty();
     for error in errors {
         match error {

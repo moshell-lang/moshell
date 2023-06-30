@@ -1,11 +1,12 @@
+use std::collections::HashMap;
 use std::fs::read_to_string;
 use std::io;
-use std::path::{MAIN_SEPARATOR_STR, PathBuf};
+use std::path::{PathBuf, MAIN_SEPARATOR_STR};
 
-use analyzer::importer::{ASTImporter, Imported, ImportError};
+use analyzer::importer::{ASTImporter, ImportError, Imported};
 use analyzer::name::Name;
-use ast::Expr;
 use ast::group::Block;
+use ast::Expr;
 use context::source::{ContentId, OwnedSource, Source, SourceSegmentHolder};
 use parser::err::ParseError;
 use parser::parse;
@@ -38,6 +39,9 @@ pub struct FileImporter {
     /// The imported sources, as an importer is the owner of the sources.
     sources: Vec<OwnedSource>,
 
+    /// Paths exceptions to look for when importing a source.
+    redirections: HashMap<Name, PathBuf>,
+
     /// The errors that occurred while importing the sources.
     ///
     /// They contains the specific errors that were masked when using the
@@ -52,6 +56,7 @@ impl FileImporter {
         Self {
             root,
             sources: Vec::new(),
+            redirections: HashMap::new(),
             errors: Vec::new(),
         }
     }
@@ -90,13 +95,27 @@ impl FileImporter {
             Err(ImportError)
         }
     }
+
+    /// Adds a special name to path mapping to the importer.
+    pub fn add_redirection(&mut self, name: Name, path: PathBuf) {
+        self.redirections.insert(name, path);
+    }
+
+    /// Gets the search path for a given name, by applying any existing redirection.
+    fn get_search_path(&self, name: &Name) -> PathBuf {
+        if let Some(path) = self.redirections.get(name) {
+            path.clone()
+        } else {
+            let mut path = self.root.clone();
+            path.push(name.parts().to_owned().join(MAIN_SEPARATOR_STR));
+            path.with_extension("msh")
+        }
+    }
 }
 
 impl<'a> ASTImporter<'a> for FileImporter {
     fn import(&mut self, name: &Name) -> Result<Option<Imported<'a>>, ImportError> {
-        let mut path = self.root.clone();
-        path.push(name.parts().to_owned().join(MAIN_SEPARATOR_STR));
-        path = path.with_extension("msh");
+        let path = self.get_search_path(name);
         match read_to_string(&path) {
             Ok(content) => self.insert(OwnedSource::new(
                 content,

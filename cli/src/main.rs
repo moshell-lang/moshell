@@ -8,7 +8,7 @@ use miette::MietteHandlerOpts;
 
 use analyzer::name::Name;
 
-use crate::cli::{Cli, resolve_and_execute};
+use crate::cli::{resolve_and_execute, Cli};
 use crate::pipeline::FileImporter;
 use crate::repl::prompt;
 
@@ -25,7 +25,6 @@ fn main() -> io::Result<()> {
     }))
     .expect("miette options setup");
 
-    let mut importer = FileImporter::new(std::env::current_dir()?);
     if let Some(source) = cli.source {
         let name = Name::new(
             source
@@ -33,9 +32,16 @@ fn main() -> io::Result<()> {
                 .and_then(|name| name.to_str())
                 .expect("Incompatible filename"),
         );
+        let mut importer = FileImporter::new({
+            let mut root = source.clone();
+            root.pop();
+            root
+        });
+        importer.add_redirection(name.clone(), source);
         let has_error = resolve_and_execute(name, &mut importer);
         exit(i32::from(has_error))
     }
+    let importer = FileImporter::new(std::env::current_dir()?);
     prompt(importer);
     Ok(())
 }
