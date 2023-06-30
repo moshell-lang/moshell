@@ -2,7 +2,7 @@ use std::fs::read_to_string;
 use std::io;
 use std::path::{MAIN_SEPARATOR_STR, PathBuf};
 
-use analyzer::importer::{ASTImporter, ImportError};
+use analyzer::importer::{ASTImporter, Imported, ImportError};
 use analyzer::name::Name;
 use ast::Expr;
 use ast::group::Block;
@@ -11,6 +11,7 @@ use parser::err::ParseError;
 use parser::parse;
 
 /// A collection of parse errors that are bound to a unique source.
+#[derive(Debug)]
 pub struct SourceAwareParseErrors {
     /// The source identifier from which the errors were generated.
     pub source: ContentId,
@@ -20,6 +21,7 @@ pub struct SourceAwareParseErrors {
 }
 
 /// A failure that occurred while importing a source with a [`FileImporter`].
+#[derive(Debug)]
 pub enum FileImportError {
     /// An IO error occurred while reading the source.
     IO(io::Error),
@@ -55,7 +57,7 @@ impl FileImporter {
     }
 
     /// Inserts a new source into the importer.
-    pub fn insert<'a>(&mut self, source: OwnedSource) -> Result<Option<Expr<'a>>, ImportError> {
+    pub fn insert<'a>(&mut self, source: OwnedSource) -> Result<Option<Imported<'a>>, ImportError> {
         let id = self.sources.len();
         self.sources.push(source);
         let source = self
@@ -72,10 +74,13 @@ impl FileImporter {
                 // 'a is used here to disambiguate the lifetime of the source and the mutable borrow.
                 std::mem::transmute::<Vec<Expr>, Vec<Expr<'a>>>(report.expr)
             };
-            Ok(Some(Expr::Block(Block {
-                expressions,
-                segment: source.segment(),
-            })))
+            Ok(Some(Imported {
+                content: ContentId(id),
+                expr: Expr::Block(Block {
+                    expressions,
+                    segment: source.segment(),
+                }),
+            }))
         } else {
             self.errors
                 .push(FileImportError::Parse(SourceAwareParseErrors {
@@ -88,7 +93,7 @@ impl FileImporter {
 }
 
 impl<'a> ASTImporter<'a> for FileImporter {
-    fn import(&mut self, name: &Name) -> Result<Option<Expr<'a>>, ImportError> {
+    fn import(&mut self, name: &Name) -> Result<Option<Imported<'a>>, ImportError> {
         let mut path = self.root.clone();
         path.push(name.parts().to_owned().join(MAIN_SEPARATOR_STR));
         path = path.with_extension("msh");

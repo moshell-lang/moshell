@@ -15,7 +15,7 @@ use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::environment::variables::{TypeInfo, Variables};
 use crate::environment::Environment;
-use crate::importer::ASTImporter;
+use crate::importer::{ASTImporter, Imported};
 use crate::imports::{Imports, UnresolvedImport};
 use crate::name::Name;
 use crate::relations::{RelationState, Relations, SourceId, Symbol};
@@ -174,18 +174,26 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             //try to import the ast, if the importer isn't able to achieve this and returns None,
             //Ignore this ast analysis. It'll be up to the given importer implementation to handle the
             //errors caused by this import request failure
-            if let Some((ast, name)) = import_ast(name, importer) {
-                self.collect_ast_symbols(ast, name, to_visit)
+            if let Some((imported, name)) = import_ast(name, importer) {
+                self.collect_ast_symbols(imported, name, to_visit)
             }
         }
     }
 
-    fn collect_ast_symbols(&mut self, ast: Expr<'e>, module_name: Name, to_visit: &mut Vec<Name>) {
+    fn collect_ast_symbols(
+        &mut self,
+        imported: Imported<'e>,
+        module_name: Name,
+        to_visit: &mut Vec<Name>,
+    ) {
         // Immediately transfer the ownership of the AST to the engine.
-        let (content, root_block) = self.engine.take(ast);
+        let root_block = self.engine.take(imported.expr);
 
         let mut env = Environment::named(module_name);
-        let mut state = ResolutionState::new(content, self.engine.track(content, root_block));
+        let mut state = ResolutionState::new(
+            imported.content,
+            self.engine.track(imported.content, root_block),
+        );
         self.tree_walk(&mut env, &mut state, root_block, to_visit);
         self.engine.attach(state.module, env)
     }
@@ -637,12 +645,12 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
 fn import_ast<'a, 'b>(
     name: Name,
     importer: &'b mut impl ASTImporter<'a>,
-) -> Option<(Expr<'a>, Name)> {
+) -> Option<(Imported<'a>, Name)> {
     let mut parts = name.into_vec();
     while !parts.is_empty() {
         let name = Name::from(parts.clone());
         match importer.import(&name) {
-            Ok(Some(expr)) => return Some((expr, name)),
+            Ok(Some(imported)) => return Some((imported, name)),
             Ok(None) => {
                 // Nothing has been found, but we might have a chance by
                 // importing the parent module.

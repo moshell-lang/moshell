@@ -22,14 +22,13 @@ pub struct Engine<'a> {
 
 impl<'a> Engine<'a> {
     /// Takes ownership of an expression and returns a reference to it.
-    pub fn take(&mut self, ast: Expr<'a>) -> (ContentId, &'a Expr<'a>) {
-        let id = ContentId(self.asts.len());
+    pub fn take(&mut self, ast: Expr<'a>) -> &'a Expr<'a> {
         self.asts.push(Box::new(ast));
-        (id, unsafe {
+        unsafe {
             // SAFETY: Assume for now that expressions are never removed from the engine.
             // The reference behind Box does not change and is valid for the lifetime of the engine.
             std::mem::transmute::<&Expr<'a>, &'a Expr<'a>>(self.asts.last().unwrap())
-        })
+        }
     }
 
     ///Returns an iterator over environments contained in engine

@@ -2,9 +2,8 @@ use std::io;
 use std::io::BufRead;
 use std::io::Write;
 
-use analyzer::importer::{ASTImporter, ImportError};
+use analyzer::importer::{ASTImporter, Imported, ImportError};
 use analyzer::name::Name;
-use ast::Expr;
 use context::source::{ContentId, OwnedSource, Source};
 use parser::parse;
 
@@ -36,7 +35,7 @@ impl InputImporter {
 }
 
 impl<'a> ASTImporter<'a> for InputImporter {
-    fn import(&mut self, name: &Name) -> Result<Option<Expr<'a>>, ImportError> {
+    fn import(&mut self, name: &Name) -> Result<Option<Imported<'a>>, ImportError> {
         match self.last.take() {
             Some(last) => self.files.insert(last),
             None => self.files.import(name),
