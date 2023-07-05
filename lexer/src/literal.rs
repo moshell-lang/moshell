@@ -9,6 +9,7 @@ pub(crate) fn is_not_identifier_part(c: char) -> bool {
             | '>'
             | '|'
             | '&'
+            | '^'
             | '@'
             | '\''
             | '"'
@@ -28,6 +29,7 @@ pub(crate) fn is_not_identifier_part(c: char) -> bool {
             | ','
             | '.'
             | '='
+            | '!'
     ) || c.is_whitespace()
 }
 
@@ -82,8 +84,16 @@ impl<'a> Lexer<'a> {
             {
                 pos = p + 1;
                 is_float = true;
-            } else {
+            } else if is_not_identifier_part(c) {
                 break;
+            } else {
+                return self.next_identifier(
+                    start_pos,
+                    self.input[start_pos..]
+                        .chars()
+                        .next()
+                        .expect("Invalid starting position"),
+                );
             }
         }
         Token::new(

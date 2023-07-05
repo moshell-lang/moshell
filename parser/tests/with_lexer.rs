@@ -2,8 +2,9 @@ use ast::call::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use ast::control_flow::{Loop, While};
 use ast::function::Return;
 use ast::group::{Block, Subshell};
+use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::substitution::{Substitution, SubstitutionKind};
-use ast::value::TemplateString;
+use ast::value::{Literal, TemplateString};
 use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
@@ -478,6 +479,26 @@ fn redirect_string_local_exe() {
             }],
         })]
     )
+}
+
+#[test]
+fn divide_in_statement() {
+    let source = Source::unknown("$n/2");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Binary(BinaryOperation {
+            left: Box::new(Expr::VarReference(VarReference {
+                name: "n",
+                segment: find_in(source.source, "$n"),
+            })),
+            op: BinaryOperator::Divide,
+            right: Box::new(Expr::Literal(Literal {
+                parsed: 2.into(),
+                segment: find_in(source.source, "2"),
+            })),
+        })]
+    );
 }
 
 #[test]
