@@ -51,6 +51,10 @@ impl Bytecode {
         self.bytes.extend(value.to_be_bytes());
     }
 
+    pub fn emit_i32(&mut self, value: i32) {
+        self.bytes.extend(value.to_be_bytes());
+    }
+
     /// emits a signed 64 bits float
     pub fn emit_float(&mut self, value: f64) {
         self.bytes.extend(value.to_be_bytes());
@@ -193,10 +197,15 @@ impl<'a> Instructions<'a> {
         self.bytecode.emit_u32_placeholder()
     }
 
-    /// emits a spawn instruction, with given argument counts
-    pub fn emit_spawn(&mut self, arg_count: u8) {
-        self.emit_code(Opcode::Spawn);
+    /// Emits an exec instruction, with the given argument count.
+    pub fn emit_exec(&mut self, arg_count: u8) {
+        self.emit_code(Opcode::Exec);
         self.bytecode.emit_byte(arg_count);
+    }
+
+    pub fn emit_open(&mut self, unix_flags: i32) {
+        self.emit_code(Opcode::Open);
+        self.bytecode.emit_i32(unix_flags);
     }
 
     /// Emits a function invocation instruction, with a given method signature in constant pool.
@@ -240,9 +249,16 @@ pub enum Opcode {
     GetRef,
     SetRef,
 
-    Spawn,
     Invoke,
+    Fork,
+    Exec,
+    Wait,
+    Open,
+    Close,
+    Redirect,
+    PopRedirect,
 
+    Dup,
     PopByte,
     PopQWord,
     PopRef,

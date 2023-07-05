@@ -89,8 +89,9 @@ fn display_function(cursor: &mut Cursor<&[u8]>, constants: &[String]) -> io::Res
             | Opcode::SetRef => {
                 print!("<local @{}>", read!(cursor, u32))
             }
-            Opcode::Spawn => print!("<arity {}>", read!(cursor, u8)),
-            Opcode::IfJump | Opcode::IfNotJump | Opcode::Jump => {
+            Opcode::Exec => print!("<arity {}>", read!(cursor, u8)),
+            Opcode::Open => print!("<flags {:#x}>", read!(cursor, i32)),
+            Opcode::IfJump | Opcode::IfNotJump | Opcode::Jump | Opcode::Fork => {
                 print!("<instruction #{}>", read!(cursor, u32))
             }
             _ => {} // Other opcodes do not define parameters
@@ -132,8 +133,15 @@ fn get_opcode_mnemonic(opcode: Opcode) -> &'static str {
         Opcode::SetQWord => "qwset",
         Opcode::GetRef => "rget",
         Opcode::SetRef => "rset",
-        Opcode::Spawn => "spawn",
         Opcode::Invoke => "invoke",
+        Opcode::Fork => "fork",
+        Opcode::Exec => "exec",
+        Opcode::Wait => "wait",
+        Opcode::Open => "open",
+        Opcode::Close => "close",
+        Opcode::Redirect => "redir",
+        Opcode::PopRedirect => "popredir",
+        Opcode::Dup => "dup",
         Opcode::PopByte => "bpop",
         Opcode::PopQWord => "qwpop",
         Opcode::PopRef => "rpop",

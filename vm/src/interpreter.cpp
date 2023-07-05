@@ -3,11 +3,13 @@
 
 #include "memory/call_stack.h"
 #include "memory/constant_pool.h"
+#include "memory/nix.h"
 #include "memory/operand_stack.h"
 #include "vm.h"
 
 #include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
 #include <iostream>
 #include <memory>
 #include <sys/wait.h>
@@ -27,9 +29,18 @@ enum Opcode {
     OP_GET_REF,    // with 1 byte local index, pushes given local value onto the operand stack
     OP_SET_REF,    // with 1 byte local index, set given local value from value popped from the operand stack
 
-    OP_SPAWN,  // with 1 byte stack size for process exec(), pushes process exit status onto the operand stack
-    OP_INVOKE, // with 4 byte function ref string in constant pool, pops parameters from operands then pushes invoked function return in operand stack (if non-void)
+    OP_INVOKE,       // with 4 byte function ref string in constant pool, pops parameters from operands then pushes invoked function return in operand stack (if non-void)
+    OP_FORK,         // forks a new process, pushes the pid onto the operand stack of the parent and jumps to the given address in the
+                     // parent
+    OP_EXEC,         // with 1 byte for the number of arguments, pops the arguments and replaces the current program
+    OP_WAIT,         // pops a pid from the operand stack and waits for it to finish
+    OP_OPEN,         // opens a file with the name popped from the stack, pushes the file descriptor onto the operand stack
+    OP_CLOSE,        // pops a file descriptor from the operand stack and closes the file
+    OP_REDIRECT,     // duplicates the file descriptor popped from the operand stack, pushes the new file descriptor onto the
+                     // operand stack
+    OP_POP_REDIRECT, // pops a file descriptor from the operand stack and closes it
 
+    OP_DUP,        // duplicates the last value on the operand stack
     OP_POP_BYTE,   // pops one byte from operand stack
     OP_POP_Q_WORD, // pops 8 bytes from operand stack
     OP_POP_REF,    // pops a reference from operand stack, the number of bytes is architecture specific
@@ -81,6 +92,11 @@ struct runtime_state {
     strings_t &strings;
 
     /**
+     * The file descriptor table
+     */
+    fd_table table;
+
+    /**
      * loaded function definitions, bound with their string identifier
      */
     const std::unordered_map<const std::string *, function_definition> &functions;
@@ -90,51 +106,6 @@ struct runtime_state {
      */
     const ConstantPool &pool;
 };
-
-/**
- * Spawn a new process inside a fork, and wait for its exit status.
- * Will pop from `operand` stack `frame_size` string references elements.
- * where the last popped operand element is the process path.
- * The resulting exitcode status of the child is pushed in the operands stack
- *
- * @param operands the operands to pop arguments / push result
- * @param frame_size number of arguments to pop from the operands, including
- */
-void spawn_process(OperandStack &operands, uint8_t frame_size) {
-    // Create argv of the given frame_size, and create a new string for each arg with a null byte after each string
-    std::vector<std::unique_ptr<char[]>> argv(frame_size + 1);
-    for (int i = frame_size - 1; i >= 0; i--) {
-        // pop the string index
-        size_t reference = operands.pop_reference();
-        // cast the ref to a string pointer
-        const std::string &arg = *(std::string *)reference;
-        size_t arg_length = arg.length() + 1; // add 1 for the trailing '\0' char
-        // Allocate the string
-        argv[i] = std::make_unique<char[]>(arg_length);
-        // copy the string fata
-        memcpy(argv[i].get(), arg.c_str(), arg_length);
-    }
-    argv[frame_size] = nullptr;
-
-    // Fork and exec the process
-    pid_t pid = fork();
-    if (pid == 0) {
-        // Replace the current process with a new process image
-        if (execvp(argv[0].get(), reinterpret_cast<char *const *>(argv.data())) == -1) {
-            perror("execvp");
-            _exit(MOSHELL_COMMAND_NOT_RUNNABLE);
-        }
-    } else if (pid == -1) {
-        perror("fork");
-    } else {
-        int status = 0;
-        // Wait for the process to finish
-        waitpid(pid, &status, 0);
-
-        // Add the exit status to the stack
-        operands.push_byte(WEXITSTATUS(status) & 0xFF);
-    }
-}
 
 /**
  * Apply an arithmetic operation to two integers
@@ -292,19 +263,109 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             operands.push_reference((uint64_t)str_ref);
             break;
         }
-        case OP_SPAWN: {
-            // Read the 1 byte stack size
-            char frame_size = instructions[ip];
-            ip++;
-            spawn_process(operands, frame_size);
-            break;
-        }
         case OP_INVOKE: {
             constant_index identifier_idx = ntohl(*(constant_index *)(instructions + ip));
             ip += sizeof(constant_index);
 
             push_function_invocation(identifier_idx, state, operands, call_stack);
             return false; // terminate this frame run
+        }
+        case OP_FORK: {
+            uint32_t parent_jump = ntohl(*(uint32_t *)(instructions + ip));
+            ip += sizeof(uint32_t);
+            pid_t pid = fork();
+            switch (pid) {
+            case -1:
+                throw std::runtime_error("Failed to fork");
+            case 0:
+                // Child process
+                break;
+            default:
+                // Parent process
+                ip = parent_jump;
+                operands.push_int(static_cast<int>(pid));
+                break;
+            }
+            break;
+        }
+        case OP_EXEC: {
+            // Read the 1 byte stack size
+            char frame_size = instructions[ip];
+            ip++;
+
+            // Create argv of the given frame_size, and create a new string for each arg with a null byte after each string
+            std::vector<std::unique_ptr<char[]>> argv(frame_size + 1);
+            for (int i = frame_size - 1; i >= 0; i--) {
+                // Pop the string reference
+                uintptr_t reference = operands.pop_reference();
+                // cast the ref to a string pointer
+                const std::string &arg = *(std::string *)reference;
+                size_t arg_length = arg.length() + 1; // add 1 for the trailing '\0' char
+                // Allocate the string
+                argv[i] = std::make_unique<char[]>(arg_length);
+                // copy the string fata
+                memcpy(argv[i].get(), arg.c_str(), arg_length);
+            }
+
+            // Replace the current process with a new process image
+            if (execvp(argv[0].get(), reinterpret_cast<char *const *>(argv.data())) == -1) {
+                perror("execvp");
+                _exit(MOSHELL_COMMAND_NOT_RUNNABLE);
+            }
+            break;
+        }
+        case OP_WAIT: {
+            // Pop the pid
+            pid_t pid = static_cast<pid_t>(operands.pop_int());
+
+            int status = 0;
+            // Wait for the process to finish
+            waitpid(pid, &status, 0);
+
+            // Add the exit status to the stack
+            operands.push_byte(WEXITSTATUS(status) & 0xFF);
+            break;
+        }
+        case OP_OPEN: {
+            // Pop the path
+            uint64_t path_ref = operands.pop_reference();
+            const std::string &path = *(std::string *)path_ref;
+
+            // Read the flags
+            int flags = ntohl(*(int *)(instructions + ip));
+
+            // Open the file
+            int fd = open(path.c_str(), flags, S_IRUSR | S_IWUSR);
+            if (fd == -1) {
+                perror("open");
+                exit(1);
+            }
+
+            // Push the file descriptor onto the stack
+            operands.push_int(fd);
+            ip += sizeof(int);
+            break;
+        }
+        case OP_CLOSE: {
+            // Pop the file descriptor
+            int fd = static_cast<int>(operands.pop_int());
+
+            // Close the file
+            close(fd);
+            break;
+        }
+        case OP_REDIRECT: {
+            // Pop the file descriptors
+            int fd2 = static_cast<int>(operands.pop_int());
+            int fd1 = static_cast<int>(operands.pop_int());
+
+            // Redirect the file descriptors
+            state.table.push_redirection(fd1, fd2);
+            break;
+        }
+        case OP_POP_REDIRECT: {
+            state.table.pop_redirection();
+            break;
         }
         case OP_GET_BYTE: {
             // Read the 1 byte local local_index
@@ -416,6 +477,12 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
         case OP_JUMP: {
             uint32_t destination = ntohl(*(uint32_t *)(instructions + ip));
             ip = destination;
+            break;
+        }
+        case OP_DUP: {
+            int64_t value = operands.pop_int();
+            operands.push_int(value);
+            operands.push_int(value);
             break;
         }
         case OP_POP_BYTE: {
@@ -531,6 +598,7 @@ void run(runtime_state state, const std::string *root_identifier) {
 void run_unit(const bytecode_unit &module_def, strings_t &strings) {
 
     const ConstantPool &pool = module_def.pool;
+    fd_table table;
 
     // find module main function
     for (auto function : module_def.functions) {
@@ -538,7 +606,7 @@ void run_unit(const bytecode_unit &module_def, strings_t &strings) {
 
         // we found our main function, we search for a function named `<main>` with no parameters, regardless of the return type
         if (identifier.rfind("::<main>", identifier.length() - strlen("::<main>")) != std::string::npos) {
-            runtime_state state{strings, module_def.functions, pool};
+            runtime_state state{strings, table, module_def.functions, pool};
 
             run(state, &identifier);
             return;

@@ -6,7 +6,7 @@ use ast::value::LiteralValue;
 
 use crate::bytecode::{Instructions, Opcode, Placeholder};
 use crate::constant_pool::ConstantPool;
-use crate::emit::invoke::{emit_function_call, emit_process_call};
+use crate::emit::invoke::{emit_function_call, emit_process_call, emit_redirect};
 use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
 use crate::emit::native::emit_primitive_op;
 use crate::locals::LocalsLayout;
@@ -240,6 +240,9 @@ pub fn emit(
             }
             Definition::User(_) => todo!("invocation of user defined methods"),
         },
+        ExprKind::Redirect(redirect) => {
+            emit_redirect(redirect, instructions, typing, engine, cp, locals, state)
+        }
         _ => unimplemented!(),
     }
 }
