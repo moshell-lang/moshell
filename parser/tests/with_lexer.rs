@@ -459,6 +459,28 @@ fn loop_assign() {
 }
 
 #[test]
+fn redirect_string_local_exe() {
+    let source = Source::unknown("./target/debug/cli <<< 'cat <<< \"hello\"'");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Redirected(Redirected {
+            expr: Box::new(Expr::Call(Call {
+                path: Vec::new(),
+                arguments: vec![literal(source.source, "./target/debug/cli")],
+                type_parameters: Vec::new(),
+            })),
+            redirections: vec![Redir {
+                fd: RedirFd::Default,
+                operator: RedirOp::String,
+                operand: literal(source.source, "'cat <<< \"hello\"'",),
+                segment: find_in(source.source, "<<< 'cat <<< \"hello\"'"),
+            }],
+        })]
+    )
+}
+
+#[test]
 fn inner_var_ref() {
     let source = Source::unknown("dest = \"$DEST/shard_$SHARD_NUMBER/$L\"");
     let parsed = parse(source).expect("Failed to parse");
