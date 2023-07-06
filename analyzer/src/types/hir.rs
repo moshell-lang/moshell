@@ -114,6 +114,7 @@ pub enum ExprKind {
     FunctionCall(FunctionCall),
     MethodCall(MethodCall),
     Return(Option<Box<TypedExpr>>),
+    Pipeline(Vec<TypedExpr>),
 
     Continue,
     Break,

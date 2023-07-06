@@ -257,8 +257,11 @@ pub enum Opcode {
     Close,
     Redirect,
     PopRedirect,
+    Pipe,
 
     Dup,
+    Swap,
+    Swap2,
     PopByte,
     PopQWord,
     PopRef,

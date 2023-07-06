@@ -1,4 +1,4 @@
-use ast::call::{Call, ProgrammaticCall, RedirOp, Redirected};
+use ast::call::{Call, Pipeline, ProgrammaticCall, RedirOp, Redirected};
 use ast::control_flow::If;
 use ast::function::FunctionDeclaration;
 use ast::group::Block;
@@ -494,6 +494,33 @@ fn ascribe_redirected(
         }),
         ty,
         segment: redirected.segment(),
+    }
+}
+
+fn ascribe_pipeline(
+    pipeline: &Pipeline,
+    exploration: &mut Exploration,
+    relations: &Relations,
+    diagnostics: &mut Vec<Diagnostic>,
+    env: &Environment,
+    state: TypingState,
+) -> TypedExpr {
+    let mut commands = Vec::with_capacity(pipeline.commands.len());
+    for command in &pipeline.commands {
+        commands.push(ascribe_types(
+            exploration,
+            relations,
+            diagnostics,
+            env,
+            command,
+            state,
+        ));
+    }
+    let ty = commands.last().map_or(NOTHING, |command| command.ty);
+    TypedExpr {
+        kind: ExprKind::Pipeline(commands),
+        ty,
+        segment: pipeline.segment(),
     }
 }
 
@@ -1019,6 +1046,9 @@ fn ascribe_types(
         Expr::Block(b) => ascribe_block(b, exploration, relations, diagnostics, env, state),
         Expr::Redirected(redirected) => {
             ascribe_redirected(redirected, exploration, relations, diagnostics, env, state)
+        }
+        Expr::Pipeline(pipeline) => {
+            ascribe_pipeline(pipeline, exploration, relations, diagnostics, env, state)
         }
         Expr::Return(r) => ascribe_return(r, exploration, relations, diagnostics, env, state),
         Expr::Parenthesis(paren) => ascribe_types(
@@ -1895,12 +1925,12 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceId(0),
-                "Cannot stringify type `Nothing`",
+                "Cannot stringify type `Unit`",
             )
-            .with_observation(Observation::with_help(
+            .with_observation(Observation::here(
+                SourceId(0),
                 find_in(content, "$file"),
-                "No method `to_string` on type `Nothing`"
+                "No method `to_string` on type `Unit`"
             ))])
         );
     }
@@ -1913,10 +1943,10 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                SourceId(0),
                 "File descriptor redirections must be given an integer, not `String`",
             )
-            .with_observation(Observation::with_help(
+            .with_observation(Observation::here(
+                SourceId(0),
                 find_in(content, ">&matches"),
                 "Redirection happens here"
             ))])

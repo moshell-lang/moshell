@@ -39,8 +39,11 @@ enum Opcode {
     OP_REDIRECT,     // duplicates the file descriptor popped from the operand stack, pushes the new file descriptor onto the
                      // operand stack
     OP_POP_REDIRECT, // pops a file descriptor from the operand stack and closes it
+    OP_PIPE,         // creates a pipe, pushes the read and write file descriptors onto the operand stack
 
     OP_DUP,        // duplicates the last value on the operand stack
+    OP_SWAP,       // swaps the last two values on the operand stack
+    OP_SWAP_2,     // swaps the last two values on the operand stack with the one before that
     OP_POP_BYTE,   // pops one byte from operand stack
     OP_POP_Q_WORD, // pops 8 bytes from operand stack
     OP_POP_REF,    // pops a reference from operand stack, the number of bytes is architecture specific
@@ -320,7 +323,9 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
 
             int status = 0;
             // Wait for the process to finish
-            waitpid(pid, &status, 0);
+            if (waitpid(pid, &status, 0) == -1) {
+                perror("waitpid");
+            }
 
             // Add the exit status to the stack
             operands.push_byte(WEXITSTATUS(status) & 0xFF);
@@ -365,6 +370,18 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
         }
         case OP_POP_REDIRECT: {
             state.table.pop_redirection();
+            break;
+        }
+        case OP_PIPE: {
+            // Create the pipe
+            int pipefd[2];
+            if (pipe(pipefd) == -1) {
+                perror("pipe");
+            }
+
+            // Push the file descriptors onto the stack
+            operands.push_int(pipefd[0]);
+            operands.push_int(pipefd[1]);
             break;
         }
         case OP_GET_BYTE: {
@@ -483,6 +500,23 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             int64_t value = operands.pop_int();
             operands.push_int(value);
             operands.push_int(value);
+            break;
+        }
+        case OP_SWAP: {
+            int64_t a = operands.pop_int();
+            int64_t b = operands.pop_int();
+            operands.push_int(a);
+            operands.push_int(b);
+            break;
+        }
+        case OP_SWAP_2: {
+            int64_t a = operands.pop_int();
+            int64_t b = operands.pop_int();
+            int64_t c = operands.pop_int();
+
+            operands.push_int(b);
+            operands.push_int(a);
+            operands.push_int(c);
             break;
         }
         case OP_POP_BYTE: {
