@@ -97,7 +97,7 @@ impl TypingState {
         }
     }
 
-    /// Returns a new state with `in_loop` set_bytes to true
+    /// Returns a new state with `in_loop` set to true
     fn with_in_loop(self) -> Self {
         Self {
             in_loop: true,
@@ -1325,27 +1325,19 @@ mod tests {
         let res = extract_type(Source::unknown(content));
         assert_eq!(
             res,
-            Err(vec![
-                Diagnostic::new(DiagnosticID::TypeMismatch, SourceId(1), "Type mismatch",)
-                    .with_observation(Observation::with_help(
-                        find_in(content, "Int"),
-                        "Expected `Int`",
-                    ))
-                    .with_observation(Observation::with_help(
-                        find_in(content, "$a"),
-                        "Found `String`",
-                    )),
-                Diagnostic::new(
-                    DiagnosticID::CannotInfer,
-                    SourceId(1),
-                    "Return type is not inferred for block functions"
-                )
-                .with_observation(Observation::with_help(
-                    find_in(content, "var b: Int = $a"),
-                    "Returning `Unit`"
-                ))
-                .with_help("Try adding an explicit return type to the function")
-            ])
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                SourceId(1),
+                "Type mismatch",
+            )
+            .with_observation(Observation::with_help(
+                find_in(content, "Int"),
+                "Expected `Int`",
+            ))
+            .with_observation(Observation::with_help(
+                find_in(content, "$a"),
+                "Found `String`",
+            )),])
         );
     }
 

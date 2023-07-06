@@ -15,7 +15,7 @@ typedef uint32_t constant_index;
 
 /**
  * Contains the string constants defined in a bytecode unit.
- * As the pool isn't the owner of its strings, it contains pointers to the bound `string_t` set_bytes
+ * As the pool isn't the owner of its strings, it contains pointers to the bound `string_t` set
  */
 class ConstantPool {
     std::unique_ptr<std::string const *[]> constants;
@@ -30,7 +30,7 @@ public:
     /**
      * get given string reference
      * @param at the constant's index to get
-     * @returns a string reference of the string inside the vm's `strings_t` set_bytes
+     * @returns a string reference of the string inside the vm's `strings_t` set
      * @throws std::out_of_range if the given index is out of range
      */
     const std::string &get_string(constant_index at) const;

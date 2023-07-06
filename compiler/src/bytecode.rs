@@ -80,7 +80,7 @@ impl Bytecode {
 /// to emit bytecode instructions.
 pub struct Instructions<'a> {
     pub bytecode: &'a mut Bytecode,
-    // offset of where this instruction set_bytes starts in the given bytecode
+    // offset of where this instruction set starts in the given bytecode
     pub ip_offset: usize,
 }
 

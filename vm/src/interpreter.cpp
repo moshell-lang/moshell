@@ -21,11 +21,11 @@ enum Opcode {
     OP_PUSH_STRING, // with 8 byte string index in constant pool, pushes a string ref onto the operand stack
 
     OP_GET_BYTE,   // with 1 byte local index, pushes given local value onto the operand stack
-    OP_SET_BYTE,   // with 1 byte local index, set_bytes given local value from value popped from the operand stack
+    OP_SET_BYTE,   // with 1 byte local index, set given local value from value popped from the operand stack
     OP_GET_Q_WORD, // with 1 byte local index, pushes given local value onto the operand stack
-    OP_SET_Q_WORD, // with 1 byte local index, set_bytes given local value from value popped from the operand stack
+    OP_SET_Q_WORD, // with 1 byte local index, set given local value from value popped from the operand stack
     OP_GET_REF,    // with 1 byte local index, pushes given local value onto the operand stack
-    OP_SET_REF,    // with 1 byte local index, set_bytes given local value from value popped from the operand stack
+    OP_SET_REF,    // with 1 byte local index, set given local value from value popped from the operand stack
 
     OP_SPAWN,  // with 1 byte stack size for process exec(), pushes process exit status onto the operand stack
     OP_INVOKE, // with 4 byte function ref string in constant pool, pops parameters from operands then pushes invoked function return in operand stack (if non-void)

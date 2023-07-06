@@ -127,7 +127,7 @@ fn compile_instruction_set(
     // length is the maximum of those three values
     let locals_length = locals
         .byte_count()
-        .max(return_bytes_count as u32)
+        .max(parameters_bytes_count)
         .max(return_bytes_count as u32);
     bytecode.patch_u32_placeholder(locals_byte_count, locals_length)
 }
