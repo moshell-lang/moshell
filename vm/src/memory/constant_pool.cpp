@@ -32,7 +32,7 @@ ConstantPool load_constant_pool(ByteReader &reader, strings_t &strings) {
 }
 
 ConstantPool::ConstantPool(uint32_t size)
-    : constants{std::make_unique<const std::string*[]>(size)},
+    : constants{std::make_unique<const std::string *[]>(size)},
       size{size} {}
 
 const std::string &ConstantPool::get_string(constant_index at) const {
