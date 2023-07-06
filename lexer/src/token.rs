@@ -225,11 +225,7 @@ impl TokenType {
     pub fn is_call_bound(self) -> bool {
         matches!(
             self,
-            Ampersand
-                | Less
-                | Greater
-                | Bar
-                | Or
+            Bar | Or
                 | And
                 | SquaredLeftBracket
                 | SquaredRightBracket

@@ -1,5 +1,5 @@
 use crate::err::ParseErrorKind;
-use crate::moves::{eox, like, next, of_type, of_types, spaces, MoveOperations};
+use crate::moves::{eox, next, of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 use ast::call::{Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use ast::Expr;
@@ -15,7 +15,9 @@ pub(crate) trait RedirectionAspect<'a> {
     /// Associates any potential redirections to a redirectable expression
     fn redirectable(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
 
-    /// Tests if the current and subsequent tokens can be part of a redirection expression
+    /// Tests if the current and subsequent tokens can be part of a redirection expression.
+    ///
+    /// Note that this method will also treat detached expressions as redirections.
     fn is_at_redirection_sign(&self) -> bool;
 }
 
@@ -111,16 +113,6 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
 
         while self.cursor.lookahead(eox()).is_none() {
             match self.cursor.peek().token_type {
-                //add a guard to ensure that the ampersand is not followed by space which should later lead to a detached expression
-                TokenType::Ampersand
-                    if self
-                        .cursor
-                        .lookahead(next().then(spaces().or(like(TokenType::is_call_bound))))
-                        .is_none() =>
-                {
-                    redirections.push(self.redirection()?);
-                }
-
                 TokenType::Less | TokenType::Greater => {
                     redirections.push(self.redirection()?);
                 }
@@ -128,7 +120,8 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
                 TokenType::Bar => {
                     return self.pipeline(expr);
                 }
-                // Detect redirections without a specific file descriptor
+                // Detect redirections with a specific file descriptor, or with a wildcard file descriptor
+                // To be a redirection, it must immediately be followed by a '<' or '>'
                 _ if self
                     .cursor
                     .lookahead(next().then(of_types(&[TokenType::Less, TokenType::Greater])))

@@ -444,15 +444,36 @@ fn empty_return() {
 
 #[test]
 fn loop_assign() {
-    let source = Source::unknown("loop a = 'a'");
+    let source = Source::unknown("loop a = $(pgrep shell 2>/dev/null)");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Loop(Loop {
             body: Box::new(Expr::Assign(Assign {
                 name: "a",
-                value: Box::new(literal(source.source, "'a'")),
-                segment: find_in(source.source, "a = 'a'"),
+                value: Box::new(Expr::Substitution(Substitution {
+                    underlying: Subshell {
+                        expressions: vec![Expr::Redirected(Redirected {
+                            expr: Box::new(Expr::Call(Call {
+                                path: Vec::new(),
+                                arguments: vec![
+                                    literal(source.source, "pgrep"),
+                                    literal(source.source, "shell"),
+                                ],
+                                type_parameters: Vec::new(),
+                            })),
+                            redirections: vec![Redir {
+                                fd: RedirFd::Fd(2),
+                                operator: RedirOp::Write,
+                                operand: literal(source.source, "/dev/null"),
+                                segment: find_in(source.source, "2>/dev/null"),
+                            }],
+                        })],
+                        segment: find_in(source.source, "$(pgrep shell 2>/dev/null)"),
+                    },
+                    kind: SubstitutionKind::Capture,
+                })),
+                segment: find_in(source.source, "a = $(pgrep shell 2>/dev/null)"),
             })),
             segment: source.segment(),
         })]

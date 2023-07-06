@@ -199,24 +199,21 @@ impl<'a> CallAspect<'a> for Parser<'a> {
     ) -> ParseResult<Expr<'a>> {
         let mut arguments = vec![callee];
 
-        self.cursor.advance(spaces()); //consume word separations
-                                       // Continue reading arguments until we reach the end of the input or a closing punctuation
-        while !self.cursor.is_at_end()
-            && self
-                .cursor
-                .lookahead(spaces().then(line_end().or(like(TokenType::is_call_bound))))
-                .is_none()
+        while self
+            .cursor
+            .lookahead(spaces().then(like(TokenType::is_call_bound)))
+            .is_none()
         {
-            arguments.push(self.call_argument()?);
             self.cursor.advance(spaces()); //consume word separations
-        }
+            if self.is_at_redirection_sign() {
+                return self.redirectable(Expr::Call(Call {
+                    path,
+                    arguments,
+                    type_parameters: tparams,
+                }));
+            }
 
-        if self.is_at_redirection_sign() {
-            return self.redirectable(Expr::Call(Call {
-                path,
-                arguments,
-                type_parameters: tparams,
-            }));
+            arguments.push(self.call_argument()?);
         }
 
         Ok(Expr::Call(Call {
