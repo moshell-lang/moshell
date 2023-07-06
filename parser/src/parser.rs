@@ -447,24 +447,6 @@ impl<'a> Parser<'a> {
             return self.redirectable(expr);
         }
 
-        if let Expr::Literal(literal) = &expr {
-            if self.cursor.lookahead(bin_op()).is_some() {
-                let start_pos = literal.segment.start;
-                if self
-                    .binary_operation(expr.clone(), Parser::next_value)
-                    .is_ok()
-                {
-                    let end_pos = self.cursor.relative_pos(self.cursor.peek()).end;
-                    let slice = &self.source.source[start_pos..end_pos];
-                    return self.expected_with(
-                        "Binary operations must be enclosed in a value expression.",
-                        slice,
-                        ParseErrorKind::UnexpectedInContext(format!("$(( {slice} ))")),
-                    );
-                }
-            }
-        }
-
         if self.cursor.lookahead(of_type(As)).is_some() {
             let expr = self.parse_cast(expr).map(Expr::Casted)?;
             return self.parse_binary_expr(expr);
