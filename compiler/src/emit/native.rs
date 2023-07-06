@@ -22,19 +22,13 @@ pub(crate) fn emit_primitive_op(
     state: &mut EmissionState,
 ) {
     let last_used = state.use_values(true);
-    let last_returns = state.returning_value(false);
     emit(callee, instructions, typing, engine, cp, locals, state);
 
-    // The opcode to emit if state.use_value is set to false.
-    // defaults to PopQWord but you may want to set it to other variants
-    // if the resulting value is anything but an 8 byte value
-    let mut pushed_size = ValueStackSize::QWord;
-
-    match native.0 {
+    let pushed_size = match native.0 {
         0 => {
             // ExitCode -> Bool
             instructions.emit_bool_inversion();
-            pushed_size = ValueStackSize::Byte;
+            ValueStackSize::Byte
         }
         1..=9 => {
             // Arithmetic expression
@@ -59,11 +53,12 @@ pub(crate) fn emit_primitive_op(
                 9 => Opcode::IntMod,
                 _ => unreachable!("Not a numeric binary expression"),
             });
+            ValueStackSize::QWord
         }
         10 => {
             // !bool
             instructions.emit_bool_inversion();
-            pushed_size = ValueStackSize::Byte;
+            ValueStackSize::Byte
         }
         11..=26 => {
             // Comparison expression
@@ -80,25 +75,21 @@ pub(crate) fn emit_primitive_op(
             match native.0 {
                 11 => {
                     // bool == bool
-                    instructions.emit_code(Opcode::ByteEqual);
-                    pushed_size = ValueStackSize::Byte;
+                    instructions.emit_code(Opcode::BXor);
+                    instructions.emit_bool_inversion();
                 }
                 12 => {
                     // bool != bool
-                    instructions.emit_code(Opcode::ByteEqual);
-                    instructions.emit_bool_inversion();
-                    pushed_size = ValueStackSize::Byte;
+                    instructions.emit_code(Opcode::BXor);
                 }
                 13 => {
                     // String == String
                     instructions.emit_code(Opcode::StringEqual);
-                    pushed_size = ValueStackSize::Reference;
                 }
                 14 => {
                     // String != String
                     instructions.emit_code(Opcode::StringEqual);
                     instructions.emit_bool_inversion();
-                    pushed_size = ValueStackSize::Reference;
                 }
                 15 => instructions.emit_code(Opcode::IntEqual),
                 16 => {
@@ -122,6 +113,7 @@ pub(crate) fn emit_primitive_op(
                 26 => instructions.emit_code(Opcode::FloatGreaterOrEqual),
                 _ => unreachable!("Not a comparison expression"),
             }
+            ValueStackSize::Byte
         }
         27 => {
             // Bool -> String
@@ -139,23 +131,23 @@ pub(crate) fn emit_primitive_op(
             instructions.patch_jump(jump_to_else);
             instructions.emit_push_constant_ref(false_string);
             instructions.patch_jump(jump_to_end);
-            pushed_size = ValueStackSize::Reference;
+            ValueStackSize::Reference
         }
         28 => {
             // ExitCode -> String
             instructions.emit_code(Opcode::ConvertByteToInt);
             instructions.emit_code(Opcode::ConvertIntToStr);
-            pushed_size = ValueStackSize::Reference;
+            ValueStackSize::Reference
         }
         29 => {
             // Int -> String
             instructions.emit_code(Opcode::ConvertIntToStr);
-            pushed_size = ValueStackSize::Reference;
+            ValueStackSize::Reference
         }
         30 => {
             // Float -> String
             instructions.emit_code(Opcode::ConvertFloatToStr);
-            pushed_size = ValueStackSize::Reference;
+            ValueStackSize::Reference
         }
         33 => {
             // String + String -> String
@@ -170,18 +162,15 @@ pub(crate) fn emit_primitive_op(
                 state,
             );
             instructions.emit_code(Opcode::Concat);
-            pushed_size = ValueStackSize::Reference;
+            ValueStackSize::Reference
         }
         id => todo!("Native function with id {id}"),
     };
 
     // restore last state of use_values
     state.use_values(last_used);
-    state.returning_value(last_returns);
 
-    if state.is_returning_value {
-        instructions.emit_set_return(pushed_size);
-    } else if !state.use_values {
+    if !state.use_values {
         instructions.emit_pop(pushed_size);
     }
 }

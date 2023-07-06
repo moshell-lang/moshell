@@ -77,8 +77,14 @@ impl Variables {
     /// This exposes their current state, which is only interesting for debugging.
     /// Use [`Variables::find_reachable`] to lookup any variable during the collection phase,
     /// or [`Variables::find_exported`] to lookup an exported variable after the collection phase.
-    pub fn iter_vars(&self) -> &[Variable] {
+    #[cfg(debug_assertions)]
+    pub fn all_vars(&self) -> &[Variable] {
         &self.locals.vars
+    }
+
+    /// returns the
+    pub fn var_count(&self) -> usize {
+        self.locals.vars.len()
     }
 
     /// Iterates over all the exported variables, local to the environment.

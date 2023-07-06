@@ -1,6 +1,8 @@
 #include "call_stack.h"
 
-/// Contains all the runtime information about a frame
+/**
+ * Contains all the runtime information about a frame
+ */
 struct frame_headers {
     /**
      * position of the previous frame header.

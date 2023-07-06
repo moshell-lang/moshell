@@ -8,6 +8,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
 #include <memory>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -20,11 +21,11 @@ enum Opcode {
     OP_PUSH_STRING, // with 8 byte string index in constant pool, pushes a string ref onto the operand stack
 
     OP_GET_BYTE,   // with 1 byte local index, pushes given local value onto the operand stack
-    OP_SET_BYTE,   // with 1 byte local index, set given local value from value popped from the operand stack
+    OP_SET_BYTE,   // with 1 byte local index, set_bytes given local value from value popped from the operand stack
     OP_GET_Q_WORD, // with 1 byte local index, pushes given local value onto the operand stack
-    OP_SET_Q_WORD, // with 1 byte local index, set given local value from value popped from the operand stack
+    OP_SET_Q_WORD, // with 1 byte local index, set_bytes given local value from value popped from the operand stack
     OP_GET_REF,    // with 1 byte local index, pushes given local value onto the operand stack
-    OP_SET_REF,    // with 1 byte local index, set given local value from value popped from the operand stack
+    OP_SET_REF,    // with 1 byte local index, set_bytes given local value from value popped from the operand stack
 
     OP_SPAWN,  // with 1 byte stack size for process exec(), pushes process exit status onto the operand stack
     OP_INVOKE, // with 4 byte function ref string in constant pool, pops parameters from operands then pushes invoked function return in operand stack (if non-void)
@@ -36,7 +37,8 @@ enum Opcode {
     OP_IF_JUMP,     // with 1 byte opcode for 'then' branch, jumps only if value popped from operand stack is 0
     OP_IF_NOT_JUMP, // with 1 byte opcode for where to jump, jumps only if value popped from operand stack is not 0
     OP_JUMP,        // with 1 byte opcode for where to jump
-    OP_RETURN,      // stops frame interpretation
+
+    OP_RETURN, // stops frame interpretation
 
     OP_BYTE_TO_INT,  // replaces last value of operand stack from byte to int
     OP_INT_TO_STR,   // replaces last value of operand stack from int to a string reference
@@ -55,13 +57,12 @@ enum Opcode {
     OP_FLOAT_MUL, // pops two floats, multiplies them, and pushes the resulting float
     OP_FLOAT_DIV, // pops two floats, divides them, and pushes the resulting float
 
-    OP_STR_EQ,  // pops two string references, checks if they are equal, and pushes the resulting byte
-    OP_BYTE_EQ, // pops two bytes, checks if they are equals, and pushes the resulting byte
-    OP_INT_EQ,  // pops two ints, checks if they are equal, and pushes the resulting byte
-    OP_INT_LT,  // pops two ints, checks if the first is less than the second, and pushes the resulting byte
-    OP_INT_LE,  // pops two ints, checks if the first is less than or equal to the second, and pushes the resulting byte
-    OP_INT_GT,  // pops two ints, checks if the first is greater than the second, and pushes the resulting byte
-    OP_INT_GE,  // pops two ints, checks if the first is greater than or equal to the second, and pushes the resulting byte
+    OP_STR_EQ, // pops two string references, checks if they are equal, and pushes the resulting byte
+    OP_INT_EQ, // pops two ints, checks if they are equal, and pushes the resulting byte
+    OP_INT_LT, // pops two ints, checks if the first is less than the second, and pushes the resulting byte
+    OP_INT_LE, // pops two ints, checks if the first is less than or equal to the second, and pushes the resulting byte
+    OP_INT_GT, // pops two ints, checks if the first is greater than the second, and pushes the resulting byte
+    OP_INT_GE, // pops two ints, checks if the first is greater than or equal to the second, and pushes the resulting byte
 
     OP_FLOAT_EQ, // pops two floats, checks if they are equal, and pushes the resulting byte
     OP_FLOAT_LT, // pops two floats, checks if the first is less than the second, and pushes the resulting byte
@@ -221,24 +222,6 @@ inline bool apply_comparison(Opcode code, double a, double b) {
     }
 }
 
-/**
- * Apply a comparison operation to two bytes
- * @param code The opcode to apply
- * @param a The first byte
- * @param b The second byte
- * @return The result of the comparison
- */
-inline bool apply_comparison(Opcode code, char a, char b) {
-    switch (code) {
-    case OP_BYTE_EQ:
-        return a == b;
-    case OP_BYTE_XOR:
-        return a ^ b;
-    default:
-        throw InvalidBytecodeError("Unknown opcode");
-    }
-}
-
 inline void push_function_invocation(constant_index callee_identifier_idx,
                                      const runtime_state &state,
                                      OperandStack &caller_operands,
@@ -268,8 +251,6 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
         // Read the opcode
         Opcode opcode = static_cast<Opcode>(instructions[ip++]);
         switch (opcode) {
-        case OP_RETURN:
-            return true;
         case OP_PUSH_INT: {
             // Read the 8 byte int value
             int64_t value = ntohl(*(int64_t *)(instructions + ip));
@@ -300,7 +281,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             const std::string *str_ref = &pool.get_string(index);
 
             // Push the string index onto the stack
-            operands.push_reference((uintptr_t)str_ref);
+            operands.push_reference((uint64_t)str_ref);
             break;
         }
         case OP_SPAWN: {
@@ -369,7 +350,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             uint32_t index = ntohl(*(uint32_t *)(instructions + ip));
             ip += 4;
             // Pop the value from the stack
-            uintptr_t value = operands.pop_reference();
+            uint64_t value = operands.pop_reference();
             // Set the local
             locals.set_ref(value, index);
             break;
@@ -383,7 +364,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             int64_t value = operands.pop_int();
 
             auto [it, _] = state.strings.insert(std::make_unique<std::string>(std::to_string(value)));
-            operands.push_reference((uintptr_t)it->get());
+            operands.push_reference((uint64_t)it->get());
 
             break;
         }
@@ -391,7 +372,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             double value = operands.pop_double();
 
             auto [it, _] = state.strings.insert(std::make_unique<std::string>(std::to_string(value)));
-            operands.push_reference((uintptr_t)it->get());
+            operands.push_reference((uint64_t)it->get());
 
             break;
         }
@@ -407,7 +388,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             std::string result = *left + *right;
 
             auto [it, _] = state.strings.insert(std::make_unique<std::string>(result));
-            operands.push_reference((uintptr_t)it->get());
+            operands.push_reference((uint64_t)it->get());
             break;
         }
         case OP_IF_NOT_JUMP:
@@ -441,12 +422,10 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             operands.pop_reference();
             break;
         }
-        case OP_BYTE_XOR:
-        case OP_BYTE_EQ: {
+        case OP_BYTE_XOR: {
             char a = operands.pop_byte();
             char b = operands.pop_byte();
-            int64_t res = apply_comparison(opcode, a, b);
-            operands.push_byte(res);
+            operands.push_byte(a ^ b);
             break;
         }
         case OP_INT_ADD:
@@ -496,8 +475,11 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             double a = operands.pop_double();
             char res = apply_comparison(opcode, a, b);
             operands.push_byte(res);
-            break;
+            return true;
         }
+        case OP_RETURN:
+            return true;
+
         default: {
             throw InvalidBytecodeError("Unknown opcode " + std::to_string(opcode));
         }
@@ -522,6 +504,12 @@ void run(runtime_state state, const std::string *root_identifier) {
         bool has_returned = run_frame(state, current_frame, call_stack, current_def.instructions, current_def.instruction_count);
 
         if (has_returned) {
+            int8_t returned_byte_count = current_def.return_byte_count;
+            const char *bytes = current_frame.operands.pop_bytes(returned_byte_count);
+            // place returned bytes in the first index of locals
+            current_frame.locals.set_bytes(bytes, returned_byte_count, 0);
+
+            // pop the current frame.
             call_stack.pop_frame();
 
             if (call_stack.is_empty()) {
@@ -530,21 +518,20 @@ void run(runtime_state state, const std::string *root_identifier) {
             }
             stack_frame caller_frame = call_stack.peek_frame();
 
-            // JUSTIFY: According to bytecode specs, the returning frame must place its return value
-            // at the very first index of its locals.
+            // JUSTIFY: the returned value is placed at the very first index of locals.
             // locals of the callee frame and operands of the caller frame are adjacent in memory thanks to
-            // call stack's layout. This operation will move the return value in the operand stack of the caller
+            // call stack's layout. This operation will transfer the return value in the operand stack of the caller
             // by advancing the caller's operands of the declared byte count in the callee's function definition.
             //
             // JUSTIFY: This also cannot cause UB as a minimal frame size is equal to `sizeof(frame_headers)`,
-            // that contains ints and pointers, which is greater than the maximum return byte count allowed of `sizeof(uintptr_t)`.
+            // that contains ints and pointers, which is greater than the maximum return byte count allowed of `sizeof(uint64_t)`.
             // stack overflow is impossible here because the callee frame would already have caused it earlier.
-            caller_frame.operands.advance_unchecked(current_def.return_byte_count);
+            caller_frame.operands.advance_unchecked(returned_byte_count);
         }
     }
 }
 
-void run_module(const module_definition &module_def, strings_t &strings) {
+void run_unit(const bytecode_unit &module_def, strings_t &strings) {
 
     const ConstantPool &pool = module_def.pool;
 
@@ -561,5 +548,5 @@ void run_module(const module_definition &module_def, strings_t &strings) {
         }
     }
 
-    throw InvalidModuleDescription("Module does not contains any `<main>()` function");
+    throw InvalidBytecodeStructure("Module does not contains any `<main>()` function");
 }

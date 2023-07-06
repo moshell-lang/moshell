@@ -1,12 +1,10 @@
-use std::mem::size_of;
-
 use analyzer::types::hir::TypeId;
-use analyzer::types::*;
+use analyzer::types::{BOOL, ERROR, EXIT_CODE, FLOAT, INT, NOTHING, UNIT};
 
 /// returns the size of a given type identifier
 pub fn get_type_stack_size(tpe: TypeId) -> ValueStackSize {
     match tpe {
-        NOTHING => ValueStackSize::Zero,
+        NOTHING | UNIT => ValueStackSize::Zero,
         BOOL | EXIT_CODE => ValueStackSize::Byte,
         INT | FLOAT => ValueStackSize::QWord,
         ERROR => panic!("Received 'ERROR' type in compilation phase."),
@@ -28,10 +26,7 @@ impl From<ValueStackSize> for u8 {
         match val {
             ValueStackSize::Zero => 0,
             ValueStackSize::Byte => 1,
-            ValueStackSize::QWord => 8,
-            // As the size of an address is platform dependant, the bytecode specification
-            // defines a flag to set the type of architecture the bytecode is compiled for
-            ValueStackSize::Reference => size_of::<*const u8>() as u8,
+            ValueStackSize::QWord | ValueStackSize::Reference => 8,
         }
     }
 }

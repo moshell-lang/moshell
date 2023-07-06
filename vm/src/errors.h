@@ -12,6 +12,8 @@ class VirtualMachineError : public std::exception {
 public:
     explicit VirtualMachineError(std::string msg);
 
+    virtual const char *name() const noexcept = 0;
+
     [[nodiscard]] const char *what() const noexcept override;
 };
 
@@ -21,6 +23,9 @@ public:
 class InvalidBytecodeError : public VirtualMachineError {
 public:
     explicit InvalidBytecodeError(std::string msg) : VirtualMachineError(std::move(msg)) {}
+    const char *name() const noexcept override {
+        return "InvalidBytecodeError";
+    }
 };
 
 /**
@@ -29,4 +34,7 @@ public:
 class MemoryError : public VirtualMachineError {
 public:
     explicit MemoryError(std::string msg) : VirtualMachineError(std::move(msg)) {}
+    const char *name() const noexcept override {
+        return "MemoryError";
+    }
 };

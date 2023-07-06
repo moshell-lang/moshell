@@ -43,7 +43,7 @@ class CallStack {
 
 public:
     /**
-     * Creates a new CallStack, with root function set on top of the stack
+     * Creates a new CallStack, with root function set_bytes on top of the stack
      * @throws StackOverflowError if the root's frame size exceeds given capacity
      */
     static CallStack create(size_t capacity, const function_definition &root, const std::string *root_identifier);
@@ -57,6 +57,7 @@ public:
 
     /**
      * pops last frame from the call_stack.
+     * this action does not writes in the popped frame
      */
     void pop_frame();
 

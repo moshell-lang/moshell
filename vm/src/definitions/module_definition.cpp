@@ -1,5 +1,5 @@
-#include "module_definition.h"
 #include "byte_reader.h"
+#include "bytecode_unit.h"
 #include "conversions.h"
 #include "definitions/function_definition.h"
 #include "memory/constant_pool.h"
@@ -24,19 +24,21 @@ load_functions_definitions(ByteReader &reader, const ConstantPool &pool) {
 
         char *instructions = reader.read_n<char>(instruction_count);
 
+#ifndef NDEBUG
         // returned bytes must be <= allocated bytes for locals
         if (return_byte_count > locals_byte_count) {
-            throw InvalidModuleDescription("Function " + *identifier + " declares more return bytes than allocated locals capacity.");
+            throw InvalidBytecodeStructure("Function " + *identifier + " declares more return bytes than allocated locals capacity.");
         }
 
         // parameters bytes must be <= allocated bytes for locals
         if (parameters_byte_count > locals_byte_count) {
-            throw InvalidModuleDescription("Function " + *identifier + " declares more parameters bytes than allocated locals capacity.");
+            throw InvalidBytecodeStructure("Function " + *identifier + " declares more parameters bytes than allocated locals capacity.");
         }
 
-        if (return_byte_count > sizeof(uintptr_t)) {
-            throw InvalidModuleDescription("Function " + *identifier + " declares a return byte count which is greater than maximum allocated size " + std::to_string(sizeof(uintptr_t)) + " (" + std::to_string(return_byte_count) + ").");
+        if (return_byte_count > sizeof(uint64_t)) {
+            throw InvalidBytecodeStructure("Function " + *identifier + " declares a return byte count which is greater than maximum allocated size " + std::to_string(sizeof(uint64_t)) + " (" + std::to_string(return_byte_count) + ").");
         }
+#endif
 
         function_definition def{
             locals_byte_count,
@@ -52,45 +54,13 @@ load_functions_definitions(ByteReader &reader, const ConstantPool &pool) {
     return map;
 }
 
-void check_bytecode_flags(ByteReader &reader) {
-    // read supported architecture and check it is supported
-    char arch = reader.read<char>();
-
-#if UINTPTR_MAX == 0xFFFFFFFF // 32 bits
-    char expected = 1;
-    std::string arch_name = "32 bits";
-#elif UINTPTR_MAX == 0xFFFFFFFFFFFFFFFFu // 64 bits
-    char expected = 2;
-    std::string arch_name = "64 bits";
-#else
-#error "VM only supports 32 and 64 bits architectures"
-#endif
-
-    if (arch != expected) {
-        std::string received_architecture;
-        switch (arch) {
-        case 1: {
-            received_architecture = "32 bits";
-            break;
-        }
-        case 2: {
-            received_architecture = "64 bits";
-            break;
-        }
-        }
-        throw InvalidBytecodeError("Specified architecture is invalid, this VM instance attempted to read bytecode for " + received_architecture + " systems but can only support " + arch_name);
-    }
-}
-
-module_definition load_module(ByteReader &reader, strings_t &strings) {
+bytecode_unit load_unit(ByteReader &reader, strings_t &strings) {
     try {
-        check_bytecode_flags(reader);
-
         ConstantPool pool = load_constant_pool(reader, strings);
 
         const auto functions = load_functions_definitions(reader, pool);
 
-        return module_definition{std::move(pool), std::move(functions)};
+        return bytecode_unit{std::move(pool), std::move(functions)};
     } catch (const std::out_of_range &e) {
         throw InvalidBytecodeError("Error when reading module bytecode: " + std::string(e.what()));
     }

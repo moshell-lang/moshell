@@ -1,11 +1,11 @@
 #pragma once
 
-#include "definitions/module_definition.h"
+#include "definitions/bytecode_unit.h"
 #include "memory/strings.h"
 
 /**
- * Will run given module's main method.
- * @throws InvalidModuleDescription if the given module does not defines a <main>() function
- * @throws InvalidBytecodeError if an interpreted instruction set contains invalid instructions
+ * Will run given bytecode's main method.
+ * @throws InvalidBytecodeStructure if the given bytecode does not defines a <main>() function
+ * @throws InvalidBytecodeError if an interpreted instruction set_bytes contains invalid instructions
  */
-void run_module(const module_definition &module_def, strings_t &strings);
+void run_unit(const bytecode_unit &module_def, strings_t &strings);

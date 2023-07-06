@@ -2,10 +2,10 @@ use std::io;
 use std::io::Write;
 
 use analyzer::engine::Engine;
+use analyzer::environment::variables::Variables;
 use analyzer::name::Name;
 use analyzer::relations::LocalId;
 use analyzer::types::engine::{Chunk, TypedEngine};
-use analyzer::types::hir::ExprKind;
 use analyzer::types::Typing;
 
 use crate::bytecode::{Bytecode, Instructions};
@@ -54,7 +54,14 @@ pub fn compile(
         let signature_idx = cp.insert_string(name);
         bytecode.emit_constant_ref(signature_idx);
 
-        compile_instruction_set(chunk, &mut bytecode, typing, engine, &mut cp);
+        compile_instruction_set(
+            chunk,
+            &chunk_env.variables,
+            &mut bytecode,
+            typing,
+            engine,
+            &mut cp,
+        );
 
         function_count += 1;
     }
@@ -66,12 +73,12 @@ pub fn compile(
 
 fn compile_instruction_set(
     chunk: &Chunk,
+    chunk_vars: &Variables,
     bytecode: &mut Bytecode,
     typing: &Typing,
     engine: &Engine,
     cp: &mut ConstantPool,
 ) {
-    // emit locals byte count
     let locals_byte_count = bytecode.emit_u32_placeholder();
 
     // emit the function's parameters bytes length
@@ -86,64 +93,43 @@ fn compile_instruction_set(
     let return_bytes_count: u8 = get_type_stack_size(chunk.return_type).into();
     bytecode.emit_byte(return_bytes_count);
 
-    // if the function returns void, we won't the compiler to emit useless values
     let use_value = return_bytes_count != 0;
 
     // emit instruction count placeholder
     let instruction_count = bytecode.emit_u32_placeholder();
 
-    let start = bytecode.len();
-
     let mut instructions = Instructions::wrap(bytecode);
-    let mut locals = LocalsLayout::default();
+    let mut locals = LocalsLayout::fixed_count(chunk_vars.all_vars().len());
 
     for (id, param) in chunk.parameters.iter().enumerate() {
-        locals.expand_layout(LocalId(id), param.ty)
+        locals.initialize_space(LocalId(id), param.ty)
     }
 
     let mut state = EmissionState::default();
+    state.use_values = use_value;
 
-    macro_rules! emit_expr {
-        ($expr:expr) => {
-            emit(
-                $expr,
-                &mut instructions,
-                typing,
-                engine,
-                cp,
-                &mut locals,
-                &mut state,
-            )
-        };
-    }
-
-    state.use_values(use_value);
-    state.is_returning_value = use_value;
-
-    match &chunk.expression.kind {
-        ExprKind::Block(exprs) => {
-            if let Some((last, head)) = exprs.split_last() {
-                state.is_returning_value = false;
-                for expr in head {
-                    emit_expr!(expr);
-                }
-                state.is_returning_value = use_value;
-                emit_expr!(last);
-            }
-        }
-        _ => emit_expr!(&chunk.expression),
-    }
+    emit(
+        &chunk.expression,
+        &mut instructions,
+        typing,
+        engine,
+        cp,
+        &mut locals,
+        &mut state,
+    );
 
     // patch instruction count placeholder
     let instruction_byte_count =
-        u32::try_from(bytecode.len() - start).expect("too much instructions");
+        u32::try_from(instructions.current_ip()).expect("too much instructions");
     bytecode.patch_u32_placeholder(instruction_count, instruction_byte_count);
 
-    // patch locals length
-    bytecode.patch_u32_placeholder(
-        locals_byte_count,
-        locals.length().max(return_bytes_count as u32),
-    )
+    // as the locals also contains parameters and the return value, the
+    // length is the maximum of those three values
+    let locals_length = locals
+        .byte_count()
+        .max(return_bytes_count as u32)
+        .max(return_bytes_count as u32);
+    bytecode.patch_u32_placeholder(locals_byte_count, locals_length)
 }
 
 fn write(
@@ -151,20 +137,8 @@ fn write(
     bytecode: &Bytecode,
     pool: &ConstantPool,
 ) -> Result<(), io::Error> {
-    #[cfg(target_pointer_width = "32")]
-    writer.write_all(&[1])?;
-
-    #[cfg(target_pointer_width = "64")]
-    writer.write_all(&[2])?;
-
-    #[cfg(all(not(target_pointer_width = "32"), not(target_pointer_width = "64")))]
-    compile_error!(
-        "Targeted architecture not supported, can only compile for 64 or 32 bits platforms"
-    );
-
     write_constant_pool(pool, writer)?;
-    writer.write_all(&bytecode.bytes)?;
-    Ok(())
+    writer.write_all(&bytecode.bytes())
 }
 
 fn write_constant_pool(cp: &ConstantPool, writer: &mut impl Write) -> Result<(), io::Error> {

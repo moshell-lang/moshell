@@ -17,7 +17,7 @@ use crate::types::hir::{
 };
 use crate::types::operator::name_operator_method;
 use crate::types::ty::Type;
-use crate::types::*;
+use crate::types::{Typing, BOOL, ERROR, EXIT_CODE, FLOAT, INT, NOTHING, STRING, UNIT};
 use ast::call::{Call, ProgrammaticCall};
 use ast::control_flow::If;
 use ast::function::FunctionDeclaration;
@@ -97,7 +97,7 @@ impl TypingState {
         }
     }
 
-    /// Returns a new state with `in_loop` set to true
+    /// Returns a new state with `in_loop` set_bytes to true
     fn with_in_loop(self) -> Self {
         Self {
             in_loop: true,
@@ -922,7 +922,7 @@ fn ascribe_continue_or_break(
 
 /// Ascribes types to the given expression.
 ///
-/// In case of an error, the expression is still returned, but the type is set to [`ERROR`].
+/// In case of an error, the expression is still returned, but the type is set_bytes to [`ERROR`].
 fn ascribe_types(
     exploration: &mut Exploration,
     relations: &Relations,
@@ -1321,23 +1321,31 @@ mod tests {
 
     #[test]
     fn type_function_parameters() {
-        let content = "fun test(a: String) -> Unit = { var b: Int = $a }";
+        let content = "fun test(a: String) = { var b: Int = $a }";
         let res = extract_type(Source::unknown(content));
         assert_eq!(
             res,
-            Err(vec![Diagnostic::new(
-                DiagnosticID::TypeMismatch,
-                SourceId(1),
-                "Type mismatch",
-            )
-            .with_observation(Observation::with_help(
-                find_in(content, "Int"),
-                "Expected `Int`",
-            ))
-            .with_observation(Observation::with_help(
-                find_in(content, "$a"),
-                "Found `String`",
-            ))])
+            Err(vec![
+                Diagnostic::new(DiagnosticID::TypeMismatch, SourceId(1), "Type mismatch",)
+                    .with_observation(Observation::with_help(
+                        find_in(content, "Int"),
+                        "Expected `Int`",
+                    ))
+                    .with_observation(Observation::with_help(
+                        find_in(content, "$a"),
+                        "Found `String`",
+                    )),
+                Diagnostic::new(
+                    DiagnosticID::CannotInfer,
+                    SourceId(1),
+                    "Return type is not inferred for block functions"
+                )
+                .with_observation(Observation::with_help(
+                    find_in(content, "var b: Int = $a"),
+                    "Returning `Unit`"
+                ))
+                .with_help("Try adding an explicit return type to the function")
+            ])
         );
     }
 

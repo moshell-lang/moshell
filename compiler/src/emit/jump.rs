@@ -18,7 +18,6 @@ pub fn emit_conditional(
 ) {
     // emit condition
     let last_uses = state.use_values(true);
-    let last_returning = state.returning_value(false);
     emit(
         &conditional.condition,
         instructions,
@@ -29,7 +28,6 @@ pub fn emit_conditional(
         state,
     );
     state.use_values(last_uses);
-    state.returning_value(last_returning);
 
     // If the condition is false, go to ELSE.
     let jump_to_else = instructions.emit_jump(Opcode::IfNotJump);
@@ -71,7 +69,6 @@ pub fn emit_loop(
     let mut loop_state = EmissionState::in_loop(loop_start);
 
     // loops cannot implicitly return something
-    let last_returns = state.returning_value(false);
 
     if let Some(condition) = &lp.condition {
         let last_used = state.use_values(true);
@@ -104,9 +101,6 @@ pub fn emit_loop(
     for jump_to_end in loop_state.enclosing_loop_end_placeholders {
         instructions.patch_jump(jump_to_end);
     }
-
-    // reset is_returning_value
-    state.returning_value(last_returns);
 }
 
 pub fn emit_continue(instructions: &mut Instructions, state: &mut EmissionState) {

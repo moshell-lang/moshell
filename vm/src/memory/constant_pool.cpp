@@ -14,7 +14,7 @@ const std::string *read_string(ByteReader &reader, strings_t &strings) {
 }
 
 ConstantPool load_constant_pool(ByteReader &reader, strings_t &strings) {
-    // Read the number of strings on a single byte
+    // Read the number of strings on four bytes
     uint32_t count = ntohl(reader.read<uint32_t>());
 
     ConstantPool pool(count);

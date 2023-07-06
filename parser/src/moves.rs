@@ -110,8 +110,8 @@ where
     }
 }
 
-///Move to next token if its type is in the given set
-/// * `set` - the set of TokenType to satisfy
+///Move to next token if its type is in the given set_bytes
+/// * `set_bytes` - the set_bytes of TokenType to satisfy
 pub(crate) fn of_types(set: &[TokenType]) -> PredicateMove<impl Fn(Token) -> bool + '_ + Copy> {
     predicate(move |token| set.contains(&token.token_type))
 }

@@ -18,7 +18,7 @@ void OperandStack::push_int(int64_t i) {
     push(i);
 }
 
-void OperandStack::push_reference(uintptr_t r) {
+void OperandStack::push_reference(uint64_t r) {
     push(r);
 }
 
@@ -38,19 +38,20 @@ int8_t OperandStack::pop_byte() {
     return pop<int8_t>();
 }
 
-uintptr_t OperandStack::pop_reference() {
-    return pop<uintptr_t>();
+uint64_t OperandStack::pop_reference() {
+    return pop<uint64_t>();
 }
 
 double OperandStack::pop_double() {
     return pop<double>();
 }
 
-void OperandStack::pop_bytes(size_t n) {
+const char *OperandStack::pop_bytes(size_t n) {
     if (current_pos < n) {
         throw OperandStackUnderflowError("operand stack is empty");
     }
     current_pos -= n;
+    return bytes + current_pos;
 }
 
 void OperandStack::advance_unchecked(size_t size) {

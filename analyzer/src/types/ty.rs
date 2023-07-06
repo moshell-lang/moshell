@@ -67,7 +67,7 @@ pub struct FunctionType {
 /// A function parameter.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Parameter {
-    pub segment: Option<SourceSegment>,
+    pub(crate) segment: Option<SourceSegment>,
     pub ty: TypeId,
 }
 

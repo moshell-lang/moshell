@@ -69,7 +69,7 @@ fn collect_sample() {
         .get_environment(SourceId(1))
         .expect("Unable to get factorial environment");
     assert_eq!(factorial_env.fqn, root_name.child("factorial"));
-    let variables = factorial_env.variables.iter_vars();
+    let variables = factorial_env.variables.all_vars();
     assert_eq!(
         variables,
         &vec![

@@ -54,7 +54,7 @@ public:
     /**
      * @throws StackOverflowError if the operand stack would overflow by pushing the reference
      */
-    void push_reference(uintptr_t r);
+    void push_reference(uint64_t r);
 
     /**
      * @return popped quad-word as an integer
@@ -78,13 +78,13 @@ public:
      * @return popped reference
      * @throws OperandStackUnderflowError if the operand stack does not have enough bytes to pop a reference
      */
-    uintptr_t pop_reference();
+    uint64_t pop_reference();
 
     /**
      * pops `n` bytes
      * @throws OperandStackUnderflowError if the operand stack does not have enough bytes to pop
      */
-    void pop_bytes(size_t n);
+    const char *pop_bytes(size_t n);
 
     /**
      * advances, without checking for stack overflow, the position of the operand stack.
