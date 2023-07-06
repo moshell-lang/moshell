@@ -88,7 +88,7 @@ public:
 
     /**
      * advances, without checking for stack overflow, the position of the operand stack.
-     * The call of this method must be JUSTIFIED
+     * The caller of this method must ensure that the given size will not overflow the stack.
      */
     void advance_unchecked(size_t size);
 

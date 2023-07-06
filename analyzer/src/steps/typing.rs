@@ -922,7 +922,7 @@ fn ascribe_continue_or_break(
 
 /// Ascribes types to the given expression.
 ///
-/// In case of an error, the expression is still returned, but the type is set_bytes to [`ERROR`].
+/// In case of an error, the expression is still returned, but the type is set to [`ERROR`].
 fn ascribe_types(
     exploration: &mut Exploration,
     relations: &Relations,

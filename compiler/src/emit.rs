@@ -18,7 +18,7 @@ mod native;
 #[derive(Debug, Clone, Default)]
 pub struct EmissionState {
     // the start instruction position of the enclosing loop
-    // set_bytes to 0 if there is no loop
+    // set to 0 if there is no loop
     pub enclosing_loop_start: u32,
 
     // All the placeholders waiting for the end of the loop.
@@ -26,7 +26,7 @@ pub struct EmissionState {
     // first instruction pointer after the loop.
     pub enclosing_loop_end_placeholders: Vec<Placeholder>,
 
-    // if set_bytes to false, the compiler will avoid emitting literals, var references or will
+    // if set to false, the compiler will avoid emitting literals, var references or will
     // instantly pop values returned from functions, methods and process calls
     pub use_values: bool,
 }

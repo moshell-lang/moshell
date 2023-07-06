@@ -110,7 +110,7 @@ pub struct ParseReport<'a> {
     /// Indicates that the end of the input has been reached too early and
     /// that the parser is waiting for more input.
     ///
-    /// This flag is set_bytes only when a block delimiter is opened, but not closed,
+    /// This flag is set only when a block delimiter is opened, but not closed,
     /// and there was no actual error in the input.
     pub stack_ended: bool,
 }

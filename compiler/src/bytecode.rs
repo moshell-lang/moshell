@@ -182,7 +182,7 @@ impl<'a> Instructions<'a> {
 
     /// Emits a jump instruction.
     ///
-    /// It returns the Placeholder of the offset which is to be patched
+    /// It returns the [`Placeholder`] adress of the offset which is to be patched.
     #[must_use = "the jump address must be patched later"]
     pub fn emit_jump(&mut self, opcode: Opcode) -> Placeholder {
         self.emit_code(opcode);
@@ -195,7 +195,7 @@ impl<'a> Instructions<'a> {
         self.bytecode.emit_byte(arg_count);
     }
 
-    /// emits a function invocation instruction, with given method signature in constant pool
+    /// Emits a function invocation instruction, with a given method signature in constant pool.
     pub fn emit_invoke(&mut self, signature_idx: u32) {
         self.emit_code(Opcode::Invoke);
         self.bytecode.emit_constant_ref(signature_idx);
