@@ -481,6 +481,40 @@ fn loop_assign() {
 }
 
 #[test]
+fn here_string_pipeline() {
+    let source = Source::unknown("sort <<< $dict | uniq");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Pipeline(Pipeline {
+            commands: vec![
+                Expr::Redirected(Redirected {
+                    expr: Box::new(Expr::Call(Call {
+                        path: Vec::new(),
+                        arguments: vec![literal(source.source, "sort")],
+                        type_parameters: Vec::new(),
+                    })),
+                    redirections: vec![Redir {
+                        fd: RedirFd::Default,
+                        operator: RedirOp::String,
+                        operand: Expr::VarReference(VarReference {
+                            name: "dict",
+                            segment: find_in(source.source, "$dict"),
+                        }),
+                        segment: find_in(source.source, "<<< $dict"),
+                    }],
+                }),
+                Expr::Call(Call {
+                    path: Vec::new(),
+                    arguments: vec![literal(source.source, "uniq")],
+                    type_parameters: Vec::new(),
+                }),
+            ],
+        })]
+    );
+}
+
+#[test]
 fn redirect_string_local_exe() {
     let source = Source::unknown("./target/debug/cli <<< 'cat <<< \"hello\"'");
     let parsed = parse(source).expect("Failed to parse");

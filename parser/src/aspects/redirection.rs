@@ -107,7 +107,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
         })
     }
 
-    fn redirectable(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
+    fn redirectable(&mut self, mut expr: Expr<'a>) -> ParseResult<Expr<'a>> {
         let mut redirections = vec![];
         self.cursor.advance(spaces());
 
@@ -115,10 +115,6 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
             match self.cursor.peek().token_type {
                 TokenType::Less | TokenType::Greater => {
                     redirections.push(self.redirection()?);
-                }
-
-                TokenType::Bar => {
-                    return self.pipeline(expr);
                 }
                 // Detect redirections with a specific file descriptor, or with a wildcard file descriptor
                 // To be a redirection, it must immediately be followed by a '<' or '>'
@@ -134,13 +130,16 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
             self.cursor.advance(spaces());
         }
 
-        if redirections.is_empty() {
-            Ok(expr)
-        } else {
-            Ok(Expr::Redirected(Redirected {
+        if !redirections.is_empty() {
+            expr = Expr::Redirected(Redirected {
                 expr: Box::new(expr),
                 redirections,
-            }))
+            });
+        }
+        if self.cursor.lookahead(of_type(TokenType::Bar)).is_some() {
+            self.pipeline(expr)
+        } else {
+            Ok(expr)
         }
     }
 
