@@ -3,10 +3,12 @@ use crate::parser::{ParseResult, Parser};
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::Expr;
 
-/// a parser aspect to parse any kind of binary operations
+/// A parser aspect to parse any kind of binary operations.
 pub trait BinaryOperationsAspect<'p> {
-    ///Parses a binary operation expression
-    /// `eox`: a selector to define where the binary operation expression hits it end.
+    /// Parses a binary operation expression.
+    ///
+    /// `expr`: the left-hand side of the binary operation to start with
+    /// `parse_next`: a function that parses the next expression to the right of the binary operation
     fn binary_operation<P>(&mut self, expr: Expr<'p>, parse_next: P) -> ParseResult<Expr<'p>>
     where
         P: FnMut(&mut Self) -> ParseResult<Expr<'p>> + Copy;
