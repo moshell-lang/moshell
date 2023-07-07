@@ -258,6 +258,8 @@ pub enum Opcode {
     Redirect,
     PopRedirect,
     Pipe,
+    Read,
+    Exit,
 
     Dup,
     Swap,

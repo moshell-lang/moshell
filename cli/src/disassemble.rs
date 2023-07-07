@@ -142,6 +142,8 @@ fn get_opcode_mnemonic(opcode: Opcode) -> &'static str {
         Opcode::Redirect => "redir",
         Opcode::PopRedirect => "popredir",
         Opcode::Pipe => "pipe",
+        Opcode::Read => "read",
+        Opcode::Exit => "exit",
         Opcode::Dup => "dup",
         Opcode::Swap => "swap",
         Opcode::Swap2 => "swap2",

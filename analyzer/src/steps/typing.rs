@@ -4,6 +4,7 @@ use ast::function::FunctionDeclaration;
 use ast::group::Block;
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::r#type::CastedExpr;
+use ast::substitution::Substitution;
 use ast::test::Not;
 use ast::value::{Literal, LiteralValue, TemplateString};
 use ast::variable::{Assign, VarDeclaration, VarKind, VarReference};
@@ -521,6 +522,27 @@ fn ascribe_pipeline(
         kind: ExprKind::Pipeline(commands),
         ty,
         segment: pipeline.segment(),
+    }
+}
+
+fn ascribe_substitution(
+    substitution: &Substitution,
+    exploration: &mut Exploration,
+    relations: &Relations,
+    diagnostics: &mut Vec<Diagnostic>,
+    env: &Environment,
+    state: TypingState,
+) -> TypedExpr {
+    let commands = substitution
+        .underlying
+        .expressions
+        .iter()
+        .map(|command| ascribe_types(exploration, relations, diagnostics, env, command, state))
+        .collect::<Vec<_>>();
+    TypedExpr {
+        kind: ExprKind::Capture(commands),
+        ty: STRING,
+        segment: substitution.segment(),
     }
 }
 
@@ -1049,6 +1071,9 @@ fn ascribe_types(
         }
         Expr::Pipeline(pipeline) => {
             ascribe_pipeline(pipeline, exploration, relations, diagnostics, env, state)
+        }
+        Expr::Substitution(subst) => {
+            ascribe_substitution(subst, exploration, relations, diagnostics, env, state)
         }
         Expr::Return(r) => ascribe_return(r, exploration, relations, diagnostics, env, state),
         Expr::Parenthesis(paren) => ascribe_types(

@@ -40,6 +40,8 @@ enum Opcode {
                      // operand stack
     OP_POP_REDIRECT, // pops a file descriptor from the operand stack and closes it
     OP_PIPE,         // creates a pipe, pushes the read and write file descriptors onto the operand stack
+    OP_READ,         // pops a file descriptor to read all the data from, pushes the data onto the stack
+    OP_EXIT,         // exits the current process with the popped exit code
 
     OP_DUP,        // duplicates the last value on the operand stack
     OP_SWAP,       // swaps the last two values on the operand stack
@@ -383,6 +385,35 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             operands.push_int(pipefd[0]);
             operands.push_int(pipefd[1]);
             break;
+        }
+        case OP_READ: {
+            // Pop the file descriptor
+            int fd = static_cast<int>(operands.pop_int());
+
+            std::string out;
+            const int buf_size = 4096;
+            char buffer[buf_size];
+            do {
+                const ssize_t r = read(fd, buffer, buf_size);
+                if (r > 0) {
+                    out.append(buffer, r);
+                }
+            } while (errno == EAGAIN || errno == EINTR);
+
+            // Remove trailing `\n`
+            if (out.length() > 0 && out[out.length() - 1] == '\n') {
+                out.pop_back();
+            }
+
+            // Push the string onto the stack
+            auto [it, _] = state.strings.insert(std::make_unique<std::string>(std::move(out)));
+            operands.push_reference((uintptr_t)it->get());
+            break;
+        }
+        case OP_EXIT: {
+            // Pop the exit code
+            char exit_code = operands.pop_byte();
+            exit(static_cast<int>(exit_code));
         }
         case OP_GET_BYTE: {
             // Read the 1 byte local local_index

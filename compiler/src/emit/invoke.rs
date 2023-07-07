@@ -12,6 +12,53 @@ use crate::emit::EmissionState;
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
 
+/// Emit any expression, knowing that we are already in a forked process.
+///
+/// Avoid forking another time if we can replace the current process.
+pub fn emit_already_forked(
+    expr: &TypedExpr,
+    instructions: &mut Instructions,
+    typing: &Typing,
+    engine: &Engine,
+    cp: &mut ConstantPool,
+    locals: &mut LocalsLayout,
+    state: &mut EmissionState,
+) {
+    match &expr.kind {
+        ExprKind::ProcessCall(process_args) => {
+            emit_process_call_self(
+                process_args,
+                instructions,
+                typing,
+                engine,
+                cp,
+                locals,
+                state,
+            );
+        }
+        ExprKind::Redirect(Redirect {
+            expression,
+            redirections,
+        }) => {
+            for redirection in redirections {
+                emit_redir(redirection, instructions, typing, engine, cp, locals, state);
+            }
+            emit_already_forked(expression, instructions, typing, engine, cp, locals, state);
+        }
+        ExprKind::Block(block) => {
+            if let Some((last, block)) = block.split_last() {
+                for expr in block {
+                    emit(expr, instructions, typing, engine, cp, locals, state);
+                }
+                emit_already_forked(last, instructions, typing, engine, cp, locals, state);
+            }
+        }
+        _ => {
+            emit(expr, instructions, typing, engine, cp, locals, state);
+        }
+    }
+}
+
 pub fn emit_process_call(
     arguments: &Vec<TypedExpr>,
     instructions: &mut Instructions,
@@ -221,20 +268,7 @@ pub fn emit_pipeline(
     instructions.emit_code(Opcode::Redirect);
     instructions.emit_code(Opcode::Close); // Close the pipe's reading end, since we don't need it
 
-    // Avoid forking a second time since we are already in a child process
-    if let ExprKind::ProcessCall(process_args) = &first.kind {
-        emit_process_call_self(
-            process_args,
-            instructions,
-            typing,
-            engine,
-            cp,
-            locals,
-            state,
-        );
-    } else {
-        emit(first, instructions, typing, engine, cp, locals, state);
-    }
+    emit_already_forked(first, instructions, typing, engine, cp, locals, state);
 
     instructions.patch_jump(jump_to_parent);
 
@@ -272,20 +306,7 @@ pub fn emit_pipeline(
         instructions.emit_push_int(0);
         instructions.emit_code(Opcode::Redirect);
 
-        // Avoid forking a second time since we are already in a child process
-        if let ExprKind::ProcessCall(process_args) = &command.kind {
-            emit_process_call_self(
-                process_args,
-                instructions,
-                typing,
-                engine,
-                cp,
-                locals,
-                state,
-            );
-        } else {
-            emit(command, instructions, typing, engine, cp, locals, state);
-        }
+        emit_already_forked(command, instructions, typing, engine, cp, locals, state);
 
         instructions.patch_jump(jump_to_parent);
     }
@@ -299,5 +320,38 @@ pub fn emit_pipeline(
     for _ in 0..pipeline.len() {
         instructions.emit_code(Opcode::Wait);
         instructions.emit_code(Opcode::PopByte);
+    }
+}
+
+pub fn emit_capture(
+    commands: &Vec<TypedExpr>,
+    instructions: &mut Instructions,
+    typing: &Typing,
+    engine: &Engine,
+    cp: &mut ConstantPool,
+    locals: &mut LocalsLayout,
+    state: &mut EmissionState,
+) {
+    instructions.emit_code(Opcode::Pipe);
+    let jump_to_parent = instructions.emit_jump(Opcode::Fork);
+    instructions.emit_push_int(1);
+    instructions.emit_code(Opcode::Redirect);
+    instructions.emit_code(Opcode::Close);
+    let last = state.use_values(false);
+    for command in commands {
+        emit(command, instructions, typing, engine, cp, locals, state);
+    }
+    state.use_values(last);
+    instructions.emit_push_int(0);
+    instructions.emit_code(Opcode::Exit);
+
+    instructions.patch_jump(jump_to_parent);
+    instructions.emit_code(Opcode::Swap);
+    instructions.emit_code(Opcode::Close);
+    instructions.emit_code(Opcode::Swap);
+    instructions.emit_code(Opcode::Read);
+
+    if !state.use_values {
+        instructions.emit_code(Opcode::PopQWord);
     }
 }
