@@ -19,6 +19,21 @@ mod repl;
 mod report;
 
 fn main() -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        // Override Rust's default `SIGPIPE` signal handler that ignores the signal.
+        // `println!` will no longer panic since the process will be killed before
+        // trying to write something. Restoring this Unix behavior is also important
+        // because this process will be forked to invoke externals command, meaning
+        // that the children processes will inherit from the ignored `SIGPIPE` signal,
+        // causing repercussions on coreutils commands for instance, that usually
+        // expect to be killed if a pipe is closed.
+        unsafe {
+            // SAFETY: It is an Unix environment.
+            libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+        }
+    }
+
     let cli = Cli::parse();
 
     miette::set_hook(Box::new(|_| {
