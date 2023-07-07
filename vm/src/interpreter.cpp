@@ -29,18 +29,20 @@ enum Opcode {
     OP_GET_REF,    // with 1 byte local index, pushes given local value onto the operand stack
     OP_SET_REF,    // with 1 byte local index, set given local value from value popped from the operand stack
 
-    OP_INVOKE,       // with 4 byte function ref string in constant pool, pops parameters from operands then pushes invoked function return in operand stack (if non-void)
-    OP_FORK,         // forks a new process, pushes the pid onto the operand stack of the parent and jumps to the given address in the
-                     // parent
-    OP_EXEC,         // with 1 byte for the number of arguments, pops the arguments and replaces the current program
-    OP_WAIT,         // pops a pid from the operand stack and waits for it to finish
-    OP_OPEN,         // opens a file with the name popped from the stack, pushes the file descriptor onto the operand stack
-    OP_CLOSE,        // pops a file descriptor from the operand stack and closes the file
-    OP_REDIRECT,     // duplicates the file descriptor popped from the operand stack, pushes the new file descriptor onto the
-                     // operand stack
+    OP_INVOKE,         // with 4 byte function ref string in constant pool, pops parameters from operands then pushes invoked function return in operand stack (if non-void)
+    OP_FORK,           // forks a new process, pushes the pid onto the operand stack of the parent and jumps to the given address in the
+                       // parent
+    OP_EXEC,           // with 1 byte for the number of arguments, pops the arguments and replaces the current program
+    OP_WAIT,           // pops a pid from the operand stack and waits for it to finish
+    OP_OPEN,           // opens a file with the name popped from the stack, pushes the file descriptor onto the operand stack
+    OP_CLOSE,          // pops a file descriptor from the operand stack and closes the file
+    OP_SETUP_REDIRECT, // peek the fd from the operand stack, pop the source fd from the operand stack, and performs a cancelable
+    // redirection
+    OP_REDIRECT,     // duplicates the file descriptor popped from the operand stack and leave the source fd on the stack
     OP_POP_REDIRECT, // pops a file descriptor from the operand stack and closes it
     OP_PIPE,         // creates a pipe, pushes the read and write file descriptors onto the operand stack
     OP_READ,         // pops a file descriptor to read all the data from, pushes the data onto the stack
+    OP_WRITE,        // pops a file descriptor to write the data to, pops the data to write from the stack
     OP_EXIT,         // exits the current process with the popped exit code
 
     OP_DUP,        // duplicates the last value on the operand stack
@@ -362,13 +364,24 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             close(fd);
             break;
         }
-        case OP_REDIRECT: {
+        case OP_SETUP_REDIRECT: {
             // Pop the file descriptors
             int fd2 = static_cast<int>(operands.pop_int());
             int fd1 = static_cast<int>(operands.pop_int());
 
             // Redirect the file descriptors
             state.table.push_redirection(fd1, fd2);
+            operands.push_int(fd1);
+            break;
+        }
+        case OP_REDIRECT: {
+            // Pop the file descriptors
+            int fd2 = operands.pop_int();
+            int fd1 = operands.pop_int();
+
+            // Redirect the file descriptors
+            dup2(fd1, fd2);
+            operands.push_int(fd1);
             break;
         }
         case OP_POP_REDIRECT: {
@@ -409,6 +422,21 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             // Push the string onto the stack
             auto [it, _] = state.strings.insert(std::make_unique<std::string>(std::move(out)));
             operands.push_reference((uintptr_t)it->get());
+            break;
+        }
+        case OP_WRITE: {
+            // Pop the string reference
+            uintptr_t reference = operands.pop_reference();
+            // Pop the file descriptor
+            int fd = static_cast<int>(operands.pop_int());
+            // cast the ref to a string pointer
+            const std::string &str = *(std::string *)reference;
+
+            // Write the string to the file
+            if (write(fd, str.data(), str.length()) == -1) {
+                perror("write");
+            }
+            close(fd);
             break;
         }
         case OP_EXIT: {

@@ -41,7 +41,16 @@ pub fn emit_already_forked(
             redirections,
         }) => {
             for redirection in redirections {
-                emit_redir(redirection, instructions, typing, engine, cp, locals, state);
+                emit_redir_self(
+                    redirection,
+                    instructions,
+                    typing,
+                    engine,
+                    cp,
+                    locals,
+                    state,
+                    Opcode::Redirect,
+                );
             }
             emit_already_forked(expression, instructions, typing, engine, cp, locals, state);
         }
@@ -175,6 +184,36 @@ fn emit_redir(
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
 ) {
+    emit_redir_self(
+        redir,
+        instructions,
+        typing,
+        engine,
+        cp,
+        locals,
+        state,
+        Opcode::SetupRedirect,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_redir_self(
+    redir: &Redir,
+    instructions: &mut Instructions,
+    typing: &Typing,
+    engine: &Engine,
+    cp: &mut ConstantPool,
+    locals: &mut LocalsLayout,
+    state: &mut EmissionState,
+    redir_code: Opcode,
+) {
+    debug_assert!(matches!(
+        redir_code,
+        Opcode::SetupRedirect | Opcode::Redirect
+    ));
+    if redir.operator == RedirOp::String {
+        instructions.emit_code(Opcode::Pipe);
+    }
     let last = state.use_values(true);
     emit(
         &redir.operand,
@@ -199,31 +238,37 @@ fn emit_redir(
         RedirOp::Append => {
             instructions.emit_open(O_CREAT | O_WRONLY | O_APPEND);
         }
-        RedirOp::FdIn | RedirOp::FdOut | RedirOp::String => {}
+        RedirOp::String => {
+            instructions.emit_code(Opcode::Write);
+        }
+        RedirOp::FdIn | RedirOp::FdOut => {}
     }
-    instructions.emit_code(Opcode::Dup);
     match redir.fd {
         RedirFd::Default => {
-            instructions.emit_push_int(if redir.operator == RedirOp::Read {
-                0
-            } else {
-                1
-            });
+            instructions.emit_push_int(
+                if matches!(
+                    redir.operator,
+                    RedirOp::Read | RedirOp::ReadWrite | RedirOp::FdIn | RedirOp::String
+                ) {
+                    0
+                } else {
+                    1
+                },
+            );
         }
         RedirFd::Wildcard => {
-            instructions.emit_code(Opcode::Dup);
             instructions.emit_push_int(1);
-            instructions.emit_code(Opcode::Redirect);
+            instructions.emit_code(redir_code);
             instructions.emit_push_int(2);
         }
         RedirFd::Fd(fd) => {
             instructions.emit_push_int(fd as i64);
         }
     }
-    instructions.emit_code(Opcode::Redirect);
+    instructions.emit_code(redir_code);
     if matches!(
         redir.operator,
-        RedirOp::Read | RedirOp::ReadWrite | RedirOp::Write | RedirOp::Append
+        RedirOp::Read | RedirOp::ReadWrite | RedirOp::Write | RedirOp::Append | RedirOp::String
     ) {
         instructions.emit_code(Opcode::Close);
     } else {
@@ -266,6 +311,7 @@ pub fn emit_pipeline(
     // Bound this children process stdout to the writing end of the pipe, that is on top of the stack
     instructions.emit_push_int(1);
     instructions.emit_code(Opcode::Redirect);
+    instructions.emit_code(Opcode::Close); // Close the pipe's writing end, that we just bound to stdout
     instructions.emit_code(Opcode::Close); // Close the pipe's reading end, since we don't need it
 
     emit_already_forked(first, instructions, typing, engine, cp, locals, state);
@@ -299,12 +345,14 @@ pub fn emit_pipeline(
             // Bound this children process stdout to the writing end of the pipe, that is on top of the stack
             instructions.emit_push_int(1);
             instructions.emit_code(Opcode::Redirect);
+            instructions.emit_code(Opcode::Close); // Close the pipe's writing end, that we just bound to stdout
             instructions.emit_code(Opcode::Close); // Close the pipe's reading end, since we don't need it
         }
 
         // Bound this children process stdin to the reading end of the pipe, that is on top of the stack
         instructions.emit_push_int(0);
         instructions.emit_code(Opcode::Redirect);
+        instructions.emit_code(Opcode::Close); // Close the pipe's reading end, since we just bound it to stdin
 
         emit_already_forked(command, instructions, typing, engine, cp, locals, state);
 

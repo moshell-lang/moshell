@@ -235,7 +235,7 @@ impl<'a> Instructions<'a> {
 
 /// see vm's `Opcode` enum for more details
 #[repr(u8)]
-#[derive(Eq, PartialEq, Clone, Copy, TryFromPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive)]
 pub enum Opcode {
     PushInt,
     PushByte,
@@ -255,10 +255,12 @@ pub enum Opcode {
     Wait,
     Open,
     Close,
+    SetupRedirect,
     Redirect,
     PopRedirect,
     Pipe,
     Read,
+    Write,
     Exit,
 
     Dup,
