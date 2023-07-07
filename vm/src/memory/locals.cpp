@@ -25,12 +25,12 @@ void Locals::set_ref(uint64_t r, size_t at) {
 }
 void Locals::set_bytes(const char *data, size_t size, size_t at) {
     check_capacity(at, size, "updating");
-    memcpy((void *)bytes, data, size);
+    memcpy(static_cast<void *>(bytes), data, size);
 }
 
-inline void Locals::check_capacity(size_t at, size_t space_size, std::string action) const {
+inline void Locals::check_capacity(size_t at, size_t space_size, std::string_view action) const {
     if (at + space_size > capacity) {
-        throw LocalsOutOfBoundError("locals out of bound when " + action + " value at index " + std::to_string(at));
+        throw LocalsOutOfBoundError("locals out of bound when " + std::string(action) + " value at index " + std::to_string(at));
     }
 }
 

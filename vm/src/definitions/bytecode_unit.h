@@ -19,10 +19,14 @@ public:
 };
 
 struct bytecode_unit {
-    /// all the constants used by this bytecode unit.
-    /// The functions instructions of this unit always references to the indexes of this pool
+    /**
+     * all the constants used by this bytecode unit.
+     * The functions instructions of this unit always references to the indexes of this pool
+     */
     const ConstantPool pool;
-    /// contains the functions declared in this unit
+    /**
+     * contains the functions declared in this unit
+     */
     const std::unordered_map<const std::string *, function_definition> functions;
 };
 

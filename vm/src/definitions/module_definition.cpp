@@ -6,7 +6,7 @@
 #include "memory/locals.h"
 
 std::unordered_map<const std::string *, function_definition>
-load_functions_definitions(ByteReader &reader, const ConstantPool &pool) {
+load_function_definitions(ByteReader &reader, const ConstantPool &pool) {
 
     std::unordered_map<const std::string *, function_definition> map;
 
@@ -58,7 +58,7 @@ bytecode_unit load_unit(ByteReader &reader, strings_t &strings) {
     try {
         ConstantPool pool = load_constant_pool(reader, strings);
 
-        auto functions = load_functions_definitions(reader, pool);
+        auto functions = load_function_definitions(reader, pool);
 
         return bytecode_unit{std::move(pool), std::move(functions)};
     } catch (const std::out_of_range &e) {

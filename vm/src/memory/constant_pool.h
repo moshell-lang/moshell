@@ -19,7 +19,9 @@ typedef uint32_t constant_index;
  */
 class ConstantPool {
     std::unique_ptr<std::string const *[]> constants;
-    /// Number of constants in the pool
+    /**
+     * Number of constants in the pool
+     */
     const uint32_t size;
 
     explicit ConstantPool(uint32_t size);

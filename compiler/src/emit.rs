@@ -92,7 +92,7 @@ fn emit_declaration(
     state: &mut EmissionState,
 ) {
     if let Some(value) = &declaration.value {
-        locals.initialize_space(declaration.identifier, value.ty);
+        locals.set_space(declaration.identifier, value.ty.into());
 
         emit_assignment(
             value,

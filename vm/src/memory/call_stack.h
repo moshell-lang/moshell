@@ -4,15 +4,18 @@
 #include "locals.h"
 #include "operand_stack.h"
 
-/// Thrown when the memory allocated for a thread call stack
-/// is exceeded
+/**
+ * Thrown when the memory allocated for a thread call stack is exceeded
+ */
 class StackOverflowError : public MemoryError {
 public:
-    explicit StackOverflowError(std::string message) : MemoryError{message} {}
+    explicit StackOverflowError(std::string message) : MemoryError{std::move(message)} {}
 };
 
-/// The information about a stack frame.
-/// Each function invocation implies a stack frame, that contains the functions' locals and operands stack
+/**
+ * The information about a stack frame.
+ * Each function invocation implies a stack frame, that contains the functions' locals and operands stack
+ */
 struct stack_frame {
     const std::string *function_identifier;
     size_t *instruction_pointer;
@@ -20,7 +23,9 @@ struct stack_frame {
     Locals locals;
 };
 
-/// A thread callstack, with fixed capacity
+/**
+ * A thread callstack, with fixed capacity
+ */
 class CallStack {
     std::unique_ptr<char[]> block;
 
@@ -38,7 +43,9 @@ class CallStack {
      */
     size_t frame_count;
 
-    /// creates an empty call stack
+    /**
+     * creates an empty call stack
+     */
     explicit CallStack(size_t capacity);
 
 public:

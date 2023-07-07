@@ -20,7 +20,7 @@ class Locals {
     /**
      * encapsulated bytes in the stack frame
      */
-    const char *bytes;
+    char * const bytes;
 
     /**
      * number of bytes reserved
@@ -69,7 +69,7 @@ private:
      * @param space_size the space needed
      * @param action kind of action being made
      */
-    inline void check_capacity(size_t at, size_t space_size, std::string action) const;
+    inline void check_capacity(size_t at, size_t space_size, std::string_view action) const;
 
     template <typename T>
     T get(size_t at) const;

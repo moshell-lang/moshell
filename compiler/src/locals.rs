@@ -1,6 +1,6 @@
-use crate::r#type::get_type_stack_size;
 use analyzer::relations::LocalId;
-use analyzer::types::hir::TypeId;
+
+use crate::r#type::ValueStackSize;
 
 /// contains the different index per local value allocated in the locals area
 pub struct LocalsLayout {
@@ -17,24 +17,26 @@ impl LocalsLayout {
         Self { indexes, len: 0 }
     }
 
-    /// reserves the space in the locals depending on the stack size needed by the given type
-    pub fn initialize_space(&mut self, id: LocalId, ty: TypeId) {
-        if self.indexes[id.0].is_some() {
-            return;
-        }
-        let size: u8 = get_type_stack_size(ty).into();
+    /// Reserves the space in the locals depending on the stack size needed by the given type.
+    ///
+    /// Different initialization orders will result in different indexes.
+    ///
+    /// # Panics
+    /// Panics if the local id is out of bounds.
+    pub fn set_space(&mut self, id: LocalId, stack_size: ValueStackSize) {
+        let size: u8 = stack_size.into();
         self.indexes[id.0] = Some(self.len);
         self.len += size as u32;
     }
 
-    /// get first index allocated for given local identifier
-    pub fn get_index(&self, id: LocalId) -> u32 {
-        self.indexes[id.0].unwrap_or_else(|| {
-            panic!(
-                "Local {} is unknown or has no initialized space in locals layout",
-                id.0
-            )
-        })
+    /// Get the starting byte index allocated for the given local.
+    ///
+    /// Returns [`None`] if the local is size has not yet been initialized.
+    ///
+    /// # Panics
+    /// Panics if te local id is out of bounds.
+    pub fn get_index(&self, id: LocalId) -> Option<u32> {
+        self.indexes[id.0]
     }
 
     pub fn byte_count(&self) -> u32 {

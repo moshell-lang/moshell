@@ -102,7 +102,7 @@ fn compile_instruction_set(
     let mut locals = LocalsLayout::fixed_count(chunk_vars.all_vars().len());
 
     for (id, param) in chunk.parameters.iter().enumerate() {
-        locals.initialize_space(LocalId(id), param.ty)
+        locals.set_space(LocalId(id), param.ty.into())
     }
 
     let mut state = EmissionState {

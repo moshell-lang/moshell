@@ -71,15 +71,23 @@ enum Opcode {
     OP_FLOAT_GE, // pops two floats, checks if the first is greater than or equal to the second, and pushes the resulting byte
 };
 
-/// contains values needed during runtime interpretation
+/**
+ * contains values needed during runtime interpretation
+ */
 struct runtime_state {
-    /// strings heap space
+    /**
+     * strings heap space
+     */
     strings_t &strings;
 
-    /// loaded function definitions, bound with their string identifier
+    /**
+     * loaded function definitions, bound with their string identifier
+     */
     const std::unordered_map<const std::string *, function_definition> &functions;
 
-    /// The used constant pool
+    /**
+     * The used constant pool
+     */
     const ConstantPool &pool;
 };
 
@@ -281,7 +289,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             const std::string *str_ref = &pool.get_string(index);
 
             // Push the string index onto the stack
-            operands.push_reference((uint64_t)str_ref);
+            operands.push_reference((uint64_t) str_ref);
             break;
         }
         case OP_SPAWN: {
@@ -378,7 +386,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
         }
         case OP_INT_TO_BYTE: {
             int64_t i = operands.pop_int();
-            operands.push_byte((char)i);
+            operands.push_byte(static_cast<int8_t>(i));
             break;
         }
         case OP_CONCAT: {
@@ -518,14 +526,12 @@ void run(runtime_state state, const std::string *root_identifier) {
             }
             stack_frame caller_frame = call_stack.peek_frame();
 
-            // JUSTIFY: the returned value is placed at the very first index of locals.
+            // SAFETY: the returned value is placed at the very first index of locals.
             // locals of the callee frame and operands of the caller frame are adjacent in memory thanks to
             // call stack's layout. This operation will transfer the return value in the operand stack of the caller
             // by advancing the caller's operands of the declared byte count in the callee's function definition.
             //
-            // JUSTIFY: This also cannot cause UB as a minimal frame size is equal to `sizeof(frame_headers)`,
-            // that contains ints and pointers, which is greater than the maximum return byte count allowed of `sizeof(uint64_t)`.
-            // stack overflow is impossible here because the callee frame would already have caused it earlier.
+            // The returned value is already guaranteed to not overflow the stack, as it is already there.
             caller_frame.operands.advance_unchecked(returned_byte_count);
         }
     }

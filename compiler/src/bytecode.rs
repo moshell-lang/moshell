@@ -121,7 +121,7 @@ impl<'a> Instructions<'a> {
             ValueStackSize::Zero => panic!("set_local for value whose type is zero-sized"),
         };
         self.emit_code(opcode);
-        let at = layout.get_index(identifier);
+        let at = layout.get_index(identifier).unwrap();
         self.bytecode.emit_u32(at);
     }
 
@@ -141,7 +141,7 @@ impl<'a> Instructions<'a> {
         };
 
         self.emit_code(opcode);
-        let index = layout.get_index(identifier);
+        let index = layout.get_index(identifier).unwrap();
         self.bytecode.emit_u32(index);
     }
 
