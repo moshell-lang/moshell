@@ -517,10 +517,9 @@ fn ascribe_pipeline(
             state,
         ));
     }
-    let ty = commands.last().map_or(NOTHING, |command| command.ty);
     TypedExpr {
         kind: ExprKind::Pipeline(commands),
-        ty,
+        ty: EXIT_CODE,
         segment: pipeline.segment(),
     }
 }
@@ -1976,5 +1975,13 @@ mod tests {
                 "Redirection happens here"
             ))])
         );
+    }
+
+    #[test]
+    fn use_pipeline_return() {
+        let res = extract_type(Source::unknown(
+            "if echo hello | grep -q test | val m = $(cat test) {}",
+        ));
+        assert_eq!(res, Ok(Type::Unit));
     }
 }

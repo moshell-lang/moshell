@@ -145,6 +145,7 @@ fn get_opcode_mnemonic(opcode: Opcode) -> &'static str {
         Opcode::Read => "read",
         Opcode::Exit => "exit",
         Opcode::Dup => "dup",
+        Opcode::DupByte => "dupb",
         Opcode::Swap => "swap",
         Opcode::Swap2 => "swap2",
         Opcode::PopByte => "bpop",

@@ -262,6 +262,7 @@ pub enum Opcode {
     Exit,
 
     Dup,
+    DupByte,
     Swap,
     Swap2,
     PopByte,

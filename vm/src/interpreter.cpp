@@ -44,6 +44,7 @@ enum Opcode {
     OP_EXIT,         // exits the current process with the popped exit code
 
     OP_DUP,        // duplicates the last value on the operand stack
+    OP_DUP_BYTE,   // duplicates the last byte on the operand stack
     OP_SWAP,       // swaps the last two values on the operand stack
     OP_SWAP_2,     // swaps the last two values on the operand stack with the one before that
     OP_POP_BYTE,   // pops one byte from operand stack
@@ -531,6 +532,12 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             int64_t value = operands.pop_int();
             operands.push_int(value);
             operands.push_int(value);
+            break;
+        }
+        case OP_DUP_BYTE: {
+            char value = operands.pop_byte();
+            operands.push_byte(value);
+            operands.push_byte(value);
             break;
         }
         case OP_SWAP: {

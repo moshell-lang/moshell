@@ -316,10 +316,32 @@ pub fn emit_pipeline(
     instructions.emit_code(Opcode::Swap);
     instructions.emit_code(Opcode::Close);
 
-    assert!(!state.use_values, "Pipeline values cannot be used yet");
-    for _ in 0..pipeline.len() {
+    // Get the exit code of the last process, and wait every other processes
+    if state.use_values {
         instructions.emit_code(Opcode::Wait);
-        instructions.emit_code(Opcode::PopByte);
+        // Convert the exit code to a int to be able to swap it
+        instructions.emit_code(Opcode::ConvertByteToInt);
+        for _ in 1..pipeline.len() {
+            instructions.emit_code(Opcode::Swap);
+            instructions.emit_code(Opcode::Wait);
+            instructions.emit_code(Opcode::DupByte);
+
+            // If the exit code is 0, keep the previous exit code, otherwise replace it
+            let jump_to_else = instructions.emit_jump(Opcode::IfJump);
+            instructions.emit_code(Opcode::PopByte);
+            let jump_to_end = instructions.emit_jump(Opcode::Jump);
+            instructions.patch_jump(jump_to_else);
+            instructions.emit_code(Opcode::ConvertByteToInt);
+            instructions.emit_code(Opcode::Swap);
+            instructions.emit_code(Opcode::PopQWord);
+            instructions.patch_jump(jump_to_end);
+        }
+        instructions.emit_code(Opcode::ConvertIntToByte);
+    } else {
+        for _ in 0..pipeline.len() {
+            instructions.emit_code(Opcode::Wait);
+            instructions.emit_code(Opcode::PopByte);
+        }
     }
 }
 
