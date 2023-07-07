@@ -540,10 +540,10 @@ void run_unit(const bytecode_unit &module_def, strings_t &strings) {
         const std::string &identifier = *function.first;
 
         // we found our main function, we search for a function named `<main>` with no parameters, regardless of the return type
-        if (identifier.rfind("::<main>\0", identifier.length() - strlen("<main>")) != identifier.npos) {
+        if (identifier.rfind("::<main>", identifier.length() - strlen("::<main>")) != std::string::npos) {
             runtime_state state{strings, module_def.functions, pool};
 
-            run(std::move(state), &identifier);
+            run(state, &identifier);
             return;
         }
     }

@@ -1,7 +1,7 @@
 #include "operand_stack.h"
 #include "call_stack.h"
 
-OperandStack::OperandStack(char *buff, size_t &position, size_t stack_capacity)
+OperandStack::OperandStack(const char *buff, size_t &position, size_t stack_capacity)
     : bytes{buff},
       current_pos{position},
       stack_capacity{stack_capacity} {}

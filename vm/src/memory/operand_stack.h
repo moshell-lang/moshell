@@ -24,7 +24,7 @@ private:
     const size_t stack_capacity;
 
 public:
-    explicit OperandStack(char *buff, size_t &initial_pos, size_t stack_capacity);
+    explicit OperandStack(const char *buff, size_t &initial_pos, size_t stack_capacity);
 
     /**
      * @return the size in bytes of the operand stack

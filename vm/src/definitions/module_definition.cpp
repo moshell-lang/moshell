@@ -58,7 +58,7 @@ bytecode_unit load_unit(ByteReader &reader, strings_t &strings) {
     try {
         ConstantPool pool = load_constant_pool(reader, strings);
 
-        const auto functions = load_functions_definitions(reader, pool);
+        auto functions = load_functions_definitions(reader, pool);
 
         return bytecode_unit{std::move(pool), std::move(functions)};
     } catch (const std::out_of_range &e) {

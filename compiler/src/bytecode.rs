@@ -76,18 +76,18 @@ impl Bytecode {
     }
 }
 
-/// This structure is a [Bytecode] wrapper and is used
+/// This structure is a wrapper around [`Bytecode`] and is used
 /// to emit bytecode instructions.
 pub struct Instructions<'a> {
-    pub bytecode: &'a mut Bytecode,
-    // offset of where this instruction set starts in the given bytecode
-    pub ip_offset: usize,
+    bytecode: &'a mut Bytecode,
+    /// Offset of where this instruction set starts in the given bytecode
+    ip_offset: u32,
 }
 
 impl<'a> Instructions<'a> {
     pub fn wrap(bytecode: &'a mut Bytecode) -> Self {
         Self {
-            ip_offset: bytecode.len(),
+            ip_offset: bytecode.len() as u32,
             bytecode,
         }
     }
@@ -98,7 +98,7 @@ impl<'a> Instructions<'a> {
 
     pub fn emit_pop(&mut self, size: ValueStackSize) {
         let pop_opcode = match size {
-            ValueStackSize::Zero => panic!("Cannot pop zero sized types"),
+            ValueStackSize::Zero => return,
             ValueStackSize::Byte => Opcode::PopByte,
             ValueStackSize::QWord => Opcode::PopQWord,
             ValueStackSize::Reference => Opcode::PopRef,
@@ -182,7 +182,7 @@ impl<'a> Instructions<'a> {
 
     /// Emits a jump instruction.
     ///
-    /// It returns the [`Placeholder`] adress of the offset which is to be patched.
+    /// It returns the [`Placeholder`] address of the offset which is to be patched.
     #[must_use = "the jump address must be patched later"]
     pub fn emit_jump(&mut self, opcode: Opcode) -> Placeholder {
         self.emit_code(opcode);
@@ -216,7 +216,7 @@ impl<'a> Instructions<'a> {
 
     /// Returns the current instruction pointer
     pub fn current_ip(&self) -> u32 {
-        (self.bytecode.len() - self.ip_offset) as u32
+        u32::try_from(self.bytecode.len()).expect("Too much bytecode") - self.ip_offset
     }
 }
 

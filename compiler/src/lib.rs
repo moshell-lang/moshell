@@ -105,8 +105,10 @@ fn compile_instruction_set(
         locals.initialize_space(LocalId(id), param.ty)
     }
 
-    let mut state = EmissionState::default();
-    state.use_values = use_value;
+    let mut state = EmissionState {
+        use_values: use_value,
+        ..EmissionState::default()
+    };
 
     emit(
         &chunk.expression,
@@ -138,7 +140,7 @@ fn write(
     pool: &ConstantPool,
 ) -> Result<(), io::Error> {
     write_constant_pool(pool, writer)?;
-    writer.write_all(&bytecode.bytes())
+    writer.write_all(bytecode.bytes())
 }
 
 fn write_constant_pool(cp: &ConstantPool, writer: &mut impl Write) -> Result<(), io::Error> {
