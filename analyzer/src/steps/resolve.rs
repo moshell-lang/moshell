@@ -394,10 +394,12 @@ mod tests {
             diagnostics,
             vec![Diagnostic::new(
                 DiagnosticID::ImportResolution,
-                SourceId(0),
                 "unable to find imported symbol `foo` in module `std`.",
             )
-            .with_observation(Observation::new(find_in(test_src, "foo")))]
+            .with_observation(Observation::underline(
+                SourceId(0),
+                find_in(test_src, "foo")
+            ))]
         );
 
         assert_eq!(
@@ -657,47 +659,65 @@ mod tests {
             vec![
                 Diagnostic::new(
                     DiagnosticID::InvalidSymbol,
-                    SourceId(0),
                     "`foo` is a function which cannot export any inner symbols"
                 )
-                .with_observation(Observation::new(find_in(test_src, "foo::x()")))
+                .with_observation(Observation::underline(
+                    SourceId(0),
+                    find_in(test_src, "foo::x()")
+                ))
                 .with_help("`x` is an invalid symbol in function `foo`"),
                 Diagnostic::new(
                     DiagnosticID::InvalidSymbol,
-                    SourceId(0),
                     "`foo` is a function which cannot export any inner symbols"
                 )
-                .with_observation(Observation::new(find_in(test_src, "foo::y::z()")))
+                .with_observation(Observation::underline(
+                    SourceId(0),
+                    find_in(test_src, "foo::y::z()")
+                ))
                 .with_help("`y::z` is an invalid symbol in function `foo`"),
                 Diagnostic::new(
                     DiagnosticID::InvalidSymbol,
-                    SourceId(0),
                     "`foo` is a function which cannot export any inner symbols"
                 )
-                .with_observation(Observation::new(find_in_nth(test_src, "foo::y::z()", 1)))
+                .with_observation(Observation::underline(
+                    SourceId(0),
+                    find_in_nth(test_src, "foo::y::z()", 1)
+                ))
                 .with_help("`y::z` is an invalid symbol in function `foo`"),
                 Diagnostic::new(
                     DiagnosticID::InvalidSymbol,
-                    SourceId(2),
                     "`foz` is a function which cannot export any inner symbols"
                 )
-                .with_observation(Observation::new(find_in_nth(test_src, "foz::x()", 1)))
+                .with_observation(Observation::underline(
+                    SourceId(2),
+                    find_in_nth(test_src, "foz::x()", 1)
+                ))
                 .with_help("`x` is an invalid symbol in function `foz`"),
                 Diagnostic::new(
                     DiagnosticID::InvalidSymbol,
-                    SourceId(2),
                     "`foo` is a function which cannot export any inner symbols",
                 )
-                .with_observation(Observation::new(find_in_nth(test_src, "foo::y::z()", 2)))
-                .with_observation(Observation::new(find_in_nth(test_src, "foo::y::z()", 3)))
-                .with_observation(Observation::new(find_in_nth(test_src, "foo::y::z()", 4)))
+                .with_observation(Observation::underline(
+                    SourceId(2),
+                    find_in_nth(test_src, "foo::y::z()", 2)
+                ))
+                .with_observation(Observation::underline(
+                    SourceId(2),
+                    find_in_nth(test_src, "foo::y::z()", 3)
+                ))
+                .with_observation(Observation::underline(
+                    SourceId(2),
+                    find_in_nth(test_src, "foo::y::z()", 4)
+                ))
                 .with_help("`y::z` is an invalid symbol in function `foo`"),
                 Diagnostic::new(
                     DiagnosticID::UnknownSymbol,
-                    SourceId(3),
                     "Could not resolve symbol `a::foo::in_local`."
                 )
-                .with_observation(Observation::new(find_in(test_src, "a::foo::in_local()"))),
+                .with_observation(Observation::underline(
+                    SourceId(3),
+                    find_in(test_src, "a::foo::in_local()")
+                )),
             ]
         );
 
@@ -754,44 +774,38 @@ mod tests {
             vec![
                 Diagnostic::new(
                     DiagnosticID::ImportResolution,
-                    SourceId(0),
                     "unable to find imported symbol `B` in module `A`.",
                 )
-                .with_observation(Observation::new(find_in(source, "A::B"))),
+                .with_observation(Observation::underline(SourceId(0), find_in(source, "A::B"))),
                 Diagnostic::new(
                     DiagnosticID::ImportResolution,
-                    SourceId(0),
                     "unable to find imported symbol `B::C`."
                 )
-                .with_observation(Observation::new(find_in(source, "B::C"))),
+                .with_observation(Observation::underline(SourceId(0), find_in(source, "B::C"))),
                 Diagnostic::new(
                     DiagnosticID::ImportResolution,
-                    SourceId(0),
                     "unable to find imported symbol `C`."
                 )
-                .with_observation(Observation::new(find_in(source, "C::*"))),
+                .with_observation(Observation::underline(SourceId(0), find_in(source, "C::*"))),
                 Diagnostic::new(
                     DiagnosticID::UnknownSymbol,
-                    SourceId(0),
                     "Could not resolve symbol `a`."
                 )
-                .with_observation(Observation::new(find_in_nth(source, "$a", 0)))
-                .with_observation(Observation::new(find_in_nth(source, "$a", 1)))
-                .with_observation(Observation::new(find_in_nth(source, "$a", 2))),
+                .with_observation(Observation::underline(SourceId(0), find_in_nth(source, "$a", 0)))
+                .with_observation(Observation::underline(SourceId(0), find_in_nth(source, "$a", 1)))
+                .with_observation(Observation::underline(SourceId(0), find_in_nth(source, "$a", 2))),
                 Diagnostic::new(
                     DiagnosticID::InvalidSymbol,
-                    SourceId(0),
                     "unresolvable symbol `C` has no choice but to be ignored due to invalid import of `C`."
                 )
-                .with_observation(Observation::with_help(find_in_nth(source, "B::C", 0), "invalid import introduced here"))
-                    .with_observation(Observation::new(find_in(source, "$C"))),
+                .with_observation(Observation::context(SourceId(0), find_in_nth(source, "B::C", 0), "invalid import introduced here"))
+                    .with_observation(Observation::underline(SourceId(0), find_in(source, "$C"))),
                 Diagnostic::new(
                     DiagnosticID::InvalidSymbol,
-                    SourceId(0),
                     "unresolvable symbol `B` has no choice but to be ignored due to invalid import of `B`."
                 )
-                    .with_observation(Observation::with_help(find_in_nth(source, "A::B", 0), "invalid import introduced here"))
-                    .with_observation(Observation::new(find_in(source, "$B"))),
+                    .with_observation(Observation::context(SourceId(0), find_in_nth(source, "A::B", 0), "invalid import introduced here"))
+                    .with_observation(Observation::underline(SourceId(0), find_in(source, "$B"))),
             ]
         )
     }
@@ -834,21 +848,28 @@ mod tests {
         assert_eq!(
             diagnostic,
             vec![
-                Diagnostic::new(
-                    DiagnosticID::UnknownSymbol,
-                    SourceId(0),
-                    "Could not resolve symbol `C`."
-                )
-                .with_observation(Observation::new(find_in_nth(source, "$C", 0)))
-                .with_observation(Observation::new(find_in_nth(source, "$C", 1))),
-                Diagnostic::new(
-                    DiagnosticID::UnknownSymbol,
-                    SourceId(0),
-                    "Could not resolve symbol `a`."
-                )
-                .with_observation(Observation::new(find_in_nth(source, "$a", 0)))
-                .with_observation(Observation::new(find_in_nth(source, "$a", 1)))
-                .with_observation(Observation::new(find_in_nth(source, "$a", 2))),
+                Diagnostic::new(DiagnosticID::UnknownSymbol, "Could not resolve symbol `C`.")
+                    .with_observation(Observation::underline(
+                        SourceId(0),
+                        find_in_nth(source, "$C", 0)
+                    ))
+                    .with_observation(Observation::underline(
+                        SourceId(0),
+                        find_in_nth(source, "$C", 1)
+                    )),
+                Diagnostic::new(DiagnosticID::UnknownSymbol, "Could not resolve symbol `a`.")
+                    .with_observation(Observation::underline(
+                        SourceId(0),
+                        find_in_nth(source, "$a", 0)
+                    ))
+                    .with_observation(Observation::underline(
+                        SourceId(0),
+                        find_in_nth(source, "$a", 1)
+                    ))
+                    .with_observation(Observation::underline(
+                        SourceId(0),
+                        find_in_nth(source, "$a", 2)
+                    )),
             ]
         )
     }
@@ -893,21 +914,25 @@ mod tests {
         assert_eq!(
             diagnostic,
             vec![
-                Diagnostic::new(
-                    DiagnosticID::UnknownSymbol,
-                    SourceId(1),
-                    "Could not resolve symbol `C`.",
-                )
-                .with_observation(Observation::new(find_in(source, "$C")))
-                .with_observation(Observation::new(find_in_nth(source, "$C", 1))),
-                Diagnostic::new(
-                    DiagnosticID::UnknownSymbol,
-                    SourceId(1),
-                    "Could not resolve symbol `a`.",
-                )
-                .with_observation(Observation::new(find_in_nth(source, "$a", 0)))
-                .with_observation(Observation::new(find_in_nth(source, "$a", 1)))
-                .with_observation(Observation::new(find_in_nth(source, "$a", 2))),
+                Diagnostic::new(DiagnosticID::UnknownSymbol, "Could not resolve symbol `C`.",)
+                    .with_observation(Observation::underline(SourceId(1), find_in(source, "$C")))
+                    .with_observation(Observation::underline(
+                        SourceId(1),
+                        find_in_nth(source, "$C", 1)
+                    )),
+                Diagnostic::new(DiagnosticID::UnknownSymbol, "Could not resolve symbol `a`.",)
+                    .with_observation(Observation::underline(
+                        SourceId(1),
+                        find_in_nth(source, "$a", 0)
+                    ))
+                    .with_observation(Observation::underline(
+                        SourceId(1),
+                        find_in_nth(source, "$a", 1)
+                    ))
+                    .with_observation(Observation::underline(
+                        SourceId(1),
+                        find_in_nth(source, "$a", 2)
+                    )),
             ]
         )
     }

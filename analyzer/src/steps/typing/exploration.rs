@@ -29,6 +29,6 @@ impl Exploration {
 
 /// Generates a diagnostic for an unknown type annotation.
 pub(super) fn diagnose_unknown_type(source: SourceId, segment: SourceSegment) -> Diagnostic {
-    Diagnostic::new(DiagnosticID::UnknownType, source, "Unknown type annotation")
-        .with_observation(Observation::with_help(segment, "Not found in scope"))
+    Diagnostic::new(DiagnosticID::UnknownType, "Unknown type annotation")
+        .with_observation(Observation::here(source, segment, "Not found in scope"))
 }
