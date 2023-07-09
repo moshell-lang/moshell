@@ -61,9 +61,6 @@ impl Typing {
         }
 
         // apply the `A U Nothing => A` rule
-        if *lhs == Type::Nothing {
-            return Ok(rvalue);
-        }
         if *rhs == Type::Nothing {
             return Ok(assign_to);
         }
@@ -77,12 +74,14 @@ impl Typing {
     }
 
     /// Unifies multiple type identifiers in any direction.
-    pub fn convert_many(
+    pub fn convert_many<I: IntoIterator<Item = TypeId>>(
         &mut self,
-        types: impl Iterator<Item = TypeId>,
+        types: I,
     ) -> Result<TypeId, UnificationError> {
-        let mut types = types.peekable();
-        let first = types.next().unwrap();
+        let mut types = types
+            .into_iter()
+            .filter(|ty| ty.is_ok() && !ty.is_nothing());
+        let first = types.next().unwrap_or(NOTHING);
         types.try_fold(first, |acc, ty| {
             self.convert_description(acc, ty)
                 .or_else(|_| self.convert_description(ty, acc))

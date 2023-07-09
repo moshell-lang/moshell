@@ -121,8 +121,7 @@ fn compile_instruction_set(
     );
 
     // patch instruction count placeholder
-    let instruction_byte_count =
-        u32::try_from(instructions.current_ip()).expect("too much instructions");
+    let instruction_byte_count = instructions.current_ip();
     bytecode.patch_u32_placeholder(instruction_count, instruction_byte_count);
 
     // as the locals also contains parameters and the return value, the

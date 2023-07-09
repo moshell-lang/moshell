@@ -695,7 +695,7 @@ fn ascribe_if(
     let ty = if state.local_type {
         match exploration
             .typing
-            .convert_description(then.ty, otherwise.as_ref().map_or(UNIT, |expr| expr.ty))
+            .convert_many([then.ty, otherwise.as_ref().map_or(UNIT, |expr| expr.ty)])
         {
             Ok(ty) => {
                 // Generate appropriate casts and implicits conversions
@@ -1337,7 +1337,7 @@ mod tests {
             .with_observation(Observation::with_help(
                 find_in(content, "$a"),
                 "Found `String`",
-            )),])
+            ))])
         );
     }
 

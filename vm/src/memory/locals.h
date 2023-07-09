@@ -20,7 +20,7 @@ class Locals {
     /**
      * encapsulated bytes in the stack frame
      */
-    char * const bytes;
+    char *const bytes;
 
     /**
      * number of bytes reserved

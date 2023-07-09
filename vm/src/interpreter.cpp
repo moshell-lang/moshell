@@ -289,7 +289,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             const std::string *str_ref = &pool.get_string(index);
 
             // Push the string index onto the stack
-            operands.push_reference((uint64_t) str_ref);
+            operands.push_reference((uint64_t)str_ref);
             break;
         }
         case OP_SPAWN: {
@@ -395,7 +395,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
 
             std::string result = *left + *right;
 
-            auto [it, _] = state.strings.insert(std::make_unique<std::string>(result));
+            auto [it, _] = state.strings.insert(std::make_unique<std::string>(std::move(result)));
             operands.push_reference((uint64_t)it->get());
             break;
         }
@@ -483,7 +483,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             double a = operands.pop_double();
             char res = apply_comparison(opcode, a, b);
             operands.push_byte(res);
-            return true;
+            break;
         }
         case OP_RETURN:
             return true;
