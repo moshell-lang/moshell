@@ -15,7 +15,7 @@ use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::environment::variables::{TypeInfo, Variables};
 use crate::environment::Environment;
-use crate::importer::{ASTImporter, Imported};
+use crate::importer::{ASTImporter, ImportResult, Imported};
 use crate::imports::{Imports, UnresolvedImport};
 use crate::name::Name;
 use crate::relations::{RelationState, Relations, SourceId, Symbol};
@@ -648,13 +648,13 @@ fn import_ast<'a, 'b>(
     while !parts.is_empty() {
         let name = Name::from(parts.clone());
         match importer.import(&name) {
-            Ok(Some(imported)) => return Some((imported, name)),
-            Ok(None) => {
+            ImportResult::Success(imported) => return Some((imported, name)),
+            ImportResult::NotFound => {
                 // Nothing has been found, but we might have a chance by
                 // importing the parent module.
                 parts.pop();
             }
-            Err(_) => {
+            ImportResult::Failure => {
                 // Something has been found, but cannot be fully imported,
                 // so don't try to import anything else.
                 return None;

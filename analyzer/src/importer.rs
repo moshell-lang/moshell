@@ -15,20 +15,31 @@ pub struct Imported<'a> {
     pub expr: Expr<'a>,
 }
 
-/// An vague error type that indicates that something went wrong while importing.
+/// The outcome when trying to get an expression from a [`Name`].
 #[derive(Debug, PartialEq)]
-pub struct ImportError;
+pub enum ImportResult<'a> {
+    /// The import was successful and can be used.
+    Success(Imported<'a>),
+
+    /// The source could not be found. Another name may be tried.
+    NotFound,
+
+    /// The source has been found but could not be retrieved.
+    ///
+    /// This error is fatal and should not be ignored.
+    Failure,
+}
 
 /// Import an abstract syntax tree from a given name.
 pub trait ASTImporter<'a> {
     /// Gets an expression from the given import name.
     ///
-    /// This method should return `Ok(None)` if a source with the given name
-    /// could not be found. If the source could be found, but for any reason
-    /// could not be retrieved (because of IO or parsing errors), this method
-    /// should return `Err(())`. Implementers of this traits may expose the
-    /// actual error types.
-    fn import(&mut self, name: &Name) -> Result<Option<Imported<'a>>, ImportError>;
+    /// This method should return [`ImportResult::NotFound`] if a source with
+    /// the given name could not be found. If the source could be found, but for
+    /// any reason could not be retrieved (because of IO or parsing errors),
+    /// this method should return [`ImportResult::Failure`]. Implementers of
+    /// this trait may expose the actual error types.
+    fn import(&mut self, name: &Name) -> ImportResult<'a>;
 }
 
 /// An importer with predefined sources.
@@ -57,11 +68,21 @@ impl<'a, P> ASTImporter<'a> for StaticImporter<'a, P>
 where
     P: Fn(Source<'a>) -> Expr<'a>,
 {
-    fn import(&mut self, name: &Name) -> Result<Option<Imported<'a>>, ImportError> {
+    fn import(&mut self, name: &Name) -> ImportResult<'a> {
         let ast = self.sources.get(name).map(|src| (self.ast_factory)(*src));
-        Ok(ast.map(|expr| Imported {
+        ast.map(|expr| Imported {
             content: ContentId(0),
             expr,
-        }))
+        })
+        .into()
+    }
+}
+
+impl<'a> From<Option<Imported<'a>>> for ImportResult<'a> {
+    fn from(opt: Option<Imported<'a>>) -> Self {
+        match opt {
+            Some(imported) => ImportResult::Success(imported),
+            None => ImportResult::NotFound,
+        }
     }
 }

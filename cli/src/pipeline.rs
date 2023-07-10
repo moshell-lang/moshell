@@ -3,7 +3,7 @@ use std::fs::read_to_string;
 use std::io;
 use std::path::{PathBuf, MAIN_SEPARATOR_STR};
 
-use analyzer::importer::{ASTImporter, ImportError, Imported};
+use analyzer::importer::{ASTImporter, ImportResult, Imported};
 use analyzer::name::Name;
 use ast::group::Block;
 use ast::Expr;
@@ -62,7 +62,7 @@ impl FileImporter {
     }
 
     /// Inserts a new source into the importer.
-    pub fn insert<'a>(&mut self, source: OwnedSource) -> Result<Option<Imported<'a>>, ImportError> {
+    pub fn insert<'a>(&mut self, source: OwnedSource) -> ImportResult<'a> {
         let id = self.sources.len();
         self.sources.push(source);
         let source = self
@@ -79,20 +79,20 @@ impl FileImporter {
                 // 'a is used here to disambiguate the lifetime of the source and the mutable borrow.
                 std::mem::transmute::<Vec<Expr>, Vec<Expr<'a>>>(report.expr)
             };
-            Ok(Some(Imported {
+            ImportResult::Success(Imported {
                 content: ContentId(id),
                 expr: Expr::Block(Block {
                     expressions,
                     segment: source.segment(),
                 }),
-            }))
+            })
         } else {
             self.errors
                 .push(FileImportError::Parse(SourceAwareParseErrors {
                     source: ContentId(id),
                     errors: report.errors,
                 }));
-            Err(ImportError)
+            ImportResult::Failure
         }
     }
 
@@ -114,7 +114,7 @@ impl FileImporter {
 }
 
 impl<'a> ASTImporter<'a> for FileImporter {
-    fn import(&mut self, name: &Name) -> Result<Option<Imported<'a>>, ImportError> {
+    fn import(&mut self, name: &Name) -> ImportResult<'a> {
         let path = self.get_search_path(name);
         match read_to_string(&path) {
             Ok(content) => self.insert(OwnedSource::new(
@@ -126,10 +126,10 @@ impl<'a> ASTImporter<'a> for FileImporter {
             )),
             Err(err) => {
                 if err.kind() == io::ErrorKind::NotFound {
-                    Ok(None)
+                    ImportResult::NotFound
                 } else {
                     self.errors.push(FileImportError::IO(err));
-                    Err(ImportError)
+                    ImportResult::Failure
                 }
             }
         }
