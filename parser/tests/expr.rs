@@ -1,7 +1,8 @@
 use ast::call::{
     Call, Detached, MethodCall, ProgrammaticCall, Redir, RedirFd, RedirOp, Redirected,
 };
-use ast::control_flow::{For, ForKind, RangeFor};
+use ast::control_flow::{For, ForKind, If, RangeFor};
+use ast::function::Return;
 use ast::group::{Block, Parenthesis};
 use ast::lambda::LambdaDef;
 use ast::operation::{BinaryOperation, BinaryOperator};
@@ -749,6 +750,27 @@ fn call_method_on_int() {
             })],
             type_parameters: Vec::new(),
             segment: find_between(source.source, ".", ")")
+        })]
+    );
+}
+
+#[test]
+fn if_branch_string() {
+    let source = Source::unknown("if $result; 'true'; else return 'false'");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::If(If {
+            condition: Box::new(Expr::VarReference(VarReference {
+                name: "result",
+                segment: find_in(source.source, "$result")
+            })),
+            success_branch: Box::new(literal(source.source, "'true'")),
+            fail_branch: Some(Box::new(Expr::Return(Return {
+                expr: Some(Box::new(literal(source.source, "'false'"))),
+                segment: find_in(source.source, "return 'false'")
+            }))),
+            segment: source.segment()
         })]
     );
 }

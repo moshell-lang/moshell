@@ -25,7 +25,7 @@ use crate::cursor::ParserCursor;
 use crate::err::ParseErrorKind::Unexpected;
 use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
 use crate::moves::{
-    any, bin_op, blanks, eox, like, line_end, next, of_type, of_types, repeat, spaces, Move,
+    any, bin_op, blanks, eox, like, line_end, next, not, of_type, of_types, repeat, spaces, Move,
     MoveOperations,
 };
 use ast::range::Iterable;
@@ -52,6 +52,7 @@ macro_rules! non_infix {
             DoubleQuote,
             Comma,
             FatArrow,
+            Ampersand,
         ]))
     };
 }
@@ -120,7 +121,6 @@ impl<'a> Parser<'a> {
         !self.cursor.is_at_end()
     }
 
-    #[inline]
     pub(crate) fn parse_full_expr<P>(&mut self, mut next: P) -> ParseResult<Expr<'a>>
     where
         P: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
@@ -190,8 +190,24 @@ impl<'a> Parser<'a> {
         let expr = match pivot {
             If => self.parse_if(Parser::statement).map(Expr::If),
             Match => self.parse_match(Parser::statement).map(Expr::Match),
-            Identifier | Quote | DoubleQuote => self.any_call(),
-            Not => self.not(Self::next_expression_statement),
+            Identifier => self.any_call(),
+            Dot => self.call(),
+            Shell => {
+                self.cursor.next_opt();
+                self.cursor.advance(spaces());
+                if self.cursor.peek().token_type == CurlyLeftBracket {
+                    self.block().map(Expr::Block)
+                } else {
+                    self.any_call()
+                }
+            }
+            Not if self
+                .cursor
+                .lookahead(next().then(spaces().then(of_types(&[RoundedLeftBracket, Identifier]))))
+                .is_some() =>
+            {
+                self.not(Self::next_expression_statement)
+            }
 
             _ if pivot.is_bin_operator() => self.call(),
 
@@ -220,9 +236,7 @@ impl<'a> Parser<'a> {
             }
             Return => self.parse_return().map(Expr::Return),
 
-            Not => self.not(Parser::expression),
-
-            _ => self.next_value(),
+            _ => self.value(),
         }
     }
 
@@ -424,31 +438,13 @@ impl<'a> Parser<'a> {
         }
 
         if self.cursor.lookahead(of_types(&[Or, And])).is_some() {
-            return self.binary_operation_right(expr, Parser::next_expression_statement);
+            return self.binary_operation(expr, Parser::next_expression_statement);
         }
 
         //now, we know that there is something right after the expression.
         //test if this 'something' is a redirection.
         if self.is_at_redirection_sign() {
             return self.redirectable(expr);
-        }
-
-        if let Expr::Literal(literal) = &expr {
-            if self.cursor.lookahead(bin_op()).is_some() {
-                let start_pos = literal.segment.start;
-                if self
-                    .binary_operation_right(expr.clone(), Parser::next_value)
-                    .is_ok()
-                {
-                    let end_pos = self.cursor.relative_pos(self.cursor.peek()).end;
-                    let slice = &self.source.source[start_pos..end_pos];
-                    return self.expected_with(
-                        "Binary operations must be enclosed in a value expression.",
-                        slice,
-                        ParseErrorKind::UnexpectedInContext(format!("$(( {slice} ))")),
-                    );
-                }
-            }
         }
 
         if self.cursor.lookahead(of_type(As)).is_some() {
@@ -483,8 +479,12 @@ impl<'a> Parser<'a> {
 
         //now, we know that there is something right after the expression.
         //test if this 'something' is a redirection.
-        if self.cursor.lookahead(bin_op()).is_some() {
-            return self.binary_operation_right(expr, Parser::next_value);
+        if self
+            .cursor
+            .lookahead(bin_op().and_then(spaces().then(not(eox()))))
+            .is_some()
+        {
+            return self.binary_operation(expr, Parser::next_value);
         }
 
         //else, we hit an invalid binary expression.
