@@ -124,12 +124,7 @@ fn compile_instruction_set(
     let instruction_byte_count = instructions.current_ip();
     bytecode.patch_u32_placeholder(instruction_count, instruction_byte_count);
 
-    // as the locals also contains parameters and the return value, the
-    // length is the maximum of those three values
-    let locals_length = locals
-        .byte_count()
-        .max(parameters_bytes_count)
-        .max(return_bytes_count as u32);
+    let locals_length = locals.byte_count();
     bytecode.patch_u32_placeholder(locals_byte_count, locals_length)
 }
 

@@ -61,7 +61,7 @@ pub fn handle_source(source: Source) -> bool {
         segment: 0..0,
     });
 
-    let name = Name::new("<repl>");
+    let name = Name::new("<module>");
     importer.imported_modules.insert(name.clone(), expr);
 
     let result = resolve_all(name, &mut importer);

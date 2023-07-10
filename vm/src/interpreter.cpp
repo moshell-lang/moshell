@@ -514,8 +514,6 @@ void run(runtime_state state, const std::string *root_identifier) {
         if (has_returned) {
             int8_t returned_byte_count = current_def.return_byte_count;
             const char *bytes = current_frame.operands.pop_bytes(returned_byte_count);
-            // place returned bytes in the first index of locals
-            current_frame.locals.set_bytes(bytes, returned_byte_count, 0);
 
             // pop the current frame.
             call_stack.pop_frame();
@@ -525,14 +523,7 @@ void run(runtime_state state, const std::string *root_identifier) {
                 break;
             }
             stack_frame caller_frame = call_stack.peek_frame();
-
-            // SAFETY: the returned value is placed at the very first index of locals.
-            // locals of the callee frame and operands of the caller frame are adjacent in memory thanks to
-            // call stack's layout. This operation will transfer the return value in the operand stack of the caller
-            // by advancing the caller's operands of the declared byte count in the callee's function definition.
-            //
-            // The returned value is already guaranteed to not overflow the stack, as it is already there.
-            caller_frame.operands.advance_unchecked(returned_byte_count);
+            caller_frame.operands.push(bytes, returned_byte_count);
         }
     }
 }

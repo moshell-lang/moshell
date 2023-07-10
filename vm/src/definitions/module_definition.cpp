@@ -24,22 +24,6 @@ load_function_definitions(ByteReader &reader, const ConstantPool &pool) {
 
         char *instructions = reader.read_n<char>(instruction_count);
 
-#ifndef NDEBUG
-        // returned bytes must be <= allocated bytes for locals
-        if (return_byte_count > locals_byte_count) {
-            throw InvalidBytecodeStructure("Function " + *identifier + " declares more return bytes than allocated locals capacity.");
-        }
-
-        // parameters bytes must be <= allocated bytes for locals
-        if (parameters_byte_count > locals_byte_count) {
-            throw InvalidBytecodeStructure("Function " + *identifier + " declares more parameters bytes than allocated locals capacity.");
-        }
-
-        if (return_byte_count > sizeof(uint64_t)) {
-            throw InvalidBytecodeStructure("Function " + *identifier + " declares a return byte count which is greater than maximum allocated size " + std::to_string(sizeof(uint64_t)) + " (" + std::to_string(return_byte_count) + ").");
-        }
-#endif
-
         function_definition def{
             locals_byte_count,
             parameters_byte_count,

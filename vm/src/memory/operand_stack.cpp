@@ -1,7 +1,7 @@
 #include "operand_stack.h"
-#include "call_stack.h"
+#include <cstring>
 
-OperandStack::OperandStack(const char *buff, size_t &position, size_t stack_capacity)
+OperandStack::OperandStack(char *const buff, size_t &position, size_t stack_capacity)
     : bytes{buff},
       current_pos{position},
       stack_capacity{stack_capacity} {}
@@ -54,7 +54,11 @@ const char *OperandStack::pop_bytes(size_t n) {
     return bytes + current_pos;
 }
 
-void OperandStack::advance_unchecked(size_t size) {
+void OperandStack::push(const char *bytes, size_t size) {
+    if (current_pos + size > stack_capacity) {
+        throw StackOverflowError("exceeded stack stack_capacity via operand stack");
+    }
+    memcpy(static_cast<void *>(this->bytes + current_pos), bytes, size);
     current_pos += size;
 }
 

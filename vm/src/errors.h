@@ -38,3 +38,11 @@ public:
         return "MemoryError";
     }
 };
+
+/**
+ * Thrown when the memory allocated for a thread call stack is exceeded
+ */
+class StackOverflowError : public MemoryError {
+public:
+    explicit StackOverflowError(std::string message) : MemoryError{std::move(message)} {}
+};

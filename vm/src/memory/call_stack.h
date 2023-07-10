@@ -5,14 +5,6 @@
 #include "operand_stack.h"
 
 /**
- * Thrown when the memory allocated for a thread call stack is exceeded
- */
-class StackOverflowError : public MemoryError {
-public:
-    explicit StackOverflowError(std::string message) : MemoryError{std::move(message)} {}
-};
-
-/**
  * The information about a stack frame.
  * Each function invocation implies a stack frame, that contains the functions' locals and operands stack
  */

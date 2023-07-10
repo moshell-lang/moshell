@@ -19,12 +19,12 @@ public:
 
 class OperandStack {
 private:
-    const char *bytes;
+    char *const bytes;
     size_t &current_pos;
     const size_t stack_capacity;
 
 public:
-    explicit OperandStack(const char *buff, size_t &initial_pos, size_t stack_capacity);
+    explicit OperandStack(char *const buff, size_t &initial_pos, size_t stack_capacity);
 
     /**
      * @return the size in bytes of the operand stack
@@ -86,11 +86,7 @@ public:
      */
     const char *pop_bytes(size_t n);
 
-    /**
-     * advances, without checking for stack overflow, the position of the operand stack.
-     * The caller of this method must ensure that the given size will not overflow the stack.
-     */
-    void advance_unchecked(size_t size);
+    void push(const char *bytes, size_t size);
 
 private:
     template <typename T>
