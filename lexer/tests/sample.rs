@@ -29,6 +29,21 @@ fn string_literal() {
 }
 
 #[test]
+fn glue_tokens() {
+    let tokens = lex("echo 729zip1 cut2");
+    assert_eq!(
+        tokens,
+        vec![
+            Token::new(TokenType::Identifier, "echo"),
+            Token::new(TokenType::Space, " "),
+            Token::new(TokenType::Identifier, "729zip1"),
+            Token::new(TokenType::Space, " "),
+            Token::new(TokenType::Identifier, "cut2"),
+        ]
+    );
+}
+
+#[test]
 fn string_literal_unterminated_due_to_comment() {
     let tokens = lex("echo \"$(//)\"");
     assert_eq!(

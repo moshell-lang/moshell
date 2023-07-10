@@ -2,8 +2,9 @@ use ast::call::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use ast::control_flow::{Loop, While};
 use ast::function::Return;
 use ast::group::{Block, Subshell};
+use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::substitution::{Substitution, SubstitutionKind};
-use ast::value::TemplateString;
+use ast::value::{Literal, TemplateString};
 use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
@@ -56,7 +57,7 @@ fn with_lexer_var_reference_one() {
 
 #[test]
 fn with_lexer_var_reference_two() {
-    let source = Source::unknown("\"fake$cmd\" do $arg2");
+    let source = Source::unknown("shell \"fake$cmd\" do $arg2");
     let parsed = parse(source).expect("Failed to parse");
 
     assert_eq!(
@@ -392,7 +393,7 @@ fn pipe_expressions() {
 
 #[test]
 fn pipe_to_command() {
-    let source = Source::unknown("{ echo '1\n2' } | cat");
+    let source = Source::unknown("shell { echo '1\n2' } | cat");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
@@ -443,17 +444,114 @@ fn empty_return() {
 
 #[test]
 fn loop_assign() {
-    let source = Source::unknown("loop a = 'a'");
+    let source = Source::unknown("loop a = $(pgrep shell 2>/dev/null)");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Loop(Loop {
             body: Box::new(Expr::Assign(Assign {
                 name: "a",
-                value: Box::new(literal(source.source, "'a'")),
-                segment: find_in(source.source, "a = 'a'"),
+                value: Box::new(Expr::Substitution(Substitution {
+                    underlying: Subshell {
+                        expressions: vec![Expr::Redirected(Redirected {
+                            expr: Box::new(Expr::Call(Call {
+                                path: Vec::new(),
+                                arguments: vec![
+                                    literal(source.source, "pgrep"),
+                                    literal(source.source, "shell"),
+                                ],
+                                type_parameters: Vec::new(),
+                            })),
+                            redirections: vec![Redir {
+                                fd: RedirFd::Fd(2),
+                                operator: RedirOp::Write,
+                                operand: literal(source.source, "/dev/null"),
+                                segment: find_in(source.source, "2>/dev/null"),
+                            }],
+                        })],
+                        segment: find_in(source.source, "$(pgrep shell 2>/dev/null)"),
+                    },
+                    kind: SubstitutionKind::Capture,
+                })),
+                segment: find_in(source.source, "a = $(pgrep shell 2>/dev/null)"),
             })),
             segment: source.segment(),
+        })]
+    );
+}
+
+#[test]
+fn here_string_pipeline() {
+    let source = Source::unknown("sort <<< $dict | uniq");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Pipeline(Pipeline {
+            commands: vec![
+                Expr::Redirected(Redirected {
+                    expr: Box::new(Expr::Call(Call {
+                        path: Vec::new(),
+                        arguments: vec![literal(source.source, "sort")],
+                        type_parameters: Vec::new(),
+                    })),
+                    redirections: vec![Redir {
+                        fd: RedirFd::Default,
+                        operator: RedirOp::String,
+                        operand: Expr::VarReference(VarReference {
+                            name: "dict",
+                            segment: find_in(source.source, "$dict"),
+                        }),
+                        segment: find_in(source.source, "<<< $dict"),
+                    }],
+                }),
+                Expr::Call(Call {
+                    path: Vec::new(),
+                    arguments: vec![literal(source.source, "uniq")],
+                    type_parameters: Vec::new(),
+                }),
+            ],
+        })]
+    );
+}
+
+#[test]
+fn redirect_string_local_exe() {
+    let source = Source::unknown("./target/debug/cli <<< 'cat <<< \"hello\"'");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Redirected(Redirected {
+            expr: Box::new(Expr::Call(Call {
+                path: Vec::new(),
+                arguments: vec![literal(source.source, "./target/debug/cli")],
+                type_parameters: Vec::new(),
+            })),
+            redirections: vec![Redir {
+                fd: RedirFd::Default,
+                operator: RedirOp::String,
+                operand: literal(source.source, "'cat <<< \"hello\"'",),
+                segment: find_in(source.source, "<<< 'cat <<< \"hello\"'"),
+            }],
+        })]
+    )
+}
+
+#[test]
+fn divide_in_statement() {
+    let source = Source::unknown("$n/2");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Binary(BinaryOperation {
+            left: Box::new(Expr::VarReference(VarReference {
+                name: "n",
+                segment: find_in(source.source, "$n"),
+            })),
+            op: BinaryOperator::Divide,
+            right: Box::new(Expr::Literal(Literal {
+                parsed: 2.into(),
+                segment: find_in(source.source, "2"),
+            })),
         })]
     );
 }
