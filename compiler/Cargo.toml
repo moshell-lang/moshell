@@ -9,3 +9,4 @@ edition = "2021"
 analyzer = { path = "../analyzer" }
 ast = { path = "../ast" }
 indexmap = "2.0.0"
+num_enum = "0.6.1"

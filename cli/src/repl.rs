@@ -1,4 +1,4 @@
-use crate::cli::handle_source;
+use crate::cli::{handle_source, Cli};
 use crate::report::print_flush;
 use context::source::{OwnedSource, Source};
 use parser::parse;
@@ -8,9 +8,9 @@ use std::io::Write;
 
 /// Indefinitely prompts a new expression to the stdin,
 /// displaying back the errors if any and the formed AST
-pub fn prompt() {
+pub fn prompt(config: &Cli) {
     while let Some(source) = parse_input() {
-        handle_source(source.as_source());
+        handle_source(config, source.as_source());
     }
 }
 

@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 mod cli;
+mod disassemble;
 mod repl;
 mod report;
 
@@ -20,12 +21,12 @@ fn main() -> io::Result<()> {
     }))
     .expect("miette options setup");
 
-    if let Some(source) = cli.source {
+    if let Some(source) = &cli.source {
         let content = std::fs::read_to_string(&source)?;
         let name = source.to_string_lossy().deref().to_string();
         let source = Source::new(&content, &name);
-        exit(handle_source(source) as i32)
+        exit(handle_source(&cli, source) as i32)
     }
-    prompt();
+    prompt(&cli);
     Ok(())
 }

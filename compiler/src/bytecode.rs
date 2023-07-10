@@ -1,6 +1,7 @@
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
 use analyzer::relations::LocalId;
+use num_enum::TryFromPrimitive;
 use std::mem::size_of;
 
 #[derive(Debug, Clone)]
@@ -222,7 +223,7 @@ impl<'a> Instructions<'a> {
 
 /// see vm's `Opcode` enum for more details
 #[repr(u8)]
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, Clone, Copy, TryFromPrimitive)]
 pub enum Opcode {
     PushInt,
     PushByte,
