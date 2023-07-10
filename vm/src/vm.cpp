@@ -1,18 +1,21 @@
 #include "byte_reader.h"
+#include "definitions/bytecode_unit.h"
 #include "interpreter.h"
-#include "memory/constant_pool.h"
-#include "memory/strings.h"
+
 #include <iostream>
 
 extern "C" void moshell_exec(const char *bytes, size_t byte_count) {
     strings_t strings;
-
+    ByteReader reader(bytes, byte_count);
     try {
-        ByteReader reader(bytes, byte_count);
-        ConstantPool pool = load_constant_pool(reader, strings);
+        // read function definitions
+        auto module_def = load_unit(reader, strings);
 
-        run(pool, bytes + reader.position(), byte_count - reader.position(), strings);
+        run_unit(module_def, strings);
+
+    } catch (const VirtualMachineError &e) {
+        std::cerr << e.name() << ": " << e.what() << std::endl;
     } catch (const std::exception &e) {
-        std::cerr << e.what() << '\n';
+        std::cerr << e.what() << std::endl;
     }
 }

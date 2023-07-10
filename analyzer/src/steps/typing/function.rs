@@ -6,7 +6,7 @@ use crate::steps::typing::TypingState;
 use crate::types::ctx::TypeContext;
 use crate::types::hir::{ExprKind, TypeId, TypedExpr};
 use crate::types::ty::{FunctionType, MethodType, Parameter, Type};
-use crate::types::{Typing, ERROR, NOTHING, STRING};
+use crate::types::{Typing, ERROR, NOTHING, STRING, UNIT};
 use ast::call::{MethodCall, ProgrammaticCall};
 use ast::function::{FunctionDeclaration, FunctionParameter};
 use ast::Expr;
@@ -56,7 +56,7 @@ pub(super) fn infer_return(
         .returns
         .last()
         .map_or(true, |ret| ret.segment != last.segment)
-        && (last.ty.is_something() || !exploration.returns.is_empty() && func.return_type.is_none())
+        && (last.ty != UNIT || !exploration.returns.is_empty() && func.return_type.is_none())
     {
         exploration.returns.push(Return {
             ty: typed_func.ty,

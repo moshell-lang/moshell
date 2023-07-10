@@ -1,78 +1,114 @@
+use analyzer::engine::Engine;
 use analyzer::types::hir::{Conditional, Loop};
+use analyzer::types::Typing;
 
-use crate::bytecode::{Bytecode, Opcode};
+use crate::bytecode::{Instructions, Opcode};
 use crate::constant_pool::ConstantPool;
 use crate::emit::{emit, EmissionState};
+use crate::locals::LocalsLayout;
 
 pub fn emit_conditional(
     conditional: &Conditional,
-    emitter: &mut Bytecode,
+    instructions: &mut Instructions,
+    typing: &Typing,
+    engine: &Engine,
     cp: &mut ConstantPool,
+    locals: &mut LocalsLayout,
     state: &mut EmissionState,
 ) {
     // emit condition
-    let last = state.use_values(true);
-    emit(&conditional.condition, emitter, cp, state);
-    state.use_values(last);
+    let last_uses = state.use_values(true);
+    emit(
+        &conditional.condition,
+        instructions,
+        typing,
+        engine,
+        cp,
+        locals,
+        state,
+    );
+    state.use_values(last_uses);
 
     // If the condition is false, go to ELSE.
-    let jump_to_else = emitter.emit_jump(Opcode::IfNotJump);
+    let jump_to_else = instructions.emit_jump(Opcode::IfNotJump);
     // Evaluate the if branch.
-    emit(&conditional.then, emitter, cp, state);
+    emit(
+        &conditional.then,
+        instructions,
+        typing,
+        engine,
+        cp,
+        locals,
+        state,
+    );
 
     // Go to END.
-    let jump_to_end = emitter.emit_jump(Opcode::Jump);
+    let jump_to_end = instructions.emit_jump(Opcode::Jump);
 
     // ELSE:
-    emitter.patch_jump(jump_to_else);
+    instructions.patch_jump(jump_to_else);
     if let Some(otherwise) = &conditional.otherwise {
-        emit(otherwise, emitter, cp, state);
+        emit(otherwise, instructions, typing, engine, cp, locals, state);
     }
 
     // END:
-    emitter.patch_jump(jump_to_end);
+    instructions.patch_jump(jump_to_end);
 }
 
 pub fn emit_loop(
     lp: &Loop,
-    emitter: &mut Bytecode,
+    instructions: &mut Instructions,
+    typing: &Typing,
+    engine: &Engine,
     cp: &mut ConstantPool,
+    locals: &mut LocalsLayout,
     state: &mut EmissionState,
 ) {
     // START:
-    let loop_start = emitter.current_ip();
+    let loop_start = instructions.current_ip();
     let mut loop_state = EmissionState::in_loop(loop_start);
 
+    // loops cannot implicitly return something
+
     if let Some(condition) = &lp.condition {
-        let last = state.use_values(true);
+        let last_used = state.use_values(true);
+
         // Evaluate the condition.
-        emit(condition, emitter, cp, state);
-        state.use_values(last);
+        emit(condition, instructions, typing, engine, cp, locals, state);
+        state.use_values(last_used);
 
         // If the condition is false, go to END.
-        let jump_to_end = emitter.emit_jump(Opcode::IfNotJump);
+        let jump_to_end = instructions.emit_jump(Opcode::IfNotJump);
         loop_state.enclosing_loop_end_placeholders.push(jump_to_end);
     }
 
     loop_state.enclosing_loop_start = loop_start;
 
     // Evaluate the loop body.
-    emit(&lp.body, emitter, cp, &mut loop_state);
+    emit(
+        &lp.body,
+        instructions,
+        typing,
+        engine,
+        cp,
+        locals,
+        &mut loop_state,
+    );
     // Go to START.
-    emitter.jump_back_to(loop_start);
+    instructions.jump_back_to(loop_start);
+
     // END:
-    for jump_to_end in &loop_state.enclosing_loop_end_placeholders {
-        emitter.patch_jump(*jump_to_end);
+    for jump_to_end in loop_state.enclosing_loop_end_placeholders {
+        instructions.patch_jump(jump_to_end);
     }
 }
 
-pub fn emit_continue(emitter: &mut Bytecode, state: &mut EmissionState) {
-    emitter.emit_code(Opcode::Jump);
-    emitter.emit_instruction_pointer(state.enclosing_loop_start);
+pub fn emit_continue(instructions: &mut Instructions, state: &mut EmissionState) {
+    instructions.jump_back_to(state.enclosing_loop_start);
 }
 
-pub fn emit_break(emitter: &mut Bytecode, state: &mut EmissionState) {
+pub fn emit_break(instructions: &mut Instructions, state: &mut EmissionState) {
     state
         .enclosing_loop_end_placeholders
-        .push(emitter.emit_jump(Opcode::Jump));
+        .push(instructions.emit_jump(Opcode::Jump));
 }

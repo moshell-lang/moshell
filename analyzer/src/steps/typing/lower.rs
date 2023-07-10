@@ -49,7 +49,8 @@ pub(super) fn call_convert_on(
     state: TypingState,
 ) -> TypedExpr {
     // If the expression is already of the needed type, we don't need to do anything.
-    if expr.ty.is_err() || into.is_err() || expr.ty == into {
+    // The `Nothing` type can be converted to anything, so we also return early.
+    if expr.ty.is_err() || into.is_err() || expr.ty == into || expr.ty.is_nothing() {
         return expr;
     }
 
@@ -61,7 +62,7 @@ pub(super) fn call_convert_on(
                     DiagnosticID::UnknownMethod,
                     state.source,
                     format!(
-                        "No converted defined for type `{}`",
+                        "No conversion method defined for type `{}`",
                         typing.get_type(into).unwrap()
                     ),
                 )

@@ -1,6 +1,10 @@
 #pragma once
 #include <cstddef>
 
+#if UINTPTR_MAX > 0xFFFFFFFFFFFFFFFFu // 64 bits
+#error "VM only supports architectures less than 64 bits architectures"
+#endif
+
 /**
  * The exit code of a Moshell program that did not able to spawn a child process.
  */

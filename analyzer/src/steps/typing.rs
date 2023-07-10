@@ -17,7 +17,7 @@ use crate::types::hir::{
 };
 use crate::types::operator::name_operator_method;
 use crate::types::ty::Type;
-use crate::types::{Typing, BOOL, ERROR, EXIT_CODE, FLOAT, INT, NOTHING, STRING};
+use crate::types::{Typing, BOOL, ERROR, EXIT_CODE, FLOAT, INT, NOTHING, STRING, UNIT};
 use ast::call::{Call, ProgrammaticCall};
 use ast::control_flow::If;
 use ast::function::FunctionDeclaration;
@@ -39,7 +39,7 @@ pub fn apply_types(
     engine: &Engine,
     relations: &Relations,
     diagnostics: &mut Vec<Diagnostic>,
-) -> TypedEngine {
+) -> (TypedEngine, Typing) {
     let environments = topological_sort(&relations.as_dependencies(engine));
     let mut exploration = Exploration {
         engine: TypedEngine::with_lang(engine.len()),
@@ -57,7 +57,7 @@ pub fn apply_types(
         );
         exploration.engine.insert(env_id, entry);
     }
-    exploration.engine
+    (exploration.engine, exploration.typing)
 }
 
 /// A state holder, used to informs the type checker about what should be
@@ -321,7 +321,7 @@ fn ascribe_assign(
             identifier: symbol,
             rhs: Box::new(rhs),
         }),
-        ty: NOTHING,
+        ty: UNIT,
         segment: assign.segment(),
     }
 }
@@ -370,7 +370,7 @@ fn ascribe_var_declaration(
             identifier: id,
             value: Some(Box::new(initializer)),
         }),
-        ty: NOTHING,
+        ty: UNIT,
         segment: decl.segment.clone(),
     }
 }
@@ -424,7 +424,7 @@ fn ascribe_block(
             state,
         ));
     }
-    let ty = expressions.last().map_or(NOTHING, |expr| expr.ty);
+    let ty = expressions.last().map_or(UNIT, |expr| expr.ty);
     TypedExpr {
         kind: ExprKind::Block(expressions),
         ty,
@@ -451,7 +451,7 @@ fn ascribe_return(
         ))
     });
     exploration.returns.push(Return {
-        ty: expr.as_ref().map_or(NOTHING, |expr| expr.ty),
+        ty: expr.as_ref().map_or(UNIT, |expr| expr.ty),
         segment: ret.segment.clone(),
     });
     TypedExpr {
@@ -461,7 +461,7 @@ fn ascribe_return(
     }
 }
 
-fn ascribe_function(
+fn ascribe_function_declaration(
     fun: &FunctionDeclaration,
     source: SourceId,
     env: &Environment,
@@ -482,7 +482,8 @@ fn ascribe_function(
     let return_type = fun
         .return_type
         .as_ref()
-        .map_or(NOTHING, |ty| exploration.ctx.resolve(ty).unwrap_or(ERROR));
+        .map_or(UNIT, |ty| exploration.ctx.resolve(ty).unwrap_or(ERROR));
+
     exploration.engine.insert_if_absent(
         declaration,
         Chunk::function(
@@ -500,7 +501,7 @@ fn ascribe_function(
             identifier: local_id,
             value: None,
         }),
-        ty: NOTHING,
+        ty: UNIT,
         segment: fun.segment.clone(),
     }
 }
@@ -694,7 +695,7 @@ fn ascribe_if(
     let ty = if state.local_type {
         match exploration
             .typing
-            .convert_description(then.ty, otherwise.as_ref().map_or(NOTHING, |expr| expr.ty))
+            .convert_many([then.ty, otherwise.as_ref().map_or(UNIT, |expr| expr.ty)])
         {
             Ok(ty) => {
                 // Generate appropriate casts and implicits conversions
@@ -741,7 +742,7 @@ fn ascribe_if(
             }
         }
     } else {
-        NOTHING
+        UNIT
     };
     TypedExpr {
         kind: ExprKind::Conditional(Conditional {
@@ -770,6 +771,7 @@ fn ascribe_call(
             convert_into_string(expr, exploration, diagnostics, state)
         })
         .collect::<Vec<_>>();
+
     TypedExpr {
         kind: ExprKind::ProcessCall(args),
         ty: EXIT_CODE,
@@ -886,7 +888,7 @@ fn ascribe_loop(
             body: Box::new(body),
         }),
         segment: loo.segment(),
-        ty: NOTHING,
+        ty: UNIT,
     }
 }
 
@@ -930,7 +932,9 @@ fn ascribe_types(
     state: TypingState,
 ) -> TypedExpr {
     match expr {
-        Expr::FunctionDeclaration(fd) => ascribe_function(fd, state.source, env, exploration),
+        Expr::FunctionDeclaration(fd) => {
+            ascribe_function_declaration(fd, state.source, env, exploration)
+        }
         Expr::Literal(lit) => ascribe_literal(lit),
         Expr::TemplateString(tpl) => {
             ascribe_template_string(tpl, exploration, relations, diagnostics, env, state)
@@ -1008,7 +1012,8 @@ mod tests {
         );
         let mut diagnostics = result.diagnostics;
         assert_eq!(diagnostics, vec![]);
-        let typed = apply_types(&result.engine, &result.relations, &mut diagnostics);
+
+        let (typed, _) = apply_types(&result.engine, &result.relations, &mut diagnostics);
         let expr = typed.get_user(SourceId(0)).unwrap();
         if !diagnostics.is_empty() {
             return Err(diagnostics);
@@ -1040,13 +1045,13 @@ mod tests {
     #[test]
     fn correct_type_annotation() {
         let res = extract_type(Source::unknown("val a: Int = 1"));
-        assert_eq!(res, Ok(Type::Nothing));
+        assert_eq!(res, Ok(Type::Unit));
     }
 
     #[test]
     fn coerce_type_annotation() {
         let res = extract_type(Source::unknown("val a: Float = 4"));
-        assert_eq!(res, Ok(Type::Nothing));
+        assert_eq!(res, Ok(Type::Unit));
     }
 
     #[test]
@@ -1092,7 +1097,7 @@ mod tests {
     #[test]
     fn var_assign_of_same_type() {
         let res = extract_type(Source::unknown("var l = 1; l = 2"));
-        assert_eq!(res, Ok(Type::Nothing));
+        assert_eq!(res, Ok(Type::Unit));
     }
 
     #[test]
@@ -1170,13 +1175,13 @@ mod tests {
     #[test]
     fn condition_same_type() {
         let res = extract_type(Source::unknown("if true; 1; else 2"));
-        assert_eq!(res, Ok(Type::Nothing));
+        assert_eq!(res, Ok(Type::Unit));
     }
 
     #[test]
     fn condition_different_type() {
         let res = extract_type(Source::unknown("if false; 4.7; else {}"));
-        assert_eq!(res, Ok(Type::Nothing));
+        assert_eq!(res, Ok(Type::Unit));
     }
 
     #[test]
@@ -1196,7 +1201,7 @@ mod tests {
             ))
             .with_observation(Observation::with_help(
                 find_in(content, "{}"),
-                "Found `Nothing`",
+                "Found `Unit`",
             ))])
         );
     }
@@ -1375,14 +1380,14 @@ mod tests {
     fn explicit_valid_return() {
         let content = "fun some() -> Int = return 20";
         let res = extract_type(Source::unknown(content));
-        assert_eq!(res, Ok(Type::Nothing));
+        assert_eq!(res, Ok(Type::Unit));
     }
 
     #[test]
     fn continue_and_break_inside_loops() {
         let content = "loop { continue }; loop { break }";
         let res = extract_type(Source::unknown(content));
-        assert_eq!(res, Ok(Type::Nothing));
+        assert_eq!(res, Ok(Type::Unit));
     }
 
     #[test]
@@ -1412,7 +1417,7 @@ mod tests {
     fn explicit_valid_return_mixed() {
         let content = "fun some() -> Int = {\nif true; return 5; 9\n}";
         let res = extract_type(Source::unknown(content));
-        assert_eq!(res, Ok(Type::Nothing));
+        assert_eq!(res, Ok(Type::Unit));
     }
 
     #[test]
@@ -1429,7 +1434,7 @@ mod tests {
                 Diagnostic::new(DiagnosticID::TypeMismatch, SourceId(1), "Type mismatch")
                     .with_observation(Observation::with_help(
                         find_in(content, "return {}"),
-                        "Found `Nothing`",
+                        "Found `Unit`",
                     ))
                     .with_observation(return_observation.clone()),
                 Diagnostic::new(DiagnosticID::TypeMismatch, SourceId(1), "Type mismatch")
@@ -1532,7 +1537,7 @@ mod tests {
                             segment: find_in(content, "75 + 1"),
                         })),
                     }),
-                    ty: NOTHING,
+                    ty: UNIT,
                     segment: find_in(content, "val n = 75 + 1"),
                 },
                 TypedExpr {
@@ -1551,7 +1556,7 @@ mod tests {
                             segment: find_in(content, "$n as Float"),
                         })),
                     }),
-                    ty: NOTHING,
+                    ty: UNIT,
                     segment: find_in(content, "val j = $n as Float"),
                 },
                 TypedExpr {
@@ -1695,11 +1700,11 @@ mod tests {
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
                 SourceId(0),
-                "Cannot stringify type `Nothing`",
+                "Cannot stringify type `Unit`",
             )
             .with_observation(Observation::with_help(
                 find_in(content, "$v"),
-                "No method `to_string` on type `Nothing`"
+                "No method `to_string` on type `Unit`"
             ))])
         );
     }
@@ -1750,13 +1755,13 @@ mod tests {
     #[test]
     fn condition_command() {
         let res = extract_type(Source::unknown("if nginx -t { echo 'ok' }"));
-        assert_eq!(res, Ok(Type::Nothing));
+        assert_eq!(res, Ok(Type::Unit));
     }
 
     #[test]
     fn condition_invert_command() {
         let res = extract_type(Source::unknown("if ! nginx -t { echo 'invalid config' }"));
-        assert_eq!(res, Ok(Type::Nothing));
+        assert_eq!(res, Ok(Type::Unit));
     }
 
     #[test]

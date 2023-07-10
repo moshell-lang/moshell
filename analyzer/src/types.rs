@@ -26,6 +26,7 @@ impl Typing {
             types: vec![
                 Type::Error,
                 Type::Nothing,
+                Type::Unit,
                 Type::Bool,
                 Type::ExitCode,
                 Type::Int,
@@ -58,6 +59,12 @@ impl Typing {
         if lhs == rhs {
             return Ok(assign_to);
         }
+
+        // apply the `A U Nothing => A` rule
+        if *rhs == Type::Nothing {
+            return Ok(assign_to);
+        }
+
         if let Some(implicit) = self.implicits.get(&rvalue) {
             if lhs == &self.types[implicit.0] {
                 return Ok(assign_to);
@@ -67,12 +74,14 @@ impl Typing {
     }
 
     /// Unifies multiple type identifiers in any direction.
-    pub fn convert_many(
+    pub fn convert_many<I: IntoIterator<Item = TypeId>>(
         &mut self,
-        types: impl Iterator<Item = TypeId>,
+        types: I,
     ) -> Result<TypeId, UnificationError> {
-        let mut types = types.peekable();
-        let first = types.next().unwrap();
+        let mut types = types
+            .into_iter()
+            .filter(|ty| ty.is_ok() && !ty.is_nothing());
+        let first = types.next().unwrap_or(NOTHING);
         types.try_fold(first, |acc, ty| {
             self.convert_description(acc, ty)
                 .or_else(|_| self.convert_description(ty, acc))
@@ -92,11 +101,12 @@ impl Typing {
 
 pub const ERROR: TypeId = TypeId(0);
 pub const NOTHING: TypeId = TypeId(1);
-pub const BOOL: TypeId = TypeId(2);
-pub const EXIT_CODE: TypeId = TypeId(3);
-pub const INT: TypeId = TypeId(4);
-pub const FLOAT: TypeId = TypeId(5);
-pub const STRING: TypeId = TypeId(6);
+pub const UNIT: TypeId = TypeId(2);
+pub const BOOL: TypeId = TypeId(3);
+pub const EXIT_CODE: TypeId = TypeId(4);
+pub const INT: TypeId = TypeId(5);
+pub const FLOAT: TypeId = TypeId(6);
+pub const STRING: TypeId = TypeId(7);
 
 /// An error that occurs when two types are not compatible.
 #[derive(Debug, PartialEq)]

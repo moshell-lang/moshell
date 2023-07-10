@@ -17,8 +17,11 @@ pub enum Type {
     #[default]
     Unknown,
 
-    /// A void type, that contains no value.
+    /// A type for nothingness, attributed to expressions that never returns
     Nothing,
+
+    /// A void type, that contains no value.
+    Unit,
 
     /// A boolean type, either `true` or `false`.
     Bool,
@@ -65,7 +68,7 @@ pub struct FunctionType {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Parameter {
     pub(crate) segment: Option<SourceSegment>,
-    pub(crate) ty: TypeId,
+    pub ty: TypeId,
 }
 
 impl Display for Type {
@@ -74,6 +77,7 @@ impl Display for Type {
             Type::Error => write!(f, "Error"),
             Type::Unknown => write!(f, "Unknown"),
             Type::Nothing => write!(f, "Nothing"),
+            Type::Unit => write!(f, "Unit"),
             Type::Bool => write!(f, "Bool"),
             Type::ExitCode => write!(f, "ExitCode"),
             Type::Int => write!(f, "Int"),

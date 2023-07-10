@@ -2,7 +2,7 @@ use crate::relations::{Definition, SourceId};
 use crate::types::builtin::lang;
 use crate::types::hir::{TypeId, TypedExpr};
 use crate::types::ty::{FunctionType, MethodType, Parameter, TypeDescription};
-use crate::types::NOTHING;
+use crate::types::UNIT;
 
 /// A typed [`crate::engine::Engine`].
 ///
@@ -58,6 +58,8 @@ pub struct Chunk {
 
     /// The return type of the chunk.
     pub return_type: TypeId,
+
+    pub is_script: bool,
 }
 
 impl Chunk {
@@ -66,7 +68,8 @@ impl Chunk {
         Self {
             expression,
             parameters: Vec::new(),
-            return_type: NOTHING,
+            return_type: UNIT,
+            is_script: true,
         }
     }
 
@@ -80,6 +83,7 @@ impl Chunk {
             expression,
             parameters,
             return_type,
+            is_script: false,
         }
     }
 }
@@ -168,5 +172,13 @@ impl TypedEngine {
         if self.entries[id.0].is_none() {
             self.entries[id.0] = Some(entry);
         }
+    }
+
+    /// returns an iterator over all contained chunks with their identifier
+    pub fn iter_chunks(&self) -> impl Iterator<Item = (SourceId, &Chunk)> {
+        self.entries
+            .iter()
+            .enumerate()
+            .filter_map(|(id, chunk)| chunk.as_ref().map(|chunk| (SourceId(id), chunk)))
     }
 }

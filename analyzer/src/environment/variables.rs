@@ -74,7 +74,7 @@ impl Variables {
 
     /// Lists all local variables, in the order they are declared.
     ///
-    /// This exposes their current state, which is only interesting for debugging.
+    /// This exposes their current state, which is frequently updated.
     /// Use [`Variables::find_reachable`] to lookup any variable during the collection phase,
     /// or [`Variables::find_exported`] to lookup an exported variable after the collection phase.
     pub fn all_vars(&self) -> &[Variable] {

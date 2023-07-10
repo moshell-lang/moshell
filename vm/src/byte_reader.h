@@ -5,7 +5,7 @@
 
 /**
  * reader utility class to read fixed byte arrays
- * */
+ */
 class ByteReader {
     const char *bytes;
     const size_t byte_count;
@@ -17,7 +17,9 @@ public:
     ByteReader(const ByteReader &other) = delete;
     ByteReader &operator=(const ByteReader &other) = delete;
 
-    /// returns current byte position in given byte array
+    /**
+     * returns current byte position in given byte array
+     */
     size_t position();
 
     template <typename T>

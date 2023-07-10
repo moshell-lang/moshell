@@ -1,40 +1,74 @@
-use analyzer::types::hir::TypedExpr;
-use analyzer::types::*;
+use analyzer::engine::Engine;
+use analyzer::relations::Definition;
+use analyzer::types::hir::{FunctionCall, TypeId, TypedExpr};
+use analyzer::types::Typing;
 
-use crate::bytecode::{Bytecode, Opcode};
+use crate::bytecode::Instructions;
 use crate::constant_pool::ConstantPool;
 use crate::emit;
 use crate::emit::EmissionState;
+use crate::locals::LocalsLayout;
+use crate::r#type::ValueStackSize;
 
 pub fn emit_process_call(
     arguments: &Vec<TypedExpr>,
-    emitter: &mut Bytecode,
+    instructions: &mut Instructions,
+    typing: &Typing,
+    engine: &Engine,
     cp: &mut ConstantPool,
+    locals: &mut LocalsLayout,
     state: &mut EmissionState,
 ) {
-    let last = state.use_values(true);
+    let last_use = state.use_values(true);
+
     for arg in arguments {
-        emit(arg, emitter, cp, state);
-
-        // convert argument to string if needed
-        match arg.ty {
-            INT => emitter.emit_code(Opcode::ConvertIntToStr),
-            FLOAT => emitter.emit_code(Opcode::ConvertFloatToStr),
-            STRING => {}
-            _ => todo!("Convert to other types"),
-        }
+        emit(arg, instructions, typing, engine, cp, locals, state);
     }
-    state.use_values(last);
+    state.use_values(last_use);
 
-    emitter.emit_code(Opcode::Spawn);
-    emitter
-        .bytes
-        .push(u8::try_from(arguments.len()).expect("too many arguments in process call"));
+    instructions.emit_spawn(arguments.len() as u8);
 
+    // The Spawn operation will push the process's exitcode onto the stack
     if !state.use_values {
-        // The Spawn operation will push the process's exitcode onto the stack
         // in order to maintain the stack's size, we instantly pop
         // the stack if the value isn't used later in the code
-        emitter.emit_code(Opcode::PopByte)
+        instructions.emit_pop(ValueStackSize::Byte);
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn emit_function_call(
+    function_call: &FunctionCall,
+    return_type: TypeId,
+    instructions: &mut Instructions,
+    typing: &Typing,
+    engine: &Engine,
+    cp: &mut ConstantPool,
+    locals: &mut LocalsLayout,
+    state: &mut EmissionState,
+) {
+    let last_used = state.use_values(true);
+
+    for arg in &function_call.arguments {
+        emit(arg, instructions, typing, engine, cp, locals, state);
+    }
+
+    state.use_values(last_used);
+
+    let name = match function_call.definition {
+        Definition::User(u) => engine.get_environment(u).unwrap().fqn.clone(),
+        Definition::Native(_) => todo!("native call to functions are not supported"),
+    };
+
+    let return_type_size = return_type.into();
+
+    let signature_idx = cp.insert_string(name);
+    instructions.emit_invoke(signature_idx);
+
+    // The Invoke operation will push the return value onto the stack
+    if !state.use_values {
+        // in order to maintain the stack's size, we instantly pop
+        // the stack if the value isn't used later in the code
+        instructions.emit_pop(return_type_size);
     }
 }
