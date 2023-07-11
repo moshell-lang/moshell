@@ -1,7 +1,6 @@
 use compiler::bytecode::Opcode;
 use std::io;
 use std::io::{Cursor, Read};
-use std::iter::successors;
 
 macro_rules! read {
     ($read:expr, $tpe:ty) => {{
@@ -61,10 +60,10 @@ fn display_function(cursor: &mut Cursor<&[u8]>, constants: &[String]) -> io::Res
     let end_pos = start_pos + instruction_count as u64;
 
     while cursor.position() < end_pos {
-        let instruction = cursor.position() - start_pos;
+        let instruction_address = cursor.position() - start_pos;
         let opcode = Opcode::try_from(read!(cursor, u8)).expect("Unknown opcode");
         let mnemonic = get_opcode_mnemonic(opcode);
-        print!("\t\t#{instruction:<instruction_pad$}: {mnemonic:7} ");
+        print!("\t\t#{instruction_address:<instruction_pad$}: {mnemonic:7} ");
 
         match opcode {
             Opcode::PushInt => print!("<value {}>", read!(cursor, i64)),
@@ -94,7 +93,7 @@ fn display_function(cursor: &mut Cursor<&[u8]>, constants: &[String]) -> io::Res
             Opcode::IfJump | Opcode::IfNotJump | Opcode::Jump => {
                 print!("<instruction #{}>", read!(cursor, u32))
             }
-            _ => {} // other opcodes does not defines parameters
+            _ => {} // Other opcodes do not define parameters
         }
         println!()
     }
