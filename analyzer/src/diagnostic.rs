@@ -89,37 +89,33 @@ pub struct Observation {
     /// The location where this observation applies
     pub location: SourceLocation,
     /// An optional help string to complete the observation
-    pub label: Option<String>,
+    pub message: Option<String>,
 }
 
 impl Observation {
-    pub fn new(location: SourceLocation) -> Self {
-        Self {
-            location,
-            label: None,
-        }
-    }
-
     /// Creates an observation that underlines an erroneous location.
     ///
     /// Prefer adding a label to explain the observation.
-    pub fn underline(source: SourceId, segment: SourceSegment) -> Self {
-        Self::new(SourceLocation::new(source, segment))
+    pub fn new(location: SourceLocation) -> Self {
+        Self {
+            location,
+            message: None,
+        }
     }
 
     /// Creates an observation on an erroneous location.
-    pub fn here(source: SourceId, segment: SourceSegment, help: impl Into<String>) -> Self {
+    pub fn here(source: SourceId, segment: SourceSegment, message: impl Into<String>) -> Self {
         Self {
             location: SourceLocation::new(source, segment),
-            label: Some(help.into()),
+            message: Some(message.into()),
         }
     }
 
     /// Creates a contextual observation.
-    pub fn context(source: SourceId, segment: SourceSegment, help: impl Into<String>) -> Self {
+    pub fn context(source: SourceId, segment: SourceSegment, message: impl Into<String>) -> Self {
         Self {
             location: SourceLocation::new(source, segment),
-            label: Some(help.into()),
+            message: Some(message.into()),
         }
     }
 }
@@ -177,5 +173,11 @@ impl Diagnostic {
     pub fn with_help(mut self, help: impl Into<String>) -> Self {
         self.helps.push(help.into());
         self
+    }
+}
+
+impl From<(SourceId, SourceSegment)> for Observation {
+    fn from((source, segment): (SourceId, SourceSegment)) -> Self {
+        Self::new(SourceLocation::new(source, segment))
     }
 }

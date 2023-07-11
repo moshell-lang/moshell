@@ -262,7 +262,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     DiagnosticID::UnsupportedFeature,
                     "import of environment variables and commands are not yet supported.",
                 )
-                .with_observation(Observation::underline(mod_id, import.segment()));
+                .with_observation((mod_id, import.segment()).into());
 
                 self.diagnostics.push(diagnostic);
             }
@@ -325,7 +325,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     let diagnostic = Diagnostic::new(
                         DiagnosticID::UseBetweenExprs,
                         "Unexpected use statement between expressions. Use statements must be at the top of the environment.",
-                    ).with_observation(Observation::underline(state.module, import.segment()));
+                    ).with_observation((state.module, import.segment()).into());
                     self.diagnostics.push(diagnostic);
                     return;
                 }
@@ -726,10 +726,10 @@ mod tests {
             res,
             vec![
                 Diagnostic::new(DiagnosticID::UseBetweenExprs, "Unexpected use statement between expressions. Use statements must be at the top of the environment.")
-                    .with_observation(Observation::underline(
+                    .with_observation((
                         SourceId(0),
                         find_in(content, "use c"),
-                    )),
+                    ).into()),
             ]
         )
     }

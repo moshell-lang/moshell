@@ -66,7 +66,7 @@ pub(super) fn call_convert_on(
                         typing.get_type(into).unwrap()
                     ),
                 )
-                .with_observation(Observation::underline(state.source, expr.segment())),
+                .with_observation((state.source, expr.segment()).into()),
             );
             return expr;
         }

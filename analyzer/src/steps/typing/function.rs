@@ -317,10 +317,7 @@ pub(super) fn type_method<'a>(
                     )
                 },
             )
-            .with_observation(Observation::underline(
-                state.source,
-                method_call.segment.clone(),
-            )),
+            .with_observation((state.source, method_call.segment.clone()).into()),
         );
         return None;
     }

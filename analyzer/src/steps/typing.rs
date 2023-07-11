@@ -906,7 +906,7 @@ fn ascribe_continue_or_break(
                 DiagnosticID::InvalidBreakOrContinue,
                 format!("`{kind_name}` must be declared inside a loop"),
             )
-            .with_observation(Observation::underline(source, expr.segment())),
+            .with_observation((source, expr.segment()).into()),
         );
     }
     TypedExpr {
@@ -1408,18 +1408,12 @@ mod tests {
                     DiagnosticID::InvalidBreakOrContinue,
                     "`continue` must be declared inside a loop"
                 )
-                .with_observation(Observation::underline(
-                    SourceId(0),
-                    find_in(content, "continue")
-                )),
+                .with_observation((SourceId(0), find_in(content, "continue")).into()),
                 Diagnostic::new(
                     DiagnosticID::InvalidBreakOrContinue,
                     "`break` must be declared inside a loop"
                 )
-                .with_observation(Observation::underline(
-                    SourceId(0),
-                    find_in(content, "break")
-                ))
+                .with_observation((SourceId(0), find_in(content, "break")).into())
             ])
         );
     }

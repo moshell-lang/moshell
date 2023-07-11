@@ -28,9 +28,9 @@ pub fn diagnose_invalid_symbol_from_dead_import(
         .get_import_segment(name_root)
         .expect("unknown import");
 
-    let mut segments: Vec<_> = segments
+    let mut segments: Vec<Observation> = segments
         .iter()
-        .map(|seg| Observation::underline(env_id, seg.clone()))
+        .map(|seg| (env_id, seg.clone()).into())
         .collect();
 
     segments.sort_by_key(|s| s.location.segment.start);
@@ -58,13 +58,13 @@ pub fn diagnose_unresolved_external_symbols(
         format!("Could not resolve symbol `{name}`."),
     );
 
-    let mut observations: Vec<_> = env
+    let mut observations: Vec<Observation> = env
         .list_definitions()
         .filter(|(_, sym)| match sym {
             Symbol::Local(_) => false,
             Symbol::External(g) => *g == relation,
         })
-        .map(|(seg, _)| Observation::underline(env_id, seg.clone()))
+        .map(|(seg, _)| (env_id, seg.clone()).into())
         .collect();
 
     observations.sort_by_key(|s| s.location.segment.start);
@@ -91,5 +91,5 @@ pub fn diagnose_unresolved_import(
     );
 
     Diagnostic::new(DiagnosticID::ImportResolution, msg)
-        .with_observation(Observation::underline(env_id, dependent_segment))
+        .with_observation((env_id, dependent_segment).into())
 }

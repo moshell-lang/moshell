@@ -1,11 +1,13 @@
 use std::io;
 use std::io::Write;
 
-use analyzer::engine::Engine;
 use miette::{LabeledSpan, MietteDiagnostic, Report, Severity, SourceSpan};
 
+use analyzer::engine::Engine;
 use context::source::{ContentId, Source, SourceSegment};
 use parser::err::{ParseError, ParseErrorKind};
+
+use crate::pipeline::ErrorReporter;
 
 macro_rules! print_flush {
     ( $($t:tt)* ) => {
@@ -17,7 +19,6 @@ macro_rules! print_flush {
     }
 }
 
-use crate::pipeline::ErrorReporter;
 pub(crate) use print_flush;
 
 fn offset_empty_span(span: SourceSegment) -> SourceSpan {
@@ -102,7 +103,7 @@ pub fn display_diagnostic<W: Write>(
         {
             let source = importer.get_source(content_id).expect("Unknown source");
             let span = obs.location.segment.clone();
-            diag = diag.and_label(LabeledSpan::new(obs.label, span.start, span.len()));
+            diag = diag.and_label(LabeledSpan::new(obs.message, span.start, span.len()));
             displayed_source = Some(AttachedSource {
                 id: content_id,
                 content: source,
