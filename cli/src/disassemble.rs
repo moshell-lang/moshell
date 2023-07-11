@@ -87,7 +87,7 @@ fn display_function(cursor: &mut Cursor<&[u8]>, constants: &[String]) -> io::Res
             | Opcode::SetQWord
             | Opcode::GetRef
             | Opcode::SetRef => {
-                print!("<locals @{}>", read!(cursor, u32))
+                print!("<local @{}>", read!(cursor, u32))
             }
             Opcode::Spawn => print!("<arity {}>", read!(cursor, u8)),
             Opcode::IfJump | Opcode::IfNotJump | Opcode::Jump => {
