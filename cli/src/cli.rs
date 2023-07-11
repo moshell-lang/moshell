@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::io::stderr;
 use std::path::PathBuf;
 
@@ -11,12 +10,9 @@ use analyzer::resolve_all;
 use analyzer::steps::typing::apply_types;
 use analyzer::types::engine::TypedEngine;
 use analyzer::types::Typing;
-use ast::group::Block;
-use ast::Expr;
 use compiler::compile;
-use context::source::Source;
-use parser::parse;
 
+use crate::pipeline::{ErrorReporter, FileImportError};
 use crate::report::{display_diagnostic, display_parse_error};
 
 #[derive(Parser)]
@@ -27,44 +23,39 @@ pub struct Cli {
     pub(crate) source: Option<PathBuf>,
 }
 
-#[derive(Default)]
-struct RawImporter<'a> {
-    imported_modules: HashMap<Name, Expr<'a>>,
-}
+pub fn resolve_and_execute<'a>(
+    entry_point: Name,
+    importer: &mut (impl ASTImporter<'a> + ErrorReporter),
+) -> bool {
+    let result = resolve_all(entry_point.clone(), importer);
 
-impl<'a> ASTImporter<'a> for RawImporter<'a> {
-    fn import(&mut self, name: &Name) -> Option<Expr<'a>> {
-        self.imported_modules.get(name).cloned()
-    }
-}
-
-/// Parses and display errors / diagnostics coming from the given source.
-/// Returning true if the source had at least one error or diagnostic.
-pub fn handle_source(source: Source) -> bool {
-    let report = parse(source);
-    let mut importer = RawImporter::default();
-
-    let errors: Vec<_> = report.errors;
-
-    let out = &mut stderr();
-    if !errors.is_empty() {
-        for error in errors {
-            display_parse_error(source, error, out).expect("IO error when reporting diagnostics");
-        }
+    let errors = importer.take_errors();
+    if errors.is_empty() && result.engine.is_empty() {
+        eprintln!("No module found for entry point {entry_point}");
         return true;
     }
 
-    //println!("{}", color(&report.expr));
-
-    let expr = Expr::Block(Block {
-        expressions: report.expr,
-        segment: 0..0,
-    });
-
-    let name = Name::new("<module>");
-    importer.imported_modules.insert(name.clone(), expr);
-
-    let result = resolve_all(name, &mut importer);
+    let has_errors = !errors.is_empty();
+    for error in errors {
+        match error {
+            FileImportError::IO(err) => {
+                eprintln!("IO error: {err}");
+            }
+            FileImportError::Parse(report) => {
+                for error in report.errors {
+                    display_parse_error(
+                        importer.get_source(report.source).unwrap(),
+                        error,
+                        &mut stderr(),
+                    )
+                    .expect("IO error when reporting diagnostics");
+                }
+            }
+        }
+    }
+    if has_errors {
+        return true;
+    }
 
     let mut diagnostics = result.diagnostics;
     if diagnostics.is_empty() {
@@ -75,11 +66,11 @@ pub fn handle_source(source: Source) -> bool {
         }
     }
 
-    let mut stdout = stderr();
+    let mut stderr = stderr();
     let had_errors = !diagnostics.is_empty();
     for diagnostic in diagnostics {
-        display_diagnostic(source, diagnostic, &mut stdout)
-            .expect("IO errors when reporting diagnostic")
+        display_diagnostic(&result.engine, importer, diagnostic, &mut stderr)
+            .expect("IO errors when reporting diagnostic");
     }
     had_errors
 }

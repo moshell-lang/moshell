@@ -2,17 +2,64 @@ use std::io;
 use std::io::BufRead;
 use std::io::Write;
 
-use context::source::{OwnedSource, Source};
+use analyzer::importer::{ASTImporter, ImportResult};
+use analyzer::name::Name;
+use context::source::{ContentId, OwnedSource, Source};
 use parser::parse;
 
-use crate::cli::handle_source;
+use crate::cli::resolve_and_execute;
+use crate::pipeline::{ErrorReporter, FileImportError, FileImporter};
 use crate::report::print_flush;
 
-/// Indefinitely prompts a new expression to the stdin,
-/// displaying back the errors if any and the formed AST
-pub fn prompt() {
+/// A wrapper around a [`FileImporter`] that short-circuits the file system for
+/// a single source.
+struct InputImporter {
+    /// The next source to always import, independently of the name.
+    last: Option<OwnedSource>,
+
+    /// The inner file importer.
+    files: FileImporter,
+}
+
+impl InputImporter {
+    fn new(file_importer: FileImporter) -> Self {
+        Self {
+            last: None,
+            files: file_importer,
+        }
+    }
+
+    fn reserve(&mut self, source: OwnedSource) {
+        self.last = Some(source);
+    }
+}
+
+impl<'a> ASTImporter<'a> for InputImporter {
+    fn import(&mut self, name: &Name) -> ImportResult<'a> {
+        match self.last.take() {
+            Some(last) => self.files.insert(last),
+            None => self.files.import(name),
+        }
+    }
+}
+
+impl ErrorReporter for InputImporter {
+    fn take_errors(&mut self) -> Vec<FileImportError> {
+        self.files.take_errors()
+    }
+
+    fn get_source(&self, id: ContentId) -> Option<Source> {
+        self.files.get_source(id)
+    }
+}
+
+/// Indefinitely prompts a new expression from stdin and executes it.
+pub fn prompt(importer: FileImporter) {
+    let mut importer = InputImporter::new(importer);
     while let Some(source) = parse_input() {
-        handle_source(source.as_source());
+        let name = Name::new(&source.name);
+        importer.reserve(source);
+        resolve_and_execute(name, &mut importer);
     }
 }
 

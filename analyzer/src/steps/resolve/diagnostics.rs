@@ -28,15 +28,16 @@ pub fn diagnose_invalid_symbol_from_dead_import(
         .get_import_segment(name_root)
         .expect("unknown import");
 
-    let mut segments: Vec<_> = segments
+    let mut segments: Vec<Observation> = segments
         .iter()
-        .map(|seg| Observation::new(seg.clone()))
+        .map(|seg| (env_id, seg.clone()).into())
         .collect();
 
-    segments.sort_by_key(|s| s.segment.start);
+    segments.sort_by_key(|s| s.location.segment.start);
 
-    Diagnostic::new(DiagnosticID::InvalidSymbol, env_id, msg)
-        .with_observation(Observation::with_help(
+    Diagnostic::new(DiagnosticID::InvalidSymbol, msg)
+        .with_observation(Observation::here(
+            env_id,
             invalid_import_seg,
             "invalid import introduced here",
         ))
@@ -54,20 +55,19 @@ pub fn diagnose_unresolved_external_symbols(
 ) -> Diagnostic {
     let diagnostic = Diagnostic::new(
         DiagnosticID::UnknownSymbol,
-        env_id,
         format!("Could not resolve symbol `{name}`."),
     );
 
-    let mut observations: Vec<_> = env
+    let mut observations: Vec<Observation> = env
         .list_definitions()
         .filter(|(_, sym)| match sym {
             Symbol::Local(_) => false,
             Symbol::External(g) => *g == relation,
         })
-        .map(|(seg, _)| Observation::new(seg.clone()))
+        .map(|(seg, _)| (env_id, seg.clone()).into())
         .collect();
 
-    observations.sort_by_key(|s| s.segment.start);
+    observations.sort_by_key(|s| s.location.segment.start);
     diagnostic.with_observations(observations)
 }
 
@@ -90,6 +90,6 @@ pub fn diagnose_unresolved_import(
             .unwrap_or_default()
     );
 
-    Diagnostic::new(DiagnosticID::ImportResolution, env_id, msg)
-        .with_observation(Observation::new(dependent_segment))
+    Diagnostic::new(DiagnosticID::ImportResolution, msg)
+        .with_observation((env_id, dependent_segment).into())
 }
