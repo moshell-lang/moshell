@@ -13,7 +13,7 @@ macro_rules! read {
 
 /// counts the number of digits of an u64 in base ten
 fn digits(val: u64) -> usize {
-    successors(Some(val), |n| (*n >= 10).then(|| n / 10)).count()
+    val.checked_ilog10().unwrap_or(0) as usize + 1
 }
 
 fn load_constants(reader: &mut impl Read) -> io::Result<Vec<String>> {
@@ -23,8 +23,7 @@ fn load_constants(reader: &mut impl Read) -> io::Result<Vec<String>> {
     for _ in 0..pool_length {
         let str_len = read!(reader, u64) as usize;
 
-        let mut buff = Vec::new();
-        buff.resize(str_len, 0);
+        let mut buff = vec![0; str_len];
         reader.read_exact(&mut buff)?;
 
         let str = String::from_utf8(buff).expect("read String is not utf8");
@@ -74,13 +73,13 @@ fn display_function(cursor: &mut Cursor<&[u8]>, constants: &[String]) -> io::Res
             Opcode::PushString => {
                 let constant_idx = read!(cursor, u32) as usize;
                 let str = &constants[constant_idx];
-                let padding = (instruction_pad - digits(constant_idx as u64)) + 10;
+                let padding = (digits(constants.len() as u64) - digits(constant_idx as u64)) + 10;
                 print!("<constant #{constant_idx}> {:padding$} // \"{str}\"", "")
             }
             Opcode::Invoke => {
                 let constant_idx = read!(cursor, u32) as usize;
                 let str = &constants[constant_idx];
-                let padding = (instruction_pad - digits(constant_idx as u64)) + 10;
+                let padding = (digits(constants.len() as u64) - digits(constant_idx as u64)) + 10;
                 print!("<function #{constant_idx}> {:padding$} // {str}", "")
             }
             Opcode::GetByte
