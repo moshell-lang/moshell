@@ -1,8 +1,9 @@
-use crate::moves::{of_type, spaces};
-use crate::parser::{ParseResult, Parser};
 use ast::variable::Assign;
 use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
+
+use crate::moves::{of_type, spaces};
+use crate::parser::{ParseResult, Parser};
 
 pub trait AssignAspect<'a> {
     /// Parses a variable assignment.
@@ -32,13 +33,14 @@ impl<'a> AssignAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::err::{ParseError, ParseErrorKind};
-    use crate::parse;
-    use crate::parser::ParseResult;
     use ast::value::Literal;
     use ast::variable::Assign;
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
+
+    use crate::err::{ParseError, ParseErrorKind};
+    use crate::parse;
+    use crate::parser::ParseResult;
 
     #[test]
     fn assign_no_value() {

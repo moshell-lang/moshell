@@ -1,7 +1,8 @@
-use crate::relations::{Definition, LocalId, ObjectId, Symbol};
-use crate::types::{ERROR, NOTHING};
 use ast::value::LiteralValue;
 use context::source::{SourceSegment, SourceSegmentHolder};
+
+use crate::relations::{Definition, LocalId, ObjectId, Symbol};
+use crate::types::{ERROR, NOTHING};
 
 /// A type identifier in a [`Typing`] instance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

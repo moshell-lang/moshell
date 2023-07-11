@@ -1,12 +1,13 @@
+use analyzer::engine::Engine;
+use analyzer::relations::NativeId;
+use analyzer::types::hir::TypedExpr;
+use analyzer::types::Typing;
+
 use crate::bytecode::{Instructions, Opcode};
 use crate::constant_pool::ConstantPool;
 use crate::emit::{emit, EmissionState};
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
-use analyzer::engine::Engine;
-use analyzer::relations::NativeId;
-use analyzer::types::hir::TypedExpr;
-use analyzer::types::Typing;
 
 /// Emits a primitive sequence of instructions.
 #[allow(clippy::too_many_arguments)]

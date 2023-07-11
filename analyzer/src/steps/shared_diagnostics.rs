@@ -1,10 +1,11 @@
 //! contains diagnostics that can be emitted by any step
 
+use context::source::SourceSegment;
+
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::environment::variables::TypeInfo;
 use crate::name::Name;
 use crate::relations::SourceId;
-use context::source::SourceSegment;
 
 pub fn diagnose_invalid_symbol(
     base_type: TypeInfo,

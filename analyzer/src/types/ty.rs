@@ -1,8 +1,10 @@
-use crate::relations::{Definition, NativeId};
-use crate::types::hir::TypeId;
-use context::source::SourceSegment;
 use std::collections::HashMap;
 use std::fmt::Display;
+
+use context::source::SourceSegment;
+
+use crate::relations::{Definition, NativeId};
+use crate::types::hir::TypeId;
 
 /// An instantiated type representation.
 ///

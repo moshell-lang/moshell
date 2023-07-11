@@ -1,6 +1,8 @@
-use crate::relations::SourceId;
-use context::source::SourceSegment;
 use enum_assoc::Assoc;
+
+use context::source::SourceSegment;
+
+use crate::relations::SourceId;
 
 #[derive(PartialEq, Debug, Assoc)]
 #[func(pub fn code(&self) -> u16)]

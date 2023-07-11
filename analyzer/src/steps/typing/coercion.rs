@@ -1,3 +1,5 @@
+use context::source::SourceSegmentHolder;
+
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::steps::typing::exploration::{diagnose_unknown_type, Exploration};
 use crate::steps::typing::lower::call_convert_on;
@@ -5,7 +7,6 @@ use crate::steps::typing::TypingState;
 use crate::types::engine::TypedEngine;
 use crate::types::hir::{TypeId, TypedExpr};
 use crate::types::{Typing, BOOL, ERROR};
-use context::source::SourceSegmentHolder;
 
 /// Ensures that the type annotation accepts the given value.
 ///

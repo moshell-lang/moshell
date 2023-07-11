@@ -1,12 +1,13 @@
 //! contains diagnostics only emitted by the resolution state
 
+use context::source::SourceSegment;
+
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::imports::SourceImports;
 use crate::name::Name;
 use crate::relations::{RelationId, SourceId, Symbol};
-use context::source::SourceSegment;
 
 /// Creates a diagnostic for a symbol being invalidated due to it's invalid import bound.
 /// The caller must ensure that env_id is valid as well as the given name's root is contained in given env's variables.

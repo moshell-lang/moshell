@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 //! The parser crate contains the parser for the Moshell scripting language.
 
-use crate::err::ParseReport;
-use ast::Expr;
-
-use crate::parser::Parser;
 use ast::group::Block;
+use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
+
+use crate::err::ParseReport;
+use crate::parser::Parser;
 
 mod aspects;
 mod cursor;

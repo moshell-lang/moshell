@@ -1,8 +1,10 @@
+use dbg_pls::DebugPls;
+
+use context::source::{SourceSegment, SourceSegmentHolder};
+use src_macros::segment_holder;
+
 use crate::r#type::Type;
 use crate::Expr;
-use context::source::{SourceSegment, SourceSegmentHolder};
-use dbg_pls::DebugPls;
-use src_macros::segment_holder;
 
 /// A raw call to a function or a command.
 ///

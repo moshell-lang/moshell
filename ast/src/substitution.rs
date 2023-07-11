@@ -1,6 +1,8 @@
-use crate::group::Subshell;
-use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
+
+use context::source::{SourceSegment, SourceSegmentHolder};
+
+use crate::group::Subshell;
 
 /// A special type of grouping expression that should be substituted
 /// based on its expression and kind.

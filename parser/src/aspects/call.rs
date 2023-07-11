@@ -1,7 +1,15 @@
-use crate::aspects::group::GroupAspect;
-use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
+use ast::call::{Call, MethodCall, ProgrammaticCall};
+use ast::lambda::LambdaDef;
+use ast::r#type::Type;
+use ast::value::Literal;
+use ast::variable::TypedVariable;
+use ast::Expr;
+use context::source::{SourceSegment, SourceSegmentHolder};
+use lexer::token::TokenType::{ColonColon, Identifier};
 use lexer::token::{Token, TokenType};
 
+use crate::aspects::group::GroupAspect;
+use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
 use crate::aspects::modules::ModulesAspect;
 use crate::aspects::r#type::TypeAspect;
 use crate::aspects::redirection::RedirectionAspect;
@@ -11,14 +19,6 @@ use crate::moves::{
     spaces, MoveOperations,
 };
 use crate::parser::{ParseResult, Parser};
-use ast::call::{Call, MethodCall, ProgrammaticCall};
-use ast::lambda::LambdaDef;
-use ast::r#type::Type;
-use ast::value::Literal;
-use ast::variable::TypedVariable;
-use ast::Expr;
-use context::source::{SourceSegment, SourceSegmentHolder};
-use lexer::token::TokenType::{ColonColon, Identifier};
 
 /// A parse aspect for command and function calls
 pub trait CallAspect<'a> {
@@ -302,18 +302,19 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
+
+    use ast::call::{Call, ProgrammaticCall};
+    use ast::r#type::{ParametrizedType, Type};
+    use ast::value::Literal;
+    use ast::Expr;
+    use context::source::{Source, SourceSegmentHolder};
+    use context::str_find::{find_between, find_in};
 
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
     use crate::source::{literal, literal_nth};
-    use ast::call::{Call, ProgrammaticCall};
-    use ast::r#type::{ParametrizedType, Type};
-    use ast::value::Literal;
-    use ast::Expr;
-    use context::str_find::{find_between, find_in};
 
     #[test]
     fn wrong_group_end() {

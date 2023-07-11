@@ -1,3 +1,5 @@
+use pretty_assertions::assert_eq;
+
 use ast::call::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use ast::control_flow::{Loop, While};
 use ast::function::Return;
@@ -11,7 +13,6 @@ use context::source::{Source, SourceSegmentHolder};
 use context::str_find::{find_between, find_in, find_in_nth};
 use parser::parse;
 use parser::source::{literal, literal_nth};
-use pretty_assertions::assert_eq;
 
 #[test]
 fn with_lexer_variable() {

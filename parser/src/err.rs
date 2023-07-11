@@ -1,7 +1,8 @@
-use crate::parser::ParseResult;
 use ast::Expr;
 use context::source::SourceSegment;
 use lexer::token::Token;
+
+use crate::parser::ParseResult;
 
 /// An error that occurs during parsing.
 #[derive(Debug, PartialEq)]

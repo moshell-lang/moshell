@@ -1,10 +1,13 @@
-use crate::Expr;
-use context::display::fmt_comma_separated;
-use context::source::{SourceSegment, SourceSegmentHolder};
-use dbg_pls::DebugPls;
-use src_macros::segment_holder;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
+
+use dbg_pls::DebugPls;
+
+use context::display::fmt_comma_separated;
+use context::source::{SourceSegment, SourceSegmentHolder};
+use src_macros::segment_holder;
+
+use crate::Expr;
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub enum Type<'a> {

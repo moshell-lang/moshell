@@ -1,19 +1,18 @@
-use crate::aspects::expr_list::ExpressionListAspect;
-use crate::aspects::modules::ModulesAspect;
-use crate::err::ParseErrorKind::{Expected, Unexpected};
-use crate::moves::{blanks, not, of_type, spaces, MoveOperations};
-use crate::parser::{ParseResult, Parser};
-
+use ast::r#type::{ByName, CallableType, CastedExpr, ParametrizedType, Type};
+use ast::Expr;
+use context::display::fmt_comma_separated;
 use context::source::{SourceSegment, SourceSegmentHolder};
+use lexer::token::TokenType::*;
 use lexer::token::TokenType::{
     FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket, SquaredLeftBracket,
     SquaredRightBracket,
 };
 
-use ast::r#type::{ByName, CallableType, CastedExpr, ParametrizedType, Type};
-use ast::Expr;
-use context::display::fmt_comma_separated;
-use lexer::token::TokenType::*;
+use crate::aspects::expr_list::ExpressionListAspect;
+use crate::aspects::modules::ModulesAspect;
+use crate::err::ParseErrorKind::{Expected, Unexpected};
+use crate::moves::{blanks, not, of_type, spaces, MoveOperations};
+use crate::parser::{ParseResult, Parser};
 
 ///A parser aspect to parse all type declarations, such as lambdas, constant types, parametrized type and Unit
 pub trait TypeAspect<'a> {
@@ -230,14 +229,16 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
+    use ast::r#type::{ByName, CallableType, ParametrizedType, Type};
+    use context::source::{Source, SourceSegmentHolder};
+    use context::str_find::find_in;
+
     use crate::aspects::r#type::TypeAspect;
     use crate::err::ParseError;
     use crate::err::ParseErrorKind::{Expected, Unexpected, Unpaired};
     use crate::parser::Parser;
-    use ast::r#type::{ByName, CallableType, ParametrizedType, Type};
-    use context::source::{Source, SourceSegmentHolder};
-    use context::str_find::find_in;
-    use pretty_assertions::assert_eq;
 
     #[test]
     fn simple_type() {

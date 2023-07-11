@@ -1,3 +1,15 @@
+use ast::call::{Call, ProgrammaticCall};
+use ast::control_flow::If;
+use ast::function::FunctionDeclaration;
+use ast::group::Block;
+use ast::operation::{BinaryOperation, BinaryOperator};
+use ast::r#type::CastedExpr;
+use ast::test::Not;
+use ast::value::{Literal, LiteralValue, TemplateString};
+use ast::variable::{Assign, VarDeclaration, VarKind, VarReference};
+use ast::Expr;
+use context::source::SourceSegmentHolder;
+
 use crate::dependency::topological_sort;
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
@@ -18,17 +30,6 @@ use crate::types::hir::{
 use crate::types::operator::name_operator_method;
 use crate::types::ty::Type;
 use crate::types::{Typing, BOOL, ERROR, EXIT_CODE, FLOAT, INT, NOTHING, STRING, UNIT};
-use ast::call::{Call, ProgrammaticCall};
-use ast::control_flow::If;
-use ast::function::FunctionDeclaration;
-use ast::group::Block;
-use ast::operation::{BinaryOperation, BinaryOperator};
-use ast::r#type::CastedExpr;
-use ast::test::Not;
-use ast::value::{Literal, LiteralValue, TemplateString};
-use ast::variable::{Assign, VarDeclaration, VarKind, VarReference};
-use ast::Expr;
-use context::source::SourceSegmentHolder;
 
 mod coercion;
 mod exploration;
@@ -991,17 +992,20 @@ fn ascribe_types(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use pretty_assertions::assert_eq;
+
+    use context::source::Source;
+    use context::str_find::{find_in, find_in_nth};
+    use parser::parse_trusted;
+
     use crate::importer::StaticImporter;
     use crate::name::Name;
     use crate::relations::{LocalId, NativeId};
     use crate::resolve_all;
     use crate::types::hir::{Convert, MethodCall};
     use crate::types::ty::Type;
-    use context::source::Source;
-    use context::str_find::{find_in, find_in_nth};
-    use parser::parse_trusted;
-    use pretty_assertions::assert_eq;
+
+    use super::*;
 
     fn extract(source: Source) -> Result<(Typing, TypedExpr), Vec<Diagnostic>> {
         let typing = Typing::with_lang();

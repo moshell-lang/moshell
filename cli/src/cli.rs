@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::io::stderr;
 use std::path::PathBuf;
 
-use analyzer::engine::Engine;
 use clap::Parser;
 
+use analyzer::engine::Engine;
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
 use analyzer::resolve_all;

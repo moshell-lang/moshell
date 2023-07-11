@@ -1,3 +1,5 @@
+use context::source::SourceSegmentHolder;
+
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::steps::typing::exploration::Exploration;
 use crate::steps::typing::TypingState;
@@ -5,7 +7,6 @@ use crate::types::engine::TypedEngine;
 use crate::types::hir::{ExprKind, MethodCall, TypeId, TypedExpr};
 use crate::types::ty::Type;
 use crate::types::{Typing, BOOL, FLOAT, STRING};
-use context::source::SourceSegmentHolder;
 
 pub fn get_converter(ty: TypeId) -> Option<&'static str> {
     Some(match ty {

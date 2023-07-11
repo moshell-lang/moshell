@@ -1,3 +1,5 @@
+use pretty_assertions::assert_eq;
+
 use ast::call::{
     Call, Detached, MethodCall, ProgrammaticCall, Redir, RedirFd, RedirOp, Redirected,
 };
@@ -15,7 +17,6 @@ use context::source::{Source, SourceSegmentHolder};
 use context::str_find::{find_between, find_in, find_in_nth};
 use parser::parse;
 use parser::source::{literal, literal_nth};
-use pretty_assertions::assert_eq;
 
 #[test]
 fn empty() {

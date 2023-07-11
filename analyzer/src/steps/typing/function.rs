@@ -1,3 +1,11 @@
+use std::fmt;
+use std::fmt::Display;
+
+use ast::call::{MethodCall, ProgrammaticCall};
+use ast::function::{FunctionDeclaration, FunctionParameter};
+use ast::Expr;
+use context::source::{SourceSegment, SourceSegmentHolder};
+
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::relations::{Definition, Relations, SourceId, Symbol};
 use crate::steps::typing::coercion::convert_expression;
@@ -7,12 +15,6 @@ use crate::types::ctx::TypeContext;
 use crate::types::hir::{ExprKind, TypeId, TypedExpr};
 use crate::types::ty::{FunctionType, MethodType, Parameter, Type};
 use crate::types::{Typing, ERROR, NOTHING, STRING, UNIT};
-use ast::call::{MethodCall, ProgrammaticCall};
-use ast::function::{FunctionDeclaration, FunctionParameter};
-use ast::Expr;
-use context::source::{SourceSegment, SourceSegmentHolder};
-use std::fmt;
-use std::fmt::Display;
 
 /// An identified return during the exploration.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,16 +1,20 @@
 #![allow(dead_code)]
-mod cli;
-mod repl;
-mod report;
 
-use crate::cli::{handle_source, Cli};
-use crate::repl::prompt;
-use clap::Parser;
-use context::source::Source;
-use miette::MietteHandlerOpts;
 use std::io;
 use std::ops::Deref;
 use std::process::exit;
+
+use clap::Parser;
+use miette::MietteHandlerOpts;
+
+use context::source::Source;
+
+use crate::cli::{handle_source, Cli};
+use crate::repl::prompt;
+
+mod cli;
+mod repl;
+mod report;
 
 fn main() -> io::Result<()> {
     let cli = Cli::parse();

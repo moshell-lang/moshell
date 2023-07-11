@@ -1,9 +1,9 @@
-use crate::dependency::Dependencies;
 use std::fmt::Debug;
 use std::ops::{Index, IndexMut};
 
 use context::source::SourceSegment;
 
+use crate::dependency::Dependencies;
 use crate::engine::Engine;
 
 /// The object identifier base.

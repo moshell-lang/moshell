@@ -1,10 +1,11 @@
-use crate::err::ParseErrorKind;
-use crate::moves::{eox, next, of_type, of_types, spaces, MoveOperations};
-use crate::parser::{ParseResult, Parser};
 use ast::call::{Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use ast::Expr;
 use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
+
+use crate::err::ParseErrorKind;
+use crate::moves::{eox, next, of_type, of_types, spaces, MoveOperations};
+use crate::parser::{ParseResult, Parser};
 
 pub(crate) trait RedirectionAspect<'a> {
     /// Attempts to parse the next pipeline expression
@@ -158,18 +159,19 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod test {
-    use context::source::Source;
     use pretty_assertions::assert_eq;
+
+    use ast::call::{Call, Redir, RedirFd, RedirOp, Redirected};
+    use ast::group::Block;
+    use ast::value::Literal;
+    use ast::Expr;
+    use context::source::Source;
+    use context::str_find::find_in;
 
     use crate::aspects::call::CallAspect;
     use crate::parse;
     use crate::parser::Parser;
     use crate::source::literal;
-    use ast::call::{Call, Redir, RedirFd, RedirOp, Redirected};
-    use ast::group::Block;
-    use ast::value::Literal;
-    use ast::Expr;
-    use context::str_find::find_in;
 
     #[test]
     fn expr_redirection() {

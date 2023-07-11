@@ -1,11 +1,11 @@
+use ast::control_flow::{ConditionalFor, For, ForKind, Loop, RangeFor, While};
+use ast::range::FilePattern;
+use context::source::SourceSegmentHolder;
 use lexer::token::{Token, TokenType};
 
 use crate::err::ParseErrorKind;
 use crate::moves::{blanks, eog, line_end, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use ast::control_flow::{ConditionalFor, For, ForKind, Loop, RangeFor, While};
-use ast::range::FilePattern;
-use context::source::SourceSegmentHolder;
 
 ///a parser aspect for loops and while expressions
 pub trait LoopAspect<'a> {
@@ -231,12 +231,8 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::err::ParseError;
-    use crate::err::ParseErrorKind::Unexpected;
-    use crate::parse;
-    use crate::parser::ParseResult;
+    use pretty_assertions::assert_eq;
 
-    use crate::source::literal;
     use ast::call::Call;
     use ast::control_flow::{ConditionalFor, For, ForKind, Loop, RangeFor, While};
     use ast::group::{Block, Parenthesis};
@@ -249,7 +245,12 @@ mod tests {
     use ast::Expr::{Break, Continue};
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::{find_between, find_in, find_in_nth};
-    use pretty_assertions::assert_eq;
+
+    use crate::err::ParseError;
+    use crate::err::ParseErrorKind::Unexpected;
+    use crate::parse;
+    use crate::parser::ParseResult;
+    use crate::source::literal;
 
     #[test]
     fn loop_with_break_and_continues() {

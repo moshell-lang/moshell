@@ -1,7 +1,9 @@
-use crate::Expr;
-use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
+
+use context::source::{SourceSegment, SourceSegmentHolder};
 use src_macros::segment_holder;
+
+use crate::Expr;
 
 /// A range of values that can be iterated over.
 #[derive(Debug, Clone, PartialEq, DebugPls)]

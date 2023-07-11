@@ -1,7 +1,9 @@
+use std::mem::size_of;
+
+use analyzer::relations::LocalId;
+
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
-use analyzer::relations::LocalId;
-use std::mem::size_of;
 
 #[derive(Debug, Clone)]
 pub struct Placeholder {

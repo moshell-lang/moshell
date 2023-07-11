@@ -1,7 +1,9 @@
-use crate::name::Name;
+use std::collections::HashMap;
+
 use ast::Expr;
 use context::source::Source;
-use std::collections::HashMap;
+
+use crate::name::Name;
 
 /// An importer is responsible for importing an AST from a given name
 /// The user of the analyzer must provide its own implementation

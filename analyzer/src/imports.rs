@@ -1,9 +1,12 @@
-use crate::name::Name;
-use crate::relations::{ResolvedSymbol, SourceId};
-use context::source::SourceSegment;
-use indexmap::IndexMap;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
+
+use indexmap::IndexMap;
+
+use context::source::SourceSegment;
+
+use crate::name::Name;
+use crate::relations::{ResolvedSymbol, SourceId};
 
 #[derive(Debug, Default)]
 pub struct Imports {

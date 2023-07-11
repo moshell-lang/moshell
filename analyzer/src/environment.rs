@@ -20,11 +20,13 @@
 //! }
 //! ```
 
+use std::collections::HashMap;
+
+use context::source::{SourceSegment, SourceSegmentHolder};
+use variables::Variables;
+
 use crate::name::Name;
 use crate::relations::{SourceId, Symbol};
-use context::source::{SourceSegment, SourceSegmentHolder};
-use std::collections::HashMap;
-use variables::Variables;
 
 pub mod variables;
 

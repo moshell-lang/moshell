@@ -1,16 +1,16 @@
-use context::source::{try_join_str, SourceSegmentHolder};
 use std::num::IntErrorKind;
 
-use crate::aspects::substitution::SubstitutionAspect;
-use lexer::token::TokenType::*;
-
-use crate::err::ParseErrorKind;
-use crate::moves::{next, of_type, of_types, MoveOperations};
-use crate::parser::{ParseResult, Parser};
 use ast::range::{FilePattern, Iterable};
 use ast::value::{Literal, LiteralValue, TemplateString};
 use ast::*;
+use context::source::{try_join_str, SourceSegmentHolder};
 use lexer::token::Token;
+use lexer::token::TokenType::*;
+
+use crate::aspects::substitution::SubstitutionAspect;
+use crate::err::ParseErrorKind;
+use crate::moves::{next, of_type, of_types, MoveOperations};
+use crate::parser::{ParseResult, Parser};
 
 /// Describes if a literal should be parsed strictly or leniently.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -399,16 +399,18 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::parse;
+    use pretty_assertions::assert_eq;
 
-    use super::*;
-    use crate::err::ParseErrorKind::InvalidFormat;
-    use crate::err::{ParseError, ParseErrorKind};
-    use crate::source::literal;
     use ast::variable::VarReference;
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::find_in;
-    use pretty_assertions::assert_eq;
+
+    use crate::err::ParseErrorKind::InvalidFormat;
+    use crate::err::{ParseError, ParseErrorKind};
+    use crate::parse;
+    use crate::source::literal;
+
+    use super::*;
 
     #[test]
     fn int_overflow() {

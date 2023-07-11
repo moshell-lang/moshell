@@ -1,9 +1,10 @@
+use ast::operation::BinaryOperator;
+
 use crate::relations::NativeId;
 use crate::types::engine::TypedEngine;
 use crate::types::operator::name_operator_method;
 use crate::types::ty::MethodType;
 use crate::types::{BOOL, EXIT_CODE, FLOAT, INT, STRING};
-use ast::operation::BinaryOperator;
 
 const ARITHMETIC_OPERATORS: &[BinaryOperator] = &[
     BinaryOperator::Plus,

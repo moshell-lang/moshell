@@ -1,10 +1,11 @@
-use crate::moves::{aerated, blanks, of_type, MoveOperations};
-use crate::parser::{ParseResult, Parser};
 use ast::control_flow::If;
 use ast::Expr;
 use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
 use lexer::token::TokenType::{Else, SemiColon};
+
+use crate::moves::{aerated, blanks, of_type, MoveOperations};
+use crate::parser::{ParseResult, Parser};
 
 ///parser aspect for if and else expressions.
 pub trait IfElseAspect<'a> {
@@ -65,10 +66,8 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::err::{ParseError, ParseErrorKind};
-    use crate::parse;
-    use crate::parser::ParseResult;
-    use crate::source::{literal, literal_nth};
+    use pretty_assertions::assert_eq;
+
     use ast::call::Call;
     use ast::control_flow::If;
     use ast::group::Block;
@@ -80,7 +79,11 @@ mod tests {
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::{find_between, find_in, rfind_between};
-    use pretty_assertions::assert_eq;
+
+    use crate::err::{ParseError, ParseErrorKind};
+    use crate::parse;
+    use crate::parser::ParseResult;
+    use crate::source::{literal, literal_nth};
 
     #[test]
     fn simple_if() {

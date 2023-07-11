@@ -1,6 +1,7 @@
-use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
 use enum_assoc::Assoc;
+
+use context::source::{SourceSegment, SourceSegmentHolder};
 use lexer::token::TokenType;
 
 use crate::operation::BinaryOperator::*;

@@ -1,10 +1,11 @@
+use context::source::{SourceSegment, SourceSegmentHolder};
+use lexer::token::TokenType;
+use lexer::token::TokenType::Comma;
+
 use crate::err::ParseErrorKind;
 use crate::err::ParseErrorKind::Expected;
 use crate::moves::{blanks, eog, lookahead, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use context::source::{SourceSegment, SourceSegmentHolder};
-use lexer::token::TokenType;
-use lexer::token::TokenType::Comma;
 
 ///An aspect to parse expression lists
 pub(super) trait ExpressionListAspect<'a> {

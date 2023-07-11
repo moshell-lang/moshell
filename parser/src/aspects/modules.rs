@@ -1,8 +1,3 @@
-use crate::err::ParseErrorKind;
-
-use crate::aspects::expr_list::ExpressionListAspect;
-use crate::moves::{any, blanks, eox, of_type, of_types, repeat, spaces, MoveOperations};
-use crate::parser::{ParseResult, Parser};
 use ast::r#use::{Import, ImportList, ImportedSymbol, Use};
 use ast::Expr;
 use context::source::{try_join_str, SourceSegmentHolder};
@@ -11,6 +6,11 @@ use lexer::token::TokenType::{
     IntLiteral, Slash, Star,
 };
 use lexer::token::{Token, TokenType};
+
+use crate::aspects::expr_list::ExpressionListAspect;
+use crate::err::ParseErrorKind;
+use crate::moves::{any, blanks, eox, of_type, of_types, repeat, spaces, MoveOperations};
+use crate::parser::{ParseResult, Parser};
 
 /// Parser aspect to parse all expressions in relation with modules.
 /// Which can be use statements, or module location prefix
@@ -220,15 +220,18 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::err::{ParseError, ParseErrorKind};
-    use crate::parse;
-    use crate::parser::ParseResult;
+    use std::vec;
+
+    use pretty_assertions::assert_eq;
+
     use ast::r#use::{Import, ImportList, ImportedSymbol, Use};
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::find_in;
-    use pretty_assertions::assert_eq;
-    use std::vec;
+
+    use crate::err::{ParseError, ParseErrorKind};
+    use crate::parse;
+    use crate::parser::ParseResult;
 
     #[test]
     fn simple_use() {

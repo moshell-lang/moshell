@@ -1,11 +1,11 @@
+use ast::group::{Block, Parenthesis, Subshell};
+use ast::Expr;
+use context::source::SourceSegment;
 use lexer::token::{Token, TokenType};
 
 use crate::err::ParseErrorKind;
 use crate::moves::{line_end, of_type, of_types, repeat, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use ast::group::{Block, Parenthesis, Subshell};
-use ast::Expr;
-use context::source::SourceSegment;
 
 ///A parser aspect for parsing block expressions
 pub trait GroupAspect<'a> {
@@ -168,11 +168,8 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::aspects::group::GroupAspect;
-    use crate::err::{ParseError, ParseErrorKind};
-    use crate::parse;
-    use crate::parser::{ParseResult, Parser};
-    use crate::source::literal;
+    use pretty_assertions::assert_eq;
+
     use ast::call::Call;
     use ast::group::{Block, Subshell};
     use ast::r#type::ParametrizedType;
@@ -183,7 +180,12 @@ mod tests {
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::{find_between, find_in, find_in_nth};
-    use pretty_assertions::assert_eq;
+
+    use crate::aspects::group::GroupAspect;
+    use crate::err::{ParseError, ParseErrorKind};
+    use crate::parse;
+    use crate::parser::{ParseResult, Parser};
+    use crate::source::literal;
 
     //noinspection DuplicatedCode
     #[test]
