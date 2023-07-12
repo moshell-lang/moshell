@@ -12,6 +12,6 @@ private:
     std::vector<redir> active_redirections;
 
 public:
-    void push_redirection(int from_fd, int to_fd);
+    int push_redirection(int from_fd, int to_fd);
     void pop_redirection();
 };

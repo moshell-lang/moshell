@@ -7,12 +7,14 @@
 #include "memory/operand_stack.h"
 #include "vm.h"
 
+#include <cerrno>
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
 #include <iostream>
 #include <memory>
 #include <sys/wait.h>
+#include <sysexits.h>
 #include <unistd.h>
 #include <vector>
 
@@ -284,7 +286,8 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             pid_t pid = fork();
             switch (pid) {
             case -1:
-                throw std::runtime_error("Failed to fork");
+                perror("fork");
+                exit(EX_OSERR);
             case 0:
                 // Child process
                 break;
@@ -348,7 +351,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             int fd = open(path.c_str(), flags, S_IRUSR | S_IWUSR);
             if (fd == -1) {
                 perror("open");
-                exit(1);
+                exit(EX_IOERR);
             }
 
             // Push the file descriptor onto the stack
@@ -370,7 +373,10 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             int fd1 = static_cast<int>(operands.pop_int());
 
             // Redirect the file descriptors
-            state.table.push_redirection(fd1, fd2);
+            if (state.table.push_redirection(fd1, fd2) == -1) {
+                perror("dup2");
+                exit(EX_OSERR);
+            }
             operands.push_int(fd1);
             break;
         }
@@ -380,7 +386,10 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             int fd1 = operands.pop_int();
 
             // Redirect the file descriptors
-            dup2(fd1, fd2);
+            if (dup2(fd1, fd2) == -1) {
+                perror("dup2");
+                exit(EX_OSERR);
+            }
             operands.push_int(fd1);
             break;
         }
@@ -393,6 +402,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             int pipefd[2];
             if (pipe(pipefd) == -1) {
                 perror("pipe");
+                exit(EX_OSERR);
             }
 
             // Push the file descriptors onto the stack
@@ -409,6 +419,10 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             char buffer[buf_size];
             do {
                 const ssize_t r = read(fd, buffer, buf_size);
+                if (r == -1) {
+                    perror("read");
+                    exit(EX_IOERR);
+                }
                 if (r > 0) {
                     out.append(buffer, r);
                 }
@@ -435,6 +449,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             // Write the string to the file
             if (write(fd, str.data(), str.length()) == -1) {
                 perror("write");
+                exit(EX_IOERR);
             }
             close(fd);
             break;
