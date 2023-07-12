@@ -5,7 +5,7 @@
 #include <iostream>
 
 extern "C" void moshell_exec(const char *bytes, size_t byte_count) {
-    strings_t strings;
+    StringsHeap strings;
     ByteReader reader(bytes, byte_count);
     try {
         // read function definitions

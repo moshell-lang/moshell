@@ -3,7 +3,7 @@
 
 #include "memory/call_stack.h"
 #include "memory/constant_pool.h"
-#include "memory/operand_stack.h"
+#include "stdlib_natives.h"
 #include "vm.h"
 
 #include <cstdlib>
@@ -40,11 +40,8 @@ enum Opcode {
 
     OP_RETURN, // stops frame interpretation
 
-    OP_BYTE_TO_INT,  // replaces last value of operand stack from byte to int
-    OP_INT_TO_STR,   // replaces last value of operand stack from int to a string reference
-    OP_FLOAT_TO_STR, // replaces last value of operand stack from float to a string reference
-    OP_INT_TO_BYTE,  // replaces last value of operand stack from int to byte
-    OP_CONCAT,       // pops two string references, concatenates them, and pushes the result
+    OP_BYTE_TO_INT, // replaces last value of operand stack from byte to int
+    OP_INT_TO_BYTE, // replaces last value of operand stack from int to byte
 
     OP_BYTE_XOR,  // pops last two bytes, apply xor operation then push the resulting byte
     OP_INT_ADD,   // pops two ints, adds them, and pushes the resulting integer
@@ -57,7 +54,6 @@ enum Opcode {
     OP_FLOAT_MUL, // pops two floats, multiplies them, and pushes the resulting float
     OP_FLOAT_DIV, // pops two floats, divides them, and pushes the resulting float
 
-    OP_STR_EQ, // pops two string references, checks if they are equal, and pushes the resulting byte
     OP_INT_EQ, // pops two ints, checks if they are equal, and pushes the resulting byte
     OP_INT_LT, // pops two ints, checks if the first is less than the second, and pushes the resulting byte
     OP_INT_LE, // pops two ints, checks if the first is less than or equal to the second, and pushes the resulting byte
@@ -69,26 +65,6 @@ enum Opcode {
     OP_FLOAT_LE, // pops two floats, checks if the first is less than or equal to the second, and pushes the resulting byte
     OP_FLOAT_GT, // pops two floats, checks if the first is greater than the second, and pushes the resulting byte
     OP_FLOAT_GE, // pops two floats, checks if the first is greater than or equal to the second, and pushes the resulting byte
-};
-
-/**
- * contains values needed during runtime interpretation
- */
-struct runtime_state {
-    /**
-     * strings heap space
-     */
-    strings_t &strings;
-
-    /**
-     * loaded function definitions, bound with their string identifier
-     */
-    const std::unordered_map<const std::string *, function_definition> &functions;
-
-    /**
-     * The used constant pool
-     */
-    const ConstantPool &pool;
 };
 
 /**
@@ -231,12 +207,26 @@ inline bool apply_comparison(Opcode code, double a, double b) {
 }
 
 inline void push_function_invocation(constant_index callee_identifier_idx,
-                                     const runtime_state &state,
+                                     runtime_state &state,
                                      OperandStack &caller_operands,
                                      CallStack &call_stack) {
 
     const std::string *callee_identifier = &state.pool.get_string(callee_identifier_idx);
-    const function_definition &callee_def = state.functions.at(callee_identifier);
+    auto callee_def_it = state.functions.find(callee_identifier);
+
+    if (callee_def_it == state.functions.end()) {
+        auto native_function_it = state.native_functions.find(callee_identifier);
+        if (native_function_it == state.native_functions.end()) {
+            throw FunctionNotFoundError("Could not find function " + *callee_identifier);
+        }
+
+        auto native_function = native_function_it->second;
+        native_function(caller_operands, state);
+
+        return;
+    }
+
+    const function_definition &callee_def = callee_def_it->second;
 
     caller_operands.pop_bytes(callee_def.parameters_byte_count);
 
@@ -368,35 +358,9 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             operands.push_int(value);
             break;
         }
-        case OP_INT_TO_STR: {
-            int64_t value = operands.pop_int();
-
-            auto [it, _] = state.strings.insert(std::make_unique<std::string>(std::to_string(value)));
-            operands.push_reference((uint64_t)it->get());
-
-            break;
-        }
-        case OP_FLOAT_TO_STR: {
-            double value = operands.pop_double();
-
-            auto [it, _] = state.strings.insert(std::make_unique<std::string>(std::to_string(value)));
-            operands.push_reference((uint64_t)it->get());
-
-            break;
-        }
         case OP_INT_TO_BYTE: {
             int64_t i = operands.pop_int();
             operands.push_byte(static_cast<int8_t>(i));
-            break;
-        }
-        case OP_CONCAT: {
-            auto right = (const std::string *)operands.pop_reference();
-            auto left = (const std::string *)operands.pop_reference();
-
-            std::string result = *left + *right;
-
-            auto [it, _] = state.strings.insert(std::make_unique<std::string>(std::move(result)));
-            operands.push_reference((uint64_t)it->get());
             break;
         }
         case OP_IF_NOT_JUMP:
@@ -455,12 +419,6 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             double a = operands.pop_double();
             double res = apply_arithmetic(opcode, a, b);
             operands.push_double(res);
-            break;
-        }
-        case OP_STR_EQ: {
-            const std::string &b = *(const std::string *)operands.pop_reference();
-            const std::string &a = *(const std::string *)operands.pop_reference();
-            operands.push_byte(a == b);
             break;
         }
         case OP_INT_EQ:
@@ -528,9 +486,10 @@ void run(runtime_state state, const std::string *root_identifier) {
     }
 }
 
-void run_unit(const bytecode_unit &module_def, strings_t &strings) {
+void run_unit(const bytecode_unit &module_def, StringsHeap &strings) {
 
     const ConstantPool &pool = module_def.pool;
+    runtime_state state{strings, module_def.functions, load_natives(strings), pool};
 
     // find module main function
     for (auto function : module_def.functions) {
@@ -538,7 +497,6 @@ void run_unit(const bytecode_unit &module_def, strings_t &strings) {
 
         // we found our main function, we search for a function named `<main>` with no parameters, regardless of the return type
         if (identifier.rfind("::<main>", identifier.length() - strlen("::<main>")) != std::string::npos) {
-            runtime_state state{strings, module_def.functions, pool};
 
             run(state, &identifier);
             return;

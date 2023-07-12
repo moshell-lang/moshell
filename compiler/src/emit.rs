@@ -8,7 +8,7 @@ use crate::bytecode::{Instructions, Opcode, Placeholder};
 use crate::constant_pool::ConstantPool;
 use crate::emit::invoke::{emit_function_call, emit_process_call};
 use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
-use crate::emit::native::emit_primitive_op;
+use crate::emit::native::emit_natives;
 use crate::locals::LocalsLayout;
 
 mod invoke;
@@ -226,7 +226,7 @@ pub fn emit(
         }
         ExprKind::MethodCall(method) => match method.definition {
             Definition::Native(id) => {
-                emit_primitive_op(
+                emit_natives(
                     id,
                     &method.callee,
                     &method.arguments,

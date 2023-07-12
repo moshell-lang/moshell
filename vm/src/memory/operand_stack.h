@@ -15,6 +15,9 @@ struct OperandStackUnderflowError : public MemoryError {
 
 public:
     explicit OperandStackUnderflowError(std::string message) : MemoryError{std::move(message)} {}
+    const char *name() const noexcept override {
+        return "OperandStackUnderflowError";
+    }
 };
 
 class OperandStack {

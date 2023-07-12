@@ -9,9 +9,14 @@ use crate::emit::{emit, EmissionState};
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
 
+const STRING_EQ: &str = "std::String::eq";
+const STRING_CONCAT: &str = "std::String::concat";
+const INT_TO_STRING: &str = "std::Int::to_string";
+const FLOAT_TO_STRING: &str = "std::Float::to_string";
+
 /// Emits a primitive sequence of instructions.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn emit_primitive_op(
+pub(crate) fn emit_natives(
     native: NativeId,
     callee: &TypedExpr,
     args: &[TypedExpr],
@@ -85,11 +90,11 @@ pub(crate) fn emit_primitive_op(
                 }
                 13 => {
                     // String == String
-                    instructions.emit_code(Opcode::StringEqual);
+                    instructions.emit_invoke(cp.insert_string(STRING_EQ));
                 }
                 14 => {
                     // String != String
-                    instructions.emit_code(Opcode::StringEqual);
+                    instructions.emit_invoke(cp.insert_string(STRING_EQ));
                     instructions.emit_bool_inversion();
                 }
                 15 => instructions.emit_code(Opcode::IntEqual),
@@ -137,17 +142,17 @@ pub(crate) fn emit_primitive_op(
         28 => {
             // ExitCode -> String
             instructions.emit_code(Opcode::ConvertByteToInt);
-            instructions.emit_code(Opcode::ConvertIntToStr);
+            instructions.emit_invoke(cp.insert_string(INT_TO_STRING));
             ValueStackSize::Reference
         }
         29 => {
             // Int -> String
-            instructions.emit_code(Opcode::ConvertIntToStr);
+            instructions.emit_invoke(cp.insert_string(INT_TO_STRING));
             ValueStackSize::Reference
         }
         30 => {
             // Float -> String
-            instructions.emit_code(Opcode::ConvertFloatToStr);
+            instructions.emit_invoke(cp.insert_string(FLOAT_TO_STRING));
             ValueStackSize::Reference
         }
         33 => {
@@ -162,7 +167,7 @@ pub(crate) fn emit_primitive_op(
                 locals,
                 state,
             );
-            instructions.emit_code(Opcode::Concat);
+            instructions.emit_invoke(cp.insert_string(STRING_CONCAT));
             ValueStackSize::Reference
         }
         id => todo!("Native function with id {id}"),

@@ -38,7 +38,7 @@ load_function_definitions(ByteReader &reader, const ConstantPool &pool) {
     return map;
 }
 
-bytecode_unit load_unit(ByteReader &reader, strings_t &strings) {
+bytecode_unit load_unit(ByteReader &reader, StringsHeap &strings) {
     try {
         ConstantPool pool = load_constant_pool(reader, strings);
 

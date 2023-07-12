@@ -33,8 +33,8 @@ struct bytecode_unit {
 /**
  * Loads a bytecode unit, placing all string constants in the `strings` argument
  * @param reader the bytes to reader / load
- * @param strings the strings set where all the strings constants are interned.
+ * @param strings the strings heap where all the strings constants are interned.
  * @throws InvalidBytecodeError if the reader ran out of bytes while reading the bytecode
  * @throws InvalidBytecodeStructure if the constant pool or a function isn't validated
  */
-bytecode_unit load_unit(ByteReader &reader, strings_t &strings);
+bytecode_unit load_unit(ByteReader &reader, StringsHeap &strings);

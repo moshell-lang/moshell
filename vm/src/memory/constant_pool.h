@@ -26,13 +26,13 @@ class ConstantPool {
 
     explicit ConstantPool(uint32_t size);
 
-    friend ConstantPool load_constant_pool(ByteReader &reader, strings_t &strings);
+    friend ConstantPool load_constant_pool(ByteReader &reader, StringsHeap &strings);
 
 public:
     /**
      * get given string reference
      * @param at the constant's index to get
-     * @returns a string reference of the string inside the vm's `strings_t` set
+     * @returns a string reference of the string inside the vm's strings heap
      * @throws std::out_of_range if the given index is out of range
      */
     const std::string &get_string(constant_index at) const;
@@ -41,7 +41,7 @@ public:
 /**
  * loads constant pool from given byte reader
  * @param reader the byte reader to read
- * @param strings all the read string constants are interned inside this `strings_t` argument
+ * @param strings all the read string constants are interned inside given strings heap
  * @throws InvalidBytecodeError if the reader reaches end of stream while reading the constant pool
  */
-ConstantPool load_constant_pool(ByteReader &reader, strings_t &strings);
+ConstantPool load_constant_pool(ByteReader &reader, StringsHeap &strings);

@@ -252,10 +252,7 @@ pub enum Opcode {
     Return,
 
     ConvertByteToInt,
-    ConvertIntToStr,
-    ConvertFloatToStr,
     ConvertIntToByte,
-    Concat,
 
     BXor,
     IntAdd,
@@ -268,7 +265,6 @@ pub enum Opcode {
     FloatMul,
     FloatDiv,
 
-    StringEqual,
     IntEqual,
     IntLessThan,
     IntLessOrEqual,
