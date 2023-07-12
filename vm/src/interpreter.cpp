@@ -3,7 +3,6 @@
 
 #include "memory/call_stack.h"
 #include "memory/constant_pool.h"
-#include "stdlib_natives.h"
 #include "vm.h"
 
 #include <cstdlib>
@@ -206,10 +205,26 @@ inline bool apply_comparison(Opcode code, double a, double b) {
     }
 }
 
-inline void push_function_invocation(constant_index callee_identifier_idx,
-                                     runtime_state &state,
-                                     OperandStack &caller_operands,
-                                     CallStack &call_stack) {
+/**
+ * Handles function invocation.
+ * This function performs invocation for either moshell functions (bytecode instructions)
+ * and native functions.
+ * Moshell functions have priority against native functions.
+ *
+ * if given function identifier refers to a moshell function, the called function's frame will
+ * be pushed in the call stack, which will cause the current frame to interrupt.
+ * if a native function is referenced, then the function is directly run by this
+ * function and then the frame can simply continue without interruption.
+ * @param callee_identifier_idx constant index to the function identifier to invoke
+ * @param state the runtime state, passed to native function invocation
+ * @param caller_operands caller's operands
+ * @param call_stack the call stack
+ * @return true if a new moshell function has been pushed onto the stack.
+ */
+inline bool handle_function_invocation(constant_index callee_identifier_idx,
+                                       runtime_state &state,
+                                       OperandStack &caller_operands,
+                                       CallStack &call_stack) {
 
     const std::string *callee_identifier = &state.pool.get_string(callee_identifier_idx);
     auto callee_def_it = state.functions.find(callee_identifier);
@@ -223,7 +238,7 @@ inline void push_function_invocation(constant_index callee_identifier_idx,
         auto native_function = native_function_it->second;
         native_function(caller_operands, state);
 
-        return;
+        return false;
     }
 
     const function_definition &callee_def = callee_def_it->second;
@@ -231,6 +246,7 @@ inline void push_function_invocation(constant_index callee_identifier_idx,
     caller_operands.pop_bytes(callee_def.parameters_byte_count);
 
     call_stack.push_frame(callee_def, callee_identifier);
+    return true;
 }
 
 /**
@@ -293,8 +309,11 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             constant_index identifier_idx = ntohl(*(constant_index *)(instructions + ip));
             ip += sizeof(constant_index);
 
-            push_function_invocation(identifier_idx, state, operands, call_stack);
-            return false; // terminate this frame run
+            if (handle_function_invocation(identifier_idx, state, operands, call_stack))
+                // terminate this frame interpretation if a new frame has been pushed in the stack
+                // (natives functions are directly run thus no need to return if no moshell function is to execute)
+                return false;
+            break;
         }
         case OP_GET_BYTE: {
             // Read the 1 byte local local_index
@@ -486,10 +505,11 @@ void run(runtime_state state, const std::string *root_identifier) {
     }
 }
 
-void run_unit(const bytecode_unit &module_def, StringsHeap &strings) {
+void run_unit(const bytecode_unit &module_def, StringsHeap &strings,
+              natives_functions_t natives) {
 
     const ConstantPool &pool = module_def.pool;
-    runtime_state state{strings, module_def.functions, load_natives(strings), pool};
+    runtime_state state{strings, module_def.functions, natives, pool};
 
     // find module main function
     for (auto function : module_def.functions) {

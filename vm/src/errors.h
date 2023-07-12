@@ -46,7 +46,7 @@ class StackOverflowError : public MemoryError {
 public:
     explicit StackOverflowError(std::string message) : MemoryError{std::move(message)} {}
     const char *name() const noexcept override {
-        return "MemoryError";
+        return "StackOverflowError";
     }
 };
 
