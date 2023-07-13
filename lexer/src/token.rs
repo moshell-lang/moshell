@@ -1,6 +1,7 @@
-use crate::token::TokenType::*;
 use dbg_pls::DebugPls;
 use enum_assoc::Assoc;
+
+use crate::token::TokenType::*;
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Token<'a> {

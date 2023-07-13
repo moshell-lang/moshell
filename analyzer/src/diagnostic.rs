@@ -1,7 +1,10 @@
-use crate::relations::SourceId;
-use context::source::SourceSegment;
 use enum_assoc::Assoc;
 
+use context::source::SourceSegment;
+
+use crate::relations::SourceId;
+
+#[non_exhaustive]
 #[derive(PartialEq, Debug, Assoc)]
 #[func(pub fn code(&self) -> u16)]
 #[func(pub fn critical(&self) -> bool { false })]
@@ -78,37 +81,62 @@ pub enum DiagnosticID {
     CannotReassign,
 }
 
-/// Observations are an area in the source code with an (optional) help message
-/// that are contained in a [Diagnostic] to emphasis/further explain the causes of the diagnostic.
+/// Observations are labels in a code snippet that are used to explain a [`Diagnostic`].
+///
+/// They can contain a message to explain the role of this specific snippet.
 #[derive(Clone, PartialEq, Debug)]
 pub struct Observation {
-    /// Observed segment
-    pub segment: SourceSegment,
+    /// The location where this observation applies
+    pub location: SourceLocation,
     /// An optional help string to complete the observation
-    pub help: Option<String>,
+    pub message: Option<String>,
 }
 
 impl Observation {
-    pub fn new(segment: SourceSegment) -> Self {
+    /// Creates an observation that underlines an erroneous location.
+    ///
+    /// Prefer adding a label to explain the observation.
+    pub fn new(location: SourceLocation) -> Self {
         Self {
-            segment,
-            help: None,
+            location,
+            message: None,
         }
     }
 
-    pub fn with_help(segment: SourceSegment, help: impl Into<String>) -> Self {
+    /// Creates an observation on an erroneous location.
+    pub fn here(source: SourceId, segment: SourceSegment, message: impl Into<String>) -> Self {
         Self {
-            segment,
-            help: Some(help.into()),
+            location: SourceLocation::new(source, segment),
+            message: Some(message.into()),
         }
+    }
+
+    /// Creates a contextual observation.
+    pub fn context(source: SourceId, segment: SourceSegment, message: impl Into<String>) -> Self {
+        Self {
+            location: SourceLocation::new(source, segment),
+            message: Some(message.into()),
+        }
+    }
+}
+
+/// A location in a source code.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SourceLocation {
+    pub source: SourceId,
+    pub segment: SourceSegment,
+}
+
+impl SourceLocation {
+    /// Creates a new source location.
+    pub fn new(source: SourceId, segment: SourceSegment) -> Self {
+        Self { source, segment }
     }
 }
 
 /// The structure of a diagnostic.
 #[derive(PartialEq, Debug)]
 pub struct Diagnostic {
-    /// The source where this diagnostic applies
-    pub source: SourceId,
     /// The diagnostic identifier
     pub identifier: DiagnosticID,
     /// The overall message of this diagnostic
@@ -120,9 +148,8 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
-    pub fn new(id: DiagnosticID, source: SourceId, msg: impl Into<String>) -> Self {
+    pub fn new(id: DiagnosticID, msg: impl Into<String>) -> Self {
         Self {
-            source,
             identifier: id,
             global_message: msg.into(),
             observations: Vec::new(),
@@ -146,5 +173,11 @@ impl Diagnostic {
     pub fn with_help(mut self, help: impl Into<String>) -> Self {
         self.helps.push(help.into());
         self
+    }
+}
+
+impl From<(SourceId, SourceSegment)> for Observation {
+    fn from((source, segment): (SourceId, SourceSegment)) -> Self {
+        Self::new(SourceLocation::new(source, segment))
     }
 }

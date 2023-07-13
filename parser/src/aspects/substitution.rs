@@ -1,13 +1,14 @@
-use crate::aspects::group::GroupAspect;
-use crate::aspects::var_reference::VarReferenceAspect;
-use crate::err::ParseErrorKind;
-use crate::moves::{line_end, not, of_type, repeat_n, spaces, MoveOperations};
-use crate::parser::{ParseResult, Parser};
 use ast::substitution::{Substitution, SubstitutionKind};
 use ast::value::{Literal, LiteralValue};
 use ast::Expr;
 use lexer::token::TokenType;
 use lexer::token::TokenType::{RoundedLeftBracket, RoundedRightBracket};
+
+use crate::aspects::group::GroupAspect;
+use crate::aspects::var_reference::VarReferenceAspect;
+use crate::err::ParseErrorKind;
+use crate::moves::{line_end, not, of_type, repeat_n, spaces, MoveOperations};
+use crate::parser::{ParseResult, Parser};
 
 /// A parser for substitution expressions.
 pub(crate) trait SubstitutionAspect<'a> {
@@ -68,22 +69,23 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::aspects::substitution::SubstitutionAspect;
-    use ast::call::Call;
-    use ast::substitution::{Substitution, SubstitutionKind};
-    use ast::Expr;
+    use pretty_assertions::assert_eq;
 
+    use ast::call::Call;
+    use ast::group::{Block, Parenthesis, Subshell};
+    use ast::operation::{BinaryOperation, BinaryOperator};
+    use ast::substitution::{Substitution, SubstitutionKind};
+    use ast::value::Literal;
+    use ast::variable::VarReference;
+    use ast::Expr;
+    use context::source::{Source, SourceSegmentHolder};
+    use context::str_find::find_in;
+
+    use crate::aspects::substitution::SubstitutionAspect;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
     use crate::source::literal;
-    use ast::group::{Block, Parenthesis, Subshell};
-    use ast::operation::{BinaryOperation, BinaryOperator};
-    use ast::value::Literal;
-    use ast::variable::VarReference;
-    use context::source::{Source, SourceSegmentHolder};
-    use context::str_find::find_in;
-    use pretty_assertions::assert_eq;
 
     #[test]
     fn unterminated_substitution() {

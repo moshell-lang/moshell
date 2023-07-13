@@ -1,7 +1,8 @@
-use crate::moves::{bin_op, spaces, MoveOperations};
-use crate::parser::{ParseResult, Parser};
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::Expr;
+
+use crate::moves::{bin_op, spaces, MoveOperations};
+use crate::parser::{ParseResult, Parser};
 
 /// A parser aspect to parse any kind of binary operations.
 pub trait BinaryOperationsAspect<'p> {
@@ -67,18 +68,18 @@ impl<'p> Parser<'p> {
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use context::source::{Source, SourceSegmentHolder};
-
-    use crate::err::{ParseError, ParseErrorKind};
-    use crate::parser::Parser;
-    use crate::source::{literal, literal_nth};
     use ast::call::Call;
     use ast::group::{Parenthesis, Subshell};
     use ast::operation::BinaryOperation;
     use ast::operation::BinaryOperator::*;
     use ast::value::Literal;
     use ast::Expr;
+    use context::source::{Source, SourceSegmentHolder};
     use context::str_find::{find_between, find_in, find_in_nth};
+
+    use crate::err::{ParseError, ParseErrorKind};
+    use crate::parser::Parser;
+    use crate::source::{literal, literal_nth};
 
     #[test]
     fn is_left_associative() {

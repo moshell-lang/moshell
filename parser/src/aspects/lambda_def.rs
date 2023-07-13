@@ -1,11 +1,12 @@
+use ast::lambda::LambdaDef;
+use context::source::SourceSegmentHolder;
+use lexer::token::TokenType::{FatArrow, RoundedLeftBracket, RoundedRightBracket};
+
 use crate::aspects::expr_list::ExpressionListAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::err::ParseErrorKind::Expected;
 use crate::moves::{blanks, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use ast::lambda::LambdaDef;
-use context::source::SourceSegmentHolder;
-use lexer::token::TokenType::{FatArrow, RoundedLeftBracket, RoundedRightBracket};
 
 ///Parse a lambda definition
 pub trait LambdaDefinitionAspect<'a> {
@@ -37,11 +38,8 @@ impl<'a> LambdaDefinitionAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::aspects::lambda_def::LambdaDefinitionAspect;
-    use crate::err::ParseError;
-    use crate::err::ParseErrorKind::Unexpected;
-    use crate::parser::Parser;
-    use crate::source::literal;
+    use pretty_assertions::assert_eq;
+
     use ast::call::Call;
     use ast::group::Block;
     use ast::lambda::LambdaDef;
@@ -51,7 +49,12 @@ mod tests {
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::{find_between, find_in};
-    use pretty_assertions::assert_eq;
+
+    use crate::aspects::lambda_def::LambdaDefinitionAspect;
+    use crate::err::ParseError;
+    use crate::err::ParseErrorKind::Unexpected;
+    use crate::parser::Parser;
+    use crate::source::literal;
 
     #[test]
     fn simple_lambda_definition() {

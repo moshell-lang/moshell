@@ -1,8 +1,10 @@
+use dbg_pls::DebugPls;
+
+use src_macros::segment_holder;
+
 use crate::r#type::Type;
 use crate::variable::TypedVariable;
 use crate::Expr;
-use dbg_pls::DebugPls;
-use src_macros::segment_holder;
 
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]

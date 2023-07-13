@@ -1,8 +1,9 @@
-use crate::relations::{Definition, NativeId};
-use crate::types::hir::TypeId;
-use context::source::SourceSegment;
 use std::collections::HashMap;
 use std::fmt::Display;
+
+use crate::diagnostic::SourceLocation;
+use crate::relations::{Definition, NativeId};
+use crate::types::hir::TypeId;
 
 /// An instantiated type representation.
 ///
@@ -67,7 +68,7 @@ pub struct FunctionType {
 /// A function parameter.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Parameter {
-    pub(crate) segment: Option<SourceSegment>,
+    pub(crate) location: Option<SourceLocation>,
     pub ty: TypeId,
 }
 
@@ -106,7 +107,7 @@ impl FunctionType {
         Self {
             parameters: parameters
                 .into_iter()
-                .map(|ty| Parameter { segment: None, ty })
+                .map(|ty| Parameter { location: None, ty })
                 .collect(),
             return_type,
             definition: Definition::Native(id),

@@ -1,11 +1,11 @@
+use ast::call::Detached;
+use ast::Expr;
+use context::source::SourceSegmentHolder;
 use lexer::token::TokenType::Ampersand;
 
 use crate::err::ParseErrorKind;
 use crate::moves::{of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use ast::call::Detached;
-use ast::Expr;
-use context::source::SourceSegmentHolder;
 
 ///parses a detached expression (<expr> &)
 pub trait DetachedAspect<'a> {

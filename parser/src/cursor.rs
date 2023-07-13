@@ -1,8 +1,8 @@
-use crate::err::{ErrorContext, ParseError, ParseErrorKind};
-use crate::moves::Move;
 use context::source::SourceSegment;
 use lexer::token::{Token, TokenType};
 
+use crate::err::{ErrorContext, ParseError, ParseErrorKind};
+use crate::moves::Move;
 use crate::parser::ParseResult;
 
 /// Parser cursor is used by parsers to navigate in the token stream

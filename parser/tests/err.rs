@@ -1,3 +1,5 @@
+use pretty_assertions::assert_eq;
+
 use ast::call::{Call, ProgrammaticCall};
 use ast::function::{FunctionDeclaration, FunctionParameter};
 use ast::group::Block;
@@ -10,7 +12,6 @@ use context::str_find::{find_in, find_in_nth};
 use parser::err::{ParseError, ParseErrorKind, ParseReport};
 use parser::parse;
 use parser::source::{literal, literal_nth};
-use pretty_assertions::assert_eq;
 
 #[test]
 fn repos_delimiter_stack() {

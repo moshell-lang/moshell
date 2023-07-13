@@ -1,9 +1,9 @@
-use crate::aspects::r#type::TypeAspect;
 use ast::variable::{TypedVariable, VarDeclaration, VarKind};
 use ast::Expr;
 use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
 
+use crate::aspects::r#type::TypeAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{blanks, of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};

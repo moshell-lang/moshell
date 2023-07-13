@@ -379,11 +379,13 @@ pub(crate) fn identifier_parenthesis() -> AndThenMove<
 
 #[cfg(test)]
 mod tests {
-    use crate::cursor::ParserCursor;
-    use crate::moves::eox;
+    use pretty_assertions::assert_eq;
+
     use lexer::lexer::lex;
     use lexer::token::{Token, TokenType};
-    use pretty_assertions::assert_eq;
+
+    use crate::cursor::ParserCursor;
+    use crate::moves::eox;
 
     #[test]
     fn eox_move() {

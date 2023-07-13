@@ -1,13 +1,14 @@
-use crate::aspects::call::CallAspect;
-use crate::err::ParseErrorKind;
-use crate::moves::{of_type, spaces, times, MoveOperations};
-use crate::parser::{ParseResult, Parser};
 use ast::test::{Not, Test};
 use ast::value::Literal;
 use ast::Expr;
 use context::source::SourceSegmentHolder;
 use lexer::token::TokenType::{SquaredLeftBracket, SquaredRightBracket};
 use lexer::token::{Token, TokenType};
+
+use crate::aspects::call::CallAspect;
+use crate::err::ParseErrorKind;
+use crate::moves::{of_type, spaces, times, MoveOperations};
+use crate::parser::{ParseResult, Parser};
 
 pub(crate) trait TestAspect<'a> {
     ///parse a not (! ..) expression.
@@ -97,10 +98,8 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::err::{ParseError, ParseErrorKind};
-    use crate::parse;
-    use crate::parser::ParseResult;
-    use crate::source::literal;
+    use pretty_assertions::assert_eq;
+
     use ast::call::Call;
     use ast::group::{Parenthesis, Subshell};
     use ast::operation::{BinaryOperation, BinaryOperator};
@@ -110,7 +109,11 @@ mod tests {
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::{find_between, find_in};
-    use pretty_assertions::assert_eq;
+
+    use crate::err::{ParseError, ParseErrorKind};
+    use crate::parse;
+    use crate::parser::ParseResult;
+    use crate::source::literal;
 
     #[test]
     fn native_empty() {

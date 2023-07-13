@@ -1,12 +1,12 @@
+use ast::variable::VarReference;
+use ast::Expr;
+use lexer::token::TokenType;
 use lexer::token::TokenType::*;
 
 use crate::aspects::call::CallAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{any, blanks, like, lookahead, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
-use ast::variable::VarReference;
-use ast::Expr;
-use lexer::token::TokenType;
 
 pub trait VarReferenceAspect<'a> {
     /// Parses a variable reference.
@@ -73,18 +73,20 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::aspects::substitution::SubstitutionAspect;
-    use crate::err::{ParseError, ParseErrorKind};
-    use crate::parse;
-    use crate::parser::{ParseResult, Parser};
-    use crate::source::literal;
+    use pretty_assertions::assert_eq;
+
     use ast::call::MethodCall;
     use ast::value::{Literal, TemplateString};
     use ast::variable::VarReference;
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::find_in;
-    use pretty_assertions::assert_eq;
+
+    use crate::aspects::substitution::SubstitutionAspect;
+    use crate::err::{ParseError, ParseErrorKind};
+    use crate::parse;
+    use crate::parser::{ParseResult, Parser};
+    use crate::source::literal;
 
     #[test]
     fn simple_ref() {

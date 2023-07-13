@@ -1,8 +1,9 @@
-use crate::moves::of_type;
-use crate::parser::{ParseResult, Parser};
 use ast::range::NumericRange;
 use ast::Expr;
 use lexer::token::TokenType;
+
+use crate::moves::of_type;
+use crate::parser::{ParseResult, Parser};
 
 pub trait RangeAspect<'a> {
     /// Parses a range or an iterable variable expression.

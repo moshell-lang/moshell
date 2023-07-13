@@ -1,6 +1,8 @@
-use crate::Expr;
 use dbg_pls::DebugPls;
+
 use src_macros::segment_holder;
+
+use crate::Expr;
 
 /// A literal value that can be used directly.
 #[segment_holder]

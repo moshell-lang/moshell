@@ -1,3 +1,5 @@
+use context::source::SourceSegmentHolder;
+
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::steps::typing::exploration::{diagnose_unknown_type, Exploration};
 use crate::steps::typing::lower::call_convert_on;
@@ -5,7 +7,6 @@ use crate::steps::typing::TypingState;
 use crate::types::engine::TypedEngine;
 use crate::types::hir::{TypeId, TypedExpr};
 use crate::types::{Typing, BOOL, ERROR};
-use context::source::SourceSegmentHolder;
 
 /// Ensures that the type annotation accepts the given value.
 ///
@@ -39,15 +40,17 @@ pub(super) fn check_type_annotation(
     )
     .unwrap_or_else(|value| {
         diagnostics.push(
-            Diagnostic::new(DiagnosticID::TypeMismatch, state.source, "Type mismatch")
-                .with_observation(Observation::with_help(
+            Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
+                .with_observation(Observation::here(
+                    state.source,
                     type_annotation.segment(),
                     format!(
                         "Expected `{}`",
                         exploration.get_type(expected_type).unwrap()
                     ),
                 ))
-                .with_observation(Observation::with_help(
+                .with_observation(Observation::here(
+                    state.source,
                     value.segment(),
                     format!("Found `{}`", exploration.get_type(value.ty).unwrap()),
                 )),
@@ -108,18 +111,15 @@ pub(super) fn coerce_condition(
         Ok(condition) => condition,
         Err(condition) => {
             diagnostics.push(
-                Diagnostic::new(
-                    DiagnosticID::TypeMismatch,
-                    state.source,
-                    "Condition must be a boolean",
-                )
-                .with_observation(Observation::with_help(
-                    condition.segment(),
-                    format!(
-                        "Type `{}` cannot be used as a condition",
-                        exploration.get_type(condition.ty).unwrap()
-                    ),
-                )),
+                Diagnostic::new(DiagnosticID::TypeMismatch, "Condition must be a boolean")
+                    .with_observation(Observation::here(
+                        state.source,
+                        condition.segment(),
+                        format!(
+                            "Type `{}` cannot be used as a condition",
+                            exploration.get_type(condition.ty).unwrap()
+                        ),
+                    )),
             );
             condition
         }

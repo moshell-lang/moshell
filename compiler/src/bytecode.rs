@@ -1,8 +1,11 @@
+use std::mem::size_of;
+
+use num_enum::TryFromPrimitive;
+
+use analyzer::relations::LocalId;
+
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
-use analyzer::relations::LocalId;
-use num_enum::TryFromPrimitive;
-use std::mem::size_of;
 
 #[derive(Debug, Clone)]
 pub struct Placeholder {

@@ -1,8 +1,11 @@
+use std::collections::vec_deque::VecDeque;
+
+use ast::range::Iterable;
+use ast::Expr;
 use context::source::Source;
 use lexer::lexer::lex;
 use lexer::token::TokenType::*;
 use lexer::token::{Token, TokenType};
-use std::collections::vec_deque::VecDeque;
 
 use crate::aspects::assign::AssignAspect;
 use crate::aspects::binary_operation::BinaryOperationsAspect;
@@ -28,8 +31,6 @@ use crate::moves::{
     any, bin_op, blanks, eox, like, line_end, next, not, of_type, of_types, repeat, spaces, Move,
     MoveOperations,
 };
-use ast::range::Iterable;
-use ast::Expr;
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
 

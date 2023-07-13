@@ -1,6 +1,8 @@
-use crate::Expr;
 use dbg_pls::DebugPls;
+
 use src_macros::segment_holder;
+
+use crate::Expr;
 
 /// A block expression `{ ... }`
 #[segment_holder]

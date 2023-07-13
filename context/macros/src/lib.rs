@@ -1,4 +1,5 @@
 use proc_macro::TokenStream;
+
 use quote::quote;
 use syn::parse::Parser;
 use syn::{parse, parse_macro_input, ItemStruct};

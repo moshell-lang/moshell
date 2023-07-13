@@ -3,8 +3,11 @@ use std::io::Write;
 
 use miette::{LabeledSpan, MietteDiagnostic, Report, Severity, SourceSpan};
 
-use context::source::{Source, SourceSegment};
+use analyzer::engine::Engine;
+use context::source::{ContentId, Source, SourceSegment};
 use parser::err::{ParseError, ParseErrorKind};
+
+use crate::pipeline::ErrorReporter;
 
 macro_rules! print_flush {
     ( $($t:tt)* ) => {
@@ -50,19 +53,15 @@ pub fn display_parse_error<W: Write>(
                 unpaired_span.offset(),
                 unpaired_span.len(),
             ));
-            diag = diag.and_label(LabeledSpan::new(
-                Some("Here".to_string()),
-                span.offset(),
-                span.len(),
-            ))
         }
         _ => {}
     }
-    write_diagnostic(diag, source, writer)
+    write_diagnostic(diag, Some(source), writer)
 }
 
 pub fn display_diagnostic<W: Write>(
-    source: Source,
+    engine: &Engine,
+    importer: &mut impl ErrorReporter,
     diagnostic: analyzer::diagnostic::Diagnostic,
     writer: &mut W,
 ) -> io::Result<()> {
@@ -87,28 +86,49 @@ pub fn display_diagnostic<W: Write>(
         diag = diag.with_help(helps)
     }
 
-    for obs in diagnostic.observations {
-        diag = diag.and_label(LabeledSpan::new(
-            obs.help,
-            obs.segment.start,
-            obs.segment.len(),
-        ))
+    struct AttachedSource<'a> {
+        id: ContentId,
+        content: Source<'a>,
     }
 
-    write_diagnostic(diag, source, writer)
+    let mut displayed_source: Option<AttachedSource> = None;
+    for obs in diagnostic.observations {
+        let content_id = engine
+            .get_original_content(obs.location.source)
+            .expect("Unknown source");
+
+        if displayed_source
+            .as_ref()
+            .map_or(true, |s| s.id == content_id)
+        {
+            let source = importer.get_source(content_id).expect("Unknown source");
+            let span = obs.location.segment.clone();
+            diag = diag.and_label(LabeledSpan::new(obs.message, span.start, span.len()));
+            displayed_source = Some(AttachedSource {
+                id: content_id,
+                content: source,
+            });
+        }
+    }
+
+    write_diagnostic(diag, displayed_source.map(|s| s.content), writer)
 }
 
 fn write_diagnostic<W: Write>(
     diagnostic: MietteDiagnostic,
-    source: Source,
+    source: Option<Source>,
     writer: &mut W,
 ) -> io::Result<()> {
     let report = Report::from(diagnostic);
-    unsafe {
-        //SAFETY: the CLI source is transmuted to a static lifetime, because `report.with_source_code`
-        //needs a source with a static lifetime. The report and the source are then used to display the formatted diagnostic and are immediately dropped after.
-        let source = std::mem::transmute::<Source, Source<'static>>(source);
-        let report = report.with_source_code(source);
+    if let Some(source) = source {
+        unsafe {
+            //SAFETY: the CLI source is transmuted to a static lifetime, because `report.with_source_code`
+            //needs a source with a static lifetime. The report and the source are then used to display the formatted diagnostic and are immediately dropped after.
+            let source = std::mem::transmute::<Source, Source<'static>>(source);
+            let report = report.with_source_code(source);
+            writeln!(writer, "\n{report:?}")
+        }
+    } else {
         writeln!(writer, "\n{report:?}")
     }
 }

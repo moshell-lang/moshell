@@ -1,7 +1,9 @@
+use dbg_pls::DebugPls;
+
+use src_macros::segment_holder;
+
 use crate::variable::TypedVariable;
 use crate::Expr;
-use dbg_pls::DebugPls;
-use src_macros::segment_holder;
 
 ///A Lambda definition structure
 #[segment_holder]

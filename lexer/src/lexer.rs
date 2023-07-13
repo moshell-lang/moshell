@@ -1,8 +1,9 @@
 #![allow(dead_code)]
 
-use crate::token::*;
 use std::iter::Peekable;
 use std::str::CharIndices;
+
+use crate::token::*;
 
 pub fn lex(input: &str) -> Vec<Token> {
     Lexer::new(input).collect()

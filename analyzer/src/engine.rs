@@ -1,8 +1,9 @@
+use ast::Expr;
+use context::source::ContentId;
+
 use crate::environment::Environment;
 use crate::name::Name;
-
 use crate::relations::SourceId;
-use ast::Expr;
 
 /// Owns references to the global AST and its environments.
 #[derive(Debug, Default)]
@@ -16,7 +17,7 @@ pub struct Engine<'a> {
     ///
     /// Those are origins of symbols that are available locally in the environment,
     /// which may also be the source of unresolved symbols, tracked in the Relations.
-    origins: Vec<(&'a Expr<'a>, Option<Environment>)>,
+    origins: Vec<(ContentId, &'a Expr<'a>, Option<Environment>)>,
 }
 
 impl<'a> Engine<'a> {
@@ -35,26 +36,26 @@ impl<'a> Engine<'a> {
         self.origins
             .iter()
             .enumerate()
-            .filter_map(|(id, (_, env))| env.as_ref().map(|env| (SourceId(id), env)))
+            .filter_map(|(id, (_, _, env))| env.as_ref().map(|env| (SourceId(id), env)))
     }
 
     /// Adds a new origin to the engine and returns its given id.
     ///
     /// A call to this method must be followed by a call to [`Engine::attach`] with the same id
     /// after the environment has been built.
-    pub fn track(&mut self, ast: &'a Expr<'a>) -> SourceId {
+    pub fn track(&mut self, content_id: ContentId, ast: &'a Expr<'a>) -> SourceId {
         let id = self.origins.len();
-        self.origins.push((ast, None));
+        self.origins.push((content_id, ast, None));
         SourceId(id)
     }
 
     /// Attaches an environment to an origin if the origin does not already have an attached environment.
     pub fn attach(&mut self, id: SourceId, env: Environment) {
         debug_assert!(
-            self.origins[id.0].1.is_none(),
+            self.origins[id.0].2.is_none(),
             "Could not attach environment to a source that is already attached"
         );
-        self.origins[id.0].1.replace(env);
+        self.origins[id.0].2.replace(env);
     }
 
     ///Finds an environment by its fully qualified name.
@@ -62,17 +63,17 @@ impl<'a> Engine<'a> {
         self.origins
             .iter()
             .enumerate()
-            .find(|(_, (_, env))| env.as_ref().map(|env| &env.fqn == name).unwrap_or(false))
-            .and_then(|(idx, (_, env))| env.as_ref().map(|env| (SourceId(idx), env)))
+            .find(|(_, (_, _, env))| env.as_ref().map(|env| &env.fqn == name).unwrap_or(false))
+            .and_then(|(idx, (_, _, env))| env.as_ref().map(|env| (SourceId(idx), env)))
     }
 
     pub fn get_expression(&self, id: SourceId) -> Option<&Expr<'a>> {
-        self.origins.get(id.0).map(|(expr, _)| *expr)
+        self.origins.get(id.0).map(|(_, expr, _)| *expr)
     }
 
     /// Gets an environment by its identifier.
     pub fn get_environment(&self, id: SourceId) -> Option<&Environment> {
-        self.origins.get(id.0).and_then(|(_, env)| env.as_ref())
+        self.origins.get(id.0).and_then(|(_, _, env)| env.as_ref())
     }
 
     /// Gets the number of origins in the engine.
@@ -83,5 +84,10 @@ impl<'a> Engine<'a> {
     /// Returns `true` does not contain any origin.
     pub fn is_empty(&self) -> bool {
         self.origins.is_empty()
+    }
+
+    /// Gets the id of the AST tree that was used to create the given origin.
+    pub fn get_original_content(&self, id: SourceId) -> Option<ContentId> {
+        self.origins.get(id.0).map(|(content_id, _, _)| *content_id)
     }
 }

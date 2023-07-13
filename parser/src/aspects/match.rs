@@ -1,3 +1,7 @@
+use ast::r#match::MatchPattern::{Literal, Template, VarRef, Wildcard};
+use ast::r#match::{Match, MatchArm, MatchPattern};
+use ast::Expr;
+use context::source::{SourceSegment, SourceSegmentHolder};
 use lexer::token::TokenType;
 use lexer::token::TokenType::{
     At, Bar, CurlyLeftBracket, CurlyRightBracket, FatArrow, Identifier, If,
@@ -9,10 +13,6 @@ use crate::moves::{
     aerated, any, blanks, eox, line_end, not, of_type, of_types, repeat, MoveOperations,
 };
 use crate::parser::{ParseResult, Parser};
-use ast::r#match::MatchPattern::{Literal, Template, VarRef, Wildcard};
-use ast::r#match::{Match, MatchArm, MatchPattern};
-use ast::Expr;
-use context::source::{SourceSegment, SourceSegmentHolder};
 
 /// A Parser Aspect for match expression-statement and value
 pub trait MatchAspect<'a> {
@@ -222,14 +222,8 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use context::source::{Source, SourceSegmentHolder};
     use pretty_assertions::assert_eq;
 
-    use crate::aspects::literal::literal_expr;
-    use crate::err::ParseError;
-    use crate::err::ParseErrorKind::Unexpected;
-    use crate::parse;
-    use crate::source::literal;
     use ast::call::Call;
     use ast::group::Subshell;
     use ast::operation::{BinaryOperation, BinaryOperator};
@@ -238,7 +232,14 @@ mod tests {
     use ast::value::{Literal, TemplateString};
     use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
     use ast::Expr;
+    use context::source::{Source, SourceSegmentHolder};
     use context::str_find::{find_between, find_in, find_in_nth};
+
+    use crate::aspects::literal::literal_expr;
+    use crate::err::ParseError;
+    use crate::err::ParseErrorKind::Unexpected;
+    use crate::parse;
+    use crate::source::literal;
 
     #[test]
     fn parse_match_as_value() {

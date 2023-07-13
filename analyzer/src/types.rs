@@ -1,6 +1,7 @@
+use std::collections::HashMap;
+
 use crate::types::hir::TypeId;
 use crate::types::ty::Type;
-use std::collections::HashMap;
 
 pub(self) mod builtin;
 pub mod ctx;

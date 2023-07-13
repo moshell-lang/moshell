@@ -202,7 +202,6 @@ impl<'a> Parser<'a> {
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use crate::err::{ParseError, ParseErrorKind};
     use ast::call::Call;
     use ast::function::{FunctionDeclaration, FunctionParameter, Return};
     use ast::operation::{BinaryOperation, BinaryOperator};
@@ -213,6 +212,7 @@ mod tests {
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::{find_between, find_in, find_in_nth};
 
+    use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::source::{literal, literal_nth};
 
