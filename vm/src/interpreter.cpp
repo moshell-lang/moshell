@@ -67,6 +67,30 @@ enum Opcode {
 };
 
 /**
+ * contains values needed during runtime interpretation
+ */
+struct runtime_state {
+    /**
+     * strings heap space
+     */
+    StringsHeap &strings;
+
+    /**
+     * loaded function definitions, bound with their string identifier
+     */
+    const std::unordered_map<const std::string *, function_definition> &functions;
+    /**
+     * native functions pointers, bound with their string identifier
+     */
+    const natives_functions_t &native_functions;
+
+    /**
+     * The used constant pool
+     */
+    const ConstantPool &pool;
+};
+
+/**
  * Spawn a new process inside a fork, and wait for its exit status.
  * Will pop from `operand` stack `frame_size` string references elements.
  * where the last popped operand element is the process path.
@@ -219,6 +243,7 @@ inline bool apply_comparison(Opcode code, double a, double b) {
  * @param state the runtime state, passed to native function invocation
  * @param caller_operands caller's operands
  * @param call_stack the call stack
+ * @throws FunctionNotFoundError if given callee identifier does not points to a moshell or native function.
  * @return true if a new moshell function has been pushed onto the stack.
  */
 inline bool handle_function_invocation(constant_index callee_identifier_idx,
@@ -236,7 +261,7 @@ inline bool handle_function_invocation(constant_index callee_identifier_idx,
         }
 
         auto native_function = native_function_it->second;
-        native_function(caller_operands, state);
+        native_function(caller_operands, state.strings);
 
         return false;
     }
@@ -505,8 +530,7 @@ void run(runtime_state state, const std::string *root_identifier) {
     }
 }
 
-void run_unit(const bytecode_unit &module_def, StringsHeap &strings,
-              natives_functions_t natives) {
+void run_unit(const bytecode_unit &module_def, StringsHeap &strings, natives_functions_t natives) {
 
     const ConstantPool &pool = module_def.pool;
     runtime_state state{strings, module_def.functions, natives, pool};
