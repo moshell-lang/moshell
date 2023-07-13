@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::types::hir::TypeId;
 use crate::types::ty::Type;
 
-pub(self) mod builtin;
+mod builtin;
 pub mod ctx;
 pub mod engine;
 pub mod hir;

@@ -216,7 +216,7 @@ pub(super) fn type_call(
                 }
             } else {
                 let mut casted_arguments = Vec::with_capacity(parameters.len());
-                for (param, arg) in parameters.iter().zip(arguments.into_iter()) {
+                for (param, arg) in parameters.iter().zip(arguments) {
                     casted_arguments.push(
                         match convert_expression(
                             arg,

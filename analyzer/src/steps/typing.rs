@@ -65,7 +65,7 @@ pub fn apply_types(
 /// A state holder, used to informs the type checker about what should be
 /// checked.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub(self) struct TypingState {
+struct TypingState {
     source: SourceId,
     local_type: bool,
 
