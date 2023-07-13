@@ -1,3 +1,4 @@
+use ast::call::{RedirFd, RedirOp};
 use ast::value::LiteralValue;
 use context::source::{SourceSegment, SourceSegmentHolder};
 
@@ -84,6 +85,19 @@ pub struct MethodCall {
     pub definition: Definition,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct Redirect {
+    pub expression: Box<TypedExpr>,
+    pub redirections: Vec<Redir>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Redir {
+    pub fd: RedirFd,
+    pub operator: RedirOp,
+    pub operand: Box<TypedExpr>,
+}
+
 /// An expression content.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExprKind {
@@ -92,6 +106,7 @@ pub enum ExprKind {
     Declare(Declaration),
     Reference(Symbol),
     Block(Vec<TypedExpr>),
+    Redirect(Redirect),
     Conditional(Conditional),
     ConditionalLoop(Loop),
     Convert(Convert),
@@ -99,6 +114,8 @@ pub enum ExprKind {
     FunctionCall(FunctionCall),
     MethodCall(MethodCall),
     Return(Option<Box<TypedExpr>>),
+    Pipeline(Vec<TypedExpr>),
+    Capture(Vec<TypedExpr>),
 
     Continue,
     Break,
