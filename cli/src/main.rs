@@ -13,6 +13,7 @@ use crate::pipeline::FileImporter;
 use crate::repl::prompt;
 
 mod cli;
+mod disassemble;
 mod pipeline;
 mod repl;
 mod report;
@@ -25,7 +26,7 @@ fn main() -> io::Result<()> {
     }))
     .expect("miette options setup");
 
-    if let Some(source) = cli.source {
+    if let Some(source) = &cli.source {
         let name = Name::new(
             source
                 .file_name()
@@ -37,11 +38,11 @@ fn main() -> io::Result<()> {
             root.pop();
             root
         });
-        importer.add_redirection(name.clone(), source);
-        let has_error = resolve_and_execute(name, &mut importer);
+        importer.add_redirection(name.clone(), source.clone());
+        let has_error = resolve_and_execute(name, &mut importer, &cli);
         exit(i32::from(has_error))
     }
     let importer = FileImporter::new(std::env::current_dir()?);
-    prompt(importer);
+    prompt(importer, &cli);
     Ok(())
 }

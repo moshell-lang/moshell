@@ -8,6 +8,7 @@ use context::source::{ContentId, OwnedSource, Source};
 use parser::parse;
 
 use crate::cli::resolve_and_execute;
+use crate::cli::Cli;
 use crate::pipeline::{ErrorReporter, FileImportError, FileImporter};
 use crate::report::print_flush;
 
@@ -54,12 +55,12 @@ impl ErrorReporter for InputImporter {
 }
 
 /// Indefinitely prompts a new expression from stdin and executes it.
-pub fn prompt(importer: FileImporter) {
+pub fn prompt(importer: FileImporter, config: &Cli) {
     let mut importer = InputImporter::new(importer);
     while let Some(source) = parse_input() {
         let name = Name::new(&source.name);
         importer.reserve(source);
-        resolve_and_execute(name, &mut importer);
+        resolve_and_execute(name, &mut importer, config);
     }
 }
 
