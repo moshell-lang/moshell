@@ -68,6 +68,23 @@ pub fn emit_already_forked(
     }
 }
 
+pub fn emit_process_end(last: Option<&TypedExpr>, instructions: &mut Instructions) {
+    match last {
+        Some(TypedExpr {
+            kind: ExprKind::ProcessCall(_),
+            ..
+        }) => {}
+        Some(TypedExpr {
+            kind: ExprKind::Redirect(redirected),
+            ..
+        }) if matches!(redirected.expression.kind, ExprKind::ProcessCall(_)) => {}
+        _ => {
+            instructions.emit_push_byte(0);
+            instructions.emit_code(Opcode::Exit);
+        }
+    }
+}
+
 pub fn emit_process_call(
     arguments: &Vec<TypedExpr>,
     instructions: &mut Instructions,
@@ -315,6 +332,7 @@ pub fn emit_pipeline(
     instructions.emit_code(Opcode::Close); // Close the pipe's reading end, since we don't need it
 
     emit_already_forked(first, instructions, typing, engine, cp, locals, state);
+    emit_process_end(Some(first), instructions);
 
     instructions.patch_jump(jump_to_parent);
 
@@ -355,6 +373,7 @@ pub fn emit_pipeline(
         instructions.emit_code(Opcode::Close); // Close the pipe's reading end, since we just bound it to stdin
 
         emit_already_forked(command, instructions, typing, engine, cp, locals, state);
+        emit_process_end(Some(command), instructions);
 
         instructions.patch_jump(jump_to_parent);
     }
@@ -394,7 +413,7 @@ pub fn emit_pipeline(
 }
 
 pub fn emit_capture(
-    commands: &Vec<TypedExpr>,
+    commands: &[TypedExpr],
     instructions: &mut Instructions,
     typing: &Typing,
     engine: &Engine,
@@ -416,8 +435,7 @@ pub fn emit_capture(
         emit_already_forked(last, instructions, typing, engine, cp, locals, state);
     }
     state.use_values(last);
-    instructions.emit_push_byte(0);
-    instructions.emit_code(Opcode::Exit);
+    emit_process_end(commands.last(), instructions);
 
     instructions.patch_jump(jump_to_parent);
     instructions.emit_code(Opcode::Swap);
