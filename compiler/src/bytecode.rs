@@ -1,5 +1,7 @@
 use std::mem::size_of;
 
+use num_enum::TryFromPrimitive;
+
 use analyzer::relations::LocalId;
 
 use crate::locals::LocalsLayout;
@@ -224,7 +226,7 @@ impl<'a> Instructions<'a> {
 
 /// see vm's `Opcode` enum for more details
 #[repr(u8)]
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, Clone, Copy, TryFromPrimitive)]
 pub enum Opcode {
     PushInt,
     PushByte,

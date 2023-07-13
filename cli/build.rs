@@ -1,5 +1,6 @@
-use cmake::Config;
 use std::env;
+
+use cmake::Config;
 
 fn main() {
     let dst = Config::new("../vm").build();

@@ -142,7 +142,7 @@ fn write_constant_pool(cp: &ConstantPool, writer: &mut impl Write) -> Result<(),
     writer.write_all(&pool_len.to_be_bytes())?;
 
     for str in &cp.strings {
-        writer.write_all(&str.len().to_be_bytes())?;
+        writer.write_all(&(str.len() as u64).to_be_bytes())?;
         writer.write_all(str.as_bytes())?;
     }
     Ok(())

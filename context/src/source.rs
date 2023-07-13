@@ -5,6 +5,10 @@ use miette::{MietteError, MietteSpanContents, SourceCode, SourceSpan, SpanConten
 
 pub type SourceSegment = std::ops::Range<usize>;
 
+/// An identifier to a source code.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct ContentId(pub usize);
+
 pub trait SourceSegmentHolder {
     fn segment(&self) -> SourceSegment;
 }

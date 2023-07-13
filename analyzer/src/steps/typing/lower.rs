@@ -61,13 +61,12 @@ pub(super) fn call_convert_on(
             diagnostics.push(
                 Diagnostic::new(
                     DiagnosticID::UnknownMethod,
-                    state.source,
                     format!(
                         "No conversion method defined for type `{}`",
                         typing.get_type(into).unwrap()
                     ),
                 )
-                .with_observation(Observation::new(expr.segment())),
+                .with_observation((state.source, expr.segment()).into()),
             );
             return expr;
         }
@@ -89,8 +88,9 @@ pub(super) fn call_convert_on(
 
     let ty = typing.get_type(expr.ty).unwrap();
     diagnostics.push(
-        Diagnostic::new(DiagnosticID::TypeMismatch, state.source, message(ty)).with_observation(
-            Observation::with_help(
+        Diagnostic::new(DiagnosticID::TypeMismatch, message(ty)).with_observation(
+            Observation::here(
+                state.source,
                 expr.segment(),
                 format!("No method `{method_name}` on type `{ty}`"),
             ),

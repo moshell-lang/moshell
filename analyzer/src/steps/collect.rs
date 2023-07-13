@@ -8,14 +8,14 @@ use ast::r#use::Import as ImportExpr;
 use ast::range;
 use ast::value::LiteralValue;
 use ast::Expr;
-use context::source::{SourceSegment, SourceSegmentHolder};
+use context::source::{ContentId, SourceSegment, SourceSegmentHolder};
 use range::Iterable;
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::environment::variables::{TypeInfo, Variables};
 use crate::environment::Environment;
-use crate::importer::ASTImporter;
+use crate::importer::{ASTImporter, ImportResult, Imported};
 use crate::imports::{Imports, UnresolvedImport};
 use crate::name::Name;
 use crate::relations::{RelationState, Relations, SourceId, Symbol};
@@ -25,6 +25,9 @@ use crate::steps::shared_diagnostics::diagnose_invalid_symbol;
 /// Defines the current state of the tree exploration.
 #[derive(Debug, Clone, Copy)]
 struct ResolutionState {
+    /// The id of the AST tree that is currently being explored.
+    content: ContentId,
+
     /// The module id that is currently being explored.
     module: SourceId,
 
@@ -33,10 +36,19 @@ struct ResolutionState {
 }
 
 impl ResolutionState {
-    fn new(module: SourceId) -> Self {
+    fn new(content: ContentId, module: SourceId) -> Self {
         Self {
+            content,
             module,
             accept_imports: true,
+        }
+    }
+
+    fn fork(self, module: SourceId) -> Self {
+        Self {
+            content: self.content,
+            module,
+            accept_imports: false,
         }
     }
 }
@@ -139,8 +151,8 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                         var.name, &clashed_module.fqn
                     );
                     let diagnostic = {
-                        Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, env_id, msg)
-                            .with_observation(Observation::with_help(declaration_segment.clone(), format!("This symbol has the same fully-qualified name as module {}", clashed_module.fqn)))
+                        Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, msg)
+                            .with_observation(Observation::here(env_id, declaration_segment.clone(), format!("This symbol has the same fully-qualified name as module {}", clashed_module.fqn)))
                             .with_help(format!("You should refactor this symbol with a name that does not conflicts with following modules: {inner_modules}"))
                     };
                     self.diagnostics.push(diagnostic)
@@ -162,18 +174,26 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             //try to import the ast, if the importer isn't able to achieve this and returns None,
             //Ignore this ast analysis. It'll be up to the given importer implementation to handle the
             //errors caused by this import request failure
-            if let Some((ast, name)) = import_ast(name, importer) {
-                self.collect_ast_symbols(ast, name, to_visit)
+            if let Some((imported, name)) = import_ast(name, importer) {
+                self.collect_ast_symbols(imported, name, to_visit)
             }
         }
     }
 
-    fn collect_ast_symbols(&mut self, ast: Expr<'e>, module_name: Name, to_visit: &mut Vec<Name>) {
+    fn collect_ast_symbols(
+        &mut self,
+        imported: Imported<'e>,
+        module_name: Name,
+        to_visit: &mut Vec<Name>,
+    ) {
         // Immediately transfer the ownership of the AST to the engine.
-        let root_block = self.engine.take(ast);
+        let root_block = self.engine.take(imported.expr);
 
         let mut env = Environment::named(module_name);
-        let mut state = ResolutionState::new(self.engine.track(root_block));
+        let mut state = ResolutionState::new(
+            imported.content,
+            self.engine.track(imported.content, root_block),
+        );
         self.tree_walk(&mut env, &mut state, root_block, to_visit);
         self.engine.attach(state.module, env)
     }
@@ -191,11 +211,11 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         {
             let diagnostic = Diagnostic::new(
                 DiagnosticID::ShadowedImport,
-                mod_id,
                 format!("{import_fqn} is imported twice."),
             )
-            .with_observation(Observation::with_help(shadowed, "useless import here"))
-            .with_observation(Observation::with_help(
+            .with_observation(Observation::here(mod_id, shadowed, "useless import here"))
+            .with_observation(Observation::context(
+                mod_id,
                 import_expr.segment(),
                 "This statement shadows previous import",
             ));
@@ -240,10 +260,9 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             ImportExpr::Environment(_, _) => {
                 let diagnostic = Diagnostic::new(
                     DiagnosticID::UnsupportedFeature,
-                    mod_id,
                     "import of environment variables and commands are not yet supported.",
                 )
-                .with_observation(Observation::new(import.segment()));
+                .with_observation((mod_id, import.segment()).into());
 
                 self.diagnostics.push(diagnostic);
             }
@@ -305,9 +324,8 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 if !state.accept_imports {
                     let diagnostic = Diagnostic::new(
                         DiagnosticID::UseBetweenExprs,
-                        state.module,
-                        "Unexpected use statement between expressions. use statements can only be declared on top of environment",
-                    );
+                        "Unexpected use statement between expressions. Use statements must be at the top of the environment.",
+                    ).with_observation((state.module, import.segment()).into());
                     self.diagnostics.push(diagnostic);
                     return;
                 }
@@ -524,7 +542,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                     .variables
                     .declare_local(func.name.to_owned(), TypeInfo::Function);
                 env.annotate(func, symbol);
-                let func_id = self.engine.track(expr);
+                let func_id = self.engine.track(state.content, expr);
                 env.bind_source(func, func_id);
                 let mut func_env = env.fork(state.module, func.name);
                 for param in &func.parameters {
@@ -542,7 +560,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 }
                 self.tree_walk(
                     &mut func_env,
-                    &mut ResolutionState::new(func_id),
+                    &mut state.fork(func_id),
                     &func.body,
                     to_visit,
                 );
@@ -550,7 +568,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 self.engine.attach(func_id, func_env);
             }
             Expr::LambdaDef(lambda) => {
-                let func_id = self.engine.track(expr);
+                let func_id = self.engine.track(state.content, expr);
                 let mut func_env = env.fork(state.module, &format!("lambda@{}", func_id.0));
                 for param in &lambda.args {
                     let symbol = func_env
@@ -560,7 +578,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 }
                 self.tree_walk(
                     &mut func_env,
-                    &mut ResolutionState::new(func_id),
+                    &mut state.fork(func_id),
                     &lambda.body,
                     to_visit,
                 );
@@ -625,14 +643,21 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
 fn import_ast<'a, 'b>(
     name: Name,
     importer: &'b mut impl ASTImporter<'a>,
-) -> Option<(Expr<'a>, Name)> {
+) -> Option<(Imported<'a>, Name)> {
     let mut parts = name.into_vec();
     while !parts.is_empty() {
         let name = Name::from(parts.clone());
         match importer.import(&name) {
-            Some(expr) => return Some((expr, name)),
-            None => {
+            ImportResult::Success(imported) => return Some((imported, name)),
+            ImportResult::NotFound => {
+                // Nothing has been found, but we might have a chance by
+                // importing the parent module.
                 parts.pop();
+            }
+            ImportResult::Failure => {
+                // Something has been found, but cannot be fully imported,
+                // so don't try to import anything else.
+                return None;
             }
         }
     }
@@ -666,13 +691,27 @@ mod tests {
 
     use super::*;
 
+    fn tree_walk<'a>(
+        expr: &'a Expr<'a>,
+        engine: &mut Engine<'a>,
+        relations: &mut Relations,
+    ) -> (Vec<Diagnostic>, Environment) {
+        let mut env = Environment::named(Name::new("test"));
+        let mut imports = Imports::default();
+        let mut state = ResolutionState::new(ContentId(0), engine.track(ContentId(0), expr));
+        let mut collector = SymbolCollector::new(engine, relations, &mut imports);
+        collector.tree_walk(&mut env, &mut state, &expr, &mut vec![]);
+        (collector.diagnostics, env)
+    }
+
     #[test]
     fn use_between_expressions() {
+        let content = "use a; $a; use c; $c";
         let mut engine = Engine::default();
         let mut relations = Relations::default();
         let mut imports = Imports::default();
         let mut importer = StaticImporter::new(
-            [(Name::new("test"), Source::unknown("use a; $a; use c; $c"))],
+            [(Name::new("test"), Source::unknown(content))],
             parse_trusted,
         );
         let res = SymbolCollector::collect_symbols(
@@ -686,7 +725,11 @@ mod tests {
         assert_eq!(
             res,
             vec![
-                Diagnostic::new(DiagnosticID::UseBetweenExprs, SourceId(0), "Unexpected use statement between expressions. use statements can only be declared on top of environment"),
+                Diagnostic::new(DiagnosticID::UseBetweenExprs, "Unexpected use statement between expressions. Use statements must be at the top of the environment.")
+                    .with_observation((
+                        SourceId(0),
+                        find_in(content, "use c"),
+                    ).into()),
             ]
         )
     }
@@ -696,14 +739,8 @@ mod tests {
         let expr = parse_trusted(Source::unknown("var bar = 4; $bar"));
         let mut engine = Engine::default();
         let mut relations = Relations::default();
-        let mut imports = Imports::default();
-        let mut env = Environment::named(Name::new("test"));
-        let mut state = ResolutionState::new(engine.track(&expr));
-
-        let mut collector = SymbolCollector::new(&mut engine, &mut relations, &mut imports);
-
-        collector.tree_walk(&mut env, &mut state, &expr, &mut vec![]);
-        assert_eq!(collector.diagnostics, vec![]);
+        let diagnostics = tree_walk(&expr, &mut engine, &mut relations).0;
+        assert_eq!(diagnostics, vec![]);
         assert_eq!(relations.iter().collect::<Vec<_>>(), vec![]);
     }
 
@@ -737,8 +774,8 @@ mod tests {
             &mut importer,
         );
         assert_eq!(diagnostics, vec![
-            Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, SourceId(0), "Declared symbol 'multiply' in module math clashes with module math::multiply")
-                .with_observation(Observation::with_help(find_in(math_source, "fun multiply(a: Int, b: Int) = a * b"), "This symbol has the same fully-qualified name as module math::multiply"))
+            Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, "Declared symbol 'multiply' in module math clashes with module math::multiply")
+                .with_observation(Observation::here(SourceId(0), find_in(math_source, "fun multiply(a: Int, b: Int) = a * b"), "This symbol has the same fully-qualified name as module math::multiply"))
                 .with_help("You should refactor this symbol with a name that does not conflicts with following modules: math::{divide, multiply, add}")
         ]);
     }
@@ -764,32 +801,28 @@ mod tests {
         assert_eq!(
             diagnostics,
             vec![
-                Diagnostic::new(
-                    DiagnosticID::ShadowedImport,
-                    SourceId(0),
-                    "A is imported twice."
-                )
-                .with_observation(Observation::with_help(
-                    find_in(source, "A"),
-                    "useless import here"
-                ))
-                .with_observation(Observation::with_help(
-                    find_in_nth(source, "A", 1),
-                    "This statement shadows previous import"
-                )),
-                Diagnostic::new(
-                    DiagnosticID::ShadowedImport,
-                    SourceId(0),
-                    "B is imported twice."
-                )
-                .with_observation(Observation::with_help(
-                    find_in(source, "B"),
-                    "useless import here"
-                ))
-                .with_observation(Observation::with_help(
-                    find_in_nth(source, "B", 1),
-                    "This statement shadows previous import"
-                )),
+                Diagnostic::new(DiagnosticID::ShadowedImport, "A is imported twice.")
+                    .with_observation(Observation::here(
+                        SourceId(0),
+                        find_in(source, "A"),
+                        "useless import here"
+                    ))
+                    .with_observation(Observation::context(
+                        SourceId(0),
+                        find_in_nth(source, "A", 1),
+                        "This statement shadows previous import"
+                    )),
+                Diagnostic::new(DiagnosticID::ShadowedImport, "B is imported twice.")
+                    .with_observation(Observation::here(
+                        SourceId(0),
+                        find_in(source, "B"),
+                        "useless import here"
+                    ))
+                    .with_observation(Observation::context(
+                        SourceId(0),
+                        find_in_nth(source, "B", 1),
+                        "This statement shadows previous import"
+                    )),
             ]
         )
     }
@@ -800,15 +833,9 @@ mod tests {
         let source = Source::unknown(src);
         let expr = parse_trusted(source);
         let mut engine = Engine::default();
-        let mut imports = Imports::default();
         let mut relations = Relations::default();
-        let mut env = Environment::named(Name::new("test"));
-        let mut state = ResolutionState::new(engine.track(&expr));
-
-        let mut collector = SymbolCollector::new(&mut engine, &mut relations, &mut imports);
-        collector.tree_walk(&mut env, &mut state, &expr, &mut vec![]);
-
-        assert_eq!(collector.diagnostics, vec![]);
+        let (diagnostics, env) = tree_walk(&expr, &mut engine, &mut relations);
+        assert_eq!(diagnostics, vec![]);
         assert_eq!(relations.iter().collect::<Vec<_>>(), vec![]);
         assert_eq!(
             env.get_raw_symbol(source.segment()),
@@ -834,14 +861,8 @@ mod tests {
         let expr = parse_trusted(source);
         let mut engine = Engine::default();
         let mut relations = Relations::default();
-        let mut imports = Imports::default();
-        let mut env = Environment::named(Name::new("test"));
-        let mut state = ResolutionState::new(engine.track(&expr));
-
-        let mut collector = SymbolCollector::new(&mut engine, &mut relations, &mut imports);
-        collector.tree_walk(&mut env, &mut state, &expr, &mut vec![]);
-
-        assert_eq!(collector.diagnostics, vec![]);
+        let (diagnostics, env) = tree_walk(&expr, &mut engine, &mut relations);
+        assert_eq!(diagnostics, vec![]);
         assert_eq!(relations.iter().collect::<Vec<_>>(), vec![]);
         assert_eq!(env.get_raw_symbol(find_in(src, "read")), None);
         assert_eq!(
@@ -858,15 +879,9 @@ mod tests {
 
         let mut engine = Engine::default();
         let mut relations = Relations::default();
-        let mut imports = Imports::default();
-        let mut env = Environment::named(Name::new("test"));
-        let mut state = ResolutionState::new(engine.track(&expr));
-
-        let mut collector = SymbolCollector::new(&mut engine, &mut relations, &mut imports);
-        collector.tree_walk(&mut env, &mut state, &expr, &mut vec![]);
-
-        assert_eq!(collector.diagnostics, vec![]);
-        engine.attach(state.module, env);
+        let (diagnostics, env) = tree_walk(&expr, &mut engine, &mut relations);
+        assert_eq!(diagnostics, vec![]);
+        engine.attach(SourceId(0), env);
         assert_eq!(
             relations
                 .find_references(&engine, RelationId(0))

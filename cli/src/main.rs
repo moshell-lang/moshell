@@ -1,18 +1,20 @@
 #![allow(dead_code)]
 
 use std::io;
-use std::ops::Deref;
 use std::process::exit;
 
 use clap::Parser;
 use miette::MietteHandlerOpts;
 
-use context::source::Source;
+use analyzer::name::Name;
 
-use crate::cli::{handle_source, Cli};
+use crate::cli::{resolve_and_execute, Cli};
+use crate::pipeline::FileImporter;
 use crate::repl::prompt;
 
 mod cli;
+mod disassemble;
+mod pipeline;
 mod repl;
 mod report;
 
@@ -24,12 +26,23 @@ fn main() -> io::Result<()> {
     }))
     .expect("miette options setup");
 
-    if let Some(source) = cli.source {
-        let content = std::fs::read_to_string(&source)?;
-        let name = source.to_string_lossy().deref().to_string();
-        let source = Source::new(&content, &name);
-        exit(handle_source(source) as i32)
+    if let Some(source) = &cli.source {
+        let name = Name::new(
+            source
+                .file_name()
+                .and_then(|name| name.to_str())
+                .expect("Incompatible filename"),
+        );
+        let mut importer = FileImporter::new({
+            let mut root = source.clone();
+            root.pop();
+            root
+        });
+        importer.add_redirection(name.clone(), source.clone());
+        let has_error = resolve_and_execute(name, &mut importer, &cli);
+        exit(i32::from(has_error))
     }
-    prompt();
+    let importer = FileImporter::new(std::env::current_dir()?);
+    prompt(importer, &cli);
     Ok(())
 }
