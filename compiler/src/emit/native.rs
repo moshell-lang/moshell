@@ -9,10 +9,10 @@ use crate::emit::{emit, EmissionState};
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
 
-const STRING_EQ: &str = "std::String::eq";
-const STRING_CONCAT: &str = "std::String::concat";
-const INT_TO_STRING: &str = "std::Int::to_string";
-const FLOAT_TO_STRING: &str = "std::Float::to_string";
+const STRING_EQ: &str = "lang::String::eq";
+const STRING_CONCAT: &str = "lang::String::concat";
+const INT_TO_STRING: &str = "lang::Int::to_string";
+const FLOAT_TO_STRING: &str = "lang::Float::to_string";
 
 /// Emits a primitive sequence of instructions.
 #[allow(clippy::too_many_arguments)]

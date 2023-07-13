@@ -34,9 +34,9 @@ void str_eq(OperandStack &caller_stack, StringsHeap &) {
 natives_functions_t
 load_natives(StringsHeap &strings) {
     natives_functions_t map;
-    map[&strings.insert("std::Int::to_string")] = int_to_string;
-    map[&strings.insert("std::Float::to_string")] = float_to_string;
-    map[&strings.insert("std::String::concat")] = str_concat;
-    map[&strings.insert("std::String::eq")] = str_eq;
+    map[&strings.insert("lang::Int::to_string")] = int_to_string;
+    map[&strings.insert("lang::Float::to_string")] = float_to_string;
+    map[&strings.insert("lang::String::concat")] = str_concat;
+    map[&strings.insert("lang::String::eq")] = str_eq;
     return map;
 }
