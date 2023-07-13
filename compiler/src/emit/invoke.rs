@@ -407,12 +407,16 @@ pub fn emit_capture(
     instructions.emit_push_int(1);
     instructions.emit_code(Opcode::Redirect);
     instructions.emit_code(Opcode::Close);
+    instructions.emit_code(Opcode::Close);
     let last = state.use_values(false);
-    for command in commands {
-        emit(command, instructions, typing, engine, cp, locals, state);
+    if let Some((last, commands)) = commands.split_last() {
+        for command in commands {
+            emit(command, instructions, typing, engine, cp, locals, state);
+        }
+        emit_already_forked(last, instructions, typing, engine, cp, locals, state);
     }
     state.use_values(last);
-    instructions.emit_push_int(0);
+    instructions.emit_push_byte(0);
     instructions.emit_code(Opcode::Exit);
 
     instructions.patch_jump(jump_to_parent);
@@ -420,6 +424,9 @@ pub fn emit_capture(
     instructions.emit_code(Opcode::Close);
     instructions.emit_code(Opcode::Swap);
     instructions.emit_code(Opcode::Read);
+    instructions.emit_code(Opcode::Swap);
+    instructions.emit_code(Opcode::Wait);
+    instructions.emit_code(Opcode::PopByte);
 
     if !state.use_values {
         instructions.emit_code(Opcode::PopQWord);
