@@ -7,6 +7,7 @@
 #include "memory/operand_stack.h"
 #include "vm.h"
 
+#include <array>
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
@@ -415,21 +416,23 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             int fd = static_cast<int>(operands.pop_int());
 
             std::string out;
-            const int buf_size = 4096;
-            char buffer[buf_size];
+            std::array<char, 4096> buffer;
+            ssize_t r;
             do {
-                const ssize_t r = read(fd, buffer, buf_size);
+                r = read(fd, buffer.data(), buffer.size());
                 if (r == -1) {
-                    perror("read");
-                    exit(EX_IOERR);
+                    if (errno != EAGAIN && errno != EINTR) {
+                        perror("read");
+                        exit(EX_IOERR);
+                    }
                 }
                 if (r > 0) {
-                    out.append(buffer, r);
+                    out.append(buffer.data(), r);
                 }
-            } while (errno == EAGAIN || errno == EINTR);
+            } while (r != 0);
 
             // Remove trailing `\n`
-            if (out.length() > 0 && out[out.length() - 1] == '\n') {
+            if (!out.empty() && out.back() == '\n') {
                 out.pop_back();
             }
 
