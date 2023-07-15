@@ -46,6 +46,8 @@ public:
      */
     uint64_t get_ref(size_t at) const;
 
+    char* reference(size_t at, size_t count);
+
     /**
      * @throws LocalsOutOfBoundError if `at` + the size of `int64_i` is out of bound
      */

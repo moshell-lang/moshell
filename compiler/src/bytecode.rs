@@ -51,6 +51,11 @@ impl Bytecode {
         self.bytes.extend(value.to_be_bytes());
     }
 
+    /// emits an unsigned 16 bits integer
+    pub fn emit_u16(&mut self, value: u16) {
+        self.bytes.extend(value.to_be_bytes());
+    }
+
     pub fn emit_i32(&mut self, value: i32) {
         self.bytes.extend(value.to_be_bytes());
     }
@@ -122,15 +127,21 @@ impl<'a> Instructions<'a> {
         size: ValueStackSize,
         layout: &LocalsLayout,
     ) {
+        // push local reference onto the stack
+        self.emit_code(Opcode::PushLocalRef);
+        let index = layout.get_index(identifier).unwrap();
+        self.bytecode.emit_u32(index);
+        self.bytecode.emit_u16(u8::from(size) as u16);
+
+        // from given reference, set the value
         let opcode = match size {
             ValueStackSize::Byte => Opcode::SetByte,
             ValueStackSize::QWord => Opcode::SetQWord,
             ValueStackSize::Reference => Opcode::SetRef,
             ValueStackSize::Zero => panic!("set_local for value whose type is zero-sized"),
         };
+
         self.emit_code(opcode);
-        let at = layout.get_index(identifier).unwrap();
-        self.bytecode.emit_u32(at);
     }
 
     /// emits instructions to push to operand stack given local identifier
@@ -141,6 +152,13 @@ impl<'a> Instructions<'a> {
         size: ValueStackSize,
         layout: &LocalsLayout,
     ) {
+        // push local reference onto the stack
+        self.emit_code(Opcode::PushLocalRef);
+        let index = layout.get_index(identifier).unwrap();
+        self.bytecode.emit_u32(index);
+        self.bytecode.emit_u16(u8::from(size) as u16);
+
+        // from given reference, get the value
         let opcode = match size {
             ValueStackSize::Byte => Opcode::GetByte,
             ValueStackSize::QWord => Opcode::GetQWord,
@@ -149,8 +167,6 @@ impl<'a> Instructions<'a> {
         };
 
         self.emit_code(opcode);
-        let index = layout.get_index(identifier).unwrap();
-        self.bytecode.emit_u32(index);
     }
 
     /// emits instructions to push an integer in the operand stack
@@ -173,7 +189,7 @@ impl<'a> Instructions<'a> {
 
     /// emits instructions to push a pool reference in the operand stack
     pub fn emit_push_constant_ref(&mut self, constant_ref: u32) {
-        self.emit_code(Opcode::PushString);
+        self.emit_code(Opcode::PushConstantRef);
         self.bytecode.emit_constant_ref(constant_ref)
     }
 
@@ -240,7 +256,8 @@ pub enum Opcode {
     PushInt,
     PushByte,
     PushFloat,
-    PushString,
+    PushConstantRef,
+    PushLocalRef,
 
     GetByte,
     SetByte,
