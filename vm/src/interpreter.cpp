@@ -4,7 +4,6 @@
 #include "memory/call_stack.h"
 #include "memory/constant_pool.h"
 #include "memory/nix.h"
-#include "memory/operand_stack.h"
 #include "vm.h"
 
 #include <array>
@@ -62,11 +61,8 @@ enum Opcode {
 
     OP_RETURN, // stops frame interpretation
 
-    OP_BYTE_TO_INT,  // replaces last value of operand stack from byte to int
-    OP_INT_TO_STR,   // replaces last value of operand stack from int to a string reference
-    OP_FLOAT_TO_STR, // replaces last value of operand stack from float to a string reference
-    OP_INT_TO_BYTE,  // replaces last value of operand stack from int to byte
-    OP_CONCAT,       // pops two string references, concatenates them, and pushes the result
+    OP_BYTE_TO_INT, // replaces last value of operand stack from byte to int
+    OP_INT_TO_BYTE, // replaces last value of operand stack from int to byte
 
     OP_BYTE_XOR,  // pops last two bytes, apply xor operation then push the resulting byte
     OP_INT_ADD,   // pops two ints, adds them, and pushes the resulting integer
@@ -79,7 +75,6 @@ enum Opcode {
     OP_FLOAT_MUL, // pops two floats, multiplies them, and pushes the resulting float
     OP_FLOAT_DIV, // pops two floats, divides them, and pushes the resulting float
 
-    OP_STR_EQ, // pops two string references, checks if they are equal, and pushes the resulting byte
     OP_INT_EQ, // pops two ints, checks if they are equal, and pushes the resulting byte
     OP_INT_LT, // pops two ints, checks if the first is less than the second, and pushes the resulting byte
     OP_INT_LE, // pops two ints, checks if the first is less than or equal to the second, and pushes the resulting byte
@@ -100,7 +95,7 @@ struct runtime_state {
     /**
      * strings heap space
      */
-    strings_t &strings;
+    StringsHeap &strings;
 
     /**
      * The file descriptor table
@@ -111,6 +106,10 @@ struct runtime_state {
      * loaded function definitions, bound with their string identifier
      */
     const std::unordered_map<const std::string *, function_definition> &functions;
+    /**
+     * native functions pointers, bound with their string identifier
+     */
+    const natives_functions_t &native_functions;
 
     /**
      * The used constant pool
@@ -212,17 +211,49 @@ inline bool apply_comparison(Opcode code, double a, double b) {
     }
 }
 
-inline void push_function_invocation(constant_index callee_identifier_idx,
-                                     const runtime_state &state,
-                                     OperandStack &caller_operands,
-                                     CallStack &call_stack) {
+/**
+ * Handles function invocation.
+ * This function performs invocation for either moshell functions (bytecode instructions)
+ * and native functions.
+ * Moshell functions have priority against native functions.
+ *
+ * if given function identifier refers to a moshell function, the called function's frame will
+ * be pushed in the call stack, which will cause the current frame to interrupt.
+ * if a native function is referenced, then the function is directly run by this
+ * function and then the frame can simply continue without interruption.
+ * @param callee_identifier_idx constant index to the function identifier to invoke
+ * @param state the runtime state, passed to native function invocation
+ * @param caller_operands caller's operands
+ * @param call_stack the call stack
+ * @throws FunctionNotFoundError if given callee identifier does not points to a moshell or native function.
+ * @return true if a new moshell function has been pushed onto the stack.
+ */
+inline bool handle_function_invocation(constant_index callee_identifier_idx,
+                                       runtime_state &state,
+                                       OperandStack &caller_operands,
+                                       CallStack &call_stack) {
 
     const std::string *callee_identifier = &state.pool.get_string(callee_identifier_idx);
-    const function_definition &callee_def = state.functions.at(callee_identifier);
+    auto callee_def_it = state.functions.find(callee_identifier);
+
+    if (callee_def_it == state.functions.end()) {
+        auto native_function_it = state.native_functions.find(callee_identifier);
+        if (native_function_it == state.native_functions.end()) {
+            throw FunctionNotFoundError("Could not find function " + *callee_identifier);
+        }
+
+        auto native_function = native_function_it->second;
+        native_function(caller_operands, state.strings);
+
+        return false;
+    }
+
+    const function_definition &callee_def = callee_def_it->second;
 
     caller_operands.pop_bytes(callee_def.parameters_byte_count);
 
     call_stack.push_frame(callee_def, callee_identifier);
+    return true;
 }
 
 /**
@@ -278,8 +309,11 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             constant_index identifier_idx = ntohl(*(constant_index *)(instructions + ip));
             ip += sizeof(constant_index);
 
-            push_function_invocation(identifier_idx, state, operands, call_stack);
-            return false; // terminate this frame run
+            if (handle_function_invocation(identifier_idx, state, operands, call_stack))
+                // terminate this frame interpretation if a new frame has been pushed in the stack
+                // (natives functions are directly run thus no need to return if no moshell function is to execute)
+                return false;
+            break;
         }
         case OP_FORK: {
             uint32_t parent_jump = ntohl(*(uint32_t *)(instructions + ip));
@@ -437,8 +471,8 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             }
 
             // Push the string onto the stack
-            auto [it, _] = state.strings.insert(std::make_unique<std::string>(std::move(out)));
-            operands.push_reference((uintptr_t)it->get());
+            const std::string &ref = state.strings.insert(std::move(out));
+            operands.push_reference((uintptr_t)&ref);
             break;
         }
         case OP_WRITE: {
@@ -524,35 +558,9 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             operands.push_int(value);
             break;
         }
-        case OP_INT_TO_STR: {
-            int64_t value = operands.pop_int();
-
-            auto [it, _] = state.strings.insert(std::make_unique<std::string>(std::to_string(value)));
-            operands.push_reference((uint64_t)it->get());
-
-            break;
-        }
-        case OP_FLOAT_TO_STR: {
-            double value = operands.pop_double();
-
-            auto [it, _] = state.strings.insert(std::make_unique<std::string>(std::to_string(value)));
-            operands.push_reference((uint64_t)it->get());
-
-            break;
-        }
         case OP_INT_TO_BYTE: {
             int64_t i = operands.pop_int();
             operands.push_byte(static_cast<int8_t>(i));
-            break;
-        }
-        case OP_CONCAT: {
-            auto right = (const std::string *)operands.pop_reference();
-            auto left = (const std::string *)operands.pop_reference();
-
-            std::string result = *left + *right;
-
-            auto [it, _] = state.strings.insert(std::make_unique<std::string>(std::move(result)));
-            operands.push_reference((uint64_t)it->get());
             break;
         }
         case OP_IF_NOT_JUMP:
@@ -642,12 +650,6 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             operands.push_double(res);
             break;
         }
-        case OP_STR_EQ: {
-            const std::string &b = *(const std::string *)operands.pop_reference();
-            const std::string &a = *(const std::string *)operands.pop_reference();
-            operands.push_byte(a == b);
-            break;
-        }
         case OP_INT_EQ:
         case OP_INT_LT:
         case OP_INT_LE:
@@ -713,10 +715,11 @@ void run(runtime_state state, const std::string *root_identifier) {
     }
 }
 
-void run_unit(const bytecode_unit &module_def, strings_t &strings) {
+void run_unit(const bytecode_unit &module_def, StringsHeap &strings, natives_functions_t natives) {
 
     const ConstantPool &pool = module_def.pool;
     fd_table table;
+    runtime_state state{strings, table, module_def.functions, natives, pool};
 
     // find module main function
     for (auto function : module_def.functions) {
@@ -724,7 +727,6 @@ void run_unit(const bytecode_unit &module_def, strings_t &strings) {
 
         // we found our main function, we search for a function named `<main>` with no parameters, regardless of the return type
         if (identifier.rfind("::<main>", identifier.length() - strlen("::<main>")) != std::string::npos) {
-            runtime_state state{strings, table, module_def.functions, pool};
 
             run(state, &identifier);
             return;

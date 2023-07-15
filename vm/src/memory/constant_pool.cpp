@@ -2,18 +2,17 @@
 #include "byte_reader.h"
 #include "conversions.h"
 
-const std::string *read_string(ByteReader &reader, strings_t &strings) {
+const std::string *read_string(ByteReader &reader, StringsHeap &strings) {
     // Read the length
     uint64_t length = ntohl(reader.read<uint64_t>());
 
     // Allocate the string
     std::string str(reader.read_n<char>(length), length);
 
-    auto [str_it, _] = strings.insert(std::make_unique<std::string>(std::move(str)));
-    return str_it->get();
+    return &strings.insert(std::move(str));
 }
 
-ConstantPool load_constant_pool(ByteReader &reader, strings_t &strings) {
+ConstantPool load_constant_pool(ByteReader &reader, StringsHeap &strings) {
     // Read the number of strings on four bytes
     uint32_t count = ntohl(reader.read<uint32_t>());
 

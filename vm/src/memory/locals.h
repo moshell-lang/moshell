@@ -11,6 +11,9 @@
 class LocalsOutOfBoundError : public MemoryError {
 public:
     explicit LocalsOutOfBoundError(std::string msg) : MemoryError(std::move(msg)) {}
+    const char *name() const noexcept override {
+        return "LocalsOutOfBoundError";
+    }
 };
 
 /**

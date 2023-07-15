@@ -5,13 +5,13 @@
 #include <iostream>
 
 extern "C" void moshell_exec(const char *bytes, size_t byte_count) {
-    strings_t strings;
+    StringsHeap strings;
     ByteReader reader(bytes, byte_count);
     try {
         // read function definitions
         auto module_def = load_unit(reader, strings);
 
-        run_unit(module_def, strings);
+        run_unit(module_def, strings, load_natives(strings));
 
     } catch (const VirtualMachineError &e) {
         std::cerr << e.name() << ": " << e.what() << std::endl;

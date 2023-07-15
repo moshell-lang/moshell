@@ -45,4 +45,18 @@ public:
 class StackOverflowError : public MemoryError {
 public:
     explicit StackOverflowError(std::string message) : MemoryError{std::move(message)} {}
+    const char *name() const noexcept override {
+        return "StackOverflowError";
+    }
+};
+
+/**
+ * Thrown when a function isn't found
+ */
+class FunctionNotFoundError : public VirtualMachineError {
+public:
+    explicit FunctionNotFoundError(std::string message) : VirtualMachineError{std::move(message)} {}
+    const char *name() const noexcept override {
+        return "FunctionNotFoundError";
+    }
 };
