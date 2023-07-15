@@ -9,3 +9,4 @@ members = [
 	"analyzer",
 	"compiler"
 ]
+resolver = "2"

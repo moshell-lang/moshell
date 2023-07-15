@@ -1,9 +1,10 @@
-use ast::call::{Call, ProgrammaticCall};
+use ast::call::{Call, Pipeline, ProgrammaticCall, RedirOp, Redirected};
 use ast::control_flow::If;
 use ast::function::FunctionDeclaration;
 use ast::group::Block;
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::r#type::CastedExpr;
+use ast::substitution::Substitution;
 use ast::test::Not;
 use ast::value::{Literal, LiteralValue, TemplateString};
 use ast::variable::{Assign, VarDeclaration, VarKind, VarReference};
@@ -24,8 +25,8 @@ use crate::steps::typing::lower::convert_into_string;
 use crate::types::ctx::{TypeContext, TypedVariable};
 use crate::types::engine::{Chunk, TypedEngine};
 use crate::types::hir::{
-    Assignment, Conditional, Convert, Declaration, ExprKind, FunctionCall, Loop, MethodCall,
-    TypedExpr,
+    Assignment, Conditional, Convert, Declaration, ExprKind, FunctionCall, Loop, MethodCall, Redir,
+    Redirect, TypedExpr,
 };
 use crate::types::operator::name_operator_method;
 use crate::types::ty::Type;
@@ -64,7 +65,7 @@ pub fn apply_types(
 /// A state holder, used to informs the type checker about what should be
 /// checked.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub(self) struct TypingState {
+struct TypingState {
     source: SourceId,
     local_type: bool,
 
@@ -430,6 +431,117 @@ fn ascribe_block(
         kind: ExprKind::Block(expressions),
         ty,
         segment: block.segment.clone(),
+    }
+}
+
+fn ascribe_redirected(
+    redirected: &Redirected,
+    exploration: &mut Exploration,
+    relations: &Relations,
+    diagnostics: &mut Vec<Diagnostic>,
+    env: &Environment,
+    state: TypingState,
+) -> TypedExpr {
+    let expr = ascribe_types(
+        exploration,
+        relations,
+        diagnostics,
+        env,
+        &redirected.expr,
+        state,
+    );
+    let mut redirections = Vec::with_capacity(redirected.redirections.len());
+    for redirection in &redirected.redirections {
+        let operand = ascribe_types(
+            exploration,
+            relations,
+            diagnostics,
+            env,
+            &redirection.operand,
+            state,
+        );
+        let operand = if matches!(redirection.operator, RedirOp::FdIn | RedirOp::FdOut) {
+            if operand.ty != INT {
+                diagnostics.push(
+                    Diagnostic::new(
+                        DiagnosticID::TypeMismatch,
+                        format!(
+                            "File descriptor redirections must be given an integer, not `{}`",
+                            exploration.get_type(operand.ty).unwrap()
+                        ),
+                    )
+                    .with_observation(Observation::here(
+                        state.source,
+                        redirection.segment(),
+                        "Redirection happens here",
+                    )),
+                );
+            }
+            operand
+        } else {
+            convert_into_string(operand, exploration, diagnostics, state)
+        };
+        redirections.push(Redir {
+            fd: redirection.fd,
+            operator: redirection.operator,
+            operand: Box::new(operand),
+        });
+    }
+    let ty = expr.ty;
+    TypedExpr {
+        kind: ExprKind::Redirect(Redirect {
+            expression: Box::new(expr),
+            redirections,
+        }),
+        ty,
+        segment: redirected.segment(),
+    }
+}
+
+fn ascribe_pipeline(
+    pipeline: &Pipeline,
+    exploration: &mut Exploration,
+    relations: &Relations,
+    diagnostics: &mut Vec<Diagnostic>,
+    env: &Environment,
+    state: TypingState,
+) -> TypedExpr {
+    let mut commands = Vec::with_capacity(pipeline.commands.len());
+    for command in &pipeline.commands {
+        commands.push(ascribe_types(
+            exploration,
+            relations,
+            diagnostics,
+            env,
+            command,
+            state,
+        ));
+    }
+    TypedExpr {
+        kind: ExprKind::Pipeline(commands),
+        ty: EXIT_CODE,
+        segment: pipeline.segment(),
+    }
+}
+
+fn ascribe_substitution(
+    substitution: &Substitution,
+    exploration: &mut Exploration,
+    relations: &Relations,
+    diagnostics: &mut Vec<Diagnostic>,
+    env: &Environment,
+    state: TypingState,
+) -> TypedExpr {
+    let commands = substitution
+        .underlying
+        .expressions
+        .iter()
+        .map(|command| ascribe_types(exploration, relations, diagnostics, env, command, state))
+        .collect::<Vec<_>>();
+    TypedExpr {
+        kind: ExprKind::Capture(commands),
+        ty: STRING,
+        segment: substitution.segment(),
     }
 }
 
@@ -953,6 +1065,15 @@ fn ascribe_types(
             ascribe_method_call(method, exploration, relations, diagnostics, env, state)
         }
         Expr::Block(b) => ascribe_block(b, exploration, relations, diagnostics, env, state),
+        Expr::Redirected(redirected) => {
+            ascribe_redirected(redirected, exploration, relations, diagnostics, env, state)
+        }
+        Expr::Pipeline(pipeline) => {
+            ascribe_pipeline(pipeline, exploration, relations, diagnostics, env, state)
+        }
+        Expr::Substitution(subst) => {
+            ascribe_substitution(subst, exploration, relations, diagnostics, env, state)
+        }
         Expr::Return(r) => ascribe_return(r, exploration, relations, diagnostics, env, state),
         Expr::Parenthesis(paren) => ascribe_types(
             exploration,
@@ -1811,5 +1932,56 @@ mod tests {
                 "No operator `mod` between type `String` and `Int`"
             ))])
         );
+    }
+
+    #[test]
+    fn redirect_to_string() {
+        let content = "val file = '/tmp/file'; cat /etc/passwd > $file 2>&1";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(res, Ok(Type::ExitCode));
+    }
+
+    #[test]
+    fn redirect_to_non_string() {
+        let content = "val file = {}; cat /etc/passwd > $file";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                "Cannot stringify type `Unit`",
+            )
+            .with_observation(Observation::here(
+                SourceId(0),
+                find_in(content, "$file"),
+                "No method `to_string` on type `Unit`"
+            ))])
+        );
+    }
+
+    #[test]
+    fn redirect_to_string_fd() {
+        let content = "grep 'test' >&matches";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                "File descriptor redirections must be given an integer, not `String`",
+            )
+            .with_observation(Observation::here(
+                SourceId(0),
+                find_in(content, ">&matches"),
+                "Redirection happens here"
+            ))])
+        );
+    }
+
+    #[test]
+    fn use_pipeline_return() {
+        let res = extract_type(Source::unknown(
+            "if echo hello | grep -q test | val m = $(cat test) {}",
+        ));
+        assert_eq!(res, Ok(Type::Unit));
     }
 }
