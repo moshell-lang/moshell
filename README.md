@@ -29,19 +29,19 @@ Moshell is a project in its early stages.
     - [x] Imports resolution
     - [x] Qualified names
     - [x] Primitive type checking
-    - [ ] Built-in primitive type operations *(in progress)*
+    - [x] Built-in primitive type operations *(in progress)*
     - [ ] Detailed error reports *(in progress)*
     - [ ] List types
     - [ ] Standard types (`Option[T]`, `Result[A, E]`, `Iterable[T]`...)
     - [ ] User defined types
 - [x] Bytecode compiler and interpreter
     - [x] Spawn processes and use typed variables
-    - [ ] Control flow
-    - [ ] Function calls
-    - [ ] Bytecode loading
+    - [x] Control flow
+    - [x] Function calls
     - [ ] Closures
 - [x] REPL
     - [x] Visualize AST and IR
+    - [x] Visualize Bytecode
     - [ ] Display diagnostics *(partial)*
     - [ ] Symbol reuse
     - [ ] Shell-like prompt
