@@ -4,15 +4,14 @@ use std::io::Write;
 use analyzer::engine::Engine;
 use analyzer::environment::variables::Variables;
 use analyzer::name::Name;
-use analyzer::relations::LocalId;
+use analyzer::relations::{LocalId, Relations, SourceId};
 use analyzer::types::engine::{Chunk, TypedEngine};
-use analyzer::types::Typing;
 
 use crate::bytecode::{Bytecode, Instructions};
 use crate::constant_pool::ConstantPool;
 use crate::emit::{emit, EmissionState};
 use crate::locals::LocalsLayout;
-use crate::r#type::get_type_stack_size;
+use crate::r#type::{get_type_stack_size, ValueStackSize};
 
 pub mod bytecode;
 mod constant_pool;
@@ -20,12 +19,23 @@ mod emit;
 mod locals;
 mod r#type;
 
+/// contains all the data related with analysis process
+pub struct Analysis<'a> {
+    engine: &'a Engine<'a>,
+    relations: &'a Relations,
+}
+
 pub fn compile(
     typed_engine: &TypedEngine,
     engine: &Engine,
-    typing: &Typing,
+    relations: &Relations,
     writer: &mut impl Write,
 ) -> Result<(), io::Error> {
+    let analysis = Analysis {
+        engine,
+        relations,
+    };
+
     let mut bytecode = Bytecode::default();
     let mut cp = ConstantPool::default();
 
@@ -54,12 +64,12 @@ pub fn compile(
         let signature_idx = cp.insert_string(name);
         bytecode.emit_constant_ref(signature_idx);
 
-        compile_instruction_set(
+        compile_chunk(
             chunk,
             &chunk_env.variables,
+            id,
             &mut bytecode,
-            typing,
-            engine,
+            &analysis,
             &mut cp,
         );
 
@@ -71,22 +81,29 @@ pub fn compile(
     write(writer, &bytecode, &cp)
 }
 
-fn compile_instruction_set(
+fn compile_chunk(
     chunk: &Chunk,
     chunk_vars: &Variables,
+    chunk_id: SourceId,
     bytecode: &mut Bytecode,
-    typing: &Typing,
-    engine: &Engine,
+    analysis: &Analysis,
     cp: &mut ConstantPool,
 ) {
     let locals_byte_count = bytecode.emit_u32_placeholder();
 
-    // emit the function's parameters bytes length
-    let parameters_bytes_count: u32 = chunk
-        .parameters
-        .iter()
-        .map(|p| Into::<u8>::into(get_type_stack_size(p.ty)) as u32)
-        .sum();
+    let captures_count = chunk_vars
+        .external_vars()
+        .count();
+    // compute the chunk's parameters bytes length
+    let parameters_bytes_count: u32 = {
+        let explicit_params_count: u32 = chunk
+            .parameters
+            .iter()
+            .map(|p| Into::<u8>::into(get_type_stack_size(p.ty)) as u32)
+            .sum::<u32>();
+        let captures_params_count: u32 = captures_count as u32 * u8::from(ValueStackSize::Reference) as u32;
+        explicit_params_count + captures_params_count
+    };
 
     bytecode.emit_u32(parameters_bytes_count);
     // emit the function's return bytes count
@@ -99,22 +116,24 @@ fn compile_instruction_set(
     let instruction_count = bytecode.emit_u32_placeholder();
 
     let mut instructions = Instructions::wrap(bytecode);
-    let mut locals = LocalsLayout::fixed_count(chunk_vars.all_vars().len());
+    let mut locals = LocalsLayout::new(chunk_vars.all_vars().len() + captures_count);
 
+    // set space for explicit parameters
     for (id, param) in chunk.parameters.iter().enumerate() {
-        locals.set_space(LocalId(id), param.ty.into())
+        locals.set_value_space(LocalId(id), param.ty.into())
     }
 
-    let mut state = EmissionState {
-        use_values: use_value,
-        ..EmissionState::default()
-    };
+    // set space for implicit captures
+    for (_, id) in chunk_vars.external_vars() {
+        locals.set_external_ref_space(id)
+    }
+
+    let mut state = EmissionState::new(use_value, chunk_id);
 
     emit(
         &chunk.expression,
         &mut instructions,
-        typing,
-        engine,
+        analysis,
         cp,
         &mut locals,
         &mut state,

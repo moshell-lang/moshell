@@ -75,7 +75,7 @@ fn display_function(cursor: &mut Cursor<&[u8]>, constants: &[String]) -> io::Res
                 let padding = (digits(constants.len() as u64) - digits(constant_idx as u64)) + 10;
                 print!("<constant #{constant_idx}> {:padding$} // \"{str}\"", "")
             }
-            Opcode::PushLocalRef => print!("<local @{} (length: {})>", read!(cursor, u32), read!(cursor, u16)),
+            Opcode::PushLocalRef => print!("<local @{}>", read!(cursor, u32)),
             Opcode::Invoke => {
                 let constant_idx = read!(cursor, u32) as usize;
                 let str = &constants[constant_idx];

@@ -1,13 +1,12 @@
-use analyzer::engine::Engine;
-use analyzer::relations::{Definition, Symbol};
-use analyzer::types::hir::{Declaration, ExprKind, TypeId, TypedExpr};
-use analyzer::types::Typing;
+use analyzer::relations::{Definition, SourceId, Symbol};
+use analyzer::types::hir::{Declaration, ExprKind, TypedExpr, TypeId};
 use ast::value::LiteralValue;
 
+use crate::Analysis;
 use crate::bytecode::{Instructions, Opcode, Placeholder};
 use crate::constant_pool::ConstantPool;
 use crate::emit::invoke::{
-    emit_capture, emit_function_call, emit_pipeline, emit_process_call, emit_redirect,
+    emit_capture, emit_function_invocation, emit_pipeline, emit_process_call, emit_redirect,
 };
 use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
 use crate::emit::native::emit_natives;
@@ -17,7 +16,7 @@ mod invoke;
 mod jump;
 mod native;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct EmissionState {
     // the start instruction position of the enclosing loop
     // set to 0 if there is no loop
@@ -31,14 +30,29 @@ pub struct EmissionState {
     // if set to false, the compiler will avoid emitting literals, var references or will
     // instantly pop values returned from functions, methods and process calls
     pub use_values: bool,
+
+    // the identifier of the current environment being emitted
+    pub current_env_id: SourceId,
 }
 
 impl EmissionState {
+
+    pub fn new(use_values: bool, current_env_id: SourceId) -> Self {
+        Self {
+            enclosing_loop_start: 0,
+            enclosing_loop_end_placeholders: Vec::new(),
+            use_values,
+            current_env_id
+        }
+    }
+
     /// Create a new emission state for a loop.
-    pub fn in_loop(loop_start: u32) -> Self {
+    pub fn in_loop(env_id: SourceId, loop_start: u32) -> Self {
         Self {
             enclosing_loop_start: loop_start,
-            ..Self::default()
+            enclosing_loop_end_placeholders: Vec::new(),
+            use_values: false,
+            current_env_id: env_id
         }
     }
 
@@ -69,39 +83,32 @@ fn emit_literal(literal: &LiteralValue, instructions: &mut Instructions, cp: &mu
 }
 
 fn emit_ref(
-    symbol: &Symbol,
+    symbol: Symbol,
     ref_type: TypeId,
     instructions: &mut Instructions,
     locals: &LocalsLayout,
 ) {
-    match symbol {
-        Symbol::Local(id) => {
-            let size = ref_type.into();
-            instructions.emit_get_local(*id, size, locals);
-        }
-        _ => todo!(),
-    }
+    let size = ref_type.into();
+    instructions.emit_get_local(symbol, size, locals);
 }
 
 #[allow(clippy::too_many_arguments)]
 fn emit_declaration(
     declaration: &Declaration,
     instructions: &mut Instructions,
-    typing: &Typing,
-    engine: &Engine,
+    analysis: &Analysis,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
 ) {
     if let Some(value) = &declaration.value {
-        locals.set_space(declaration.identifier, value.ty.into());
+        locals.set_value_space(declaration.identifier, value.ty.into());
 
         emit_assignment(
             value,
             Symbol::Local(declaration.identifier),
             instructions,
-            typing,
-            engine,
+            analysis,
             cp,
             locals,
             state,
@@ -112,8 +119,7 @@ fn emit_declaration(
 fn emit_block(
     exprs: &[TypedExpr],
     instructions: &mut Instructions,
-    typing: &Typing,
-    engine: &Engine,
+    analysis: &Analysis,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -121,10 +127,10 @@ fn emit_block(
     if let Some((last_expr, exprs)) = exprs.split_last() {
         let last_used = state.use_values(false);
         for expr in exprs {
-            emit(expr, instructions, typing, engine, cp, locals, state);
+            emit(expr, instructions, analysis, cp, locals, state);
         }
         state.use_values(last_used);
-        emit(last_expr, instructions, typing, engine, cp, locals, state);
+        emit(last_expr, instructions, analysis, cp, locals, state);
     }
 }
 
@@ -133,33 +139,25 @@ fn emit_assignment(
     value: &TypedExpr,
     identifier: Symbol,
     instructions: &mut Instructions,
-    typing: &Typing,
-    engine: &Engine,
+    analysis: &Analysis,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
 ) {
     let last = state.use_values(true);
 
-    emit(value, instructions, typing, engine, cp, locals, state);
+    emit(value, instructions, analysis, cp, locals, state);
     state.use_values(last);
 
     let returned_value_type = value.ty.into();
 
-    match identifier {
-        Symbol::Local(id) => instructions.emit_set_local(id, returned_value_type, locals),
-
-        Symbol::External(_) => {
-            unimplemented!("External variable assignations are not implemented yet")
-        }
-    }
+    instructions.emit_set_local(identifier, returned_value_type, locals)
 }
 
 fn emit_return(
     value: &Option<Box<TypedExpr>>,
     instructions: &mut Instructions,
-    typing: &Typing,
-    engine: &Engine,
+    analysis: &Analysis,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -167,7 +165,7 @@ fn emit_return(
     if let Some(value) = &value {
         let last_use = state.use_values(true);
 
-        emit(value, instructions, typing, engine, cp, locals, state);
+        emit(value, instructions, analysis, cp, locals, state);
 
         state.use_values(last_use);
     }
@@ -177,34 +175,32 @@ fn emit_return(
 pub fn emit(
     expr: &TypedExpr,
     instructions: &mut Instructions,
-    typing: &Typing,
-    engine: &Engine,
+    analysis: &Analysis,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
 ) {
     match &expr.kind {
         ExprKind::Declare(d) => {
-            emit_declaration(d, instructions, typing, engine, cp, locals, state)
+            emit_declaration(d, instructions, analysis, cp, locals, state)
         }
         ExprKind::Block(exprs) => {
-            emit_block(exprs, instructions, typing, engine, cp, locals, state)
+            emit_block(exprs, instructions,  analysis, cp, locals, state)
         }
         ExprKind::Conditional(c) => {
-            emit_conditional(c, instructions, typing, engine, cp, locals, state)
+            emit_conditional(c, instructions, analysis,cp, locals, state)
         }
         ExprKind::ConditionalLoop(l) => {
-            emit_loop(l, instructions, typing, engine, cp, locals, state)
+            emit_loop(l, instructions,  analysis,cp, locals, state)
         }
         ExprKind::Continue => emit_continue(instructions, state),
         ExprKind::Break => emit_break(instructions, state),
-        ExprKind::Return(val) => emit_return(val, instructions, typing, engine, cp, locals, state),
+        ExprKind::Return(val) => emit_return(val, instructions,  analysis, cp, locals, state),
         ExprKind::Assign(ass) => emit_assignment(
             &ass.rhs,
             ass.identifier,
             instructions,
-            typing,
-            engine,
+            analysis,
             cp,
             locals,
             state,
@@ -212,7 +208,7 @@ pub fn emit(
 
         ExprKind::Reference(r) => {
             if state.use_values {
-                emit_ref(r, expr.ty, instructions, locals);
+                emit_ref(*r, expr.ty, instructions, locals);
             }
         }
         ExprKind::Literal(literal) => {
@@ -221,10 +217,10 @@ pub fn emit(
             }
         }
         ExprKind::FunctionCall(fc) => {
-            emit_function_call(fc, expr.ty, instructions, typing, engine, cp, locals, state)
+            emit_function_invocation(fc, expr.ty, instructions,  analysis, cp, locals, state)
         }
         ExprKind::ProcessCall(args) => {
-            emit_process_call(args, instructions, typing, engine, cp, locals, state)
+            emit_process_call(args, instructions,  analysis, cp, locals, state)
         }
         ExprKind::MethodCall(method) => match method.definition {
             Definition::Native(id) => {
@@ -233,8 +229,7 @@ pub fn emit(
                     &method.callee,
                     &method.arguments,
                     instructions,
-                    typing,
-                    engine,
+                    analysis,
                     cp,
                     locals,
                     state,
@@ -243,13 +238,13 @@ pub fn emit(
             Definition::User(_) => todo!("invocation of user defined methods"),
         },
         ExprKind::Redirect(redirect) => {
-            emit_redirect(redirect, instructions, typing, engine, cp, locals, state)
+            emit_redirect(redirect, instructions,  analysis, cp, locals, state)
         }
         ExprKind::Pipeline(commands) => {
-            emit_pipeline(commands, instructions, typing, engine, cp, locals, state)
+            emit_pipeline(commands, instructions,  analysis, cp, locals, state)
         }
         ExprKind::Capture(capture) => {
-            emit_capture(capture, instructions, typing, engine, cp, locals, state);
+            emit_capture(capture, instructions,  analysis, cp, locals, state);
         }
         _ => unimplemented!(),
     }

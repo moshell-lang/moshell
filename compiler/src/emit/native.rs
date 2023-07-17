@@ -1,11 +1,10 @@
-use analyzer::engine::Engine;
 use analyzer::relations::NativeId;
 use analyzer::types::hir::TypedExpr;
-use analyzer::types::Typing;
 
+use crate::Analysis;
 use crate::bytecode::{Instructions, Opcode};
 use crate::constant_pool::ConstantPool;
-use crate::emit::{emit, EmissionState};
+use crate::emit::{EmissionState, emit};
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
 
@@ -21,14 +20,13 @@ pub(crate) fn emit_natives(
     callee: &TypedExpr,
     args: &[TypedExpr],
     instructions: &mut Instructions,
-    typing: &Typing,
-    engine: &Engine,
+    analysis: &Analysis,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
 ) {
     let last_used = state.use_values(true);
-    emit(callee, instructions, typing, engine, cp, locals, state);
+    emit(callee, instructions, analysis, cp, locals, state);
 
     let pushed_size = match native.0 {
         0 => {
@@ -41,8 +39,7 @@ pub(crate) fn emit_natives(
             emit(
                 args.get(0).expect("A binary expression takes two operands"),
                 instructions,
-                typing,
-                engine,
+                analysis,
                 cp,
                 locals,
                 state,
@@ -71,8 +68,7 @@ pub(crate) fn emit_natives(
             emit(
                 args.get(0).expect("A comparison takes two operands"),
                 instructions,
-                typing,
-                engine,
+                analysis,
                 cp,
                 locals,
                 state,
@@ -161,8 +157,7 @@ pub(crate) fn emit_natives(
                 args.get(0)
                     .expect("Cannot concatenate a string without a second string"),
                 instructions,
-                typing,
-                engine,
+                analysis,
                 cp,
                 locals,
                 state,

@@ -82,10 +82,10 @@ pub fn resolve_and_execute<'a>(
 
     let mut diagnostics = result.diagnostics;
     if diagnostics.is_empty() {
-        let (types, typing) = apply_types(&result.engine, &result.relations, &mut diagnostics);
+        let (types, _) = apply_types(&result.engine, &result.relations, &mut diagnostics);
         if diagnostics.is_empty() {
             let mut bytes = Vec::new();
-            compile(&types, &result.engine, &typing, &mut bytes).expect("write failed");
+            compile(&types, &result.engine, &result.relations, &mut bytes).expect("write failed");
 
             if config.disassemble {
                 display_bytecode(&bytes);

@@ -1,20 +1,23 @@
-use analyzer::relations::LocalId;
+use std::collections::HashMap;
+use analyzer::relations::{LocalId, RelationId, Symbol};
 
 use crate::r#type::ValueStackSize;
 
 /// contains the different index per local value allocated in the locals area
 pub struct LocalsLayout {
     /// the start indexes of bound Locals
-    indexes: Vec<Option<u32>>,
+    values_indexes: Vec<Option<u32>>,
+    /// the start indexes of bound external values
+    external_refs_indexes: HashMap<RelationId, u32>,
     /// the length in bytes
     len: u32,
 }
 
 impl LocalsLayout {
-    pub fn fixed_count(count: usize) -> Self {
-        let mut indexes = Vec::with_capacity(count);
-        indexes.resize(count, None);
-        Self { indexes, len: 0 }
+    pub fn new(var_count: usize) -> Self {
+        let var_indexes = vec![None; var_count];
+        let external_ref_indexes = HashMap::default();
+        Self { values_indexes: var_indexes, external_refs_indexes: external_ref_indexes, len: 0 }
     }
 
     /// Reserves the space in the locals depending on the stack size needed by the given type.
@@ -23,10 +26,18 @@ impl LocalsLayout {
     ///
     /// # Panics
     /// Panics if the local id is out of bounds.
-    pub fn set_space(&mut self, id: LocalId, stack_size: ValueStackSize) {
+    pub fn set_value_space(&mut self, id: LocalId, stack_size: ValueStackSize) {
         let size: u8 = stack_size.into();
-        self.indexes[id.0] = Some(self.len);
+        self.values_indexes[id.0] = Some(self.len);
         self.len += size as u32;
+    }
+
+    /// Reserves the space in the eternal's reference
+    ///
+    /// Different initialization orders will result in different indexes.
+    pub fn set_external_ref_space(&mut self, id: RelationId) {
+        self.external_refs_indexes.insert(id, self.len);
+        self.len += u8::from(ValueStackSize::Reference) as u32;
     }
 
     /// Get the starting byte index allocated for the given local.
@@ -35,11 +46,15 @@ impl LocalsLayout {
     ///
     /// # Panics
     /// Panics if te local id is out of bounds.
-    pub fn get_index(&self, id: LocalId) -> Option<u32> {
-        self.indexes[id.0]
+    pub fn get_index(&self, symbol: Symbol) -> Option<u32> {
+        match symbol {
+            Symbol::Local(LocalId(id)) => self.values_indexes[id],
+            Symbol::External(id) => self.external_refs_indexes.get(&id).copied(),
+        }
     }
 
     pub fn byte_count(&self) -> u32 {
         self.len
     }
 }
+

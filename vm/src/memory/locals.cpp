@@ -14,9 +14,9 @@ uint64_t Locals::get_ref(uint64_t at) const {
     return get<uint64_t>(at);
 }
 
-char *Locals::reference(size_t at, size_t count) {
-    check_capacity(at, count, "accessing");
-    return bytes + at;
+char &Locals::reference(size_t at) {
+    check_capacity(at, 1, "accessing");
+    return *(bytes + at);
 }
 
 void Locals::set_q_word(int64_t i, size_t at) {

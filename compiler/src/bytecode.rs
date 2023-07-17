@@ -2,7 +2,7 @@ use std::mem::size_of;
 
 use num_enum::TryFromPrimitive;
 
-use analyzer::relations::LocalId;
+use analyzer::relations::Symbol;
 
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
@@ -120,18 +120,20 @@ impl<'a> Instructions<'a> {
     }
 
     /// emits instructions to assign given local identifier with last operand stack value
-    /// assuming the local's size is the given `size` argument
+    /// assuming the value size is the given `size` argument
     pub fn emit_set_local(
         &mut self,
-        identifier: LocalId,
+        symbol: Symbol,
         size: ValueStackSize,
         layout: &LocalsLayout,
     ) {
         // push local reference onto the stack
-        self.emit_code(Opcode::PushLocalRef);
-        let index = layout.get_index(identifier).unwrap();
-        self.bytecode.emit_u32(index);
-        self.bytecode.emit_u16(u8::from(size) as u16);
+        self.emit_push_stack_ref(symbol, layout);
+
+        if let Symbol::External(_) = symbol {
+            // dereference the external reference
+            self.emit_code(Opcode::GetRef);
+        }
 
         // from given reference, set the value
         let opcode = match size {
@@ -144,20 +146,32 @@ impl<'a> Instructions<'a> {
         self.emit_code(opcode);
     }
 
+    /// pushes a reference to the given symbol on the stack's locals
+    pub fn emit_push_stack_ref(
+        &mut self,
+        symbol: Symbol,
+        layout: &LocalsLayout,
+    ) {
+        self.emit_code(Opcode::PushLocalRef);
+        let index = layout.get_index(symbol).unwrap();
+        self.bytecode.emit_u32(index);
+    }
+
     /// emits instructions to push to operand stack given local identifier
     /// assuming the local's size is the given `size` argument
     pub fn emit_get_local(
         &mut self,
-        identifier: LocalId,
+        symbol: Symbol,
         size: ValueStackSize,
         layout: &LocalsLayout,
     ) {
         // push local reference onto the stack
-        self.emit_code(Opcode::PushLocalRef);
-        let index = layout.get_index(identifier).unwrap();
-        self.bytecode.emit_u32(index);
-        self.bytecode.emit_u16(u8::from(size) as u16);
+        self.emit_push_stack_ref(symbol, layout);
 
+        if let Symbol::External(_) = symbol {
+            // dereference the external reference
+            self.emit_code(Opcode::GetRef);
+        }
         // from given reference, get the value
         let opcode = match size {
             ValueStackSize::Byte => Opcode::GetByte,

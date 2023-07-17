@@ -13,7 +13,7 @@ pub fn get_type_stack_size(tpe: TypeId) -> ValueStackSize {
 }
 
 /// Different sizes a value can have on the stack.
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, Debug, PartialEq)]
 pub enum ValueStackSize {
     Zero,
     Byte,

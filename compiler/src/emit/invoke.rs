@@ -1,13 +1,12 @@
-use analyzer::engine::Engine;
-use analyzer::relations::Definition;
-use analyzer::types::hir::{ExprKind, FunctionCall, Redir, Redirect, TypeId, TypedExpr};
-use analyzer::types::Typing;
-use ast::call::{RedirFd, RedirOp};
 use libc::{O_APPEND, O_CREAT, O_RDONLY, O_RDWR, O_WRONLY};
 
+use analyzer::relations::{Definition, Symbol};
+use analyzer::types::hir::{ExprKind, FunctionCall, Redir, Redirect, TypedExpr, TypeId};
+use ast::call::{RedirFd, RedirOp};
+
+use crate::{Analysis, emit};
 use crate::bytecode::{Instructions, Opcode};
 use crate::constant_pool::ConstantPool;
-use crate::emit;
 use crate::emit::EmissionState;
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
@@ -18,8 +17,7 @@ use crate::r#type::ValueStackSize;
 pub fn emit_already_forked(
     expr: &TypedExpr,
     instructions: &mut Instructions,
-    typing: &Typing,
-    engine: &Engine,
+    analysis: &Analysis,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -29,8 +27,7 @@ pub fn emit_already_forked(
             emit_process_call_self(
                 process_args,
                 instructions,
-                typing,
-                engine,
+                analysis,
                 cp,
                 locals,
                 state,
@@ -44,26 +41,25 @@ pub fn emit_already_forked(
                 emit_redir_self(
                     redirection,
                     instructions,
-                    typing,
-                    engine,
+                    analysis,
                     cp,
                     locals,
                     state,
                     Opcode::Redirect,
                 );
             }
-            emit_already_forked(expression, instructions, typing, engine, cp, locals, state);
+            emit_already_forked(expression, instructions, analysis, cp, locals, state);
         }
         ExprKind::Block(block) => {
             if let Some((last, block)) = block.split_last() {
                 for expr in block {
-                    emit(expr, instructions, typing, engine, cp, locals, state);
+                    emit(expr, instructions, analysis, cp, locals, state);
                 }
-                emit_already_forked(last, instructions, typing, engine, cp, locals, state);
+                emit_already_forked(last, instructions, analysis, cp, locals, state);
             }
         }
         _ => {
-            emit(expr, instructions, typing, engine, cp, locals, state);
+            emit(expr, instructions, analysis, cp, locals, state);
         }
     }
 }
@@ -88,14 +84,13 @@ pub fn emit_process_end(last: Option<&TypedExpr>, instructions: &mut Instruction
 pub fn emit_process_call(
     arguments: &Vec<TypedExpr>,
     instructions: &mut Instructions,
-    typing: &Typing,
-    engine: &Engine,
+    analysis: &Analysis,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
 ) {
     let jump_to_parent = instructions.emit_jump(Opcode::Fork);
-    emit_process_call_self(arguments, instructions, typing, engine, cp, locals, state);
+    emit_process_call_self(arguments, instructions, analysis, cp, locals, state);
     instructions.patch_jump(jump_to_parent);
     instructions.emit_code(Opcode::Wait);
 
@@ -110,15 +105,14 @@ pub fn emit_process_call(
 fn emit_process_call_self(
     arguments: &Vec<TypedExpr>,
     instructions: &mut Instructions,
-    typing: &Typing,
-    engine: &Engine,
+    analysis: &Analysis,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
 ) {
     let last_use = state.use_values(true);
     for arg in arguments {
-        emit(arg, instructions, typing, engine, cp, locals, state);
+        emit(arg, instructions, analysis, cp, locals, state);
     }
     state.use_values(last_use);
 
@@ -127,12 +121,11 @@ fn emit_process_call_self(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn emit_function_call(
+pub fn emit_function_invocation(
     function_call: &FunctionCall,
     return_type: TypeId,
     instructions: &mut Instructions,
-    typing: &Typing,
-    engine: &Engine,
+    analysis: &Analysis,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -140,19 +133,36 @@ pub fn emit_function_call(
     let last_used = state.use_values(true);
 
     for arg in &function_call.arguments {
-        emit(arg, instructions, typing, engine, cp, locals, state);
+        emit(arg, instructions, analysis, cp, locals, state);
     }
 
     state.use_values(last_used);
 
-    let name = match function_call.definition {
-        Definition::User(u) => engine.get_environment(u).unwrap().fqn.clone(),
-        Definition::Native(_) => todo!("native call to functions are not supported"),
+    let  env = match function_call.definition {
+        Definition::User(id) => {
+            analysis.engine.get_environment(id).unwrap()
+        }
+        Definition::Native(_) => {
+            todo!("native call to functions are not supported")
+        },
     };
+
+    for (_, capture_id) in env.variables.external_vars() {
+        let relation = analysis.relations.get_state(capture_id).expect("unknown relation");
+        let symbol = relation.expect_resolved("unresolved symbol");
+        if symbol.source == state.current_env_id {
+            // if its a local value hosted by the caller frame, create a reference
+            // to the value
+            instructions.emit_push_stack_ref(Symbol::Local(symbol.object_id), locals);
+        } else {
+            // if its a captured variable, get the reference's value from locals
+            instructions.emit_get_local(Symbol::External(capture_id), ValueStackSize::Reference, locals);
+        }
+    }
 
     let return_type_size = return_type.into();
 
-    let signature_idx = cp.insert_string(name);
+    let signature_idx = cp.insert_string(&env.fqn);
     instructions.emit_invoke(signature_idx);
 
     // The Invoke operation will push the return value onto the stack
@@ -166,20 +176,18 @@ pub fn emit_function_call(
 pub fn emit_redirect(
     redirect: &Redirect,
     instructions: &mut Instructions,
-    typing: &Typing,
-    engine: &Engine,
+    analysis: &Analysis,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
 ) {
     for redirection in &redirect.redirections {
-        emit_redir(redirection, instructions, typing, engine, cp, locals, state);
+        emit_redir(redirection, instructions, analysis, cp, locals, state);
     }
     emit(
         &redirect.expression,
         instructions,
-        typing,
-        engine,
+        analysis,
         cp,
         locals,
         state,
@@ -195,8 +203,7 @@ pub fn emit_redirect(
 fn emit_redir(
     redir: &Redir,
     instructions: &mut Instructions,
-    typing: &Typing,
-    engine: &Engine,
+    analysis: &Analysis,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -204,8 +211,7 @@ fn emit_redir(
     emit_redir_self(
         redir,
         instructions,
-        typing,
-        engine,
+        analysis,
         cp,
         locals,
         state,
@@ -217,8 +223,7 @@ fn emit_redir(
 fn emit_redir_self(
     redir: &Redir,
     instructions: &mut Instructions,
-    typing: &Typing,
-    engine: &Engine,
+    analysis: &Analysis,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -235,8 +240,7 @@ fn emit_redir_self(
     emit(
         &redir.operand,
         instructions,
-        typing,
-        engine,
+        analysis,
         cp,
         locals,
         state,
@@ -305,8 +309,7 @@ fn emit_redir_self(
 pub fn emit_pipeline(
     pipeline: &Vec<TypedExpr>,
     instructions: &mut Instructions,
-    typing: &Typing,
-    engine: &Engine,
+    analysis: &Analysis,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -331,7 +334,7 @@ pub fn emit_pipeline(
     instructions.emit_code(Opcode::Close); // Close the pipe's writing end, that we just bound to stdout
     instructions.emit_code(Opcode::Close); // Close the pipe's reading end, since we don't need it
 
-    emit_already_forked(first, instructions, typing, engine, cp, locals, state);
+    emit_already_forked(first, instructions, analysis, cp, locals, state);
     emit_process_end(Some(first), instructions);
 
     instructions.patch_jump(jump_to_parent);
@@ -372,7 +375,7 @@ pub fn emit_pipeline(
         instructions.emit_code(Opcode::Redirect);
         instructions.emit_code(Opcode::Close); // Close the pipe's reading end, since we just bound it to stdin
 
-        emit_already_forked(command, instructions, typing, engine, cp, locals, state);
+        emit_already_forked(command, instructions, analysis, cp, locals, state);
         emit_process_end(Some(command), instructions);
 
         instructions.patch_jump(jump_to_parent);
@@ -415,8 +418,7 @@ pub fn emit_pipeline(
 pub fn emit_capture(
     commands: &[TypedExpr],
     instructions: &mut Instructions,
-    typing: &Typing,
-    engine: &Engine,
+    analysis: &Analysis,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -430,9 +432,9 @@ pub fn emit_capture(
     let last = state.use_values(false);
     if let Some((last, commands)) = commands.split_last() {
         for command in commands {
-            emit(command, instructions, typing, engine, cp, locals, state);
+            emit(command, instructions, analysis, cp, locals, state);
         }
-        emit_already_forked(last, instructions, typing, engine, cp, locals, state);
+        emit_already_forked(last, instructions, analysis, cp, locals, state);
     }
     state.use_values(last);
     emit_process_end(commands.last(), instructions);

@@ -46,7 +46,11 @@ public:
      */
     uint64_t get_ref(size_t at) const;
 
-    char* reference(size_t at, size_t count);
+    /**
+     * returns a reference to given byte
+     * @throws LocalsOutOfBoundError if `at` is out of bound
+     * */
+    char& reference(size_t at);
 
     /**
      * @throws LocalsOutOfBoundError if `at` + the size of `int64_i` is out of bound
