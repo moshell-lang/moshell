@@ -50,12 +50,13 @@ impl<'a> Engine<'a> {
     }
 
     /// Attaches an environment to an origin if the origin does not already have an attached environment.
-    pub fn attach(&mut self, id: SourceId, env: Environment) {
+    pub fn attach(&mut self, id: SourceId, env: Environment) -> &mut Environment {
         debug_assert!(
             self.origins[id.0].2.is_none(),
             "Could not attach environment to a source that is already attached"
         );
         self.origins[id.0].2.replace(env);
+        self.origins[id.0].2.as_mut().unwrap()
     }
 
     ///Finds an environment by its fully qualified name.
@@ -74,6 +75,13 @@ impl<'a> Engine<'a> {
     /// Gets an environment by its identifier.
     pub fn get_environment(&self, id: SourceId) -> Option<&Environment> {
         self.origins.get(id.0).and_then(|(_, _, env)| env.as_ref())
+    }
+
+    /// Gets an environment by its identifier.
+    pub fn get_environment_mut(&mut self, id: SourceId) -> Option<&mut Environment> {
+        self.origins
+            .get_mut(id.0)
+            .and_then(|(_, _, env)| env.as_mut())
     }
 
     /// Gets the number of origins in the engine.

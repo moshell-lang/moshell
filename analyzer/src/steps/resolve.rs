@@ -46,7 +46,8 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         resolver.diagnostics
     }
 
-    /// Resolves symbols in an immediate environment.
+    /// Resolves symbols in an immediate environment,
+    /// where the capture environment is the last env of the given `env_stack`
     ///
     /// Nested environments, where [`Environment::has_strict_declaration_order`] is `true`, resolve
     /// differently from non-nested environments. In a nested environment, the symbols captures
@@ -58,8 +59,6 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
     pub fn resolve_captures(
         env_stack: &[(SourceId, &Environment)],
         relations: &mut Relations,
-        capture_env: &Environment,
-        capture_env_id: SourceId,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         fn diagnose_invalid_symbol_in_capture(
@@ -83,19 +82,21 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
             diagnose_invalid_symbol(var.ty, capture_env_id, name, &segments)
         }
 
+        let ((capture_env_id, capture_env), parents) =
+            env_stack.split_last().expect("env_stack is empty");
+
         'capture: for (name, relation_id) in capture_env.variables.external_vars() {
-            for (pos, (env_id, env)) in env_stack.iter().rev().enumerate() {
+            for (pos, (env_id, env)) in parents.iter().rev().enumerate() {
                 if let Some(local) = env.variables.find_reachable(name.root()) {
                     let relation = &mut relations[relation_id];
                     if name.is_qualified() {
+                        let erroneous_capture = parents.iter().rev().take(pos + 1).map(|(_, s)| *s);
                         let erroneous_capture =
-                            env_stack.iter().rev().take(pos + 1).map(|(_, s)| *s);
-                        let erroneous_capture =
-                            once(capture_env).chain(erroneous_capture).collect();
+                            once(*capture_env).chain(erroneous_capture).collect();
 
                         let diagnostic = diagnose_invalid_symbol_in_capture(
                             erroneous_capture,
-                            capture_env_id,
+                            *capture_env_id,
                             name,
                             local,
                             relation_id,
@@ -272,7 +273,9 @@ mod tests {
     use crate::importer::StaticImporter;
     use crate::imports::{Imports, ResolvedImport, SourceImports, UnresolvedImport};
     use crate::name::Name;
-    use crate::relations::{LocalId, Relation, RelationState, Relations, ResolvedSymbol, SourceId};
+    use crate::relations::{
+        LocalId, Relation, RelationId, RelationState, Relations, ResolvedSymbol, SourceId,
+    };
     use crate::resolve_all;
     use crate::steps::collect::SymbolCollector;
     use crate::steps::resolve::SymbolResolver;
@@ -300,6 +303,40 @@ mod tests {
                 SourceId(0),
                 ResolvedSymbol::new(SourceId(1), LocalId(0)),
             )]
+        )
+    }
+
+    #[test]
+    fn test_capture() {
+        let src = "\
+        fun foo() = {
+            var x = 1
+            fun foo1() = {
+                echo $x
+                fun foo2() = {
+                    echo $x
+                }
+            }
+        }
+        ";
+        let mut importer = StaticImporter::new(
+            [(Name::new("main"), Source::new(src, "main"))],
+            parse_trusted,
+        );
+        let res = resolve_all(Name::new("main"), &mut importer);
+        assert_eq!(res.diagnostics, vec![]);
+        assert_eq!(
+            res.relations.iter().collect::<Vec<_>>(),
+            vec![
+                (
+                    RelationId(0),
+                    &Relation::resolved(SourceId(2), ResolvedSymbol::new(SourceId(1), LocalId(0)))
+                ),
+                (
+                    RelationId(1),
+                    &Relation::resolved(SourceId(3), ResolvedSymbol::new(SourceId(1), LocalId(0)))
+                ),
+            ]
         )
     }
 
