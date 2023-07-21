@@ -522,7 +522,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             break;
         }
         case OP_SET_Q_WORD: {
-            uint64_t *value = (uint64_t *)operands.pop_reference();
+            int64_t *value = (int64_t *)operands.pop_reference();
             *value = operands.pop_int();
             break;
         }

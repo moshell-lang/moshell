@@ -80,7 +80,10 @@ fn display_function(cursor: &mut Cursor<&[u8]>, constants: &[String]) -> io::Res
                 let constant_idx = read!(cursor, u32) as usize;
                 let str = &constants[constant_idx];
                 let padding = (digits(constants.len() as u64) - digits(constant_idx as u64)) + 10;
-                print!("<constant #{constant_idx}> {:padding$} // <function> {str}", "")
+                print!(
+                    "<constant #{constant_idx}> {:padding$} // <function> {str}",
+                    ""
+                )
             }
             Opcode::Exec => print!("<arity {}>", read!(cursor, u8)),
             Opcode::Open => print!("<flags {:#x}>", read!(cursor, i32)),

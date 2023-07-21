@@ -1,8 +1,8 @@
-use analyzer::relations::{Definition, SourceId, Symbol};
-use analyzer::types::hir::{Declaration, ExprKind, TypedExpr, TypeId};
+use analyzer::engine::Engine;
+use analyzer::relations::{Definition, Relations, SourceId};
+use analyzer::types::hir::{Declaration, ExprKind, TypeId, TypedExpr, Var};
 use ast::value::LiteralValue;
 
-use crate::Analysis;
 use crate::bytecode::{Instructions, Opcode, Placeholder};
 use crate::constant_pool::ConstantPool;
 use crate::emit::invoke::{
@@ -11,6 +11,7 @@ use crate::emit::invoke::{
 use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
 use crate::emit::native::emit_natives;
 use crate::locals::LocalsLayout;
+use crate::Captures;
 
 mod invoke;
 mod jump;
@@ -36,13 +37,12 @@ pub struct EmissionState {
 }
 
 impl EmissionState {
-
     pub fn new(use_values: bool, current_env_id: SourceId) -> Self {
         Self {
             enclosing_loop_start: 0,
             enclosing_loop_end_placeholders: Vec::new(),
             use_values,
-            current_env_id
+            current_env_id,
         }
     }
 
@@ -52,7 +52,7 @@ impl EmissionState {
             enclosing_loop_start: loop_start,
             enclosing_loop_end_placeholders: Vec::new(),
             use_values: false,
-            current_env_id: env_id
+            current_env_id: env_id,
         }
     }
 
@@ -82,128 +82,213 @@ fn emit_literal(literal: &LiteralValue, instructions: &mut Instructions, cp: &mu
     };
 }
 
-fn emit_ref(
-    symbol: Symbol,
-    ref_type: TypeId,
-    instructions: &mut Instructions,
-    locals: &LocalsLayout,
-) {
+fn emit_ref(var: Var, ref_type: TypeId, instructions: &mut Instructions, locals: &LocalsLayout) {
     let size = ref_type.into();
-    instructions.emit_get_local(symbol, size, locals);
+    instructions.emit_get_local(var, size, locals);
 }
 
 #[allow(clippy::too_many_arguments)]
 fn emit_declaration(
     declaration: &Declaration,
     instructions: &mut Instructions,
-    analysis: &Analysis,
+    engine: &Engine,
+    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
+    captures: &mut Captures,
 ) {
     if let Some(value) = &declaration.value {
         locals.set_value_space(declaration.identifier, value.ty.into());
 
         emit_assignment(
             value,
-            Symbol::Local(declaration.identifier),
+            Var::Local(declaration.identifier),
             instructions,
-            analysis,
+            engine,
+            relations,
             cp,
             locals,
             state,
+            captures,
         )
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn emit_block(
     exprs: &[TypedExpr],
     instructions: &mut Instructions,
-    analysis: &Analysis,
+    engine: &Engine,
+    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
+    captures: &mut Captures,
 ) {
     if let Some((last_expr, exprs)) = exprs.split_last() {
         let last_used = state.use_values(false);
         for expr in exprs {
-            emit(expr, instructions, analysis, cp, locals, state);
+            emit(
+                expr,
+                instructions,
+                engine,
+                relations,
+                cp,
+                locals,
+                state,
+                captures,
+            );
         }
         state.use_values(last_used);
-        emit(last_expr, instructions, analysis, cp, locals, state);
+        emit(
+            last_expr,
+            instructions,
+            engine,
+            relations,
+            cp,
+            locals,
+            state,
+            captures,
+        );
     }
 }
 
 #[allow(clippy::too_many_arguments)]
 fn emit_assignment(
     value: &TypedExpr,
-    identifier: Symbol,
+    var: Var,
     instructions: &mut Instructions,
-    analysis: &Analysis,
+    engine: &Engine,
+    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
+    captures: &mut Captures,
 ) {
     let last = state.use_values(true);
 
-    emit(value, instructions, analysis, cp, locals, state);
+    emit(
+        value,
+        instructions,
+        engine,
+        relations,
+        cp,
+        locals,
+        state,
+        captures,
+    );
     state.use_values(last);
 
     let returned_value_type = value.ty.into();
 
-    instructions.emit_set_local(identifier, returned_value_type, locals)
+    instructions.emit_set_local(var, returned_value_type, locals)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn emit_return(
     value: &Option<Box<TypedExpr>>,
     instructions: &mut Instructions,
-    analysis: &Analysis,
+    engine: &Engine,
+    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
+    captures: &mut Captures,
 ) {
     if let Some(value) = &value {
         let last_use = state.use_values(true);
 
-        emit(value, instructions, analysis, cp, locals, state);
+        emit(
+            value,
+            instructions,
+            engine,
+            relations,
+            cp,
+            locals,
+            state,
+            captures,
+        );
 
         state.use_values(last_use);
     }
     instructions.emit_code(Opcode::Return);
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn emit(
     expr: &TypedExpr,
     instructions: &mut Instructions,
-    analysis: &Analysis,
+    engine: &Engine,
+    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
+    captures: &mut Captures,
 ) {
     match &expr.kind {
-        ExprKind::Declare(d) => {
-            emit_declaration(d, instructions, analysis, cp, locals, state)
-        }
-        ExprKind::Block(exprs) => {
-            emit_block(exprs, instructions,  analysis, cp, locals, state)
-        }
-        ExprKind::Conditional(c) => {
-            emit_conditional(c, instructions, analysis,cp, locals, state)
-        }
-        ExprKind::ConditionalLoop(l) => {
-            emit_loop(l, instructions,  analysis,cp, locals, state)
-        }
+        ExprKind::Declare(d) => emit_declaration(
+            d,
+            instructions,
+            engine,
+            relations,
+            cp,
+            locals,
+            state,
+            captures,
+        ),
+        ExprKind::Block(exprs) => emit_block(
+            exprs,
+            instructions,
+            engine,
+            relations,
+            cp,
+            locals,
+            state,
+            captures,
+        ),
+        ExprKind::Conditional(c) => emit_conditional(
+            c,
+            instructions,
+            engine,
+            relations,
+            cp,
+            locals,
+            state,
+            captures,
+        ),
+        ExprKind::ConditionalLoop(l) => emit_loop(
+            l,
+            instructions,
+            engine,
+            relations,
+            cp,
+            locals,
+            state,
+            captures,
+        ),
         ExprKind::Continue => emit_continue(instructions, state),
         ExprKind::Break => emit_break(instructions, state),
-        ExprKind::Return(val) => emit_return(val, instructions,  analysis, cp, locals, state),
+        ExprKind::Return(val) => emit_return(
+            val,
+            instructions,
+            engine,
+            relations,
+            cp,
+            locals,
+            state,
+            captures,
+        ),
         ExprKind::Assign(ass) => emit_assignment(
             &ass.rhs,
             ass.identifier,
             instructions,
-            analysis,
+            engine,
+            relations,
             cp,
             locals,
             state,
+            captures,
         ),
 
         ExprKind::Reference(r) => {
@@ -217,11 +302,28 @@ pub fn emit(
             }
         }
         ExprKind::FunctionCall(fc) => {
-            emit_function_invocation(fc, expr.ty, instructions,  analysis, cp, locals, state)
+            emit_function_invocation(
+                fc,
+                expr.ty,
+                instructions,
+                engine,
+                relations,
+                cp,
+                locals,
+                state,
+                captures,
+            );
         }
-        ExprKind::ProcessCall(args) => {
-            emit_process_call(args, instructions,  analysis, cp, locals, state)
-        }
+        ExprKind::ProcessCall(args) => emit_process_call(
+            args,
+            instructions,
+            engine,
+            relations,
+            cp,
+            locals,
+            state,
+            captures,
+        ),
         ExprKind::MethodCall(method) => match method.definition {
             Definition::Native(id) => {
                 emit_natives(
@@ -229,22 +331,47 @@ pub fn emit(
                     &method.callee,
                     &method.arguments,
                     instructions,
-                    analysis,
+                    engine,
+                    relations,
                     cp,
                     locals,
                     state,
+                    captures,
                 );
             }
             Definition::User(_) => todo!("invocation of user defined methods"),
         },
-        ExprKind::Redirect(redirect) => {
-            emit_redirect(redirect, instructions,  analysis, cp, locals, state)
-        }
-        ExprKind::Pipeline(commands) => {
-            emit_pipeline(commands, instructions,  analysis, cp, locals, state)
-        }
+        ExprKind::Redirect(redirect) => emit_redirect(
+            redirect,
+            instructions,
+            engine,
+            relations,
+            cp,
+            locals,
+            state,
+            captures,
+        ),
+        ExprKind::Pipeline(commands) => emit_pipeline(
+            commands,
+            instructions,
+            engine,
+            relations,
+            cp,
+            locals,
+            state,
+            captures,
+        ),
         ExprKind::Capture(capture) => {
-            emit_capture(capture, instructions,  analysis, cp, locals, state);
+            emit_capture(
+                capture,
+                instructions,
+                engine,
+                relations,
+                cp,
+                locals,
+                state,
+                captures,
+            );
         }
         _ => unimplemented!(),
     }

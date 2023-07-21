@@ -1,5 +1,5 @@
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use indexmap::map::Entry;
+use indexmap::IndexMap;
 use std::fmt::{Display, Formatter};
 
 use crate::name::Name;
@@ -31,7 +31,7 @@ pub struct Variables {
 
     /// Relations with external variables.
     /// The key is the variable Names, where value is the relation with another external environment's [Locals]
-    externals: HashMap<Name, RelationId>,
+    externals: IndexMap<Name, RelationId>,
 }
 
 impl Variables {
@@ -79,6 +79,15 @@ impl Variables {
     /// or [`Variables::find_exported`] to lookup an exported variable after the collection phase.
     pub fn all_vars(&self) -> &[Variable] {
         &self.locals.vars
+    }
+
+    /// returns an iterator over all variables, with their local identifier
+    pub fn iter(&self) -> impl Iterator<Item = (LocalId, &Variable)> {
+        self.locals
+            .vars
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (LocalId(i), v))
     }
 
     /// Iterates over all the exported variables, local to the environment.

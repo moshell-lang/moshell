@@ -1,5 +1,8 @@
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use analyzer::relations::{LocalId, RelationId, Symbol};
+
+use analyzer::relations::{LocalId, ResolvedSymbol};
+use analyzer::types::hir::Var;
 
 use crate::r#type::ValueStackSize;
 
@@ -8,7 +11,7 @@ pub struct LocalsLayout {
     /// the start indexes of bound Locals
     values_indexes: Vec<Option<u32>>,
     /// the start indexes of bound external values
-    external_refs_indexes: HashMap<RelationId, u32>,
+    external_refs_indexes: HashMap<ResolvedSymbol, u32>,
     /// the length in bytes
     len: u32,
 }
@@ -17,7 +20,11 @@ impl LocalsLayout {
     pub fn new(var_count: usize) -> Self {
         let var_indexes = vec![None; var_count];
         let external_ref_indexes = HashMap::default();
-        Self { values_indexes: var_indexes, external_refs_indexes: external_ref_indexes, len: 0 }
+        Self {
+            values_indexes: var_indexes,
+            external_refs_indexes: external_ref_indexes,
+            len: 0,
+        }
     }
 
     /// Reserves the space in the locals depending on the stack size needed by the given type.
@@ -35,9 +42,14 @@ impl LocalsLayout {
     /// Reserves the space in the eternal's reference
     ///
     /// Different initialization orders will result in different indexes.
-    pub fn set_external_ref_space(&mut self, id: RelationId) {
-        self.external_refs_indexes.insert(id, self.len);
-        self.len += u8::from(ValueStackSize::Reference) as u32;
+    pub fn set_external_ref_space(&mut self, symbol: ResolvedSymbol) {
+        match self.external_refs_indexes.entry(symbol) {
+            Entry::Occupied(_) => {}
+            Entry::Vacant(v) => {
+                v.insert(self.len);
+                self.len += u8::from(ValueStackSize::Reference) as u32;
+            }
+        }
     }
 
     /// Get the starting byte index allocated for the given local.
@@ -46,10 +58,10 @@ impl LocalsLayout {
     ///
     /// # Panics
     /// Panics if te local id is out of bounds.
-    pub fn get_index(&self, symbol: Symbol) -> Option<u32> {
-        match symbol {
-            Symbol::Local(LocalId(id)) => self.values_indexes[id],
-            Symbol::External(id) => self.external_refs_indexes.get(&id).copied(),
+    pub fn get_index(&self, var: Var) -> Option<u32> {
+        match var {
+            Var::Local(LocalId(id)) => self.values_indexes[id],
+            Var::Capture(symbol) => self.external_refs_indexes.get(&symbol).copied(),
         }
     }
 
@@ -57,4 +69,3 @@ impl LocalsLayout {
         self.len
     }
 }
-

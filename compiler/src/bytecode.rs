@@ -2,7 +2,7 @@ use std::mem::size_of;
 
 use num_enum::TryFromPrimitive;
 
-use analyzer::relations::Symbol;
+use analyzer::types::hir::Var;
 
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
@@ -121,16 +121,11 @@ impl<'a> Instructions<'a> {
 
     /// emits instructions to assign given local identifier with last operand stack value
     /// assuming the value size is the given `size` argument
-    pub fn emit_set_local(
-        &mut self,
-        symbol: Symbol,
-        size: ValueStackSize,
-        layout: &LocalsLayout,
-    ) {
+    pub fn emit_set_local(&mut self, var: Var, size: ValueStackSize, layout: &LocalsLayout) {
         // push local reference onto the stack
-        self.emit_push_stack_ref(symbol, layout);
+        self.emit_push_stack_ref(var, layout);
 
-        if let Symbol::External(_) = symbol {
+        if let Var::Capture(_) = var {
             // dereference the external reference
             self.emit_code(Opcode::GetRef);
         }
@@ -147,28 +142,19 @@ impl<'a> Instructions<'a> {
     }
 
     /// pushes a reference to the given symbol on the stack's locals
-    pub fn emit_push_stack_ref(
-        &mut self,
-        symbol: Symbol,
-        layout: &LocalsLayout,
-    ) {
+    pub fn emit_push_stack_ref(&mut self, var: Var, layout: &LocalsLayout) {
         self.emit_code(Opcode::PushLocalRef);
-        let index = layout.get_index(symbol).unwrap();
+        let index = layout.get_index(var).unwrap();
         self.bytecode.emit_u32(index);
     }
 
     /// emits instructions to push to operand stack given local identifier
     /// assuming the local's size is the given `size` argument
-    pub fn emit_get_local(
-        &mut self,
-        symbol: Symbol,
-        size: ValueStackSize,
-        layout: &LocalsLayout,
-    ) {
+    pub fn emit_get_local(&mut self, var: Var, size: ValueStackSize, layout: &LocalsLayout) {
         // push local reference onto the stack
-        self.emit_push_stack_ref(symbol, layout);
+        self.emit_push_stack_ref(var, layout);
 
-        if let Symbol::External(_) = symbol {
+        if let Var::Capture(_) = var {
             // dereference the external reference
             self.emit_code(Opcode::GetRef);
         }

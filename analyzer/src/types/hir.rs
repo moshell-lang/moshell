@@ -2,12 +2,18 @@ use ast::call::{RedirFd, RedirOp};
 use ast::value::LiteralValue;
 use context::source::{SourceSegment, SourceSegmentHolder};
 
-use crate::relations::{Definition, LocalId, ObjectId, Symbol};
+use crate::relations::{Definition, LocalId, ObjectId, ResolvedSymbol};
 use crate::types::{ERROR, NOTHING};
 
 /// A type identifier in a [`Typing`] instance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TypeId(pub ObjectId);
+
+#[derive(Clone, Copy, Debug, PartialEq, Hash, Eq)]
+pub enum Var {
+    Local(LocalId),
+    Capture(ResolvedSymbol),
+}
 
 impl TypeId {
     pub fn is_nothing(self) -> bool {
@@ -43,7 +49,7 @@ impl SourceSegmentHolder for TypedExpr {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Assignment {
-    pub identifier: Symbol,
+    pub identifier: Var,
     pub rhs: Box<TypedExpr>,
 }
 
@@ -104,7 +110,7 @@ pub enum ExprKind {
     Literal(LiteralValue),
     Assign(Assignment),
     Declare(Declaration),
-    Reference(Symbol),
+    Reference(Var),
     Block(Vec<TypedExpr>),
     Redirect(Redirect),
     Conditional(Conditional),

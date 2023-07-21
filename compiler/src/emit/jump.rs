@@ -1,28 +1,35 @@
+use analyzer::engine::Engine;
+use analyzer::relations::Relations;
 use analyzer::types::hir::{Conditional, Loop};
 
-use crate::Analysis;
 use crate::bytecode::{Instructions, Opcode};
 use crate::constant_pool::ConstantPool;
-use crate::emit::{EmissionState, emit};
+use crate::emit::{emit, EmissionState};
 use crate::locals::LocalsLayout;
+use crate::Captures;
 
+#[allow(clippy::too_many_arguments)]
 pub fn emit_conditional(
     conditional: &Conditional,
     instructions: &mut Instructions,
-    analysis: &Analysis,
+    engine: &Engine,
+    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
+    captures: &mut Captures,
 ) {
     // emit condition
     let last_uses = state.use_values(true);
     emit(
         &conditional.condition,
         instructions,
-        analysis,
+        engine,
+        relations,
         cp,
         locals,
         state,
+        captures,
     );
     state.use_values(last_uses);
 
@@ -32,10 +39,12 @@ pub fn emit_conditional(
     emit(
         &conditional.then,
         instructions,
-        analysis,
+        engine,
+        relations,
         cp,
         locals,
         state,
+        captures,
     );
 
     // Go to END.
@@ -44,20 +53,32 @@ pub fn emit_conditional(
     // ELSE:
     instructions.patch_jump(jump_to_else);
     if let Some(otherwise) = &conditional.otherwise {
-        emit(otherwise, instructions, analysis, cp, locals, state);
+        emit(
+            otherwise,
+            instructions,
+            engine,
+            relations,
+            cp,
+            locals,
+            state,
+            captures,
+        );
     }
 
     // END:
     instructions.patch_jump(jump_to_end);
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn emit_loop(
     lp: &Loop,
     instructions: &mut Instructions,
-    analysis: &Analysis,
+    engine: &Engine,
+    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
+    captures: &mut Captures,
 ) {
     // START:
     let loop_start = instructions.current_ip();
@@ -69,7 +90,16 @@ pub fn emit_loop(
         let last_used = state.use_values(true);
 
         // Evaluate the condition.
-        emit(condition, instructions, analysis, cp, locals, state);
+        emit(
+            condition,
+            instructions,
+            engine,
+            relations,
+            cp,
+            locals,
+            state,
+            captures,
+        );
         state.use_values(last_used);
 
         // If the condition is false, go to END.
@@ -83,10 +113,12 @@ pub fn emit_loop(
     emit(
         &lp.body,
         instructions,
-        analysis,
+        engine,
+        relations,
         cp,
         locals,
         &mut loop_state,
+        captures,
     );
     // Go to START.
     instructions.jump_back_to(loop_start);
