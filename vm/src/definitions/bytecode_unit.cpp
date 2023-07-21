@@ -1,5 +1,5 @@
-#include "byte_reader.h"
 #include "bytecode_unit.h"
+#include "byte_reader.h"
 #include "conversions.h"
 #include "definitions/function_definition.h"
 #include "memory/constant_pool.h"

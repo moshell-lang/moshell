@@ -10,7 +10,7 @@ int64_t Locals::get_q_word(size_t at) const {
 char Locals::get_byte(size_t at) const {
     return get<char>(at);
 }
-uint64_t Locals::get_ref(uint64_t at) const {
+uint64_t Locals::get_ref(size_t at) const {
     return get<uint64_t>(at);
 }
 
