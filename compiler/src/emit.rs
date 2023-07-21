@@ -1,6 +1,6 @@
 use analyzer::engine::Engine;
-use analyzer::relations::{Definition, Relations, SourceId};
-use analyzer::types::hir::{Declaration, ExprKind, TypeId, TypedExpr, Var};
+use analyzer::relations::{Definition, SourceId};
+use analyzer::types::hir::{Declaration, ExprKind, TypedExpr, Var};
 use ast::value::LiteralValue;
 
 use crate::bytecode::{Instructions, Opcode, Placeholder};
@@ -82,17 +82,11 @@ fn emit_literal(literal: &LiteralValue, instructions: &mut Instructions, cp: &mu
     };
 }
 
-fn emit_ref(var: Var, ref_type: TypeId, instructions: &mut Instructions, locals: &LocalsLayout) {
-    let size = ref_type.into();
-    instructions.emit_get_local(var, size, locals);
-}
-
 #[allow(clippy::too_many_arguments)]
 fn emit_declaration(
     declaration: &Declaration,
     instructions: &mut Instructions,
     engine: &Engine,
-    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -106,7 +100,6 @@ fn emit_declaration(
             Var::Local(declaration.identifier),
             instructions,
             engine,
-            relations,
             cp,
             locals,
             state,
@@ -120,7 +113,6 @@ fn emit_block(
     exprs: &[TypedExpr],
     instructions: &mut Instructions,
     engine: &Engine,
-    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -129,28 +121,10 @@ fn emit_block(
     if let Some((last_expr, exprs)) = exprs.split_last() {
         let last_used = state.use_values(false);
         for expr in exprs {
-            emit(
-                expr,
-                instructions,
-                engine,
-                relations,
-                cp,
-                locals,
-                state,
-                captures,
-            );
+            emit(expr, instructions, engine, cp, locals, state, captures);
         }
         state.use_values(last_used);
-        emit(
-            last_expr,
-            instructions,
-            engine,
-            relations,
-            cp,
-            locals,
-            state,
-            captures,
-        );
+        emit(last_expr, instructions, engine, cp, locals, state, captures);
     }
 }
 
@@ -160,7 +134,6 @@ fn emit_assignment(
     var: Var,
     instructions: &mut Instructions,
     engine: &Engine,
-    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -168,16 +141,7 @@ fn emit_assignment(
 ) {
     let last = state.use_values(true);
 
-    emit(
-        value,
-        instructions,
-        engine,
-        relations,
-        cp,
-        locals,
-        state,
-        captures,
-    );
+    emit(value, instructions, engine, cp, locals, state, captures);
     state.use_values(last);
 
     let returned_value_type = value.ty.into();
@@ -190,7 +154,6 @@ fn emit_return(
     value: &Option<Box<TypedExpr>>,
     instructions: &mut Instructions,
     engine: &Engine,
-    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -199,16 +162,7 @@ fn emit_return(
     if let Some(value) = &value {
         let last_use = state.use_values(true);
 
-        emit(
-            value,
-            instructions,
-            engine,
-            relations,
-            cp,
-            locals,
-            state,
-            captures,
-        );
+        emit(value, instructions, engine, cp, locals, state, captures);
 
         state.use_values(last_use);
     }
@@ -220,80 +174,43 @@ pub fn emit(
     expr: &TypedExpr,
     instructions: &mut Instructions,
     engine: &Engine,
-    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
     captures: &mut Captures,
 ) {
     match &expr.kind {
-        ExprKind::Declare(d) => emit_declaration(
-            d,
-            instructions,
-            engine,
-            relations,
-            cp,
-            locals,
-            state,
-            captures,
-        ),
-        ExprKind::Block(exprs) => emit_block(
-            exprs,
-            instructions,
-            engine,
-            relations,
-            cp,
-            locals,
-            state,
-            captures,
-        ),
-        ExprKind::Conditional(c) => emit_conditional(
-            c,
-            instructions,
-            engine,
-            relations,
-            cp,
-            locals,
-            state,
-            captures,
-        ),
-        ExprKind::ConditionalLoop(l) => emit_loop(
-            l,
-            instructions,
-            engine,
-            relations,
-            cp,
-            locals,
-            state,
-            captures,
-        ),
+        ExprKind::Declare(d) => {
+            emit_declaration(d, instructions, engine, cp, locals, state, captures)
+        }
+        ExprKind::Block(exprs) => {
+            emit_block(exprs, instructions, engine, cp, locals, state, captures)
+        }
+        ExprKind::Conditional(c) => {
+            emit_conditional(c, instructions, engine, cp, locals, state, captures)
+        }
+        ExprKind::ConditionalLoop(l) => {
+            emit_loop(l, instructions, engine, cp, locals, state, captures)
+        }
         ExprKind::Continue => emit_continue(instructions, state),
         ExprKind::Break => emit_break(instructions, state),
-        ExprKind::Return(val) => emit_return(
-            val,
-            instructions,
-            engine,
-            relations,
-            cp,
-            locals,
-            state,
-            captures,
-        ),
+        ExprKind::Return(val) => {
+            emit_return(val, instructions, engine, cp, locals, state, captures)
+        }
         ExprKind::Assign(ass) => emit_assignment(
             &ass.rhs,
             ass.identifier,
             instructions,
             engine,
-            relations,
             cp,
             locals,
             state,
             captures,
         ),
 
-        ExprKind::Reference(r) => {
+        ExprKind::Reference(var) => {
             if state.use_values {
-                emit_ref(*r, expr.ty, instructions, locals);
+                instructions.emit_get_local(*var, expr.ty.into(), locals)
             }
         }
         ExprKind::Literal(literal) => {
@@ -307,23 +224,15 @@ pub fn emit(
                 expr.ty,
                 instructions,
                 engine,
-                relations,
                 cp,
                 locals,
                 state,
                 captures,
             );
         }
-        ExprKind::ProcessCall(args) => emit_process_call(
-            args,
-            instructions,
-            engine,
-            relations,
-            cp,
-            locals,
-            state,
-            captures,
-        ),
+        ExprKind::ProcessCall(args) => {
+            emit_process_call(args, instructions, engine, cp, locals, state, captures)
+        }
         ExprKind::MethodCall(method) => match method.definition {
             Definition::Native(id) => {
                 emit_natives(
@@ -332,7 +241,6 @@ pub fn emit(
                     &method.arguments,
                     instructions,
                     engine,
-                    relations,
                     cp,
                     locals,
                     state,
@@ -341,37 +249,14 @@ pub fn emit(
             }
             Definition::User(_) => todo!("invocation of user defined methods"),
         },
-        ExprKind::Redirect(redirect) => emit_redirect(
-            redirect,
-            instructions,
-            engine,
-            relations,
-            cp,
-            locals,
-            state,
-            captures,
-        ),
-        ExprKind::Pipeline(commands) => emit_pipeline(
-            commands,
-            instructions,
-            engine,
-            relations,
-            cp,
-            locals,
-            state,
-            captures,
-        ),
+        ExprKind::Redirect(redirect) => {
+            emit_redirect(redirect, instructions, engine, cp, locals, state, captures)
+        }
+        ExprKind::Pipeline(commands) => {
+            emit_pipeline(commands, instructions, engine, cp, locals, state, captures)
+        }
         ExprKind::Capture(capture) => {
-            emit_capture(
-                capture,
-                instructions,
-                engine,
-                relations,
-                cp,
-                locals,
-                state,
-                captures,
-            );
+            emit_capture(capture, instructions, engine, cp, locals, state, captures);
         }
         _ => unimplemented!(),
     }

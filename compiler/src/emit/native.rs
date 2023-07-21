@@ -1,5 +1,5 @@
 use analyzer::engine::Engine;
-use analyzer::relations::{NativeId, Relations};
+use analyzer::relations::NativeId;
 use analyzer::types::hir::TypedExpr;
 
 use crate::bytecode::{Instructions, Opcode};
@@ -22,23 +22,13 @@ pub(crate) fn emit_natives(
     args: &[TypedExpr],
     instructions: &mut Instructions,
     engine: &Engine,
-    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
     captures: &mut Captures,
 ) {
     let last_used = state.use_values(true);
-    emit(
-        callee,
-        instructions,
-        engine,
-        relations,
-        cp,
-        locals,
-        state,
-        captures,
-    );
+    emit(callee, instructions, engine, cp, locals, state, captures);
 
     let pushed_size = match native.0 {
         0 => {
@@ -52,7 +42,6 @@ pub(crate) fn emit_natives(
                 args.get(0).expect("A binary expression takes two operands"),
                 instructions,
                 engine,
-                relations,
                 cp,
                 locals,
                 state,
@@ -83,7 +72,6 @@ pub(crate) fn emit_natives(
                 args.get(0).expect("A comparison takes two operands"),
                 instructions,
                 engine,
-                relations,
                 cp,
                 locals,
                 state,
@@ -174,7 +162,6 @@ pub(crate) fn emit_natives(
                     .expect("Cannot concatenate a string without a second string"),
                 instructions,
                 engine,
-                relations,
                 cp,
                 locals,
                 state,

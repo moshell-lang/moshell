@@ -1,5 +1,4 @@
 use analyzer::engine::Engine;
-use analyzer::relations::Relations;
 use analyzer::types::hir::{Conditional, Loop};
 
 use crate::bytecode::{Instructions, Opcode};
@@ -13,7 +12,6 @@ pub fn emit_conditional(
     conditional: &Conditional,
     instructions: &mut Instructions,
     engine: &Engine,
-    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -25,7 +23,6 @@ pub fn emit_conditional(
         &conditional.condition,
         instructions,
         engine,
-        relations,
         cp,
         locals,
         state,
@@ -40,7 +37,6 @@ pub fn emit_conditional(
         &conditional.then,
         instructions,
         engine,
-        relations,
         cp,
         locals,
         state,
@@ -53,16 +49,7 @@ pub fn emit_conditional(
     // ELSE:
     instructions.patch_jump(jump_to_else);
     if let Some(otherwise) = &conditional.otherwise {
-        emit(
-            otherwise,
-            instructions,
-            engine,
-            relations,
-            cp,
-            locals,
-            state,
-            captures,
-        );
+        emit(otherwise, instructions, engine, cp, locals, state, captures);
     }
 
     // END:
@@ -74,7 +61,6 @@ pub fn emit_loop(
     lp: &Loop,
     instructions: &mut Instructions,
     engine: &Engine,
-    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -90,16 +76,7 @@ pub fn emit_loop(
         let last_used = state.use_values(true);
 
         // Evaluate the condition.
-        emit(
-            condition,
-            instructions,
-            engine,
-            relations,
-            cp,
-            locals,
-            state,
-            captures,
-        );
+        emit(condition, instructions, engine, cp, locals, state, captures);
         state.use_values(last_used);
 
         // If the condition is false, go to END.
@@ -114,7 +91,6 @@ pub fn emit_loop(
         &lp.body,
         instructions,
         engine,
-        relations,
         cp,
         locals,
         &mut loop_state,

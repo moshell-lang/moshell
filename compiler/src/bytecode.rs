@@ -51,11 +51,6 @@ impl Bytecode {
         self.bytes.extend(value.to_be_bytes());
     }
 
-    /// emits an unsigned 16 bits integer
-    pub fn emit_u16(&mut self, value: u16) {
-        self.bytes.extend(value.to_be_bytes());
-    }
-
     pub fn emit_i32(&mut self, value: i32) {
         self.bytes.extend(value.to_be_bytes());
     }

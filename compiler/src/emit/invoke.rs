@@ -1,7 +1,7 @@
 use libc::{O_APPEND, O_CREAT, O_RDONLY, O_RDWR, O_WRONLY};
 
 use analyzer::engine::Engine;
-use analyzer::relations::{Definition, Relations};
+use analyzer::relations::Definition;
 use analyzer::types::hir::{ExprKind, FunctionCall, Redir, Redirect, TypeId, TypedExpr, Var};
 use ast::call::{RedirFd, RedirOp};
 
@@ -20,7 +20,6 @@ pub fn emit_already_forked(
     expr: &TypedExpr,
     instructions: &mut Instructions,
     engine: &Engine,
-    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -32,7 +31,6 @@ pub fn emit_already_forked(
                 process_args,
                 instructions,
                 engine,
-                relations,
                 cp,
                 locals,
                 state,
@@ -48,7 +46,6 @@ pub fn emit_already_forked(
                     redirection,
                     instructions,
                     engine,
-                    relations,
                     cp,
                     locals,
                     state,
@@ -60,7 +57,6 @@ pub fn emit_already_forked(
                 expression,
                 instructions,
                 engine,
-                relations,
                 cp,
                 locals,
                 state,
@@ -70,40 +66,13 @@ pub fn emit_already_forked(
         ExprKind::Block(block) => {
             if let Some((last, block)) = block.split_last() {
                 for expr in block {
-                    emit(
-                        expr,
-                        instructions,
-                        engine,
-                        relations,
-                        cp,
-                        locals,
-                        state,
-                        captures,
-                    );
+                    emit(expr, instructions, engine, cp, locals, state, captures);
                 }
-                emit_already_forked(
-                    last,
-                    instructions,
-                    engine,
-                    relations,
-                    cp,
-                    locals,
-                    state,
-                    captures,
-                );
+                emit_already_forked(last, instructions, engine, cp, locals, state, captures);
             }
         }
         _ => {
-            emit(
-                expr,
-                instructions,
-                engine,
-                relations,
-                cp,
-                locals,
-                state,
-                captures,
-            );
+            emit(expr, instructions, engine, cp, locals, state, captures);
         }
     }
 }
@@ -130,23 +99,13 @@ pub fn emit_process_call(
     arguments: &Vec<TypedExpr>,
     instructions: &mut Instructions,
     engine: &Engine,
-    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
     captures: &mut Captures,
 ) {
     let jump_to_parent = instructions.emit_jump(Opcode::Fork);
-    emit_process_call_self(
-        arguments,
-        instructions,
-        engine,
-        relations,
-        cp,
-        locals,
-        state,
-        captures,
-    );
+    emit_process_call_self(arguments, instructions, engine, cp, locals, state, captures);
     instructions.patch_jump(jump_to_parent);
     instructions.emit_code(Opcode::Wait);
 
@@ -163,7 +122,6 @@ fn emit_process_call_self(
     arguments: &Vec<TypedExpr>,
     instructions: &mut Instructions,
     engine: &Engine,
-    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -171,16 +129,7 @@ fn emit_process_call_self(
 ) {
     let last_use = state.use_values(true);
     for arg in arguments {
-        emit(
-            arg,
-            instructions,
-            engine,
-            relations,
-            cp,
-            locals,
-            state,
-            captures,
-        );
+        emit(arg, instructions, engine, cp, locals, state, captures);
     }
     state.use_values(last_use);
 
@@ -194,7 +143,6 @@ pub fn emit_function_invocation(
     return_type: TypeId,
     instructions: &mut Instructions,
     engine: &Engine,
-    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -203,16 +151,7 @@ pub fn emit_function_invocation(
     let last_used = state.use_values(true);
 
     for arg in &function_call.arguments {
-        emit(
-            arg,
-            instructions,
-            engine,
-            relations,
-            cp,
-            locals,
-            state,
-            captures,
-        );
+        emit(arg, instructions, engine, cp, locals, state, captures);
     }
 
     state.use_values(last_used);
@@ -260,7 +199,6 @@ pub fn emit_redirect(
     redirect: &Redirect,
     instructions: &mut Instructions,
     engine: &Engine,
-    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -271,7 +209,6 @@ pub fn emit_redirect(
             redirection,
             instructions,
             engine,
-            relations,
             cp,
             locals,
             state,
@@ -282,7 +219,6 @@ pub fn emit_redirect(
         &redirect.expression,
         instructions,
         engine,
-        relations,
         cp,
         locals,
         state,
@@ -301,7 +237,6 @@ fn emit_redir(
     redir: &Redir,
     instructions: &mut Instructions,
     engine: &Engine,
-    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -311,7 +246,6 @@ fn emit_redir(
         redir,
         instructions,
         engine,
-        relations,
         cp,
         locals,
         state,
@@ -325,7 +259,6 @@ fn emit_redir_self(
     redir: &Redir,
     instructions: &mut Instructions,
     engine: &Engine,
-    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -344,7 +277,6 @@ fn emit_redir_self(
         &redir.operand,
         instructions,
         engine,
-        relations,
         cp,
         locals,
         state,
@@ -416,7 +348,6 @@ pub fn emit_pipeline(
     pipeline: &Vec<TypedExpr>,
     instructions: &mut Instructions,
     engine: &Engine,
-    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -442,16 +373,7 @@ pub fn emit_pipeline(
     instructions.emit_code(Opcode::Close); // Close the pipe's writing end, that we just bound to stdout
     instructions.emit_code(Opcode::Close); // Close the pipe's reading end, since we don't need it
 
-    emit_already_forked(
-        first,
-        instructions,
-        engine,
-        relations,
-        cp,
-        locals,
-        state,
-        captures,
-    );
+    emit_already_forked(first, instructions, engine, cp, locals, state, captures);
     emit_process_end(Some(first), instructions);
 
     instructions.patch_jump(jump_to_parent);
@@ -492,16 +414,7 @@ pub fn emit_pipeline(
         instructions.emit_code(Opcode::Redirect);
         instructions.emit_code(Opcode::Close); // Close the pipe's reading end, since we just bound it to stdin
 
-        emit_already_forked(
-            command,
-            instructions,
-            engine,
-            relations,
-            cp,
-            locals,
-            state,
-            captures,
-        );
+        emit_already_forked(command, instructions, engine, cp, locals, state, captures);
         emit_process_end(Some(command), instructions);
 
         instructions.patch_jump(jump_to_parent);
@@ -546,7 +459,6 @@ pub fn emit_capture(
     commands: &[TypedExpr],
     instructions: &mut Instructions,
     engine: &Engine,
-    relations: &Relations,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -561,27 +473,9 @@ pub fn emit_capture(
     let last = state.use_values(false);
     if let Some((last, commands)) = commands.split_last() {
         for command in commands {
-            emit(
-                command,
-                instructions,
-                engine,
-                relations,
-                cp,
-                locals,
-                state,
-                captures,
-            );
+            emit(command, instructions, engine, cp, locals, state, captures);
         }
-        emit_already_forked(
-            last,
-            instructions,
-            engine,
-            relations,
-            cp,
-            locals,
-            state,
-            captures,
-        );
+        emit_already_forked(last, instructions, engine, cp, locals, state, captures);
     }
     state.use_values(last);
     emit_process_end(commands.last(), instructions);

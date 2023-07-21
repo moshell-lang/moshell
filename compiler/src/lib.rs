@@ -212,7 +212,6 @@ fn compile_chunk(
         &chunk.expression,
         &mut instructions,
         engine,
-        relations,
         cp,
         &mut locals,
         &mut state,
