@@ -1,0 +1,10 @@
+// Run:
+//   status: success
+//   stdout:
+//          1	Three
+//          2	Two
+//          3	One
+
+echo 'One
+Two
+Three' | tac | cat -n

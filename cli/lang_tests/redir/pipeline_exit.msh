@@ -1,0 +1,18 @@
+// Run:
+//   status: success
+//   stdout:
+//     present
+//     absent behind successful cat
+
+if echo hello | grep -q l {
+    echo 'present'
+} else {
+    echo 'absent'
+}
+
+// Checks that the last exit status do not mask the previous one.
+if echo hello | grep -q y | cat {
+    echo 'present behind successful cat'
+} else {
+    echo 'absent behind successful cat'
+}

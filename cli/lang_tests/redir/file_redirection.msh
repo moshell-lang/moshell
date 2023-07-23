@@ -1,0 +1,17 @@
+// Run:
+//   status: success
+//   stdout:
+//    before
+//    ls: ...
+//    after
+//    1	test-dir
+//   stderr:
+//    error
+
+echo before
+echo test-dir > working-dir
+echo error >&2
+ls /error-dont-exist &>&1
+echo after
+
+cat -n < working-dir

@@ -1,0 +1,8 @@
+// Run:
+//   status: success
+//   stdout:
+//     in
+//     out
+
+while true { echo 'in'; break; echo 'inner' }
+echo 'out'
