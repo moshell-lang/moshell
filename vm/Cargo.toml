@@ -1,0 +1,26 @@
+[package]
+name = "vm"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "binding/lib.rs"
+
+[[bench]]
+name = "exec_benchmark"
+harness = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+[dev-dependencies]
+criterion = "0.5.1"
+context = { path = "../context" }
+ast = { path = "../ast" }
+parser = { path = "../parser" }
+analyzer = { path = "../analyzer" }
+compiler = { path = "../compiler" }
+
+[build-dependencies]
+cmake = "0.1.50"

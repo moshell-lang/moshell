@@ -1,7 +1,7 @@
 use std::env;
 
 fn main() {
-    let mut config = cmake::Config::new("../vm");
+    let mut config = cmake::Config::new(".");
     if env::var("CARGO_TERM_COLOR").as_deref() == Ok("always") {
         config.env("CMAKE_COLOR_DIAGNOSTICS", "ON");
     }
@@ -25,8 +25,4 @@ fn main() {
             println!("cargo:warning=moshell: unconditional linking of C++ runtime on {target_os}");
         }
     }
-
-    // Hook the build script to re-run if the VM library changes.
-    println!("cargo:rerun-if-changed=../vm/CMakeLists.txt");
-    println!("cargo:rerun-if-changed=../vm/src");
 }
