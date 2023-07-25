@@ -10,4 +10,4 @@
  * @throws InvalidBytecodeStructure if the given bytecode does not defines a <main>() function
  * @throws InvalidBytecodeError if an interpreted instruction set contains invalid instructions
  */
-void run_unit(const bytecode_unit &module_def, StringsHeap &strings, natives_functions_t natives);
+void run_unit(const bytecode_unit &module_def, StringsHeap &strings, const natives_functions_t &natives);

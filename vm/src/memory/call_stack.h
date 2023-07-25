@@ -9,7 +9,7 @@
  * Each function invocation implies a stack frame, that contains the functions' locals and operands stack
  */
 struct stack_frame {
-    const std::string *function_identifier;
+    const function_definition &function;
     size_t *instruction_pointer;
     OperandStack operands;
     Locals locals;
@@ -45,14 +45,13 @@ public:
      * Creates a new CallStack, with root function set on top of the stack
      * @throws StackOverflowError if the root's frame size exceeds given capacity
      */
-    static CallStack create(size_t capacity, const function_definition &root, const std::string *root_identifier);
+    static CallStack create(size_t capacity, const function_definition &root);
 
     /**
      * Pushes a new frame inside this call stack.
-     * @callee the function definition of the new frame to create and push
-     * @callee_ref the ref in bound constant pool of the callee's function function_identifier
+     * @param callee the function definition of the new frame to create and push
      */
-    void push_frame(const function_definition &callee, const std::string *callee_identifier);
+    void push_frame(const function_definition &callee);
 
     /**
      * pops last frame from the call_stack.

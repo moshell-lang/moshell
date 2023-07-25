@@ -9,10 +9,11 @@ struct frame_headers {
      * 0 if this frame is the root headers
      */
     size_t previous_frame_headers_pos;
+
     /**
-     * Address of this frame's function identifier
+     * Address of this frame's function definition
      */
-    const std::string *function_identifier;
+    const function_definition *function;
 
     /**
      * Current position of the instruction being executed
@@ -23,10 +24,6 @@ struct frame_headers {
      * The position of the frame's operands stack
      */
     size_t operands_pos;
-    /**
-     * The amount of bytes allocated for the locals area of this frame
-     */
-    size_t locals_capacity;
 };
 
 CallStack::CallStack(size_t capacity)
@@ -43,13 +40,13 @@ inline void check_overflow(size_t capacity, size_t current_pos, const function_d
     }
 }
 
-CallStack CallStack::create(size_t capacity, const function_definition &root, const std::string *root_identifier) {
+CallStack CallStack::create(size_t capacity, const function_definition &root) {
     CallStack stack(capacity);
-    stack.push_frame(root, root_identifier);
+    stack.push_frame(root);
     return stack;
 }
 
-void CallStack::push_frame(const function_definition &callee, const std::string *callee_identifier) {
+void CallStack::push_frame(const function_definition &callee) {
     char *block = this->block.get();
 
     size_t pos = 0;
@@ -71,10 +68,9 @@ void CallStack::push_frame(const function_definition &callee, const std::string 
     // write default headers,
     *(frame_headers *)(block + pos) = {
         frame_headers_pos,
-        callee_identifier,
+        &callee,
         0,
         0,
-        callee.locals_size,
     };
     frame_headers_pos = pos;
     frame_count++;
@@ -104,8 +100,8 @@ stack_frame CallStack::peek_frame() const {
     size_t operands_first_byte = frame_headers_pos + sizeof(frame_headers);
     OperandStack frame_operands(block + operands_first_byte, headers->operands_pos, this->capacity - operands_first_byte);
 
-    Locals frame_locals(block + (frame_headers_pos - headers->locals_capacity), headers->locals_capacity);
-    return stack_frame{headers->function_identifier, &headers->instruction_pointer, std::move(frame_operands), std::move(frame_locals)};
+    Locals frame_locals(block + (frame_headers_pos - headers->function->locals_size), headers->function->locals_size);
+    return stack_frame{*headers->function, &headers->instruction_pointer, frame_operands, frame_locals};
 }
 
 size_t CallStack::get_capacity() const {

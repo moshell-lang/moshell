@@ -253,7 +253,7 @@ inline bool handle_function_invocation(constant_index callee_identifier_idx,
 
     caller_operands.pop_bytes(callee_def.parameters_byte_count);
 
-    call_stack.push_frame(callee_def, callee_identifier);
+    call_stack.push_frame(callee_def);
     return true;
 }
 
@@ -679,17 +679,15 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
 }
 
 /**
- * runs the interpreter, where the first function to be executed
- * is the given identifier
+ * Runs the interpreter, starting from the given root function.
  */
-void run(runtime_state state, const std::string *root_identifier) {
-    // prepare the call stack, containing the given root function on top of the stack
-    const function_definition &root_def = state.functions.at(root_identifier);
-    CallStack call_stack = CallStack::create(10000, root_def, root_identifier);
+void run(runtime_state state, const function_definition &root_def) {
+    // Prepare the call stack, containing the given root function on top of the stack
+    CallStack call_stack = CallStack::create(10000, root_def);
 
     while (!call_stack.is_empty()) {
         stack_frame current_frame = call_stack.peek_frame();
-        const function_definition &current_def = state.functions.at(current_frame.function_identifier);
+        const function_definition &current_def = current_frame.function;
 
         bool has_returned = run_frame(state, current_frame, call_stack, current_def.instructions, current_def.instruction_count);
 
@@ -710,20 +708,18 @@ void run(runtime_state state, const std::string *root_identifier) {
     }
 }
 
-void run_unit(const bytecode_unit &module_def, StringsHeap &strings, natives_functions_t natives) {
+void run_unit(const bytecode_unit &module_def, StringsHeap &strings, const natives_functions_t &natives) {
 
     const ConstantPool &pool = module_def.pool;
     fd_table table;
     runtime_state state{strings, table, module_def.functions, natives, pool};
 
     // find module main function
-    for (auto function : module_def.functions) {
-        const std::string &identifier = *function.first;
-
+    for (const auto &[identifier, function] : module_def.functions) {
         // we found our main function, we search for a function named `<main>` with no parameters, regardless of the return type
-        if (identifier.rfind("::<main>", identifier.length() - strlen("::<main>")) != std::string::npos) {
+        if (identifier->rfind("::<main>", identifier->length() - strlen("::<main>")) != std::string::npos) {
 
-            run(state, &identifier);
+            run(state, function);
             return;
         }
     }
