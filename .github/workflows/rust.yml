@@ -4,10 +4,14 @@ on:
   push:
     paths: 
       - '**.rs'
+      - '**.cpp'
+      - '**.h'
       - '**/Cargo.toml'
   pull_request:
     paths:
       - '**.rs'
+      - '**.cpp'
+      - '**.h'
       - '**/Cargo.toml'
   workflow_dispatch:
 
@@ -19,16 +23,18 @@ jobs:
     if: github.event_name != 'pull_request' || github.repository != github.event.pull_request.head.repo.full_name
     runs-on: ubuntu-latest
     steps:
-    - uses: fkirc/skip-duplicate-actions@v5
     - uses: actions/checkout@v3
     
     - name: Cargo Cache
       uses: actions/cache@v3
       with:
-        key: ${{ hashFiles('**/Cargo.toml') }}
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
         path: |
-          ./target
-          ~/.cargo
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
           
     - name: Build
       run: cargo build 
