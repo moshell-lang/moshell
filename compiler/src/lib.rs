@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::io;
 use std::io::Write;
@@ -91,14 +90,7 @@ fn resolve_captures(
         let env = engine.get_environment(chunk_id).unwrap();
 
         // recursively resolve all inner functions
-        for (_, func) in env
-            .variables
-            .iter()
-            .filter(|(_, v)| v.ty == TypeInfo::Function)
-        {
-            let func_fqn = &env.fqn.appended(Name::new(&func.name));
-            let (func_id, _) = engine.find_environment_by_name(func_fqn).unwrap();
-
+        for func_id in env.iter_direct_inner_environments() {
             resolve(func_id, engine, relations, captures, externals);
             // filter out external symbols that refers to the current chunk
             externals.retain(|symbol| symbol.source != chunk_id);
@@ -124,12 +116,10 @@ fn resolve_captures(
         let mut chunk_captures: Vec<ResolvedSymbol> = externals.iter().copied().collect();
 
         chunk_captures.sort_by(|a, b| {
-            let source_cmp = a.source.0.cmp(&b.source.0);
-            if source_cmp == Ordering::Equal {
-                a.object_id.0.cmp(&b.object_id.0)
-            } else {
-                source_cmp
-            }
+            a.source
+                .0
+                .cmp(&b.source.0)
+                .then_with(|| a.object_id.0.cmp(&b.object_id.0))
         });
 
         captures[chunk_id.0] = Some(chunk_captures)
@@ -138,7 +128,7 @@ fn resolve_captures(
     // resolve capture of all chunks, starting from root chunks of each module
     for (chunk_id, _) in typed_engine
         .iter_chunks()
-        .filter(|(id, _)| engine.get_environment(*id).unwrap().parent.is_none())
+        .filter(|(_, chunk)| chunk.is_script)
     {
         resolve(chunk_id, engine, relations, &mut captures, &mut externals);
     }
