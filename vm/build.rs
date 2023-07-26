@@ -25,4 +25,8 @@ fn main() {
             println!("cargo:warning=moshell: unconditional linking of C++ runtime on {target_os}");
         }
     }
+
+    // Hook the build script to re-run if the VM library changes.
+    println!("cargo:rerun-if-changed=CMakeLists.txt");
+    println!("cargo:rerun-if-changed=src");
 }
