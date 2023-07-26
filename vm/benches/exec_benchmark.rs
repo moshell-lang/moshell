@@ -40,27 +40,31 @@ fn prepare_bytecode(code: &str) -> Vec<u8> {
 
 fn criterion_benchmark(c: &mut Criterion) {
     let bytes = prepare_bytecode(
-        "var u = 0
-    var computing = true
-    var v = 1
-    while $computing {
-        u = $u + 1
-        v = $v + 2
-        computing = $u != 20000
-    }",
+        "
+        var u = 0
+        var computing = true
+        var v = 1
+        while $computing {
+            u = $u + 1
+            v = $v + 2
+            computing = $u != 20000
+        }
+    ",
     );
     c.bench_function("var", |b| {
         b.iter(|| unsafe { execute_bytecode(black_box(&bytes)) })
     });
 
     let bytes = prepare_bytecode(
-        "fun fibonacci(n: Int) -> Int =
+        "
+        fun fibonacci(n: Int) -> Int =
         if [ $n <= 1 ] {
             1
         } else {
             return fibonacci($n - 1) + fibonacci($n - 2)
         }
-    fibonacci(25)",
+        fibonacci(25)
+    ",
     );
     c.bench_function("fib 25", |b| {
         b.iter(|| unsafe { execute_bytecode(black_box(&bytes)) })
