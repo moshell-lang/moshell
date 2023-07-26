@@ -28,13 +28,13 @@ fn prepare_bytecode(code: &str) -> Vec<u8> {
     let expr = parse_trusted(Source::new(code, "test"));
     let mut resolve = resolve_all(Name::new("test"), &mut SingleImporter(Some(expr)));
     assert_eq!(resolve.diagnostics, &[]);
-    let (engine, typing) = apply_types(
+    let (engine, _) = apply_types(
         &resolve.engine,
         &resolve.relations,
         &mut resolve.diagnostics,
     );
     assert_eq!(resolve.diagnostics, &[]);
-    compile(&engine, &resolve.engine, &typing, &mut bytes).unwrap();
+    compile(&engine, &resolve.engine, &resolve.relations, &mut bytes).unwrap();
     bytes
 }
 

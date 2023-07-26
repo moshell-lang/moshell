@@ -37,7 +37,9 @@ jobs:
           target/
           
     - name: Build
-      run: cargo build 
+      run: |
+        cargo build
+        cargo bench --no-run --profile test
       
     - name: Run tests
       run: cargo test --verbose
