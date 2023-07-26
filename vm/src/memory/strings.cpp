@@ -1,5 +1,3 @@
-#pragma once
-
 #include "memory/strings.h"
 
 const std::string &StringsHeap::insert(std::string str) {

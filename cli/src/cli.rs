@@ -9,6 +9,7 @@ use analyzer::name::Name;
 use analyzer::resolve_all;
 use analyzer::steps::typing::apply_types;
 use compiler::compile;
+use vm::execute_bytecode;
 
 use crate::disassemble::display_bytecode;
 use crate::pipeline::{ErrorReporter, FileImportError};
@@ -108,17 +109,8 @@ pub fn resolve_and_execute<'a>(
     had_errors
 }
 
-#[link(name = "vm", kind = "static")]
-extern "C" {
-    /// Execute the given bytecode.
-    ///
-    /// # Safety
-    /// If the given bytecode is invalid, this function will cause undefined behavior.
-    fn moshell_exec(bytes: *const u8, byte_count: usize);
-}
-
 fn execute(bytes: &[u8]) {
     unsafe {
-        moshell_exec(bytes.as_ptr(), bytes.len());
+        execute_bytecode(bytes);
     }
 }

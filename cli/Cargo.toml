@@ -3,6 +3,11 @@ name = "cli"
 version = "0.1.0"
 edition = "2021"
 
+[[test]]
+name = "lang_tests"
+path = "lang_tests/run.rs"
+harness = false
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -11,6 +16,7 @@ parser = { path = "../parser" }
 analyzer = { path = "../analyzer" }
 ast = { path = "../ast" }
 compiler = { path = "../compiler" }
+vm = { path = "../vm" }
 
 miette = { version = "5.9.0", features = ["fancy"] }
 thiserror = "1.0.38"
@@ -18,5 +24,6 @@ dbg-pls = { version = "0.3.5", features = ["pretty", "colors"] }
 clap = { version = "4.2.2", features = ["derive"] }
 libc = "0.2.147"
 
-[build-dependencies]
-cmake = "0.1.46"
+[dev-dependencies]
+lang_tester = "0.7.3"
+tempfile = "3.7.0"

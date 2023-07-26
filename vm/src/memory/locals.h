@@ -1,9 +1,9 @@
 #pragma once
 
-#include <algorithm>
 #include <cstdint>
-#include <errors.h>
-#include <string>
+#include <string_view>
+
+#include "errors.h"
 
 /**
  * an access to an out of bound index has been made from the `Locals` area
