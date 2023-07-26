@@ -19,7 +19,7 @@ impl TypeContext {
             names: HashMap::from([
                 ("Nothing".to_owned(), NOTHING),
                 ("Bool".to_owned(), BOOL),
-                ("Exitcode".to_owned(), EXIT_CODE),
+                ("ExitCode".to_owned(), EXIT_CODE),
                 ("Unit".to_owned(), UNIT),
                 ("Int".to_owned(), INT),
                 ("Float".to_owned(), FLOAT),

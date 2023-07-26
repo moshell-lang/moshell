@@ -13,7 +13,7 @@ use crate::steps::typing::TypingState;
 use crate::types::ctx::TypeContext;
 use crate::types::hir::{ExprKind, TypeId, TypedExpr};
 use crate::types::ty::{FunctionType, MethodType, Parameter, Type};
-use crate::types::{Typing, ERROR, NOTHING, STRING, UNIT};
+use crate::types::{Typing, ERROR, STRING, UNIT};
 
 /// An identified return during the exploration.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,7 +57,8 @@ pub(super) fn infer_return(
         .returns
         .last()
         .map_or(true, |ret| ret.segment != last.segment)
-        && (last.ty != UNIT || !exploration.returns.is_empty() && func.return_type.is_none())
+        && last.ty.is_something()
+        && last.ty.is_ok()
     {
         exploration.returns.push(Return {
             ty: typed_func.ty,
@@ -65,7 +66,7 @@ pub(super) fn infer_return(
         });
     }
 
-    if let Some(return_type_annotation) = func.return_type.as_ref() {
+    let expected_return_type = if let Some(return_type_annotation) = func.return_type.as_ref() {
         // An explicit return type is present, check it against all the return types.
         let type_annotation = exploration
             .ctx
@@ -80,94 +81,95 @@ pub(super) fn infer_return(
                         "Not found in scope",
                     )),
             );
-        } else {
-            for ret in &exploration.returns {
-                if exploration
-                    .typing
-                    .convert_description(type_annotation, ret.ty)
-                    .is_err()
-                {
-                    diagnostics.push(
-                        Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
-                            .with_observation(Observation::here(
-                                state.source,
-                                ret.segment.clone(),
-                                format!("Found `{}`", exploration.get_type(ret.ty).unwrap()),
-                            ))
-                            .with_observation(Observation::here(
-                                state.source,
-                                return_type_annotation.segment(),
-                                format!(
-                                    "Expected `{}` because of return type",
-                                    exploration.get_type(type_annotation).unwrap()
-                                ),
-                            )),
-                    );
-                }
-            }
+            return ERROR;
         }
         type_annotation
-    } else if !matches!(func.body.as_ref(), Expr::Block(_)) {
-        // We may want to infer, or leave it as a empty return type
-        match exploration
-            .typing
-            .convert_many(exploration.returns.iter().map(|ret| ret.ty))
-        {
-            Ok(ty) if ty.is_nothing() => ty,
-            Ok(ty) => {
-                let segment = func.segment().start..func.body.segment().start;
-                diagnostics.push(
-                    Diagnostic::new(
-                        DiagnosticID::CannotInfer,
-                        "Return type inference is not supported yet",
-                    )
-                    .with_observation(Observation::here(
-                        state.source,
-                        segment,
-                        "No return type is specified",
-                    ))
-                    .with_help(format!(
-                        "Add -> {} to the function declaration",
-                        exploration.get_type(ty).unwrap()
-                    )),
-                );
-                ty
-            }
-            Err(_) => {
-                diagnostics.push(
-                    Diagnostic::new(DiagnosticID::CannotInfer, "Failed to infer return type")
-                        .with_observation(Observation::here(
-                            state.source,
-                            func.segment(),
-                            "This function returns multiple types".to_string(),
-                        ))
-                        .with_help("Try adding an explicit return type to the function"),
-                );
-                ERROR
-            }
-        }
     } else {
-        // Explain if there is any return that this function will not be inferred
-        let mut observations = Vec::new();
-        for ret in &exploration.returns {
-            observations.push(Observation::here(
+        UNIT
+    };
+
+    let mut typed_return_locations: Vec<_> = Vec::new();
+
+    for ret in &exploration.returns {
+        if exploration
+            .typing
+            .convert_description(expected_return_type, ret.ty)
+            .is_err()
+        {
+            typed_return_locations.push(Observation::here(
                 state.source,
                 ret.segment.clone(),
-                format!("Returning `{}`", exploration.get_type(ret.ty).unwrap()),
+                if func.return_type.is_some() {
+                    format!("Found `{}`", exploration.get_type(ret.ty).unwrap())
+                } else {
+                    format!("Returning `{}`", exploration.get_type(ret.ty).unwrap())
+                },
             ));
         }
-        if !observations.is_empty() {
+    }
+
+    if typed_return_locations.is_empty() {
+        return expected_return_type;
+    }
+
+    if let Some(return_type_annotation) = func.return_type.as_ref() {
+        diagnostics.push(
+            Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
+                .with_observations(typed_return_locations)
+                .with_observation(Observation::context(
+                    state.source,
+                    return_type_annotation.segment(),
+                    format!(
+                        "Expected `{}` because of return type",
+                        exploration.get_type(expected_return_type).unwrap()
+                    ),
+                )),
+        );
+    } else if !matches!(func.body.as_ref(), Expr::Block(_)) {
+        let segment = func.segment().start..func.body.segment().start;
+        let unify = exploration
+            .typing
+            .convert_many(exploration.returns.iter().map(|ret| ret.ty));
+        if let Ok(common_type) = unify {
             diagnostics.push(
                 Diagnostic::new(
                     DiagnosticID::CannotInfer,
-                    "Return type is not inferred for block functions",
+                    "Return type inference is not supported yet",
                 )
-                .with_observations(observations)
-                .with_help("Try adding an explicit return type to the function"),
+                .with_observation(Observation::context(
+                    state.source,
+                    segment,
+                    "No return type is specified",
+                ))
+                .with_observations(typed_return_locations)
+                .with_help(format!(
+                    "Add -> {} to the function declaration",
+                    exploration.get_type(common_type).unwrap()
+                )),
+            );
+        } else {
+            diagnostics.push(
+                Diagnostic::new(DiagnosticID::CannotInfer, "Failed to infer return type")
+                    .with_observation(Observation::context(
+                        state.source,
+                        segment,
+                        "This function returns multiple types",
+                    ))
+                    .with_observations(typed_return_locations)
+                    .with_help("Try adding an explicit return type to the function"),
             );
         }
-        NOTHING
+    } else {
+        diagnostics.push(
+            Diagnostic::new(
+                DiagnosticID::CannotInfer,
+                "Return type is not inferred for block functions",
+            )
+            .with_observations(typed_return_locations)
+            .with_help("Try adding an explicit return type to the function"),
+        );
     }
+    ERROR
 }
 
 /// Checks the type of a call expression.

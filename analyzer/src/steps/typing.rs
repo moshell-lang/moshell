@@ -1565,29 +1565,27 @@ mod tests {
     fn explicit_invalid_return() {
         let content = "fun some() -> String = {if true; return {}; 9}";
         let res = extract_type(Source::unknown(content));
-        let return_observation = Observation::context(
-            SourceId(1),
-            find_in(content, "String"),
-            "Expected `String` because of return type",
-        );
         assert_eq!(
             res,
-            Err(vec![
-                Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
-                    .with_observation(Observation::here(
-                        SourceId(1),
-                        find_in(content, "return {}"),
-                        "Found `Unit`",
-                    ))
-                    .with_observation(return_observation.clone()),
-                Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
-                    .with_observation(Observation::here(
-                        SourceId(1),
-                        find_in(content, "9"),
-                        "Found `Int`"
-                    ))
-                    .with_observation(return_observation),
-            ])
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                "Type mismatch"
+            )
+            .with_observation(Observation::here(
+                SourceId(1),
+                find_in(content, "return {}"),
+                "Found `Unit`",
+            ))
+            .with_observation(Observation::here(
+                SourceId(1),
+                find_in(content, "9"),
+                "Found `Int`"
+            ))
+            .with_observation(Observation::context(
+                SourceId(1),
+                find_in(content, "String"),
+                "Expected `String` because of return type",
+            ))])
         );
     }
 
@@ -1601,10 +1599,15 @@ mod tests {
                 DiagnosticID::CannotInfer,
                 "Return type inference is not supported yet",
             )
-            .with_observation(Observation::here(
+            .with_observation(Observation::context(
                 SourceId(1),
                 find_in(content, "fun test(n: Float) = "),
                 "No return type is specified",
+            ))
+            .with_observation(Observation::here(
+                SourceId(1),
+                find_in(content, "if false; 0.0; else $n"),
+                "Returning `Float`",
             ))
             .with_help("Add -> Float to the function declaration")])
         );
@@ -1648,8 +1651,13 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(1),
-                find_in(content, "fun test() = if false; return 5; else {}"),
+                find_in(content, "fun test() = "),
                 "This function returns multiple types",
+            ))
+            .with_observation(Observation::here(
+                SourceId(1),
+                find_in(content, "return 5"),
+                "Returning `Int`",
             ))
             .with_help(
                 "Try adding an explicit return type to the function"
@@ -1996,6 +2004,14 @@ mod tests {
     fn use_pipeline_return() {
         let res = extract_type(Source::unknown(
             "if echo hello | grep -q test | val m = $(cat test) {}",
+        ));
+        assert_eq!(res, Ok(Type::Unit));
+    }
+
+    #[test]
+    fn use_unit_result() {
+        let res = extract_type(Source::unknown(
+            "fun foo() = { fun bar() = { return }; bar() }",
         ));
         assert_eq!(res, Ok(Type::Unit));
     }
