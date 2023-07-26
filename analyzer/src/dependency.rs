@@ -70,6 +70,8 @@ where
             }
         }
     }
+    //FIXME: can contain duplicates
+    sorted.dedup();
     sorted
 }
 

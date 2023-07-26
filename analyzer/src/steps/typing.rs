@@ -15,7 +15,7 @@ use crate::dependency::topological_sort;
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::environment::Environment;
-use crate::relations::{Definition, Relations, SourceId};
+use crate::relations::{Definition, Relations, SourceId, Symbol};
 use crate::steps::typing::coercion::{check_type_annotation, coerce_condition, convert_expression};
 use crate::steps::typing::exploration::{diagnose_unknown_type, Exploration};
 use crate::steps::typing::function::{
@@ -26,7 +26,7 @@ use crate::types::ctx::{TypeContext, TypedVariable};
 use crate::types::engine::{Chunk, TypedEngine};
 use crate::types::hir::{
     Assignment, Conditional, Convert, Declaration, ExprKind, FunctionCall, Loop, MethodCall, Redir,
-    Redirect, TypedExpr,
+    Redirect, TypedExpr, Var,
 };
 use crate::types::operator::name_operator_method;
 use crate::types::ty::Type;
@@ -319,9 +319,16 @@ fn ascribe_assign(
         );
     }
 
+    let identifier = match symbol {
+        Symbol::Local(id) => Var::Local(id),
+        Symbol::External(id) => {
+            Var::Capture(relations[id].state.expect_resolved("non resolved relation"))
+        }
+    };
+
     TypedExpr {
         kind: ExprKind::Assign(Assignment {
-            identifier: symbol,
+            identifier,
             rhs: Box::new(rhs),
         }),
         ty: UNIT,
@@ -379,22 +386,30 @@ fn ascribe_var_declaration(
 }
 
 fn ascribe_var_reference(
-    var: &VarReference,
+    var_ref: &VarReference,
     source: SourceId,
     env: &Environment,
     exploration: &Exploration,
     relations: &Relations,
 ) -> TypedExpr {
-    let symbol = env.get_raw_symbol(var.segment.clone()).unwrap();
+    let symbol = env.get_raw_symbol(var_ref.segment.clone()).unwrap();
     let type_id = exploration
         .ctx
         .get(relations, source, symbol)
         .unwrap()
         .type_id;
+
+    let var = match symbol {
+        Symbol::Local(id) => Var::Local(id),
+        Symbol::External(id) => {
+            Var::Capture(relations[id].state.expect_resolved("non resolved relation"))
+        }
+    };
+
     TypedExpr {
-        kind: ExprKind::Reference(symbol),
+        kind: ExprKind::Reference(var),
         ty: type_id,
-        segment: var.segment.clone(),
+        segment: var_ref.segment.clone(),
     }
 }
 
@@ -1679,7 +1694,7 @@ mod tests {
                         value: Some(Box::new(TypedExpr {
                             kind: ExprKind::Convert(Convert {
                                 inner: Box::new(TypedExpr {
-                                    kind: ExprKind::Reference(LocalId(0).into()),
+                                    kind: ExprKind::Reference(Var::Local(LocalId(0))),
                                     ty: INT,
                                     segment: find_in(content, "$n"),
                                 }),
@@ -1702,7 +1717,7 @@ mod tests {
                         TypedExpr {
                             kind: ExprKind::MethodCall(MethodCall {
                                 callee: Box::new(TypedExpr {
-                                    kind: ExprKind::Reference(LocalId(0).into()),
+                                    kind: ExprKind::Reference(Var::Local(LocalId(0))),
                                     ty: INT,
                                     segment: find_in_nth(content, "$n", 1),
                                 }),

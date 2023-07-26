@@ -19,33 +19,35 @@
 #include <vector>
 
 enum Opcode {
-    OP_PUSH_INT,    // with 8 byte int value, pushes an int onto the operand stack
-    OP_PUSH_BYTE,   // with 1 byte value, pushes a byte onto the operand stack
-    OP_PUSH_FLOAT,  // with 8 byte float value, pushes a float onto the operand stack
-    OP_PUSH_STRING, // with 8 byte string index in constant pool, pushes a string ref onto the operand stack
+    OP_PUSH_INT,        // with 8 byte int value, pushes an int onto the operand stack
+    OP_PUSH_BYTE,       // with 1 byte value, pushes a byte onto the operand stack
+    OP_PUSH_FLOAT,      // with 8 byte float value, pushes a float onto the operand stack
+    OP_PUSH_STRING_REF, // with 8 byte string index in constant pool, pushes a reference to the string constant onto the operand stack
+    OP_PUSH_LOCAL_REF,  // with 4 bytes locals index, pushes a reference to the locals address onto the stack
 
-    OP_GET_BYTE,   // with 1 byte local index, pushes given local value onto the operand stack
-    OP_SET_BYTE,   // with 1 byte local index, set given local value from value popped from the operand stack
-    OP_GET_Q_WORD, // with 1 byte local index, pushes given local value onto the operand stack
-    OP_SET_Q_WORD, // with 1 byte local index, set given local value from value popped from the operand stack
-    OP_GET_REF,    // with 1 byte local index, pushes given local value onto the operand stack
-    OP_SET_REF,    // with 1 byte local index, set given local value from value popped from the operand stack
+    OP_LOCAL_GET_BYTE,   // pops last reference and pushes its byte value onto the operands
+    OP_LOCAL_SET_BYTE,   // pops last reference, pops a byte value then sets the reference's value with byte value
+    OP_LOCAL_GET_Q_WORD, // pops last reference and pushes its sword value onto the operands
+    OP_LOCAL_SET_Q_WORD, // pops last reference, pops a qword value then sets the reference's value with qword value
+
+    OP_REF_GET_BYTE,   // pops last reference and pushes its byte value onto the operands
+    OP_REF_SET_BYTE,   // pops last reference, pops a byte value then sets the reference's value with byte value
+    OP_REF_GET_Q_WORD, // pops last reference and pushes its sword value onto the operands
+    OP_REF_SET_Q_WORD, // pops last reference, pops a qword value then sets the reference's value with qword value
 
     OP_INVOKE,         // with 4 byte function ref string in constant pool, pops parameters from operands then pushes invoked function return in operand stack (if non-void)
-    OP_FORK,           // forks a new process, pushes the pid onto the operand stack of the parent and jumps to the given address in the
-                       // parent
+    OP_FORK,           // forks a new process, pushes the pid onto the operand stack of the parent and jumps to the given address in the parent
     OP_EXEC,           // with 1 byte for the number of arguments, pops the arguments and replaces the current program
     OP_WAIT,           // pops a pid from the operand stack and waits for it to finish
     OP_OPEN,           // opens a file with the name popped from the stack, pushes the file descriptor onto the operand stack
     OP_CLOSE,          // pops a file descriptor from the operand stack and closes the file
-    OP_SETUP_REDIRECT, // peek the fd from the operand stack, pop the source fd from the operand stack, and performs a cancelable
-    // redirection
-    OP_REDIRECT,     // duplicates the file descriptor popped from the operand stack and leave the source fd on the stack
-    OP_POP_REDIRECT, // pops a file descriptor from the operand stack and closes it
-    OP_PIPE,         // creates a pipe, pushes the read and write file descriptors onto the operand stack
-    OP_READ,         // pops a file descriptor to read all the data from, pushes the data onto the stack
-    OP_WRITE,        // pops a file descriptor to write the data to, pops the data to write from the stack
-    OP_EXIT,         // exits the current process with the popped exit code
+    OP_SETUP_REDIRECT, // peek the fd from the operand stack, pop the source fd from the operand stack, and performs a cancelable redirection
+    OP_REDIRECT,       // duplicates the file descriptor popped from the operand stack and leave the source fd on the stack
+    OP_POP_REDIRECT,   // pops a file descriptor from the operand stack and closes it
+    OP_PIPE,           // creates a pipe, pushes the read and write file descriptors onto the operand stack
+    OP_READ,           // pops a file descriptor to read all the data from, pushes the data onto the stack
+    OP_WRITE,          // pops a file descriptor to write the data to, pops the data to write from the stack
+    OP_EXIT,           // exits the current process with the popped exit code
 
     OP_DUP,        // duplicates the last value on the operand stack
     OP_DUP_BYTE,   // duplicates the last byte on the operand stack
@@ -53,7 +55,6 @@ enum Opcode {
     OP_SWAP_2,     // swaps the last two values on the operand stack with the one before that
     OP_POP_BYTE,   // pops one byte from operand stack
     OP_POP_Q_WORD, // pops 8 bytes from operand stack
-    OP_POP_REF,    // pops a reference from operand stack, the number of bytes is architecture specific
 
     OP_IF_JUMP,     // with 1 byte opcode for 'then' branch, jumps only if value popped from operand stack is 0
     OP_IF_NOT_JUMP, // with 1 byte opcode for where to jump, jumps only if value popped from operand stack is not 0
@@ -294,7 +295,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             operands.push_double(reinterpret_cast<double &>(value));
             break;
         }
-        case OP_PUSH_STRING: {
+        case OP_PUSH_STRING_REF: {
             // Read the string reference
             constant_index index = ntohl(*(constant_index *)(instructions + ip));
             ip += sizeof(constant_index);
@@ -303,6 +304,17 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
 
             // Push the string index onto the stack
             operands.push_reference((uint64_t)str_ref);
+            break;
+        }
+        case OP_PUSH_LOCAL_REF: {
+            // Read the locals address
+            int32_t local_index = ntohl(*(int32_t *)(instructions + ip));
+            ip += sizeof(int32_t);
+
+            uint8_t *ref = &locals.reference(local_index);
+
+            // Push the string index onto the stack
+            operands.push_reference((uint64_t)ref);
             break;
         }
         case OP_INVOKE: {
@@ -496,61 +508,48 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             char exit_code = operands.pop_byte();
             exit(static_cast<int>(exit_code));
         }
-        case OP_GET_BYTE: {
-            // Read the 1 byte local local_index
-            uint32_t local_index = ntohl(*(uint32_t *)(instructions + ip));
-            ip += 4;
-            char value = locals.get_byte(local_index);
-            // Push the local onto the stack
+        case OP_REF_GET_BYTE: {
+            char value = *(char *)operands.pop_reference();
             operands.push_byte(value);
             break;
         }
-        case OP_SET_BYTE: {
-            // Read the 1 byte local index
-            uint32_t index = ntohl(*(uint32_t *)(instructions + ip));
-            ip += 4;
-            // Pop the value from the stack
-            char value = operands.pop_byte();
-            // Set the local
-            locals.set_byte(value, index);
+        case OP_REF_SET_BYTE: {
+            char *value = (char *)operands.pop_reference();
+            *value = operands.pop_byte();
             break;
         }
-        case OP_GET_Q_WORD: {
-            // Read the 1 byte local local_index
-            uint32_t local_index = ntohl(*(uint32_t *)(instructions + ip));
-            ip += 4;
-            int64_t value = locals.get_q_word(local_index);
-            // Push the local onto the stack
+        case OP_REF_GET_Q_WORD: {
+            int64_t value = *(int64_t *)operands.pop_reference();
             operands.push_int(value);
             break;
         }
-        case OP_SET_Q_WORD: {
-            // Read the 1 byte local index
-            uint32_t index = ntohl(*(uint32_t *)(instructions + ip));
-            ip += 4;
-            // Pop the value from the stack
-            int64_t value = operands.pop_int();
-            // Set the local
-            locals.set_q_word(value, index);
+        case OP_REF_SET_Q_WORD: {
+            int64_t *value = (int64_t *)operands.pop_reference();
+            *value = operands.pop_int();
             break;
         }
-        case OP_GET_REF: {
-            // Read the 1 byte local local_index
-            uint32_t local_index = ntohl(*(uint32_t *)(instructions + ip));
-            ip += 4;
-            int64_t value = locals.get_ref(local_index);
-            // Push the local onto the stack
-            operands.push_reference(value);
+        case OP_LOCAL_GET_BYTE: {
+            int32_t local_index = ntohl(*(int32_t *)(instructions + ip));
+            ip += sizeof(int32_t);
+            operands.push_byte(locals.get_byte(local_index));
             break;
         }
-        case OP_SET_REF: {
-            // Read the 1 byte local index
-            uint32_t index = ntohl(*(uint32_t *)(instructions + ip));
-            ip += 4;
-            // Pop the value from the stack
-            uint64_t value = operands.pop_reference();
-            // Set the local
-            locals.set_ref(value, index);
+        case OP_LOCAL_SET_BYTE: {
+            int32_t local_index = ntohl(*(int32_t *)(instructions + ip));
+            ip += sizeof(int32_t);
+            locals.set_byte(operands.pop_byte(), local_index);
+            break;
+        }
+        case OP_LOCAL_GET_Q_WORD: {
+            int32_t local_index = ntohl(*(int32_t *)(instructions + ip));
+            ip += sizeof(int32_t);
+            operands.push_int(locals.get_q_word(local_index));
+            break;
+        }
+        case OP_LOCAL_SET_Q_WORD: {
+            int32_t local_index = ntohl(*(int32_t *)(instructions + ip));
+            ip += sizeof(int32_t);
+            locals.set_q_word(operands.pop_int(), local_index);
             break;
         }
         case OP_BYTE_TO_INT: {
@@ -617,10 +616,6 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
         }
         case OP_POP_Q_WORD: {
             operands.pop_bytes(8);
-            break;
-        }
-        case OP_POP_REF: {
-            operands.pop_reference();
             break;
         }
         case OP_BYTE_XOR: {

@@ -81,6 +81,15 @@ impl Variables {
         &self.locals.vars
     }
 
+    /// returns an iterator over all variables, with their local identifier
+    pub fn iter(&self) -> impl Iterator<Item = (LocalId, &Variable)> {
+        self.locals
+            .vars
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (LocalId(i), v))
+    }
+
     /// Iterates over all the exported variables, local to the environment.
     pub fn exported_vars(&self) -> impl Iterator<Item = &Variable> {
         //consider for now that all local vars of the outermost scope are exported

@@ -34,17 +34,19 @@ public:
     explicit Locals(char *bytes, size_t capacity);
 
     /**
+     * @returns a reference to given byte
+     * @throws LocalsOutOfBoundError if `at` is out of bound
+     */
+    uint8_t &reference(size_t at);
+
+    /**
      * @throws LocalsOutOfBoundError if `at` is out of bound
      */
     int64_t get_q_word(size_t at) const;
     /**
      * @throws LocalsOutOfBoundError if `at` is out of bound
      */
-    char get_byte(size_t at) const;
-    /**
-     * @throws LocalsOutOfBoundError if `at` is out of bound
-     */
-    uint64_t get_ref(size_t at) const;
+    uint8_t get_byte(size_t at) const;
 
     /**
      * @throws LocalsOutOfBoundError if `at` + the size of `int64_i` is out of bound
@@ -53,17 +55,13 @@ public:
     /**
      * @throws LocalsOutOfBoundError if `at` + the size of `char` is out of bound
      */
-    void set_byte(char b, size_t at);
-    /**
-     * @throws LocalsOutOfBoundError if `at` + the size of `uint64_t` is out of bound
-     */
-    void set_ref(uint64_t s, size_t at);
+    void set_byte(uint8_t b, size_t at);
 
     /**
      * copies the given data from `at` to `at + size`
      * @throws LocalsOutOfBoundError if `at` + size is out of bound
      */
-    void set_bytes(const char *data, size_t size, size_t at);
+    void set_bytes(const uint8_t *data, size_t size, size_t at);
 
 private:
     /**

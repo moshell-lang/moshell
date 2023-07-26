@@ -2,7 +2,7 @@ use std::mem::size_of;
 
 use num_enum::TryFromPrimitive;
 
-use analyzer::relations::LocalId;
+use analyzer::types::hir::Var;
 
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
@@ -109,47 +109,80 @@ impl<'a> Instructions<'a> {
             ValueStackSize::Zero => return,
             ValueStackSize::Byte => Opcode::PopByte,
             ValueStackSize::QWord => Opcode::PopQWord,
-            ValueStackSize::Reference => Opcode::PopRef,
         };
         self.emit_code(pop_opcode);
     }
 
     /// emits instructions to assign given local identifier with last operand stack value
-    /// assuming the local's size is the given `size` argument
-    pub fn emit_set_local(
-        &mut self,
-        identifier: LocalId,
-        size: ValueStackSize,
-        layout: &LocalsLayout,
-    ) {
+    /// assuming the value size is the given `size` argument
+    pub fn emit_set_local(&mut self, var: Var, size: ValueStackSize, layout: &LocalsLayout) {
+        let index = layout.get_index(var).unwrap();
+
+        // if var is a captured variable from an upper frame
+        if let Var::Capture(_) = var {
+            // get capture reference
+            self.emit_code(Opcode::GetLocalQWord);
+            self.bytecode.emit_u32(index);
+            // reference is now on operand stack
+
+            let opcode = match size {
+                ValueStackSize::Byte => Opcode::SetRefByte,
+                ValueStackSize::QWord => Opcode::SetRefQWord,
+                ValueStackSize::Zero => {
+                    panic!("set_local on captured variable which is zero-sized")
+                }
+            };
+            self.emit_code(opcode);
+            return;
+        }
+
+        // else if var is a frame's value
         let opcode = match size {
-            ValueStackSize::Byte => Opcode::SetByte,
-            ValueStackSize::QWord => Opcode::SetQWord,
-            ValueStackSize::Reference => Opcode::SetRef,
-            ValueStackSize::Zero => panic!("set_local for value whose type is zero-sized"),
+            ValueStackSize::Byte => Opcode::SetLocalByte,
+            ValueStackSize::QWord => Opcode::SetLocalQWord,
+            ValueStackSize::Zero => panic!("set_local on local variable which is zero-sized"),
         };
         self.emit_code(opcode);
-        let at = layout.get_index(identifier).unwrap();
-        self.bytecode.emit_u32(at);
+        self.bytecode.emit_u32(index);
     }
 
     /// emits instructions to push to operand stack given local identifier
     /// assuming the local's size is the given `size` argument
-    pub fn emit_get_local(
-        &mut self,
-        identifier: LocalId,
-        size: ValueStackSize,
-        layout: &LocalsLayout,
-    ) {
-        let opcode = match size {
-            ValueStackSize::Byte => Opcode::GetByte,
-            ValueStackSize::QWord => Opcode::GetQWord,
-            ValueStackSize::Reference => Opcode::GetRef,
-            ValueStackSize::Zero => panic!("get_local for value whose type is zero-sized"),
-        };
+    pub fn emit_get_local(&mut self, var: Var, size: ValueStackSize, layout: &LocalsLayout) {
+        let index = layout.get_index(var).unwrap();
 
+        // if var is a captured variable from an upper frame
+        if let Var::Capture(_) = var {
+            // get capture reference
+            self.emit_code(Opcode::GetLocalQWord);
+            self.bytecode.emit_u32(index);
+            // reference is now on operand stack
+
+            let opcode = match size {
+                ValueStackSize::Byte => Opcode::GetRefByte,
+                ValueStackSize::QWord => Opcode::GetRefQWord,
+                ValueStackSize::Zero => {
+                    panic!("get_local on captured variable which is zero-sized")
+                }
+            };
+            self.emit_code(opcode);
+            return;
+        }
+
+        // else if var is a frame's value
+        let opcode = match size {
+            ValueStackSize::Byte => Opcode::GetLocalByte,
+            ValueStackSize::QWord => Opcode::GetLocalQWord,
+            ValueStackSize::Zero => panic!("get_local on local variable which is zero-sized"),
+        };
         self.emit_code(opcode);
-        let index = layout.get_index(identifier).unwrap();
+        self.bytecode.emit_u32(index);
+    }
+
+    /// pushes a reference to the given symbol on the stack's locals
+    pub fn emit_push_stack_ref(&mut self, var: Var, layout: &LocalsLayout) {
+        self.emit_code(Opcode::PushLocalRef);
+        let index = layout.get_index(var).unwrap();
         self.bytecode.emit_u32(index);
     }
 
@@ -173,7 +206,7 @@ impl<'a> Instructions<'a> {
 
     /// emits instructions to push a pool reference in the operand stack
     pub fn emit_push_constant_ref(&mut self, constant_ref: u32) {
-        self.emit_code(Opcode::PushString);
+        self.emit_code(Opcode::PushStringRef);
         self.bytecode.emit_constant_ref(constant_ref)
     }
 
@@ -240,14 +273,17 @@ pub enum Opcode {
     PushInt,
     PushByte,
     PushFloat,
-    PushString,
+    PushStringRef,
+    PushLocalRef,
 
-    GetByte,
-    SetByte,
-    GetQWord,
-    SetQWord,
-    GetRef,
-    SetRef,
+    GetLocalByte,
+    SetLocalByte,
+    GetLocalQWord,
+    SetLocalQWord,
+    GetRefByte,
+    SetRefByte,
+    GetRefQWord,
+    SetRefQWord,
 
     Invoke,
     Fork,
@@ -269,7 +305,6 @@ pub enum Opcode {
     Swap2,
     PopByte,
     PopQWord,
-    PopRef,
 
     IfJump,
     IfNotJump,

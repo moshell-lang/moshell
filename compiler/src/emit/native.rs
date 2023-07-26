@@ -1,13 +1,13 @@
 use analyzer::engine::Engine;
 use analyzer::relations::NativeId;
 use analyzer::types::hir::TypedExpr;
-use analyzer::types::Typing;
 
 use crate::bytecode::{Instructions, Opcode};
 use crate::constant_pool::ConstantPool;
 use crate::emit::{emit, EmissionState};
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
+use crate::Captures;
 
 const STRING_EQ: &str = "lang::String::eq";
 const STRING_CONCAT: &str = "lang::String::concat";
@@ -15,20 +15,21 @@ const INT_TO_STRING: &str = "lang::Int::to_string";
 const FLOAT_TO_STRING: &str = "lang::Float::to_string";
 
 /// Emits a primitive sequence of instructions.
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit_natives(
     native: NativeId,
     callee: &TypedExpr,
     args: &[TypedExpr],
     instructions: &mut Instructions,
-    typing: &Typing,
     engine: &Engine,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
+    captures: &Captures,
 ) {
     let last_used = state.use_values(true);
-    emit(callee, instructions, typing, engine, cp, locals, state);
+    emit(callee, instructions, engine, cp, locals, state, captures);
 
     let pushed_size = match native.0 {
         0 => {
@@ -41,11 +42,11 @@ pub(crate) fn emit_natives(
             emit(
                 args.get(0).expect("A binary expression takes two operands"),
                 instructions,
-                typing,
                 engine,
                 cp,
                 locals,
                 state,
+                captures,
             );
             instructions.emit_code(match native.0 {
                 1 => Opcode::IntAdd,
@@ -71,11 +72,11 @@ pub(crate) fn emit_natives(
             emit(
                 args.get(0).expect("A comparison takes two operands"),
                 instructions,
-                typing,
                 engine,
                 cp,
                 locals,
                 state,
+                captures,
             );
 
             match native.0 {
@@ -137,23 +138,23 @@ pub(crate) fn emit_natives(
             instructions.patch_jump(jump_to_else);
             instructions.emit_push_constant_ref(false_string);
             instructions.patch_jump(jump_to_end);
-            ValueStackSize::Reference
+            ValueStackSize::QWord
         }
         28 => {
             // ExitCode -> String
             instructions.emit_code(Opcode::ConvertByteToInt);
             instructions.emit_invoke(cp.insert_string(INT_TO_STRING));
-            ValueStackSize::Reference
+            ValueStackSize::QWord
         }
         29 => {
             // Int -> String
             instructions.emit_invoke(cp.insert_string(INT_TO_STRING));
-            ValueStackSize::Reference
+            ValueStackSize::QWord
         }
         30 => {
             // Float -> String
             instructions.emit_invoke(cp.insert_string(FLOAT_TO_STRING));
-            ValueStackSize::Reference
+            ValueStackSize::QWord
         }
         33 => {
             // String + String -> String
@@ -161,14 +162,14 @@ pub(crate) fn emit_natives(
                 args.get(0)
                     .expect("Cannot concatenate a string without a second string"),
                 instructions,
-                typing,
                 engine,
                 cp,
                 locals,
                 state,
+                captures,
             );
             instructions.emit_invoke(cp.insert_string(STRING_CONCAT));
-            ValueStackSize::Reference
+            ValueStackSize::QWord
         }
         id => todo!("Native function with id {id}"),
     };

@@ -1,31 +1,31 @@
 use analyzer::engine::Engine;
 use analyzer::types::hir::{Conditional, Loop};
-use analyzer::types::Typing;
 
 use crate::bytecode::{Instructions, Opcode};
 use crate::constant_pool::ConstantPool;
 use crate::emit::{emit, EmissionState};
 use crate::locals::LocalsLayout;
+use crate::Captures;
 
 pub fn emit_conditional(
     conditional: &Conditional,
     instructions: &mut Instructions,
-    typing: &Typing,
     engine: &Engine,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
+    captures: &Captures,
 ) {
     // emit condition
     let last_uses = state.use_values(true);
     emit(
         &conditional.condition,
         instructions,
-        typing,
         engine,
         cp,
         locals,
         state,
+        captures,
     );
     state.use_values(last_uses);
 
@@ -35,11 +35,11 @@ pub fn emit_conditional(
     emit(
         &conditional.then,
         instructions,
-        typing,
         engine,
         cp,
         locals,
         state,
+        captures,
     );
 
     // Go to END.
@@ -48,7 +48,7 @@ pub fn emit_conditional(
     // ELSE:
     instructions.patch_jump(jump_to_else);
     if let Some(otherwise) = &conditional.otherwise {
-        emit(otherwise, instructions, typing, engine, cp, locals, state);
+        emit(otherwise, instructions, engine, cp, locals, state, captures);
     }
 
     // END:
@@ -58,15 +58,15 @@ pub fn emit_conditional(
 pub fn emit_loop(
     lp: &Loop,
     instructions: &mut Instructions,
-    typing: &Typing,
     engine: &Engine,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
+    captures: &Captures,
 ) {
     // START:
     let loop_start = instructions.current_ip();
-    let mut loop_state = EmissionState::in_loop(loop_start);
+    let mut loop_state = EmissionState::in_loop(state.current_env_id, loop_start);
 
     // loops cannot implicitly return something
 
@@ -74,7 +74,7 @@ pub fn emit_loop(
         let last_used = state.use_values(true);
 
         // Evaluate the condition.
-        emit(condition, instructions, typing, engine, cp, locals, state);
+        emit(condition, instructions, engine, cp, locals, state, captures);
         state.use_values(last_used);
 
         // If the condition is false, go to END.
@@ -88,11 +88,11 @@ pub fn emit_loop(
     emit(
         &lp.body,
         instructions,
-        typing,
         engine,
         cp,
         locals,
         &mut loop_state,
+        captures,
     );
     // Go to START.
     instructions.jump_back_to(loop_start);

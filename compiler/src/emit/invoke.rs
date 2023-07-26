@@ -1,39 +1,40 @@
+use libc::{O_APPEND, O_CREAT, O_RDONLY, O_RDWR, O_WRONLY};
+
 use analyzer::engine::Engine;
 use analyzer::relations::Definition;
-use analyzer::types::hir::{ExprKind, FunctionCall, Redir, Redirect, TypeId, TypedExpr};
-use analyzer::types::Typing;
+use analyzer::types::hir::{ExprKind, FunctionCall, Redir, Redirect, TypeId, TypedExpr, Var};
 use ast::call::{RedirFd, RedirOp};
-use libc::{O_APPEND, O_CREAT, O_RDONLY, O_RDWR, O_WRONLY};
 
 use crate::bytecode::{Instructions, Opcode};
 use crate::constant_pool::ConstantPool;
-use crate::emit;
-use crate::emit::EmissionState;
+use crate::emit::{emit, EmissionState};
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
+use crate::Captures;
 
 /// Emit any expression, knowing that we are already in a forked process.
 ///
 /// Avoid forking another time if we can replace the current process.
+
 pub fn emit_already_forked(
     expr: &TypedExpr,
     instructions: &mut Instructions,
-    typing: &Typing,
     engine: &Engine,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
+    captures: &Captures,
 ) {
     match &expr.kind {
         ExprKind::ProcessCall(process_args) => {
             emit_process_call_self(
                 process_args,
                 instructions,
-                typing,
                 engine,
                 cp,
                 locals,
                 state,
+                captures,
             );
         }
         ExprKind::Redirect(Redirect {
@@ -44,26 +45,34 @@ pub fn emit_already_forked(
                 emit_redir_self(
                     redirection,
                     instructions,
-                    typing,
                     engine,
                     cp,
                     locals,
                     state,
+                    captures,
                     Opcode::Redirect,
                 );
             }
-            emit_already_forked(expression, instructions, typing, engine, cp, locals, state);
+            emit_already_forked(
+                expression,
+                instructions,
+                engine,
+                cp,
+                locals,
+                state,
+                captures,
+            );
         }
         ExprKind::Block(block) => {
             if let Some((last, block)) = block.split_last() {
                 for expr in block {
-                    emit(expr, instructions, typing, engine, cp, locals, state);
+                    emit(expr, instructions, engine, cp, locals, state, captures);
                 }
-                emit_already_forked(last, instructions, typing, engine, cp, locals, state);
+                emit_already_forked(last, instructions, engine, cp, locals, state, captures);
             }
         }
         _ => {
-            emit(expr, instructions, typing, engine, cp, locals, state);
+            emit(expr, instructions, engine, cp, locals, state, captures);
         }
     }
 }
@@ -88,14 +97,14 @@ pub fn emit_process_end(last: Option<&TypedExpr>, instructions: &mut Instruction
 pub fn emit_process_call(
     arguments: &Vec<TypedExpr>,
     instructions: &mut Instructions,
-    typing: &Typing,
     engine: &Engine,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
+    captures: &Captures,
 ) {
     let jump_to_parent = instructions.emit_jump(Opcode::Fork);
-    emit_process_call_self(arguments, instructions, typing, engine, cp, locals, state);
+    emit_process_call_self(arguments, instructions, engine, cp, locals, state, captures);
     instructions.patch_jump(jump_to_parent);
     instructions.emit_code(Opcode::Wait);
 
@@ -110,15 +119,15 @@ pub fn emit_process_call(
 fn emit_process_call_self(
     arguments: &Vec<TypedExpr>,
     instructions: &mut Instructions,
-    typing: &Typing,
     engine: &Engine,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
+    captures: &Captures,
 ) {
     let last_use = state.use_values(true);
     for arg in arguments {
-        emit(arg, instructions, typing, engine, cp, locals, state);
+        emit(arg, instructions, engine, cp, locals, state, captures);
     }
     state.use_values(last_use);
 
@@ -127,32 +136,52 @@ fn emit_process_call_self(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn emit_function_call(
+pub fn emit_function_invocation(
     function_call: &FunctionCall,
     return_type: TypeId,
     instructions: &mut Instructions,
-    typing: &Typing,
     engine: &Engine,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
+    captures: &Captures,
 ) {
     let last_used = state.use_values(true);
 
     for arg in &function_call.arguments {
-        emit(arg, instructions, typing, engine, cp, locals, state);
+        emit(arg, instructions, engine, cp, locals, state, captures);
     }
 
     state.use_values(last_used);
 
-    let name = match function_call.definition {
-        Definition::User(u) => engine.get_environment(u).unwrap().fqn.clone(),
-        Definition::Native(_) => todo!("native call to functions are not supported"),
+    let (env, captures) = match function_call.definition {
+        Definition::User(id) => {
+            let captures = captures[id.0]
+                .as_ref()
+                .expect("captures not set during function invocation emission");
+            let env = engine.get_environment(id).unwrap();
+            (env, captures)
+        }
+        Definition::Native(_) => {
+            todo!("native call to functions are not supported")
+        }
     };
+
+    for capture in captures {
+        if capture.source == state.current_env_id {
+            // if its a local value hosted by the caller frame, create a reference
+            // to the value
+            instructions.emit_push_stack_ref(Var::Local(capture.object_id), locals);
+        } else {
+            // if its a captured variable, get the reference's value from locals
+            instructions.emit_push_stack_ref(Var::Capture(*capture), locals);
+            instructions.emit_code(Opcode::GetRefQWord);
+        }
+    }
 
     let return_type_size = return_type.into();
 
-    let signature_idx = cp.insert_string(name);
+    let signature_idx = cp.insert_string(&env.fqn);
     instructions.emit_invoke(signature_idx);
 
     // The Invoke operation will push the return value onto the stack
@@ -166,23 +195,31 @@ pub fn emit_function_call(
 pub fn emit_redirect(
     redirect: &Redirect,
     instructions: &mut Instructions,
-    typing: &Typing,
     engine: &Engine,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
+    captures: &Captures,
 ) {
     for redirection in &redirect.redirections {
-        emit_redir(redirection, instructions, typing, engine, cp, locals, state);
+        emit_redir(
+            redirection,
+            instructions,
+            engine,
+            cp,
+            locals,
+            state,
+            captures,
+        );
     }
     emit(
         &redirect.expression,
         instructions,
-        typing,
         engine,
         cp,
         locals,
         state,
+        captures,
     );
     for redir in &redirect.redirections {
         instructions.emit_code(Opcode::PopRedirect);
@@ -195,20 +232,20 @@ pub fn emit_redirect(
 fn emit_redir(
     redir: &Redir,
     instructions: &mut Instructions,
-    typing: &Typing,
     engine: &Engine,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
+    captures: &Captures,
 ) {
     emit_redir_self(
         redir,
         instructions,
-        typing,
         engine,
         cp,
         locals,
         state,
+        captures,
         Opcode::SetupRedirect,
     );
 }
@@ -217,11 +254,11 @@ fn emit_redir(
 fn emit_redir_self(
     redir: &Redir,
     instructions: &mut Instructions,
-    typing: &Typing,
     engine: &Engine,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
+    captures: &Captures,
     redir_code: Opcode,
 ) {
     debug_assert!(matches!(
@@ -235,11 +272,11 @@ fn emit_redir_self(
     emit(
         &redir.operand,
         instructions,
-        typing,
         engine,
         cp,
         locals,
         state,
+        captures,
     );
     state.use_values(last);
     match redir.operator {
@@ -302,14 +339,15 @@ fn emit_redir_self(
 /// process's stdout. After each process is launched, the parent process waits
 /// for them to finish, and returns the exit code of the last process, or the
 /// exit code of the first failing process.
+
 pub fn emit_pipeline(
     pipeline: &Vec<TypedExpr>,
     instructions: &mut Instructions,
-    typing: &Typing,
     engine: &Engine,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
+    captures: &Captures,
 ) {
     // Pipelines work by creating N - 1 pipes between the N commands.
     // Two pipes may have to be kept on top of the stack at the same time,
@@ -331,7 +369,7 @@ pub fn emit_pipeline(
     instructions.emit_code(Opcode::Close); // Close the pipe's writing end, that we just bound to stdout
     instructions.emit_code(Opcode::Close); // Close the pipe's reading end, since we don't need it
 
-    emit_already_forked(first, instructions, typing, engine, cp, locals, state);
+    emit_already_forked(first, instructions, engine, cp, locals, state, captures);
     emit_process_end(Some(first), instructions);
 
     instructions.patch_jump(jump_to_parent);
@@ -372,7 +410,7 @@ pub fn emit_pipeline(
         instructions.emit_code(Opcode::Redirect);
         instructions.emit_code(Opcode::Close); // Close the pipe's reading end, since we just bound it to stdin
 
-        emit_already_forked(command, instructions, typing, engine, cp, locals, state);
+        emit_already_forked(command, instructions, engine, cp, locals, state, captures);
         emit_process_end(Some(command), instructions);
 
         instructions.patch_jump(jump_to_parent);
@@ -415,11 +453,11 @@ pub fn emit_pipeline(
 pub fn emit_capture(
     commands: &[TypedExpr],
     instructions: &mut Instructions,
-    typing: &Typing,
     engine: &Engine,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
+    captures: &Captures,
 ) {
     instructions.emit_code(Opcode::Pipe);
     let jump_to_parent = instructions.emit_jump(Opcode::Fork);
@@ -430,9 +468,9 @@ pub fn emit_capture(
     let last = state.use_values(false);
     if let Some((last, commands)) = commands.split_last() {
         for command in commands {
-            emit(command, instructions, typing, engine, cp, locals, state);
+            emit(command, instructions, engine, cp, locals, state, captures);
         }
-        emit_already_forked(last, instructions, typing, engine, cp, locals, state);
+        emit_already_forked(last, instructions, engine, cp, locals, state, captures);
     }
     state.use_values(last);
     emit_process_end(commands.last(), instructions);

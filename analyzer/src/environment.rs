@@ -82,6 +82,11 @@ impl Environment {
         self.variables.end_scope();
     }
 
+    /// Gets an iterator over the direct inner environment identifiers.
+    pub fn iter_direct_inner_environments(&self) -> impl Iterator<Item = SourceId> + '_ {
+        self.declarations.values().copied()
+    }
+
     /// Tests if the position of the declaration of a symbol is important.
     ///
     /// If the declaration order is important in the host environment, this requires that symbol

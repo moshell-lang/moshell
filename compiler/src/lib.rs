@@ -1,18 +1,18 @@
+use std::collections::HashSet;
 use std::io;
 use std::io::Write;
 
 use analyzer::engine::Engine;
-use analyzer::environment::variables::Variables;
+use analyzer::environment::variables::TypeInfo;
 use analyzer::name::Name;
-use analyzer::relations::LocalId;
+use analyzer::relations::{LocalId, Relations, ResolvedSymbol, SourceId};
 use analyzer::types::engine::{Chunk, TypedEngine};
-use analyzer::types::Typing;
 
 use crate::bytecode::{Bytecode, Instructions};
 use crate::constant_pool::ConstantPool;
 use crate::emit::{emit, EmissionState};
 use crate::locals::LocalsLayout;
-use crate::r#type::get_type_stack_size;
+use crate::r#type::{get_type_stack_size, ValueStackSize};
 
 pub mod bytecode;
 mod constant_pool;
@@ -20,12 +20,15 @@ mod emit;
 mod locals;
 mod r#type;
 
+pub type Captures = Vec<Option<Vec<ResolvedSymbol>>>;
+
 pub fn compile(
     typed_engine: &TypedEngine,
     engine: &Engine,
-    typing: &Typing,
+    relations: &Relations,
     writer: &mut impl Write,
 ) -> Result<(), io::Error> {
+    let captures = resolve_captures(engine, relations, typed_engine);
     let mut bytecode = Bytecode::default();
     let mut cp = ConstantPool::default();
 
@@ -36,6 +39,7 @@ pub fn compile(
 
     let function_count_ph = bytecode.emit_u32_placeholder();
     let mut function_count = 0;
+
     for (id, chunk) in typed_engine.iter_chunks() {
         let chunk_env = engine.get_environment(id).unwrap();
         let chunk_fqn = &chunk_env.fqn;
@@ -54,14 +58,7 @@ pub fn compile(
         let signature_idx = cp.insert_string(name);
         bytecode.emit_constant_ref(signature_idx);
 
-        compile_instruction_set(
-            chunk,
-            &chunk_env.variables,
-            &mut bytecode,
-            typing,
-            engine,
-            &mut cp,
-        );
+        compile_chunk(chunk, id, engine, &mut bytecode, &mut cp, &captures);
 
         function_count += 1;
     }
@@ -71,22 +68,100 @@ pub fn compile(
     write(writer, &bytecode, &cp)
 }
 
-fn compile_instruction_set(
-    chunk: &Chunk,
-    chunk_vars: &Variables,
-    bytecode: &mut Bytecode,
-    typing: &Typing,
+/// Resolves all captured variables of a given chunk identifier.
+///
+/// This function will resolve all direct captures of the chunk and the captures of its inner chunks.
+/// All resolved captures are set into the given `captures` vector.
+fn resolve_captures(
     engine: &Engine,
+    relations: &Relations,
+    typed_engine: &TypedEngine,
+) -> Captures {
+    let mut externals = HashSet::new();
+    let mut captures = vec![None; engine.environments().count()];
+
+    fn resolve(
+        chunk_id: SourceId,
+        engine: &Engine,
+        relations: &Relations,
+        captures: &mut Captures,
+        externals: &mut HashSet<ResolvedSymbol>,
+    ) {
+        let env = engine.get_environment(chunk_id).unwrap();
+
+        // recursively resolve all inner functions
+        for func_id in env.iter_direct_inner_environments() {
+            resolve(func_id, engine, relations, captures, externals);
+            // filter out external symbols that refers to the current chunk
+            externals.retain(|symbol| symbol.source != chunk_id);
+        }
+
+        // add this function's external referenced variables
+        externals.extend(
+            env.variables
+                .external_vars()
+                .map(|(_, relation)| {
+                    relations[relation]
+                        .state
+                        .expect_resolved("unresolved relation during compilation")
+                })
+                .filter(|symbol| {
+                    // filter out functions
+                    let env = engine.get_environment(symbol.source).unwrap();
+                    let var = env.variables.get_var(symbol.object_id).unwrap();
+                    var.ty == TypeInfo::Variable
+                }),
+        );
+
+        let mut chunk_captures: Vec<ResolvedSymbol> = externals.iter().copied().collect();
+
+        chunk_captures.sort_by(|a, b| {
+            a.source
+                .0
+                .cmp(&b.source.0)
+                .then_with(|| a.object_id.0.cmp(&b.object_id.0))
+        });
+
+        captures[chunk_id.0] = Some(chunk_captures)
+    }
+
+    // resolve capture of all chunks, starting from root chunks of each module
+    for (chunk_id, _) in typed_engine
+        .iter_chunks()
+        .filter(|(_, chunk)| chunk.is_script)
+    {
+        resolve(chunk_id, engine, relations, &mut captures, &mut externals);
+    }
+    captures
+}
+
+fn compile_chunk(
+    chunk: &Chunk,
+    chunk_id: SourceId,
+    engine: &Engine,
+    bytecode: &mut Bytecode,
     cp: &mut ConstantPool,
+    captures: &Captures,
 ) {
+    let chunk_vars = &engine.get_environment(chunk_id).unwrap().variables;
+
     let locals_byte_count = bytecode.emit_u32_placeholder();
 
-    // emit the function's parameters bytes length
-    let parameters_bytes_count: u32 = chunk
-        .parameters
-        .iter()
-        .map(|p| Into::<u8>::into(get_type_stack_size(p.ty)) as u32)
-        .sum();
+    let chunk_captures = captures[chunk_id.0]
+        .as_ref()
+        .expect("unresolved capture after resolution");
+
+    // compute the chunk's parameters bytes length
+    let parameters_bytes_count: u32 = {
+        let explicit_params_count: u32 = chunk
+            .parameters
+            .iter()
+            .map(|p| Into::<u8>::into(get_type_stack_size(p.ty)) as u32)
+            .sum::<u32>();
+        let captures_params_count: u32 =
+            chunk_captures.len() as u32 * u8::from(ValueStackSize::QWord) as u32;
+        explicit_params_count + captures_params_count
+    };
 
     bytecode.emit_u32(parameters_bytes_count);
     // emit the function's return bytes count
@@ -99,25 +174,28 @@ fn compile_instruction_set(
     let instruction_count = bytecode.emit_u32_placeholder();
 
     let mut instructions = Instructions::wrap(bytecode);
-    let mut locals = LocalsLayout::fixed_count(chunk_vars.all_vars().len());
+    let mut locals = LocalsLayout::new(chunk_vars.all_vars().len() + chunk_captures.len());
 
+    // set space for explicit parameters
     for (id, param) in chunk.parameters.iter().enumerate() {
-        locals.set_space(LocalId(id), param.ty.into())
+        locals.set_value_space(LocalId(id), param.ty.into())
     }
 
-    let mut state = EmissionState {
-        use_values: use_value,
-        ..EmissionState::default()
-    };
+    // set space for implicit captures
+    for id in chunk_captures {
+        locals.init_external_ref_space(*id)
+    }
+
+    let mut state = EmissionState::new(use_value, chunk_id);
 
     emit(
         &chunk.expression,
         &mut instructions,
-        typing,
         engine,
         cp,
         &mut locals,
         &mut state,
+        captures,
     );
 
     // patch instruction count placeholder
@@ -146,4 +224,79 @@ fn write_constant_pool(cp: &ConstantPool, writer: &mut impl Write) -> Result<(),
         writer.write_all(str.as_bytes())?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use analyzer::importer::StaticImporter;
+    use analyzer::name::Name;
+    use analyzer::relations::{LocalId, ResolvedSymbol, SourceId};
+    use analyzer::steps::typing::apply_types;
+    use context::source::Source;
+    use parser::parse_trusted;
+
+    use crate::resolve_captures;
+
+    #[test]
+    fn test_inner_functions_captures() {
+        let src = "\
+        fun foo() = {\
+           var i = 0
+           var b = 1
+           fun foo1(n: Int) = {
+              fun foo2() = {
+                 echo $n $i
+              }
+              echo $b
+           }
+           fun bar() = {
+             fun bar1() = {
+                fun bar2() = {
+                   $i
+                }
+             }
+           }
+        }\
+        ";
+        let result = analyzer::resolve_all(
+            Name::new("test"),
+            &mut StaticImporter::new([(Name::new("test"), Source::unknown(src))], parse_trusted),
+        );
+
+        let (typed_engine, _) = apply_types(&result.engine, &result.relations, &mut vec![]);
+
+        let captures = resolve_captures(&result.engine, &result.relations, &typed_engine);
+
+        assert_eq!(
+            captures,
+            vec![
+                Some(vec![]), //root
+                Some(vec![]), //foo
+                Some(vec![
+                    //foo1
+                    ResolvedSymbol::new(SourceId(1), LocalId(0)),
+                    ResolvedSymbol::new(SourceId(1), LocalId(1)),
+                ]),
+                Some(vec![
+                    //foo2
+                    ResolvedSymbol::new(SourceId(1), LocalId(0)),
+                    ResolvedSymbol::new(SourceId(2), LocalId(0)),
+                ]),
+                Some(vec![
+                    //bar
+                    ResolvedSymbol::new(SourceId(1), LocalId(0)),
+                ]),
+                Some(vec![
+                    //bar1
+                    ResolvedSymbol::new(SourceId(1), LocalId(0)),
+                ]),
+                Some(vec![
+                    //bar2
+                    ResolvedSymbol::new(SourceId(1), LocalId(0)),
+                ]),
+            ]
+        )
+    }
 }
