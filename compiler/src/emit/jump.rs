@@ -7,7 +7,6 @@ use crate::emit::{emit, EmissionState};
 use crate::locals::LocalsLayout;
 use crate::Captures;
 
-#[allow(clippy::too_many_arguments)]
 pub fn emit_conditional(
     conditional: &Conditional,
     instructions: &mut Instructions,
@@ -15,7 +14,7 @@ pub fn emit_conditional(
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
-    captures: &mut Captures,
+    captures: &Captures,
 ) {
     // emit condition
     let last_uses = state.use_values(true);
@@ -56,7 +55,6 @@ pub fn emit_conditional(
     instructions.patch_jump(jump_to_end);
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn emit_loop(
     lp: &Loop,
     instructions: &mut Instructions,
@@ -64,7 +62,7 @@ pub fn emit_loop(
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
-    captures: &mut Captures,
+    captures: &Captures,
 ) {
     // START:
     let loop_start = instructions.current_ip();

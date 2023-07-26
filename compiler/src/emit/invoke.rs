@@ -15,7 +15,7 @@ use crate::Captures;
 /// Emit any expression, knowing that we are already in a forked process.
 ///
 /// Avoid forking another time if we can replace the current process.
-#[allow(clippy::too_many_arguments)]
+
 pub fn emit_already_forked(
     expr: &TypedExpr,
     instructions: &mut Instructions,
@@ -23,7 +23,7 @@ pub fn emit_already_forked(
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
-    captures: &mut Captures,
+    captures: &Captures,
 ) {
     match &expr.kind {
         ExprKind::ProcessCall(process_args) => {
@@ -94,7 +94,6 @@ pub fn emit_process_end(last: Option<&TypedExpr>, instructions: &mut Instruction
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn emit_process_call(
     arguments: &Vec<TypedExpr>,
     instructions: &mut Instructions,
@@ -102,7 +101,7 @@ pub fn emit_process_call(
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
-    captures: &mut Captures,
+    captures: &Captures,
 ) {
     let jump_to_parent = instructions.emit_jump(Opcode::Fork);
     emit_process_call_self(arguments, instructions, engine, cp, locals, state, captures);
@@ -117,7 +116,6 @@ pub fn emit_process_call(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn emit_process_call_self(
     arguments: &Vec<TypedExpr>,
     instructions: &mut Instructions,
@@ -125,7 +123,7 @@ fn emit_process_call_self(
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
-    captures: &mut Captures,
+    captures: &Captures,
 ) {
     let last_use = state.use_values(true);
     for arg in arguments {
@@ -146,7 +144,7 @@ pub fn emit_function_invocation(
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
-    captures: &mut Captures,
+    captures: &Captures,
 ) {
     let last_used = state.use_values(true);
 
@@ -177,7 +175,7 @@ pub fn emit_function_invocation(
         } else {
             // if its a captured variable, get the reference's value from locals
             instructions.emit_push_stack_ref(Var::Capture(*capture), locals);
-            instructions.emit_code(Opcode::GetRef);
+            instructions.emit_code(Opcode::GetRefQWord);
         }
     }
 
@@ -194,7 +192,6 @@ pub fn emit_function_invocation(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn emit_redirect(
     redirect: &Redirect,
     instructions: &mut Instructions,
@@ -202,7 +199,7 @@ pub fn emit_redirect(
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
-    captures: &mut Captures,
+    captures: &Captures,
 ) {
     for redirection in &redirect.redirections {
         emit_redir(
@@ -232,7 +229,6 @@ pub fn emit_redirect(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn emit_redir(
     redir: &Redir,
     instructions: &mut Instructions,
@@ -240,7 +236,7 @@ fn emit_redir(
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
-    captures: &mut Captures,
+    captures: &Captures,
 ) {
     emit_redir_self(
         redir,
@@ -262,7 +258,7 @@ fn emit_redir_self(
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
-    captures: &mut Captures,
+    captures: &Captures,
     redir_code: Opcode,
 ) {
     debug_assert!(matches!(
@@ -343,7 +339,7 @@ fn emit_redir_self(
 /// process's stdout. After each process is launched, the parent process waits
 /// for them to finish, and returns the exit code of the last process, or the
 /// exit code of the first failing process.
-#[allow(clippy::too_many_arguments)]
+
 pub fn emit_pipeline(
     pipeline: &Vec<TypedExpr>,
     instructions: &mut Instructions,
@@ -351,7 +347,7 @@ pub fn emit_pipeline(
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
-    captures: &mut Captures,
+    captures: &Captures,
 ) {
     // Pipelines work by creating N - 1 pipes between the N commands.
     // Two pipes may have to be kept on top of the stack at the same time,
@@ -454,7 +450,6 @@ pub fn emit_pipeline(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn emit_capture(
     commands: &[TypedExpr],
     instructions: &mut Instructions,
@@ -462,7 +457,7 @@ pub fn emit_capture(
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
-    captures: &mut Captures,
+    captures: &Captures,
 ) {
     instructions.emit_code(Opcode::Pipe);
     let jump_to_parent = instructions.emit_jump(Opcode::Fork);

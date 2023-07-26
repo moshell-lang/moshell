@@ -70,8 +70,7 @@ where
             }
         }
     }
-    //FIXME: supposed to be distinct but the current implementation can contain
-    // duplicates in some complex cyclic cases
+    //FIXME: can contain duplicates
     sorted.dedup();
     sorted
 }

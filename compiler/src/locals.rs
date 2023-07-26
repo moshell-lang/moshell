@@ -39,15 +39,15 @@ impl LocalsLayout {
         self.len += size as u32;
     }
 
-    /// Reserves the space in the eternal's reference
+    /// Reserves the space in local's of the external reference, if not already set.
     ///
     /// Different initialization orders will result in different indexes.
-    pub fn set_external_ref_space(&mut self, symbol: ResolvedSymbol) {
+    pub fn init_external_ref_space(&mut self, symbol: ResolvedSymbol) {
         match self.external_refs_indexes.entry(symbol) {
             Entry::Occupied(_) => {}
             Entry::Vacant(v) => {
                 v.insert(self.len);
-                self.len += u8::from(ValueStackSize::Reference) as u32;
+                self.len += u8::from(ValueStackSize::QWord) as u32;
             }
         }
     }

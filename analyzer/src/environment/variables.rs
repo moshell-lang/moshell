@@ -1,5 +1,5 @@
-use indexmap::map::Entry;
-use indexmap::IndexMap;
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
 use crate::name::Name;
@@ -31,7 +31,7 @@ pub struct Variables {
 
     /// Relations with external variables.
     /// The key is the variable Names, where value is the relation with another external environment's [Locals]
-    externals: IndexMap<Name, RelationId>,
+    externals: HashMap<Name, RelationId>,
 }
 
 impl Variables {

@@ -15,6 +15,7 @@ const INT_TO_STRING: &str = "lang::Int::to_string";
 const FLOAT_TO_STRING: &str = "lang::Float::to_string";
 
 /// Emits a primitive sequence of instructions.
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit_natives(
     native: NativeId,
@@ -25,7 +26,7 @@ pub(crate) fn emit_natives(
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
-    captures: &mut Captures,
+    captures: &Captures,
 ) {
     let last_used = state.use_values(true);
     emit(callee, instructions, engine, cp, locals, state, captures);
@@ -137,23 +138,23 @@ pub(crate) fn emit_natives(
             instructions.patch_jump(jump_to_else);
             instructions.emit_push_constant_ref(false_string);
             instructions.patch_jump(jump_to_end);
-            ValueStackSize::Reference
+            ValueStackSize::QWord
         }
         28 => {
             // ExitCode -> String
             instructions.emit_code(Opcode::ConvertByteToInt);
             instructions.emit_invoke(cp.insert_string(INT_TO_STRING));
-            ValueStackSize::Reference
+            ValueStackSize::QWord
         }
         29 => {
             // Int -> String
             instructions.emit_invoke(cp.insert_string(INT_TO_STRING));
-            ValueStackSize::Reference
+            ValueStackSize::QWord
         }
         30 => {
             // Float -> String
             instructions.emit_invoke(cp.insert_string(FLOAT_TO_STRING));
-            ValueStackSize::Reference
+            ValueStackSize::QWord
         }
         33 => {
             // String + String -> String
@@ -168,7 +169,7 @@ pub(crate) fn emit_natives(
                 captures,
             );
             instructions.emit_invoke(cp.insert_string(STRING_CONCAT));
-            ValueStackSize::Reference
+            ValueStackSize::QWord
         }
         id => todo!("Native function with id {id}"),
     };

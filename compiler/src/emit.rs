@@ -82,7 +82,6 @@ fn emit_literal(literal: &LiteralValue, instructions: &mut Instructions, cp: &mu
     };
 }
 
-#[allow(clippy::too_many_arguments)]
 fn emit_declaration(
     declaration: &Declaration,
     instructions: &mut Instructions,
@@ -90,7 +89,7 @@ fn emit_declaration(
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
-    captures: &mut Captures,
+    captures: &Captures,
 ) {
     if let Some(value) = &declaration.value {
         locals.set_value_space(declaration.identifier, value.ty.into());
@@ -108,7 +107,6 @@ fn emit_declaration(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn emit_block(
     exprs: &[TypedExpr],
     instructions: &mut Instructions,
@@ -116,7 +114,7 @@ fn emit_block(
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
-    captures: &mut Captures,
+    captures: &Captures,
 ) {
     if let Some((last_expr, exprs)) = exprs.split_last() {
         let last_used = state.use_values(false);
@@ -137,7 +135,7 @@ fn emit_assignment(
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
-    captures: &mut Captures,
+    captures: &Captures,
 ) {
     let last = state.use_values(true);
 
@@ -149,7 +147,6 @@ fn emit_assignment(
     instructions.emit_set_local(var, returned_value_type, locals)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn emit_return(
     value: &Option<Box<TypedExpr>>,
     instructions: &mut Instructions,
@@ -157,7 +154,7 @@ fn emit_return(
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
-    captures: &mut Captures,
+    captures: &Captures,
 ) {
     if let Some(value) = &value {
         let last_use = state.use_values(true);
@@ -169,7 +166,6 @@ fn emit_return(
     instructions.emit_code(Opcode::Return);
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn emit(
     expr: &TypedExpr,
     instructions: &mut Instructions,
@@ -177,7 +173,7 @@ pub fn emit(
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
-    captures: &mut Captures,
+    captures: &Captures,
 ) {
     match &expr.kind {
         ExprKind::Declare(d) => {

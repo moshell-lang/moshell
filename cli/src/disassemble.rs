@@ -69,13 +69,18 @@ fn display_function(cursor: &mut Cursor<&[u8]>, constants: &[String]) -> io::Res
             Opcode::PushInt => print!("<value {}>", read!(cursor, i64)),
             Opcode::PushByte => print!("<value {}>", read!(cursor, u8)),
             Opcode::PushFloat => print!("<value {}>", read!(cursor, f64)),
-            Opcode::PushConstantRef => {
+            Opcode::PushStringRef => {
                 let constant_idx = read!(cursor, u32) as usize;
                 let str = &constants[constant_idx];
                 let padding = (digits(constants.len() as u64) - digits(constant_idx as u64)) + 10;
                 print!("<constant #{constant_idx}> {:padding$} // \"{str}\"", "")
             }
-            Opcode::PushLocalRef => print!("<local @{}>", read!(cursor, u32)),
+            Opcode::PushLocalRef
+            | Opcode::GetLocalByte
+            | Opcode::GetLocalQWord
+            | Opcode::SetLocalByte
+            | Opcode::SetLocalQWord => print!("<local @{}>", read!(cursor, u32)),
+
             Opcode::Invoke => {
                 let constant_idx = read!(cursor, u32) as usize;
                 let str = &constants[constant_idx];
@@ -122,14 +127,16 @@ fn get_opcode_mnemonic(opcode: Opcode) -> &'static str {
         Opcode::PushInt => "ipsh",
         Opcode::PushByte => "bpsh",
         Opcode::PushFloat => "fpsh",
-        Opcode::PushConstantRef => "crpsh",
+        Opcode::PushStringRef => "crpsh",
         Opcode::PushLocalRef => "lrpsh",
-        Opcode::GetByte => "bget",
-        Opcode::SetByte => "bset",
-        Opcode::GetQWord => "qwget",
-        Opcode::SetQWord => "qwset",
-        Opcode::GetRef => "rget",
-        Opcode::SetRef => "rset",
+        Opcode::GetLocalByte => "lbget",
+        Opcode::SetLocalByte => "lbset",
+        Opcode::GetLocalQWord => "lqwget",
+        Opcode::SetLocalQWord => "lqwset",
+        Opcode::GetRefByte => "rbget",
+        Opcode::SetRefByte => "rbset",
+        Opcode::GetRefQWord => "rqwget",
+        Opcode::SetRefQWord => "rqwset",
         Opcode::Invoke => "invoke",
         Opcode::Fork => "fork",
         Opcode::Exec => "exec",
@@ -149,7 +156,6 @@ fn get_opcode_mnemonic(opcode: Opcode) -> &'static str {
         Opcode::Swap2 => "swap2",
         Opcode::PopByte => "bpop",
         Opcode::PopQWord => "qwpop",
-        Opcode::PopRef => "rpop",
         Opcode::IfJump => "ifjmp",
         Opcode::IfNotJump => "ifnjmp",
         Opcode::Jump => "jmp",
