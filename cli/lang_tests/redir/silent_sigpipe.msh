@@ -1,0 +1,7 @@
+// Run:
+//   status: success
+//   stdout:
+//    y
+//    y
+
+yes | head -n 2

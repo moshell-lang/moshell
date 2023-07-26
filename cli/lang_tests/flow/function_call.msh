@@ -1,0 +1,34 @@
+// Run:
+//   status: success
+//   stdout:
+//    The square of 42 is 1764.
+//    Hello, John ! You are 42 years old.
+//    You are allowed to drink alcohol.
+//    John is at the legal age to drink alcohol.
+//    Concat result: foobar
+
+fun square(n: Int) -> Int = $n * $n
+
+val m = 42
+val n = square($m)
+echo "The square of $m is $n."
+
+fun present(name: String, is_okay: Bool, age: Int) -> Bool = {
+    echo "Hello, $name ! You are $age years old."
+    if [ $age < 18 ] {
+        echo "You are not allowed to drink alcohol."
+        return false
+    } else {
+        echo "You are allowed to drink alcohol."
+    }
+    $age >= 18
+}
+
+if present("John", true, $m) {
+    echo "John is at the legal age to drink alcohol."
+}
+
+fun concat(a: String, b: String) -> String = $a + $b
+fun foo() -> String = concat("foo", "bar")
+
+echo 'Concat result:' foo()
