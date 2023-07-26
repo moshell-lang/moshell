@@ -174,13 +174,10 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         visited: &mut HashSet<Name>,
     ) {
         while let Some(name) = to_visit.pop() {
-            if !visited.insert(name.clone()) {
-                continue;
-            }
             //try to import the ast, if the importer isn't able to achieve this and returns None,
             //Ignore this ast analysis. It'll be up to the given importer implementation to handle the
             //errors caused by this import request failure
-            if let Some((imported, name)) = import_ast(name, importer) {
+            if let Some((imported, name)) = import_ast(name, importer, visited) {
                 self.collect_ast_symbols(imported, name, to_visit)
             }
         }
@@ -661,10 +658,14 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
 fn import_ast<'a, 'b>(
     name: Name,
     importer: &'b mut impl ASTImporter<'a>,
+    visited: &mut HashSet<Name>,
 ) -> Option<(Imported<'a>, Name)> {
     let mut parts = name.into_vec();
     while !parts.is_empty() {
         let name = Name::from(parts.clone());
+        if !visited.insert(name.clone()) {
+            return None;
+        }
         match importer.import(&name) {
             ImportResult::Success(imported) => return Some((imported, name)),
             ImportResult::NotFound => {

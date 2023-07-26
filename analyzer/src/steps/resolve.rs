@@ -452,21 +452,21 @@ mod tests {
                     (
                         "PI".to_string(),
                         (
-                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceId(12), LocalId(0))),
+                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceId(5), LocalId(0))),
                             find_in(test_src, "math::PI")
                         )
                     ),
                     (
                         "Bar".to_string(),
                         (
-                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceId(7), LocalId(1))),
+                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceId(4), LocalId(1))),
                             find_in(test_src, "std::*")
                         )
                     ),
                     (
                         "Foo".to_string(),
                         (
-                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceId(7), LocalId(0))),
+                            ResolvedImport::Symbol(ResolvedSymbol::new(SourceId(4), LocalId(0))),
                             find_in(test_src, "std::*")
                         )
                     ),
