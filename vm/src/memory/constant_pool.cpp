@@ -30,7 +30,7 @@ ConstantPool::ConstantPool(uint32_t size)
 
 const std::string &ConstantPool::get_string(constant_index at) const {
     if (at >= size) {
-        throw std::out_of_range("index " + std::to_string(at) + " >= " + std::to_string(at));
+        throw std::out_of_range("get string at index " + std::to_string(at) + " exceeds constant pool size (" + std::to_string(size) + ")");
     }
     return *constants[at];
 }

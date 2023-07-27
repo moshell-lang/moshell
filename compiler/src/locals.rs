@@ -57,12 +57,20 @@ impl LocalsLayout {
     /// Returns [`None`] if the local is size has not yet been initialized.
     ///
     /// # Panics
-    /// Panics if te local id is out of bounds.
-    pub fn get_index(&self, var: Var) -> Option<u32> {
+    /// Panics if the local id is out of bounds.
+    pub fn get_index(&self, id: LocalId) -> Option<u32> {
+        self.values_indexes[id.0]
+    }
+
+    pub fn get_var_index(&self, var: Var) -> Option<u32> {
         match var {
             Var::Local(LocalId(id)) => self.values_indexes[id],
-            Var::Capture(symbol) => self.external_refs_indexes.get(&symbol).copied(),
+            Var::External(symbol) => self.external_refs_indexes.get(&symbol).copied(),
         }
+    }
+
+    pub fn get_capture_index(&self, var: ResolvedSymbol) -> Option<u32> {
+        self.external_refs_indexes.get(&var).copied()
     }
 
     pub fn byte_count(&self) -> u32 {

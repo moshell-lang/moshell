@@ -69,7 +69,7 @@ fn display_function(cursor: &mut Cursor<&[u8]>, constants: &[String]) -> io::Res
             Opcode::PushInt => print!("<value {}>", read!(cursor, i64)),
             Opcode::PushByte => print!("<value {}>", read!(cursor, u8)),
             Opcode::PushFloat => print!("<value {}>", read!(cursor, f64)),
-            Opcode::PushStringRef => {
+            Opcode::PushString => {
                 let constant_idx = read!(cursor, u32) as usize;
                 let str = &constants[constant_idx];
                 let padding = (digits(constants.len() as u64) - digits(constant_idx as u64)) + 10;
@@ -90,6 +90,12 @@ fn display_function(cursor: &mut Cursor<&[u8]>, constants: &[String]) -> io::Res
                     ""
                 )
             }
+            Opcode::FetchByte | Opcode::FetchQWord | Opcode::StoreByte | Opcode::StoreQWord => {
+                let constant_idx = read!(cursor, u32) as usize;
+                let str = &constants[constant_idx];
+                let padding = (digits(constants.len() as u64) - digits(constant_idx as u64)) + 10;
+                print!("<external #{constant_idx}> {:padding$} // {str}", "")
+            }
             Opcode::Exec => print!("<arity {}>", read!(cursor, u8)),
             Opcode::Open => print!("<flags {:#x}>", read!(cursor, i32)),
             Opcode::IfJump | Opcode::IfNotJump | Opcode::Jump | Opcode::Fork => {
@@ -104,10 +110,20 @@ fn display_function(cursor: &mut Cursor<&[u8]>, constants: &[String]) -> io::Res
 }
 
 fn display_functions(cursor: &mut Cursor<&[u8]>, constants: &[String]) -> io::Result<()> {
+    display_function(cursor, constants)?;
+    println!("Exports: ");
+    let exports_len = read!(cursor, u32);
+    for _ in 0..exports_len {
+        let constant_idx = read!(cursor, u32) as usize;
+        let str = &constants[constant_idx];
+        let offset = read!(cursor, u32);
+        println!("\t{str} {offset}");
+    }
+
     println!("Functions: ");
 
-    let function_count = read!(cursor, u32);
-    for _ in 0..function_count {
+    let functions_len = read!(cursor, u32);
+    for _ in 0..functions_len {
         display_function(cursor, constants)?;
     }
     Ok(())
@@ -118,8 +134,10 @@ pub(crate) fn display_bytecode(bytecode: &[u8]) {
     let constants =
         load_constants(&mut cursor).expect("Read slice error when displaying constant pool");
     display_constants(&constants);
-    display_functions(&mut cursor, &constants)
-        .expect("Read slice error when displaying function contents");
+    while cursor.position() < bytecode.len() as u64 {
+        display_functions(&mut cursor, &constants)
+            .expect("Read slice error when displaying function content");
+    }
 }
 
 fn get_opcode_mnemonic(opcode: Opcode) -> &'static str {
@@ -127,7 +145,7 @@ fn get_opcode_mnemonic(opcode: Opcode) -> &'static str {
         Opcode::PushInt => "ipsh",
         Opcode::PushByte => "bpsh",
         Opcode::PushFloat => "fpsh",
-        Opcode::PushStringRef => "crpsh",
+        Opcode::PushString => "crpsh",
         Opcode::PushLocalRef => "lrpsh",
         Opcode::GetLocalByte => "lbget",
         Opcode::SetLocalByte => "lbset",
@@ -137,6 +155,10 @@ fn get_opcode_mnemonic(opcode: Opcode) -> &'static str {
         Opcode::SetRefByte => "rbset",
         Opcode::GetRefQWord => "rqwget",
         Opcode::SetRefQWord => "rqwset",
+        Opcode::FetchByte => "bfetch",
+        Opcode::FetchQWord => "qwfetch",
+        Opcode::StoreByte => "bstore",
+        Opcode::StoreQWord => "qwstore",
         Opcode::Invoke => "invoke",
         Opcode::Fork => "fork",
         Opcode::Exec => "exec",

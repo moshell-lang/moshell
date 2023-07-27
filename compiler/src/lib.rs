@@ -4,13 +4,13 @@ use std::io::Write;
 
 use analyzer::engine::Engine;
 use analyzer::environment::variables::TypeInfo;
-use analyzer::name::Name;
+use analyzer::environment::variables::Variables;
 use analyzer::relations::{LocalId, Relations, ResolvedSymbol, SourceId};
 use analyzer::types::engine::{Chunk, TypedEngine};
 
 use crate::bytecode::{Bytecode, Instructions};
-use crate::constant_pool::ConstantPool;
-use crate::emit::{emit, EmissionState};
+use crate::constant_pool::{ConstantPool, ExportedSymbol};
+use crate::emit::{emit, EmissionState, EmitterContext};
 use crate::locals::LocalsLayout;
 use crate::r#type::{get_type_stack_size, ValueStackSize};
 
@@ -24,46 +24,53 @@ pub type Captures = Vec<Option<Vec<ResolvedSymbol>>>;
 
 pub fn compile(
     typed_engine: &TypedEngine,
-    engine: &Engine,
+    link_engine: &Engine,
     relations: &Relations,
     writer: &mut impl Write,
 ) -> Result<(), io::Error> {
-    let captures = resolve_captures(engine, relations, typed_engine);
+    let captures = resolve_captures(link_engine, relations, typed_engine);
     let mut bytecode = Bytecode::default();
     let mut cp = ConstantPool::default();
 
-    //have we already met a script's main method ?
-    // compiler cannot currently handle multiple modules so this flag is meant to make the compiler panic
-    // if more than one script chunk is detected
-    let mut is_main_compiled = false;
-
-    let function_count_ph = bytecode.emit_u32_placeholder();
-    let mut function_count = 0;
-
-    for (id, chunk) in typed_engine.iter_chunks() {
-        let chunk_env = engine.get_environment(id).unwrap();
-        let chunk_fqn = &chunk_env.fqn;
-
-        let name = if chunk.is_script {
-            if is_main_compiled {
-                todo!("Compiler cannot support multiple modules")
-            }
-            is_main_compiled = true;
-            chunk_fqn.appended(Name::new("<main>"))
-        } else {
-            chunk_fqn.clone()
-        };
-
-        // emit the function's name
-        let signature_idx = cp.insert_string(name);
-        bytecode.emit_constant_ref(signature_idx);
-
-        compile_chunk(chunk, id, engine, &mut bytecode, &mut cp, &captures);
-
-        function_count += 1;
+    let mut it = typed_engine.group_by_content(link_engine);
+    while let Some(content) = it.next() {
+        {
+            let (chunk_id, main_env, main_chunk) = content.main_chunk(&it);
+            let ctx = EmitterContext {
+                environment: main_env,
+                engine: link_engine,
+                captures: &captures,
+                chunk_id,
+                is_script: true,
+            };
+            let name = &main_env.fqn;
+            let signature_idx = cp.insert_string(name.to_string());
+            bytecode.emit_constant_ref(signature_idx);
+            compile_chunk(
+                main_chunk,
+                chunk_id,
+                &main_env.variables,
+                &mut bytecode,
+                ctx,
+                &mut cp,
+            );
+            write_exported(&mut cp, &mut bytecode.bytes)?;
+        }
+        bytecode.emit_u32(content.function_count() as u32);
+        for (chunk_id, env, chunk) in content.function_chunks(&it) {
+            let ctx = EmitterContext {
+                environment: env,
+                engine: link_engine,
+                captures: &captures,
+                chunk_id,
+                is_script: false,
+            };
+            let name = &env.fqn;
+            let signature_idx = cp.insert_string(name.to_string());
+            bytecode.emit_constant_ref(signature_idx);
+            compile_chunk(chunk, chunk_id, &env.variables, &mut bytecode, ctx, &mut cp);
+        }
     }
-
-    bytecode.patch_u32_placeholder(function_count_ph, function_count);
 
     write(writer, &bytecode, &cp)
 }
@@ -78,7 +85,7 @@ fn resolve_captures(
     typed_engine: &TypedEngine,
 ) -> Captures {
     let mut externals = HashSet::new();
-    let mut captures = vec![None; engine.environments().count()];
+    let mut captures = vec![None; engine.len()];
 
     fn resolve(
         chunk_id: SourceId,
@@ -86,12 +93,13 @@ fn resolve_captures(
         relations: &Relations,
         captures: &mut Captures,
         externals: &mut HashSet<ResolvedSymbol>,
+        is_script: bool,
     ) {
         let env = engine.get_environment(chunk_id).unwrap();
 
         // recursively resolve all inner functions
         for func_id in env.iter_direct_inner_environments() {
-            resolve(func_id, engine, relations, captures, externals);
+            resolve(func_id, engine, relations, captures, externals, false);
             // filter out external symbols that refers to the current chunk
             externals.retain(|symbol| symbol.source != chunk_id);
         }
@@ -109,7 +117,7 @@ fn resolve_captures(
                     // filter out functions
                     let env = engine.get_environment(symbol.source).unwrap();
                     let var = env.variables.get_var(symbol.object_id).unwrap();
-                    var.ty == TypeInfo::Variable
+                    var.ty == TypeInfo::Variable && !(is_script && var.is_exported())
                 }),
         );
 
@@ -130,7 +138,14 @@ fn resolve_captures(
         .iter_chunks()
         .filter(|(_, chunk)| chunk.is_script)
     {
-        resolve(chunk_id, engine, relations, &mut captures, &mut externals);
+        resolve(
+            chunk_id,
+            engine,
+            relations,
+            &mut captures,
+            &mut externals,
+            true,
+        );
     }
     captures
 }
@@ -138,16 +153,14 @@ fn resolve_captures(
 fn compile_chunk(
     chunk: &Chunk,
     chunk_id: SourceId,
-    engine: &Engine,
+    chunk_vars: &Variables,
     bytecode: &mut Bytecode,
+    ctx: EmitterContext,
     cp: &mut ConstantPool,
-    captures: &Captures,
 ) {
-    let chunk_vars = &engine.get_environment(chunk_id).unwrap().variables;
-
     let locals_byte_count = bytecode.emit_u32_placeholder();
 
-    let chunk_captures = captures[chunk_id.0]
+    let chunk_captures = ctx.captures[chunk_id.0]
         .as_ref()
         .expect("unresolved capture after resolution");
 
@@ -186,16 +199,18 @@ fn compile_chunk(
         locals.init_external_ref_space(*id)
     }
 
-    let mut state = EmissionState::new(use_value, chunk_id);
+    let mut state = EmissionState {
+        use_values: use_value,
+        ..EmissionState::default()
+    };
 
     emit(
         &chunk.expression,
         &mut instructions,
-        engine,
+        ctx,
         cp,
         &mut locals,
         &mut state,
-        captures,
     );
 
     // patch instruction count placeholder
@@ -223,6 +238,24 @@ fn write_constant_pool(cp: &ConstantPool, writer: &mut impl Write) -> Result<(),
         writer.write_all(&(str.len() as u64).to_be_bytes())?;
         writer.write_all(str.as_bytes())?;
     }
+    Ok(())
+}
+
+fn write_exported(pool: &mut ConstantPool, writer: &mut impl Write) -> Result<(), io::Error> {
+    writer.write_all(
+        &u32::try_from(pool.exported.len())
+            .expect("too many locals")
+            .to_be_bytes(),
+    )?;
+    for ExportedSymbol {
+        name_index,
+        local_offset,
+    } in &pool.exported
+    {
+        writer.write_all(&name_index.to_be_bytes())?;
+        writer.write_all(&local_offset.to_be_bytes())?;
+    }
+    pool.exported.clear();
     Ok(())
 }
 

@@ -1,6 +1,8 @@
 #include "interpreter.h"
 #include "conversions.h"
 
+#include "definitions/loader.h"
+#include "definitions/pager.h"
 #include "memory/call_stack.h"
 #include "memory/constant_pool.h"
 #include "memory/nix.h"
@@ -34,6 +36,11 @@ enum Opcode {
     OP_REF_SET_BYTE,   // pops last reference, pops a byte value then sets the reference's value with byte value
     OP_REF_GET_Q_WORD, // pops last reference and pushes its sword value onto the operands
     OP_REF_SET_Q_WORD, // pops last reference, pops a qword value then sets the reference's value with qword value
+
+    OP_FETCH_BYTE,   // with 4 byte external index in constant pool, pushes given external value onto the operand stack
+    OP_FETCH_Q_WORD, // with 4 byte external index in constant pool, pushes given external value onto the operand stack
+    OP_STORE_BYTE,   // with 4 byte external index in constant pool, set given external value from value popped from the operand stack
+    OP_STORE_Q_WORD, // with 4 byte external index in constant pool, set given external value from value popped from the operand stack
 
     OP_INVOKE,         // with 4 byte function ref string in constant pool, pops parameters from operands then pushes invoked function return in operand stack (if non-void)
     OP_FORK,           // forks a new process, pushes the pid onto the operand stack of the parent and jumps to the given address in the parent
@@ -104,18 +111,16 @@ struct runtime_state {
     fd_table table;
 
     /**
-     * loaded function definitions, bound with their string identifier
+     * The loader used to load external symbols
      */
-    const std::unordered_map<const std::string *, function_definition> &functions;
+    const msh::loader &loader;
+
+    msh::pager &pager;
+
     /**
      * native functions pointers, bound with their string identifier
      */
     const natives_functions_t &native_functions;
-
-    /**
-     * The used constant pool
-     */
-    const ConstantPool &pool;
 };
 
 /**
@@ -229,18 +234,17 @@ inline bool apply_comparison(Opcode code, double a, double b) {
  * @throws FunctionNotFoundError if given callee identifier does not points to a moshell or native function.
  * @return true if a new moshell function has been pushed onto the stack.
  */
-inline bool handle_function_invocation(constant_index callee_identifier_idx,
+inline bool handle_function_invocation(const std::string &callee_identifier,
                                        runtime_state &state,
                                        OperandStack &caller_operands,
                                        CallStack &call_stack) {
 
-    const std::string *callee_identifier = &state.pool.get_string(callee_identifier_idx);
-    auto callee_def_it = state.functions.find(callee_identifier);
+    auto callee_def_it = state.loader.find_function(callee_identifier);
 
-    if (callee_def_it == state.functions.end()) {
-        auto native_function_it = state.native_functions.find(callee_identifier);
+    if (callee_def_it == state.loader.functions_cend()) {
+        auto native_function_it = state.native_functions.find(&callee_identifier);
         if (native_function_it == state.native_functions.end()) {
-            throw FunctionNotFoundError("Could not find function " + *callee_identifier);
+            throw FunctionNotFoundError("Could not find function " + callee_identifier);
         }
 
         auto native_function = native_function_it->second;
@@ -262,12 +266,30 @@ inline bool handle_function_invocation(constant_index callee_identifier_idx,
  * @return true if this function returned because the current frame has ended, or false if it returned because it pushed a new frame
  */
 bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, const char *instructions, size_t instruction_count) {
-    const ConstantPool &pool = state.pool;
+    const ConstantPool &pool = state.pager.get_pool(frame.function.constant_pool_index);
 
     // the instruction pointer
     size_t &ip = *frame.instruction_pointer;
     OperandStack &operands = frame.operands;
     Locals &locals = frame.locals;
+
+    auto implement_fetch = [&]<typename T>() mutable {
+        uint32_t external_index = ntohl(*(uint32_t *)(instructions + ip));
+        ip += 4;
+        const std::string &exported_name = pool.get_string(external_index);
+        const msh::exported_variable &exported = state.loader.get_exported(exported_name);
+        T value = state.pager.get<T>(exported);
+        operands.push<T>(value);
+    };
+
+    auto implement_store = [&]<typename T>() mutable {
+        uint32_t external_index = ntohl(*(uint32_t *)(instructions + ip));
+        ip += 4;
+        const std::string &exported_name = pool.get_string(external_index);
+        const msh::exported_variable &exported = state.loader.get_exported(exported_name);
+        T value = operands.pop<T>();
+        state.pager.set<T>(exported, value);
+    };
 
     while (ip < instruction_count) {
         // Read the opcode
@@ -321,10 +343,13 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             constant_index identifier_idx = ntohl(*(constant_index *)(instructions + ip));
             ip += sizeof(constant_index);
 
-            if (handle_function_invocation(identifier_idx, state, operands, call_stack))
+            const std::string &function_identifier = pool.get_string(identifier_idx);
+
+            if (handle_function_invocation(function_identifier, state, operands, call_stack)) {
                 // terminate this frame interpretation if a new frame has been pushed in the stack
                 // (natives functions are directly run thus no need to return if no moshell function is to execute)
                 return false;
+            }
             break;
         }
         case OP_FORK: {
@@ -552,6 +577,22 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             locals.set_q_word(operands.pop_int(), local_index);
             break;
         }
+        case OP_FETCH_BYTE: {
+            implement_fetch.template operator()<uint8_t>();
+            break;
+        }
+        case OP_FETCH_Q_WORD: {
+            implement_fetch.template operator()<int64_t>();
+            break;
+        }
+        case OP_STORE_BYTE: {
+            implement_store.template operator()<uint8_t>();
+            break;
+        }
+        case OP_STORE_Q_WORD: {
+            implement_store.template operator()<int64_t>();
+            break;
+        }
         case OP_BYTE_TO_INT: {
             char value = operands.pop_byte();
             operands.push_int(value);
@@ -678,18 +719,20 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
     return true; // this frame has returned
 }
 
-/**
- * Runs the interpreter, starting from the given root function.
- */
-void run(runtime_state state, const function_definition &root_def) {
-    // Prepare the call stack, containing the given root function on top of the stack
+void run_unit(const msh::loader &loader, msh::pager &pager, const msh::memory_page &current_page, StringsHeap &strings, const natives_functions_t &natives) {
+    fd_table table;
+    runtime_state state{strings, table, loader, pager, natives};
+
+    // prepare the call stack, containing the given root function on top of the stack
+    const function_definition &root_def = loader.get_function(current_page.init_function_name);
     CallStack call_stack = CallStack::create(10000, root_def);
 
     while (!call_stack.is_empty()) {
         stack_frame current_frame = call_stack.peek_frame();
         const function_definition &current_def = current_frame.function;
 
-        bool has_returned = run_frame(state, current_frame, call_stack, current_def.instructions, current_def.instruction_count);
+        const char *instructions = loader.get_instructions(current_def.instructions_start);
+        bool has_returned = run_frame(state, current_frame, call_stack, instructions, current_def.instruction_count);
 
         if (has_returned) {
             int8_t returned_byte_count = current_def.return_byte_count;
@@ -706,23 +749,4 @@ void run(runtime_state state, const function_definition &root_def) {
             caller_frame.operands.push(bytes, returned_byte_count);
         }
     }
-}
-
-void run_unit(const bytecode_unit &module_def, StringsHeap &strings, const natives_functions_t &natives) {
-
-    const ConstantPool &pool = module_def.pool;
-    fd_table table;
-    runtime_state state{strings, table, module_def.functions, natives, pool};
-
-    // find module main function
-    for (const auto &[identifier, function] : module_def.functions) {
-        // we found our main function, we search for a function named `<main>` with no parameters, regardless of the return type
-        if (identifier->rfind("::<main>", identifier->length() - strlen("::<main>")) != std::string::npos) {
-
-            run(state, function);
-            return;
-        }
-    }
-
-    throw InvalidBytecodeStructure("Module does not contains any `<main>()` function");
 }

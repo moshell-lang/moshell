@@ -17,7 +17,7 @@ pub struct Engine<'a> {
     ///
     /// Those are origins of symbols that are available locally in the environment,
     /// which may also be the source of unresolved symbols, tracked in the Relations.
-    origins: Vec<(ContentId, &'a Expr<'a>, Option<Environment>)>,
+    pub(crate) origins: Vec<(ContentId, &'a Expr<'a>, Option<Environment>)>,
 }
 
 impl<'a> Engine<'a> {
