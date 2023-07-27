@@ -10,11 +10,11 @@ namespace msh {
         ByteReader reader(bytes, size);
 
         ConstantPool tmp_pool = load_constant_pool(reader, strings);
-        uint32_t dynsym_len = ntohl(reader.read<uint32_t>());
+        uint32_t dynsym_len = reader.read<uint32_t>();
         size_t pool_index = pager.push_pool(std::move(tmp_pool), dynsym_len);
         const ConstantPool &pool = pager.get_pool(pool_index);
         for (uint32_t i = 0; i < dynsym_len; ++i) {
-            constant_index id_idx = ntohl(reader.read<constant_index>());
+            constant_index id_idx = reader.read<constant_index>();
             const std::string &identifier = pool.get_string(id_idx);
             unresolved.emplace(pool_index, i, identifier);
         }
@@ -27,15 +27,15 @@ namespace msh {
                 page = pager.push_page(memory_page{std::vector<char>(function.locals_size), identifier});
             }
 
-            uint32_t exports_len = ntohl(reader.read<uint32_t>());
+            uint32_t exports_len = reader.read<uint32_t>();
             for (uint32_t i = 0; i < exports_len; ++i) {
-                constant_index id_idx = ntohl(reader.read<constant_index>());
+                constant_index id_idx = reader.read<constant_index>();
                 const std::string &identifier = pool.get_string(id_idx);
-                uint32_t offset = ntohl(reader.read<uint32_t>());
+                uint32_t offset = reader.read<uint32_t>();
                 exported[identifier] = exported_variable{page, offset};
             }
 
-            uint32_t functions_len = ntohl(reader.read<uint32_t>());
+            uint32_t functions_len = reader.read<uint32_t>();
             for (uint32_t i = 0; i < functions_len; ++i) {
                 load_function(reader, pool, pool_index);
             }
@@ -63,12 +63,12 @@ namespace msh {
     }
 
     std::pair<const std::string &, const function_definition &> loader::load_function(ByteReader &reader, const ConstantPool &pool, size_t pool_index) {
-        constant_index id_idx = ntohl(reader.read<constant_index>());
+        constant_index id_idx = reader.read<constant_index>();
         const std::string &identifier = pool.get_string(id_idx);
-        uint32_t locals_byte_count = ntohl(reader.read<uint32_t>());
-        uint32_t parameters_byte_count = ntohl(reader.read<uint32_t>());
+        uint32_t locals_byte_count = reader.read<uint32_t>();
+        uint32_t parameters_byte_count = reader.read<uint32_t>();
         uint8_t return_byte_count = reader.read<uint8_t>();
-        uint32_t instruction_count = ntohl(reader.read<uint32_t>());
+        uint32_t instruction_count = reader.read<uint32_t>();
         const char *instructions = reader.read_n<char>(instruction_count);
         size_t effective_address = concatened_instructions.size();
         std::copy(instructions, instructions + instruction_count, std::back_inserter(concatened_instructions));

@@ -1,10 +1,9 @@
 #include "constant_pool.h"
 #include "byte_reader.h"
-#include "conversions.h"
 
 const std::string *read_string(ByteReader &reader, StringsHeap &strings) {
     // Read the length
-    uint64_t length = ntohl(reader.read<uint64_t>());
+    uint64_t length = reader.read<uint64_t>();
 
     // Allocate the string
     std::string str(reader.read_n<char>(length), length);
@@ -14,7 +13,7 @@ const std::string *read_string(ByteReader &reader, StringsHeap &strings) {
 
 ConstantPool load_constant_pool(ByteReader &reader, StringsHeap &strings) {
     // Read the number of strings on four bytes
-    uint32_t count = ntohl(reader.read<uint32_t>());
+    uint32_t count = reader.read<uint32_t>();
 
     ConstantPool pool(count);
     // Read each constant and store them in the constant pool
