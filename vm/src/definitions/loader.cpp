@@ -9,8 +9,15 @@ namespace msh {
     void loader::load_raw_bytes(const char *bytes, size_t size, pager &pager, StringsHeap &strings) {
         ByteReader reader(bytes, size);
 
-        size_t pool_index = pager.push_pool(load_constant_pool(reader, strings));
+        ConstantPool tmp_pool = load_constant_pool(reader, strings);
+        uint32_t dynsym_len = ntohl(reader.read<uint32_t>());
+        size_t pool_index = pager.push_pool(std::move(tmp_pool), dynsym_len);
         const ConstantPool &pool = pager.get_pool(pool_index);
+        for (uint32_t i = 0; i < dynsym_len; ++i) {
+            constant_index id_idx = ntohl(reader.read<constant_index>());
+            const std::string &identifier = pool.get_string(id_idx);
+            unresolved.emplace(pool_index, i, identifier);
+        }
 
         while (reader.position() < size) {
             size_t page;
@@ -73,5 +80,17 @@ namespace msh {
             instruction_count,
             pool_index};
         return *functions.insert_or_assign(identifier, def).first;
+    }
+
+    void loader::resolve_all(pager &pager) {
+        while (!unresolved.empty()) {
+            auto [pool_index, index, name] = unresolved.top();
+            unresolved.pop();
+            auto it = exported.find(name);
+            if (it == exported.end()) {
+                throw std::runtime_error("unresolved symbol " + name);
+            }
+            pager.bind(pool_index, index, it->second);
+        }
     }
 }

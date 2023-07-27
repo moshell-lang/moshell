@@ -5,6 +5,9 @@ use indexmap::IndexSet;
 pub struct ConstantPool {
     pub strings: IndexSet<String>,
 
+    /// The symbols that the module needs to find at runtime.
+    pub dynsym: IndexSet<u32>,
+
     /// The symbols that the module expose to the outside world.
     ///
     /// All symbols names are expected to be unique and stored in the
@@ -32,7 +35,8 @@ impl ConstantPool {
     /// Adds a new symbol that will need to be found at runtime.
     pub fn insert_dynsym(&mut self, import: &str, symbol: &str) -> u32 {
         self.strings.insert(import.to_owned());
-        self.insert_string(symbol)
+        let dynsym = self.insert_string(symbol);
+        self.dynsym.insert_full(dynsym).0 as u32
     }
 
     /// References a new symbol that is provided by the current module.
@@ -45,10 +49,13 @@ impl ConstantPool {
             name_index,
             local_offset,
         });
+        self.dynsym.insert_full(name_index).0 as u32;
     }
 
     /// Gets the index of an external symbol string in the constant pool.
     pub fn get_external(&self, symbol: &str) -> Option<u32> {
-        self.strings.get_full(symbol).map(|(id, _)| id as u32)
+        self.strings
+            .get_index_of(symbol)
+            .and_then(|id| self.dynsym.get_index_of(&(id as u32)).map(|id| id as u32))
     }
 }

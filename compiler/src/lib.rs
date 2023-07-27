@@ -233,10 +233,18 @@ fn write(
 fn write_constant_pool(cp: &ConstantPool, writer: &mut impl Write) -> Result<(), io::Error> {
     let pool_len = u32::try_from(cp.strings.len()).expect("constant pool too large");
     writer.write_all(&pool_len.to_be_bytes())?;
-
     for str in &cp.strings {
         writer.write_all(&(str.len() as u64).to_be_bytes())?;
         writer.write_all(str.as_bytes())?;
+    }
+
+    writer.write_all(
+        &u32::try_from(cp.dynsym.len())
+            .expect("dynsym list too large")
+            .to_be_bytes(),
+    )?;
+    for dynsym in &cp.dynsym {
+        writer.write_all(&dynsym.to_be_bytes())?;
     }
     Ok(())
 }

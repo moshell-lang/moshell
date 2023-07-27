@@ -266,7 +266,8 @@ inline bool handle_function_invocation(const std::string &callee_identifier,
  * @return true if this function returned because the current frame has ended, or false if it returned because it pushed a new frame
  */
 bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, const char *instructions, size_t instruction_count) {
-    const ConstantPool &pool = state.pager.get_pool(frame.function.constant_pool_index);
+    size_t pool_index = frame.function.constant_pool_index;
+    const ConstantPool &pool = state.pager.get_pool(pool_index);
 
     // the instruction pointer
     size_t &ip = *frame.instruction_pointer;
@@ -274,21 +275,17 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
     Locals &locals = frame.locals;
 
     auto implement_fetch = [&]<typename T>() mutable {
-        uint32_t external_index = ntohl(*(uint32_t *)(instructions + ip));
+        uint32_t dynsym_index = ntohl(*(uint32_t *)(instructions + ip));
         ip += 4;
-        const std::string &exported_name = pool.get_string(external_index);
-        const msh::exported_variable &exported = state.loader.get_exported(exported_name);
-        T value = state.pager.get<T>(exported);
+        T value = state.pager.get<T>(pool_index, dynsym_index);
         operands.push<T>(value);
     };
 
     auto implement_store = [&]<typename T>() mutable {
-        uint32_t external_index = ntohl(*(uint32_t *)(instructions + ip));
+        uint32_t dynsym_index = ntohl(*(uint32_t *)(instructions + ip));
         ip += 4;
-        const std::string &exported_name = pool.get_string(external_index);
-        const msh::exported_variable &exported = state.loader.get_exported(exported_name);
         T value = operands.pop<T>();
-        state.pager.set<T>(exported, value);
+        state.pager.set<T>(pool_index, dynsym_index, value);
     };
 
     while (ip < instruction_count) {

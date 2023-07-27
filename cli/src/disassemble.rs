@@ -15,7 +15,10 @@ fn digits(val: u64) -> usize {
     val.checked_ilog10().unwrap_or(0) as usize + 1
 }
 
-fn load_constants(reader: &mut impl Read) -> io::Result<Vec<String>> {
+fn load_constants(
+    reader: &mut impl Read,
+    dynamic_symbols: &mut Vec<usize>,
+) -> io::Result<Vec<String>> {
     let mut constants = Vec::new();
     let pool_length = read!(reader, u32);
 
@@ -29,6 +32,12 @@ fn load_constants(reader: &mut impl Read) -> io::Result<Vec<String>> {
         constants.push(str);
     }
 
+    let dynsym_length = read!(reader, u32);
+    for _ in 0..dynsym_length {
+        let constant_idx = read!(reader, u32) as usize;
+        dynamic_symbols.push(constant_idx);
+    }
+
     Ok(constants)
 }
 
@@ -40,7 +49,11 @@ fn display_constants(constants: &[String]) {
     }
 }
 
-fn display_function(cursor: &mut Cursor<&[u8]>, constants: &[String]) -> io::Result<()> {
+fn display_function(
+    cursor: &mut Cursor<&[u8]>,
+    constants: &[String],
+    dynamic_symbols: &[usize],
+) -> io::Result<()> {
     let name = &constants[read!(cursor, u32) as usize];
 
     let locals_byte_count = read!(cursor, u32);
@@ -91,10 +104,11 @@ fn display_function(cursor: &mut Cursor<&[u8]>, constants: &[String]) -> io::Res
                 )
             }
             Opcode::FetchByte | Opcode::FetchQWord | Opcode::StoreByte | Opcode::StoreQWord => {
-                let constant_idx = read!(cursor, u32) as usize;
-                let str = &constants[constant_idx];
-                let padding = (digits(constants.len() as u64) - digits(constant_idx as u64)) + 10;
-                print!("<external #{constant_idx}> {:padding$} // {str}", "")
+                let dynsym_idx = read!(cursor, u32) as usize;
+                let str = &constants[dynamic_symbols[dynsym_idx]];
+                let padding =
+                    (digits(dynamic_symbols.len() as u64) - digits(dynsym_idx as u64)) + 10;
+                print!("<external #{dynsym_idx}> {:padding$} // {str}", "")
             }
             Opcode::Exec => print!("<arity {}>", read!(cursor, u8)),
             Opcode::Open => print!("<flags {:#x}>", read!(cursor, i32)),
@@ -109,8 +123,12 @@ fn display_function(cursor: &mut Cursor<&[u8]>, constants: &[String]) -> io::Res
     Ok(())
 }
 
-fn display_functions(cursor: &mut Cursor<&[u8]>, constants: &[String]) -> io::Result<()> {
-    display_function(cursor, constants)?;
+fn display_functions(
+    cursor: &mut Cursor<&[u8]>,
+    constants: &[String],
+    dynamic_symbols: &[usize],
+) -> io::Result<()> {
+    display_function(cursor, constants, dynamic_symbols)?;
     println!("Exports: ");
     let exports_len = read!(cursor, u32);
     for _ in 0..exports_len {
@@ -124,18 +142,19 @@ fn display_functions(cursor: &mut Cursor<&[u8]>, constants: &[String]) -> io::Re
 
     let functions_len = read!(cursor, u32);
     for _ in 0..functions_len {
-        display_function(cursor, constants)?;
+        display_function(cursor, constants, dynamic_symbols)?;
     }
     Ok(())
 }
 
 pub(crate) fn display_bytecode(bytecode: &[u8]) {
     let mut cursor = Cursor::new(bytecode);
-    let constants =
-        load_constants(&mut cursor).expect("Read slice error when displaying constant pool");
+    let mut dynamic_symbols = Vec::new();
+    let constants = load_constants(&mut cursor, &mut dynamic_symbols)
+        .expect("Read slice error when displaying constant pool");
     display_constants(&constants);
     while cursor.position() < bytecode.len() as u64 {
-        display_functions(&mut cursor, &constants)
+        display_functions(&mut cursor, &constants, &dynamic_symbols)
             .expect("Read slice error when displaying function content");
     }
 }

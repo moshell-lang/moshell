@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <stack>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -12,6 +13,12 @@ class ByteReader;
 
 namespace msh {
     class pager;
+
+    struct unresolved_variable {
+        size_t pool_index;
+        size_t index;
+        std::string symbol_name;
+    };
 
     /**
      * The effective location in the virtual memory for a given exported symbol.
@@ -45,6 +52,11 @@ namespace msh {
          * The instructions bytes that have been loaded and concatenated.
          */
         std::vector<char> concatened_instructions;
+
+        /**
+         * The unresolved symbols that have been found and need to be resolved.
+         */
+        std::stack<unresolved_variable> unresolved;
 
         std::pair<const std::string &, const function_definition &> load_function(ByteReader &reader, const ConstantPool &pool, size_t pool_index);
 
@@ -97,5 +109,13 @@ namespace msh {
          * @return The instructions bytes.
          */
         const char *get_instructions(size_t index) const;
+
+        /**
+         * Resolves all the unresolved symbols.
+         *
+         * @param pager The pager where to resolve the symbols.
+         * @throws std::runtime_error If any symbol cannot be resolved.
+         */
+        void resolve_all(pager &pager);
     };
 }

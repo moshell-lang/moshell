@@ -12,6 +12,7 @@ extern "C" void moshell_exec(const char *bytes, size_t byte_count) {
     try {
         natives_functions_t natives = load_natives(strings);
         loader.load_raw_bytes(bytes, byte_count, pager, strings);
+        loader.resolve_all(pager);
         for (const auto &page : pager) {
             run_unit(loader, pager, page, strings, natives);
         }
