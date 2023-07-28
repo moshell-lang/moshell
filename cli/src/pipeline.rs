@@ -136,23 +136,27 @@ impl<'a> ASTImporter<'a> for FileImporter {
     }
 }
 
+pub trait SourceHolder {
+    /// Gets a source from the importer.
+    fn get_source(&self, id: ContentId) -> Option<Source>;
+}
+
 /// A trait to access errors and to get sources from an importer.
-pub trait ErrorReporter {
+pub trait ErrorReporter: SourceHolder {
     /// Takes the errors from the importer.
     ///
     /// This leaves the importer in a state where it has no errors.
     fn take_errors(&mut self) -> Vec<FileImportError>;
+}
 
-    /// Gets a source from the importer.
-    fn get_source(&self, id: ContentId) -> Option<Source>;
+impl SourceHolder for FileImporter {
+    fn get_source(&self, id: ContentId) -> Option<Source> {
+        self.sources.get(id.0).map(|s| s.as_source())
+    }
 }
 
 impl ErrorReporter for FileImporter {
     fn take_errors(&mut self) -> Vec<FileImportError> {
         std::mem::take(&mut self.errors)
-    }
-
-    fn get_source(&self, id: ContentId) -> Option<Source> {
-        self.sources.get(id.0).map(|s| s.as_source())
     }
 }

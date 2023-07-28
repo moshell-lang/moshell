@@ -3,6 +3,7 @@ use std::fmt::Debug;
 #[cfg(feature = "miette")]
 use miette::{MietteError, MietteSpanContents, SourceCode, SourceSpan, SpanContents};
 
+/// range of bytes of an unbound string source
 pub type SourceSegment = std::ops::Range<usize>;
 
 /// An identifier to a source code.

@@ -54,8 +54,42 @@ fn display_function(
     constants: &[String],
     dynamic_symbols: &[usize],
 ) -> io::Result<()> {
-    let name = &constants[read!(cursor, u32) as usize];
+    let function_name = &constants[read!(cursor, u32) as usize];
+    let attribute_count = read!(cursor, u32);
+    println!("{function_name}: ({attribute_count} attributes)");
 
+    for _ in 0..attribute_count {
+        let attribute_id = read!(cursor, u8);
+        match attribute_id {
+            1 => display_code_attribute(cursor, constants, dynamic_symbols)?,
+            2 => display_mappings_attribute(cursor)?,
+            _ => panic!("Unknown attribute {attribute_id} read from bytecode"),
+        }
+    }
+
+    Ok(())
+}
+
+fn display_mappings_attribute(cursor: &mut Cursor<&[u8]>) -> io::Result<()> {
+    println!("Mappings: ");
+
+    let mappings_count = read!(cursor, u32);
+    for _ in 0..mappings_count {
+        let ip = read!(cursor, u32);
+        let line = read!(cursor, u32);
+
+        println!("\t#{ip} -> line {line}")
+    }
+
+    Ok(())
+}
+
+fn display_code_attribute(
+    cursor: &mut Cursor<&[u8]>,
+    constants: &[String],
+    dynamic_symbols: &[usize],
+) -> io::Result<()> {
+    println!("Code: ");
     let locals_byte_count = read!(cursor, u32);
     let parameters_bytes_count = read!(cursor, u32);
     let return_bytes_count = read!(cursor, u8);
@@ -64,7 +98,6 @@ fn display_function(
 
     let instruction_pad = digits(instruction_count as u64);
 
-    println!("{name}:");
     println!("\tlocals      : {locals_byte_count} bytes (including {parameters_bytes_count} bytes used for parameters)");
     println!("\treturn      : {return_bytes_count} bytes");
     println!("\tinstructions: {instruction_count} bytes");

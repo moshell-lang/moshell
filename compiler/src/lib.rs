@@ -1,12 +1,15 @@
+use indexmap::map::Entry;
+use indexmap::IndexMap;
 use std::collections::HashSet;
 use std::io;
 use std::io::Write;
 
 use analyzer::engine::Engine;
 use analyzer::environment::variables::TypeInfo;
-use analyzer::environment::variables::Variables;
+use analyzer::name::Name;
 use analyzer::relations::{LocalId, Relations, ResolvedSymbol, SourceId};
 use analyzer::types::engine::{Chunk, TypedEngine};
+use context::source::ContentId;
 
 use crate::bytecode::{Bytecode, Instructions};
 use crate::constant_pool::{ConstantPool, ExportedSymbol};
@@ -22,11 +25,17 @@ mod r#type;
 
 pub type Captures = Vec<Option<Vec<ResolvedSymbol>>>;
 
+pub trait SourceLineProvider {
+    /// returns the line, starting from one, attributed to the given byte position of given content.
+    fn get_line(&self, content: ContentId, byte_pos: usize) -> Option<usize>;
+}
+
 pub fn compile(
     typed_engine: &TypedEngine,
     link_engine: &Engine,
     relations: &Relations,
     writer: &mut impl Write,
+    line_provider: Option<&dyn SourceLineProvider>,
 ) -> Result<(), io::Error> {
     let captures = resolve_captures(link_engine, relations, typed_engine);
     let mut bytecode = Bytecode::default();
@@ -43,16 +52,15 @@ pub fn compile(
                 chunk_id,
                 is_script: true,
             };
-            let name = &main_env.fqn;
-            let signature_idx = cp.insert_string(name.to_string());
-            bytecode.emit_constant_ref(signature_idx);
+            let name = main_env.fqn.clone();
             compile_chunk(
+                name,
                 main_chunk,
                 chunk_id,
-                &main_env.variables,
-                &mut bytecode,
                 ctx,
+                &mut bytecode,
                 &mut cp,
+                line_provider,
             );
             write_exported(&mut cp, &mut bytecode)?;
         }
@@ -65,14 +73,81 @@ pub fn compile(
                 chunk_id,
                 is_script: false,
             };
-            let name = &env.fqn;
-            let signature_idx = cp.insert_string(name.to_string());
-            bytecode.emit_constant_ref(signature_idx);
-            compile_chunk(chunk, chunk_id, &env.variables, &mut bytecode, ctx, &mut cp);
+            let name = env.fqn.clone();
+            compile_chunk(
+                name,
+                chunk,
+                chunk_id,
+                ctx,
+                &mut bytecode,
+                &mut cp,
+                line_provider,
+            );
         }
     }
 
     write(writer, &bytecode, &cp)
+}
+
+fn compile_chunk(
+    name: Name,
+    chunk: &Chunk,
+    id: SourceId,
+    ctx: EmitterContext,
+    bytecode: &mut Bytecode,
+    cp: &mut ConstantPool,
+    line_provider: Option<&dyn SourceLineProvider>,
+) {
+    // emit the function's name
+    let signature_idx = cp.insert_string(name);
+    bytecode.emit_constant_ref(signature_idx);
+
+    let attribute_count_ph = bytecode.emit_u32_placeholder();
+    let mut attribute_count = 1;
+
+    // emits chunk's code attribute
+    let segments = compile_chunk_code_attribute(chunk, id, bytecode, ctx, cp);
+
+    if let Some(line_provider) = line_provider {
+        let content_id = ctx.engine.get_original_content(id).unwrap();
+        compile_line_mapping_attribute(segments, content_id, bytecode, line_provider);
+        attribute_count += 1
+    }
+
+    bytecode.patch_u32_placeholder(attribute_count_ph, attribute_count);
+}
+
+fn compile_line_mapping_attribute(
+    positions: Vec<(usize, u32)>,
+    content_id: ContentId,
+    bytecode: &mut Bytecode,
+    line_provider: &dyn SourceLineProvider,
+) {
+    // 2 is the mappings attribute identifier
+    bytecode.emit_byte(2);
+
+    let mut mappings = IndexMap::new();
+
+    for (pos, instruction) in positions {
+        let line = line_provider.get_line(content_id, pos).unwrap() as u32;
+
+        match mappings.entry(line) {
+            Entry::Vacant(v) => {
+                v.insert(instruction);
+            }
+            Entry::Occupied(mut o) => {
+                if instruction < *o.get() {
+                    o.insert(instruction);
+                }
+            }
+        };
+    }
+
+    bytecode.emit_u32(mappings.len() as u32);
+    for (line, instruction) in mappings {
+        bytecode.emit_u32(instruction);
+        bytecode.emit_u32(line);
+    }
 }
 
 /// Resolves all captured variables of a given chunk identifier.
@@ -150,14 +225,19 @@ fn resolve_captures(
     captures
 }
 
-fn compile_chunk(
+/// compiles chunk's code attribute
+/// the code attribute of a chunk is a special attribute that contains the bytecode instructions and
+/// locals specifications
+fn compile_chunk_code_attribute(
     chunk: &Chunk,
     chunk_id: SourceId,
-    chunk_vars: &Variables,
     bytecode: &mut Bytecode,
     ctx: EmitterContext,
     cp: &mut ConstantPool,
-) {
+) -> Vec<(usize, u32)> {
+    // 1 is the code attribute identifier
+    bytecode.emit_byte(1);
+
     let locals_byte_count = bytecode.emit_u32_placeholder();
 
     let chunk_captures = ctx.captures[chunk_id.0]
@@ -187,7 +267,8 @@ fn compile_chunk(
     let instruction_count = bytecode.emit_u32_placeholder();
 
     let mut instructions = Instructions::wrap(bytecode);
-    let mut locals = LocalsLayout::new(chunk_vars.all_vars().len() + chunk_captures.len());
+    let mut locals =
+        LocalsLayout::new(ctx.environment.variables.all_vars().len() + chunk_captures.len());
 
     // set space for explicit parameters
     for (id, param) in chunk.parameters.iter().enumerate() {
@@ -215,10 +296,12 @@ fn compile_chunk(
 
     // patch instruction count placeholder
     let instruction_byte_count = instructions.current_ip();
+    let segments = instructions.take_positions();
     bytecode.patch_u32_placeholder(instruction_count, instruction_byte_count);
 
     let locals_length = locals.byte_count();
-    bytecode.patch_u32_placeholder(locals_byte_count, locals_length)
+    bytecode.patch_u32_placeholder(locals_byte_count, locals_length);
+    segments
 }
 
 fn write(
