@@ -143,7 +143,7 @@ impl<'a> Instructions<'a> {
             ValueStackSize::Byte => Opcode::SetRefByte,
             ValueStackSize::QWord => Opcode::SetRefQWord,
             ValueStackSize::Zero => {
-                panic!("set_local on captured variable which is zero-sized")
+                panic!("set_capture on captured variable which is zero-sized")
             }
         };
         self.emit_code(opcode);
@@ -188,7 +188,7 @@ impl<'a> Instructions<'a> {
             ValueStackSize::Byte => Opcode::GetRefByte,
             ValueStackSize::QWord => Opcode::GetRefQWord,
             ValueStackSize::Zero => {
-                panic!("get_local on captured variable which is zero-sized")
+                panic!("get_capture on captured variable which is zero-sized")
             }
         };
         self.emit_code(opcode);
@@ -231,7 +231,7 @@ impl<'a> Instructions<'a> {
 
     /// emits instructions to push a pool reference in the operand stack
     pub fn emit_push_constant_ref(&mut self, constant_ref: u32) {
-        self.emit_code(Opcode::PushString);
+        self.emit_code(Opcode::PushStringRef);
         self.bytecode.emit_constant_ref(constant_ref)
     }
 
@@ -298,7 +298,7 @@ pub enum Opcode {
     PushInt,
     PushByte,
     PushFloat,
-    PushString,
+    PushStringRef,
     PushLocalRef,
 
     GetLocalByte,

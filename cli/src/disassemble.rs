@@ -82,7 +82,7 @@ fn display_function(
             Opcode::PushInt => print!("<value {}>", read!(cursor, i64)),
             Opcode::PushByte => print!("<value {}>", read!(cursor, u8)),
             Opcode::PushFloat => print!("<value {}>", read!(cursor, f64)),
-            Opcode::PushString => {
+            Opcode::PushStringRef => {
                 let constant_idx = read!(cursor, u32) as usize;
                 let str = &constants[constant_idx];
                 let padding = (digits(constants.len() as u64) - digits(constant_idx as u64)) + 10;
@@ -164,7 +164,7 @@ fn get_opcode_mnemonic(opcode: Opcode) -> &'static str {
         Opcode::PushInt => "ipsh",
         Opcode::PushByte => "bpsh",
         Opcode::PushFloat => "fpsh",
-        Opcode::PushString => "crpsh",
+        Opcode::PushStringRef => "srpsh",
         Opcode::PushLocalRef => "lrpsh",
         Opcode::GetLocalByte => "lbget",
         Opcode::SetLocalByte => "lbset",

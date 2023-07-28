@@ -54,7 +54,7 @@ pub fn compile(
                 ctx,
                 &mut cp,
             );
-            write_exported(&mut cp, &mut bytecode.bytes)?;
+            write_exported(&mut cp, &mut bytecode)?;
         }
         bytecode.emit_u32(content.function_count() as u32);
         for (chunk_id, env, chunk) in content.function_chunks(&it) {
@@ -249,19 +249,15 @@ fn write_constant_pool(cp: &ConstantPool, writer: &mut impl Write) -> Result<(),
     Ok(())
 }
 
-fn write_exported(pool: &mut ConstantPool, writer: &mut impl Write) -> Result<(), io::Error> {
-    writer.write_all(
-        &u32::try_from(pool.exported.len())
-            .expect("too many locals")
-            .to_be_bytes(),
-    )?;
+fn write_exported(pool: &mut ConstantPool, bytecode: &mut Bytecode) -> Result<(), io::Error> {
+    bytecode.emit_u32(u32::try_from(pool.exported.len()).expect("too many exported vars"));
     for ExportedSymbol {
         name_index,
         local_offset,
     } in &pool.exported
     {
-        writer.write_all(&name_index.to_be_bytes())?;
-        writer.write_all(&local_offset.to_be_bytes())?;
+        bytecode.emit_u32(*name_index);
+        bytecode.emit_u32(*local_offset);
     }
     pool.exported.clear();
     Ok(())
