@@ -23,12 +23,19 @@ struct function_definition {
      * return byte count cannot be superior to allocated space for locals, as it is part of this area
      */
     uint8_t return_byte_count;
+
     /**
-     * Number of instruction in bytes
+     * Index of the first instruction to execute.
+     */
+    size_t instructions_start;
+
+    /**
+     * Number of instructions in bytes.
      */
     size_t instruction_count;
+
     /**
-     * pointer to the first instruction to execute.
+     * Index of the constant pool this function belongs to.
      */
-    const char *instructions;
+    size_t constant_pool_index;
 };

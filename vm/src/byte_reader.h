@@ -1,13 +1,15 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <stdexcept>
+#include <type_traits>
 
 /**
  * reader utility class to read fixed byte arrays
  */
 class ByteReader {
-    const char *bytes;
+    const std::byte *bytes;
     const size_t byte_count;
     size_t pos;
 
@@ -20,17 +22,28 @@ public:
     /**
      * returns current byte position in given byte array
      */
-    size_t position();
+    size_t position() const;
 
     template <typename T>
-    T &read() {
-        return *read_n<T>(1);
+    T read()
+        requires std::is_trivial_v<T>
+    {
+        if (pos + sizeof(T) > byte_count) {
+            throw std::out_of_range("Cannot read more bytes: Byte Reader ran out of bytes");
+        }
+        T val;
+        std::reverse_copy(bytes + pos, bytes + pos + sizeof(T), reinterpret_cast<std::byte *>(&val));
+        pos += sizeof(T);
+        return val;
     }
 
     template <typename T>
-    T *read_n(size_t n) {
-        if (pos + sizeof(T) * n > byte_count)
+    T *read_n(size_t n)
+        requires std::is_trivial_v<T>
+    {
+        if (pos + sizeof(T) * n > byte_count) {
             throw std::out_of_range("Cannot read more bytes: Byte Reader ran out of bytes");
+        }
 
         T *val = (T *)(bytes + pos);
         pos += sizeof(T) * n;

@@ -1,5 +1,6 @@
 use std::mem::size_of;
 
+use analyzer::relations::{LocalId, ResolvedSymbol};
 use num_enum::TryFromPrimitive;
 
 use analyzer::types::hir::Var;
@@ -19,7 +20,7 @@ pub struct Placeholder {
 /// Also provides placeholder support for backpatching
 #[derive(Default)]
 pub struct Bytecode {
-    bytes: Vec<u8>,
+    pub(crate) bytes: Vec<u8>,
 }
 
 impl Bytecode {
@@ -115,28 +116,8 @@ impl<'a> Instructions<'a> {
 
     /// emits instructions to assign given local identifier with last operand stack value
     /// assuming the value size is the given `size` argument
-    pub fn emit_set_local(&mut self, var: Var, size: ValueStackSize, layout: &LocalsLayout) {
+    pub fn emit_set_local(&mut self, var: LocalId, size: ValueStackSize, layout: &LocalsLayout) {
         let index = layout.get_index(var).unwrap();
-
-        // if var is a captured variable from an upper frame
-        if let Var::Capture(_) = var {
-            // get capture reference
-            self.emit_code(Opcode::GetLocalQWord);
-            self.bytecode.emit_u32(index);
-            // reference is now on operand stack
-
-            let opcode = match size {
-                ValueStackSize::Byte => Opcode::SetRefByte,
-                ValueStackSize::QWord => Opcode::SetRefQWord,
-                ValueStackSize::Zero => {
-                    panic!("set_local on captured variable which is zero-sized")
-                }
-            };
-            self.emit_code(opcode);
-            return;
-        }
-
-        // else if var is a frame's value
         let opcode = match size {
             ValueStackSize::Byte => Opcode::SetLocalByte,
             ValueStackSize::QWord => Opcode::SetLocalQWord,
@@ -146,30 +127,42 @@ impl<'a> Instructions<'a> {
         self.bytecode.emit_u32(index);
     }
 
+    pub fn emit_set_capture(
+        &mut self,
+        capture: ResolvedSymbol,
+        size: ValueStackSize,
+        layout: &LocalsLayout,
+    ) {
+        let index = layout.get_capture_index(capture).unwrap();
+        // get capture reference
+        self.emit_code(Opcode::GetLocalQWord);
+        self.bytecode.emit_u32(index);
+        // reference is now on operand stack
+
+        let opcode = match size {
+            ValueStackSize::Byte => Opcode::SetRefByte,
+            ValueStackSize::QWord => Opcode::SetRefQWord,
+            ValueStackSize::Zero => {
+                panic!("set_capture on captured variable which is zero-sized")
+            }
+        };
+        self.emit_code(opcode);
+    }
+
+    /// Emits the instructions to assign the value on top of the stack to the given external symbol.
+    pub fn emit_set_external(&mut self, symbol_id: u32, size: ValueStackSize) {
+        self.emit_code(match size {
+            ValueStackSize::Byte => Opcode::StoreByte,
+            ValueStackSize::QWord => Opcode::StoreQWord,
+            ValueStackSize::Zero => panic!("set for value whose type is zero-sized"),
+        });
+        self.bytecode.emit_constant_ref(symbol_id);
+    }
+
     /// emits instructions to push to operand stack given local identifier
     /// assuming the local's size is the given `size` argument
-    pub fn emit_get_local(&mut self, var: Var, size: ValueStackSize, layout: &LocalsLayout) {
-        let index = layout.get_index(var).unwrap();
-
-        // if var is a captured variable from an upper frame
-        if let Var::Capture(_) = var {
-            // get capture reference
-            self.emit_code(Opcode::GetLocalQWord);
-            self.bytecode.emit_u32(index);
-            // reference is now on operand stack
-
-            let opcode = match size {
-                ValueStackSize::Byte => Opcode::GetRefByte,
-                ValueStackSize::QWord => Opcode::GetRefQWord,
-                ValueStackSize::Zero => {
-                    panic!("get_local on captured variable which is zero-sized")
-                }
-            };
-            self.emit_code(opcode);
-            return;
-        }
-
-        // else if var is a frame's value
+    pub fn emit_get_local(&mut self, local: LocalId, size: ValueStackSize, layout: &LocalsLayout) {
+        let index = layout.get_index(local).unwrap();
         let opcode = match size {
             ValueStackSize::Byte => Opcode::GetLocalByte,
             ValueStackSize::QWord => Opcode::GetLocalQWord,
@@ -179,11 +172,43 @@ impl<'a> Instructions<'a> {
         self.bytecode.emit_u32(index);
     }
 
+    pub fn emit_get_capture(
+        &mut self,
+        capture: ResolvedSymbol,
+        size: ValueStackSize,
+        layout: &LocalsLayout,
+    ) {
+        let index = layout.get_capture_index(capture).unwrap();
+        // get capture reference
+        self.emit_code(Opcode::GetLocalQWord);
+        self.bytecode.emit_u32(index);
+        // reference is now on operand stack
+
+        let opcode = match size {
+            ValueStackSize::Byte => Opcode::GetRefByte,
+            ValueStackSize::QWord => Opcode::GetRefQWord,
+            ValueStackSize::Zero => {
+                panic!("get_capture on captured variable which is zero-sized")
+            }
+        };
+        self.emit_code(opcode);
+    }
+
     /// pushes a reference to the given symbol on the stack's locals
     pub fn emit_push_stack_ref(&mut self, var: Var, layout: &LocalsLayout) {
         self.emit_code(Opcode::PushLocalRef);
-        let index = layout.get_index(var).unwrap();
+        let index = layout.get_var_index(var).unwrap();
         self.bytecode.emit_u32(index);
+    }
+
+    /// Emits the instructions to push the value of the given external symbol on top of the stack.
+    pub fn emit_get_external(&mut self, symbol_id: u32, size: ValueStackSize) {
+        self.emit_code(match size {
+            ValueStackSize::Byte => Opcode::FetchByte,
+            ValueStackSize::QWord => Opcode::FetchQWord,
+            ValueStackSize::Zero => panic!("get for value whose type is zero-sized"),
+        });
+        self.bytecode.emit_constant_ref(symbol_id);
     }
 
     /// emits instructions to push an integer in the operand stack
@@ -284,6 +309,11 @@ pub enum Opcode {
     SetRefByte,
     GetRefQWord,
     SetRefQWord,
+
+    FetchByte,
+    FetchQWord,
+    StoreByte,
+    StoreQWord,
 
     Invoke,
     Fork,

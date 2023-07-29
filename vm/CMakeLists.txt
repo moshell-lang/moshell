@@ -11,7 +11,8 @@ endif ()
 include_directories(src)
 
 add_library(vm
-        src/definitions/bytecode_unit.cpp
+        src/definitions/loader.cpp
+        src/definitions/pager.cpp
         src/memory/call_stack.cpp
         src/memory/constant_pool.cpp
         src/memory/locals.cpp
@@ -24,7 +25,7 @@ add_library(vm
         src/stdlib_natives.cpp
         src/vm.cpp
 )
-target_compile_features(vm PUBLIC cxx_std_17)
+target_compile_features(vm PUBLIC cxx_std_20)
 add_executable(vm_exe src/main.cpp)
 target_compile_features(vm_exe PUBLIC cxx_std_17)
 

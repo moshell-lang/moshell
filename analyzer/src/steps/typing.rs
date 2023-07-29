@@ -322,7 +322,7 @@ fn ascribe_assign(
     let identifier = match symbol {
         Symbol::Local(id) => Var::Local(id),
         Symbol::External(id) => {
-            Var::Capture(relations[id].state.expect_resolved("non resolved relation"))
+            Var::External(relations[id].state.expect_resolved("non resolved relation"))
         }
     };
 
@@ -402,7 +402,7 @@ fn ascribe_var_reference(
     let var = match symbol {
         Symbol::Local(id) => Var::Local(id),
         Symbol::External(id) => {
-            Var::Capture(relations[id].state.expect_resolved("non resolved relation"))
+            Var::External(relations[id].state.expect_resolved("non resolved relation"))
         }
     };
 

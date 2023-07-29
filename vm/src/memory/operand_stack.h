@@ -91,10 +91,18 @@ public:
 
     void push(const char *bytes, size_t size);
 
-private:
     template <typename T>
-    void push(T t);
+    void push(T t) {
+        if (current_pos + sizeof(T) > stack_capacity) {
+            throw StackOverflowError("exceeded stack stack_capacity via operand stack");
+        }
+        *(T *)(bytes + current_pos) = t;
+        current_pos += sizeof(T);
+    }
 
     template <typename T>
-    T pop();
+    T pop() {
+        pop_bytes(sizeof(T));
+        return *(T *)(bytes + current_pos);
+    }
 };

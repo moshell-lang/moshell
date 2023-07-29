@@ -1,0 +1,14 @@
+// Run:
+//   status: success
+//   stdout:
+//    Instantiating lib
+//    this is foo!
+//    bar 514
+
+use foo_lib::{foo, bar, baz}
+
+echo foo()
+{
+    val local_baz = $baz
+    echo $bar $local_baz
+}

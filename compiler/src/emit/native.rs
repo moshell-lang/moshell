@@ -1,13 +1,11 @@
-use analyzer::engine::Engine;
 use analyzer::relations::NativeId;
 use analyzer::types::hir::TypedExpr;
 
 use crate::bytecode::{Instructions, Opcode};
 use crate::constant_pool::ConstantPool;
-use crate::emit::{emit, EmissionState};
+use crate::emit::{emit, EmissionState, EmitterContext};
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
-use crate::Captures;
 
 const STRING_EQ: &str = "lang::String::eq";
 const STRING_CONCAT: &str = "lang::String::concat";
@@ -22,14 +20,13 @@ pub(crate) fn emit_natives(
     callee: &TypedExpr,
     args: &[TypedExpr],
     instructions: &mut Instructions,
-    engine: &Engine,
+    ctx: EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
-    captures: &Captures,
 ) {
     let last_used = state.use_values(true);
-    emit(callee, instructions, engine, cp, locals, state, captures);
+    emit(callee, instructions, ctx, cp, locals, state);
 
     let pushed_size = match native.0 {
         0 => {
@@ -42,11 +39,10 @@ pub(crate) fn emit_natives(
             emit(
                 args.get(0).expect("A binary expression takes two operands"),
                 instructions,
-                engine,
+                ctx,
                 cp,
                 locals,
                 state,
-                captures,
             );
             instructions.emit_code(match native.0 {
                 1 => Opcode::IntAdd,
@@ -72,11 +68,10 @@ pub(crate) fn emit_natives(
             emit(
                 args.get(0).expect("A comparison takes two operands"),
                 instructions,
-                engine,
+                ctx,
                 cp,
                 locals,
                 state,
-                captures,
             );
 
             match native.0 {
@@ -162,11 +157,10 @@ pub(crate) fn emit_natives(
                 args.get(0)
                     .expect("Cannot concatenate a string without a second string"),
                 instructions,
-                engine,
+                ctx,
                 cp,
                 locals,
                 state,
-                captures,
             );
             instructions.emit_invoke(cp.insert_string(STRING_CONCAT));
             ValueStackSize::QWord

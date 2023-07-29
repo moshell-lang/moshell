@@ -1,8 +1,11 @@
+use crate::engine::Engine;
+use crate::environment::Environment;
 use crate::relations::{Definition, SourceId};
 use crate::types::builtin::lang;
 use crate::types::hir::{TypeId, TypedExpr};
 use crate::types::ty::{FunctionType, MethodType, Parameter, TypeDescription};
 use crate::types::UNIT;
+use context::source::ContentId;
 
 /// A typed [`crate::engine::Engine`].
 ///
@@ -180,5 +183,103 @@ impl TypedEngine {
             .iter()
             .enumerate()
             .filter_map(|(id, chunk)| chunk.as_ref().map(|chunk| (SourceId(id), chunk)))
+    }
+
+    /// Returns an iterator over all contained chunks grouped by they original content source.
+    pub fn group_by_content<'a>(&'a self, engine: &'a Engine) -> ContentIterator {
+        ContentIterator {
+            typed: self,
+            engine,
+            next: SourceId(0),
+        }
+    }
+}
+
+/// A group of chunks that were defined in the same content.
+#[derive(Debug, Copy, Clone)]
+pub struct EncodableContent {
+    /// The content identifier the chunks are defined in.
+    pub content_id: ContentId,
+    start_inclusive: SourceId,
+    end_exclusive: SourceId,
+}
+
+pub struct ContentIterator<'a> {
+    typed: &'a TypedEngine,
+    engine: &'a Engine<'a>,
+    next: SourceId,
+}
+
+impl<'a> Iterator for ContentIterator<'a> {
+    type Item = EncodableContent;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // Verify that there is a next chunk.
+        if self.next.0 >= self.engine.len() {
+            return None;
+        }
+
+        // Get the content id of the next chunk.
+        let start = self.next;
+        let content_id = self
+            .engine
+            .get_original_content(self.next)
+            .expect("Invalid source id");
+
+        // Walk over all chunks that have the same content id.
+        while let Some(next_content_id) = self.engine.get_original_content({
+            self.next.0 += 1;
+            self.next
+        }) {
+            if next_content_id != content_id {
+                break;
+            }
+        }
+
+        // Return a cursor over the chunks of this content.
+        Some(EncodableContent {
+            content_id,
+            start_inclusive: start,
+            end_exclusive: self.next,
+        })
+    }
+}
+
+impl EncodableContent {
+    pub fn main_chunk<'a>(
+        self,
+        it: &'a ContentIterator<'a>,
+    ) -> (SourceId, &'a Environment, &'a Chunk) {
+        let id = self.start_inclusive.0;
+        let chunk = it.typed.entries[id]
+            .as_ref()
+            .expect("Typed engine not properly filled");
+        let environment = it.engine.origins[id]
+            .2
+            .as_ref()
+            .expect("Engine not properly filled");
+        (self.start_inclusive, environment, chunk)
+    }
+
+    pub fn function_chunks<'a>(
+        self,
+        it: &'a ContentIterator<'a>,
+    ) -> impl Iterator<Item = (SourceId, &'a Environment, &'a Chunk)> {
+        let start = self.start_inclusive.0 + 1;
+        let end = self.end_exclusive.0;
+        let chunks = it.typed.entries[start..end]
+            .iter()
+            .map(|chunk| chunk.as_ref().expect("Typed engine not properly filled"));
+        let environments = it.engine.origins[start..end]
+            .iter()
+            .map(|(_, _, env)| env.as_ref().expect("Engine not properly filled"));
+        environments
+            .zip(chunks)
+            .enumerate()
+            .map(move |(i, (env, chunk))| (SourceId(start + i), env, chunk))
+    }
+
+    pub fn function_count(&self) -> usize {
+        self.end_exclusive.0 - self.start_inclusive.0 - 1
     }
 }

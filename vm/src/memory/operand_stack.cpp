@@ -61,18 +61,3 @@ void OperandStack::push(const char *bytes, size_t size) {
     memcpy(static_cast<void *>(this->bytes + current_pos), bytes, size);
     current_pos += size;
 }
-
-template <typename T>
-void OperandStack::push(T t) {
-    if (current_pos + sizeof(T) > stack_capacity) {
-        throw StackOverflowError("exceeded stack stack_capacity via operand stack");
-    }
-    *(T *)(bytes + current_pos) = t;
-    current_pos += sizeof(T);
-}
-
-template <typename T>
-T OperandStack::pop() {
-    pop_bytes(sizeof(T));
-    return *(T *)(bytes + current_pos);
-}

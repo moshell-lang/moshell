@@ -12,7 +12,7 @@ pub struct TypeId(pub ObjectId);
 #[derive(Clone, Copy, Debug, PartialEq, Hash, Eq)]
 pub enum Var {
     Local(LocalId),
-    Capture(ResolvedSymbol),
+    External(ResolvedSymbol),
 }
 
 impl TypeId {

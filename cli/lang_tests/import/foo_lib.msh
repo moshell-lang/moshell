@@ -1,0 +1,10 @@
+// Run:
+//   status: success
+//   stdout:
+//    Instantiating lib
+
+fun foo() -> String = "this is foo!"
+val bar = "bar"
+val baz = 514
+
+echo 'Instantiating lib'
