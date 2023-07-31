@@ -7,9 +7,10 @@ use clap::Parser;
 use miette::MietteHandlerOpts;
 
 use analyzer::name::Name;
+use analyzer::relations::SourceId;
 
-use crate::cli::{resolve_and_execute, Cli};
-use crate::pipeline::FileImporter;
+use crate::cli::{use_pipeline, Cli};
+use crate::pipeline::{FileImporter, Pipeline};
 use crate::repl::prompt;
 
 mod cli;
@@ -54,7 +55,18 @@ fn main() -> io::Result<()> {
             root
         });
         importer.add_redirection(name.clone(), source.clone());
-        let has_error = resolve_and_execute(name, &mut importer, &cli);
+        let mut pipeline = Pipeline::new();
+        pipeline.analyzer.process(name.clone(), &mut importer);
+        let diagnostics = pipeline.analyzer.take_diagnostics();
+        let has_error = use_pipeline(
+            name,
+            SourceId(0),
+            &pipeline.analyzer,
+            &mut pipeline.vm,
+            diagnostics,
+            &mut importer,
+            &cli,
+        );
         exit(i32::from(has_error))
     }
     let importer = FileImporter::new(std::env::current_dir()?);

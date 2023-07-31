@@ -1,6 +1,7 @@
 use std::io;
 use std::io::Write;
 
+use analyzer::diagnostic::Diagnostic;
 use miette::{LabeledSpan, MietteDiagnostic, Report, Severity, SourceSpan};
 
 use analyzer::engine::Engine;
@@ -62,7 +63,7 @@ pub fn display_parse_error<W: Write>(
 pub fn display_diagnostic<W: Write>(
     engine: &Engine,
     importer: &mut impl ErrorReporter,
-    diagnostic: analyzer::diagnostic::Diagnostic,
+    diagnostic: Diagnostic,
     writer: &mut W,
 ) -> io::Result<()> {
     let mut diag = MietteDiagnostic::new(diagnostic.global_message);

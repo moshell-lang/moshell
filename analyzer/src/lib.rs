@@ -11,6 +11,8 @@
 //!
 //! The main usage of the analyzer is to verify that the sources are valid before
 //! compiling them.
+//! If you also need to keep the state of the analysis, you can use the [`Analyzer`]
+//! struct directly, that offers a more fine-grained control over the analysis.
 
 #![allow(dead_code)]
 
@@ -18,10 +20,11 @@ use std::collections::HashSet;
 
 use crate::diagnostic::Diagnostic;
 use crate::engine::Engine;
-use crate::importer::ASTImporter;
+use crate::importer::{ASTImporter, Imported};
 use crate::imports::Imports;
 use crate::name::Name;
 use crate::relations::{Relations, SourceId};
+use crate::steps::collect::SymbolCollector;
 use crate::steps::resolve_sources;
 use crate::steps::typing::apply_types;
 use crate::types::engine::TypedEngine;
@@ -71,6 +74,7 @@ impl<'a> Analyzer<'a> {
         Self::default()
     }
 
+    /// Analyse starting from the given entry point.
     pub fn process(
         &mut self,
         entry_point: Name,
@@ -98,7 +102,41 @@ impl<'a> Analyzer<'a> {
         }
     }
 
-    /// Takes the diagnostics that were generated during the analysis.
+    /// Performs an injection of a source as it would be a new entry point.
+    ///
+    /// # Panics
+    /// If the injection refers to itself, this method will panic.
+    pub fn inject(
+        &mut self,
+        inject: Inject<'a>,
+        importer: &mut impl ASTImporter<'a>,
+    ) -> Analysis<'a, '_> {
+        let last_next_source_id = SourceId(self.resolution.engine.len());
+        let mut visit = vec![inject.name.clone()];
+        self.diagnostics.extend(SymbolCollector::inject(
+            inject,
+            &mut self.resolution.engine,
+            &mut self.resolution.relations,
+            &mut self.resolution.imports,
+            &mut visit,
+        ));
+        resolve_sources(visit, &mut self.resolution, importer, &mut self.diagnostics);
+        if self.diagnostics.is_empty() {
+            let (engine, typing) = apply_types(
+                &self.resolution.engine,
+                &self.resolution.relations,
+                &mut self.diagnostics,
+            );
+            self.engine = engine;
+            self.typing = typing;
+        }
+        Analysis {
+            analyzer: self,
+            last_next_source_id,
+        }
+    }
+
+    /// Takes the diagnostics that were generated during the analysis
     pub fn take_diagnostics(&mut self) -> Vec<Diagnostic> {
         std::mem::take(&mut self.diagnostics)
     }
@@ -162,6 +200,18 @@ pub fn resolve_all<'a>(
     let mut result = ResolutionResult::default();
     resolve_sources(vec![entry_point], &mut result, importer, diagnostics);
     result
+}
+
+/// A specially crafted input to inject at a specific point in the analyzer.
+pub struct Inject<'a> {
+    /// The name of the source to inject.
+    pub name: Name,
+
+    /// The imported content.
+    pub imported: Imported<'a>,
+
+    /// The environment to inject the source into.
+    pub attached: Option<SourceId>,
 }
 
 /// The results of an analysis

@@ -5,11 +5,26 @@ use std::path::{PathBuf, MAIN_SEPARATOR_STR};
 
 use analyzer::importer::{ASTImporter, ImportResult, Imported};
 use analyzer::name::Name;
+use analyzer::Analyzer;
 use ast::group::Block;
 use ast::Expr;
 use context::source::{ContentId, OwnedSource, Source, SourceSegmentHolder};
 use parser::err::ParseError;
 use parser::parse;
+use vm::VM;
+
+/// Holds the state of the analyzer and the virtual machine.
+#[derive(Default)]
+pub struct Pipeline<'a> {
+    pub analyzer: Analyzer<'a>,
+    pub vm: VM,
+}
+
+impl Pipeline<'_> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
 
 /// A collection of parse errors that are bound to a unique source.
 #[derive(Debug)]

@@ -186,11 +186,15 @@ impl TypedEngine {
     }
 
     /// Returns an iterator over all contained chunks grouped by they original content source.
-    pub fn group_by_content<'a>(&'a self, engine: &'a Engine) -> ContentIterator {
+    pub fn group_by_content<'a>(
+        &'a self,
+        engine: &'a Engine,
+        starting_page: SourceId,
+    ) -> ContentIterator {
         ContentIterator {
             typed: self,
             engine,
-            next: SourceId(0),
+            next: starting_page,
         }
     }
 }

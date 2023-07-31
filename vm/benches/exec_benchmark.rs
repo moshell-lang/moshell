@@ -1,6 +1,7 @@
 use analyzer::analyze;
 use analyzer::importer::{ASTImporter, ImportResult, Imported};
 use analyzer::name::Name;
+use analyzer::relations::SourceId;
 use ast::Expr;
 use compiler::compile;
 use context::source::{ContentId, Source};
@@ -32,6 +33,7 @@ fn prepare_bytecode(code: &str) -> Vec<u8> {
         &analyzer.engine,
         &resolve.engine,
         &resolve.relations,
+        SourceId(0),
         &mut bytes,
         None,
     )

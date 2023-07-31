@@ -21,6 +21,7 @@ use crate::name::Name;
 use crate::relations::{RelationState, Relations, SourceId, Symbol};
 use crate::steps::resolve::SymbolResolver;
 use crate::steps::shared_diagnostics::diagnose_invalid_symbol;
+use crate::Inject;
 
 /// Defines the current state of the tree exploration.
 #[derive(Debug, Clone, Copy)]
@@ -78,6 +79,37 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
     ) -> Vec<Diagnostic> {
         let mut collector = Self::new(engine, relations, imports);
         collector.collect(importer, to_visit, visited);
+        collector.check_symbols_identity();
+        collector.diagnostics
+    }
+
+    pub fn inject(
+        inject: Inject<'e>,
+        engine: &'a mut Engine<'e>,
+        relations: &'a mut Relations,
+        imports: &'a mut Imports,
+        to_visit: &mut Vec<Name>,
+    ) -> Vec<Diagnostic> {
+        assert!(
+            inject
+                .attached
+                .map_or(true, |attached| attached.0 != engine.len()),
+            "Cannot inject a module to itself"
+        );
+        let mut collector = Self::new(engine, relations, imports);
+        let root_block = collector.engine.take(inject.imported.expr);
+
+        let mut env = Environment::named(inject.name);
+        env.parent = inject.attached;
+        let mut state = ResolutionState::new(
+            inject.imported.content,
+            collector.engine.track(inject.imported.content, root_block),
+        );
+        collector.engine.attach(state.module, env);
+        collector.stack.push(state.module);
+
+        collector.tree_walk(&mut state, root_block, to_visit);
+        collector.stack.pop();
         collector.check_symbols_identity();
         collector.diagnostics
     }

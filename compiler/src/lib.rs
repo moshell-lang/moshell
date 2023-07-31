@@ -34,6 +34,7 @@ pub fn compile(
     typed_engine: &TypedEngine,
     link_engine: &Engine,
     relations: &Relations,
+    starting_page: SourceId,
     writer: &mut impl Write,
     line_provider: Option<&dyn SourceLineProvider>,
 ) -> Result<(), io::Error> {
@@ -41,7 +42,7 @@ pub fn compile(
     let mut bytecode = Bytecode::default();
     let mut cp = ConstantPool::default();
 
-    let mut it = typed_engine.group_by_content(link_engine);
+    let mut it = typed_engine.group_by_content(link_engine, starting_page);
     while let Some(content) = it.next() {
         let (chunk_id, main_env, main_chunk) = content.main_chunk(&it);
         let ctx = EmitterContext {
