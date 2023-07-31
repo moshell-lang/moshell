@@ -10,7 +10,7 @@ use analyzer::resolve_all;
 use analyzer::steps::typing::apply_types;
 use compiler::{compile, SourceLineProvider};
 use context::source::ContentId;
-use vm::execute_bytecode;
+use vm::{execute_bytecode, VmError};
 
 use crate::disassemble::display_bytecode;
 use crate::pipeline::{ErrorReporter, FileImportError, SourceHolder};
@@ -159,6 +159,8 @@ pub fn resolve_and_execute<'a>(
     had_errors
 }
 
-fn execute(bytes: &[u8]) -> i32 {
-    unsafe { execute_bytecode(bytes) }
+fn execute(bytes: &[u8]) {
+    if unsafe { execute_bytecode(bytes) } == Err(VmError::Internal) {
+        panic!("VM internal error");
+    }
 }

@@ -133,5 +133,12 @@ namespace msh {
             }
             throw std::runtime_error("Cannot get function as variable");
         }
+
+        /**
+         * Gets the number of pages in this pager.
+         *
+         * @return The number of pages.
+         */
+        size_t size() const;
     };
 }

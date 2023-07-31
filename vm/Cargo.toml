@@ -13,10 +13,10 @@ harness = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+context = { path = "../context" }
 
 [dev-dependencies]
 criterion = "0.5.1"
-context = { path = "../context" }
 ast = { path = "../ast" }
 parser = { path = "../parser" }
 analyzer = { path = "../analyzer" }
