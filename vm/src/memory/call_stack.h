@@ -15,6 +15,11 @@ struct stack_frame {
     Locals locals;
 };
 
+struct stack_frame_view {
+    const function_definition &function;
+    size_t current_ip;
+};
+
 /**
  * A thread callstack, with fixed capacity
  */
@@ -23,7 +28,7 @@ class CallStack {
 
     /**
      * position of the current frame headers
-     * is 0 if this call stack is empty
+     * is SIZE_MAX if this call stack is empty
      */
     size_t frame_headers_pos;
     /**
@@ -80,4 +85,9 @@ public:
      * @return true if the size is equal to 0
      */
     bool is_empty() const;
+
+    /**
+     * @return a vector of currently contained stack frames, with their definition and current instruction being executed.
+     */
+    std::vector<stack_frame_view> dump_stack() const;
 };

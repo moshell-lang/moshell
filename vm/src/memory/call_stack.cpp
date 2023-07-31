@@ -6,7 +6,7 @@
 struct frame_headers {
     /**
      * position of the previous frame header.
-     * 0 if this frame is the root headers
+     * SIZE_MAX if this frame is the root headers
      */
     size_t previous_frame_headers_pos;
 
@@ -28,7 +28,7 @@ struct frame_headers {
 
 CallStack::CallStack(size_t capacity)
     : block{std::make_unique<char[]>(capacity)},
-      frame_headers_pos{0},
+      frame_headers_pos{SIZE_MAX},
       capacity{capacity},
       frame_count{0} {}
 
@@ -36,7 +36,7 @@ inline void check_overflow(size_t capacity, size_t current_pos, const function_d
     // as the operand stack stack_capacity is the end of the call stack, we do not include it in this check
     size_t total_frame_size = callee.locals_size + sizeof(frame_headers);
     if (current_pos + total_frame_size >= capacity) {
-        throw StackOverflowError("Call stack exceeded stack_capacity");
+        throw StackOverflowError("Call stack exceeded capacity");
     }
 }
 
@@ -67,7 +67,7 @@ void CallStack::push_frame(const function_definition &callee) {
 
     // write default headers,
     *(frame_headers *)(block + pos) = {
-        frame_headers_pos,
+        is_empty() ? SIZE_MAX : frame_headers_pos,
         &callee,
         0,
         0,
@@ -114,4 +114,19 @@ size_t CallStack::size() const {
 
 bool CallStack::is_empty() const {
     return size() == 0;
+}
+std::vector<stack_frame_view> CallStack::dump_stack() const {
+    char *block = this->block.get();
+
+    std::vector<stack_frame_view> stack_trace;
+
+    size_t current_frame_pos = frame_headers_pos;
+    while (current_frame_pos != SIZE_MAX) {
+        frame_headers &headers = *(frame_headers *)(block + current_frame_pos);
+
+        stack_trace.push_back(stack_frame_view{*headers.function, headers.instruction_pointer});
+        current_frame_pos = headers.previous_frame_headers_pos;
+    }
+
+    return stack_trace;
 }

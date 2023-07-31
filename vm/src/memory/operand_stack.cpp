@@ -56,7 +56,7 @@ const char *OperandStack::pop_bytes(size_t n) {
 
 void OperandStack::push(const char *bytes, size_t size) {
     if (current_pos + size > stack_capacity) {
-        throw StackOverflowError("exceeded stack stack_capacity via operand stack");
+        throw StackOverflowError("exceeded stack capacity via operand stack");
     }
     memcpy(static_cast<void *>(this->bytes + current_pos), bytes, size);
     current_pos += size;

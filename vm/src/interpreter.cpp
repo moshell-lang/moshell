@@ -123,6 +123,11 @@ struct runtime_state {
     const natives_functions_t &native_functions;
 };
 
+RuntimeException::RuntimeException(std::string msg) : std::exception(), msg{msg} {}
+const char *RuntimeException::what() const noexcept {
+    return msg.c_str();
+}
+
 /**
  * Apply an arithmetic operation to two integers
  * @param code The opcode to apply
@@ -139,6 +144,9 @@ inline int64_t apply_arithmetic(Opcode code, int64_t a, int64_t b) {
     case OP_INT_MUL:
         return a * b;
     case OP_INT_DIV:
+        if (b == 0) {
+            throw RuntimeException("Attempted to divide " + std::to_string(a) + " by zero.");
+        }
         return a / b;
     case OP_INT_MOD:
         return a % b;
@@ -163,6 +171,9 @@ inline double apply_arithmetic(Opcode code, double a, double b) {
     case OP_FLOAT_MUL:
         return a * b;
     case OP_FLOAT_DIV:
+        if (b == 0) {
+            throw RuntimeException("Attempted to divide " + std::to_string(a) + " by zero.");
+        }
         return a / b;
     default:
         throw InvalidBytecodeError("Unknown opcode");
@@ -214,6 +225,26 @@ inline bool apply_comparison(Opcode code, double a, double b) {
         return a <= b;
     default:
         throw InvalidBytecodeError("Unknown opcode");
+    }
+}
+
+void panic_message(std::string msg, std::vector<stack_frame_view> stack) {
+    std::cerr << "panic: " << msg << std::endl;
+    for (stack_frame_view frame : stack) {
+        const function_definition &def = frame.function;
+        std::cerr << "\tat " << *def.identifier;
+
+        if (!def.mappings.empty()) {
+            size_t instruction_line;
+            for (auto &[instruction, line] : def.mappings) {
+                if (instruction >= frame.current_ip) {
+                    break;
+                }
+                instruction_line = line;
+            }
+            std::cerr << " (line " << instruction_line << ")";
+        }
+        std::cerr << std::endl;
     }
 }
 
@@ -355,7 +386,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             pid_t pid = fork();
             switch (pid) {
             case -1:
-                perror("fork");
+                panic_message(strerror(errno), call_stack.dump_stack());
                 exit(EX_OSERR);
             case 0:
                 // Child process
@@ -389,7 +420,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
 
             // Replace the current process with a new process image
             if (execvp(argv[0].get(), reinterpret_cast<char *const *>(argv.data())) == -1) {
-                perror("execvp");
+                panic_message(strerror(errno), call_stack.dump_stack());
                 _exit(MOSHELL_COMMAND_NOT_RUNNABLE);
             }
             break;
@@ -401,7 +432,8 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             int status = 0;
             // Wait for the process to finish
             if (waitpid(pid, &status, 0) == -1) {
-                perror("waitpid");
+                panic_message(strerror(errno), call_stack.dump_stack());
+                exit(EX_OSERR);
             }
 
             // Add the exit status to the stack
@@ -419,7 +451,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             // Open the file
             int fd = open(path.c_str(), flags, S_IRUSR | S_IWUSR);
             if (fd == -1) {
-                perror("open");
+                panic_message(strerror(errno), call_stack.dump_stack());
                 exit(EX_IOERR);
             }
 
@@ -443,7 +475,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
 
             // Redirect the file descriptors
             if (state.table.push_redirection(fd1, fd2) == -1) {
-                perror("dup2");
+                panic_message(strerror(errno), call_stack.dump_stack());
                 exit(EX_OSERR);
             }
             operands.push_int(fd1);
@@ -456,7 +488,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
 
             // Redirect the file descriptors
             if (dup2(fd1, fd2) == -1) {
-                perror("dup2");
+                panic_message(strerror(errno), call_stack.dump_stack());
                 exit(EX_OSERR);
             }
             operands.push_int(fd1);
@@ -470,7 +502,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             // Create the pipe
             int pipefd[2];
             if (pipe(pipefd) == -1) {
-                perror("pipe");
+                panic_message(strerror(errno), call_stack.dump_stack());
                 exit(EX_OSERR);
             }
 
@@ -490,7 +522,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
                 r = read(fd, buffer.data(), buffer.size());
                 if (r == -1) {
                     if (errno != EAGAIN && errno != EINTR) {
-                        perror("read");
+                        panic_message(strerror(errno), call_stack.dump_stack());
                         exit(EX_IOERR);
                     }
                 }
@@ -519,7 +551,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
 
             // Write the string to the file
             if (write(fd, str.data(), str.length()) == -1) {
-                perror("write");
+                panic_message(strerror(errno), call_stack.dump_stack());
                 exit(EX_IOERR);
             }
             close(fd);
@@ -724,26 +756,37 @@ void run_unit(const msh::loader &loader, msh::pager &pager, const msh::memory_pa
     const function_definition &root_def = loader.get_function(current_page.init_function_name);
     CallStack call_stack = CallStack::create(10000, root_def);
 
-    while (!call_stack.is_empty()) {
-        stack_frame current_frame = call_stack.peek_frame();
-        const function_definition &current_def = current_frame.function;
+    try {
+        while (!call_stack.is_empty()) {
+            stack_frame current_frame = call_stack.peek_frame();
+            const function_definition &current_def = current_frame.function;
 
-        const char *instructions = loader.get_instructions(current_def.instructions_start);
-        bool has_returned = run_frame(state, current_frame, call_stack, instructions, current_def.instruction_count);
+            const char *instructions = loader.get_instructions(current_def.instructions_start);
+            bool has_returned = run_frame(state, current_frame, call_stack, instructions, current_def.instruction_count);
 
-        if (has_returned) {
-            int8_t returned_byte_count = current_def.return_byte_count;
-            const char *bytes = current_frame.operands.pop_bytes(returned_byte_count);
+            if (has_returned) {
+                int8_t returned_byte_count = current_def.return_byte_count;
+                const char *bytes = current_frame.operands.pop_bytes(returned_byte_count);
 
-            // pop the current frame.
-            call_stack.pop_frame();
+                // pop the current frame.
+                call_stack.pop_frame();
 
-            if (call_stack.is_empty()) {
-                // the root method has returned
-                break;
+                if (call_stack.is_empty()) {
+                    // the root method has returned
+                    break;
+                }
+                stack_frame caller_frame = call_stack.peek_frame();
+                caller_frame.operands.push(bytes, returned_byte_count);
             }
-            stack_frame caller_frame = call_stack.peek_frame();
-            caller_frame.operands.push(bytes, returned_byte_count);
         }
+    } catch (const VirtualMachineError &e) {
+        auto stack_trace = call_stack.dump_stack();
+        panic_message("An unexpected Virtual Machine Error occurred.\n" + std::string(e.name()) + " : " + e.what(), stack_trace);
+    } catch (const RuntimeException &e) {
+        auto stack_trace = call_stack.dump_stack();
+        panic_message(e.what(), stack_trace);
+    } catch (const std::exception &e) {
+        auto stack_trace = call_stack.dump_stack();
+        panic_message("An unexpected internal error occurred.\nwhat : " + std::string(e.what()), stack_trace);
     }
 }

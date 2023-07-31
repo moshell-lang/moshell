@@ -2,12 +2,17 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 /**
  * Contains the information needed for the execution of a function
  */
 struct function_definition {
+    /**
+     * function's identifier string
+     */
+    const std::string *identifier;
     /**
      * Amount, in bytes of the space in the stack frame allocated for local values area
      */

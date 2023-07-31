@@ -66,6 +66,7 @@ namespace msh {
         const std::string &identifier = pool.get_string(id_idx);
 
         function_definition def;
+        def.identifier = &identifier;
         bool code_seen = false;
 
         uint32_t attributes_count = reader.read<uint32_t>();
@@ -74,6 +75,7 @@ namespace msh {
             int attribute_kind = static_cast<int>(reader.read<std::byte>());
             switch (attribute_kind) {
             case 1: {
+                // read Code attribute
                 if (code_seen) {
                     throw InvalidBytecodeError("Code (1) attribute defined multiple times for function " + identifier);
                 }
@@ -89,6 +91,7 @@ namespace msh {
                 std::copy(instructions, instructions + instruction_count, std::back_inserter(concatened_instructions));
 
                 def = {
+                    def.identifier,
                     locals_byte_count,
                     parameters_byte_count,
                     return_byte_count,
@@ -100,6 +103,7 @@ namespace msh {
                 break;
             }
             case 2: {
+                // read Mappings attribute
                 if (!def.mappings.empty()) {
                     throw InvalidBytecodeError("Mappings (2) attribute defined multiple times for function " + identifier);
                 }
@@ -112,7 +116,7 @@ namespace msh {
                 break;
             }
             default:
-                throw InvalidBytecodeError("unknown attribute kind : " + std::to_string(attribute_kind));
+                throw InvalidBytecodeError("Unknown attribute kind : " + std::to_string(attribute_kind));
             }
         }
 

@@ -9,6 +9,15 @@ namespace msh {
     struct memory_page;
 }
 
+class RuntimeException : std::exception {
+private:
+    const std::string msg;
+
+public:
+    explicit RuntimeException(std::string msg);
+    [[nodiscard]] const char *what() const noexcept override;
+};
+
 /**
  * Will run given bytecode's main method.
  * @throws InvalidBytecodeError if an interpreted instruction set contains invalid instructions
