@@ -1,12 +1,10 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-
+use analyzer::analyze;
 use analyzer::importer::{ASTImporter, ImportResult, Imported};
 use analyzer::name::Name;
-use analyzer::resolve_all;
-use analyzer::steps::typing::apply_types;
 use ast::Expr;
 use compiler::compile;
 use context::source::{ContentId, Source};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use parser::parse_trusted;
 use vm::execute_bytecode;
 
@@ -27,16 +25,11 @@ impl<'a> ASTImporter<'a> for SingleImporter<'a> {
 fn prepare_bytecode(code: &str) -> Vec<u8> {
     let mut bytes = Vec::new();
     let expr = parse_trusted(Source::new(code, "test"));
-    let mut resolve = resolve_all(Name::new("test"), &mut SingleImporter(Some(expr)));
-    assert_eq!(resolve.diagnostics, &[]);
-    let (engine, _) = apply_types(
-        &resolve.engine,
-        &resolve.relations,
-        &mut resolve.diagnostics,
-    );
-    assert_eq!(resolve.diagnostics, &[]);
+    let mut analyzer = analyze(Name::new("test"), &mut SingleImporter(Some(expr)));
+    assert_eq!(analyzer.take_diagnostics(), &[]);
+    let resolve = analyzer.resolution;
     compile(
-        &engine,
+        &analyzer.engine,
         &resolve.engine,
         &resolve.relations,
         &mut bytes,

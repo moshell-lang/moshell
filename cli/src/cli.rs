@@ -4,10 +4,9 @@ use std::collections::HashMap;
 use std::io::stderr;
 use std::path::PathBuf;
 
+use analyzer::analyze;
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
-use analyzer::resolve_all;
-use analyzer::steps::typing::apply_types;
 use compiler::{compile, SourceLineProvider};
 use context::source::ContentId;
 use vm::{execute_bytecode, VmError};
@@ -79,7 +78,8 @@ pub fn resolve_and_execute<'a>(
     importer: &mut (impl ASTImporter<'a> + ErrorReporter),
     config: &Cli,
 ) -> bool {
-    let result = resolve_all(entry_point.clone(), importer);
+    let mut analyzer = analyze(entry_point.clone(), importer);
+    let result = &analyzer.resolution;
 
     let errors = importer.take_errors();
     if errors.is_empty() && result.engine.is_empty() {
@@ -120,34 +120,30 @@ pub fn resolve_and_execute<'a>(
         }
     }
 
-    let mut diagnostics = result.diagnostics;
+    let diagnostics = analyzer.take_diagnostics();
+    let result = &analyzer.resolution;
     if diagnostics.is_empty() {
-        let (types, _) = apply_types(&result.engine, &result.relations, &mut diagnostics);
-        if diagnostics.is_empty() {
-            let mut bytes = Vec::new();
+        let mut bytes = Vec::new();
+        let contents = importer.list_content_ids();
+        let lines = CachedSourceLocationLineProvider::compute(&contents, importer);
+        compile(
+            &analyzer.engine,
+            &result.engine,
+            &result.relations,
+            &mut bytes,
+            Some(&lines),
+        )
+        .expect("write failed");
 
-            let contents = importer.list_content_ids();
-            let lines = CachedSourceLocationLineProvider::compute(&contents, importer);
-
-            compile(
-                &types,
-                &result.engine,
-                &result.relations,
-                &mut bytes,
-                Some(&lines),
-            )
-            .expect("write failed");
-
-            if config.disassemble {
-                display_bytecode(&bytes);
-            }
-
-            if !config.no_execute {
-                execute(&bytes);
-            }
-
-            return false;
+        if config.disassemble {
+            display_bytecode(&bytes);
         }
+
+        if !config.no_execute {
+            execute(&bytes);
+        }
+
+        return false;
     }
 
     let mut stderr = stderr();

@@ -292,8 +292,9 @@ mod tests {
             ],
             parse_trusted,
         );
-        let res = resolve_all(Name::new("main"), &mut importer);
-        assert_eq!(res.diagnostics, vec![]);
+        let mut diagnostics = Vec::new();
+        let res = resolve_all(Name::new("main"), &mut importer, &mut diagnostics);
+        assert_eq!(diagnostics, vec![]);
         assert_eq!(
             res.relations
                 .iter()
@@ -323,8 +324,9 @@ mod tests {
             [(Name::new("main"), Source::new(src, "main"))],
             parse_trusted,
         );
-        let res = resolve_all(Name::new("main"), &mut importer);
-        assert_eq!(res.diagnostics, vec![]);
+        let mut diagnostics = Vec::new();
+        let res = resolve_all(Name::new("main"), &mut importer, &mut diagnostics);
+        assert_eq!(diagnostics, vec![]);
         assert_eq!(
             res.relations.iter().collect::<Vec<_>>(),
             vec![
@@ -684,8 +686,8 @@ mod tests {
             parse_trusted,
         );
 
-        let result = resolve_all(Name::new("test"), &mut importer);
-        let diagnostics = result.diagnostics;
+        let mut diagnostics = Vec::new();
+        let result = resolve_all(Name::new("test"), &mut importer, &mut diagnostics);
         let relations = result.relations;
 
         assert_eq!(

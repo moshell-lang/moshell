@@ -207,6 +207,11 @@ impl Relations {
         Some(self.relations.get(id.0)?.state)
     }
 
+    /// Removes all the objects that have been created at or after the given id.
+    pub fn retain_before(&mut self, id: SourceId) {
+        self.relations.retain(|relation| relation.origin.0 < id.0);
+    }
+
     /// Creates a dependency graph for the given engine.
     pub fn as_dependencies(&self, engine: &Engine) -> Dependencies<SourceId> {
         let mut dependencies = Dependencies::default();

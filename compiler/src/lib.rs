@@ -354,7 +354,6 @@ mod tests {
     use analyzer::importer::StaticImporter;
     use analyzer::name::Name;
     use analyzer::relations::{LocalId, ResolvedSymbol, SourceId};
-    use analyzer::steps::typing::apply_types;
     use context::source::Source;
     use parser::parse_trusted;
 
@@ -381,14 +380,12 @@ mod tests {
            }
         }\
         ";
-        let result = analyzer::resolve_all(
+        let analyzer = analyzer::analyze(
             Name::new("test"),
             &mut StaticImporter::new([(Name::new("test"), Source::unknown(src))], parse_trusted),
         );
-
-        let (typed_engine, _) = apply_types(&result.engine, &result.relations, &mut vec![]);
-
-        let captures = resolve_captures(&result.engine, &result.relations, &typed_engine);
+        let result = analyzer.resolution;
+        let captures = resolve_captures(&result.engine, &result.relations, &analyzer.engine);
 
         assert_eq!(
             captures,

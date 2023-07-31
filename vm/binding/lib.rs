@@ -38,6 +38,9 @@ impl VM {
     }
 
     /// Executes the remaining bytecode.
+    ///
+    /// # Safety
+    /// The caller must ensure that the previously registered bytecode is valid.
     pub unsafe fn run(&mut self) -> Result<(), VmError> {
         match moshell_vm_run(self.0) {
             0 => Ok(()),

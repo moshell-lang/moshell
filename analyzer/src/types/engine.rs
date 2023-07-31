@@ -7,11 +7,11 @@ use crate::types::ty::{FunctionType, MethodType, Parameter, TypeDescription};
 use crate::types::UNIT;
 use context::source::ContentId;
 
-/// A typed [`crate::engine::Engine`].
+/// A typed [`Engine`].
 ///
 /// This engine is used to store individual chunks of typed code, such as
 /// functions and scripts.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TypedEngine {
     /// The user defined chunks of code.
     ///

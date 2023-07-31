@@ -39,6 +39,11 @@ impl Imports {
     pub fn get_imports_mut(&mut self, source: SourceId) -> Option<&mut SourceImports> {
         self.imports.get_mut(&source)
     }
+
+    /// Removes all the imports that were declared at or after the given source.
+    pub fn retain_before(&mut self, source: SourceId) {
+        self.imports.retain(|id, _| id.0 < source.0);
+    }
 }
 
 /// The structure that hosts the unresolved and resolved imported symbols of an environment
