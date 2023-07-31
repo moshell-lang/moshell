@@ -1,0 +1,11 @@
+// Run:
+//   status: success
+//   stdout:
+//     bar
+{
+    val m = "bar"
+    fun foo() -> ExitCode = {
+        echo $m
+    }
+    foo()
+}

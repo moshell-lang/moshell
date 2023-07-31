@@ -28,7 +28,7 @@ pub(super) fn expose_variable(ctx: EmitterContext, var: Var, cp: &mut ConstantPo
                 .variables
                 .get_var(id)
                 .expect("The declared variable should be in the current environment.");
-            if variable.is_exported() && ctx.is_script {
+            if variable.is_exported() && ctx.environment.is_script {
                 let name = &variable.name;
                 let symbol_id = cp
                     .get_external(name)
@@ -40,31 +40,22 @@ pub(super) fn expose_variable(ctx: EmitterContext, var: Var, cp: &mut ConstantPo
         }
         Var::External(resolved) => {
             // Distinguish captures and static variables.
-
-            // Traverse the lineage of the current environment.
-            let mut current = ctx.environment;
-            while let Some(parent_id) = current.parent {
-                // FIXME: in the future, stop if the parent is a script
-                if parent_id == resolved.source {
-                    return Identifier::Capture(resolved);
-                }
-                current = ctx
-                    .engine
-                    .get_environment(parent_id)
-                    .expect("Parent environment not found");
-            }
-
             let environment = ctx
                 .engine
                 .get_environment(resolved.source)
                 .expect("Resolved relation targets an unknown environment");
-            let import = &environment.fqn;
-            let name = &environment
+            let variable = environment
                 .variables
                 .get_var(resolved.object_id)
-                .expect("Resolved relation targets an unknown variable")
-                .name;
-            Identifier::External(cp.insert_dynsym(&import.to_string(), name))
+                .expect("Resolved relation targets an unknown variable");
+            let is_exported_dynsym = variable.is_exported() && environment.is_script;
+            if is_exported_dynsym {
+                let import = &environment.fqn;
+                let name = &variable.name;
+                Identifier::External(cp.insert_dynsym(&import.to_string(), name))
+            } else {
+                Identifier::Capture(resolved)
+            }
         }
     }
 }

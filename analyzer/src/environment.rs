@@ -38,6 +38,9 @@ pub struct Environment {
     /// The source object id of the parent environment, if the environment is nested.
     pub parent: Option<SourceId>,
 
+    /// Whether the environment is directly executable.
+    pub is_script: bool,
+
     ///Fully qualified name of the environment
     pub fqn: Name,
 
@@ -55,6 +58,7 @@ impl Environment {
     pub fn named(name: Name) -> Self {
         Self {
             parent: None,
+            is_script: true,
             fqn: name,
             variables: Variables::default(),
             definitions: HashMap::new(),
@@ -67,6 +71,7 @@ impl Environment {
 
         Self {
             parent: Some(source_id),
+            is_script: false,
             fqn: env_fqn,
             variables: Variables::default(),
             definitions: HashMap::new(),
@@ -95,7 +100,7 @@ impl Environment {
     /// declared before. If not, symbol resolution happens after the whole environment is collected,
     /// and the symbol can be resolved in any order.
     pub fn has_strict_declaration_order(&self) -> bool {
-        self.parent.is_some()
+        !self.is_script
     }
 
     /// Adds an annotation to any segment.

@@ -61,8 +61,6 @@ pub struct Chunk {
 
     /// The return type of the chunk.
     pub return_type: TypeId,
-
-    pub is_script: bool,
 }
 
 impl Chunk {
@@ -72,7 +70,6 @@ impl Chunk {
             expression,
             parameters: Vec::new(),
             return_type: UNIT,
-            is_script: true,
         }
     }
 
@@ -86,7 +83,6 @@ impl Chunk {
             expression,
             parameters,
             return_type,
-            is_script: false,
         }
     }
 }
