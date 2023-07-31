@@ -30,6 +30,8 @@ pub trait SourceLineProvider {
     fn get_line(&self, content: ContentId, byte_pos: usize) -> Option<usize>;
 }
 
+const MAPPINGS_ATTRIBUTE: u8 = 1;
+
 pub fn compile(
     typed_engine: &TypedEngine,
     link_engine: &Engine,
@@ -102,19 +104,15 @@ fn compile_chunk(
     let signature_idx = cp.insert_string(name);
     bytecode.emit_constant_ref(signature_idx);
 
-    let attribute_count_ph = bytecode.emit_u32_placeholder();
-    let mut attribute_count = 1;
-
     // emits chunk's code attribute
-    let segments = compile_chunk_code_attribute(chunk, id, bytecode, ctx, cp);
+    let segments = compile_chunk_code(chunk, id, bytecode, ctx, cp);
+
+    bytecode.emit_byte(line_provider.map_or(0, |_| 1));
 
     if let Some(line_provider) = line_provider {
-        let content_id = ctx.engine.get_original_content(id).unwrap();
+        let Some(content_id) = ctx.engine.get_original_content(id) else { return };
         compile_line_mapping_attribute(segments, content_id, bytecode, line_provider);
-        attribute_count += 1
     }
-
-    bytecode.patch_u32_placeholder(attribute_count_ph, attribute_count);
 }
 
 fn compile_line_mapping_attribute(
@@ -124,7 +122,7 @@ fn compile_line_mapping_attribute(
     line_provider: &dyn SourceLineProvider,
 ) {
     // 2 is the mappings attribute identifier
-    bytecode.emit_byte(2);
+    bytecode.emit_byte(MAPPINGS_ATTRIBUTE);
 
     let mut mappings = IndexMap::new();
 
@@ -228,16 +226,13 @@ fn resolve_captures(
 /// compiles chunk's code attribute
 /// the code attribute of a chunk is a special attribute that contains the bytecode instructions and
 /// locals specifications
-fn compile_chunk_code_attribute(
+fn compile_chunk_code(
     chunk: &Chunk,
     chunk_id: SourceId,
     bytecode: &mut Bytecode,
     ctx: EmitterContext,
     cp: &mut ConstantPool,
 ) -> Vec<(usize, u32)> {
-    // 1 is the code attribute identifier
-    bytecode.emit_byte(1);
-
     let locals_byte_count = bytecode.emit_u32_placeholder();
 
     let chunk_captures = ctx.captures[chunk_id.0]

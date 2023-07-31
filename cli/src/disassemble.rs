@@ -55,14 +55,16 @@ fn display_function(
     dynamic_symbols: &[usize],
 ) -> io::Result<()> {
     let function_name = &constants[read!(cursor, u32) as usize];
-    let attribute_count = read!(cursor, u32);
+
+    display_code(cursor, constants, dynamic_symbols)?;
+
+    let attribute_count = read!(cursor, u8);
     println!("{function_name}: ({attribute_count} attributes)");
 
     for _ in 0..attribute_count {
         let attribute_id = read!(cursor, u8);
         match attribute_id {
-            1 => display_code_attribute(cursor, constants, dynamic_symbols)?,
-            2 => display_mappings_attribute(cursor)?,
+            1 => display_mappings_attribute(cursor)?,
             _ => panic!("Unknown attribute {attribute_id} read from bytecode"),
         }
     }
@@ -84,7 +86,7 @@ fn display_mappings_attribute(cursor: &mut Cursor<&[u8]>) -> io::Result<()> {
     Ok(())
 }
 
-fn display_code_attribute(
+fn display_code(
     cursor: &mut Cursor<&[u8]>,
     constants: &[String],
     dynamic_symbols: &[usize],

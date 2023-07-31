@@ -228,16 +228,18 @@ inline bool apply_comparison(Opcode code, double a, double b) {
     }
 }
 
-void panic_message(std::string msg, std::vector<stack_frame_view> stack) {
+void panic(std::string msg, CallStack &stack) {
     std::cerr << "panic: " << msg << std::endl;
-    for (stack_frame_view frame : stack) {
+
+    while (!stack.is_empty()) {
+        stack_frame frame = stack.peek_frame();
         const function_definition &def = frame.function;
         std::cerr << "\tat " << *def.identifier;
 
         if (!def.mappings.empty()) {
             size_t instruction_line;
-            for (auto &[instruction, line] : def.mappings) {
-                if (instruction >= frame.current_ip) {
+            for (const auto &[instruction, line] : def.mappings) {
+                if (instruction >= *frame.instruction_pointer) {
                     break;
                 }
                 instruction_line = line;
@@ -245,6 +247,7 @@ void panic_message(std::string msg, std::vector<stack_frame_view> stack) {
             std::cerr << " (line " << instruction_line << ")";
         }
         std::cerr << std::endl;
+        stack.pop_frame();
     }
 }
 
@@ -386,7 +389,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             pid_t pid = fork();
             switch (pid) {
             case -1:
-                panic_message(strerror(errno), call_stack.dump_stack());
+                panic(strerror(errno), call_stack);
                 exit(EX_OSERR);
             case 0:
                 // Child process
@@ -420,7 +423,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
 
             // Replace the current process with a new process image
             if (execvp(argv[0].get(), reinterpret_cast<char *const *>(argv.data())) == -1) {
-                panic_message(strerror(errno), call_stack.dump_stack());
+                panic(strerror(errno), call_stack);
                 _exit(MOSHELL_COMMAND_NOT_RUNNABLE);
             }
             break;
@@ -432,7 +435,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             int status = 0;
             // Wait for the process to finish
             if (waitpid(pid, &status, 0) == -1) {
-                panic_message(strerror(errno), call_stack.dump_stack());
+                panic(strerror(errno), call_stack);
                 exit(EX_OSERR);
             }
 
@@ -451,7 +454,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             // Open the file
             int fd = open(path.c_str(), flags, S_IRUSR | S_IWUSR);
             if (fd == -1) {
-                panic_message(strerror(errno), call_stack.dump_stack());
+                panic(strerror(errno), call_stack);
                 exit(EX_IOERR);
             }
 
@@ -475,7 +478,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
 
             // Redirect the file descriptors
             if (state.table.push_redirection(fd1, fd2) == -1) {
-                panic_message(strerror(errno), call_stack.dump_stack());
+                panic(strerror(errno), call_stack);
                 exit(EX_OSERR);
             }
             operands.push_int(fd1);
@@ -488,7 +491,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
 
             // Redirect the file descriptors
             if (dup2(fd1, fd2) == -1) {
-                panic_message(strerror(errno), call_stack.dump_stack());
+                panic(strerror(errno), call_stack);
                 exit(EX_OSERR);
             }
             operands.push_int(fd1);
@@ -502,7 +505,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
             // Create the pipe
             int pipefd[2];
             if (pipe(pipefd) == -1) {
-                panic_message(strerror(errno), call_stack.dump_stack());
+                panic(strerror(errno), call_stack);
                 exit(EX_OSERR);
             }
 
@@ -522,7 +525,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
                 r = read(fd, buffer.data(), buffer.size());
                 if (r == -1) {
                     if (errno != EAGAIN && errno != EINTR) {
-                        panic_message(strerror(errno), call_stack.dump_stack());
+                        panic(strerror(errno), call_stack);
                         exit(EX_IOERR);
                     }
                 }
@@ -551,7 +554,7 @@ bool run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, 
 
             // Write the string to the file
             if (write(fd, str.data(), str.length()) == -1) {
-                panic_message(strerror(errno), call_stack.dump_stack());
+                panic(strerror(errno), call_stack);
                 exit(EX_IOERR);
             }
             close(fd);
@@ -780,13 +783,10 @@ void run_unit(const msh::loader &loader, msh::pager &pager, const msh::memory_pa
             }
         }
     } catch (const VirtualMachineError &e) {
-        auto stack_trace = call_stack.dump_stack();
-        panic_message("An unexpected Virtual Machine Error occurred.\n" + std::string(e.name()) + " : " + e.what(), stack_trace);
+        panic("An unexpected Virtual Machine Error occurred.\n" + std::string(e.name()) + " : " + e.what(), call_stack);
     } catch (const RuntimeException &e) {
-        auto stack_trace = call_stack.dump_stack();
-        panic_message(e.what(), stack_trace);
+        panic(e.what(), call_stack);
     } catch (const std::exception &e) {
-        auto stack_trace = call_stack.dump_stack();
-        panic_message("An unexpected internal error occurred.\nwhat : " + std::string(e.what()), stack_trace);
+        panic("An unexpected internal error occurred.\nwhat : " + std::string(e.what()), call_stack);
     }
 }

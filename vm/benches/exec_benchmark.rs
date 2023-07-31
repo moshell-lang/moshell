@@ -1,6 +1,6 @@
-use criterion::{black_box, Criterion, criterion_group, criterion_main};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use analyzer::importer::{ASTImporter, Imported, ImportResult};
+use analyzer::importer::{ASTImporter, ImportResult, Imported};
 use analyzer::name::Name;
 use analyzer::resolve_all;
 use analyzer::steps::typing::apply_types;

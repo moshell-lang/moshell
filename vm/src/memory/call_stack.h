@@ -85,9 +85,4 @@ public:
      * @return true if the size is equal to 0
      */
     bool is_empty() const;
-
-    /**
-     * @return a vector of currently contained stack frames, with their definition and current instruction being executed.
-     */
-    std::vector<stack_frame_view> dump_stack() const;
 };

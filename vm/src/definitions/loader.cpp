@@ -4,6 +4,8 @@
 #include "memory/constant_pool.h"
 #include "pager.h"
 
+#define MAPPINGS_ATTRIBUTE 1
+
 namespace msh {
     void loader::load_raw_bytes(const char *bytes, size_t size, pager &pager, StringsHeap &strings) {
         ByteReader reader(bytes, size);
@@ -65,44 +67,32 @@ namespace msh {
         constant_index id_idx = reader.read<constant_index>();
         const std::string &identifier = pool.get_string(id_idx);
 
-        function_definition def;
-        def.identifier = &identifier;
-        bool code_seen = false;
+        uint32_t locals_byte_count = reader.read<uint32_t>();
+        uint32_t parameters_byte_count = reader.read<uint32_t>();
+        uint8_t return_byte_count = reader.read<uint8_t>();
+        uint32_t instruction_count = reader.read<uint32_t>();
 
-        uint32_t attributes_count = reader.read<uint32_t>();
+        const char *instructions = reader.read_n<char>(instruction_count);
+        size_t effective_address = concatened_instructions.size();
+        std::copy(instructions, instructions + instruction_count, std::back_inserter(concatened_instructions));
 
-        for (uint32_t i = 0; i < attributes_count; i++) {
-            int attribute_kind = static_cast<int>(reader.read<std::byte>());
+        function_definition def = {
+            &identifier,
+            locals_byte_count,
+            parameters_byte_count,
+            return_byte_count,
+            effective_address,
+            instruction_count,
+            pool_index,
+            {},
+        };
+
+        uint8_t attributes_count = reader.read<uint8_t>();
+
+        for (uint8_t i = 0; i < attributes_count; i++) {
+            uint8_t attribute_kind = reader.read<uint8_t>();
             switch (attribute_kind) {
-            case 1: {
-                // read Code attribute
-                if (code_seen) {
-                    throw InvalidBytecodeError("Code (1) attribute defined multiple times for function " + identifier);
-                }
-                code_seen = true;
-
-                uint32_t locals_byte_count = reader.read<uint32_t>();
-                uint32_t parameters_byte_count = reader.read<uint32_t>();
-                uint8_t return_byte_count = reader.read<uint8_t>();
-                uint32_t instruction_count = reader.read<uint32_t>();
-
-                const char *instructions = reader.read_n<char>(instruction_count);
-                size_t effective_address = concatened_instructions.size();
-                std::copy(instructions, instructions + instruction_count, std::back_inserter(concatened_instructions));
-
-                def = {
-                    def.identifier,
-                    locals_byte_count,
-                    parameters_byte_count,
-                    return_byte_count,
-                    effective_address,
-                    instruction_count,
-                    pool_index,
-                    def.mappings,
-                };
-                break;
-            }
-            case 2: {
+            case MAPPINGS_ATTRIBUTE: {
                 // read Mappings attribute
                 if (!def.mappings.empty()) {
                     throw InvalidBytecodeError("Mappings (2) attribute defined multiple times for function " + identifier);
@@ -118,10 +108,6 @@ namespace msh {
             default:
                 throw InvalidBytecodeError("Unknown attribute kind : " + std::to_string(attribute_kind));
             }
-        }
-
-        if (!code_seen) {
-            throw InvalidBytecodeError("Missing required Code (1) attribute to function declaration " + identifier);
         }
 
         return *functions.insert_or_assign(identifier, def).first;
