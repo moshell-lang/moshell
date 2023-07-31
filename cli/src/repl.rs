@@ -23,7 +23,7 @@ pub fn prompt(mut importer: FileImporter, config: &Cli) {
             let mut analysis = pipeline.analyzer.inject(
                 Inject {
                     name: name.clone(),
-                    imported: imported,
+                    imported,
                     attached: starting_source,
                 },
                 &mut importer,

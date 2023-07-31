@@ -62,7 +62,7 @@ pub fn display_parse_error<W: Write>(
 
 pub fn display_diagnostic<W: Write>(
     engine: &Engine,
-    importer: &mut impl ErrorReporter,
+    importer: &impl ErrorReporter,
     diagnostic: Diagnostic,
     writer: &mut W,
 ) -> io::Result<()> {

@@ -39,7 +39,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         relations: &'a mut Relations,
         imports: &'a mut Imports,
         to_visit: &mut Vec<Name>,
-        visited: &mut HashSet<Name>,
+        visited: &HashSet<Name>,
     ) -> Vec<Diagnostic> {
         let mut resolver = Self::new(engine, relations, imports);
         resolver.resolve(to_visit, visited);
@@ -127,7 +127,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
 
     /// The starting point of the resolution phase.
     /// enables the resolution and pushes diagnostics if any symbol could not be resolved.
-    fn resolve(&mut self, to_visit: &mut Vec<Name>, visited: &mut HashSet<Name>) {
+    fn resolve(&mut self, to_visit: &mut Vec<Name>, visited: &HashSet<Name>) {
         for (env_id, _) in self.engine.environments() {
             if let Some(imports) = self.imports.get_imports_mut(env_id) {
                 Self::resolve_imports(env_id, imports, self.engine, &mut self.diagnostics);
@@ -140,7 +140,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
     ///
     /// This resolution should happen after all imports have been resolved in their respective environments,
     /// to allow child environments to use imports from their parents.
-    fn resolve_trees(&mut self, to_visit: &mut Vec<Name>, visited: &mut HashSet<Name>) {
+    fn resolve_trees(&mut self, to_visit: &mut Vec<Name>, visited: &HashSet<Name>) {
         for (relation_id, object) in self.relations.iter_mut() {
             if object.state != RelationState::Unresolved {
                 continue;

@@ -30,7 +30,7 @@ pub(super) fn resolve_sources<'a>(
             &mut result.relations,
             &mut result.imports,
             &mut to_visit,
-            &mut result.visited,
+            &result.visited,
         ));
         // The cycle ended, if `to_visit` is still non empty, a new cycle will be started
         // to resolve the modules to visit and so on
