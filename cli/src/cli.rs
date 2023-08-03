@@ -65,16 +65,12 @@ impl CachedSourceLocationLineProvider {
 
 impl SourceLineProvider for CachedSourceLocationLineProvider {
     fn get_line(&self, content: ContentId, pos: usize) -> Option<usize> {
-        self.lines
-            .get(&content)
-            .map(|lines| {
-                lines
-                    .iter()
-                    .position(|l_start| pos < *l_start) //search first line that starts AFTER pos
-                    .map(|line| line - 1) //then sub one to retrieve the line's index
-                    .unwrap_or(lines.len() - 1) //if no lines after pos is found, this means that pos is on the last line
-            })
-            .map(|line_idx| line_idx + 1) //we return the line's ordinal
+        self.lines.get(&content).map(|lines| {
+            lines
+                .binary_search(&pos)
+                .map(|line| line + 1)
+                .unwrap_or_else(|line| line)
+        })
     }
 }
 
@@ -130,14 +126,7 @@ pub fn resolve_and_execute<'a>(
         if diagnostics.is_empty() {
             let mut bytes = Vec::new();
 
-            let mut contents: Vec<_> = result
-                .engine
-                .environments()
-                .map(|(id, _)| result.engine.get_original_content(id).unwrap())
-                .collect();
-
-            contents.sort_by_key(|c| c.0);
-            contents.dedup();
+            let contents = importer.list_content_ids();
             let lines = CachedSourceLocationLineProvider::compute(&contents, importer);
 
             compile(

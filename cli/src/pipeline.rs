@@ -139,6 +139,9 @@ impl<'a> ASTImporter<'a> for FileImporter {
 pub trait SourceHolder {
     /// Gets a source from the importer.
     fn get_source(&self, id: ContentId) -> Option<Source>;
+
+    /// Lists all the contents ids that are available in the importer.
+    fn list_content_ids(&self) -> Vec<ContentId>;
 }
 
 /// A trait to access errors and to get sources from an importer.
@@ -152,6 +155,10 @@ pub trait ErrorReporter: SourceHolder {
 impl SourceHolder for FileImporter {
     fn get_source(&self, id: ContentId) -> Option<Source> {
         self.sources.get(id.0).map(|s| s.as_source())
+    }
+
+    fn list_content_ids(&self) -> Vec<ContentId> {
+        (0..self.sources.len()).map(ContentId).collect()
     }
 }
 

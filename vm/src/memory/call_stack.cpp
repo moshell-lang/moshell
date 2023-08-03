@@ -6,7 +6,7 @@
 struct frame_headers {
     /**
      * position of the previous frame header.
-     * SIZE_MAX if this frame is the root headers
+     * 0 if this frame is the root headers
      */
     size_t previous_frame_headers_pos;
 

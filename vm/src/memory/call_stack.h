@@ -15,11 +15,6 @@ struct stack_frame {
     Locals locals;
 };
 
-struct stack_frame_view {
-    const function_definition &function;
-    size_t current_ip;
-};
-
 /**
  * A thread callstack, with fixed capacity
  */
@@ -28,7 +23,7 @@ class CallStack {
 
     /**
      * position of the current frame headers
-     * is SIZE_MAX if this call stack is empty
+     * is 0 if this call stack is empty
      */
     size_t frame_headers_pos;
     /**

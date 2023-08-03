@@ -1,5 +1,3 @@
-use indexmap::map::Entry;
-use indexmap::IndexMap;
 use std::collections::HashSet;
 use std::io;
 use std::io::Write;
@@ -121,30 +119,32 @@ fn compile_line_mapping_attribute(
     bytecode: &mut Bytecode,
     line_provider: &dyn SourceLineProvider,
 ) {
-    // 2 is the mappings attribute identifier
     bytecode.emit_byte(MAPPINGS_ATTRIBUTE);
+    let mut mappings: Vec<(usize, u32)> = Vec::new();
 
-    let mut mappings = IndexMap::new();
-
-    for (pos, instruction) in positions {
-        let line = line_provider.get_line(content_id, pos).unwrap() as u32;
-
-        match mappings.entry(line) {
-            Entry::Vacant(v) => {
-                v.insert(instruction);
+    let Some(((mut last_pos, mut last_ip), positions)) = positions.split_first() else {
+        bytecode.emit_u32(0);
+        return
+    };
+    let mut last_line = usize::MAX;
+    for (pos, instruction) in positions.iter().copied() {
+        if instruction > last_ip {
+            let line = line_provider.get_line(content_id, last_pos).unwrap();
+            if last_line != line {
+                mappings.push((line, last_ip));
             }
-            Entry::Occupied(mut o) => {
-                if instruction < *o.get() {
-                    o.insert(instruction);
-                }
-            }
-        };
+            last_line = line;
+            last_ip = instruction;
+            last_pos = pos;
+            continue;
+        }
+        last_pos = pos;
     }
 
     bytecode.emit_u32(mappings.len() as u32);
     for (line, instruction) in mappings {
         bytecode.emit_u32(instruction);
-        bytecode.emit_u32(line);
+        bytecode.emit_u32(line as u32);
     }
 }
 

@@ -48,6 +48,9 @@ impl SourceHolder for InputImporter {
     fn get_source(&self, id: ContentId) -> Option<Source> {
         self.files.get_source(id)
     }
+    fn list_content_ids(&self) -> Vec<ContentId> {
+        self.files.list_content_ids()
+    }
 }
 
 impl ErrorReporter for InputImporter {

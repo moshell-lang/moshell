@@ -92,7 +92,7 @@ pub struct Instructions<'a> {
     /// Offset of where this instruction set starts in the given bytecode
     ip_offset: u32,
 
-    /// sources segments with instructions ranges
+    /// Starting byte position in the source code for some instruction pointers
     positions: Vec<(usize, u32)>,
 }
 
@@ -118,9 +118,9 @@ impl<'a> Instructions<'a> {
         self.emit_code(pop_opcode);
     }
 
-    /// bind a source code byte position to a heading instruction
-    pub fn push_position(&mut self, pos: usize, from: u32) {
-        self.positions.push((pos, from))
+    /// bind a source code byte position to current instruction
+    pub fn push_position(&mut self, pos: usize) {
+        self.positions.push((pos, self.current_ip()))
     }
 
     pub fn take_positions(&mut self) -> Vec<(usize, u32)> {
