@@ -80,4 +80,9 @@ public:
      * @return true if the size is equal to 0
      */
     bool is_empty() const;
+
+    /**
+     * clears the call stack
+     */
+    void clear();
 };

@@ -115,3 +115,8 @@ size_t CallStack::size() const {
 bool CallStack::is_empty() const {
     return size() == 0;
 }
+
+void CallStack::clear() {
+    frame_count = 0;
+    frame_headers_pos = 0;
+}

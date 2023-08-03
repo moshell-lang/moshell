@@ -21,3 +21,9 @@ void fd_table::pop_redirection() {
     dup2(r.back_fd, r.target_fd);
     close(r.back_fd);
 }
+
+fd_table::~fd_table() {
+    while (!active_redirections.empty()) {
+        pop_redirection();
+    }
+}

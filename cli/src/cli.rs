@@ -159,8 +159,6 @@ pub fn resolve_and_execute<'a>(
     had_errors
 }
 
-fn execute(bytes: &[u8]) {
-    unsafe {
-        execute_bytecode(bytes);
-    }
+fn execute(bytes: &[u8]) -> i32 {
+    unsafe { execute_bytecode(bytes) }
 }

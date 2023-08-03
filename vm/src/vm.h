@@ -6,9 +6,9 @@
 #endif
 
 /**
- * The exit code of a Moshell program that did not able to spawn a child process.
+ * The exit code of a Moshell program that did panic
  */
-#define MOSHELL_COMMAND_NOT_RUNNABLE 127
+#define MOSHELL_PANIC 255
 
 /**
  * Executes the given Moshell bytecode.
@@ -22,5 +22,8 @@
  *
  * @param bytes The bytecode to execute.
  * @param byte_count The number of bytes in the bytecode.
+ * @return an exitcode where:
+ *    - 0, the vm exited successfully
+ *    - 1, the vm aborted due to a panic
  */
-extern "C" void moshell_exec(const char *bytes, size_t byte_count);
+extern "C" int moshell_exec(const char *bytes, size_t byte_count);

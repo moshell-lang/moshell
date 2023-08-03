@@ -14,4 +14,6 @@ private:
 public:
     int push_redirection(int from_fd, int to_fd);
     void pop_redirection();
+
+    ~fd_table();
 };
