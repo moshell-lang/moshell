@@ -43,7 +43,7 @@ Moshell is a project in its early stages.
     - [x] Visualize AST and IR
     - [x] Visualize Bytecode
     - [ ] Display diagnostics *(partial)*
-    - [ ] Symbol reuse
+    - [x] Symbol reuse
     - [ ] Shell-like prompt
 
 This repository hosts the source code from the parser to the interpreter.
