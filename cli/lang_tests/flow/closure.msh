@@ -2,10 +2,15 @@
 //   status: success
 //   stdout:
 //     bar
+//     baz
+//     baz
 {
-    val m = "bar"
-    fun foo() -> ExitCode = {
-        echo $m
+    var captured = 'bar'
+    fun foo(arg: String) -> ExitCode = {
+        echo $captured
+        captured = $arg
+        echo $captured
     }
-    foo()
+    foo('baz')
+    echo $captured
 }

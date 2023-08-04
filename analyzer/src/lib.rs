@@ -142,7 +142,7 @@ impl<'a> Analyzer<'a> {
     }
 }
 
-/// A analysis result that can be observed and reverted.
+/// An analysis result that can be observed and reverted.
 pub struct Analysis<'a, 'revert> {
     /// Takes the unique ownership of the analyzer to prevent any further modification
     /// that would invalidate any revert.

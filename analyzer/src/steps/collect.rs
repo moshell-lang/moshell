@@ -90,10 +90,9 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         imports: &'a mut Imports,
         to_visit: &mut Vec<Name>,
     ) -> Vec<Diagnostic> {
-        assert!(
-            inject
-                .attached
-                .map_or(true, |attached| attached.0 != engine.len()),
+        assert_ne!(
+            inject.attached,
+            Some(SourceId(engine.len())),
             "Cannot inject a module to itself"
         );
         let mut collector = Self::new(engine, relations, imports);

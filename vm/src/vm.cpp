@@ -42,9 +42,9 @@ int moshell_vm_run(moshell_vm vm) {
     vm_state &state = *static_cast<vm_state *>(vm.vm);
     try {
         state.loader.resolve_all(state.pager);
-        auto last = state.pager.begin() + (state.pager.size() - state.next_page);
-        for (auto it = state.pager.begin(); it != last; ++it) {
-            msh::memory_page &page = *it;
+        const auto last = state.pager.cbegin() + (state.pager.size() - state.next_page);
+        for (auto it = state.pager.cbegin(); it != last; ++it) {
+            const msh::memory_page &page = *it;
             if (!run_unit(state.loader, state.pager, page, state.strings, state.natives)) {
                 return 1;
             }
