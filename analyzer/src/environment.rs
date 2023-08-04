@@ -55,7 +55,7 @@ pub struct Environment {
 }
 
 impl Environment {
-    pub fn named(name: Name) -> Self {
+    pub fn script(name: Name) -> Self {
         Self {
             parent: None,
             is_script: true,

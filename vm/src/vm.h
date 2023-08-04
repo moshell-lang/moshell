@@ -53,8 +53,9 @@ moshell_vm moshell_vm_init();
  * @param vm The VM to append the bytecode to.
  * @param bytes The bytecode to append.
  * @param byte_count The number of bytes in the `bytes` array.
+ * @return 0 if the registration was successful, -1 otherwise.
  */
-void moshell_vm_register(moshell_vm vm, const char *bytes, size_t byte_count);
+int moshell_vm_register(moshell_vm vm, const char *bytes, size_t byte_count);
 
 /**
  * Executes the remaining bytecode pages in the VM.

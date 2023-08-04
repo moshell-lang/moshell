@@ -98,7 +98,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         let mut collector = Self::new(engine, relations, imports);
         let root_block = collector.engine.take(inject.imported.expr);
 
-        let mut env = Environment::named(inject.name);
+        let mut env = Environment::script(inject.name);
         env.parent = inject.attached;
         let mut state = ResolutionState::new(
             inject.imported.content,
@@ -223,7 +223,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         // Immediately transfer the ownership of the AST to the engine.
         let root_block = self.engine.take(imported.expr);
 
-        let env = Environment::named(module_name);
+        let env = Environment::script(module_name);
         let mut state = ResolutionState::new(
             imported.content,
             self.engine.track(imported.content, root_block),
@@ -746,7 +746,7 @@ mod tests {
         engine: &'a mut Engine<'e>,
         relations: &mut Relations,
     ) -> (Vec<Diagnostic>, Environment) {
-        let env = Environment::named(Name::new("test"));
+        let env = Environment::script(Name::new("test"));
         let mut imports = Imports::default();
         let mut state = ResolutionState::new(ContentId(0), engine.track(ContentId(0), expr));
         let mut collector = SymbolCollector::new(engine, relations, &mut imports);

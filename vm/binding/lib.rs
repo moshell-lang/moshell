@@ -19,7 +19,7 @@ pub unsafe fn execute_bytecode(bytes: &[u8]) -> Result<(), VmError> {
 /// A virtual machine that can execute Moshell bytecode.
 pub struct VM(VmFFI);
 
-/// An error that occurred during VM execution.
+/// An error that occurred during the VM lifetime.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum VmError {
     Panic,
@@ -33,8 +33,14 @@ impl VM {
     }
 
     /// Appends new bytecode to the VM.
-    pub fn register(&mut self, bytes: &[u8]) -> bool {
+    ///
+    /// # Safety
+    /// An invalid bytecode will almost certainly result in a deterministic error during loading,
+    /// or a non-deterministic error during execution.
+    pub fn register(&mut self, bytes: &[u8]) -> Result<(), VmError> {
         unsafe { moshell_vm_register(self.0, bytes.as_ptr(), bytes.len()) != -1 }
+            .then_some(())
+            .ok_or(VmError::Internal)
     }
 
     /// Executes the remaining bytecode.

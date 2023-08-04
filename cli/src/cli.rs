@@ -156,7 +156,8 @@ pub fn use_pipeline<'a>(
     }
 
     if !config.no_execute {
-        vm.register(&bytes);
+        vm.register(&bytes)
+            .expect("compilation created invalid bytecode");
         drop(bytes);
         if unsafe { vm.run() } == Err(VmError::Internal) {
             panic!("VM internal error");

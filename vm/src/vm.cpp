@@ -29,13 +29,15 @@ moshell_vm moshell_vm_init() {
     return {state};
 }
 
-void moshell_vm_register(moshell_vm vm, const char *bytes, size_t byte_count) {
+int moshell_vm_register(moshell_vm vm, const char *bytes, size_t byte_count) {
     vm_state &state = *static_cast<vm_state *>(vm.vm);
     try {
         state.loader.load_raw_bytes(bytes, byte_count, state.pager, state.strings);
+        return 0;
     } catch (const std::exception &e) {
         std::cerr << e.what() << std::endl;
     }
+    return -1;
 }
 
 int moshell_vm_run(moshell_vm vm) {
