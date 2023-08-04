@@ -43,27 +43,25 @@ pub fn compile(
 
     let mut it = typed_engine.group_by_content(link_engine);
     while let Some(content) = it.next() {
-        {
-            let (chunk_id, main_env, main_chunk) = content.main_chunk(&it);
-            let ctx = EmitterContext {
-                environment: main_env,
-                engine: link_engine,
-                captures: &captures,
-                chunk_id,
-                is_script: true,
-            };
-            let name = main_env.fqn.clone();
-            compile_chunk(
-                name,
-                main_chunk,
-                chunk_id,
-                ctx,
-                &mut bytecode,
-                &mut cp,
-                line_provider,
-            );
-            write_exported(&mut cp, &mut bytecode)?;
-        }
+        let (chunk_id, main_env, main_chunk) = content.main_chunk(&it);
+        let ctx = EmitterContext {
+            environment: main_env,
+            engine: link_engine,
+            captures: &captures,
+            chunk_id,
+            is_script: true,
+        };
+        compile_chunk(
+            &main_env.fqn,
+            main_chunk,
+            chunk_id,
+            ctx,
+            &mut bytecode,
+            &mut cp,
+            line_provider,
+        );
+        write_exported(&mut cp, &mut bytecode)?;
+
         bytecode.emit_u32(content.function_count() as u32);
         for (chunk_id, env, chunk) in content.function_chunks(&it) {
             let ctx = EmitterContext {
@@ -73,9 +71,8 @@ pub fn compile(
                 chunk_id,
                 is_script: false,
             };
-            let name = env.fqn.clone();
             compile_chunk(
-                name,
+                &env.fqn,
                 chunk,
                 chunk_id,
                 ctx,
@@ -90,7 +87,7 @@ pub fn compile(
 }
 
 fn compile_chunk(
-    name: Name,
+    name: &Name,
     chunk: &Chunk,
     id: SourceId,
     ctx: EmitterContext,
@@ -122,10 +119,13 @@ fn compile_line_mapping_attribute(
     bytecode.emit_byte(MAPPINGS_ATTRIBUTE);
     let mut mappings: Vec<(usize, u32)> = Vec::new();
 
-    let Some(((mut last_pos, mut last_ip), positions)) = positions.split_first() else {
+    let Some(((first_pos, first_ip), positions)) = positions.split_first() else {
         bytecode.emit_u32(0);
         return
     };
+    let mut last_pos= *first_pos;
+    let mut last_ip = *first_ip;
+
     let mut last_line = usize::MAX;
     for (pos, instruction) in positions.iter().copied() {
         if instruction > last_ip {
@@ -139,6 +139,12 @@ fn compile_line_mapping_attribute(
             continue;
         }
         last_pos = pos;
+    }
+
+    if mappings.is_empty() {
+        // if no mappings are set, bind first pos' line with first instruction.
+        let line = line_provider.get_line(content_id, *first_pos).unwrap();
+        mappings.push((line, 0))
     }
 
     bytecode.emit_u32(mappings.len() as u32);

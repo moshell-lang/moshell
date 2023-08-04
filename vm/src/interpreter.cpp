@@ -14,9 +14,9 @@
 #include <cstring>
 #include <fcntl.h>
 #include <iostream>
+#include <sstream>
 #include <memory>
 #include <sys/wait.h>
-#include <sysexits.h>
 #include <unistd.h>
 #include <vector>
 
@@ -441,7 +441,12 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
 
             // Replace the current process with a new process image
             if (execvp(argv[0].get(), reinterpret_cast<char *const *>(argv.data())) == -1) {
-                panic(strerror(errno), call_stack);
+                std::stringstream ss;
+                ss << argv[0].get();
+                for (int i = 1; i < frame_size; i++) {
+                    ss << " " << std::string(argv[i].get());
+                }
+                panic("Unable to execute command \"" + ss.str() + "\": " + std::string(strerror(errno)), call_stack);
                 return frame_status::ABORT;
             }
             break;
@@ -477,7 +482,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             // Open the file
             int fd = open(path.c_str(), flags, S_IRUSR | S_IWUSR);
             if (fd == -1) {
-                panic(strerror(errno), call_stack);
+                panic("Cannot open file \"" + path + "\": " + std::string(strerror(errno)), call_stack);
                 return frame_status::ABORT;
             }
 
@@ -501,7 +506,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
 
             // Redirect the file descriptors
             if (state.table.push_redirection(fd1, fd2) == -1) {
-                panic(strerror(errno), call_stack);
+                panic("Unable to redirect " + std::to_string(fd1) + " to " + std::to_string(fd2) + ": " + strerror(errno), call_stack);
                 return frame_status::ABORT;
             }
             operands.push_int(fd1);
@@ -514,7 +519,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
 
             // Redirect the file descriptors
             if (dup2(fd1, fd2) == -1) {
-                panic(strerror(errno), call_stack);
+                panic("Unable to redirect " + std::to_string(fd1) + " to " + std::to_string(fd2) + ": " + strerror(errno), call_stack);
                 return frame_status::ABORT;
             }
             operands.push_int(fd1);
@@ -528,7 +533,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             // Create the pipe
             int pipefd[2];
             if (pipe(pipefd) == -1) {
-                panic(strerror(errno), call_stack);
+                panic("Cannot create pipeline : " + std::string(strerror(errno)), call_stack);
                 return frame_status::ABORT;
             }
 
@@ -577,7 +582,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
 
             // Write the string to the file
             if (write(fd, str.data(), str.length()) == -1) {
-                panic(strerror(errno), call_stack);
+                panic("Cannot write in fd " + std::to_string(fd) + ": " + strerror(errno), call_stack);
                 return frame_status::ABORT;
             }
             close(fd);
