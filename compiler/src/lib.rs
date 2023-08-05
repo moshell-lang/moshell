@@ -123,7 +123,7 @@ fn compile_line_mapping_attribute(
         bytecode.emit_u32(0);
         return
     };
-    let mut last_pos= *first_pos;
+    let mut last_pos = *first_pos;
     let mut last_ip = *first_ip;
 
     let mut last_line = usize::MAX;

@@ -9,13 +9,9 @@ namespace msh {
     struct memory_page;
 }
 
-class RuntimeException : std::exception {
-private:
-    const std::string msg;
-
+class RuntimeException : public std::runtime_error {
 public:
     explicit RuntimeException(std::string msg);
-    [[nodiscard]] const char *what() const noexcept override;
 };
 
 /**

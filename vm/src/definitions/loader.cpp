@@ -95,7 +95,7 @@ namespace msh {
             case MAPPINGS_ATTRIBUTE: {
                 // read Mappings attribute
                 if (!def.mappings.empty()) {
-                    throw InvalidBytecodeError("Mappings (2) attribute defined multiple times for function " + identifier);
+                    throw InvalidBytecodeError("Mappings (1) attribute defined multiple times for function " + identifier);
                 }
                 uint32_t mappings_count = reader.read<uint32_t>();
                 for (uint32_t i = 0; i < mappings_count; i++) {
@@ -106,7 +106,7 @@ namespace msh {
                 break;
             }
             default:
-                throw InvalidBytecodeError("Unknown attribute kind : " + std::to_string(attribute_kind));
+                throw InvalidBytecodeError("Unknown attribute kind: " + std::to_string(attribute_kind));
             }
         }
 

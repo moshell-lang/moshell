@@ -14,7 +14,6 @@
 #include <cstring>
 #include <fcntl.h>
 #include <iostream>
-#include <sstream>
 #include <memory>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -128,10 +127,8 @@ struct runtime_state {
     const natives_functions_t &native_functions;
 };
 
-RuntimeException::RuntimeException(std::string msg) : std::exception(), msg{msg} {}
-const char *RuntimeException::what() const noexcept {
-    return msg.c_str();
-}
+RuntimeException::RuntimeException(std::string msg)
+    : std::runtime_error(msg) {}
 
 /**
  * Apply an arithmetic operation to two integers
@@ -233,8 +230,8 @@ inline bool apply_comparison(Opcode code, double a, double b) {
     }
 }
 
-void panic(const std::string& msg, CallStack &stack) {
-    std::cerr << "panic: " << msg << std::endl;
+void panic(const std::string &msg, CallStack &stack) {
+    std::cerr << "panic: " << msg << "\n";
 
     while (!stack.is_empty()) {
         stack_frame frame = stack.peek_frame();
@@ -251,20 +248,32 @@ void panic(const std::string& msg, CallStack &stack) {
             }
             std::cerr << " (line " << instruction_line << ")";
         }
-        std::cerr << std::endl;
+        std::cerr << "\n";
         stack.pop_frame();
     }
+    std::cerr << std::endl;
     if (!is_master) {
         _exit(MOSHELL_PANIC);
     }
 }
 
 /**
- *
+ * The outcome of a frame execution.
  */
 enum class frame_status {
+    /**
+     * The frame has been executed successfully.
+     */
     RETURNED,
+
+    /**
+     * The frame has been interrupted by a new frame.
+     */
     NEW_FRAME,
+
+    /**
+     * The frame has been interrupted by a panic.
+     */
     ABORT
 };
 
@@ -314,7 +323,7 @@ inline bool handle_function_invocation(const std::string &callee_identifier,
 
 /**
  * Will run a frame until it returns or pushes a new method inside the call_stack
- * @return true if this function returned because the current frame has ended, or false if it returned because it pushed a new frame
+ * @return the frame status
  */
 frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, const char *instructions, size_t instruction_count) {
     size_t pool_index = frame.function.constant_pool_index;
@@ -409,8 +418,8 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
                 panic(strerror(errno), call_stack);
                 return frame_status::ABORT;
             case 0:
-                is_master = false;
                 // Child process
+                is_master = false;
                 break;
             default:
                 // Parent process
@@ -441,12 +450,8 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
 
             // Replace the current process with a new process image
             if (execvp(argv[0].get(), reinterpret_cast<char *const *>(argv.data())) == -1) {
-                std::stringstream ss;
-                ss << argv[0].get();
-                for (int i = 1; i < frame_size; i++) {
-                    ss << " " << std::string(argv[i].get());
-                }
-                panic("Unable to execute command \"" + ss.str() + "\": " + std::string(strerror(errno)), call_stack);
+                std::string command = argv[0].get();
+                panic("Unable to execute command \"" + command + "\": " + std::string(strerror(errno)), call_stack);
                 return frame_status::ABORT;
             }
             break;
