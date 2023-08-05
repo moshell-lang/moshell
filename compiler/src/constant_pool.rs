@@ -49,7 +49,7 @@ impl ConstantPool {
             name_index,
             local_offset,
         });
-        self.dynsym.insert_full(name_index).0 as u32;
+        self.dynsym.insert_full(name_index);
     }
 
     /// Gets the index of an external symbol string in the constant pool.

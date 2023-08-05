@@ -94,7 +94,7 @@ public:
     template <typename T>
     void push(T t) {
         if (current_pos + sizeof(T) > stack_capacity) {
-            throw StackOverflowError("exceeded stack stack_capacity via operand stack");
+            throw StackOverflowError("exceeded stack capacity via operand stack");
         }
         *(T *)(bytes + current_pos) = t;
         current_pos += sizeof(T);

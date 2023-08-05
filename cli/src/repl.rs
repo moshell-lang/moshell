@@ -9,7 +9,7 @@ use parser::parse;
 
 use crate::cli::resolve_and_execute;
 use crate::cli::Cli;
-use crate::pipeline::{ErrorReporter, FileImportError, FileImporter};
+use crate::pipeline::{ErrorReporter, FileImportError, FileImporter, SourceHolder};
 use crate::report::print_flush;
 
 /// A wrapper around a [`FileImporter`] that short-circuits the file system for
@@ -44,13 +44,18 @@ impl<'a> ASTImporter<'a> for InputImporter {
     }
 }
 
+impl SourceHolder for InputImporter {
+    fn get_source(&self, id: ContentId) -> Option<Source> {
+        self.files.get_source(id)
+    }
+    fn list_content_ids(&self) -> Vec<ContentId> {
+        self.files.list_content_ids()
+    }
+}
+
 impl ErrorReporter for InputImporter {
     fn take_errors(&mut self) -> Vec<FileImportError> {
         self.files.take_errors()
-    }
-
-    fn get_source(&self, id: ContentId) -> Option<Source> {
-        self.files.get_source(id)
     }
 }
 

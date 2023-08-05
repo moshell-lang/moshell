@@ -1,0 +1,8 @@
+// Run:
+//   status: success
+//   stderr:
+//      panic: Attempted to divide 1 by zero.
+//          at divide_by_zero.msh (line 7)
+
+var i = 1 / 0
+echo $i

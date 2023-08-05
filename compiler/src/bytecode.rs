@@ -91,6 +91,9 @@ pub struct Instructions<'a> {
     bytecode: &'a mut Bytecode,
     /// Offset of where this instruction set starts in the given bytecode
     ip_offset: u32,
+
+    /// Starting byte position in the source code for some instruction pointers
+    positions: Vec<(usize, u32)>,
 }
 
 impl<'a> Instructions<'a> {
@@ -98,6 +101,7 @@ impl<'a> Instructions<'a> {
         Self {
             ip_offset: bytecode.len() as u32,
             bytecode,
+            positions: Vec::new(),
         }
     }
 
@@ -112,6 +116,15 @@ impl<'a> Instructions<'a> {
             ValueStackSize::QWord => Opcode::PopQWord,
         };
         self.emit_code(pop_opcode);
+    }
+
+    /// bind a source code byte position to current instruction
+    pub fn push_position(&mut self, pos: usize) {
+        self.positions.push((pos, self.current_ip()))
+    }
+
+    pub fn take_positions(&mut self) -> Vec<(usize, u32)> {
+        std::mem::take(&mut self.positions)
     }
 
     /// emits instructions to assign given local identifier with last operand stack value

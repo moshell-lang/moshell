@@ -36,7 +36,7 @@ inline void check_overflow(size_t capacity, size_t current_pos, const function_d
     // as the operand stack stack_capacity is the end of the call stack, we do not include it in this check
     size_t total_frame_size = callee.locals_size + sizeof(frame_headers);
     if (current_pos + total_frame_size >= capacity) {
-        throw StackOverflowError("Call stack exceeded stack_capacity");
+        throw StackOverflowError("Call stack exceeded capacity");
     }
 }
 
@@ -114,4 +114,9 @@ size_t CallStack::size() const {
 
 bool CallStack::is_empty() const {
     return size() == 0;
+}
+
+void CallStack::clear() {
+    frame_count = 0;
+    frame_headers_pos = 0;
 }

@@ -229,9 +229,14 @@ pub fn emit(
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
 ) {
+    instructions.push_position(expr.segment.start);
     match &expr.kind {
-        ExprKind::Declare(d) => emit_declaration(d, instructions, ctx, cp, locals, state),
-        ExprKind::Block(exprs) => emit_block(exprs, instructions, ctx, cp, locals, state),
+        ExprKind::Declare(d) => {
+            emit_declaration(d, instructions, ctx, cp, locals, state);
+        }
+        ExprKind::Block(exprs) => {
+            emit_block(exprs, instructions, ctx, cp, locals, state);
+        }
         ExprKind::Conditional(c) => emit_conditional(c, instructions, ctx, cp, locals, state),
         ExprKind::ConditionalLoop(l) => emit_loop(l, instructions, ctx, cp, locals, state),
         ExprKind::Continue => emit_continue(instructions, state),
@@ -289,4 +294,5 @@ pub fn emit(
         ExprKind::Noop => {}
         _ => unimplemented!(),
     }
+    instructions.push_position(expr.segment.start)
 }

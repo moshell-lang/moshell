@@ -4,6 +4,8 @@
 #include "memory/constant_pool.h"
 #include "pager.h"
 
+#define MAPPINGS_ATTRIBUTE 1
+
 namespace msh {
     void loader::load_raw_bytes(const char *bytes, size_t size, pager &pager, StringsHeap &strings) {
         ByteReader reader(bytes, size);
@@ -64,20 +66,50 @@ namespace msh {
     std::pair<const std::string &, const function_definition &> loader::load_function(ByteReader &reader, const ConstantPool &pool, size_t pool_index) {
         constant_index id_idx = reader.read<constant_index>();
         const std::string &identifier = pool.get_string(id_idx);
+
         uint32_t locals_byte_count = reader.read<uint32_t>();
         uint32_t parameters_byte_count = reader.read<uint32_t>();
         uint8_t return_byte_count = reader.read<uint8_t>();
         uint32_t instruction_count = reader.read<uint32_t>();
+
         const char *instructions = reader.read_n<char>(instruction_count);
         size_t effective_address = concatened_instructions.size();
         std::copy(instructions, instructions + instruction_count, std::back_inserter(concatened_instructions));
-        function_definition def{
+
+        function_definition def = {
+            &identifier,
             locals_byte_count,
             parameters_byte_count,
             return_byte_count,
             effective_address,
             instruction_count,
-            pool_index};
+            pool_index,
+            {},
+        };
+
+        uint8_t attributes_count = reader.read<uint8_t>();
+
+        for (uint8_t i = 0; i < attributes_count; i++) {
+            uint8_t attribute_kind = reader.read<uint8_t>();
+            switch (attribute_kind) {
+            case MAPPINGS_ATTRIBUTE: {
+                // read Mappings attribute
+                if (!def.mappings.empty()) {
+                    throw InvalidBytecodeError("Mappings (1) attribute defined multiple times for function " + identifier);
+                }
+                uint32_t mappings_count = reader.read<uint32_t>();
+                for (uint32_t i = 0; i < mappings_count; i++) {
+                    size_t instruction_start = reader.read<uint32_t>();
+                    size_t line = reader.read<uint32_t>();
+                    def.mappings.push_back({instruction_start, line});
+                }
+                break;
+            }
+            default:
+                throw InvalidBytecodeError("Unknown attribute kind: " + std::to_string(attribute_kind));
+            }
+        }
+
         return *functions.insert_or_assign(identifier, def).first;
     }
 
