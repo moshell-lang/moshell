@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use vm::{VmError, VM};
 
 use crate::disassemble::display_bytecode;
-use crate::pipeline::{ErrorReporter, FileImportError, SourceHolder};
+use crate::pipeline::{ErrorReporter, FileImportError, PipelineStatus, SourceHolder};
 use crate::report::{display_diagnostic, display_parse_error};
 
 #[derive(Parser)]
@@ -74,26 +74,28 @@ impl SourceLineProvider for CachedSourceLocationLineProvider {
     }
 }
 
+#[must_use = "The pipeline status should be checked"]
 pub fn use_pipeline<'a>(
-    entry_point: Name,
+    entry_point: &Name,
     starting_page: SourceId,
     analyzer: &Analyzer<'a>,
     vm: &mut VM,
     diagnostics: Vec<Diagnostic>,
     importer: &mut (impl ASTImporter<'a> + ErrorReporter),
     config: &Cli,
-) -> bool {
+) -> PipelineStatus {
     let errors = importer.take_errors();
     if errors.is_empty() && analyzer.resolution.engine.is_empty() {
         eprintln!("No module found for entry point {entry_point}");
-        return true;
+        return PipelineStatus::IoError;
     }
 
-    let had_errors = !errors.is_empty();
+    let mut import_status = PipelineStatus::Success;
     for error in errors {
         match error {
-            FileImportError::IO(err) => {
-                eprintln!("IO error: {err}");
+            FileImportError::IO { inner, path } => {
+                eprintln!("Couldn't read {}: {inner}", path.display());
+                import_status = PipelineStatus::IoError;
             }
             FileImportError::Parse(report) => {
                 for error in report.errors {
@@ -104,11 +106,16 @@ pub fn use_pipeline<'a>(
                     )
                     .expect("IO error when reporting diagnostics");
                 }
+
+                // Prefer the IO error over a generic failure
+                if import_status != PipelineStatus::IoError {
+                    import_status = PipelineStatus::AnalysisError;
+                }
             }
         }
     }
-    if had_errors {
-        return true;
+    if import_status != PipelineStatus::Success {
+        return import_status;
     }
 
     if config.ast {
@@ -136,7 +143,7 @@ pub fn use_pipeline<'a>(
     }
 
     if had_errors {
-        return true;
+        return PipelineStatus::AnalysisError;
     }
     let mut bytes = Vec::new();
     let contents = importer.list_content_ids();
@@ -155,13 +162,16 @@ pub fn use_pipeline<'a>(
         display_bytecode(&bytes);
     }
 
+    let mut run_status = PipelineStatus::Success;
     if !config.no_execute {
         vm.register(&bytes)
             .expect("compilation created invalid bytecode");
         drop(bytes);
-        if unsafe { vm.run() } == Err(VmError::Internal) {
-            panic!("VM internal error");
+        match unsafe { vm.run() } {
+            Ok(()) => {}
+            Err(VmError::Panic) => run_status = PipelineStatus::ExecutionFailure,
+            Err(VmError::Internal) => panic!("VM internal error"),
         }
     }
-    had_errors
+    run_status
 }

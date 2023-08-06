@@ -1,5 +1,5 @@
 // Run:
-//   status: success
+//   status: error
 //   stderr:
 //      panic: Attempted to divide 1 by zero.
 //          at divide_by_zero.msh (line 7)

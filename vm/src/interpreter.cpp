@@ -823,6 +823,7 @@ bool run_unit(const msh::loader &loader, msh::pager &pager, const msh::memory_pa
             }
             }
         }
+        return true;
     } catch (const VirtualMachineError &e) {
         panic("An unexpected Virtual Machine Error occurred.\n" + std::string(e.name()) + " : " + e.what(), call_stack);
     } catch (const RuntimeException &e) {
@@ -830,5 +831,5 @@ bool run_unit(const msh::loader &loader, msh::pager &pager, const msh::memory_pa
     } catch (const std::exception &e) {
         panic("An unexpected internal error occurred.\nwhat : " + std::string(e.what()), call_stack);
     }
-    return true;
+    return false;
 }
