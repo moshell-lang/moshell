@@ -3,8 +3,9 @@ use std::io;
 use std::io::Write;
 
 use analyzer::engine::Engine;
-use analyzer::environment::variables::TypeInfo;
+use analyzer::environment::symbols::SymbolInfo;
 use analyzer::name::Name;
+use analyzer::reef::ReefId;
 use analyzer::relations::{LocalId, Relations, ResolvedSymbol, SourceId};
 use analyzer::types::engine::{Chunk, TypedEngine};
 use context::source::ContentId;
@@ -34,11 +35,12 @@ pub fn compile(
     typed_engine: &TypedEngine,
     link_engine: &Engine,
     relations: &Relations,
+    reef_id: ReefId,
     starting_page: SourceId,
     writer: &mut impl Write,
     line_provider: Option<&dyn SourceLineProvider>,
 ) -> Result<(), io::Error> {
-    let captures = resolve_captures(link_engine, relations);
+    let captures = resolve_captures(link_engine, relations, reef_id);
     let mut bytecode = Bytecode::default();
     let mut cp = ConstantPool::default();
 
@@ -159,12 +161,13 @@ fn compile_line_mapping_attribute(
 ///
 /// This function will resolve all direct captures of the chunk and the captures of its inner chunks.
 /// All resolved captures are set into the given `captures` vector.
-fn resolve_captures(engine: &Engine, relations: &Relations) -> Captures {
+fn resolve_captures(engine: &Engine, relations: &Relations, compiled_reef: ReefId) -> Captures {
     let mut externals = HashSet::new();
     let mut captures = vec![None; engine.len()];
 
     fn resolve(
         chunk_id: SourceId,
+        compiled_reef: ReefId,
         engine: &Engine,
         relations: &Relations,
         captures: &mut Captures,
@@ -174,14 +177,21 @@ fn resolve_captures(engine: &Engine, relations: &Relations) -> Captures {
 
         // recursively resolve all inner functions
         for func_id in env.iter_direct_inner_environments() {
-            resolve(func_id, engine, relations, captures, externals);
+            resolve(
+                func_id,
+                compiled_reef,
+                engine,
+                relations,
+                captures,
+                externals,
+            );
             // filter out external symbols that refers to the current chunk
             externals.retain(|symbol| symbol.source != chunk_id);
         }
 
         // add this function's external referenced variables
         externals.extend(
-            env.variables
+            env.symbols
                 .external_vars()
                 .map(|(_, relation)| {
                     relations[relation]
@@ -189,10 +199,12 @@ fn resolve_captures(engine: &Engine, relations: &Relations) -> Captures {
                         .expect_resolved("unresolved relation during compilation")
                 })
                 .filter(|symbol| {
-                    // filter out functions
-                    let env = engine.get_environment(symbol.source).unwrap();
-                    let var = env.variables.get_var(symbol.object_id).unwrap();
-                    var.ty == TypeInfo::Variable && !(env.is_script && var.is_exported())
+                    symbol.reef == compiled_reef && {
+                        // filter out functions
+                        let env = engine.get_environment(symbol.source).unwrap();
+                        let var = env.symbols.get(symbol.object_id).unwrap();
+                        var.ty == SymbolInfo::Variable && !(env.is_script && var.is_exported())
+                    }
                 }),
         );
 
@@ -210,7 +222,14 @@ fn resolve_captures(engine: &Engine, relations: &Relations) -> Captures {
 
     // Resolve captures of all environments, starting from the roots of each module
     for (engine_id, _) in engine.environments().filter(|(_, chunk)| chunk.is_script) {
-        resolve(engine_id, engine, relations, &mut captures, &mut externals);
+        resolve(
+            engine_id,
+            compiled_reef,
+            engine,
+            relations,
+            &mut captures,
+            &mut externals,
+        );
     }
     captures
 }
@@ -254,8 +273,7 @@ fn compile_chunk_code(
     let instruction_count = bytecode.emit_u32_placeholder();
 
     let mut instructions = Instructions::wrap(bytecode);
-    let mut locals =
-        LocalsLayout::new(ctx.environment.variables.all_vars().len() + chunk_captures.len());
+    let mut locals = LocalsLayout::new(ctx.environment.symbols.all().len() + chunk_captures.len());
 
     // set space for explicit parameters
     for (id, param) in chunk.parameters.iter().enumerate() {
@@ -376,7 +394,7 @@ mod tests {
             context,
         );
         let reef = analyzer.context.current_reef();
-        let captures = resolve_captures(&reef.engine, &reef.relations);
+        let captures = resolve_captures(&reef.engine, &reef.relations, reef_id);
 
         assert_eq!(
             captures,

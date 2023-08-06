@@ -3,22 +3,45 @@ use std::collections::HashMap;
 
 use crate::engine::Engine;
 use crate::relations::{ObjectId, Relations};
+use crate::types::builtin::lang_reef;
+use crate::types::ctx::TypeContext;
 use crate::types::engine::TypedEngine;
+use crate::types::Typing;
 
 pub struct Reef<'e> {
     pub name: String,
+
     pub engine: Engine<'e>,
     pub relations: Relations,
-    pub types: TypedEngine,
+
+    pub typed_engine: TypedEngine,
+    pub typing: Typing,
+    pub type_context: TypeContext,
 }
 
 #[derive(Clone, Copy, Hash, Eq, PartialEq, Debug)]
 pub struct ReefId(pub ObjectId);
 
-#[derive(Default)]
 pub struct Reefs<'e> {
     names: HashMap<String, ReefId>,
     reefs: Vec<Reef<'e>>,
+}
+
+pub trait ReefAccessor<'e> {
+    fn lang(&self) -> &Reef<'e>;
+    fn get_reef(&self, id: ReefId) -> Option<&Reef<'e>>;
+    fn get_reef_by_name(&self, name: &str) -> Option<(&Reef<'e>, ReefId)>;
+}
+
+pub const LANG_REEF: ReefId = ReefId(0);
+
+impl Default for Reefs<'_> {
+    fn default() -> Self {
+        Self {
+            names: HashMap::from([("lang".to_string(), ReefId(0))]),
+            reefs: vec![lang_reef()],
+        }
+    }
 }
 
 impl<'e> Reefs<'e> {
@@ -33,7 +56,9 @@ impl<'e> Reefs<'e> {
                     name,
                     engine: Engine::default(),
                     relations: Relations::default(),
-                    types: TypedEngine::default(),
+                    typed_engine: TypedEngine::default(),
+                    typing: Typing::default(),
+                    type_context: TypeContext::default(),
                 });
                 v.insert(id);
                 id
@@ -41,18 +66,24 @@ impl<'e> Reefs<'e> {
         }
     }
 
-    pub fn get_reef(&self, id: ReefId) -> Option<&Reef<'e>> {
+    fn get_reef_mut(&mut self, id: ReefId) -> Option<&mut Reef<'e>> {
+        self.reefs.get_mut(id.0)
+    }
+}
+
+impl<'e> ReefAccessor<'e> for Reefs<'e> {
+    fn lang(&self) -> &Reef<'e> {
+        &self.reefs[0]
+    }
+
+    fn get_reef(&self, id: ReefId) -> Option<&Reef<'e>> {
         self.reefs.get(id.0)
     }
 
-    pub fn get_reef_by_name(&self, name: &str) -> Option<(&Reef<'e>, ReefId)> {
+    fn get_reef_by_name(&self, name: &str) -> Option<(&Reef<'e>, ReefId)> {
         self.names
             .get(name)
             .and_then(|id| self.get_reef(*id).map(|reef| (reef, *id)))
-    }
-
-    fn get_reef_mut(&mut self, id: ReefId) -> Option<&mut Reef<'e>> {
-        self.reefs.get_mut(id.0)
     }
 }
 
@@ -72,14 +103,10 @@ impl<'a, 'e> ReefContext<'a, 'e> {
     }
 
     pub fn current_reef_mut(&mut self) -> &mut Reef<'e> {
-        self.reefs
-            .get_reef_mut(self.reef_id)
-            .expect("reefs does not contains current reef")
+        self.reefs.get_reef_mut(self.reef_id).unwrap()
     }
 
     pub fn current_reef(&self) -> &Reef<'e> {
-        self.reefs
-            .get_reef(self.reef_id)
-            .expect("reefs does not contains current reef")
+        self.reefs.get_reef(self.reef_id).unwrap()
     }
 }

@@ -7,7 +7,7 @@ use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::imports::SourceImports;
 use crate::name::Name;
-use crate::relations::{RelationId, SourceId, Symbol};
+use crate::relations::{RelationId, SourceId, SymbolRef};
 
 /// Creates a diagnostic for a symbol being invalidated due to it's invalid import bound.
 /// The caller must ensure that env_id is valid as well as the given name's root is contained in given env's variables.
@@ -21,7 +21,7 @@ pub fn diagnose_invalid_symbol_from_dead_import(
     let name_root = name.root();
 
     let env = engine.get_environment(env_id).expect("invalid env id");
-    let segments = env.find_references(Symbol::External(relation));
+    let segments = env.find_references(SymbolRef::External(relation));
 
     let msg = format!("unresolvable symbol `{name}` has no choice but to be ignored due to invalid import of `{name_root}`.");
     let invalid_import_seg = env_imports
@@ -52,23 +52,16 @@ pub fn diagnose_unresolved_external_symbols(
     env_id: SourceId,
     env: &Environment,
     name: &Name,
-    because_reef_not_found: bool,
 ) -> Diagnostic {
-    let mut diagnostic_message = format!("Could not resolve symbol `{name}`");
-
-    if because_reef_not_found {
-        diagnostic_message.push_str(&format!(", because reef `{}` was not found", name.root()))
-    }
-
-    diagnostic_message.push('.');
+    let diagnostic_message = format!("Could not resolve symbol `{name}`.");
 
     let diagnostic = Diagnostic::new(DiagnosticID::UnknownSymbol, diagnostic_message);
 
     let mut observations: Vec<Observation> = env
         .list_definitions()
         .filter(|(_, sym)| match sym {
-            Symbol::Local(_) => false,
-            Symbol::External(g) => *g == relation,
+            SymbolRef::Local(_) => false,
+            SymbolRef::External(g) => *g == relation,
         })
         .map(|(seg, _)| (env_id, seg.clone()).into())
         .collect();

@@ -2,13 +2,13 @@ use std::collections::HashSet;
 use std::iter::once;
 
 use crate::diagnostic::Diagnostic;
-use crate::environment::variables::resolve_loc;
+use crate::environment::symbols::{resolve_loc, SymbolRegistry};
 use crate::environment::Environment;
 use crate::imports::Imports;
 use crate::name::Name;
-use crate::reef::{ReefContext, ReefId};
+use crate::reef::{ReefAccessor, ReefContext, ReefId};
 use crate::relations::{
-    LocalId, RelationId, RelationState, Relations, ResolvedSymbol, SourceId, Symbol,
+    LocalId, RelationId, RelationState, Relations, ResolvedSymbol, SourceId, SymbolRef,
 };
 use crate::steps::resolve::diagnostics::*;
 use crate::steps::resolve::symbol::SymbolResolutionResult;
@@ -70,7 +70,7 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
         ) -> Diagnostic {
             let mut segments: Vec<_> = env_stack
                 .iter()
-                .flat_map(|env| env.find_references(Symbol::External(external)))
+                .flat_map(|env| env.find_references(SymbolRef::External(external)))
                 .collect();
 
             segments.sort_by_key(|s| s.start);
@@ -78,18 +78,19 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
             //TODO support observations in foreign environments to include concerned symbol declaration in diagnostics
             let declaration_env = *env_stack.last().unwrap();
 
-            let var = declaration_env.variables.get_var(local).unwrap();
+            let var = declaration_env.symbols.get(local).unwrap();
             diagnose_invalid_symbol(var.ty, capture_env_id, name, &segments)
         }
 
         let ((capture_env_id, capture_env), parents) =
             env_stack.split_last().expect("env_stack is empty");
 
-        'capture: for (loc, relation_id) in capture_env.variables.external_vars() {
+        'capture: for (loc, relation_id) in capture_env.symbols.external_vars() {
             let name = &loc.name;
             for (pos, (env_id, env)) in parents.iter().rev().enumerate() {
-                if let Some(local) = env.variables.find_reachable(name.root()) {
-                    let relation = &mut relations[relation_id];
+                let relation = &mut relations[relation_id];
+
+                if let Some(local) = env.symbols.find_reachable(name.root(), relation.registry) {
                     if name.is_qualified() {
                         let erroneous_capture = parents.iter().rev().take(pos + 1).map(|(_, s)| *s);
 
@@ -156,7 +157,10 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
             if object!().state != RelationState::Unresolved {
                 continue;
             }
-            let origin = object!().origin;
+            let (origin, registry) = {
+                let obj = &object!();
+                (obj.origin, obj.registry)
+            };
 
             // Get the local naming of the object
             let origin_env = self
@@ -167,7 +171,7 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
                 .expect("Environment declared an unknown parent");
 
             let symbol_loc = origin_env
-                .variables
+                .symbols
                 .find_external_symbol_name(relation_id)
                 .expect("Unknown object name");
             let symbol_name = &symbol_loc.name;
@@ -180,9 +184,10 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
                     &self.context.current_reef().engine,
                     symbol_name,
                     self.context.reef_id,
+                    registry,
                 );
             } else {
-                // Go up the parent chain until we get a decisive result
+                // Follow the parent chain until we get a decisive result
                 let mut current = Some((origin, origin_env));
                 while let Some((env_id, env)) = current {
                     if env_id != origin {
@@ -198,6 +203,7 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
                             env,
                             symbol_name,
                             self.context.reef_id,
+                            registry,
                         );
                     }
 
@@ -209,6 +215,7 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
                                 imports,
                                 symbol_name,
                                 self.context.reef_id,
+                                registry,
                             )
                         }
                     }
@@ -230,9 +237,24 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
                 if result == SymbolResolutionResult::NotFound {
                     result = resolve_loc(symbol_loc, self.context)
                         .map(|(reef, id)| {
-                            Self::resolve_absolute_symbol(&reef.engine, symbol_name, id)
+                            Self::resolve_absolute_symbol(&reef.engine, symbol_name, id, registry)
                         })
                         .unwrap_or(SymbolResolutionResult::NotFound)
+                }
+
+                //if the symbol is a type, and if its name is unqualified, try to resolve it from the special `lang` reef.
+                if registry == SymbolRegistry::Types && !symbol_name.is_qualified() {
+                    if let Some(primitive_type) = self
+                        .context
+                        .reefs()
+                        .lang()
+                        .type_context
+                        .get_type(symbol_name.root())
+                    {
+                        result = SymbolResolutionResult::Resolved(ResolvedSymbol::lang_symbol(
+                            LocalId(primitive_type.0),
+                        ));
+                    }
                 }
             }
 
@@ -259,11 +281,11 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
                         .get_environment(symbol.source)
                         .expect("resolved symbol points to an unknown environment");
                     let var = env_var
-                        .variables
-                        .get_var(symbol.object_id)
+                        .symbols
+                        .get(symbol.object_id)
                         .expect("resolved symbol points to an unknown variable in environment");
                     let mut occurrences: Vec<_> =
-                        origin_env.find_references(Symbol::External(relation_id));
+                        origin_env.find_references(SymbolRef::External(relation_id));
                     occurrences.sort_by_key(|s| s.start);
 
                     self.diagnostics.push(diagnose_invalid_symbol(
@@ -275,7 +297,7 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
                     object!().state = RelationState::Dead;
                 }
                 // All attempts failed to resolve the symbol
-                SymbolResolutionResult::NotFound | SymbolResolutionResult::ReefNotFound => {
+                SymbolResolutionResult::NotFound => {
                     let symbol_env_name = symbol_name.tail().unwrap_or(symbol_name.clone());
 
                     if symbol_name.is_qualified() && !visited.contains(&symbol_env_name) {
@@ -291,7 +313,6 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
                         origin,
                         origin_env,
                         symbol_name,
-                        result == SymbolResolutionResult::ReefNotFound,
                     ));
                     object!().state = RelationState::Dead
                 }
@@ -312,17 +333,18 @@ mod tests {
     use parser::parse_trusted;
 
     use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
-    use crate::environment::variables::SymbolLocation;
+    use crate::environment::symbols::{SymbolLocation, SymbolRegistry};
     use crate::importer::StaticImporter;
     use crate::imports::{Imports, ResolvedImport, SourceImports, UnresolvedImport};
     use crate::name::Name;
-    use crate::reef::{ReefContext, ReefId, Reefs};
+    use crate::reef::{ReefAccessor, ReefContext, ReefId, Reefs};
     use crate::relations::{
         LocalId, Relation, RelationId, RelationState, ResolvedSymbol, SourceId,
     };
     use crate::steps::collect::SymbolCollector;
     use crate::steps::resolve::SymbolResolver;
     use crate::steps::resolve_sources;
+    use crate::types::INT;
     use crate::{resolve_all, ResolutionResult};
 
     #[test]
@@ -353,7 +375,7 @@ mod tests {
             &mut reefs,
             [(
                 Name::new("std"),
-                Source::unknown("fun foo() -> ExitCode = echo stdlib"),
+                Source::unknown("fun foo() -> Exitcode = echo stdlib"),
             )],
             "std",
         );
@@ -366,16 +388,17 @@ mod tests {
                 (Name::new("main"), Source::unknown(main_source)),
                 (
                     Name::new("std"),
-                    Source::unknown("fun foo() -> ExitCode = echo fake stdlib"),
+                    Source::unknown("fun foo() -> Exitcode = echo fake stdlib"),
                 ),
             ],
             "test",
         );
         assert_eq!(diagnostics, vec![]);
 
-        let reef = reefs.get_reef(ReefId(1)).unwrap();
+        let reef = reefs.get_reef(ReefId(2)).unwrap();
         assert_eq!(reef.name, "test");
-        assert_eq!(reefs.get_reef(ReefId(0)).unwrap().name, "std");
+        assert_eq!(reefs.get_reef(ReefId(1)).unwrap().name, "std");
+        assert_eq!(reefs.get_reef(ReefId(0)).unwrap().name, "lang");
 
         assert_eq!(
             result.imports.get_imports(SourceId(2)).unwrap(),
@@ -385,22 +408,20 @@ mod tests {
                     (
                         "foo".to_string(),
                         (
-                            ResolvedImport::Symbol(ResolvedSymbol::new(
-                                ReefId(0),
-                                SourceId(0),
-                                LocalId(0)
-                            )),
+                            ResolvedImport::Symbols(HashMap::from([(
+                                SymbolRegistry::Objects,
+                                ResolvedSymbol::new(ReefId(1), SourceId(0), LocalId(0))
+                            )])),
                             find_in(main_source, "std::foo")
                         )
                     ),
                     (
                         "my_foo".to_string(),
                         (
-                            ResolvedImport::Symbol(ResolvedSymbol::new(
-                                ReefId(1),
-                                SourceId(0),
-                                LocalId(0)
-                            )),
+                            ResolvedImport::Symbols(HashMap::from([(
+                                SymbolRegistry::Objects,
+                                ResolvedSymbol::new(ReefId(2), SourceId(0), LocalId(0))
+                            )])),
                             find_in(main_source, "reef::std::foo as my_foo")
                         )
                     ),
@@ -412,31 +433,45 @@ mod tests {
             reef.relations.iter().collect::<Vec<_>>(),
             vec![
                 (
+                    // this one is foo's return type relation with Exitcode lang type
                     RelationId(0),
                     &Relation::resolved(
-                        SourceId(2),
-                        ResolvedSymbol::new(ReefId(1), SourceId(0), LocalId(0))
+                        SourceId(1),
+                        ResolvedSymbol::lang_symbol(LocalId(4)),
+                        SymbolRegistry::Types,
                     )
                 ),
+                // main's imports relations
                 (
                     RelationId(1),
                     &Relation::resolved(
                         SourceId(2),
-                        ResolvedSymbol::new(ReefId(0), SourceId(0), LocalId(0))
+                        ResolvedSymbol::new(ReefId(2), SourceId(0), LocalId(0)),
+                        SymbolRegistry::Objects,
                     )
                 ),
                 (
                     RelationId(2),
                     &Relation::resolved(
                         SourceId(2),
-                        ResolvedSymbol::new(ReefId(0), SourceId(0), LocalId(0))
+                        ResolvedSymbol::new(ReefId(1), SourceId(0), LocalId(0)),
+                        SymbolRegistry::Objects,
                     )
                 ),
                 (
                     RelationId(3),
                     &Relation::resolved(
                         SourceId(2),
-                        ResolvedSymbol::new(ReefId(1), SourceId(0), LocalId(0))
+                        ResolvedSymbol::new(ReefId(1), SourceId(0), LocalId(0)),
+                        SymbolRegistry::Objects,
+                    )
+                ),
+                (
+                    RelationId(4),
+                    &Relation::resolved(
+                        SourceId(2),
+                        ResolvedSymbol::new(ReefId(2), SourceId(0), LocalId(0)),
+                        SymbolRegistry::Objects,
                     )
                 ),
             ]
@@ -472,10 +507,18 @@ mod tests {
                 .iter()
                 .map(|(_, r)| r.clone())
                 .collect::<Vec<_>>(),
-            vec![Relation::resolved(
-                SourceId(0),
-                ResolvedSymbol::new(context.reef_id, SourceId(1), LocalId(0)),
-            )]
+            vec![
+                Relation::resolved(
+                    SourceId(0),
+                    ResolvedSymbol::new(context.reef_id, SourceId(1), LocalId(0)),
+                    SymbolRegistry::Objects,
+                ),
+                Relation::resolved(
+                    SourceId(2),
+                    ResolvedSymbol::lang_symbol(LocalId(INT.type_id.0)),
+                    SymbolRegistry::Types,
+                ),
+            ]
         )
     }
 
@@ -515,6 +558,7 @@ mod tests {
                     &Relation::resolved(
                         SourceId(2),
                         ResolvedSymbol::new(context.reef_id, SourceId(1), LocalId(0)),
+                        SymbolRegistry::Objects,
                     )
                 ),
                 (
@@ -522,6 +566,7 @@ mod tests {
                     &Relation::resolved(
                         SourceId(3),
                         ResolvedSymbol::new(context.reef_id, SourceId(1), LocalId(0)),
+                        SymbolRegistry::Objects,
                     )
                 ),
             ]
@@ -640,55 +685,50 @@ mod tests {
                     (
                         "PI".to_string(),
                         (
-                            ResolvedImport::Symbol(ResolvedSymbol::new(
-                                context.reef_id,
-                                SourceId(5),
-                                LocalId(0),
-                            )),
+                            ResolvedImport::Symbols(HashMap::from([(
+                                SymbolRegistry::Objects,
+                                ResolvedSymbol::new(context.reef_id, SourceId(5), LocalId(0))
+                            )])),
                             find_in(test_src, "reef::math::PI")
                         )
                     ),
                     (
                         "Bar".to_string(),
                         (
-                            ResolvedImport::Symbol(ResolvedSymbol::new(
-                                context.reef_id,
-                                SourceId(4),
-                                LocalId(1),
-                            )),
+                            ResolvedImport::Symbols(HashMap::from([(
+                                SymbolRegistry::Objects,
+                                ResolvedSymbol::new(context.reef_id, SourceId(4), LocalId(1))
+                            )])),
                             find_in(test_src, "reef::std::*")
                         )
                     ),
                     (
                         "Foo".to_string(),
                         (
-                            ResolvedImport::Symbol(ResolvedSymbol::new(
-                                context.reef_id,
-                                SourceId(4),
-                                LocalId(0),
-                            )),
+                            ResolvedImport::Symbols(HashMap::from([(
+                                SymbolRegistry::Objects,
+                                ResolvedSymbol::new(context.reef_id, SourceId(4), LocalId(0))
+                            )])),
                             find_in(test_src, "reef::std::*")
                         )
                     ),
                     (
                         "output".to_string(),
                         (
-                            ResolvedImport::Symbol(ResolvedSymbol::new(
-                                context.reef_id,
-                                SourceId(1),
-                                LocalId(0),
-                            )),
+                            ResolvedImport::Symbols(HashMap::from([(
+                                SymbolRegistry::Objects,
+                                ResolvedSymbol::new(context.reef_id, SourceId(1), LocalId(0))
+                            )])),
                             find_in(test_src, "output")
                         )
                     ),
                     (
                         "input".to_string(),
                         (
-                            ResolvedImport::Symbol(ResolvedSymbol::new(
-                                context.reef_id,
-                                SourceId(1),
-                                LocalId(1),
-                            )),
+                            ResolvedImport::Symbols(HashMap::from([(
+                                SymbolRegistry::Objects,
+                                ResolvedSymbol::new(context.reef_id, SourceId(1), LocalId(1))
+                            )])),
                             find_in(test_src, "input")
                         )
                     ),
@@ -760,18 +800,22 @@ mod tests {
                 Relation::resolved(
                     SourceId(1),
                     ResolvedSymbol::new(context.reef_id, SourceId(0), LocalId(2)),
+                    SymbolRegistry::Objects,
                 ),
                 Relation::resolved(
                     SourceId(0),
                     ResolvedSymbol::new(context.reef_id, SourceId(2), LocalId(0)),
+                    SymbolRegistry::Objects,
                 ),
                 Relation::resolved(
                     SourceId(0),
                     ResolvedSymbol::new(context.reef_id, SourceId(3), LocalId(1)),
+                    SymbolRegistry::Objects,
                 ),
                 Relation::resolved(
                     SourceId(0),
                     ResolvedSymbol::new(context.reef_id, SourceId(4), LocalId(0)),
+                    SymbolRegistry::Objects,
                 ),
             ]
         )
@@ -874,18 +918,32 @@ mod tests {
                 Relation::resolved(
                     SourceId(0),
                     ResolvedSymbol::new(context.reef_id, SourceId(3), LocalId(0)),
+                    SymbolRegistry::Objects,
                 ),
                 Relation::resolved(
                     SourceId(0),
                     ResolvedSymbol::new(context.reef_id, SourceId(3), LocalId(1)),
+                    SymbolRegistry::Objects,
                 ),
                 Relation::resolved(
                     SourceId(0),
                     ResolvedSymbol::new(context.reef_id, SourceId(6), LocalId(0)),
+                    SymbolRegistry::Objects,
                 ),
                 Relation::resolved(
                     SourceId(0),
                     ResolvedSymbol::new(context.reef_id, SourceId(1), LocalId(0)),
+                    SymbolRegistry::Objects,
+                ),
+                Relation::resolved(
+                    SourceId(2),
+                    ResolvedSymbol::lang_symbol(LocalId(INT.type_id.0)),
+                    SymbolRegistry::Types,
+                ),
+                Relation::resolved(
+                    SourceId(7),
+                    ResolvedSymbol::lang_symbol(LocalId(INT.type_id.0)),
+                    SymbolRegistry::Types,
                 ),
             ]
         )
@@ -1191,7 +1249,8 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![Relation::resolved(
                 SourceId(1),
-                ResolvedSymbol::new(context.reef_id, SourceId(0), LocalId(0))
+                ResolvedSymbol::new(context.reef_id, SourceId(0), LocalId(0)),
+                SymbolRegistry::Objects,
             )]
         )
     }

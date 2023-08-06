@@ -13,11 +13,10 @@ use context::source::{SourceSegment, SourceSegmentHolder};
 
 use crate::dependency::topological_sort;
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
-use crate::engine::Engine;
-use crate::environment::Environment;
-use crate::relations::{Definition, Relations, SourceId, Symbol};
+use crate::reef::{ReefAccessor, ReefContext, ReefId, Reefs};
+use crate::relations::{Definition, SourceId, SymbolRef};
 use crate::steps::typing::coercion::{check_type_annotation, coerce_condition, convert_expression};
-use crate::steps::typing::exploration::{diagnose_unknown_type, Exploration};
+use crate::steps::typing::exploration::{Exploration, UniversalReefAccessor};
 use crate::steps::typing::function::{
     find_operand_implementation, infer_return, type_call, type_method, type_parameter, Return,
 };
@@ -29,37 +28,44 @@ use crate::types::hir::{
     Redirect, TypedExpr, Var,
 };
 use crate::types::operator::name_operator_method;
-use crate::types::ty::Type;
-use crate::types::{Typing, BOOL, ERROR, EXIT_CODE, FLOAT, INT, NOTHING, STRING, UNIT};
+use crate::types::ty::{Type, TypeRef};
+use crate::types::{
+    convert_description, convert_many, get_type, resolve_type, Typing, BOOL, ERROR, EXIT_CODE,
+    FLOAT, INT, NOTHING, STRING, UNIT,
+};
 
 mod coercion;
-mod exploration;
+pub mod exploration;
 mod function;
 mod lower;
 
-pub fn apply_types(
-    engine: &Engine,
-    relations: &Relations,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> (TypedEngine, Typing) {
-    let environments = topological_sort(&relations.as_dependencies(engine));
+pub fn apply_types(context: &mut ReefContext, diagnostics: &mut Vec<Diagnostic>) {
+    let reef = context.current_reef();
+    let dependencies = reef.relations.as_dependencies(&reef.engine);
+    let environments = topological_sort(&dependencies);
+
     let mut exploration = Exploration {
-        engine: TypedEngine::with_lang(engine.len()),
-        typing: Typing::with_lang(),
-        ctx: TypeContext::with_lang(),
+        type_engine: TypedEngine::new(reef.engine.len()),
+        typing: Typing::default(),
+        ctx: TypeContext::default(),
         returns: Vec::new(),
     };
+
     for env_id in environments {
         let entry = apply_types_to_source(
             &mut exploration,
             diagnostics,
-            engine,
-            relations,
-            TypingState::new(env_id),
+            context.reefs(),
+            TypingState::new(env_id, context.reef_id),
         );
-        exploration.engine.insert(env_id, entry);
+        exploration.type_engine.insert(env_id, entry);
     }
-    (exploration.engine, exploration.typing)
+
+    let reef = context.current_reef_mut();
+
+    reef.type_context = exploration.ctx;
+    reef.typed_engine = exploration.type_engine;
+    reef.typing = exploration.typing;
 }
 
 /// A state holder, used to informs the type checker about what should be
@@ -67,6 +73,7 @@ pub fn apply_types(
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 struct TypingState {
     source: SourceId,
+    reef: ReefId,
     local_type: bool,
 
     // if not in loop, `continue` and `break` will raise a diagnostic
@@ -75,9 +82,10 @@ struct TypingState {
 
 impl TypingState {
     /// Creates a new initial state, for a script.
-    fn new(source: SourceId) -> Self {
+    fn new(source: SourceId, reef: ReefId) -> Self {
         Self {
             source,
+            reef,
             local_type: false,
             in_loop: false,
         }
@@ -111,47 +119,50 @@ impl TypingState {
 fn apply_types_to_source(
     exploration: &mut Exploration,
     diagnostics: &mut Vec<Diagnostic>,
-    engine: &Engine,
-    relations: &Relations,
+    reefs: &Reefs,
     state: TypingState,
 ) -> Chunk {
     let source_id = state.source;
-    let expr = engine.get_expression(source_id).unwrap();
-    let env = engine.get_environment(source_id).unwrap();
+
     exploration.prepare();
+
+    let current_reef = reefs.get_reef(state.reef).unwrap();
+    let engine = &current_reef.engine;
+
+    let expr = engine.get_expression(source_id).unwrap();
     match expr {
         Expr::FunctionDeclaration(func) => {
-            let attached_env = env.parent.unwrap_or(source_id);
             for param in &func.parameters {
-                let param = type_parameter(&exploration.ctx, param, attached_env);
-                exploration.ctx.push_local_type(state.source, param.ty);
+                let ura = exploration.universal_accessor(state.reef, reefs);
+
+                let param = type_parameter(&ura, state.reef, param, source_id);
+                exploration.ctx.push_local_typed(source_id, param.ty);
             }
+
             let typed_expr = ascribe_types(
                 exploration,
-                relations,
                 diagnostics,
-                env,
+                reefs,
                 &func.body,
                 state.with_local_type(),
             );
-            let return_type = infer_return(func, &typed_expr, diagnostics, exploration, state);
-            Chunk::function(
-                typed_expr,
-                func.parameters
-                    .iter()
-                    .map(|param| type_parameter(&exploration.ctx, param, attached_env))
-                    .collect(),
-                return_type,
-            )
+
+            let return_type =
+                infer_return(func, &typed_expr, diagnostics, exploration, reefs, state);
+
+            let chunk_params = func
+                .parameters
+                .iter()
+                .map(|param| {
+                    let ura = exploration.universal_accessor(state.reef, reefs);
+
+                    type_parameter(&ura, state.reef, param, source_id)
+                })
+                .collect();
+
+            Chunk::function(typed_expr, chunk_params, return_type)
         }
-        expr => Chunk::script(ascribe_types(
-            exploration,
-            relations,
-            diagnostics,
-            env,
-            expr,
-            state,
-        )),
+        expr => Chunk::script(ascribe_types(exploration, diagnostics, reefs, expr, state)),
     }
 }
 
@@ -172,9 +183,8 @@ fn ascribe_literal(lit: &Literal) -> TypedExpr {
 fn ascribe_template_string(
     tpl: &TemplateString,
     exploration: &mut Exploration,
-    relations: &Relations,
     diagnostics: &mut Vec<Diagnostic>,
-    env: &Environment,
+    reefs: &Reefs,
     state: TypingState,
 ) -> TypedExpr {
     if tpl.parts.is_empty() {
@@ -184,26 +194,29 @@ fn ascribe_template_string(
             segment: tpl.segment(),
         };
     }
-    let plus_method = exploration
-        .engine
+
+    let plus_method = reefs
+        .lang()
+        .typed_engine
         .get_method_exact(
-            STRING,
+            STRING.type_id,
             name_operator_method(BinaryOperator::Plus),
             &[STRING],
             STRING,
         )
         .expect("string type should have a concatenation method")
         .definition;
+
     let mut it = tpl.parts.iter().map(|part| {
         let typed_part = ascribe_types(
             exploration,
-            relations,
             diagnostics,
-            env,
+            reefs,
             part,
             state.without_local_type(),
         );
-        convert_into_string(typed_part, exploration, diagnostics, state)
+        let ura = exploration.universal_accessor(state.reef, reefs);
+        convert_into_string(typed_part, &ura, diagnostics, state)
     });
     let acc = it.next().unwrap();
     it.fold(acc, |acc, current| {
@@ -223,29 +236,33 @@ fn ascribe_template_string(
 fn ascribe_assign(
     assign: &Assign,
     exploration: &mut Exploration,
-    relations: &Relations,
+    reefs: &Reefs,
     diagnostics: &mut Vec<Diagnostic>,
-    env: &Environment,
     state: TypingState,
 ) -> TypedExpr {
     let rhs = ascribe_types(
         exploration,
-        relations,
         diagnostics,
-        env,
+        reefs,
         &assign.value,
         state.with_local_type(),
     );
+
+    let current_reef = reefs.get_reef(state.reef).unwrap();
+
+    let env = current_reef.engine.get_environment(state.source).unwrap();
     let symbol = env.get_raw_symbol(assign.segment()).unwrap();
-    let actual_type = exploration
-        .get_type(
-            exploration
-                .ctx
-                .get(relations, state.source, symbol)
-                .unwrap()
-                .type_id,
-        )
-        .unwrap();
+
+    let relations = &current_reef.relations;
+
+    let actual_type_ref = exploration
+        .ctx
+        .get(relations, state.source, symbol)
+        .unwrap()
+        .type_ref;
+
+    let ura = exploration.universal_accessor(state.reef, reefs);
+    let actual_type = get_type(actual_type_ref, &ura).unwrap();
     if actual_type.is_named() {
         diagnostics.push(
             Diagnostic::new(
@@ -267,16 +284,10 @@ fn ascribe_assign(
         .ctx
         .get(relations, state.source, symbol)
         .unwrap();
-    let var_ty = var_obj.type_id;
+    let var_ty = var_obj.type_ref;
     let rhs_type = rhs.ty;
-    let rhs = match convert_expression(
-        rhs,
-        var_ty,
-        &mut exploration.typing,
-        &exploration.engine,
-        state,
-        diagnostics,
-    ) {
+
+    let rhs = match convert_expression(rhs, var_ty, state, &ura, diagnostics) {
         Ok(rhs) => rhs,
         Err(_) => {
             diagnostics.push(
@@ -284,8 +295,8 @@ fn ascribe_assign(
                     DiagnosticID::TypeMismatch,
                     format!(
                         "Cannot assign a value of type `{}` to something of type `{}`",
-                        exploration.get_type(rhs_type).unwrap(),
-                        exploration.get_type(var_ty).unwrap()
+                        get_type(rhs_type, &ura).unwrap(),
+                        get_type(var_ty, &ura).unwrap()
                     ),
                 )
                 .with_observation(Observation::here(
@@ -320,8 +331,8 @@ fn ascribe_assign(
     }
 
     let identifier = match symbol {
-        Symbol::Local(id) => Var::Local(id),
-        Symbol::External(id) => {
+        SymbolRef::Local(id) => Var::Local(id),
+        SymbolRef::External(id) => {
             Var::External(relations[id].state.expect_resolved("non resolved relation"))
         }
     };
@@ -339,9 +350,8 @@ fn ascribe_assign(
 fn ascribe_var_declaration(
     decl: &VarDeclaration,
     exploration: &mut Exploration,
-    relations: &Relations,
+    reefs: &Reefs,
     diagnostics: &mut Vec<Diagnostic>,
-    env: &Environment,
     state: TypingState,
 ) -> TypedExpr {
     let mut initializer = decl
@@ -350,14 +360,14 @@ fn ascribe_var_declaration(
         .map(|expr| {
             ascribe_types(
                 exploration,
-                relations,
                 diagnostics,
-                env,
+                reefs,
                 expr,
                 state.with_local_type(),
             )
         })
         .expect("Variables without initializers are not supported yet");
+
     let id = exploration.ctx.push_local(
         state.source,
         if decl.kind == VarKind::Val {
@@ -367,13 +377,8 @@ fn ascribe_var_declaration(
         },
     );
     if let Some(type_annotation) = &decl.var.ty {
-        initializer = check_type_annotation(
-            exploration,
-            type_annotation,
-            initializer,
-            diagnostics,
-            state,
-        );
+        let ura = exploration.universal_accessor(state.reef, reefs);
+        initializer = check_type_annotation(&ura, type_annotation, initializer, diagnostics, state);
     }
     TypedExpr {
         kind: ExprKind::Declare(Declaration {
@@ -387,28 +392,35 @@ fn ascribe_var_declaration(
 
 fn ascribe_var_reference(
     var_ref: &VarReference,
-    source: SourceId,
-    env: &Environment,
-    exploration: &Exploration,
-    relations: &Relations,
+    state: TypingState,
+    ura: &UniversalReefAccessor,
 ) -> TypedExpr {
-    let symbol = env.get_raw_symbol(var_ref.segment.clone()).unwrap();
-    let type_id = exploration
-        .ctx
-        .get(relations, source, symbol)
+    let env = ura
+        .get_engine(state.reef)
         .unwrap()
-        .type_id;
+        .get_environment(state.source)
+        .unwrap();
+    let relations = ura.get_relations(state.reef).unwrap();
+
+    let symbol = env.get_raw_symbol(var_ref.segment()).unwrap();
+    let type_ref = ura
+        .get_types(state.reef)
+        .unwrap()
+        .context
+        .get(relations, state.source, symbol)
+        .unwrap()
+        .type_ref;
 
     let var = match symbol {
-        Symbol::Local(id) => Var::Local(id),
-        Symbol::External(id) => {
+        SymbolRef::Local(id) => Var::Local(id),
+        SymbolRef::External(id) => {
             Var::External(relations[id].state.expect_resolved("non resolved relation"))
         }
     };
 
     TypedExpr {
         kind: ExprKind::Reference(var),
-        ty: type_id,
+        ty: type_ref,
         segment: var_ref.segment.clone(),
     }
 }
@@ -416,9 +428,8 @@ fn ascribe_var_reference(
 fn ascribe_block(
     block: &Block,
     exploration: &mut Exploration,
-    relations: &Relations,
     diagnostics: &mut Vec<Diagnostic>,
-    env: &Environment,
+    reefs: &Reefs,
     state: TypingState,
 ) -> TypedExpr {
     let mut expressions = Vec::with_capacity(block.expressions.len());
@@ -430,9 +441,8 @@ fn ascribe_block(
     while let Some(expr) = it.next() {
         expressions.push(ascribe_types(
             exploration,
-            relations,
             diagnostics,
-            env,
+            reefs,
             expr,
             if it.peek().is_some() {
                 state.without_local_type()
@@ -452,29 +462,16 @@ fn ascribe_block(
 fn ascribe_redirected(
     redirected: &Redirected,
     exploration: &mut Exploration,
-    relations: &Relations,
+    reefs: &Reefs,
     diagnostics: &mut Vec<Diagnostic>,
-    env: &Environment,
     state: TypingState,
 ) -> TypedExpr {
-    let expr = ascribe_types(
-        exploration,
-        relations,
-        diagnostics,
-        env,
-        &redirected.expr,
-        state,
-    );
+    let expr = ascribe_types(exploration, diagnostics, reefs, &redirected.expr, state);
+
     let mut redirections = Vec::with_capacity(redirected.redirections.len());
     for redirection in &redirected.redirections {
-        let operand = ascribe_types(
-            exploration,
-            relations,
-            diagnostics,
-            env,
-            &redirection.operand,
-            state,
-        );
+        let operand = ascribe_types(exploration, diagnostics, reefs, &redirection.operand, state);
+        let ura = exploration.universal_accessor(state.reef, reefs);
         let operand = if matches!(redirection.operator, RedirOp::FdIn | RedirOp::FdOut) {
             if operand.ty != INT {
                 diagnostics.push(
@@ -482,7 +479,7 @@ fn ascribe_redirected(
                         DiagnosticID::TypeMismatch,
                         format!(
                             "File descriptor redirections must be given an integer, not `{}`",
-                            exploration.get_type(operand.ty).unwrap()
+                            get_type(operand.ty, &ura).unwrap()
                         ),
                     )
                     .with_observation(Observation::here(
@@ -494,7 +491,7 @@ fn ascribe_redirected(
             }
             operand
         } else {
-            convert_into_string(operand, exploration, diagnostics, state)
+            convert_into_string(operand, &ura, diagnostics, state)
         };
         redirections.push(Redir {
             fd: redirection.fd,
@@ -516,18 +513,16 @@ fn ascribe_redirected(
 fn ascribe_pipeline(
     pipeline: &Pipeline,
     exploration: &mut Exploration,
-    relations: &Relations,
     diagnostics: &mut Vec<Diagnostic>,
-    env: &Environment,
+    reefs: &Reefs,
     state: TypingState,
 ) -> TypedExpr {
     let mut commands = Vec::with_capacity(pipeline.commands.len());
     for command in &pipeline.commands {
         commands.push(ascribe_types(
             exploration,
-            relations,
             diagnostics,
-            env,
+            reefs,
             command,
             state,
         ));
@@ -542,16 +537,15 @@ fn ascribe_pipeline(
 fn ascribe_substitution(
     substitution: &Substitution,
     exploration: &mut Exploration,
-    relations: &Relations,
     diagnostics: &mut Vec<Diagnostic>,
-    env: &Environment,
+    reefs: &Reefs,
     state: TypingState,
 ) -> TypedExpr {
     let commands = substitution
         .underlying
         .expressions
         .iter()
-        .map(|command| ascribe_types(exploration, relations, diagnostics, env, command, state))
+        .map(|command| ascribe_types(exploration, diagnostics, reefs, command, state))
         .collect::<Vec<_>>();
     TypedExpr {
         kind: ExprKind::Capture(commands),
@@ -563,21 +557,14 @@ fn ascribe_substitution(
 fn ascribe_return(
     ret: &ast::function::Return,
     exploration: &mut Exploration,
-    relations: &Relations,
     diagnostics: &mut Vec<Diagnostic>,
-    env: &Environment,
+    reefs: &Reefs,
     state: TypingState,
 ) -> TypedExpr {
-    let expr = ret.expr.as_ref().map(|expr| {
-        Box::new(ascribe_types(
-            exploration,
-            relations,
-            diagnostics,
-            env,
-            expr,
-            state,
-        ))
-    });
+    let expr = ret
+        .expr
+        .as_ref()
+        .map(|expr| Box::new(ascribe_types(exploration, diagnostics, reefs, expr, state)));
     exploration.returns.push(Return {
         ty: expr.as_ref().map_or(UNIT, |expr| expr.ty),
         segment: ret.segment.clone(),
@@ -591,33 +578,45 @@ fn ascribe_return(
 
 fn ascribe_function_declaration(
     fun: &FunctionDeclaration,
-    source: SourceId,
-    env: &Environment,
+    state: TypingState,
+    reefs: &Reefs,
     exploration: &mut Exploration,
 ) -> TypedExpr {
-    let declaration = env.get_raw_env(fun.segment.clone()).unwrap();
+    let env = reefs
+        .get_reef(state.reef)
+        .unwrap()
+        .engine
+        .get_environment(state.source)
+        .unwrap();
+
+    let func_env_id = env.get_raw_env(fun.segment()).unwrap();
+
     let type_id = exploration
         .typing
-        .add_type(Type::Function(Definition::User(declaration)));
-    let local_id = exploration.ctx.push_local_type(source, type_id);
+        .add_type(Type::Function(Definition::User(func_env_id)));
+    let type_ref = TypeRef::new(state.reef, type_id);
+
+    let local_id = exploration.ctx.push_local_typed(state.source, type_ref);
+
+    let ura = exploration.universal_accessor(state.reef, reefs);
 
     // Forward declare the function
     let parameters = fun
         .parameters
         .iter()
-        .map(|param| type_parameter(&exploration.ctx, param, source))
+        .map(|param| type_parameter(&ura, state.reef, param, func_env_id))
         .collect::<Vec<_>>();
     let return_type = fun
         .return_type
         .as_ref()
-        .map_or(UNIT, |ty| exploration.ctx.resolve(ty).unwrap_or(ERROR));
+        .map_or(UNIT, |ty| resolve_type(&ura, state.reef, func_env_id, ty));
 
-    exploration.engine.insert_if_absent(
-        declaration,
+    exploration.type_engine.insert_if_absent(
+        func_env_id,
         Chunk::function(
             TypedExpr {
                 kind: ExprKind::Noop,
-                ty: type_id,
+                ty: type_ref,
                 segment: fun.segment.clone(),
             },
             parameters,
@@ -637,18 +636,20 @@ fn ascribe_function_declaration(
 fn ascribe_binary(
     bin: &BinaryOperation,
     exploration: &mut Exploration,
-    relations: &Relations,
     diagnostics: &mut Vec<Diagnostic>,
-    env: &Environment,
+    reefs: &Reefs,
     state: TypingState,
 ) -> TypedExpr {
-    let left_expr = ascribe_types(exploration, relations, diagnostics, env, &bin.left, state);
-    let right_expr = ascribe_types(exploration, relations, diagnostics, env, &bin.right, state);
+    let left_expr = ascribe_types(exploration, diagnostics, reefs, &bin.left, state);
+    let right_expr = ascribe_types(exploration, diagnostics, reefs, &bin.right, state);
     let name = name_operator_method(bin.op);
-    let method = exploration
-        .engine
-        .get_methods(left_expr.ty, name)
+
+    let ura = exploration.universal_accessor(state.reef, reefs);
+    let left_expr_typed_engine = ura.get_types(left_expr.ty.reef).unwrap().engine;
+    let method = left_expr_typed_engine
+        .get_methods(left_expr.ty.type_id, name)
         .and_then(|methods| find_operand_implementation(methods, &right_expr));
+
     let ty = match method {
         Some(method) => method.return_type,
         _ => {
@@ -660,8 +661,8 @@ fn ascribe_binary(
                         format!(
                             "No operator `{}` between type `{}` and `{}`",
                             name,
-                            exploration.get_type(left_expr.ty).unwrap(),
-                            exploration.get_type(right_expr.ty).unwrap()
+                            get_type(left_expr.ty, &ura).unwrap(),
+                            get_type(right_expr.ty, &ura).unwrap()
                         ),
                     )),
             );
@@ -682,36 +683,22 @@ fn ascribe_binary(
 fn ascribe_casted(
     casted: &CastedExpr,
     exploration: &mut Exploration,
-    relations: &Relations,
     diagnostics: &mut Vec<Diagnostic>,
-    env: &Environment,
+    reefs: &Reefs,
     state: TypingState,
 ) -> TypedExpr {
-    let expr = ascribe_types(
-        exploration,
-        relations,
-        diagnostics,
-        env,
-        &casted.expr,
-        state,
-    );
-    let ty = exploration
-        .ctx
-        .resolve(&casted.casted_type)
-        .unwrap_or(ERROR);
-    if ty.is_err() {
-        diagnostics.push(diagnose_unknown_type(
-            state.source,
-            casted.casted_type.segment(),
-        ))
-    } else if expr.ty.is_ok() && exploration.typing.convert_description(ty, expr.ty).is_err() {
+    let expr = ascribe_types(exploration, diagnostics, reefs, &casted.expr, state);
+    let ura = exploration.universal_accessor(state.reef, reefs);
+    let ty = resolve_type(&ura, state.reef, state.source, &casted.casted_type);
+
+    if expr.ty.is_ok() && convert_description(&ura, ty, expr.ty).is_err() {
         diagnostics.push(
             Diagnostic::new(
                 DiagnosticID::IncompatibleCast,
                 format!(
                     "Casting `{}` as `{}` is invalid",
-                    exploration.get_type(expr.ty).unwrap(),
-                    exploration.get_type(ty).unwrap()
+                    get_type(expr.ty, &ura).unwrap(),
+                    get_type(ty, &ura).unwrap()
                 ),
             )
             .with_observation(Observation::here(
@@ -734,16 +721,14 @@ fn ascribe_casted(
 fn ascribe_unary(
     unary: &UnaryOperation,
     exploration: &mut Exploration,
-    relations: &Relations,
     diagnostics: &mut Vec<Diagnostic>,
-    env: &Environment,
+    reefs: &Reefs,
     state: TypingState,
 ) -> TypedExpr {
     let expr = ascribe_types(
         exploration,
-        relations,
         diagnostics,
-        env,
+        reefs,
         &unary.expr,
         state.with_local_type(),
     );
@@ -752,11 +737,20 @@ fn ascribe_unary(
     }
 
     match unary.op {
-        UnaryOperator::Not => ascribe_not(expr, unary.segment(), exploration, diagnostics, state),
+        UnaryOperator::Not => ascribe_not(
+            expr,
+            unary.segment(),
+            exploration,
+            diagnostics,
+            reefs,
+            state,
+        ),
         UnaryOperator::Negate => {
-            let method = exploration
-                .engine
-                .get_method_exact(expr.ty, "neg", &[], expr.ty);
+            let lang_reef = reefs.lang();
+            let method =
+                lang_reef
+                    .typed_engine
+                    .get_method_exact(expr.ty.type_id, "neg", &[], expr.ty);
             match method {
                 Some(method) => TypedExpr {
                     kind: ExprKind::MethodCall(MethodCall {
@@ -775,7 +769,11 @@ fn ascribe_unary(
                                 unary.segment(),
                                 format!(
                                     "`{}` does not implement the `neg` method",
-                                    exploration.get_type(expr.ty).unwrap(),
+                                    get_type(
+                                        expr.ty,
+                                        &exploration.universal_accessor(state.reef, reefs)
+                                    )
+                                    .unwrap(),
                                 ),
                             )),
                     );
@@ -791,20 +789,17 @@ fn ascribe_not(
     segment: SourceSegment,
     exploration: &mut Exploration,
     diagnostics: &mut Vec<Diagnostic>,
+    reefs: &Reefs,
     state: TypingState,
 ) -> TypedExpr {
-    let not_method = exploration
-        .engine
-        .get_method_exact(BOOL, "not", &[], BOOL)
+    let lang_reef = reefs.lang();
+    let not_method = lang_reef
+        .typed_engine
+        .get_method_exact(BOOL.type_id, "not", &[], BOOL)
         .expect("A Bool should be invertible");
-    match convert_expression(
-        not,
-        BOOL,
-        &mut exploration.typing,
-        &exploration.engine,
-        state,
-        diagnostics,
-    ) {
+
+    let ura = exploration.universal_accessor(state.reef, reefs);
+    match convert_expression(not, BOOL, state, &ura, diagnostics) {
         Ok(expr) => TypedExpr {
             kind: ExprKind::MethodCall(MethodCall {
                 callee: Box::new(expr),
@@ -822,7 +817,7 @@ fn ascribe_not(
                         segment,
                         format!(
                             "Cannot invert non-boolean type `{}`",
-                            exploration.get_type(expr.ty).unwrap()
+                            get_type(expr.ty, &ura).unwrap()
                         ),
                     ),
                 ),
@@ -835,58 +830,41 @@ fn ascribe_not(
 fn ascribe_if(
     block: &If,
     exploration: &mut Exploration,
-    relations: &Relations,
     diagnostics: &mut Vec<Diagnostic>,
-    env: &Environment,
+    reefs: &Reefs,
     state: TypingState,
 ) -> TypedExpr {
-    let condition = ascribe_types(
-        exploration,
-        relations,
-        diagnostics,
-        env,
-        &block.condition,
-        state,
-    );
-    let condition = coerce_condition(condition, exploration, state, diagnostics);
+    let condition = ascribe_types(exploration, diagnostics, reefs, &block.condition, state);
+    let ura = exploration.universal_accessor(state.reef, reefs);
+
+    let condition = coerce_condition(condition, &ura, state, diagnostics);
     let mut then = ascribe_types(
         exploration,
-        relations,
         diagnostics,
-        env,
+        reefs,
         &block.success_branch,
         state,
     );
+
     let mut otherwise = block
         .fail_branch
         .as_ref()
-        .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state));
+        .map(|expr| ascribe_types(exploration, diagnostics, reefs, expr, state));
+
     let ty = if state.local_type {
-        match exploration
-            .typing
-            .convert_many([then.ty, otherwise.as_ref().map_or(UNIT, |expr| expr.ty)])
-        {
+        let ura = exploration.universal_accessor(state.reef, reefs);
+
+        match convert_many(
+            &ura,
+            [then.ty, otherwise.as_ref().map_or(UNIT, |expr| expr.ty)],
+        ) {
             Ok(ty) => {
                 // Generate appropriate casts and implicits conversions
-                then = convert_expression(
-                    then,
-                    ty,
-                    &mut exploration.typing,
-                    &exploration.engine,
-                    state,
-                    diagnostics,
-                )
-                .expect("Type mismatch should already have been caught");
+                then = convert_expression(then, ty, state, &ura, diagnostics)
+                    .expect("Type mismatch should already have been caught");
                 otherwise = otherwise.map(|expr| {
-                    convert_expression(
-                        expr,
-                        ty,
-                        &mut exploration.typing,
-                        &exploration.engine,
-                        state,
-                        diagnostics,
-                    )
-                    .expect("Type mismatch should already have been caught")
+                    convert_expression(expr, ty, state, &ura, diagnostics)
+                        .expect("Type mismatch should already have been caught")
                 });
                 ty
             }
@@ -898,13 +876,13 @@ fn ascribe_if(
                 .with_observation(Observation::here(
                     state.source,
                     block.success_branch.segment(),
-                    format!("Found `{}`", exploration.get_type(then.ty).unwrap()),
+                    format!("Found `{}`", get_type(then.ty, &ura).unwrap()),
                 ));
                 if let Some(otherwise) = &otherwise {
                     diagnostic = diagnostic.with_observation(Observation::here(
                         state.source,
                         otherwise.segment(),
-                        format!("Found `{}`", exploration.get_type(otherwise.ty).unwrap()),
+                        format!("Found `{}`", get_type(otherwise.ty, &ura).unwrap()),
                     ));
                 }
                 diagnostics.push(diagnostic);
@@ -928,17 +906,17 @@ fn ascribe_if(
 fn ascribe_call(
     call: &Call,
     exploration: &mut Exploration,
-    relations: &Relations,
     diagnostics: &mut Vec<Diagnostic>,
-    env: &Environment,
+    reefs: &Reefs,
     state: TypingState,
 ) -> TypedExpr {
     let args = call
         .arguments
         .iter()
         .map(|expr| {
-            let expr = ascribe_types(exploration, relations, diagnostics, env, expr, state);
-            convert_into_string(expr, exploration, diagnostics, state)
+            let expr = ascribe_types(exploration, diagnostics, reefs, expr, state);
+            let ura = exploration.universal_accessor(state.reef, reefs);
+            convert_into_string(expr, &ura, diagnostics, state)
         })
         .collect::<Vec<_>>();
 
@@ -952,28 +930,19 @@ fn ascribe_call(
 fn ascribe_pfc(
     call: &ProgrammaticCall,
     exploration: &mut Exploration,
-    relations: &Relations,
     diagnostics: &mut Vec<Diagnostic>,
-    env: &Environment,
+    reefs: &Reefs,
     state: TypingState,
 ) -> TypedExpr {
     let arguments = call
         .arguments
         .iter()
-        .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
+        .map(|expr| ascribe_types(exploration, diagnostics, reefs, expr, state))
         .collect::<Vec<_>>();
-    let symbol = env
-        .get_raw_symbol(call.segment.clone())
-        .expect("Environment has not tracked the symbol for programmatic call");
-    let function_match = type_call(
-        call,
-        arguments,
-        symbol,
-        diagnostics,
-        exploration,
-        relations,
-        state,
-    );
+
+    let ura = exploration.universal_accessor(state.reef, reefs);
+
+    let function_match = type_call(call, arguments, diagnostics, &ura, state);
     TypedExpr {
         kind: ExprKind::FunctionCall(FunctionCall {
             arguments: function_match.arguments,
@@ -987,25 +956,20 @@ fn ascribe_pfc(
 fn ascribe_method_call(
     method: &ast::call::MethodCall,
     exploration: &mut Exploration,
-    relations: &Relations,
     diagnostics: &mut Vec<Diagnostic>,
-    env: &Environment,
+    reefs: &Reefs,
     state: TypingState,
 ) -> TypedExpr {
-    let callee = ascribe_types(
-        exploration,
-        relations,
-        diagnostics,
-        env,
-        &method.source,
-        state,
-    );
+    let callee = ascribe_types(exploration, diagnostics, reefs, &method.source, state);
     let arguments = method
         .arguments
         .iter()
-        .map(|expr| ascribe_types(exploration, relations, diagnostics, env, expr, state))
+        .map(|expr| ascribe_types(exploration, diagnostics, reefs, expr, state))
         .collect::<Vec<_>>();
-    let method_type = type_method(method, &callee, &arguments, diagnostics, exploration, state);
+
+    let ura = exploration.universal_accessor(state.reef, reefs);
+
+    let method_type = type_method(method, &callee, &arguments, diagnostics, &ura, state);
     TypedExpr {
         kind: ExprKind::MethodCall(MethodCall {
             callee: Box::new(callee),
@@ -1020,23 +984,23 @@ fn ascribe_method_call(
 fn ascribe_loop(
     loo: &Expr,
     exploration: &mut Exploration,
-    relations: &Relations,
     diagnostics: &mut Vec<Diagnostic>,
-    env: &Environment,
+    reefs: &Reefs,
     state: TypingState,
 ) -> TypedExpr {
     let (condition, body) = match loo {
         Expr::While(w) => {
             let condition = ascribe_types(
                 exploration,
-                relations,
                 diagnostics,
-                env,
+                reefs,
                 &w.condition,
                 state.with_local_type(),
             );
+            let ura = exploration.universal_accessor(state.reef, reefs);
+
             (
-                Some(coerce_condition(condition, exploration, state, diagnostics)),
+                Some(coerce_condition(condition, &ura, state, diagnostics)),
                 &w.body,
             )
         }
@@ -1045,9 +1009,8 @@ fn ascribe_loop(
     };
     let body = ascribe_types(
         exploration,
-        relations,
         diagnostics,
-        env,
+        reefs,
         body,
         state.without_local_type().with_in_loop(),
     );
@@ -1094,71 +1057,54 @@ fn ascribe_continue_or_break(
 /// In case of an error, the expression is still returned, but the type is set to [`ERROR`].
 fn ascribe_types(
     exploration: &mut Exploration,
-    relations: &Relations,
     diagnostics: &mut Vec<Diagnostic>,
-    env: &Environment,
+    reefs: &Reefs,
     expr: &Expr,
     state: TypingState,
 ) -> TypedExpr {
     match expr {
         Expr::FunctionDeclaration(fd) => {
-            ascribe_function_declaration(fd, state.source, env, exploration)
+            ascribe_function_declaration(fd, state, reefs, exploration)
         }
         Expr::Literal(lit) => ascribe_literal(lit),
         Expr::TemplateString(tpl) => {
-            ascribe_template_string(tpl, exploration, relations, diagnostics, env, state)
+            ascribe_template_string(tpl, exploration, diagnostics, reefs, state)
         }
-        Expr::Assign(assign) => {
-            ascribe_assign(assign, exploration, relations, diagnostics, env, state)
-        }
+        Expr::Assign(assign) => ascribe_assign(assign, exploration, reefs, diagnostics, state),
         Expr::VarDeclaration(decl) => {
-            ascribe_var_declaration(decl, exploration, relations, diagnostics, env, state)
+            ascribe_var_declaration(decl, exploration, reefs, diagnostics, state)
         }
-        Expr::VarReference(var) => {
-            ascribe_var_reference(var, state.source, env, exploration, relations)
-        }
-        Expr::If(block) => ascribe_if(block, exploration, relations, diagnostics, env, state),
-        Expr::Call(call) => ascribe_call(call, exploration, relations, diagnostics, env, state),
-        Expr::ProgrammaticCall(call) => {
-            ascribe_pfc(call, exploration, relations, diagnostics, env, state)
-        }
+        Expr::VarReference(var) => ascribe_var_reference(
+            var,
+            state,
+            &exploration.universal_accessor(state.reef, reefs),
+        ),
+        Expr::If(block) => ascribe_if(block, exploration, diagnostics, reefs, state),
+        Expr::Call(call) => ascribe_call(call, exploration, diagnostics, reefs, state),
+        Expr::ProgrammaticCall(call) => ascribe_pfc(call, exploration, diagnostics, reefs, state),
         Expr::MethodCall(method) => {
-            ascribe_method_call(method, exploration, relations, diagnostics, env, state)
+            ascribe_method_call(method, exploration, diagnostics, reefs, state)
         }
-        Expr::Block(b) => ascribe_block(b, exploration, relations, diagnostics, env, state),
+        Expr::Block(b) => ascribe_block(b, exploration, diagnostics, reefs, state),
         Expr::Redirected(redirected) => {
-            ascribe_redirected(redirected, exploration, relations, diagnostics, env, state)
+            ascribe_redirected(redirected, exploration, reefs, diagnostics, state)
         }
         Expr::Pipeline(pipeline) => {
-            ascribe_pipeline(pipeline, exploration, relations, diagnostics, env, state)
+            ascribe_pipeline(pipeline, exploration, diagnostics, reefs, state)
         }
         Expr::Substitution(subst) => {
-            ascribe_substitution(subst, exploration, relations, diagnostics, env, state)
+            ascribe_substitution(subst, exploration, diagnostics, reefs, state)
         }
-        Expr::Return(r) => ascribe_return(r, exploration, relations, diagnostics, env, state),
-        Expr::Parenthesis(paren) => ascribe_types(
-            exploration,
-            relations,
-            diagnostics,
-            env,
-            &paren.expression,
-            state,
-        ),
-        Expr::Binary(bo) => ascribe_binary(bo, exploration, relations, diagnostics, env, state),
-        Expr::Casted(casted) => {
-            ascribe_casted(casted, exploration, relations, diagnostics, env, state)
+        Expr::Return(r) => ascribe_return(r, exploration, diagnostics, reefs, state),
+        Expr::Parenthesis(paren) => {
+            ascribe_types(exploration, diagnostics, reefs, &paren.expression, state)
         }
-        Expr::Test(test) => ascribe_types(
-            exploration,
-            relations,
-            diagnostics,
-            env,
-            &test.expression,
-            state,
-        ),
-        Expr::Unary(unary) => ascribe_unary(unary, exploration, relations, diagnostics, env, state),
+        Expr::Unary(unary) => ascribe_unary(unary, exploration, diagnostics, reefs, state),
+        Expr::Binary(bo) => ascribe_binary(bo, exploration, diagnostics, reefs, state),
+        Expr::Casted(casted) => ascribe_casted(casted, exploration, diagnostics, reefs, state),
+        Expr::Test(test) => ascribe_types(exploration, diagnostics, reefs, &test.expression, state),
         e @ (Expr::While(_) | Expr::Loop(_)) => {
-            ascribe_loop(e, exploration, relations, diagnostics, env, state)
+            ascribe_loop(e, exploration, diagnostics, reefs, state)
         }
         e @ (Expr::Continue(_) | Expr::Break(_)) => {
             ascribe_continue_or_break(e, diagnostics, state.source, state.in_loop)
@@ -1177,7 +1123,7 @@ mod tests {
 
     use crate::importer::StaticImporter;
     use crate::name::Name;
-    use crate::reef::{ReefContext, Reefs};
+    use crate::reef::{ReefAccessor, ReefContext, ReefId, Reefs};
     use crate::relations::{LocalId, NativeId};
     use crate::resolve_all;
     use crate::types::hir::{Convert, MethodCall};
@@ -1185,36 +1131,44 @@ mod tests {
 
     use super::*;
 
-    fn extract(source: Source) -> Result<(Typing, TypedExpr), Vec<Diagnostic>> {
-        let typing = Typing::with_lang();
+    fn extract(source: Source) -> Result<Reefs, Vec<Diagnostic>> {
         let name = Name::new(source.name);
         let mut diagnostics = Vec::new();
         let mut reefs = Reefs::default();
         let mut context = ReefContext::declare_new(&mut reefs, "test");
+
         resolve_all(
             name.clone(),
             &mut context,
             &mut StaticImporter::new([(name, source)], parse_trusted),
             &mut diagnostics,
         );
-        assert_eq!(diagnostics, vec![]);
 
-        let (typed, _) = apply_types(
-            &context.current_reef().engine,
-            &context.current_reef().relations,
-            &mut diagnostics,
-        );
-        let expr = typed.get_user(SourceId(0)).unwrap();
         if !diagnostics.is_empty() {
             return Err(diagnostics);
         }
-        Ok((typing, expr.expression.clone()))
+
+        apply_types(&mut context, &mut diagnostics);
+
+        if !diagnostics.is_empty() {
+            return Err(diagnostics);
+        }
+
+        Ok(reefs)
     }
 
     pub(crate) fn extract_expr(source: Source) -> Result<Vec<TypedExpr>, Vec<Diagnostic>> {
-        extract(source).map(|(_, expr)| {
-            if let ExprKind::Block(exprs) = expr.kind {
-                exprs
+        extract(source).map(|reefs| {
+            let expr = &reefs
+                .get_reef(ReefId(1))
+                .unwrap()
+                .typed_engine
+                .get_user(SourceId(0))
+                .unwrap()
+                .expression;
+
+            if let ExprKind::Block(exprs) = &expr.kind {
+                exprs.clone()
             } else {
                 unreachable!()
             }
@@ -1222,8 +1176,17 @@ mod tests {
     }
 
     pub(crate) fn extract_type(source: Source) -> Result<Type, Vec<Diagnostic>> {
-        let (typing, expr) = extract(source)?;
-        Ok(typing.get_type(expr.ty).unwrap().clone())
+        let reefs = extract(source)?;
+        let reef = reefs.get_reef(ReefId(1)).unwrap();
+        let expr = &reef.typed_engine.get_user(SourceId(0)).unwrap().expression;
+
+        let tpe = reefs
+            .get_reef(expr.ty.reef)
+            .and_then(|reef| reef.typing.get_type(expr.ty.type_id))
+            .unwrap()
+            .clone();
+
+        Ok(tpe)
     }
 
     #[test]
@@ -1263,24 +1226,6 @@ mod tests {
                 SourceId(0),
                 find_in(content, "1.6"),
                 "Found `Float`",
-            ))])
-        );
-    }
-
-    #[test]
-    fn unknown_type_annotation() {
-        let content = "val a: ABC = 1.6";
-        let res = extract_type(Source::unknown(content));
-        assert_eq!(
-            res,
-            Err(vec![Diagnostic::new(
-                DiagnosticID::UnknownType,
-                "Unknown type annotation",
-            )
-            .with_observation(Observation::here(
-                SourceId(0),
-                find_in(content, "ABC"),
-                "Not found in scope",
             ))])
         );
     }
@@ -1399,24 +1344,6 @@ mod tests {
     }
 
     #[test]
-    fn unknown_type_in_cast() {
-        let content = "4 as Imaginary";
-        let res = extract_type(Source::unknown(content));
-        assert_eq!(
-            res,
-            Err(vec![Diagnostic::new(
-                DiagnosticID::UnknownType,
-                "Unknown type annotation",
-            )
-            .with_observation(Observation::here(
-                SourceId(0),
-                find_in(content, "Imaginary"),
-                "Not found in scope",
-            ))])
-        );
-    }
-
-    #[test]
     fn incompatible_cast() {
         let content = "val n = 'a' as Int";
         let res = extract_type(Source::unknown(content));
@@ -1487,7 +1414,7 @@ mod tests {
                 "Expected `String`, found `Int`",
             ))
             .with_observation(Observation::context(
-                SourceId(0),
+                SourceId(1),
                 find_in(content, "str: String"),
                 "Parameter is declared here",
             ))]),

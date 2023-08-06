@@ -1,21 +1,24 @@
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::name::Name;
-use crate::reef::{Reef, ReefContext, ReefId};
+use crate::reef::{Reef, ReefAccessor, ReefContext, ReefId};
 use ast::r#use::InclusionPathItem;
 use context::source::{SourceSegment, SourceSegmentHolder};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
-use crate::relations::{LocalId, RelationId, SourceId, Symbol};
+use crate::relations::{LocalId, RelationId, SourceId, SymbolRef};
+use crate::types::ty::TypeRef;
 
 /// Information over the declared type of a variable
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum TypeInfo {
-    /// The variable is a regular variable
+pub enum SymbolInfo {
+    /// The symbol is a regular variable
     Variable,
-    /// The variable is a function declaration
+    /// The symbol is a function declaration
     Function,
+    /// The symbol is a Type
+    Type(TypeRef),
 }
 
 #[derive(Debug, Eq, PartialEq, Hash)]
@@ -33,11 +36,29 @@ impl SourceSegmentHolder for SymbolPathItem {
     }
 }
 
-impl Display for TypeInfo {
+impl Display for SymbolInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            TypeInfo::Variable => write!(f, "variable"),
-            TypeInfo::Function => write!(f, "function"),
+            SymbolInfo::Variable => write!(f, "variable"),
+            SymbolInfo::Function => write!(f, "function"),
+            SymbolInfo::Type(_) => write!(f, "type"),
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub enum SymbolRegistry {
+    /// type symbols
+    Types,
+    /// Variable and functions symbols
+    Objects,
+}
+
+impl SymbolRegistry {
+    pub(crate) fn accepts(&self, kind: SymbolInfo) -> bool {
+        match self {
+            SymbolRegistry::Types => matches!(kind, SymbolInfo::Type(_)),
+            SymbolRegistry::Objects => matches!(kind, SymbolInfo::Variable | SymbolInfo::Function),
         }
     }
 }
@@ -120,29 +141,30 @@ pub fn resolve_loc<'a, 'e>(
 
 /// A collection of variables
 #[derive(Debug, Clone, Default)]
-pub struct Variables {
+pub struct Symbols {
     /// Locals declarations
     locals: Locals,
 
     /// Relations with external variables.
-    /// The key is the variable Names, where value is the relation with another external environment's [Locals]
+    /// The key is the variable Names, where value is the concerned symbol registry,
+    /// with relation to another external environment symbols.
     externals: HashMap<SymbolLocation, RelationId>,
 }
 
-impl Variables {
+impl Symbols {
     /// Creates a new local variable.
-    pub fn declare_local(&mut self, name: String, ty: TypeInfo) -> Symbol {
+    pub fn declare_local(&mut self, name: String, ty: SymbolInfo) -> SymbolRef {
         self.locals.declare(name, ty)
     }
 
     /// Returns the local variable associated with the id
-    pub fn get_var(&self, id: LocalId) -> Option<&Variable> {
+    pub fn get(&self, id: LocalId) -> Option<&Symbol> {
         self.locals.vars.get(id.0)
     }
 
     /// Returns an entry for the given external symbol name relation
-    pub fn external(&mut self, name: SymbolLocation) -> Entry<SymbolLocation, RelationId> {
-        self.externals.entry(name)
+    pub fn external(&mut self, loc: SymbolLocation) -> Entry<SymbolLocation, RelationId> {
+        self.externals.entry(loc)
     }
 
     /// Finds the local identifier associated with an already known name.
@@ -150,34 +172,34 @@ impl Variables {
     /// The lookup uses the current scope, which is frequently updated during the collection phase.
     /// That's the main reason why this method should be used in pair the variable capture
     /// resolution, immediately after the closure is observed and inertly populated.
-    pub fn find_reachable(&self, name: &str) -> Option<LocalId> {
-        self.locals.position_reachable_local(name)
+    pub fn find_reachable(&self, name: &str, registry: SymbolRegistry) -> Option<LocalId> {
+        self.locals.position_reachable_local(name, registry)
     }
 
     /// Finds the local exported symbol associated with an already known name.
     ///
     /// Exported symbols are always declared in the outermost scope, and should be checked only
     /// after the whole environment is collected.
-    pub fn find_exported(&self, name: &str) -> Option<LocalId> {
+    pub fn find_exported(&self, name: &str, registry: SymbolRegistry) -> Option<LocalId> {
         self.locals
             .vars
             .iter()
             .rev()
-            .position(|var| var.name == name && var.is_exported())
+            .position(|sym| sym.name == name && sym.is_exported() && registry.accepts(sym.ty))
             .map(|idx| LocalId(self.locals.vars.len() - 1 - idx))
     }
 
     /// Lists all local variables, in the order they are declared.
     ///
     /// This exposes their current state, which is frequently updated.
-    /// Use [`Variables::find_reachable`] to lookup any variable during the collection phase,
-    /// or [`Variables::find_exported`] to lookup an exported variable after the collection phase.
-    pub fn all_vars(&self) -> &[Variable] {
+    /// Use [`Symbols::find_reachable`] to lookup any variable during the collection phase,
+    /// or [`Symbols::find_exported`] to lookup an exported variable after the collection phase.
+    pub fn all(&self) -> &[Symbol] {
         &self.locals.vars
     }
 
     /// returns an iterator over all variables, with their local identifier
-    pub fn iter(&self) -> impl Iterator<Item = (LocalId, &Variable)> {
+    pub fn iter(&self) -> impl Iterator<Item = (LocalId, &Symbol)> {
         self.locals
             .vars
             .iter()
@@ -186,14 +208,19 @@ impl Variables {
     }
 
     /// Iterates over all the exported variables, local to the environment.
-    pub fn exported_vars(&self) -> impl Iterator<Item = &Variable> {
+    pub fn exported_vars(&self) -> impl Iterator<Item = (LocalId, &Symbol)> {
         //consider for now that all local vars of the outermost scope are exported
-        self.locals.vars.iter().filter(|var| var.depth == -1)
+        self.locals
+            .vars
+            .iter()
+            .enumerate()
+            .filter(|(_, var)| var.depth == -1)
+            .map(|(id, var)| (LocalId(id), var))
     }
 
     /// Iterates over all the global variable ids, with their corresponding name.
     pub fn external_vars(&self) -> impl Iterator<Item = (&SymbolLocation, RelationId)> {
-        self.externals.iter().map(|(loc, id)| (loc, *id))
+        self.externals.iter().map(|(loc, sym)| (loc, *sym))
     }
 
     /// Finds the name of an external variable.
@@ -202,7 +229,7 @@ impl Variables {
     pub fn find_external_symbol_name(&self, object_id: RelationId) -> Option<&SymbolLocation> {
         self.externals
             .iter()
-            .find_map(|(name, id)| (id == &object_id).then_some(name))
+            .find_map(|(name, id)| (*id == object_id).then_some(name))
     }
 
     pub fn begin_scope(&mut self) {
@@ -217,7 +244,7 @@ impl Variables {
 #[derive(Debug, Clone, Default)]
 struct Locals {
     /// The actual list of seen and unique variables.
-    vars: Vec<Variable>,
+    vars: Vec<Symbol>,
 
     /// The current depth of the scope.
     ///
@@ -227,19 +254,14 @@ struct Locals {
 
 impl Locals {
     /// Adds a new variable and binds it to the current scope.
-    fn declare(&mut self, name: String, ty: TypeInfo) -> Symbol {
+    fn declare(&mut self, name: String, ty: SymbolInfo) -> SymbolRef {
         let id = self.vars.len();
-        self.vars.push(Variable {
+        self.vars.push(Symbol {
             name,
             depth: self.current_depth as isize,
             ty,
         });
-        Symbol::Local(LocalId(id))
-    }
-
-    /// Declares a new variable of type `TypeInfo::Variable`.
-    fn declare_variable(&mut self, name: String) {
-        self.declare(name, TypeInfo::Variable);
+        SymbolRef::Local(LocalId(id))
     }
 
     /// Moves into a new scope.
@@ -274,29 +296,29 @@ impl Locals {
     }
 
     /// Looks up a variable by name that is reachable from the current scope.
-    fn lookup_reachable_local(&self, name: &str) -> Option<&Variable> {
+    fn lookup_reachable_local(&self, name: &str, registry: SymbolRegistry) -> Option<&Symbol> {
         self.vars
             .iter()
             .rev()
-            .find(|var| var.name == name && var.depth >= 0)
+            .find(|var| var.depth >= 0 && var.name == name && registry.accepts(var.ty))
     }
 
     /// Gets the variable id from the current scope.
-    fn position_reachable_local(&self, name: &str) -> Option<LocalId> {
+    fn position_reachable_local(&self, name: &str, registry: SymbolRegistry) -> Option<LocalId> {
         self.vars
             .iter()
             .rev()
-            .position(|var| var.name == name && var.depth >= 0)
+            .position(|var| var.depth >= 0 && var.name == name && registry.accepts(var.ty))
             .map(|idx| LocalId(self.vars.len() - 1 - idx))
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Variable {
+pub struct Symbol {
     /// The name identifier of the variable.
     pub name: String,
 
-    pub ty: TypeInfo,
+    pub ty: SymbolInfo,
 
     /// The depth of the variable.
     ///
@@ -307,7 +329,7 @@ pub struct Variable {
     depth: isize,
 }
 
-impl Variable {
+impl Symbol {
     /// Creates a new variable.
     ///
     /// This convenience method accepts negative values as depths, which are the internal
@@ -316,7 +338,7 @@ impl Variable {
         Self {
             name,
             depth,
-            ty: TypeInfo::Variable,
+            ty: SymbolInfo::Variable,
         }
     }
 
@@ -334,17 +356,22 @@ mod tests {
     #[test]
     fn access_by_name() {
         let mut locals = Locals::default();
-        locals.declare_variable("foo".to_owned());
+        locals.declare("foo".to_owned(), SymbolInfo::Variable);
         locals.begin_scope();
-        locals.declare_variable("bar".to_owned());
+        locals.declare("bar".to_owned(), SymbolInfo::Variable);
         assert_eq!(
-            locals.lookup_reachable_local("foo"),
-            Some(&Variable::scoped("foo".to_owned(), 0))
+            locals.lookup_reachable_local("foo", SymbolRegistry::Objects),
+            Some(&Symbol::scoped("foo".to_owned(), 0))
         );
 
         assert_eq!(
-            locals.lookup_reachable_local("bar"),
-            Some(&Variable::scoped("bar".to_owned(), 1))
+            locals.lookup_reachable_local("bar", SymbolRegistry::Objects),
+            Some(&Symbol::scoped("bar".to_owned(), 1))
+        );
+
+        assert_eq!(
+            locals.lookup_reachable_local("bar", SymbolRegistry::Types),
+            None
         );
     }
 
@@ -352,33 +379,39 @@ mod tests {
     fn access_out_of_scope() {
         let mut locals = Locals::default();
         locals.begin_scope();
-        locals.declare_variable("bar".to_owned());
+        locals.declare("bar".to_owned(), SymbolInfo::Variable);
         locals.end_scope();
-        assert_eq!(locals.lookup_reachable_local("bar"), None);
+        assert_eq!(
+            locals.lookup_reachable_local("bar", SymbolRegistry::Objects),
+            None
+        );
         locals.begin_scope();
-        assert_eq!(locals.lookup_reachable_local("bar"), None);
+        assert_eq!(
+            locals.lookup_reachable_local("bar", SymbolRegistry::Objects),
+            None
+        );
     }
 
     #[test]
     fn shadow_nested() {
         let mut locals = Locals::default();
-        locals.declare_variable("foo".to_owned());
+        locals.declare("foo".to_owned(), SymbolInfo::Variable);
         locals.begin_scope();
         locals.begin_scope();
-        locals.declare_variable("foo".to_owned());
+        locals.declare("foo".to_owned(), SymbolInfo::Variable);
         assert_eq!(
-            locals.lookup_reachable_local("foo"),
-            Some(&Variable::scoped("foo".to_owned(), 2))
+            locals.lookup_reachable_local("foo", SymbolRegistry::Objects),
+            Some(&Symbol::scoped("foo".to_owned(), 2))
         );
         locals.end_scope();
         assert_eq!(
-            locals.lookup_reachable_local("foo"),
-            Some(&Variable::scoped("foo".to_owned(), 0))
+            locals.lookup_reachable_local("foo", SymbolRegistry::Objects),
+            Some(&Symbol::scoped("foo".to_owned(), 0))
         );
         locals.end_scope();
         assert_eq!(
-            locals.lookup_reachable_local("foo"),
-            Some(&Variable::scoped("foo".to_owned(), 0))
+            locals.lookup_reachable_local("foo", SymbolRegistry::Objects),
+            Some(&Symbol::scoped("foo".to_owned(), 0))
         );
     }
 }

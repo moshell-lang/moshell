@@ -1,7 +1,8 @@
 use analyzer::engine::Engine;
 use analyzer::environment::Environment;
 use analyzer::relations::{Definition, SourceId};
-use analyzer::types::hir::{Declaration, ExprKind, TypeId, TypedExpr, Var};
+use analyzer::types::hir::{Declaration, ExprKind, TypedExpr, Var};
+use analyzer::types::ty::TypeRef;
 use ast::value::LiteralValue;
 
 use crate::bytecode::{Instructions, Opcode, Placeholder};
@@ -92,7 +93,7 @@ fn emit_literal(literal: &LiteralValue, instructions: &mut Instructions, cp: &mu
 fn emit_ref(
     var: Var,
     ctx: EmitterContext,
-    ref_type: TypeId,
+    ref_type: TypeRef,
     instructions: &mut Instructions,
     cp: &mut ConstantPool,
     locals: &LocalsLayout,
@@ -121,8 +122,8 @@ fn emit_declaration(
 ) {
     let variable = ctx
         .environment
-        .variables
-        .get_var(declaration.identifier)
+        .symbols
+        .get(declaration.identifier)
         .expect("The declared variable should be in the current environment.");
 
     if let Some(value) = &declaration.value {

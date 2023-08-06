@@ -143,10 +143,13 @@ pub fn use_pipeline<'a>(
     let mut bytes = Vec::new();
     let contents = importer.list_content_ids();
     let lines = CachedSourceLocationLineProvider::compute(&contents, importer);
+    let reef = analyzer.context.current_reef();
+
     compile(
-        &analyzer.engine,
+        &reef.typed_engine,
         engine,
-        &analyzer.context.current_reef().relations,
+        &reef.relations,
+        analyzer.context.reef_id,
         starting_page,
         &mut bytes,
         Some(&lines),

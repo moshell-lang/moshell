@@ -23,12 +23,12 @@
 use std::collections::HashMap;
 
 use context::source::{SourceSegment, SourceSegmentHolder};
-use variables::Variables;
+use symbols::Symbols;
 
 use crate::name::Name;
-use crate::relations::{SourceId, Symbol};
+use crate::relations::{SourceId, SymbolRef};
 
-pub mod variables;
+pub mod symbols;
 
 /// An environment.
 /// The Environment contains the defined types, variables, structure and function definitions of a certain scope.
@@ -45,10 +45,10 @@ pub struct Environment {
     pub fqn: Name,
 
     /// The variables that are declared in the environment.
-    pub variables: Variables,
+    pub symbols: Symbols,
 
     /// A mapping of expression segments to symbols.
-    pub definitions: HashMap<SourceSegment, Symbol>,
+    pub definitions: HashMap<SourceSegment, SymbolRef>,
 
     /// A mapping of expression segments to their declaring environment.
     pub declarations: HashMap<SourceSegment, SourceId>,
@@ -60,7 +60,7 @@ impl Environment {
             parent: None,
             is_script: true,
             fqn: name,
-            variables: Variables::default(),
+            symbols: Symbols::default(),
             definitions: HashMap::new(),
             declarations: HashMap::new(),
         }
@@ -73,18 +73,18 @@ impl Environment {
             parent: Some(source_id),
             is_script: false,
             fqn: env_fqn,
-            variables: Variables::default(),
+            symbols: Symbols::default(),
             definitions: HashMap::new(),
             declarations: HashMap::new(),
         }
     }
 
     pub fn begin_scope(&mut self) {
-        self.variables.begin_scope();
+        self.symbols.begin_scope();
     }
 
     pub fn end_scope(&mut self) {
-        self.variables.end_scope();
+        self.symbols.end_scope();
     }
 
     /// Gets an iterator over the direct inner environment identifiers.
@@ -104,7 +104,7 @@ impl Environment {
     }
 
     /// Adds an annotation to any segment.
-    pub fn annotate(&mut self, segment: &impl SourceSegmentHolder, symbol: Symbol) {
+    pub fn annotate(&mut self, segment: &impl SourceSegmentHolder, symbol: SymbolRef) {
         self.definitions.insert(segment.segment(), symbol);
     }
 
@@ -114,12 +114,12 @@ impl Environment {
     }
 
     /// Iterates over the segments that maps to a symbol.
-    pub fn list_definitions(&self) -> impl Iterator<Item = (&SourceSegment, &Symbol)> {
+    pub fn list_definitions(&self) -> impl Iterator<Item = (&SourceSegment, &SymbolRef)> {
         self.definitions.iter()
     }
 
     /// Gets a symbol from the environment.
-    pub fn get_raw_symbol(&self, segment: SourceSegment) -> Option<Symbol> {
+    pub fn get_raw_symbol(&self, segment: SourceSegment) -> Option<SymbolRef> {
         self.definitions.get(&segment).copied()
     }
 
@@ -129,7 +129,7 @@ impl Environment {
     }
 
     /// Finds the local segments that references a symbol.
-    pub fn find_references(&self, symbol_declaration: Symbol) -> Vec<SourceSegment> {
+    pub fn find_references(&self, symbol_declaration: SymbolRef) -> Vec<SourceSegment> {
         let mut references = Vec::new();
         for (segment, symbol_reference) in &self.definitions {
             if symbol_reference == &symbol_declaration {

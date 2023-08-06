@@ -5,7 +5,8 @@ use context::source::SourceSegment;
 
 use crate::dependency::Dependencies;
 use crate::engine::Engine;
-use crate::reef::ReefId;
+use crate::environment::symbols::SymbolRegistry;
+use crate::reef::{ReefId, LANG_REEF};
 
 /// The object identifier base.
 ///
@@ -14,14 +15,14 @@ use crate::reef::ReefId;
 ///
 /// - [`RelationId`] points to a relation in [`Relation`].
 /// - [`SourceId`] points to a source in [`Engine`], sources are a root AST expression bound to an [`Environment`].
-/// - [`LocalId`] points to a local object in an environment's [`crate::environment::variables::Variables`].
+/// - [`LocalId`] points to a local object in an environment's [`crate::environment::symbols::Symbols`].
 /// - [`NativeId`] refers to an intrinsic function or method.
 /// - [`crate::types::TypeId`] points to a type registered in [`Typing`]
 ///
 /// Some main structures are based on object identifiers
 /// - [`ResolvedSymbol`] contains a [`SourceId`] and a [`LocalId`] which globally targets a symbol inside a given source environment,
 ///                      this structure is emitted by the resolution phase.
-/// - [`Symbol`] refers to a symbol, which is either local (to an unbound environment) or external, where the relation is held by the [`Relations`]
+/// - [`SymbolRef`] refers to a symbol, which is either local (to an unbound environment) or external, where the relation is held by the [`Relations`]
 pub type ObjectId = usize;
 
 /// A relation identifier, that points to a specific relation in the [`Relations`].
@@ -42,7 +43,7 @@ pub struct NativeId(pub ObjectId);
 
 /// An indication where an object is located.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum Symbol {
+pub enum SymbolRef {
     /// A local object, referenced by its index in the [`Environment`] it is defined in.
     Local(LocalId),
 
@@ -70,15 +71,15 @@ impl Definition {
     }
 }
 
-impl From<RelationId> for Symbol {
+impl From<RelationId> for SymbolRef {
     fn from(id: RelationId) -> Self {
-        Symbol::External(id)
+        SymbolRef::External(id)
     }
 }
 
-impl From<LocalId> for Symbol {
+impl From<LocalId> for SymbolRef {
     fn from(id: LocalId) -> Self {
-        Symbol::Local(id)
+        SymbolRef::Local(id)
     }
 }
 
@@ -101,6 +102,14 @@ impl ResolvedSymbol {
         Self {
             reef,
             source,
+            object_id,
+        }
+    }
+
+    pub const fn lang_symbol(object_id: LocalId) -> Self {
+        Self {
+            reef: LANG_REEF,
+            source: SourceId(0),
             object_id,
         }
     }
@@ -138,20 +147,25 @@ pub struct Relation {
     /// This relation's state.
     /// See [RelationState] for more details
     pub state: RelationState,
+
+    /// The targeted registry of the symbol
+    pub registry: SymbolRegistry,
 }
 
 impl Relation {
-    pub fn unresolved(origin: SourceId) -> Self {
+    pub fn unresolved(origin: SourceId, registry: SymbolRegistry) -> Self {
         Self {
             origin,
             state: RelationState::Unresolved,
+            registry,
         }
     }
 
-    pub fn resolved(origin: SourceId, resolved: ResolvedSymbol) -> Self {
+    pub fn resolved(origin: SourceId, resolved: ResolvedSymbol, registry: SymbolRegistry) -> Self {
         Self {
             origin,
             state: RelationState::Resolved(resolved),
+            registry,
         }
     }
 }
@@ -170,9 +184,9 @@ pub struct Relations {
 
 impl Relations {
     /// Tracks a new object and returns its identifier.
-    pub fn track_new_object(&mut self, origin: SourceId) -> RelationId {
+    pub fn track_new_object(&mut self, origin: SourceId, registry: SymbolRegistry) -> RelationId {
         let id = self.relations.len();
-        self.relations.push(Relation::unresolved(origin));
+        self.relations.push(Relation::unresolved(origin, registry));
         RelationId(id)
     }
 
@@ -188,7 +202,7 @@ impl Relations {
         let environment = engine
             .get_environment(object.origin)
             .expect("object relation targets to an unknown environment");
-        Some(environment.find_references(Symbol::External(tracked_object)))
+        Some(environment.find_references(SymbolRef::External(tracked_object)))
     }
 
     /// Returns a mutable iterator over all the objects.

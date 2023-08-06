@@ -6,7 +6,7 @@
 //     baz
 {
     var captured = 'bar'
-    fun foo(arg: String) -> ExitCode = {
+    fun foo(arg: String) -> Exitcode = {
         echo $captured
         captured = $arg
         echo $captured

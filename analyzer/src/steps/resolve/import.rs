@@ -1,12 +1,13 @@
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation, SourceLocation};
 use crate::engine::Engine;
-use crate::environment::variables::resolve_loc;
+use crate::environment::symbols::{resolve_loc, SymbolRegistry};
 use crate::environment::Environment;
 use crate::imports::{ResolvedImport, SourceImports, UnresolvedImport};
 use crate::name::Name;
 use crate::reef::ReefContext;
 use crate::relations::{ResolvedSymbol, SourceId};
 use crate::steps::resolve::{diagnose_unresolved_import, SymbolResolver};
+use std::collections::HashMap;
 
 impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
     /// Attempts to resolve all given unresolved imports, returning a [ResolvedImports] structure containing the
@@ -67,14 +68,27 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
                                         continue;
                                     }
 
-                                    let symbol_id = found_env.variables.find_exported(&symbol_name);
+                                    let mut symbols = HashMap::new();
 
-                                    if let Some(symbol_id) = symbol_id {
-                                        let resolved =
-                                            ResolvedSymbol::new(reef_id, found_env_id, symbol_id);
+                                    for r in [SymbolRegistry::Objects, SymbolRegistry::Types] {
+                                        if let Some(symbol_id) =
+                                            found_env.symbols.find_exported(&symbol_name, r)
+                                        {
+                                            symbols.insert(
+                                                r,
+                                                ResolvedSymbol::new(
+                                                    reef_id,
+                                                    found_env_id,
+                                                    symbol_id,
+                                                ),
+                                            );
+                                        }
+                                    }
+
+                                    if !symbols.is_empty() {
                                         imports.set_resolved_import(
                                             alias.unwrap_or(symbol_name),
-                                            ResolvedImport::Symbol(resolved),
+                                            ResolvedImport::Symbols(symbols),
                                             segment,
                                         );
                                         continue;
@@ -110,7 +124,7 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
                                 SourceLocation::new(env_id, segment),
                             )),
                         ),
-                        Some((reef, _)) => {
+                        Some((reef, reef_id)) => {
                             let name = loc.name;
                             // try to get referenced environment of the import
                             match get_mod(&name, &reef.engine) {
@@ -125,14 +139,32 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
                                     diagnostics.push(diagnostic);
                                 }
                                 Some((env_id, env)) => {
-                                    for var in env.variables.exported_vars() {
-                                        let var_id =
-                                            env.variables.find_exported(&var.name).unwrap();
-                                        let import_symbol =
-                                            ResolvedSymbol::new(context.reef_id, env_id, var_id);
+                                    let mut symbols_map: HashMap<
+                                        String,
+                                        HashMap<SymbolRegistry, ResolvedSymbol>,
+                                    > = HashMap::new();
+
+                                    for (var_id, var) in env.symbols.exported_vars() {
+                                        let symbols =
+                                            symbols_map.entry(var.name.clone()).or_default();
+
+                                        for registry in
+                                            [SymbolRegistry::Objects, SymbolRegistry::Types]
+                                        {
+                                            if registry.accepts(var.ty) {
+                                                symbols.insert(
+                                                    registry,
+                                                    ResolvedSymbol::new(reef_id, env_id, var_id),
+                                                );
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                    for (var_name, symbols) in symbols_map {
                                         imports.set_resolved_import(
-                                            var.name.clone(),
-                                            ResolvedImport::Symbol(import_symbol),
+                                            var_name.clone(),
+                                            ResolvedImport::Symbols(symbols),
                                             segment.clone(),
                                         );
                                     }

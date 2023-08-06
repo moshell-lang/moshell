@@ -1,7 +1,8 @@
 use libc::{O_APPEND, O_CREAT, O_RDONLY, O_RDWR, O_WRONLY};
 
 use analyzer::relations::Definition;
-use analyzer::types::hir::{ExprKind, FunctionCall, Redir, Redirect, TypeId, TypedExpr, Var};
+use analyzer::types::hir::{ExprKind, FunctionCall, Redir, Redirect, TypedExpr, Var};
+use analyzer::types::ty::TypeRef;
 use ast::call::{RedirFd, RedirOp};
 
 use crate::bytecode::{Instructions, Opcode};
@@ -116,7 +117,7 @@ fn emit_process_call_self(
 
 pub fn emit_function_invocation(
     function_call: &FunctionCall,
-    return_type: TypeId,
+    return_type: TypeRef,
     instructions: &mut Instructions,
     ctx: EmitterContext,
     cp: &mut ConstantPool,

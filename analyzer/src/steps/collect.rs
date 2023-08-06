@@ -4,6 +4,7 @@ use ast::call::Call;
 use ast::control_flow::ForKind;
 use ast::function::FunctionParameter;
 use ast::r#match::MatchPattern;
+use ast::r#type::Type;
 use ast::r#use::Import as ImportExpr;
 use ast::range;
 use ast::value::LiteralValue;
@@ -13,13 +14,13 @@ use range::Iterable;
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
-use crate::environment::variables::{SymbolLocation, TypeInfo};
+use crate::environment::symbols::{SymbolInfo, SymbolLocation, SymbolRegistry};
 use crate::environment::Environment;
 use crate::importer::{ASTImporter, ImportResult, Imported};
 use crate::imports::{Imports, UnresolvedImport};
 use crate::name::Name;
 use crate::reef::ReefContext;
-use crate::relations::{RelationState, SourceId, Symbol};
+use crate::relations::{RelationState, SourceId, SymbolRef};
 use crate::steps::resolve::SymbolResolver;
 use crate::steps::shared_diagnostics::diagnose_invalid_symbol;
 use crate::Inject;
@@ -151,17 +152,17 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
             let mut reported = HashSet::new();
             for (declaration_segment, symbol) in &env.definitions {
                 let id = match symbol {
-                    Symbol::Local(id) => id,
-                    Symbol::External(_) => continue, //we check declarations only, thus external symbols are ignored
+                    SymbolRef::Local(id) => id,
+                    SymbolRef::External(_) => continue, //we check declarations only, thus external symbols are ignored
                 };
                 if !reported.insert(id) {
                     continue;
                 }
-                let var = env
-                    .variables
-                    .get_var(*id)
+                let symbol = env
+                    .symbols
+                    .get(*id)
                     .expect("local symbol references an unknown variable");
-                let var_fqn = env_name.appended(Name::new(&var.name));
+                let var_fqn = env_name.appended(Name::new(&symbol.name));
 
                 let engine = &self.context.current_reef().engine;
                 let clashed_module = engine
@@ -187,7 +188,7 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
 
                     let msg = format!(
                         "Declared symbol '{}' in module {env_name} clashes with module {}",
-                        var.name, &clashed_module.fqn
+                        symbol.name, &clashed_module.fqn
                     );
                     let diagnostic = {
                         Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, msg)
@@ -364,11 +365,12 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                 return;
             }
             Expr::Assign(assign) => {
-                let symbol = self.identify_variable(
+                let symbol = self.identify_symbol(
                     *self.stack.last().unwrap(),
                     state.module,
                     SymbolLocation::unspecified(Name::new(assign.name)),
                     assign.segment(),
+                    SymbolRegistry::Objects,
                 );
                 self.current_env().annotate(assign, symbol);
                 self.tree_walk(state, &assign.value, to_visit);
@@ -383,11 +385,12 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                     for pattern in &arm.patterns {
                         match pattern {
                             MatchPattern::VarRef(reference) => {
-                                let symbol = self.identify_variable(
+                                let symbol = self.identify_symbol(
                                     *self.stack.last().unwrap(),
                                     state.module,
                                     SymbolLocation::unspecified(Name::new(reference.name)),
                                     reference.segment(),
+                                    SymbolRegistry::Objects,
                                 );
                                 self.current_env().annotate(reference, symbol);
                             }
@@ -407,15 +410,15 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                     self.current_env().begin_scope();
                     if let Some(name) = arm.val_name {
                         self.current_env()
-                            .variables
-                            .declare_local(name.to_owned(), TypeInfo::Variable);
+                            .symbols
+                            .declare_local(name.to_owned(), SymbolInfo::Variable);
                     }
                     self.tree_walk(state, &arm.body, to_visit);
                     self.current_env().end_scope();
                 }
             }
             Expr::Call(call) => {
-                self.resolve_primitive_call(*self.stack.last().unwrap(), call);
+                self.resolve_special_call(*self.stack.last().unwrap(), call);
                 for arg in &call.arguments {
                     self.tree_walk(state, arg, to_visit);
                 }
@@ -423,11 +426,12 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
             Expr::ProgrammaticCall(call) => {
                 match SymbolLocation::compute(&call.path, state.module, false) {
                     Ok(loc) => {
-                        let symbol = self.identify_variable(
+                        let symbol = self.identify_symbol(
                             *self.stack.last().unwrap(),
                             state.module,
                             loc,
                             call.segment(),
+                            SymbolRegistry::Objects,
                         );
 
                         self.current_env().annotate(call, symbol);
@@ -441,6 +445,9 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
             }
             Expr::MethodCall(call) => {
                 self.tree_walk(state, &call.source, to_visit);
+                for targ in &call.type_parameters {
+                    self.collect_type(state.module, targ)
+                }
                 for arg in &call.arguments {
                     self.tree_walk(state, arg, to_visit);
                 }
@@ -463,18 +470,22 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                 if let Some(initializer) = &var.initializer {
                     self.tree_walk(state, initializer, to_visit);
                 }
+                if let Some(ty) = &var.var.ty {
+                    self.collect_type(*self.stack.last().unwrap(), ty)
+                }
                 let env = self.current_env();
                 let symbol = env
-                    .variables
-                    .declare_local(var.var.name.to_owned(), TypeInfo::Variable);
+                    .symbols
+                    .declare_local(var.var.name.to_owned(), SymbolInfo::Variable);
                 env.annotate(var, symbol);
             }
             Expr::VarReference(var) => {
-                let symbol = self.identify_variable(
+                let symbol = self.identify_symbol(
                     *self.stack.last().unwrap(),
                     state.module,
                     SymbolLocation::unspecified(Name::new(var.name)),
                     var.segment(),
+                    SymbolRegistry::Objects,
                 );
                 self.current_env().annotate(var, symbol);
             }
@@ -498,6 +509,7 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                 }
             }
             Expr::Casted(casted) => {
+                self.collect_type(*self.stack.last().unwrap(), &casted.casted_type);
                 self.tree_walk(state, &casted.expr, to_visit);
             }
             Expr::Test(test) => {
@@ -555,8 +567,8 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                     ForKind::Range(range) => {
                         let env = self.current_env();
                         let symbol = env
-                            .variables
-                            .declare_local(range.receiver.to_owned(), TypeInfo::Variable);
+                            .symbols
+                            .declare_local(range.receiver.to_owned(), SymbolInfo::Variable);
                         env.annotate(range, symbol);
                         self.tree_walk(state, &range.iterable, to_visit);
                     }
@@ -577,29 +589,40 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
             Expr::FunctionDeclaration(func) => {
                 let symbol = self
                     .current_env()
-                    .variables
-                    .declare_local(func.name.to_owned(), TypeInfo::Function);
+                    .symbols
+                    .declare_local(func.name.to_owned(), SymbolInfo::Function);
                 self.current_env().annotate(func, symbol);
 
                 let func_id = self.engine().track(state.content, expr);
                 self.current_env().bind_source(func, func_id);
                 let func_env = self.current_env().fork(state.module, func.name);
-                self.stack.push(func_id);
 
-                let func_env = self.engine().attach(func_id, func_env);
+                self.stack.push(func_id);
+                self.engine().attach(func_id, func_env);
 
                 for param in &func.parameters {
-                    let symbol = func_env.variables.declare_local(
-                        match param {
-                            FunctionParameter::Named(named) => named.name.to_owned(),
-                            FunctionParameter::Variadic(_) => "@".to_owned(),
-                        },
-                        TypeInfo::Variable,
-                    );
+                    let param_name = match param {
+                        FunctionParameter::Named(named) => {
+                            if let Some(ty) = &named.ty {
+                                self.collect_type(func_id, ty);
+                            }
+                            named.name.to_owned()
+                        }
+                        FunctionParameter::Variadic(_) => "@".to_owned(),
+                    };
+                    let func_env = self.engine().get_environment_mut(func_id).unwrap();
+
+                    let symbol = func_env
+                        .symbols
+                        .declare_local(param_name, SymbolInfo::Variable);
+
                     // Only named parameters can be annotated for now
                     if let FunctionParameter::Named(named) = param {
                         func_env.annotate(named, symbol);
                     }
+                }
+                if let Some(ty) = &func.return_type {
+                    self.collect_type(func_id, ty)
                 }
                 self.tree_walk(&mut state.fork(func_id), &func.body, to_visit);
 
@@ -612,14 +635,20 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                 let func_env = self
                     .current_env()
                     .fork(state.module, &format!("lambda@{}", func_id.0));
+
                 self.stack.push(func_id);
-                let func_env = self.engine().attach(func_id, func_env);
+                self.engine().attach(func_id, func_env);
 
                 for param in &lambda.args {
+                    let func_env = self.engine().get_environment_mut(func_id).unwrap();
                     let symbol = func_env
-                        .variables
-                        .declare_local(param.name.to_owned(), TypeInfo::Variable);
+                        .symbols
+                        .declare_local(param.name.to_owned(), SymbolInfo::Variable);
                     func_env.annotate(param, symbol);
+
+                    if let Some(ty) = &param.ty {
+                        self.collect_type(func_id, ty)
+                    }
                 }
                 self.tree_walk(&mut state.fork(func_id), &lambda.body, to_visit);
                 Self::resolve_captures(&self.stack, self.context, &mut self.diagnostics);
@@ -647,6 +676,28 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
         SymbolResolver::resolve_captures(&stack, relations, reef_id, diagnostics);
     }
 
+    fn collect_type(&mut self, origin: SourceId, ty: &Type) {
+        match ty {
+            Type::Parametrized(p) => match SymbolLocation::compute(&p.path, origin, false) {
+                Err(diag) => self.diagnostics.push(diag),
+                Ok(loc) => {
+                    let symref = self.identify_symbol(
+                        origin,
+                        origin,
+                        loc,
+                        p.segment(),
+                        SymbolRegistry::Types,
+                    );
+                    let origin_env = self.engine().get_environment_mut(origin).unwrap();
+                    origin_env.annotate(p, symref)
+                }
+            },
+            Type::Callable(_) | Type::ByName(_) => {
+                panic!("Callable and By Name types are not yet supported.")
+            }
+        }
+    }
+
     fn extract_literal_argument(&self, call: &'a Call, nth: usize) -> Option<&'a str> {
         match call.arguments.get(nth)? {
             Expr::Literal(lit) => match &lit.parsed {
@@ -657,57 +708,58 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
         }
     }
 
-    fn resolve_primitive_call(&mut self, env_id: SourceId, call: &'a Call) -> Option<()> {
-        let command = self.extract_literal_argument(call, 0)?;
+    /// perform special operations if the bound call is a special call that may introduce new variables.
+    fn resolve_special_call(&mut self, env_id: SourceId, call: &Call) -> bool {
+        let Some(command) = self.extract_literal_argument(call, 0) else {
+            return false;
+        };
         match command {
             "read" => {
-                let var = self.extract_literal_argument(call, 1)?;
-                let env = self
-                    .context
-                    .current_reef_mut()
-                    .engine
-                    .get_environment_mut(env_id)
-                    .unwrap();
-                let symbol = env
-                    .variables
-                    .declare_local(var.to_owned(), TypeInfo::Variable);
-                env.annotate(&call.arguments[1], symbol);
-                Some(())
+                if let Some(var) = self.extract_literal_argument(call, 1) {
+                    let env = self.engine().get_environment_mut(env_id).unwrap();
+                    let symbol = env
+                        .symbols
+                        .declare_local(var.to_owned(), SymbolInfo::Variable);
+                    env.annotate(&call.arguments[1], symbol);
+                }
+                true
             }
-            _ => None,
+            _ => false,
         }
     }
 
-    /// Identifies a variable [Symbol] from [Variables] of given source.
-    /// Will return [Symbol::Local] if the given name isn't qualified and matches
-    fn identify_variable(
+    /// Identifies a [SymbolRef] from given source.
+    /// Will return [SymbolRef::Local] if the given name isn't qualified and was found in the current environment
+    /// Else, if the symbol does not exists, [SymbolRef::External] is returned and a new relation is requested for resolution.
+    fn identify_symbol(
         &mut self,
         source: SourceId,
         origin: SourceId,
         location: SymbolLocation,
         segment: SourceSegment,
-    ) -> Symbol {
+        registry: SymbolRegistry,
+    ) -> SymbolRef {
         let reef = self.context.current_reef_mut();
 
-        let variables = &mut reef.engine.get_environment_mut(source).unwrap().variables;
+        let symbols = &mut reef.engine.get_environment_mut(source).unwrap().symbols;
 
         macro_rules! track_global {
             () => {
-                *variables
+                *symbols
                     .external(location)
-                    .or_insert_with(|| reef.relations.track_new_object(origin))
+                    .or_insert_with(|| reef.relations.track_new_object(origin, registry))
             };
         }
 
         //if a reef is explicitly specified, then the reef and symbol's name must be resolved first
         if location.is_current_reef_explicit {
-            return Symbol::External(track_global!());
+            return SymbolRef::External(track_global!());
         }
 
-        match variables.find_reachable(location.name.root()) {
-            None => Symbol::External(track_global!()),
+        match symbols.find_reachable(location.name.root(), registry) {
+            None => SymbolRef::External(track_global!()),
             Some(id) if location.name.is_qualified() => {
-                let var = variables.get_var(id).unwrap();
+                let var = symbols.get(id).unwrap();
                 self.diagnostics.push(diagnose_invalid_symbol(
                     var.ty,
                     origin,
@@ -716,12 +768,12 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                 ));
                 // instantly declare a dead resolution object
                 // We could have returned None here to ignore the symbol but it's more appropriate to
-                // bind the variable occurrence with a dead object to signify that it's bound symbol invalid.
+                // bind the variable occurrence with a dead object to signify that its bound symbol is invalid.
                 let id = track_global!();
                 reef.relations[id].state = RelationState::Dead;
-                Symbol::External(id)
+                SymbolRef::External(id)
             }
-            Some(id) => Symbol::Local(id),
+            Some(id) => SymbolRef::Local(id),
         }
     }
 }
@@ -778,7 +830,7 @@ mod tests {
 
     use crate::importer::StaticImporter;
     use crate::reef::Reefs;
-    use crate::relations::{LocalId, RelationId, Symbol};
+    use crate::relations::{LocalId, RelationId, SymbolRef};
 
     use super::*;
 
@@ -944,7 +996,7 @@ mod tests {
         );
         assert_eq!(
             env.get_raw_symbol(source.segment()),
-            Some(Symbol::Local(LocalId(0)))
+            Some(SymbolRef::Local(LocalId(0)))
         );
         assert_eq!(env.get_raw_symbol(find_in(src, "a")), None);
         assert_eq!(env.get_raw_symbol(find_in(src, "$a")), None);
@@ -955,11 +1007,11 @@ mod tests {
             .unwrap();
         assert_eq!(
             func_env.get_raw_symbol(find_in(src, "a")),
-            Some(Symbol::Local(LocalId(0)))
+            Some(SymbolRef::Local(LocalId(0)))
         );
         assert_eq!(
             func_env.get_raw_symbol(find_in(src, "$a")),
-            Some(Symbol::Local(LocalId(0)))
+            Some(SymbolRef::Local(LocalId(0)))
         );
     }
 
@@ -979,7 +1031,7 @@ mod tests {
         assert_eq!(env.get_raw_symbol(find_in(src, "read")), None);
         assert_eq!(
             env.get_raw_symbol(find_in(src, "foo")),
-            Some(Symbol::Local(LocalId(0)))
+            Some(SymbolRef::Local(LocalId(0)))
         );
     }
 

@@ -196,7 +196,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             })
             .transpose()?;
 
-        let type_parameters = self.parse_type_parameter_list()?.0;
+        let type_arguments = self.parse_type_parameter_list()?.0;
         let open_parenthesis = self.cursor.force(
             of_type(TokenType::RoundedLeftBracket),
             "Expected opening parenthesis.",
@@ -210,7 +210,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             source: Box::new(expr),
             name: name.map(|n| n.value),
             arguments,
-            type_parameters,
+            type_parameters: type_arguments,
             segment,
         }))
     }

@@ -1,58 +1,41 @@
 use context::source::SourceSegmentHolder;
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
-use crate::steps::typing::exploration::{diagnose_unknown_type, Exploration};
+use crate::steps::typing::exploration::UniversalReefAccessor;
 use crate::steps::typing::lower::call_convert_on;
 use crate::steps::typing::TypingState;
-use crate::types::engine::TypedEngine;
-use crate::types::hir::{TypeId, TypedExpr};
-use crate::types::{Typing, BOOL, ERROR};
+use crate::types::hir::TypedExpr;
+use crate::types::ty::TypeRef;
+use crate::types::{convert_description, get_type, resolve_type, BOOL};
 
 /// Ensures that the type annotation accepts the given value.
 ///
 /// A type annotation might generate a conversion function call, which is returned.
 pub(super) fn check_type_annotation(
-    exploration: &mut Exploration,
+    reefs: &UniversalReefAccessor,
     type_annotation: &ast::r#type::Type,
     value: TypedExpr,
     diagnostics: &mut Vec<Diagnostic>,
     state: TypingState,
 ) -> TypedExpr {
-    let expected_type = exploration.ctx.resolve(type_annotation).unwrap_or(ERROR);
-    if expected_type.is_err() {
-        diagnostics.push(diagnose_unknown_type(
-            state.source,
-            type_annotation.segment(),
-        ));
-        return value;
-    }
     if value.ty.is_err() {
         return value;
     }
 
-    convert_expression(
-        value,
-        expected_type,
-        &mut exploration.typing,
-        &exploration.engine,
-        state,
-        diagnostics,
-    )
-    .unwrap_or_else(|value| {
+    let expected_type = resolve_type(reefs, state.reef, state.source, type_annotation);
+
+    convert_expression(value, expected_type, state, reefs, diagnostics).unwrap_or_else(|value| {
         diagnostics.push(
             Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
                 .with_observation(Observation::here(
                     state.source,
                     type_annotation.segment(),
-                    format!(
-                        "Expected `{}`",
-                        exploration.get_type(expected_type).unwrap()
-                    ),
+                    format!("Expected `{}`", get_type(expected_type, reefs).unwrap()),
                 ))
                 .with_observation(Observation::here(
                     state.source,
                     value.segment(),
-                    format!("Found `{}`", exploration.get_type(value.ty).unwrap()),
+                    format!("Found `{}`", get_type(value.ty, reefs).unwrap()),
                 )),
         );
         value
@@ -70,18 +53,16 @@ pub(super) fn check_type_annotation(
 /// it is registered but if the appropriate method is not found).
 pub(super) fn convert_expression(
     rvalue: TypedExpr,
-    assign_to: TypeId,
-    typing: &mut Typing,
-    engine: &TypedEngine,
+    assign_to: TypeRef,
     state: TypingState,
+    ura: &UniversalReefAccessor,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<TypedExpr, TypedExpr> {
-    match typing.convert_description(assign_to, rvalue.ty) {
+    match convert_description(ura, assign_to, rvalue.ty) {
         Ok(ty) => Ok(call_convert_on(
             rvalue,
-            typing,
-            engine,
             ty,
+            ura,
             |ty| format!("Cannot convert type `{ty}`"),
             diagnostics,
             state,
@@ -96,18 +77,11 @@ pub(super) fn convert_expression(
 /// Otherwise, the converted expression is returned.
 pub(super) fn coerce_condition(
     condition: TypedExpr,
-    exploration: &mut Exploration,
+    ura: &UniversalReefAccessor,
     state: TypingState,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> TypedExpr {
-    match convert_expression(
-        condition,
-        BOOL,
-        &mut exploration.typing,
-        &exploration.engine,
-        state,
-        diagnostics,
-    ) {
+    match convert_expression(condition, BOOL, state, ura, diagnostics) {
         Ok(condition) => condition,
         Err(condition) => {
             diagnostics.push(
@@ -117,7 +91,7 @@ pub(super) fn coerce_condition(
                         condition.segment(),
                         format!(
                             "Type `{}` cannot be used as a condition",
-                            exploration.get_type(condition.ty).unwrap()
+                            get_type(condition.ty, ura).unwrap()
                         ),
                     )),
             );

@@ -27,8 +27,6 @@ use crate::relations::SourceId;
 use crate::steps::collect::SymbolCollector;
 use crate::steps::resolve_sources;
 use crate::steps::typing::apply_types;
-use crate::types::engine::TypedEngine;
-use crate::types::Typing;
 
 pub mod diagnostic;
 pub mod engine;
@@ -62,12 +60,6 @@ pub struct Analyzer<'ca, 'e> {
     /// The current state of the resolution.
     pub resolution: ResolutionResult,
 
-    /// The current type knowledge.
-    pub typing: Typing,
-
-    /// The applied types over the [`Engine`].
-    pub engine: TypedEngine,
-
     pub context: ReefContext<'ca, 'e>,
 
     /// The diagnostics that were generated during the analysis.
@@ -79,8 +71,6 @@ impl<'ca, 'e> Analyzer<'ca, 'e> {
     pub fn new(context: ReefContext<'ca, 'e>) -> Self {
         Self {
             resolution: ResolutionResult::default(),
-            typing: Typing::default(),
-            engine: TypedEngine::default(),
             context,
             diagnostics: Vec::new(),
         }
@@ -101,13 +91,7 @@ impl<'ca, 'e> Analyzer<'ca, 'e> {
             &mut self.diagnostics,
         );
         if self.diagnostics.is_empty() {
-            let (engine, typing) = apply_types(
-                &self.context.current_reef().engine,
-                &self.context.current_reef().relations,
-                &mut self.diagnostics,
-            );
-            self.engine = engine;
-            self.typing = typing;
+            apply_types(&mut self.context, &mut self.diagnostics);
         }
         Analysis {
             analyzer: self,
@@ -140,13 +124,7 @@ impl<'ca, 'e> Analyzer<'ca, 'e> {
             &mut self.diagnostics,
         );
         if self.diagnostics.is_empty() {
-            let (engine, typing) = apply_types(
-                &self.context.current_reef().engine,
-                &self.context.current_reef().relations,
-                &mut self.diagnostics,
-            );
-            self.engine = engine;
-            self.typing = typing;
+            apply_types(&mut self.context, &mut self.diagnostics);
         }
         Analysis {
             analyzer: self,

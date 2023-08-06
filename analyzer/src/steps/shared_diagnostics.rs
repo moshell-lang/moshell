@@ -3,12 +3,12 @@
 use context::source::SourceSegment;
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation, SourceLocation};
-use crate::environment::variables::TypeInfo;
+use crate::environment::symbols::SymbolInfo;
 use crate::name::Name;
 use crate::relations::SourceId;
 
 pub fn diagnose_invalid_symbol(
-    base_type: TypeInfo,
+    base_type: SymbolInfo,
     env_id: SourceId,
     name: &Name,
     segments: &[SourceSegment],

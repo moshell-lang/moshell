@@ -3,7 +3,7 @@ use std::fmt::{Debug, Formatter};
 
 use indexmap::IndexMap;
 
-use crate::environment::variables::SymbolLocation;
+use crate::environment::symbols::{SymbolLocation, SymbolRegistry};
 use context::source::SourceSegment;
 
 use crate::relations::{ResolvedSymbol, SourceId};
@@ -71,8 +71,9 @@ pub enum UnresolvedImport {
 /// A resolved symbol import
 #[derive(PartialEq, Eq, Debug)]
 pub enum ResolvedImport {
-    /// The import is a symbol
-    Symbol(ResolvedSymbol),
+    /// The import is a symbol name.
+    /// A (non empty) hashmap contains the binding, for the bound name, of the symbol according to its registry
+    Symbols(HashMap<SymbolRegistry, ResolvedSymbol>),
     /// The import is an environment
     Env(SourceId),
     /// The import is unresolvable

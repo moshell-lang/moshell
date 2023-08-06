@@ -2,13 +2,13 @@ use std::collections::HashSet;
 
 use pretty_assertions::assert_eq;
 
-use analyzer::environment::variables::{SymbolLocation, Variable};
+use analyzer::environment::symbols::{Symbol, SymbolLocation, SymbolRegistry};
 use analyzer::importer::StaticImporter;
 use analyzer::imports::Imports;
 use analyzer::name::Name;
 use analyzer::reef::{ReefContext, Reefs};
 use analyzer::relations::{
-    LocalId, Relation, RelationId, RelationState, ResolvedSymbol, SourceId, Symbol,
+    LocalId, Relation, RelationId, RelationState, ResolvedSymbol, SourceId, SymbolRef,
 };
 use analyzer::steps::collect::SymbolCollector;
 use analyzer::steps::resolve::SymbolResolver;
@@ -60,33 +60,33 @@ fn collect_sample() {
         .expect("Unable to get root environment");
     assert_eq!(
         root_env.get_raw_symbol(find_between(content, "fun factorial(", "return $a\n}")),
-        Some(Symbol::Local(LocalId(0)))
+        Some(SymbolRef::Local(LocalId(0)))
     );
     assert_eq!(
         root_env.get_raw_symbol(find_between(content, "fun debug(", "wait\n}")),
-        Some(Symbol::Local(LocalId(1)))
+        Some(SymbolRef::Local(LocalId(1)))
     );
 
     let factorial_env = engine
         .get_environment(SourceId(1))
         .expect("Unable to get factorial environment");
     assert_eq!(factorial_env.fqn, root_name.child("factorial"));
-    let variables = factorial_env.variables.all_vars();
+    let variables = factorial_env.symbols.all();
     assert_eq!(
         variables,
         &vec![
-            Variable::scoped("n".to_owned(), 0),
-            Variable::scoped("a".to_owned(), 1),
-            Variable::scoped("i".to_owned(), -2),
+            Symbol::scoped("n".to_owned(), 0),
+            Symbol::scoped("a".to_owned(), 1),
+            Symbol::scoped("i".to_owned(), -2),
         ]
     );
-    let exported = factorial_env.variables.exported_vars().collect::<Vec<_>>();
-    assert_eq!(exported, Vec::<&Variable>::new());
+    let exported = factorial_env.symbols.exported_vars().collect::<Vec<_>>();
+    assert_eq!(exported, vec![]);
 
     let n_parameter = factorial_env
-        .variables
-        .find_reachable("n")
-        .map(Symbol::Local)
+        .symbols
+        .find_reachable("n", SymbolRegistry::Objects)
+        .map(SymbolRef::Local)
         .expect("Unable to get n symbol");
 
     assert_eq!(
@@ -107,16 +107,16 @@ fn collect_sample() {
         .get_environment(SourceId(2))
         .expect("Unable to get debug() environment");
     assert_eq!(debug_env.fqn, root_name.child("debug"));
-    let usages = debug_env.variables.external_vars().collect::<Vec<_>>();
+    let usages = debug_env.symbols.external_vars().collect::<Vec<_>>();
     assert_eq!(
         usages,
         vec![(
             &SymbolLocation::unspecified(Name::new("LOG_FILE")),
-            RelationId(0)
+            RelationId(1)
         )]
     );
     assert_eq!(
-        context.current_reef().relations[RelationId(0)],
+        context.current_reef().relations[RelationId(1)],
         Relation {
             origin: SourceId(2),
             state: RelationState::Resolved(ResolvedSymbol {
@@ -124,6 +124,7 @@ fn collect_sample() {
                 source: SourceId(6),
                 object_id: LocalId(0),
             }),
+            registry: SymbolRegistry::Objects
         }
     );
 
@@ -132,20 +133,20 @@ fn collect_sample() {
         .expect("Unable to get callback environment");
     assert_eq!(callback_env.fqn, root_name.child("main").child("callback"));
 
-    let mut globals = callback_env.variables.external_vars().collect::<Vec<_>>();
+    let mut globals = callback_env.symbols.external_vars().collect::<Vec<_>>();
     globals.sort_by_key(|(loc, _)| &loc.name);
     assert_eq!(
         globals,
         vec![
             (
                 &SymbolLocation::unspecified(Name::new("count")),
-                RelationId(1)
+                RelationId(2)
             ),
             (
                 &SymbolLocation::unspecified(Name::new("factorial")),
-                RelationId(2)
+                RelationId(3)
             ),
-            (&SymbolLocation::unspecified(Name::new("n")), RelationId(3)),
+            (&SymbolLocation::unspecified(Name::new("n")), RelationId(4)),
         ]
     );
 
@@ -153,7 +154,7 @@ fn collect_sample() {
     let relations = &context.current_reef().relations;
 
     assert_eq!(
-        relations[RelationId(1)],
+        relations[RelationId(2)],
         Relation {
             origin: SourceId(4),
             state: RelationState::Resolved(ResolvedSymbol {
@@ -161,17 +162,7 @@ fn collect_sample() {
                 source: SourceId(3),
                 object_id: LocalId(0),
             }),
-        }
-    );
-    assert_eq!(
-        relations[RelationId(2)],
-        Relation {
-            origin: SourceId(4),
-            state: RelationState::Resolved(ResolvedSymbol {
-                reef: reef_id,
-                source: SourceId(0),
-                object_id: LocalId(0),
-            }),
+            registry: SymbolRegistry::Objects
         }
     );
     assert_eq!(
@@ -181,17 +172,31 @@ fn collect_sample() {
             state: RelationState::Resolved(ResolvedSymbol {
                 reef: reef_id,
                 source: SourceId(0),
+                object_id: LocalId(0),
+            }),
+            registry: SymbolRegistry::Objects
+        }
+    );
+    assert_eq!(
+        relations[RelationId(4)],
+        Relation {
+            origin: SourceId(4),
+            state: RelationState::Resolved(ResolvedSymbol {
+                reef: reef_id,
+                source: SourceId(0),
                 object_id: LocalId(3),
             }),
+            registry: SymbolRegistry::Objects
         }
     );
 
     let lambda_env = engine
         .get_environment(SourceId(5))
         .expect("Unable to get lambda environment");
-    let variables = lambda_env.variables.external_vars().collect::<Vec<_>>();
+
+    let variables = lambda_env.symbols.external_vars().collect::<Vec<_>>();
     assert_eq!(
         variables,
-        vec![(&SymbolLocation::unspecified(Name::new("n")), RelationId(4))]
+        vec![(&SymbolLocation::unspecified(Name::new("n")), RelationId(5))]
     );
 }
