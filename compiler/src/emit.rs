@@ -28,8 +28,7 @@ pub struct EmitterContext<'a> {
     /// The currently emitted environment.
     ///
     /// It may be used to get the name of the current environment or to get the
-    /// current environment's variables. Remember that [`Environment::parent::is_none`] does
-    /// not mean that [`Self::is_script`] is `true`.
+    /// current environment's variables.
     pub(crate) environment: &'a Environment,
 
     /// The captures variables.
@@ -37,12 +36,6 @@ pub struct EmitterContext<'a> {
 
     /// The current chunk id.
     pub(crate) chunk_id: SourceId,
-
-    /// `true` if the current chunk is a root script, that have a permanent memory section.
-    ///
-    /// Such chunks don't have any parameters, and are not called by other chunks. Note
-    /// that it does not always means that they are the start of an [`Environment`] lineage.
-    pub(crate) is_script: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -135,7 +128,7 @@ fn emit_declaration(
     if let Some(value) = &declaration.value {
         locals.set_value_space(declaration.identifier, value.ty.into());
 
-        if variable.is_exported() && ctx.is_script {
+        if variable.is_exported() && ctx.environment.is_script {
             cp.insert_exported(
                 &variable.name,
                 locals

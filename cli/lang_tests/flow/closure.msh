@@ -1,0 +1,16 @@
+// Run:
+//   status: success
+//   stdout:
+//     bar
+//     baz
+//     baz
+{
+    var captured = 'bar'
+    fun foo(arg: String) -> ExitCode = {
+        echo $captured
+        captured = $arg
+        echo $captured
+    }
+    foo('baz')
+    echo $captured
+}

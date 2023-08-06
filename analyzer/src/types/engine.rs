@@ -7,11 +7,11 @@ use crate::types::ty::{FunctionType, MethodType, Parameter, TypeDescription};
 use crate::types::UNIT;
 use context::source::ContentId;
 
-/// A typed [`crate::engine::Engine`].
+/// A typed [`Engine`].
 ///
 /// This engine is used to store individual chunks of typed code, such as
 /// functions and scripts.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TypedEngine {
     /// The user defined chunks of code.
     ///
@@ -61,8 +61,6 @@ pub struct Chunk {
 
     /// The return type of the chunk.
     pub return_type: TypeId,
-
-    pub is_script: bool,
 }
 
 impl Chunk {
@@ -72,7 +70,6 @@ impl Chunk {
             expression,
             parameters: Vec::new(),
             return_type: UNIT,
-            is_script: true,
         }
     }
 
@@ -86,7 +83,6 @@ impl Chunk {
             expression,
             parameters,
             return_type,
-            is_script: false,
         }
     }
 }
@@ -186,11 +182,15 @@ impl TypedEngine {
     }
 
     /// Returns an iterator over all contained chunks grouped by they original content source.
-    pub fn group_by_content<'a>(&'a self, engine: &'a Engine) -> ContentIterator {
+    pub fn group_by_content<'a>(
+        &'a self,
+        engine: &'a Engine,
+        starting_page: SourceId,
+    ) -> ContentIterator {
         ContentIterator {
             typed: self,
             engine,
-            next: SourceId(0),
+            next: starting_page,
         }
     }
 }

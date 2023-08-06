@@ -2,71 +2,83 @@ use std::io;
 use std::io::BufRead;
 use std::io::Write;
 
-use analyzer::importer::{ASTImporter, ImportResult};
+use analyzer::importer::ImportResult;
 use analyzer::name::Name;
-use context::source::{ContentId, OwnedSource, Source};
+use analyzer::relations::SourceId;
+use analyzer::Inject;
+use context::source::{OwnedSource, Source};
 use parser::parse;
 
-use crate::cli::resolve_and_execute;
-use crate::cli::Cli;
-use crate::pipeline::{ErrorReporter, FileImportError, FileImporter, SourceHolder};
+use crate::cli::{use_pipeline, Cli};
+use crate::pipeline::{FileImporter, Pipeline, PipelineStatus};
 use crate::report::print_flush;
 
-/// A wrapper around a [`FileImporter`] that short-circuits the file system for
-/// a single source.
-struct InputImporter {
-    /// The next source to always import, independently of the name.
-    last: Option<OwnedSource>,
-
-    /// The inner file importer.
-    files: FileImporter,
-}
-
-impl InputImporter {
-    fn new(file_importer: FileImporter) -> Self {
-        Self {
-            last: None,
-            files: file_importer,
-        }
-    }
-
-    fn reserve(&mut self, source: OwnedSource) {
-        self.last = Some(source);
-    }
-}
-
-impl<'a> ASTImporter<'a> for InputImporter {
-    fn import(&mut self, name: &Name) -> ImportResult<'a> {
-        match self.last.take() {
-            Some(last) => self.files.insert(last),
-            None => self.files.import(name),
-        }
-    }
-}
-
-impl SourceHolder for InputImporter {
-    fn get_source(&self, id: ContentId) -> Option<Source> {
-        self.files.get_source(id)
-    }
-    fn list_content_ids(&self) -> Vec<ContentId> {
-        self.files.list_content_ids()
-    }
-}
-
-impl ErrorReporter for InputImporter {
-    fn take_errors(&mut self) -> Vec<FileImportError> {
-        self.files.take_errors()
-    }
-}
-
 /// Indefinitely prompts a new expression from stdin and executes it.
-pub fn prompt(importer: FileImporter, config: &Cli) {
-    let mut importer = InputImporter::new(importer);
+pub fn prompt(mut importer: FileImporter, config: &Cli) -> PipelineStatus {
+    // Init a new pipeline that will be used to execute each expression.
+    let mut pipeline = Pipeline::new();
+    let mut status = PipelineStatus::Success;
+
+    // Keep track of the previous attributed source, so that we can inject
+    // the next one into the same context.
+    let mut starting_source: Option<SourceId> = None;
+    let name = Name::new("stdin");
+
+    // Loop over the user's input until they exit the REPL.
     while let Some(source) = parse_input() {
-        let name = Name::new(&source.name);
-        importer.reserve(source);
-        resolve_and_execute(name, &mut importer, config);
+        // Inject the source directly into the importer, in order to know
+        // its attributed id. It will be used later to inject the next
+        // successfully parsed prompt.
+        if let ImportResult::Success(imported) = importer.insert(source) {
+            let mut analysis = pipeline.analyzer.inject(
+                Inject {
+                    name: name.clone(),
+                    imported,
+                    attached: starting_source,
+                },
+                &mut importer,
+            );
+
+            // Reuse the same diagnotics by moving them, requiring to keep track
+            // if there was any error since they will be consumed before being
+            // able to cancel the analysis (the errors need the context that is
+            // dropped when the analysis is reverted).
+            let diagnostics = analysis.take_diagnostics();
+            let is_ready = diagnostics.is_empty();
+            status = status.compose(use_pipeline(
+                &name,
+                analysis.attributed_id(),
+                analysis.analyzer(),
+                &mut pipeline.vm,
+                diagnostics,
+                &mut importer,
+                config,
+            ));
+
+            // Remember the successfully injected source, or revert the analysis.
+            if is_ready {
+                starting_source = Some(analysis.attributed_id());
+            } else {
+                analysis.revert();
+            }
+        } else {
+            // Probably hit some parse errors, so we skip any further analysis and
+            // directly display the errors. There should be no actual diagnostics
+            // in the pipeline, but we consume them anyway to reuse the same
+            // end-of-pipeline logic.
+            let diagnostics = pipeline.analyzer.take_diagnostics();
+            status = status.compose(use_pipeline(
+                &name,
+                SourceId(0), // this value has no importance
+                &pipeline.analyzer,
+                &mut pipeline.vm,
+                diagnostics,
+                &mut importer,
+                config,
+            ));
+        }
     }
+    status
 }
 
 /// Parses stdin until the user's input forms a source code with no unclosed delimiters

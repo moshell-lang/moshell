@@ -1,15 +1,11 @@
-#![allow(dead_code)]
-
-use std::io;
-use std::process::exit;
-
 use clap::Parser;
-use miette::MietteHandlerOpts;
+use miette::{IntoDiagnostic, MietteHandlerOpts, WrapErr};
 
 use analyzer::name::Name;
+use analyzer::relations::SourceId;
 
-use crate::cli::{resolve_and_execute, Cli};
-use crate::pipeline::FileImporter;
+use crate::cli::{use_pipeline, Cli};
+use crate::pipeline::{FileImporter, Pipeline, PipelineStatus};
 use crate::repl::prompt;
 
 mod cli;
@@ -18,7 +14,7 @@ mod pipeline;
 mod repl;
 mod report;
 
-fn main() -> io::Result<()> {
+fn main() -> Result<PipelineStatus, miette::Error> {
     #[cfg(unix)]
     {
         // Override Rust's default `SIGPIPE` signal handler that ignores the signal.
@@ -54,10 +50,23 @@ fn main() -> io::Result<()> {
             root
         });
         importer.add_redirection(name.clone(), source.clone());
-        let has_error = resolve_and_execute(name, &mut importer, &cli);
-        exit(i32::from(has_error))
+        let mut pipeline = Pipeline::new();
+        pipeline.analyzer.process(name.clone(), &mut importer);
+        let diagnostics = pipeline.analyzer.take_diagnostics();
+        return Ok(use_pipeline(
+            &name,
+            SourceId(0),
+            &pipeline.analyzer,
+            &mut pipeline.vm,
+            diagnostics,
+            &mut importer,
+            &cli,
+        ));
     }
-    let importer = FileImporter::new(std::env::current_dir()?);
-    prompt(importer, &cli);
-    Ok(())
+    let importer = FileImporter::new(
+        std::env::current_dir()
+            .into_diagnostic()
+            .context("Could not locate working directory")?,
+    );
+    Ok(prompt(importer, &cli))
 }

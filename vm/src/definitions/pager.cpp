@@ -8,7 +8,7 @@ namespace msh {
     }
 
     size_t pager::push_pool(ConstantPool pool, size_t dynsym_size) {
-        size_t index = pages.size();
+        size_t index = pools.size();
         pools.push_back(std::move(pool));
         indexes.emplace_back(dynsym_size, dynsym{static_cast<void *>(nullptr)});
         return index;
@@ -37,5 +37,9 @@ namespace msh {
     void pager::bind(size_t pool_index, size_t dynsym_id, exported_variable value) {
         void *ptr = &pages.at(value.page).bytes.at(value.offset);
         indexes.at(pool_index).at(dynsym_id) = ptr;
+    }
+
+    size_t pager::size() const {
+        return pages.size();
     }
 }

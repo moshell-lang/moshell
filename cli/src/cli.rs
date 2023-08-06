@@ -1,19 +1,19 @@
+use analyzer::diagnostic::Diagnostic;
+use analyzer::importer::ASTImporter;
+use analyzer::name::Name;
+use analyzer::relations::SourceId;
+use analyzer::Analyzer;
 use clap::Parser;
+use compiler::{compile, SourceLineProvider};
+use context::source::ContentId;
 use dbg_pls::color;
 use std::collections::HashMap;
 use std::io::stderr;
 use std::path::PathBuf;
-
-use analyzer::importer::ASTImporter;
-use analyzer::name::Name;
-use analyzer::resolve_all;
-use analyzer::steps::typing::apply_types;
-use compiler::{compile, SourceLineProvider};
-use context::source::ContentId;
-use vm::execute_bytecode;
+use vm::{VmError, VM};
 
 use crate::disassemble::display_bytecode;
-use crate::pipeline::{ErrorReporter, FileImportError, SourceHolder};
+use crate::pipeline::{ErrorReporter, FileImportError, PipelineStatus, SourceHolder};
 use crate::report::{display_diagnostic, display_parse_error};
 
 #[derive(Parser)]
@@ -74,24 +74,28 @@ impl SourceLineProvider for CachedSourceLocationLineProvider {
     }
 }
 
-pub fn resolve_and_execute<'a>(
-    entry_point: Name,
+#[must_use = "The pipeline status should be checked"]
+pub fn use_pipeline<'a>(
+    entry_point: &Name,
+    starting_page: SourceId,
+    analyzer: &Analyzer<'a>,
+    vm: &mut VM,
+    diagnostics: Vec<Diagnostic>,
     importer: &mut (impl ASTImporter<'a> + ErrorReporter),
     config: &Cli,
-) -> bool {
-    let result = resolve_all(entry_point.clone(), importer);
-
+) -> PipelineStatus {
     let errors = importer.take_errors();
-    if errors.is_empty() && result.engine.is_empty() {
+    if errors.is_empty() && analyzer.resolution.engine.is_empty() {
         eprintln!("No module found for entry point {entry_point}");
-        return true;
+        return PipelineStatus::IoError;
     }
 
-    let has_errors = !errors.is_empty();
+    let mut import_status = PipelineStatus::Success;
     for error in errors {
         match error {
-            FileImportError::IO(err) => {
-                eprintln!("IO error: {err}");
+            FileImportError::IO { inner, path } => {
+                eprintln!("Couldn't read {}: {inner}", path.display());
+                import_status = PipelineStatus::IoError;
             }
             FileImportError::Parse(report) => {
                 for error in report.errors {
@@ -102,63 +106,72 @@ pub fn resolve_and_execute<'a>(
                     )
                     .expect("IO error when reporting diagnostics");
                 }
+
+                // Prefer the IO error over a generic failure
+                if import_status != PipelineStatus::IoError {
+                    import_status = PipelineStatus::AnalysisError;
+                }
             }
         }
     }
-    if has_errors {
-        return true;
+    if import_status != PipelineStatus::Success {
+        return import_status;
     }
 
     if config.ast {
-        for ast in result
+        for ast in analyzer
+            .resolution
             .engine
             .environments()
             .filter(|(_, env)| env.parent.is_none())
-            .filter_map(|(id, _)| result.engine.get_expression(id))
+            .filter_map(|(id, _)| analyzer.resolution.engine.get_expression(id))
         {
             println!("{}", color(ast))
-        }
-    }
-
-    let mut diagnostics = result.diagnostics;
-    if diagnostics.is_empty() {
-        let (types, _) = apply_types(&result.engine, &result.relations, &mut diagnostics);
-        if diagnostics.is_empty() {
-            let mut bytes = Vec::new();
-
-            let contents = importer.list_content_ids();
-            let lines = CachedSourceLocationLineProvider::compute(&contents, importer);
-
-            compile(
-                &types,
-                &result.engine,
-                &result.relations,
-                &mut bytes,
-                Some(&lines),
-            )
-            .expect("write failed");
-
-            if config.disassemble {
-                display_bytecode(&bytes);
-            }
-
-            if !config.no_execute {
-                execute(&bytes);
-            }
-
-            return false;
         }
     }
 
     let mut stderr = stderr();
     let had_errors = !diagnostics.is_empty();
     for diagnostic in diagnostics {
-        display_diagnostic(&result.engine, importer, diagnostic, &mut stderr)
-            .expect("IO errors when reporting diagnostic");
+        display_diagnostic(
+            &analyzer.resolution.engine,
+            importer,
+            diagnostic,
+            &mut stderr,
+        )
+        .expect("IO errors when reporting diagnostic");
     }
-    had_errors
-}
 
-fn execute(bytes: &[u8]) -> i32 {
-    unsafe { execute_bytecode(bytes) }
+    if had_errors {
+        return PipelineStatus::AnalysisError;
+    }
+    let mut bytes = Vec::new();
+    let contents = importer.list_content_ids();
+    let lines = CachedSourceLocationLineProvider::compute(&contents, importer);
+    compile(
+        &analyzer.engine,
+        &analyzer.resolution.engine,
+        &analyzer.resolution.relations,
+        starting_page,
+        &mut bytes,
+        Some(&lines),
+    )
+    .expect("write failed");
+
+    if config.disassemble {
+        display_bytecode(&bytes);
+    }
+
+    let mut run_status = PipelineStatus::Success;
+    if !config.no_execute {
+        vm.register(&bytes)
+            .expect("compilation created invalid bytecode");
+        drop(bytes);
+        match unsafe { vm.run() } {
+            Ok(()) => {}
+            Err(VmError::Panic) => run_status = PipelineStatus::ExecutionFailure,
+            Err(VmError::Internal) => panic!("VM internal error"),
+        }
+    }
+    run_status
 }

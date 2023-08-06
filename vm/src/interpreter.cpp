@@ -231,12 +231,12 @@ inline bool apply_comparison(Opcode code, double a, double b) {
 }
 
 void panic(const std::string &msg, CallStack &stack) {
-    std::cerr << "panic: " << msg << "\n";
+    std::cerr << "panic: " << msg;
 
     while (!stack.is_empty()) {
         stack_frame frame = stack.peek_frame();
         const function_definition &def = frame.function;
-        std::cerr << "\tat " << *def.identifier;
+        std::cerr << "\n\tat " << *def.identifier;
 
         if (!def.mappings.empty()) {
             size_t instruction_line;
@@ -248,7 +248,6 @@ void panic(const std::string &msg, CallStack &stack) {
             }
             std::cerr << " (line " << instruction_line << ")";
         }
-        std::cerr << "\n";
         stack.pop_frame();
     }
     std::cerr << std::endl;
@@ -824,6 +823,7 @@ bool run_unit(const msh::loader &loader, msh::pager &pager, const msh::memory_pa
             }
             }
         }
+        return true;
     } catch (const VirtualMachineError &e) {
         panic("An unexpected Virtual Machine Error occurred.\n" + std::string(e.name()) + " : " + e.what(), call_stack);
     } catch (const RuntimeException &e) {
@@ -831,5 +831,5 @@ bool run_unit(const msh::loader &loader, msh::pager &pager, const msh::memory_pa
     } catch (const std::exception &e) {
         panic("An unexpected internal error occurred.\nwhat : " + std::string(e.what()), call_stack);
     }
-    return true;
+    return false;
 }

@@ -1141,11 +1141,12 @@ mod tests {
     fn extract(source: Source) -> Result<(Typing, TypedExpr), Vec<Diagnostic>> {
         let typing = Typing::with_lang();
         let name = Name::new(source.name);
+        let mut diagnostics = Vec::new();
         let result = resolve_all(
             name.clone(),
             &mut StaticImporter::new([(name, source)], parse_trusted),
+            &mut diagnostics,
         );
-        let mut diagnostics = result.diagnostics;
         assert_eq!(diagnostics, vec![]);
 
         let (typed, _) = apply_types(&result.engine, &result.relations, &mut diagnostics);

@@ -5,7 +5,7 @@ use context::source::SourceSegment;
 use crate::relations::SourceId;
 
 #[non_exhaustive]
-#[derive(PartialEq, Debug, Assoc)]
+#[derive(PartialEq, Debug, Assoc, Clone, Copy)]
 #[func(pub fn code(&self) -> u16)]
 #[func(pub fn critical(&self) -> bool { false })]
 pub enum DiagnosticID {

@@ -34,14 +34,15 @@ pub fn compile(
     typed_engine: &TypedEngine,
     link_engine: &Engine,
     relations: &Relations,
+    starting_page: SourceId,
     writer: &mut impl Write,
     line_provider: Option<&dyn SourceLineProvider>,
 ) -> Result<(), io::Error> {
-    let captures = resolve_captures(link_engine, relations, typed_engine);
+    let captures = resolve_captures(link_engine, relations);
     let mut bytecode = Bytecode::default();
     let mut cp = ConstantPool::default();
 
-    let mut it = typed_engine.group_by_content(link_engine);
+    let mut it = typed_engine.group_by_content(link_engine, starting_page);
     while let Some(content) = it.next() {
         let (chunk_id, main_env, main_chunk) = content.main_chunk(&it);
         let ctx = EmitterContext {
@@ -49,7 +50,6 @@ pub fn compile(
             engine: link_engine,
             captures: &captures,
             chunk_id,
-            is_script: true,
         };
         compile_chunk(
             &main_env.fqn,
@@ -69,7 +69,6 @@ pub fn compile(
                 engine: link_engine,
                 captures: &captures,
                 chunk_id,
-                is_script: false,
             };
             compile_chunk(
                 &env.fqn,
@@ -158,11 +157,7 @@ fn compile_line_mapping_attribute(
 ///
 /// This function will resolve all direct captures of the chunk and the captures of its inner chunks.
 /// All resolved captures are set into the given `captures` vector.
-fn resolve_captures(
-    engine: &Engine,
-    relations: &Relations,
-    typed_engine: &TypedEngine,
-) -> Captures {
+fn resolve_captures(engine: &Engine, relations: &Relations) -> Captures {
     let mut externals = HashSet::new();
     let mut captures = vec![None; engine.len()];
 
@@ -172,13 +167,12 @@ fn resolve_captures(
         relations: &Relations,
         captures: &mut Captures,
         externals: &mut HashSet<ResolvedSymbol>,
-        is_script: bool,
     ) {
         let env = engine.get_environment(chunk_id).unwrap();
 
         // recursively resolve all inner functions
         for func_id in env.iter_direct_inner_environments() {
-            resolve(func_id, engine, relations, captures, externals, false);
+            resolve(func_id, engine, relations, captures, externals);
             // filter out external symbols that refers to the current chunk
             externals.retain(|symbol| symbol.source != chunk_id);
         }
@@ -196,7 +190,7 @@ fn resolve_captures(
                     // filter out functions
                     let env = engine.get_environment(symbol.source).unwrap();
                     let var = env.variables.get_var(symbol.object_id).unwrap();
-                    var.ty == TypeInfo::Variable && !(is_script && var.is_exported())
+                    var.ty == TypeInfo::Variable && !(env.is_script && var.is_exported())
                 }),
         );
 
@@ -212,19 +206,9 @@ fn resolve_captures(
         captures[chunk_id.0] = Some(chunk_captures)
     }
 
-    // resolve capture of all chunks, starting from root chunks of each module
-    for (chunk_id, _) in typed_engine
-        .iter_chunks()
-        .filter(|(_, chunk)| chunk.is_script)
-    {
-        resolve(
-            chunk_id,
-            engine,
-            relations,
-            &mut captures,
-            &mut externals,
-            true,
-        );
+    // Resolve captures of all environments, starting from the roots of each module
+    for (engine_id, _) in engine.environments().filter(|(_, chunk)| chunk.is_script) {
+        resolve(engine_id, engine, relations, &mut captures, &mut externals);
     }
     captures
 }
@@ -354,7 +338,6 @@ mod tests {
     use analyzer::importer::StaticImporter;
     use analyzer::name::Name;
     use analyzer::relations::{LocalId, ResolvedSymbol, SourceId};
-    use analyzer::steps::typing::apply_types;
     use context::source::Source;
     use parser::parse_trusted;
 
@@ -381,14 +364,12 @@ mod tests {
            }
         }\
         ";
-        let result = analyzer::resolve_all(
+        let analyzer = analyzer::analyze(
             Name::new("test"),
             &mut StaticImporter::new([(Name::new("test"), Source::unknown(src))], parse_trusted),
         );
-
-        let (typed_engine, _) = apply_types(&result.engine, &result.relations, &mut vec![]);
-
-        let captures = resolve_captures(&result.engine, &result.relations, &typed_engine);
+        let result = analyzer.resolution;
+        let captures = resolve_captures(&result.engine, &result.relations);
 
         assert_eq!(
             captures,
