@@ -1,13 +1,7 @@
-#![allow(dead_code)]
-
 use std::iter::Peekable;
 use std::str::CharIndices;
 
-use crate::token::*;
-
-pub fn lex(input: &str) -> Vec<Token> {
-    Lexer::new(input).collect()
-}
+use crate::token::{Token, TokenType};
 
 /// A lexer that iterates over the input string and produces tokens.
 pub(crate) struct Lexer<'a> {
@@ -41,7 +35,7 @@ impl<'a> Iterator for Lexer<'a> {
 
 impl<'a> Lexer<'a> {
     /// Creates a new lexer.
-    fn new(input: &'a str) -> Self {
+    pub(crate) fn new(input: &'a str) -> Self {
         Self {
             iter: input.char_indices().peekable(),
             input,

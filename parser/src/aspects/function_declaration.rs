@@ -136,7 +136,6 @@ impl<'a> Parser<'a> {
                     ParseErrorKind::Expected("(".to_string()),
                 )
             })?;
-        self.delimiter_stack.push_back(parenthesis);
 
         let mut params = Vec::new();
         loop {
@@ -168,7 +167,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        self.expect_delimiter(RoundedRightBracket)?;
+        self.expect_delimiter(parenthesis, RoundedRightBracket)?;
 
         Ok(params)
     }

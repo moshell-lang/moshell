@@ -189,4 +189,8 @@ impl<'a> ParserCursor<'a> {
         let end = context.to.as_ptr() as usize + context.to.len() - self.source.as_ptr() as usize;
         start..end
     }
+
+    pub fn get_source(&self) -> &'a str {
+        self.source
+    }
 }

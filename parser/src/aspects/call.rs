@@ -75,7 +75,6 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         let type_parameters = self.parse_type_parameter_list()?.0;
         if let Some(open_parenthesis) = self.cursor.advance(of_type(TokenType::RoundedLeftBracket))
         {
-            self.delimiter_stack.push_back(open_parenthesis.clone());
             let (arguments, segment) = self.parse_comma_separated_arguments(open_parenthesis)?;
 
             let start = *path.first().unwrap_or(&value);
@@ -146,7 +145,6 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             of_type(TokenType::RoundedLeftBracket),
             "Expected opening parenthesis.",
         )?;
-        self.delimiter_stack.push_back(open_parenthesis.clone());
         let (arguments, segment) = self.parse_comma_separated_arguments(open_parenthesis)?;
         let start = *path.first().unwrap_or(&name.value);
         let segment = self.cursor.relative_pos(start).start..segment.end;
@@ -174,7 +172,6 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             of_type(TokenType::RoundedLeftBracket),
             "Expected opening parenthesis.",
         )?;
-        self.delimiter_stack.push_back(open_parenthesis.clone());
         let (arguments, segment) = self.parse_comma_separated_arguments(open_parenthesis)?;
         let segment = dot
             .map(|d| self.cursor.relative_pos(d.value))
@@ -284,7 +281,6 @@ impl<'a> Parser<'a> {
             if let Some(closing_parenthesis) =
                 self.cursor.advance(of_type(TokenType::RoundedRightBracket))
             {
-                self.delimiter_stack.pop_back();
                 segment.end = self.cursor.relative_pos(closing_parenthesis).end;
                 return Ok((args, segment));
             }
@@ -312,7 +308,8 @@ impl<'a> Parser<'a> {
                 )?;
             }
             if self.cursor.lookahead(eog()).is_some() {
-                let closing_parenthesis = self.expect_delimiter(TokenType::RoundedRightBracket)?;
+                let closing_parenthesis =
+                    self.expect_delimiter(open_parenthesis, TokenType::RoundedRightBracket)?;
                 segment.end = self.cursor.relative_pos_ctx(closing_parenthesis).end;
                 break;
             }

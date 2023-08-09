@@ -58,7 +58,6 @@ impl<'a> Parser<'a> {
             "expected match start",
             ParseErrorKind::Expected("{".to_string()),
         )?;
-        self.delimiter_stack.push_back(opening_bracket.clone());
 
         let mut arms: Vec<MatchArm<'a>> = Vec::new();
 
@@ -75,7 +74,6 @@ impl<'a> Parser<'a> {
             "expected '}'",
             ParseErrorKind::Unpaired(self.cursor.relative_pos(opening_bracket.clone())),
         )?;
-        self.delimiter_stack.pop_back();
 
         Ok((
             arms,

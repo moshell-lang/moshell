@@ -72,7 +72,6 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
             "expected start of list expression",
             Expected(start.str().unwrap_or("<undefined>").to_string()),
         )?;
-        self.delimiter_stack.push_back(start.clone());
         let mut elements = vec![];
 
         while self.cursor.lookahead(blanks().then(eog())).is_none() {
@@ -95,12 +94,12 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
             self.cursor.force_with(
                 blanks().then(of_type(Comma).or(lookahead(eog()))),
                 "A comma or a closing bracket was expected here",
-                Expected(format!("',' or '{}'", end.str().unwrap_or("<undefined>")).to_string()),
+                Expected(format!("',' or '{}'", end.str().unwrap_or("<undefined>"))),
             )?;
         }
         self.cursor.advance(blanks());
 
-        let end = self.expect_delimiter(end)?;
+        let end = self.expect_delimiter(start.clone(), end)?;
 
         Ok((elements, self.cursor.relative_pos_ctx(start..end)))
     }
