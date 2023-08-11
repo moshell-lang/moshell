@@ -27,6 +27,7 @@ impl<'a> From<&Token<'a>> for &'a str {
     }
 }
 
+
 #[derive(Assoc, Debug, PartialEq, Clone, Copy, DebugPls)]
 #[func(pub fn str(&self) -> Option<&'static str>)]
 pub enum TokenType {
@@ -51,6 +52,8 @@ pub enum TokenType {
     Fun,
     #[assoc(str = "use")]
     Use,
+    #[assoc(str = "reef")]
+    Reef,
     #[assoc(str = "if")]
     If,
     #[assoc(str = "else")]
