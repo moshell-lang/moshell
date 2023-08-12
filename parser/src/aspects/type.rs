@@ -78,11 +78,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
     }
 
     fn parse_type_parameter_list(&mut self) -> ParseResult<(Vec<Type<'a>>, SourceSegment)> {
-        if self
-            .cursor
-            .lookahead(blanks().then(of_type(SquaredLeftBracket)))
-            .is_none()
-        {
+        if self.cursor.lookahead(of_type(SquaredLeftBracket)).is_none() {
             return Ok((Vec::new(), self.cursor.relative_pos_ctx(self.cursor.peek())));
         }
         let start = self.cursor.peek();

@@ -42,7 +42,6 @@ fn with_lexer_var_reference_one() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
-            path: Vec::new(),
             arguments: vec![
                 literal(source.source, "echo"),
                 literal(source.source, "'$var5'"),
@@ -51,7 +50,6 @@ fn with_lexer_var_reference_one() {
                     segment: find_in_nth(source.source, "$var5", 1),
                 }),
             ],
-            type_parameters: Vec::new()
         })]
     );
 }
@@ -64,7 +62,6 @@ fn with_lexer_var_reference_two() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
-            path: Vec::new(),
             arguments: vec![
                 Expr::TemplateString(TemplateString {
                     parts: vec![
@@ -82,7 +79,6 @@ fn with_lexer_var_reference_two() {
                     segment: find_in(source.source, "$arg2"),
                 }),
             ],
-            type_parameters: Vec::new()
         })]
     );
 }
@@ -102,7 +98,6 @@ fn with_lexer_var_reference_three() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
-            path: Vec::new(),
             arguments: vec![
                 literal(source.source, "echo"),
                 Expr::TemplateString(TemplateString {
@@ -126,7 +121,6 @@ fn with_lexer_var_reference_three() {
                     segment: find_between(source.source, "\"", "\""),
                 }),
             ],
-            type_parameters: Vec::new()
         })]
     );
 }
@@ -139,9 +133,7 @@ fn with_lexer_redirection() {
         parsed,
         vec![Expr::Redirected(Redirected {
             expr: Box::new(Expr::Call(Call {
-                path: Vec::new(),
                 arguments: vec![literal(source.source, "test")],
-                type_parameters: Vec::new(),
             })),
             redirections: vec![Redir {
                 fd: RedirFd::Wildcard,
@@ -161,9 +153,7 @@ fn with_lexer_redirections() {
         parsed,
         vec![Expr::Redirected(Redirected {
             expr: Box::new(Expr::Call(Call {
-                path: Vec::new(),
                 arguments: vec![literal(source.source, "command")],
-                type_parameters: Vec::new(),
             })),
             redirections: vec![
                 Redir {
@@ -192,18 +182,14 @@ fn with_lexer_pipe_and_redirection() {
         vec![Expr::Pipeline(Pipeline {
             commands: vec![
                 Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![literal(source.source, "ls"), literal(source.source, "-l")],
-                    type_parameters: Vec::new(),
                 }),
                 Expr::Redirected(Redirected {
                     expr: Box::new(Expr::Call(Call {
-                        path: Vec::new(),
                         arguments: vec![
                             literal(source.source, "grep"),
                             literal(source.source, "'hello'"),
                         ],
-                        type_parameters: Vec::new()
                     })),
                     redirections: vec![Redir {
                         fd: RedirFd::Default,
@@ -226,23 +212,17 @@ fn with_lexer_pipe_and_pipe() {
         vec![Expr::Pipeline(Pipeline {
             commands: vec![
                 Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![literal(source.source, "ls")],
-                    type_parameters: Vec::new(),
                 }),
                 Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![literal(source.source, "wc")],
-                    type_parameters: Vec::new(),
                 }),
                 Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![
                         literal(source.source, "tr"),
                         literal(source.source, "-s"),
                         literal(source.source, "' '"),
                     ],
-                    type_parameters: Vec::new()
                 }),
             ],
         }),]
@@ -258,9 +238,7 @@ fn with_lexer_here_string() {
         parsed,
         vec![Expr::Redirected(Redirected {
             expr: Box::new(Expr::Call(Call {
-                path: Vec::new(),
                 arguments: vec![literal(content, "grep"), literal_nth(content, "e", 1)],
-                type_parameters: Vec::new(),
             })),
             redirections: vec![Redir {
                 fd: RedirFd::Default,
@@ -279,25 +257,21 @@ fn with_lexer_substitution() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
-            path: Vec::new(),
             arguments: vec![
                 literal(source.source, "echo"),
                 Expr::Substitution(Substitution {
                     underlying: Subshell {
                         expressions: vec![Expr::Call(Call {
-                            path: Vec::new(),
                             arguments: vec![
                                 literal(source.source, "ls"),
                                 literal(source.source, "-l"),
                             ],
-                            type_parameters: Vec::new(),
                         })],
                         segment: find_in(source.source, "$(ls -l)"),
                     },
                     kind: SubstitutionKind::Capture,
                 }),
             ],
-            type_parameters: Vec::new()
         })]
     );
 }
@@ -309,13 +283,11 @@ fn with_lexer_substitution_in_substitution() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
-            path: Vec::new(),
             arguments: vec![
                 literal(source.source, "echo"),
                 Expr::Substitution(Substitution {
                     underlying: Subshell {
                         expressions: vec![Expr::Call(Call {
-                            path: Vec::new(),
                             arguments: vec![
                                 literal(source.source, "ls"),
                                 Expr::TemplateString(TemplateString {
@@ -323,9 +295,7 @@ fn with_lexer_substitution_in_substitution() {
                                         Expr::Substitution(Substitution {
                                             underlying: Subshell {
                                                 expressions: vec![Expr::Call(Call {
-                                                    path: Vec::new(),
                                                     arguments: vec![literal(source.source, "pwd")],
-                                                    type_parameters: Vec::new(),
                                                 })],
                                                 segment: find_in(source.source, "$(pwd)"),
                                             },
@@ -336,14 +306,12 @@ fn with_lexer_substitution_in_substitution() {
                                     segment: find_in(source.source, "\"$(pwd)/test\""),
                                 }),
                             ],
-                            type_parameters: Vec::new(),
                         })],
                         segment: find_in(source.source, "$( ls \"$(pwd)/test\" )"),
                     },
                     kind: SubstitutionKind::Capture,
                 }),
             ],
-            type_parameters: Vec::new()
         })]
     );
 }
@@ -357,23 +325,18 @@ fn pipe_expressions() {
         vec![Expr::Pipeline(Pipeline {
             commands: vec![
                 Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![literal(source.source, "find"), literal(source.source, "."),],
-                    type_parameters: Vec::new(),
                 }),
                 Expr::While(While {
                     condition: Box::new(Expr::Call(Call {
-                        path: Vec::new(),
                         arguments: vec![
                             literal(source.source, "read"),
                             literal(source.source, "-r"),
                             literal(source.source, "filename"),
                         ],
-                        type_parameters: Vec::new(),
                     })),
                     body: Box::new(Expr::Block(Block {
                         expressions: vec![Expr::Call(Call {
-                            path: Vec::new(),
                             arguments: vec![
                                 literal(source.source, "echo"),
                                 Expr::VarReference(VarReference {
@@ -381,7 +344,6 @@ fn pipe_expressions() {
                                     segment: find_in(source.source, "$filename"),
                                 }),
                             ],
-                            type_parameters: Vec::new(),
                         })],
                         segment: find_in(source.source, "{ echo $filename }"),
                     })),
@@ -402,19 +364,15 @@ fn pipe_to_command() {
             commands: vec![
                 Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
-                        path: Vec::new(),
                         arguments: vec![
                             literal(source.source, "echo"),
                             literal(source.source, "'1\n2'")
                         ],
-                        type_parameters: Vec::new(),
                     })],
                     segment: find_in(source.source, "{ echo '1\n2' }"),
                 }),
                 Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![literal(source.source, "cat")],
-                    type_parameters: Vec::new(),
                 }),
             ],
         })]
@@ -456,12 +414,10 @@ fn loop_assign() {
                     underlying: Subshell {
                         expressions: vec![Expr::Redirected(Redirected {
                             expr: Box::new(Expr::Call(Call {
-                                path: Vec::new(),
                                 arguments: vec![
                                     literal(source.source, "pgrep"),
                                     literal(source.source, "shell"),
                                 ],
-                                type_parameters: Vec::new(),
                             })),
                             redirections: vec![Redir {
                                 fd: RedirFd::Fd(2),
@@ -491,9 +447,7 @@ fn here_string_pipeline() {
             commands: vec![
                 Expr::Redirected(Redirected {
                     expr: Box::new(Expr::Call(Call {
-                        path: Vec::new(),
                         arguments: vec![literal(source.source, "sort")],
-                        type_parameters: Vec::new(),
                     })),
                     redirections: vec![Redir {
                         fd: RedirFd::Default,
@@ -506,9 +460,7 @@ fn here_string_pipeline() {
                     }],
                 }),
                 Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![literal(source.source, "uniq")],
-                    type_parameters: Vec::new(),
                 }),
             ],
         })]
@@ -523,9 +475,7 @@ fn redirect_string_local_exe() {
         parsed,
         vec![Expr::Redirected(Redirected {
             expr: Box::new(Expr::Call(Call {
-                path: Vec::new(),
                 arguments: vec![literal(source.source, "./target/debug/cli")],
-                type_parameters: Vec::new(),
             })),
             redirections: vec![Redir {
                 fd: RedirFd::Default,

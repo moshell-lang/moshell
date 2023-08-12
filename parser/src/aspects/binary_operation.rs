@@ -345,33 +345,27 @@ mod tests {
                 left: Box::new(Expr::Subshell(Subshell {
                     expressions: vec![Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Call(Call {
-                            path: Vec::new(),
                             arguments: vec![
                                 literal(source.source, "echo"),
                                 literal(source.source, "hello"),
                             ],
-                            type_parameters: vec![],
                         })),
                         op: And,
                         right: Box::new(Expr::Call(Call {
-                            path: Vec::new(),
                             arguments: vec![
                                 literal_nth(source.source, "echo", 1),
                                 literal(source.source, "world"),
                             ],
-                            type_parameters: vec![],
                         })),
                     })],
                     segment: find_between(source.source, "(", ")")
                 })),
                 op: Or,
                 right: Box::new(Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![
                         literal_nth(source.source, "echo", 2),
                         literal(source.source, "damn"),
                     ],
-                    type_parameters: vec![],
                 })),
             })
         )
@@ -387,7 +381,6 @@ mod tests {
             Expr::Binary(BinaryOperation {
                 left: Box::new(Expr::Subshell(Subshell {
                     expressions: vec![Expr::Call(Call {
-                        path: Vec::new(),
                         arguments: vec![
                             literal(source.source, "echo"),
                             literal(source.source, "hello"),
@@ -395,18 +388,15 @@ mod tests {
                             literal(source.source, "world"),
                             literal(source.source, ")"),
                         ],
-                        type_parameters: vec![],
                     })],
                     segment: find_between(source.source, "(", ";)")
                 })),
                 op: Or,
                 right: Box::new(Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![
                         literal_nth(source.source, "echo", 1),
                         literal(source.source, "damn"),
                     ],
-                    type_parameters: vec![],
                 })),
             })
         )

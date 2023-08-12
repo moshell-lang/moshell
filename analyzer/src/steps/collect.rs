@@ -631,9 +631,6 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
     }
 
     fn resolve_primitive_call(&mut self, env_id: SourceId, call: &Call) -> Option<()> {
-        if !call.path.is_empty() {
-            return None;
-        }
         let command = self.extract_literal_argument(call, 0)?;
         match command {
             "read" => {

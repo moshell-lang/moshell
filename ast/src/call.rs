@@ -12,16 +12,10 @@ use crate::Expr;
 /// command name.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Call<'a> {
-    ///The relative path where this _function_ is stored.
-    pub path: Vec<&'a str>,
-
     /// The arguments of the command.
     ///
     /// A valid command must have at least one argument which is the command name.
     pub arguments: Vec<Expr<'a>>,
-
-    /// type parameters of the call.
-    pub type_parameters: Vec<Type<'a>>,
 }
 
 impl SourceSegmentHolder for Call<'_> {

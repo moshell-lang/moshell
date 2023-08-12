@@ -170,8 +170,6 @@ fn lambda_in_classic_call() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
-            path: Vec::new(),
-            type_parameters: Vec::new(),
             arguments: vec![
                 literal(source.source, "echo"),
                 literal(source.source, "a"),
@@ -281,12 +279,10 @@ fn background_command_echo() {
     let parsed = parse(source).expect("Failed to parse");
     let expected = vec![Expr::Detached(Detached {
         underlying: Box::new(Expr::Call(Call {
-            path: Vec::new(),
             arguments: vec![
                 literal(source.source, "echo"),
                 literal(source.source, "hello"),
             ],
-            type_parameters: Vec::new(),
         })),
         segment: find_in(source.source, "echo hello &"),
     })];
@@ -300,9 +296,7 @@ fn command_starting_with_arg() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
-            path: Vec::new(),
             arguments: vec![literal(source.source, "-"), literal(source.source, "W")],
-            type_parameters: Vec::new()
         })]
     );
 }
@@ -314,7 +308,6 @@ fn constructor_in_call() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
-            path: Vec::new(),
             arguments: vec![
                 literal(source.source, "echo"),
                 Expr::ProgrammaticCall(ProgrammaticCall {
@@ -329,7 +322,6 @@ fn constructor_in_call() {
                     segment: find_in(source.source, "Bar\\(\\)")
                 }),
             ],
-            type_parameters: Vec::new()
         })]
     );
 }
@@ -373,14 +365,12 @@ fn wildcard_redirect_or() {
         vec![Expr::Binary(BinaryOperation {
             left: Box::new(Expr::Redirected(Redirected {
                 expr: Box::new(Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![
                         literal(content, "docker"),
                         literal(content, "image"),
                         literal(content, "inspect"),
                         literal(content, "moshell:0.1"),
                     ],
-                    type_parameters: Vec::new()
                 })),
                 redirections: vec![Redir {
                     fd: RedirFd::Wildcard,
@@ -391,12 +381,10 @@ fn wildcard_redirect_or() {
             })),
             op: BinaryOperator::Or,
             right: Box::new(Expr::Call(Call {
-                path: Vec::new(),
                 arguments: vec![
                     literal(content, "echo"),
                     literal(content, "'Unknown image!'"),
                 ],
-                type_parameters: Vec::new()
             })),
         })]
     );
@@ -466,7 +454,6 @@ fn call_not_assign() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
-            path: Vec::new(),
             arguments: vec![
                 literal(source.source, "a"),
                 literal(source.source, "'='"),
@@ -475,7 +462,6 @@ fn call_not_assign() {
                     segment: find_in(source.source, "5")
                 }),
             ],
-            type_parameters: Vec::new()
         })]
     );
 }
@@ -540,7 +526,6 @@ fn classic_call() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
-            path: Vec::new(),
             arguments: vec![
                 literal(source.source, "ssh"),
                 literal(source.source, "localhost"),
@@ -556,7 +541,6 @@ fn classic_call() {
                     segment: find_in(source.source, "2")
                 }),
             ],
-            type_parameters: Vec::new()
         })]
     );
 }
@@ -644,7 +628,6 @@ fn method_call_with_type_params_and_ref() {
                 segment: find_between(source.source, ".", ")")
             }),
             Expr::Call(Call {
-                path: Vec::new(),
                 arguments: vec![
                     literal(source.source, "echo"),
                     Expr::TemplateString(TemplateString {
@@ -666,7 +649,6 @@ fn method_call_with_type_params_and_ref() {
                         segment: find_between(source.source, "\"", "\"")
                     }),
                 ],
-                type_parameters: Vec::new()
             }),
         ]
     );
@@ -686,12 +668,10 @@ fn comments_mix_with_spaces() {
         parsed,
         vec![Expr::Block(Block {
             expressions: vec![Expr::Call(Call {
-                path: Vec::new(),
                 arguments: vec![
                     literal(source.source, "ping"),
                     literal(source.source, "localhost")
                 ],
-                type_parameters: Vec::new()
             })],
             segment: source.segment()
         })]
@@ -705,7 +685,6 @@ fn classic_call_no_regression() {
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
-            path: Vec::new(),
             arguments: vec![
                 literal(source.source, "test"),
                 literal(source.source, "'=>'"),
@@ -728,7 +707,6 @@ fn classic_call_no_regression() {
                     segment: find_in(source.source, "true$a")
                 }),
             ],
-            type_parameters: Vec::new()
         })]
     );
 }

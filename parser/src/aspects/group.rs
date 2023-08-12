@@ -378,12 +378,10 @@ mod tests {
                                 segment: find_in(source.source, "val x = 89"),
                             }),
                             Expr::Call(Call {
-                                path: Vec::new(),
                                 arguments: vec![
                                     literal(source.source, "command"),
                                     literal(source.source, "call")
                                 ],
-                                type_parameters: vec![],
                             }),
                             Expr::Literal(Literal {
                                 parsed: Int(7),

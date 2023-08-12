@@ -370,9 +370,7 @@ mod tests {
                 parameters: vec![],
                 return_type: None,
                 body: Box::new(Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![literal(source.source, "x")],
-                    type_parameters: vec![],
                 })),
                 segment: source.segment()
             })]
@@ -436,9 +434,7 @@ mod tests {
                 ],
                 return_type: None,
                 body: Box::new(Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![literal_nth(source.source, "x", 1)],
-                    type_parameters: vec![],
                 })),
                 segment: source.segment()
             })]
@@ -491,9 +487,7 @@ mod tests {
                 ],
                 return_type: None,
                 body: Box::new(Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![literal_nth(source.source, "x", 1)],
-                    type_parameters: vec![],
                 })),
                 segment: source.segment()
             })]
@@ -612,9 +606,7 @@ mod tests {
                     segment: find_in_nth(source.source, "X", 2)
                 })),
                 body: Box::new(Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![literal_nth(source.source, "x", 1)],
-                    type_parameters: vec![],
                 })),
                 segment: source.segment()
             })]

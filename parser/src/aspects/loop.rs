@@ -284,7 +284,6 @@ mod tests {
             vec![Expr::Loop(Loop {
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Call(Call {
-                        path: Vec::new(),
                         arguments: vec![
                             Expr::Literal(Literal {
                                 parsed: "ssh".into(),
@@ -295,7 +294,6 @@ mod tests {
                                 segment: find_in(source.source, "mabatista1@iut"),
                             }),
                         ],
-                        type_parameters: vec![],
                     })),
                     op: And,
                     right: Box::new(Break(find_in(source.source, "break"))),
@@ -313,12 +311,10 @@ mod tests {
             res,
             vec![Expr::Loop(Loop {
                 body: Box::new(Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![Expr::Literal(Literal {
                         parsed: "date".into(),
                         segment: find_in(source.source, "date"),
                     })],
-                    type_parameters: vec![],
                 })),
                 segment: source.segment()
             })]
@@ -352,12 +348,10 @@ mod tests {
                 })),
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
-                        path: Vec::new(),
                         arguments: vec![
                             literal(source.source, "echo"),
                             literal(source.source, "test"),
                         ],
-                        type_parameters: vec![],
                     })],
                     segment: find_in(source.source, "{ echo test }")
                 })),
@@ -391,7 +385,6 @@ mod tests {
                 })),
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
-                        path: Vec::new(),
                         arguments: vec![
                             Expr::Literal(Literal {
                                 parsed: "echo".into(),
@@ -402,7 +395,6 @@ mod tests {
                                 segment: find_in(source.source, "$i")
                             }),
                         ],
-                        type_parameters: vec![],
                     })],
                     segment: find_in(source.source, "{\n\techo $i\n}")
                 })),
@@ -435,12 +427,10 @@ mod tests {
                     segment: find_in(source.source, "n in $a..$b"),
                 })),
                 body: Box::new(Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![Expr::Literal(Literal {
                         parsed: "cat".into(),
                         segment: find_in(source.source, "cat")
                     })],
-                    type_parameters: vec![],
                 })),
                 segment: source.segment(),
             })]
@@ -481,12 +471,10 @@ mod tests {
                     segment: find_in(source.source, "i in (1 + 2)..5"),
                 })),
                 body: Box::new(Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![Expr::Literal(Literal {
                         parsed: "ls".into(),
                         segment: find_in(source.source, "ls")
                     })],
-                    type_parameters: vec![],
                 })),
                 segment: source.segment()
             })]
@@ -510,7 +498,6 @@ mod tests {
                 })),
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
-                        path: Vec::new(),
                         arguments: vec![
                             Expr::Literal(Literal {
                                 parsed: "file".into(),
@@ -521,7 +508,6 @@ mod tests {
                                 segment: find_in(source.source, "$f")
                             }),
                         ],
-                        type_parameters: vec![],
                     })],
                     segment: find_in(source.source, "{\n\tfile $f\n}")
                 })),
@@ -580,7 +566,6 @@ mod tests {
                     segment: find_between(source.source, "((", "))")
                 })),
                 body: Box::new(Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![
                         literal(source.source, "echo"),
                         Expr::VarReference(VarReference {
@@ -588,7 +573,6 @@ mod tests {
                             segment: find_in_nth(source.source, "$i", 2)
                         }),
                     ],
-                    type_parameters: vec![],
                 })),
                 segment: source.segment(),
             })]
