@@ -229,7 +229,7 @@ fn emit_redir_self(
     state.use_values(last);
     match redir.operator {
         RedirOp::Read => {
-            instructions.emit_open(O_CREAT | O_RDONLY);
+            instructions.emit_open(O_RDONLY);
         }
         RedirOp::ReadWrite => {
             instructions.emit_open(O_CREAT | O_RDWR);
