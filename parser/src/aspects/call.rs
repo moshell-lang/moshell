@@ -59,7 +59,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             )
             .is_none()
         {
-            check_emptiness("Command calls cannot have inclusion path", path, |str| {
+            ensure_empty("Command calls cannot have inclusion path", path, |str| {
                 self.cursor.relative_pos(*str)
             })?;
             return self.call();
@@ -91,12 +91,12 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             .advance(spaces().then(of_type(TokenType::FatArrow)))
             .is_some()
         {
-            check_emptiness(
+            ensure_empty(
                 "Illegal expression before lambda parameter declaration",
                 path,
                 |str| self.cursor.relative_pos(*str),
             )?;
-            check_emptiness(
+            ensure_empty(
                 "Illegal expression after lambda parameter declaration",
                 type_parameters,
                 Type::segment,
@@ -113,12 +113,12 @@ impl<'a> CallAspect<'a> for Parser<'a> {
                 segment,
             }))
         } else {
-            check_emptiness(
+            ensure_empty(
                 "Command calls cannot have generic arguments",
                 type_parameters,
                 Type::segment,
             )?;
-            check_emptiness("Command calls cannot have inclusion path", path, |str| {
+            ensure_empty("Command calls cannot have inclusion path", path, |str| {
                 self.cursor.relative_pos(*str)
             })?;
             self.call_arguments(callee)
@@ -128,7 +128,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>> {
         let callee = self.call_argument()?;
         let type_parameters = self.parse_type_parameter_list()?.0;
-        check_emptiness(
+        ensure_empty(
             "Command calls cannot have generic arguments",
             type_parameters,
             Type::segment,
@@ -233,7 +233,9 @@ impl<'a> CallAspect<'a> for Parser<'a> {
     }
 }
 
-fn check_emptiness<T>(
+/// Ensures that the given elements are empty, returning Err(ParseError) with given message otherwise.
+/// The error's context segment will be the segment between first and last elements of given elements.
+fn ensure_empty<T>(
     msg: &str,
     elements: Vec<T>,
     convert: impl Fn(&T) -> SourceSegment,
@@ -242,12 +244,12 @@ fn check_emptiness<T>(
         let position = elements
             .last()
             .map(|last| convert(first).start..convert(last).end)
-            .unwrap_or(convert(first).start..convert(first).end);
+            .unwrap_or_else(|| convert(first));
 
         Err(ParseError {
             message: msg.to_string(),
             position,
-            kind: ParseErrorKind::InvalidFormat,
+            kind: ParseErrorKind::Unexpected,
         })
     } else {
         Ok(())
@@ -377,7 +379,7 @@ mod tests {
             Err(ParseError {
                 message: "Command calls cannot have inclusion path".to_string(),
                 position: find_in(source.source, "a::b"),
-                kind: ParseErrorKind::InvalidFormat,
+                kind: ParseErrorKind::Unexpected,
             })
         );
     }
@@ -390,7 +392,7 @@ mod tests {
             Err(ParseError {
                 message: "Illegal expression before lambda parameter declaration".to_string(),
                 position: find_in(source.source, "a"),
-                kind: ParseErrorKind::InvalidFormat,
+                kind: ParseErrorKind::Unexpected,
             })
         );
     }
@@ -403,7 +405,7 @@ mod tests {
             Err(ParseError {
                 message: "Illegal expression after lambda parameter declaration".to_string(),
                 position: find_in(source.source, "C"),
-                kind: ParseErrorKind::InvalidFormat,
+                kind: ParseErrorKind::Unexpected,
             })
         );
     }
@@ -415,7 +417,7 @@ mod tests {
             Err(ParseError {
                 message: "Command calls cannot have generic arguments".to_string(),
                 position: find_in(source.source, "Int"),
-                kind: ParseErrorKind::InvalidFormat,
+                kind: ParseErrorKind::Unexpected,
             })
         );
     }
