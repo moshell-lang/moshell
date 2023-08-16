@@ -126,8 +126,16 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_fn_parameter_list(&mut self) -> ParseResult<Vec<FunctionParameter<'a>>> {
-        let parenthesis = self.cursor.advance(of_type(RoundedLeftBracket))
-            .ok_or_else(|| self.mk_parse_error("expected start of parameter list", self.cursor.peek(), ParseErrorKind::Expected("(".to_string())))?;
+        let parenthesis = self
+            .cursor
+            .advance(of_type(RoundedLeftBracket))
+            .ok_or_else(|| {
+                self.mk_parse_error(
+                    "expected start of parameter list",
+                    self.cursor.peek(),
+                    ParseErrorKind::Expected("(".to_string()),
+                )
+            })?;
         self.delimiter_stack.push_back(parenthesis);
 
         let mut params = Vec::new();
