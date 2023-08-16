@@ -176,12 +176,10 @@ mod tests {
                 args: Vec::new(),
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
-                        path: Vec::new(),
                         arguments: vec![
                             literal(source.source, "echo"),
                             literal(source.source, "hey")
                         ],
-                        type_parameters: Vec::new(),
                     })],
                     segment: find_between(source.source, "{", "}")
                 })),

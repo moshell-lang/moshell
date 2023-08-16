@@ -219,7 +219,6 @@ mod tests {
                 },
                 initializer: Some(Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
-                        path: Vec::new(),
                         arguments: vec![
                             Expr::Literal(Literal {
                                 parsed: "echo".into(),
@@ -230,7 +229,6 @@ mod tests {
                                 segment: find_in_nth(&source.source, "a", 1),
                             }),
                         ],
-                        type_parameters: vec![],
                     })],
                     segment: find_in(&source.source, "{echo a}")
                 }))),

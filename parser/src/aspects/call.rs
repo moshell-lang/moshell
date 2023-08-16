@@ -13,7 +13,7 @@ use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
 use crate::aspects::modules::ModulesAspect;
 use crate::aspects::r#type::TypeAspect;
 use crate::aspects::redirection::RedirectionAspect;
-use crate::err::ParseErrorKind;
+use crate::err::{ParseError, ParseErrorKind};
 use crate::moves::{
     blanks, eog, identifier_parenthesis, like, line_end, lookahead, of_type, of_types, repeat,
     spaces, MoveOperations,
@@ -38,12 +38,7 @@ pub trait CallAspect<'a> {
     fn expand_call_chain(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
 
     /// Continues to parse a call expression from a known command name expression
-    fn call_arguments(
-        &mut self,
-        path: Vec<&'a str>,
-        command: Expr<'a>,
-        tparams: Vec<Type<'a>>,
-    ) -> ParseResult<Expr<'a>>;
+    fn call_arguments(&mut self, command: Expr<'a>) -> ParseResult<Expr<'a>>;
 
     /// Checks if the cursor is at the start of a programmatic call.
     fn may_be_at_programmatic_call_start(&self) -> bool;
@@ -64,7 +59,10 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             )
             .is_none()
         {
-            return self.call_with_path(path);
+            ensure_empty("Command calls cannot have inclusion path", path, |str| {
+                self.cursor.relative_pos(*str)
+            })?;
+            return self.call();
         }
         // We don't known if this is a programmatic call, a raw call or a lambda definition yet.
 
@@ -93,6 +91,16 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             .advance(spaces().then(of_type(TokenType::FatArrow)))
             .is_some()
         {
+            ensure_empty(
+                "Illegal expression before lambda parameter declaration",
+                path,
+                |str| self.cursor.relative_pos(*str),
+            )?;
+            ensure_empty(
+                "Illegal expression after lambda parameter declaration",
+                type_parameters,
+                Type::segment,
+            )?;
             let body = Box::new(self.value()?);
             let segment = self.cursor.relative_pos(identifier).start..body.segment().end;
             Ok(Expr::LambdaDef(LambdaDef {
@@ -105,13 +113,27 @@ impl<'a> CallAspect<'a> for Parser<'a> {
                 segment,
             }))
         } else {
-            self.call_arguments(path, callee, type_parameters)
+            ensure_empty(
+                "Command calls cannot have generic arguments",
+                type_parameters,
+                Type::segment,
+            )?;
+            ensure_empty("Command calls cannot have inclusion path", path, |str| {
+                self.cursor.relative_pos(*str)
+            })?;
+            self.call_arguments(callee)
         }
     }
 
     fn call(&mut self) -> ParseResult<Expr<'a>> {
-        let path = self.parse_inclusion_path()?;
-        self.call_with_path(path)
+        let callee = self.call_argument()?;
+        let type_parameters = self.parse_type_parameter_list()?.0;
+        ensure_empty(
+            "Command calls cannot have generic arguments",
+            type_parameters,
+            Type::segment,
+        )?;
+        self.call_arguments(callee)
     }
 
     fn programmatic_call(&mut self) -> ParseResult<Expr<'a>> {
@@ -182,12 +204,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         Ok(expr)
     }
 
-    fn call_arguments(
-        &mut self,
-        path: Vec<&'a str>,
-        callee: Expr<'a>,
-        tparams: Vec<Type<'a>>,
-    ) -> ParseResult<Expr<'a>> {
+    fn call_arguments(&mut self, callee: Expr<'a>) -> ParseResult<Expr<'a>> {
         let mut arguments = vec![callee];
 
         while self
@@ -197,21 +214,13 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         {
             self.cursor.advance(spaces()); //consume word separations
             if self.is_at_redirection_sign() {
-                return self.redirectable(Expr::Call(Call {
-                    path,
-                    arguments,
-                    type_parameters: tparams,
-                }));
+                return self.redirectable(Expr::Call(Call { arguments }));
             }
 
             arguments.push(self.call_argument()?);
         }
 
-        Ok(Expr::Call(Call {
-            path,
-            arguments,
-            type_parameters: tparams,
-        }))
+        Ok(Expr::Call(Call { arguments }))
     }
 
     fn may_be_at_programmatic_call_start(&self) -> bool {
@@ -224,13 +233,30 @@ impl<'a> CallAspect<'a> for Parser<'a> {
     }
 }
 
-impl<'a> Parser<'a> {
-    fn call_with_path(&mut self, path: Vec<&'a str>) -> ParseResult<Expr<'a>> {
-        let callee = self.call_argument()?;
-        let tparams = self.parse_type_parameter_list()?.0;
-        self.call_arguments(path, callee, tparams)
-    }
+/// Ensures that the given elements are empty, returning Err(ParseError) with given message otherwise.
+/// The error's context segment will be the segment between first and last elements of given elements.
+fn ensure_empty<T>(
+    msg: &str,
+    elements: Vec<T>,
+    convert: impl Fn(&T) -> SourceSegment,
+) -> ParseResult<()> {
+    if let Some(first) = elements.first() {
+        let position = elements
+            .last()
+            .map(|last| convert(first).start..convert(last).end)
+            .unwrap_or_else(|| convert(first));
 
+        Err(ParseError {
+            message: msg.to_string(),
+            position,
+            kind: ParseErrorKind::Unexpected,
+        })
+    } else {
+        Ok(())
+    }
+}
+
+impl<'a> Parser<'a> {
     /// special pivot method for argument methods
     pub(crate) fn call_argument(&mut self) -> ParseResult<Expr<'a>> {
         self.repos("Expected value")?;
@@ -331,46 +357,83 @@ mod tests {
     }
 
     #[test]
-    fn call_with_type_parameter() {
-        let source = Source::unknown("parse[Int] x y");
+    fn call() {
+        let source = Source::unknown("echo x y");
         assert_eq!(
             Parser::new(source).parse_next(),
             Ok(Expr::Call(Call {
-                path: Vec::new(),
                 arguments: vec![
-                    literal(source.source, "parse"),
+                    literal(source.source, "echo"),
                     literal(source.source, "x"),
                     literal(source.source, "y"),
                 ],
-                type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    path: vec![],
-                    name: "Int",
-                    params: Vec::new(),
-                    segment: find_in(source.source, "Int"),
-                })]
             }))
         );
     }
 
     #[test]
     fn call_with_inclusion_path() {
-        let content = "a::b::parse[Int] x y";
+        let source = Source::unknown("a::b::c x y");
+        assert_eq!(
+            Parser::new(source).parse_next(),
+            Err(ParseError {
+                message: "Command calls cannot have inclusion path".to_string(),
+                position: find_in(source.source, "a::b"),
+                kind: ParseErrorKind::Unexpected,
+            })
+        );
+    }
+
+    #[test]
+    fn lambdef_with_inclusion_path() {
+        let source = Source::unknown("a::b => $b");
+        assert_eq!(
+            Parser::new(source).parse_next(),
+            Err(ParseError {
+                message: "Illegal expression before lambda parameter declaration".to_string(),
+                position: find_in(source.source, "a"),
+                kind: ParseErrorKind::Unexpected,
+            })
+        );
+    }
+
+    #[test]
+    fn lambdef_with_type_params() {
+        let source = Source::unknown("b[C] => $b");
+        assert_eq!(
+            Parser::new(source).parse_next(),
+            Err(ParseError {
+                message: "Illegal expression after lambda parameter declaration".to_string(),
+                position: find_in(source.source, "C"),
+                kind: ParseErrorKind::Unexpected,
+            })
+        );
+    }
+    #[test]
+    fn call_with_type_parameters() {
+        let source = Source::unknown("parse[Int] x y");
+        assert_eq!(
+            Parser::new(source).parse_next(),
+            Err(ParseError {
+                message: "Command calls cannot have generic arguments".to_string(),
+                position: find_in(source.source, "Int"),
+                kind: ParseErrorKind::Unexpected,
+            })
+        );
+    }
+
+    #[test]
+    fn call_with_path() {
+        let content = "a/b/parse x y";
         let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source).parse_next(),
             Ok(Expr::Call(Call {
-                path: vec!["a", "b"],
                 arguments: vec![
-                    literal(source.source, "parse"),
+                    literal(source.source, "a/b/parse"),
                     literal(source.source, "x"),
                     literal(source.source, "y")
                 ],
-                type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    path: vec![],
-                    name: "Int",
-                    params: Vec::new(),
-                    segment: find_in(source.source, "Int")
-                })]
             }))
         );
     }
@@ -382,7 +445,6 @@ mod tests {
         assert_eq!(
             result,
             vec![Expr::Call(Call {
-                path: Vec::new(),
                 arguments: vec![
                     literal(content, "echo"),
                     literal(content, "how"),
@@ -392,7 +454,6 @@ mod tests {
                     literal(content, "you"),
                     literal_nth(content, "!", 1),
                 ],
-                type_parameters: vec![],
             })]
         );
     }
@@ -405,21 +466,17 @@ mod tests {
             parsed,
             vec![
                 Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![
                         literal(source.source, "grep"),
                         literal(source.source, "-E"),
                         literal(source.source, "regex")
                     ],
-                    type_parameters: vec![]
                 }),
                 Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![
                         literal(source.source, "echo"),
                         literal(source.source, "test")
                     ],
-                    type_parameters: vec![],
                 }),
             ]
         )
@@ -432,7 +489,6 @@ mod tests {
         assert_eq!(
             parsed,
             vec![Expr::Call(Call {
-                path: Vec::new(),
                 arguments: vec![
                     literal(source.source, "g++"),
                     literal(source.source, "-std=c++20"),
@@ -440,7 +496,6 @@ mod tests {
                     literal(source.source, "-Wextra"),
                     literal(source.source, "-Wpedantic"),
                 ],
-                type_parameters: vec![],
             }),]
         )
     }
@@ -452,7 +507,6 @@ mod tests {
         assert_eq!(
             parsed,
             vec![Expr::Call(Call {
-                path: Vec::new(),
                 arguments: vec![
                     literal(source.source, "grep"),
                     literal(source.source, "-E"),
@@ -461,7 +515,6 @@ mod tests {
                     literal(source.source, "echo"),
                     literal(source.source, "test"),
                 ],
-                type_parameters: vec![]
             }),]
         )
     }

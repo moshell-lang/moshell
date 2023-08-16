@@ -419,7 +419,6 @@ mod tests {
                         patterns: vec![MatchPattern::Wildcard(find_in_nth(content, "*", 1))],
                         guard: None,
                         body: Expr::Call(Call {
-                            path: Vec::new(),
                             arguments: vec![
                                 literal(content, "echo"),
                                 Expr::VarReference(VarReference {
@@ -427,7 +426,6 @@ mod tests {
                                     segment: find_in(content, "$it"),
                                 }),
                             ],
-                            type_parameters: vec![],
                         }),
                         segment: find_in(content, "* => echo $it")
                     },
@@ -452,16 +450,13 @@ mod tests {
             ast,
             vec![Expr::Match(Match {
                 operand: Box::new(Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![literal(source.source, "nginx")],
-                    type_parameters: vec![],
                 })),
                 arms: vec![MatchArm {
                     val_name: None,
                     patterns: vec![MatchPattern::Wildcard(find_in(source.source, "*"))],
                     guard: None,
                     body: Expr::Call(Call {
-                        path: Vec::new(),
                         arguments: vec![
                             literal(source.source, "echo"),
                             Expr::VarReference(VarReference {
@@ -469,7 +464,6 @@ mod tests {
                                 segment: find_in(source.source, "$it"),
                             }),
                         ],
-                        type_parameters: vec![],
                     }),
                     segment: find_in(source.source, "* => echo $it")
                 },],
@@ -570,7 +564,6 @@ mod tests {
                         patterns: vec![MatchPattern::Wildcard(find_in_nth(content, "*", 1))],
                         guard: None,
                         body: Expr::Call(Call {
-                            path: Vec::new(),
                             arguments: vec![
                                 literal(content, "echo"),
                                 Expr::VarReference(VarReference {
@@ -578,7 +571,6 @@ mod tests {
                                     segment: find_in(content, "$it"),
                                 }),
                             ],
-                            type_parameters: vec![],
                         }),
                         segment: find_in(content, "* \n\n => \n\n echo $it")
                     },

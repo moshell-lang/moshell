@@ -32,13 +32,17 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
             )?
             .value;
 
-        //consume blanks
+        //consume blanks for each function declaration components
+        self.cursor.advance(blanks());
+        let name = self.parse_fn_declaration_name()?;
+        self.cursor.advance(blanks());
+        let tparams = self.parse_type_parameter_list()?.0;
+        self.cursor.advance(blanks());
+        let params = self.parse_fn_parameter_list()?;
+        self.cursor.advance(blanks());
+        let rtype = self.parse_fn_return_type()?;
         self.cursor.advance(blanks());
 
-        let name = self.parse_fn_declaration_name()?;
-        let tparams = self.parse_type_parameter_list()?.0;
-        let params = self.parse_fn_parameter_list()?;
-        let rtype = self.parse_fn_return_type()?;
         let body = self
             .cursor
             .force(blanks().then(of_type(Equal)), "expected '='")
@@ -80,7 +84,7 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn parse_fn_return_type(&mut self) -> ParseResult<Option<Type<'a>>> {
-        if self.cursor.advance(blanks().then(of_type(Arrow))).is_none() {
+        if self.cursor.advance(of_type(Arrow)).is_none() {
             return Ok(None);
         }
         self.cursor.advance(blanks()); // consume blanks
@@ -122,11 +126,8 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_fn_parameter_list(&mut self) -> ParseResult<Vec<FunctionParameter<'a>>> {
-        let parenthesis = self.cursor.force_with(
-            of_type(RoundedLeftBracket),
-            "expected start of parameter list",
-            ParseErrorKind::Expected("(".to_string()),
-        )?;
+        let parenthesis = self.cursor.advance(of_type(RoundedLeftBracket))
+            .ok_or_else(|| self.mk_parse_error("expected start of parameter list", self.cursor.peek(), ParseErrorKind::Expected("(".to_string())))?;
         self.delimiter_stack.push_back(parenthesis);
 
         let mut params = Vec::new();
@@ -370,9 +371,7 @@ mod tests {
                 parameters: vec![],
                 return_type: None,
                 body: Box::new(Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![literal(source.source, "x")],
-                    type_parameters: vec![],
                 })),
                 segment: source.segment()
             })]
@@ -436,9 +435,7 @@ mod tests {
                 ],
                 return_type: None,
                 body: Box::new(Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![literal_nth(source.source, "x", 1)],
-                    type_parameters: vec![],
                 })),
                 segment: source.segment()
             })]
@@ -491,9 +488,7 @@ mod tests {
                 ],
                 return_type: None,
                 body: Box::new(Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![literal_nth(source.source, "x", 1)],
-                    type_parameters: vec![],
                 })),
                 segment: source.segment()
             })]
@@ -612,9 +607,7 @@ mod tests {
                     segment: find_in_nth(source.source, "X", 2)
                 })),
                 body: Box::new(Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![literal_nth(source.source, "x", 1)],
-                    type_parameters: vec![],
                 })),
                 segment: source.segment()
             })]

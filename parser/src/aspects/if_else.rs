@@ -101,12 +101,10 @@ mod tests {
                     segment: find_between(content, "[", "]"),
                 })),
                 success_branch: Box::new(Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![
                         literal(source.source, "echo"),
                         literal(source.source, "test")
                     ],
-                    type_parameters: vec![],
                 })),
                 fail_branch: None,
                 segment: source.segment(),
@@ -125,13 +123,10 @@ mod tests {
             vec![Expr::If(If {
                 condition: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Call(Call {
-                        path: Vec::new(),
                         arguments: vec![literal(content, "echo"), literal(content, "a")],
-                        type_parameters: vec![],
                     })),
                     op: And,
                     right: Box::new(Expr::Call(Call {
-                        path: Vec::new(),
                         arguments: vec![
                             Expr::Literal(Literal {
                                 parsed: "test".into(),
@@ -140,13 +135,10 @@ mod tests {
                             literal(content, "-f"),
                             literal(content, "/file/exe"),
                         ],
-                        type_parameters: vec![],
                     }))
                 })),
                 success_branch: Box::new(Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![literal_nth(content, "echo", 1), literal(content, "test")],
-                    type_parameters: vec![],
                 })),
                 fail_branch: Some(Box::new(Expr::If(If {
                     condition: Box::new(Expr::Test(Test {
@@ -190,9 +182,7 @@ mod tests {
                     segment: find_between(content, "[", "]"),
                 })),
                 success_branch: Box::new(Expr::Call(Call {
-                    path: Vec::new(),
                     arguments: vec![literal(content, "echo"), literal(content, "test")],
-                    type_parameters: vec![],
                 })),
                 fail_branch: Some(Box::new(Expr::If(If {
                     condition: Box::new(Expr::Test(Test {
@@ -260,7 +250,6 @@ mod tests {
                         expression: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::Block(Block {
                                 expressions: vec![Expr::Call(Call {
-                                    path: Vec::new(),
                                     arguments: vec![
                                         literal(content, "date"),
                                         Expr::TemplateString(TemplateString {
@@ -271,7 +260,6 @@ mod tests {
                                             segment: find_in(content, "+\"%Y\"")
                                         })
                                     ],
-                                    type_parameters: vec![],
                                 })],
                                 segment: find_between(content, "{", "}")
                             })),
