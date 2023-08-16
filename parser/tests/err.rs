@@ -132,7 +132,7 @@ fn tolerance_in_multiple_groups() {
             expr: vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "f",
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    path: vec![],
+                    path: None,
                     name: "T",
                     params: vec![],
                     segment: find_in(&source.source, "T")
@@ -140,7 +140,7 @@ fn tolerance_in_multiple_groups() {
                 parameters: vec![FunctionParameter::Named(TypedVariable {
                     name: "x",
                     ty: Some(Type::Parametrized(ParametrizedType {
-                        path: vec![],
+                        path: None,
                         name: "T",
                         params: vec![],
                         segment: find_in_nth(&source.source, "T", 1)
@@ -463,7 +463,7 @@ fn double_comma_parentheses() {
         report,
         ParseReport {
             expr: vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![],
+                path: None,
                 name: "Bar",
                 arguments: vec![literal(content, "'m'")],
                 type_parameters: Vec::new(),

@@ -271,7 +271,12 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         match import {
             ImportExpr::Symbol(s) => {
                 let mut symbol_name = relative_path;
-                symbol_name.extend(s.path.iter().map(|s| s.to_string()));
+                symbol_name.extend(
+                    s.path
+                        .iter()
+                        .flat_map(|p| p.items.iter())
+                        .map(ToString::to_string),
+                );
                 symbol_name.push(s.name.to_string());
 
                 let name = Name::from(symbol_name);
@@ -286,7 +291,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             }
             ImportExpr::AllIn(path, _) => {
                 let mut symbol_name = relative_path;
-                symbol_name.extend(path.iter().map(|s| s.to_string()));
+                symbol_name.extend(path.items.iter().map(ToString::to_string));
 
                 let name = Name::from(symbol_name);
                 to_visit.push(name.clone());
@@ -307,7 +312,10 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 for list_import in &list.imports {
                     //append ImportList's path to current relative path
                     let mut relative = relative_path.clone();
-                    relative.extend(list.path.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+                    if let Some(root) = &list.root {
+                        relative
+                            .extend(root.items.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+                    }
 
                     self.collect_symbol_import(list_import, relative, mod_id, to_visit)
                 }
@@ -395,6 +403,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 let path = call
                     .path
                     .iter()
+                    .flat_map(|v| v.items.iter())
                     .map(ToString::to_string)
                     .collect::<Vec<_>>();
                 let name = Name::qualified(path, call.name.to_string());
@@ -797,7 +806,8 @@ mod tests {
 
     #[test]
     fn test_symbol_clashes_with_module() {
-        let math_source = "use math::{add, multiply, divide}; fun multiply(a: Int, b: Int) = a * b";
+        let math_source =
+            "use reef::math::{add, multiply, divide}; fun multiply(a: Int, b: Int) = a * b";
         let math_src = Source::unknown(math_source);
         let math_multiply_src = Source::unknown("");
         let math_add_src = Source::unknown("");

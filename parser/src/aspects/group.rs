@@ -416,7 +416,7 @@ mod tests {
                         var: TypedVariable {
                             name: "test",
                             ty: Some(Type::Parametrized(ParametrizedType {
-                                path: vec![],
+                                path: None,
                                 name: "int",
                                 params: Vec::new(),
                                 segment: find_in(source.source, "int")
