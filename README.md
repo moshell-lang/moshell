@@ -31,6 +31,7 @@ Moshell is a project in its early stages.
     - [x] Primitive type checking
     - [x] Built-in primitive type operations *(in progress)*
     - [ ] Detailed error reports *(in progress)*
+    - [ ] Reefs (library support)
     - [ ] List types
     - [ ] Standard types (`Option[T]`, `Result[A, E]`, `Iterable[T]`...)
     - [ ] User defined types
