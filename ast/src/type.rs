@@ -7,7 +7,7 @@ use context::display::fmt_comma_separated;
 use context::source::{SourceSegment, SourceSegmentHolder};
 use src_macros::segment_holder;
 
-use crate::r#use::InclusionPath;
+use crate::r#use::InclusionPathItem;
 use crate::Expr;
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
@@ -37,7 +37,7 @@ pub struct CastedExpr<'a> {
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ParametrizedType<'a> {
     /// inclusion path
-    pub path: Option<InclusionPath<'a>>,
+    pub path: Vec<InclusionPathItem<'a>>,
 
     /// the type's name
     pub name: &'a str,

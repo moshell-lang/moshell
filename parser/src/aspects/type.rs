@@ -228,7 +228,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use ast::r#type::{ByName, CallableType, ParametrizedType, Type};
-    use ast::r#use::InclusionPath;
+    use ast::r#use::InclusionPathItem;
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::find_in;
 
@@ -244,7 +244,7 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Parametrized(ParametrizedType {
-                path: None,
+                path: vec![],
                 name: "MyType",
                 params: Vec::new(),
                 segment: source.segment(),
@@ -259,11 +259,10 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Parametrized(ParametrizedType {
-                path: Some(InclusionPath {
-                    in_reef_explicit: true,
-                    items: vec!["std"],
-                    segment: find_in(content, "reef::std")
-                }),
+                path: vec![
+                    InclusionPathItem::Reef(find_in(content, "reef")),
+                    InclusionPathItem::Symbol("std", find_in(content, "std")),
+                ],
                 name: "MyType",
                 params: Vec::new(),
                 segment: source.segment(),
@@ -295,24 +294,24 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Parametrized(ParametrizedType {
-                path: None,
+                path: vec![],
                 name: "MyType",
                 params: vec![
                     Type::Parametrized(ParametrizedType {
-                        path: None,
+                        path: vec![],
                         name: "A",
                         params: vec![
                             Type::Parametrized(ParametrizedType {
-                                path: None,
+                                path: vec![],
                                 name: "X",
                                 params: Vec::new(),
                                 segment: find_in(content, "X"),
                             }),
                             Type::Parametrized(ParametrizedType {
-                                path: None,
+                                path: vec![],
                                 name: "Y",
                                 params: vec![Type::Parametrized(ParametrizedType {
-                                    path: None,
+                                    path: vec![],
                                     name: "Any",
                                     params: Vec::new(),
                                     segment: find_in(content, "Any"),
@@ -320,11 +319,10 @@ mod tests {
                                 segment: find_in(content, "Y[Any]"),
                             }),
                             Type::Parametrized(ParametrizedType {
-                                path: Some(InclusionPath {
-                                    in_reef_explicit: false,
-                                    items: vec!["foo"],
-                                    segment: find_in(content, "foo")
-                                }),
+                                path: vec![InclusionPathItem::Symbol(
+                                    "foo",
+                                    find_in(content, "foo")
+                                ),],
                                 name: "Z",
                                 params: Vec::new(),
                                 segment: find_in(content, "foo::Z"),
@@ -333,17 +331,13 @@ mod tests {
                         segment: find_in(content, "A[X, Y[Any], foo::Z]"),
                     }),
                     Type::Parametrized(ParametrizedType {
-                        path: None,
+                        path: vec![],
                         name: "B",
                         params: vec![Type::Parametrized(ParametrizedType {
-                            path: Some(InclusionPath {
-                                in_reef_explicit: false,
-                                items: vec!["std"],
-                                segment: find_in(content, "std")
-                            }),
+                            path: vec![InclusionPathItem::Symbol("std", find_in(content, "std")),],
                             name: "C",
                             params: vec![Type::Parametrized(ParametrizedType {
-                                path: None,
+                                path: vec![],
                                 name: "D",
                                 params: Vec::new(),
                                 segment: find_in(content, "D"),
@@ -409,13 +403,13 @@ mod tests {
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Callable(CallableType {
                 params: vec![Type::Parametrized(ParametrizedType {
-                    path: None,
+                    path: vec![],
                     name: "A",
                     params: Vec::new(),
                     segment: find_in(content, "A"),
                 })],
                 output: Box::new(Type::Parametrized(ParametrizedType {
-                    path: None,
+                    path: vec![],
                     name: "B",
                     params: Vec::new(),
                     segment: find_in(content, "B"),
@@ -433,7 +427,7 @@ mod tests {
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::ByName(ByName {
                 name: Box::new(Type::Parametrized(ParametrizedType {
-                    path: None,
+                    path: vec![],
                     name: "B",
                     params: Vec::new(),
                     segment: find_in(content, "B"),
@@ -466,7 +460,7 @@ mod tests {
             Ok(Type::ByName(ByName {
                 name: Box::new(Type::ByName(ByName {
                     name: Box::new(Type::Parametrized(ParametrizedType {
-                        path: None,
+                        path: vec![],
                         name: "B",
                         params: Vec::new(),
                         segment: find_in(content, "B"),
@@ -485,7 +479,7 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Parametrized(ParametrizedType {
-                path: None,
+                path: vec![],
                 name: "A",
                 params: Vec::new(),
                 segment: find_in(content, "A"),
@@ -502,7 +496,7 @@ mod tests {
             Ok(Type::Callable(CallableType {
                 params: vec![],
                 output: Box::new(Type::Parametrized(ParametrizedType {
-                    path: None,
+                    path: vec![],
                     name: "B",
                     params: Vec::new(),
                     segment: find_in(content, "B"),
@@ -520,13 +514,13 @@ mod tests {
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Callable(CallableType {
                 params: vec![Type::Parametrized(ParametrizedType {
-                    path: None,
+                    path: vec![],
                     name: "A",
                     params: Vec::new(),
                     segment: find_in(content, "A"),
                 })],
                 output: Box::new(Type::Parametrized(ParametrizedType {
-                    path: None,
+                    path: vec![],
                     name: "Unit",
                     params: Vec::new(),
                     segment: find_in(content, "Unit"),
@@ -545,26 +539,26 @@ mod tests {
             Ok(Type::Callable(CallableType {
                 params: vec![
                     Type::Parametrized(ParametrizedType {
-                        path: None,
+                        path: vec![],
                         name: "A",
                         params: Vec::new(),
                         segment: find_in(content, "A"),
                     }),
                     Type::Parametrized(ParametrizedType {
-                        path: None,
+                        path: vec![],
                         name: "B",
                         params: Vec::new(),
                         segment: find_in(content, "B"),
                     }),
                     Type::Parametrized(ParametrizedType {
-                        path: None,
+                        path: vec![],
                         name: "C",
                         params: Vec::new(),
                         segment: find_in(content, "C"),
                     }),
                 ],
                 output: Box::new(Type::Parametrized(ParametrizedType {
-                    path: None,
+                    path: vec![],
                     name: "D",
                     params: Vec::new(),
                     segment: find_in(content, "D"),
@@ -585,13 +579,13 @@ mod tests {
                 params: vec![Type::Callable(CallableType {
                     params: vec![Type::Callable(CallableType {
                         params: vec![Type::Parametrized(ParametrizedType {
-                            path: None,
+                            path: vec![],
                             name: "A",
                             params: Vec::new(),
                             segment: find_in(content, "A"),
                         }),],
                         output: Box::new(Type::Parametrized(ParametrizedType {
-                            path: None,
+                            path: vec![],
                             name: "B",
                             params: Vec::new(),
                             segment: find_in(content, "B"),
@@ -599,7 +593,7 @@ mod tests {
                         segment: find_in(content, "A => B"),
                     })],
                     output: Box::new(Type::Parametrized(ParametrizedType {
-                        path: None,
+                        path: vec![],
                         name: "C",
                         params: Vec::new(),
                         segment: find_in(content, "C"),
@@ -607,7 +601,7 @@ mod tests {
                     segment: find_in(content, "(A => B) => C"),
                 })],
                 output: Box::new(Type::Parametrized(ParametrizedType {
-                    path: None,
+                    path: vec![],
                     name: "D",
                     params: Vec::new(),
                     segment: find_in(content, "D"),
@@ -643,19 +637,19 @@ mod tests {
             Ok(Type::Callable(CallableType {
                 params: vec![
                     Type::Parametrized(ParametrizedType {
-                        path: None,
+                        path: vec![],
                         name: "A",
                         params: Vec::new(),
                         segment: find_in(content, "A")
                     }),
                     Type::Parametrized(ParametrizedType {
-                        path: None,
+                        path: vec![],
                         name: "B",
                         params: Vec::new(),
                         segment: find_in(content, "B")
                     }),
                     Type::Parametrized(ParametrizedType {
-                        path: None,
+                        path: vec![],
                         name: "C",
                         params: Vec::new(),
                         segment: find_in(content, "C")
@@ -663,13 +657,13 @@ mod tests {
                 ],
                 output: Box::new(Type::Callable(CallableType {
                     params: vec![Type::Parametrized(ParametrizedType {
-                        path: None,
+                        path: vec![],
                         name: "D",
                         params: Vec::new(),
                         segment: find_in(content, "D")
                     })],
                     output: Box::new(Type::Parametrized(ParametrizedType {
-                        path: None,
+                        path: vec![],
                         name: "E",
                         params: Vec::new(),
                         segment: find_in(content, "E")

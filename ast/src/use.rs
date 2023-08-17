@@ -10,28 +10,18 @@ pub struct Use<'a> {
     pub import: Import<'a>,
 }
 
-#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
-pub struct InclusionPath<'a> {
-    /// set to true if the import explicitly refers to the current reef
-    pub in_reef_explicit: bool,
-
-    pub items: Vec<&'a str>,
+pub enum InclusionPathItem<'a> {
+    Symbol(&'a str, SourceSegment),
+    Reef(SourceSegment),
 }
 
-impl InclusionPath<'_> {
-    pub fn empty(segment: SourceSegment) -> Self {
-        Self {
-            in_reef_explicit: false,
-            items: vec![],
-            segment,
+impl SourceSegmentHolder for InclusionPathItem<'_> {
+    fn segment(&self) -> SourceSegment {
+        match self {
+            InclusionPathItem::Symbol(_, s) => s.clone(),
+            InclusionPathItem::Reef(s) => s.clone(),
         }
-    }
-}
-
-impl<'a> From<InclusionPath<'a>> for Vec<&'a str> {
-    fn from(value: InclusionPath<'a>) -> Self {
-        value.items
     }
 }
 
@@ -40,7 +30,7 @@ pub enum Import<'a> {
     ///A symbol (or list of symbols)
     Symbol(ImportedSymbol<'a>),
     /// all in given module (the vec being the inclusion path where the last element is the module that is being imported)
-    AllIn(InclusionPath<'a>, SourceSegment),
+    AllIn(Vec<InclusionPathItem<'a>>, SourceSegment),
     ///An environment variable, command.
     Environment(&'a str, SourceSegment),
     ///An import list
@@ -62,7 +52,7 @@ impl<'a> SourceSegmentHolder for Import<'a> {
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ImportList<'a> {
     ///list of relative prefixed modules
-    pub root: Option<InclusionPath<'a>>,
+    pub root: Vec<InclusionPathItem<'a>>,
 
     ///All the imports
     pub imports: Vec<Import<'a>>,
@@ -73,7 +63,7 @@ pub struct ImportList<'a> {
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ImportedSymbol<'a> {
     ///list of relative prefixed modules
-    pub path: Option<InclusionPath<'a>>,
+    pub path: Vec<InclusionPathItem<'a>>,
 
     ///The symbol's type
     pub name: &'a str,

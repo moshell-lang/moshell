@@ -639,12 +639,3 @@ pub(crate) fn ensure_empty<T>(
         Ok(())
     }
 }
-/// Ensures that the given element is none, returning Err(ParseError) with given message otherwise.
-/// The error's context segment will be the value's segment.
-pub(crate) fn ensure_none<T>(
-    msg: &str,
-    element: Option<T>,
-    convert: impl Fn(&T) -> SourceSegment,
-) -> ParseResult<()> {
-    ensure_empty(msg, element.into_iter().collect::<Vec<_>>(), convert)
-}

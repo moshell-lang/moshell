@@ -70,9 +70,7 @@ impl TypeContext {
     pub(crate) fn resolve(&self, type_annotation: &ast::r#type::Type) -> Option<TypeId> {
         match type_annotation {
             ast::r#type::Type::Parametrized(param) => {
-                if (param.path.is_some() && !param.path.as_ref().unwrap().items.is_empty())
-                    || !param.params.is_empty()
-                {
+                if !param.path.is_empty() || !param.params.is_empty() {
                     unimplemented!();
                 }
                 self.names.get(param.name).copied()

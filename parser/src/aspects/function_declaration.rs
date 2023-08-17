@@ -353,7 +353,7 @@ mod tests {
                 type_parameters: vec![],
                 parameters: vec![],
                 return_type: Some(Type::Parametrized(ParametrizedType {
-                    path: None,
+                    path: vec![],
                     name: "Float",
                     params: vec![],
                     segment: find_in_nth(src.source, "Float", 0),
@@ -423,7 +423,7 @@ mod tests {
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
                         ty: Some(Type::Parametrized(ParametrizedType {
-                            path: None,
+                            path: vec![],
                             name: "String",
                             params: vec![],
                             segment: find_in(source.source, "String")
@@ -433,7 +433,7 @@ mod tests {
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
                         ty: Some(Type::Parametrized(ParametrizedType {
-                            path: None,
+                            path: vec![],
                             name: "Test",
                             params: vec![],
                             segment: find_in(source.source, "Test")
@@ -460,13 +460,13 @@ mod tests {
                 name: "test",
                 type_parameters: vec![
                     Type::Parametrized(ParametrizedType {
-                        path: None,
+                        path: vec![],
                         name: "X",
                         params: Vec::new(),
                         segment: find_in(source.source, "X")
                     }),
                     Type::Parametrized(ParametrizedType {
-                        path: None,
+                        path: vec![],
                         name: "Y",
                         params: Vec::new(),
                         segment: find_in(source.source, "Y")
@@ -476,7 +476,7 @@ mod tests {
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
                         ty: Some(Type::Parametrized(ParametrizedType {
-                            path: None,
+                            path: vec![],
                             name: "X",
                             params: vec![],
                             segment: find_in_nth(source.source, "X", 1)
@@ -486,7 +486,7 @@ mod tests {
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
                         ty: Some(Type::Parametrized(ParametrizedType {
-                            path: None,
+                            path: vec![],
                             name: "Y",
                             params: vec![],
                             segment: find_in_nth(source.source, "Y", 1)
@@ -514,7 +514,7 @@ mod tests {
                 type_parameters: vec![],
                 parameters: vec![FunctionParameter::Variadic(Some(Type::Parametrized(
                     ParametrizedType {
-                        path: None,
+                        path: vec![],
                         name: "X",
                         params: Vec::new(),
                         segment: find_in(source.source, "X")
@@ -544,7 +544,7 @@ mod tests {
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
                         ty: Some(Type::Parametrized(ParametrizedType {
-                            path: None,
+                            path: vec![],
                             name: "int",
                             params: Vec::new(),
                             segment: find_in(source.source, "int")
@@ -574,13 +574,13 @@ mod tests {
                 name: "test",
                 type_parameters: vec![
                     Type::Parametrized(ParametrizedType {
-                        path: None,
+                        path: vec![],
                         name: "X",
                         params: Vec::new(),
                         segment: find_in(source.source, "X")
                     }),
                     Type::Parametrized(ParametrizedType {
-                        path: None,
+                        path: vec![],
                         name: "Y",
                         params: Vec::new(),
                         segment: find_in(source.source, "Y")
@@ -590,7 +590,7 @@ mod tests {
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
                         ty: Some(Type::Parametrized(ParametrizedType {
-                            path: None,
+                            path: vec![],
                             name: "X",
                             params: vec![],
                             segment: find_in_nth(source.source, "X", 1)
@@ -600,7 +600,7 @@ mod tests {
                     FunctionParameter::Named(TypedVariable {
                         name: "y",
                         ty: Some(Type::Parametrized(ParametrizedType {
-                            path: None,
+                            path: vec![],
                             name: "Y",
                             params: vec![],
                             segment: find_in_nth(source.source, "Y", 1)
@@ -609,7 +609,7 @@ mod tests {
                     }),
                 ],
                 return_type: Some(Type::Parametrized(ParametrizedType {
-                    path: None,
+                    path: vec![],
                     name: "X",
                     params: Vec::new(),
                     segment: find_in_nth(source.source, "X", 2)

@@ -1,4 +1,4 @@
-use ast::r#use::{Import, ImportList, ImportedSymbol, InclusionPath, Use};
+use ast::r#use::{Import, ImportList, ImportedSymbol, InclusionPathItem, Use};
 use ast::Expr;
 use context::source::SourceSegmentHolder;
 use lexer::token::TokenType::{
@@ -8,7 +8,7 @@ use lexer::token::{Token, TokenType};
 
 use crate::aspects::expr_list::ExpressionListAspect;
 use crate::err::ParseErrorKind;
-use crate::moves::{any, blanks, eox, of_type, spaces, MoveOperations};
+use crate::moves::{any, blanks, eox, of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 /// Parser aspect to parse all expressions in relation with modules.
@@ -19,7 +19,7 @@ pub trait ModulesAspect<'a> {
 
     ///parse identifiers separated between `::` expressions.
     /// This method stops when it founds an expressions that is not an identifier.
-    fn parse_inclusion_path(&mut self) -> ParseResult<Option<InclusionPath<'a>>>;
+    fn parse_inclusion_path(&mut self) -> ParseResult<Vec<InclusionPathItem<'a>>>;
 }
 
 impl<'a> ModulesAspect<'a> for Parser<'a> {
@@ -46,19 +46,13 @@ impl<'a> ModulesAspect<'a> for Parser<'a> {
         }))
     }
 
-    fn parse_inclusion_path(&mut self) -> ParseResult<Option<InclusionPath<'a>>> {
+    fn parse_inclusion_path(&mut self) -> ParseResult<Vec<InclusionPathItem<'a>>> {
         let mut items = vec![];
 
-        let in_reef_explicit = self.cursor.advance(of_type(Reef));
-        let is_in_reef_explicit = in_reef_explicit.is_some();
-        if is_in_reef_explicit {
-            self.cursor.force(
-                blanks().then(of_type(ColonColon)),
-                "symbol qualifier expected.",
-            )?;
-        }
-
-        while let Some(identifier) = self.cursor.lookahead(spaces().then(of_type(Identifier))) {
+        while let Some(identifier) = self
+            .cursor
+            .lookahead(spaces().then(of_types(&[Reef, Identifier])))
+        {
             if self
                 .cursor
                 .advance(any().then(spaces().then(of_type(ColonColon))))
@@ -66,22 +60,16 @@ impl<'a> ModulesAspect<'a> for Parser<'a> {
             {
                 break;
             }
-            items.push(identifier.value);
+            let segment = self.cursor.relative_pos_ctx(identifier.value);
+            let item = match identifier.token_type {
+                Identifier => InclusionPathItem::Symbol(identifier.value, segment),
+                Reef => InclusionPathItem::Reef(segment),
+                _ => unreachable!(),
+            };
+            items.push(item);
         }
 
-        Ok(in_reef_explicit
-            .as_ref()
-            .map(|token| &token.value)
-            .or(items.first())
-            .map(|first| (*first, *items.last().unwrap_or(first)))
-            .map(|(first, last)| {
-                let segment = self.cursor.relative_pos_ctx(first..last);
-                InclusionPath {
-                    in_reef_explicit: is_in_reef_explicit,
-                    items,
-                    segment,
-                }
-            }))
+        Ok(items)
     }
 }
 
@@ -110,7 +98,7 @@ impl<'a> Parser<'a> {
                 pivot,
                 ParseErrorKind::Expected("module path".to_string()),
             ),
-            CurlyLeftBracket => self.parse_import_list(pivot, None).map(Import::List),
+            CurlyLeftBracket => self.parse_import_list(pivot, vec![]).map(Import::List),
 
             _ => self.parse_import_with_path(),
         }
@@ -119,7 +107,7 @@ impl<'a> Parser<'a> {
     fn parse_import_list(
         &mut self,
         start: Token<'a>,
-        root: Option<InclusionPath<'a>>,
+        root: Vec<InclusionPathItem<'a>>,
     ) -> ParseResult<ImportList<'a>> {
         self.parse_explicit_list(CurlyLeftBracket, CurlyRightBracket, Self::parse_import)
             .and_then(|(imports, s)| {
@@ -158,10 +146,6 @@ impl<'a> Parser<'a> {
         let token = self.cursor.peek();
 
         if token.token_type == Star || token.token_type == CurlyLeftBracket {
-            let Some(symbol_path) = symbol_path else {
-                return self.expected("use statement must be more specific", ParseErrorKind::Expected("module path".to_string()));
-            };
-
             if token.token_type == Star {
                 self.cursor.next()?;
 
@@ -170,9 +154,7 @@ impl<'a> Parser<'a> {
                     self.cursor.relative_pos_ctx(start..token),
                 ));
             }
-            return self
-                .parse_import_list(start, Some(symbol_path))
-                .map(Import::List);
+            return self.parse_import_list(start, symbol_path).map(Import::List);
         }
 
         let name = if token.token_type == Identifier {
@@ -209,10 +191,10 @@ mod tests {
 
     use pretty_assertions::assert_eq;
 
-    use ast::r#use::{Import, ImportList, ImportedSymbol, InclusionPath, Use};
+    use ast::r#use::{Import, ImportList, ImportedSymbol, InclusionPathItem, Use};
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
-    use context::str_find::find_in;
+    use context::str_find::{find_in, find_in_nth};
 
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
@@ -228,11 +210,11 @@ mod tests {
                 import: Import::Symbol(ImportedSymbol {
                     name: "bar",
                     alias: None,
-                    path: Some(InclusionPath {
-                        in_reef_explicit: true,
-                        items: vec!["std", "foo"],
-                        segment: find_in(source.source, "reef::std::foo"),
-                    }),
+                    path: vec![
+                        InclusionPathItem::Reef(find_in(source.source, "reef")),
+                        InclusionPathItem::Symbol("std", find_in(source.source, "std")),
+                        InclusionPathItem::Symbol("foo", find_in(source.source, "foo")),
+                    ],
                     segment: find_in(source.source, "reef::std::foo::bar"),
                 }),
                 segment: source.segment(),
@@ -304,11 +286,10 @@ mod tests {
             result,
             vec![Expr::Use(Use {
                 import: Import::AllIn(
-                    InclusionPath {
-                        in_reef_explicit: false,
-                        items: vec!["std"],
-                        segment: find_in(source.source, "std"),
-                    },
+                    vec![InclusionPathItem::Symbol(
+                        "std",
+                        find_in(source.source, "std")
+                    ),],
                     find_in(source.source, "std::*"),
                 ),
                 segment: source.segment(),
@@ -327,22 +308,17 @@ mod tests {
             vec![Expr::Use(Use {
                 segment: source.segment(),
                 import: Import::List(ImportList {
-                    root: Some(InclusionPath {
-                        in_reef_explicit: true,
-                        items: vec![],
-                        segment: find_in(source.source, "reef"),
-                    }),
+                    root: vec![InclusionPathItem::Reef(find_in(source.source, "reef"))],
                     segment: find_in(
                         source.source,
                         "reef::{std::TOKEN as X,    @A \n , @B \\\n , reef::foo::{my_function}}"
                     ),
                     imports: vec![
                         Import::Symbol(ImportedSymbol {
-                            path: Some(InclusionPath {
-                                in_reef_explicit: false,
-                                items: vec!["std"],
-                                segment: find_in(source.source, "std"),
-                            }),
+                            path: vec![InclusionPathItem::Symbol(
+                                "std",
+                                find_in(source.source, "std")
+                            )],
                             name: "TOKEN",
                             alias: Some("X"),
                             segment: find_in(source.source, "std::TOKEN as X"),
@@ -350,14 +326,13 @@ mod tests {
                         Import::Environment("A", find_in(source.source, "@A")),
                         Import::Environment("B", find_in(source.source, "@B")),
                         Import::List(ImportList {
-                            root: Some(InclusionPath {
-                                in_reef_explicit: true,
-                                items: vec!["foo"],
-                                segment: find_in(source.source, "reef::foo"),
-                            }),
+                            root: vec![
+                                InclusionPathItem::Reef(find_in_nth(source.source, "reef", 1)),
+                                InclusionPathItem::Symbol("foo", find_in(source.source, "foo"))
+                            ],
                             segment: find_in(source.source, "reef::foo::{my_function}"),
                             imports: vec![Import::Symbol(ImportedSymbol {
-                                path: None,
+                                path: vec![],
                                 name: "my_function",
                                 alias: None,
                                 segment: find_in(source.source, "my_function"),
