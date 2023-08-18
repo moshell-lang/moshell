@@ -240,12 +240,11 @@ impl<'a> CallAspect<'a> for Parser<'a> {
     fn may_be_at_programmatic_call_start(&self) -> bool {
         self.cursor
             .lookahead(
-                of_type(TokenType::Reef)
-                    .and_then(of_type(TokenType::ColonColon))
-                    .then(repeat(
-                        of_type(TokenType::Identifier).and_then(of_type(TokenType::ColonColon)),
-                    ))
-                    .then(identifier_parenthesis()),
+                repeat(
+                    of_types(&[TokenType::Identifier, TokenType::Reef])
+                        .and_then(of_type(TokenType::ColonColon)),
+                )
+                .then(identifier_parenthesis()),
             )
             .is_some()
     }
@@ -260,7 +259,7 @@ impl<'a> Parser<'a> {
         match pivot {
             TokenType::RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
             TokenType::CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
-            TokenType::Identifier if self.may_be_at_programmatic_call_start() => {
+            TokenType::Identifier | TokenType::Reef if self.may_be_at_programmatic_call_start() => {
                 self.programmatic_call()
             }
             _ => self.literal(LiteralLeniency::Lenient),
