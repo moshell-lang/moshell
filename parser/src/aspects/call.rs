@@ -6,6 +6,7 @@ use ast::value::Literal;
 use ast::variable::TypedVariable;
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
+use lexer::token::TokenType::Identifier;
 use lexer::token::{Token, TokenType};
 
 use crate::aspects::group::GroupAspect;
@@ -77,6 +78,12 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         let type_parameters = self.parse_type_parameter_list()?.0;
         if let Some(open_parenthesis) = self.cursor.advance(of_type(TokenType::RoundedLeftBracket))
         {
+            if identifier.token_type != Identifier {
+                return self.expected(
+                    "Expected function name.",
+                    ParseErrorKind::Expected("valid function identifier".to_string()),
+                );
+            }
             self.delimiter_stack.push_back(open_parenthesis.clone());
             let (arguments, args_segment) =
                 self.parse_comma_separated_arguments(open_parenthesis)?;
