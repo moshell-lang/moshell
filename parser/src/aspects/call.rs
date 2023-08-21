@@ -6,7 +6,6 @@ use ast::value::Literal;
 use ast::variable::TypedVariable;
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
-use lexer::token::TokenType::Identifier;
 use lexer::token::{Token, TokenType};
 
 use crate::aspects::group::GroupAspect;
@@ -16,8 +15,8 @@ use crate::aspects::r#type::TypeAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{
-    blanks, eog, identifier_parenthesis, like, line_end, lookahead, of_type, of_types, repeat,
-    spaces, MoveOperations,
+    any, blanks, eog, identifier_parenthesis, like, line_end, lookahead, of_type, of_types, spaces,
+    MoveOperations,
 };
 use crate::parser::{ensure_empty, ParseResult, Parser};
 
@@ -53,9 +52,13 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         if self
             .cursor
             .lookahead(
-                of_types(&[TokenType::Identifier, TokenType::Reef]).and_then(
-                    of_types(&[TokenType::RoundedLeftBracket, TokenType::SquaredLeftBracket])
-                        .or(spaces().then(of_type(TokenType::FatArrow))),
+                any().and_then(
+                    of_types(&[
+                        TokenType::RoundedLeftBracket,
+                        TokenType::SquaredLeftBracket,
+                        TokenType::ColonColon,
+                    ])
+                    .or(spaces().then(of_type(TokenType::FatArrow))),
                 ),
             )
             .is_none()
@@ -78,9 +81,10 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         let type_parameters = self.parse_type_parameter_list()?.0;
         if let Some(open_parenthesis) = self.cursor.advance(of_type(TokenType::RoundedLeftBracket))
         {
-            if identifier.token_type != Identifier {
-                return self.expected(
+            if identifier.token_type != TokenType::Identifier {
+                return self.expected_with(
                     "Expected function name.",
+                    identifier,
                     ParseErrorKind::Expected("valid function identifier".to_string()),
                 );
             }
@@ -156,7 +160,13 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         let path = self.parse_inclusion_path()?;
         let name = self
             .cursor
-            .force(of_type(TokenType::Identifier), "Expected function name.")?;
+            .force(of_type(TokenType::Identifier), "Expected function name.")
+            .map_err(|err| {
+                err.with_kind(ParseErrorKind::Expected(
+                    "valid function identifier".to_string(),
+                ))
+            })?;
+
         let type_parameters = self.parse_type_parameter_list()?.0;
         let open_parenthesis = self.cursor.force(
             of_type(TokenType::RoundedLeftBracket),
@@ -187,6 +197,11 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             .then(|| {
                 self.cursor
                     .force(of_type(TokenType::Identifier), "Expected function name.")
+                    .map_err(|err| {
+                        err.with_kind(ParseErrorKind::Expected(
+                            "valid function identifier".to_string(),
+                        ))
+                    })
             })
             .transpose()?;
 
@@ -246,13 +261,11 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
     fn may_be_at_programmatic_call_start(&self) -> bool {
         self.cursor
-            .lookahead(
-                repeat(
-                    of_types(&[TokenType::Identifier, TokenType::Reef])
-                        .and_then(of_type(TokenType::ColonColon)),
-                )
-                .then(identifier_parenthesis()),
-            )
+            .lookahead(any().then(of_types(&[
+                TokenType::ColonColon,
+                TokenType::RoundedLeftBracket,
+                TokenType::SquaredLeftBracket,
+            ])))
             .is_some()
     }
 }
@@ -370,6 +383,21 @@ mod tests {
                     literal(source.source, "y"),
                 ],
             }))
+        );
+    }
+
+    #[test]
+    fn echo_reef() {
+        let source = Source::unknown("echo reef()");
+        assert_eq!(
+            Parser::new(source)
+                .parse_next()
+                .expect_err("successful parse"),
+            ParseError {
+                message: "Expected function name.".to_string(),
+                position: find_in(source.source, "reef"),
+                kind: ParseErrorKind::Expected("valid function identifier".to_string())
+            }
         );
     }
 

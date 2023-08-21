@@ -12,6 +12,12 @@ pub struct ParseError {
     pub kind: ParseErrorKind,
 }
 
+impl ParseError {
+    pub fn with_kind(self, kind: ParseErrorKind) -> Self {
+        Self { kind, ..self }
+    }
+}
+
 /// A builder to position an error that covers multiple tokens.
 #[derive(Debug, PartialEq)]
 pub(crate) struct ErrorContext<'a> {
