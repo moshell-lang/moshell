@@ -4,6 +4,7 @@ use ast::call::{Call, ProgrammaticCall};
 use ast::function::{FunctionDeclaration, FunctionParameter};
 use ast::group::Block;
 use ast::r#type::{ParametrizedType, Type};
+use ast::r#use::InclusionPathItem;
 use ast::value::Literal;
 use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
@@ -132,16 +133,17 @@ fn tolerance_in_multiple_groups() {
             expr: vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "f",
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    path: vec![],
-                    name: "T",
+                    path: vec![InclusionPathItem::Symbol("T", find_in(source.source, "T"))],
                     params: vec![],
                     segment: find_in(&source.source, "T")
                 })],
                 parameters: vec![FunctionParameter::Named(TypedVariable {
                     name: "x",
                     ty: Some(Type::Parametrized(ParametrizedType {
-                        path: vec![],
-                        name: "T",
+                        path: vec![InclusionPathItem::Symbol(
+                            "T",
+                            find_in_nth(&source.source, "T", 1)
+                        )],
                         params: vec![],
                         segment: find_in_nth(&source.source, "T", 1)
                     })),
@@ -463,8 +465,10 @@ fn double_comma_parentheses() {
         report,
         ParseReport {
             expr: vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![],
-                name: "Bar",
+                path: vec![InclusionPathItem::Symbol(
+                    "Bar",
+                    find_in(source.source, "Bar")
+                )],
                 arguments: vec![literal(content, "'m'")],
                 type_parameters: Vec::new(),
                 segment: source.segment(),

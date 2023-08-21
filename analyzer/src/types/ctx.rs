@@ -1,3 +1,4 @@
+use ast::r#use::InclusionPathItem;
 use std::collections::HashMap;
 
 use crate::relations::{LocalId, Relations, SourceId, Symbol};
@@ -70,10 +71,11 @@ impl TypeContext {
     pub(crate) fn resolve(&self, type_annotation: &ast::r#type::Type) -> Option<TypeId> {
         match type_annotation {
             ast::r#type::Type::Parametrized(param) => {
-                if !param.path.is_empty() || !param.params.is_empty() {
+                if param.path.len() > 1 || !param.params.is_empty() {
                     unimplemented!();
                 }
-                self.names.get(param.name).copied()
+                let InclusionPathItem::Symbol(sym, _) = param.path.first().unwrap() else { unimplemented!() };
+                self.names.get(*sym).copied()
             }
             ast::r#type::Type::Callable(_) => unimplemented!(),
             ast::r#type::Type::ByName(_) => unimplemented!(),

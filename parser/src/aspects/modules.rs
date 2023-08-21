@@ -141,7 +141,7 @@ impl<'a> Parser<'a> {
     fn parse_import_with_path(&mut self) -> ParseResult<Import<'a>> {
         let start = self.cursor.peek();
 
-        let symbol_path = self.parse_inclusion_path()?;
+        let mut symbol_path = self.parse_inclusion_path()?;
         self.cursor.advance(spaces()); //consume spaces
         let token = self.cursor.peek();
 
@@ -176,9 +176,13 @@ impl<'a> Parser<'a> {
 
         let end = alias.clone().unwrap_or(token);
 
+        symbol_path.push(InclusionPathItem::Symbol(
+            name,
+            self.cursor.relative_pos_ctx(name),
+        ));
+
         Ok(Import::Symbol(ImportedSymbol {
             path: symbol_path,
-            name,
             alias: alias.map(|t| t.value),
             segment: self.cursor.relative_pos_ctx(start..end),
         }))
@@ -208,13 +212,13 @@ mod tests {
             result,
             vec![Expr::Use(Use {
                 import: Import::Symbol(ImportedSymbol {
-                    name: "bar",
-                    alias: None,
                     path: vec![
                         InclusionPathItem::Reef(find_in(source.source, "reef")),
                         InclusionPathItem::Symbol("std", find_in(source.source, "std")),
                         InclusionPathItem::Symbol("foo", find_in(source.source, "foo")),
+                        InclusionPathItem::Symbol("bar", find_in(source.source, "bar")),
                     ],
+                    alias: None,
                     segment: find_in(source.source, "reef::std::foo::bar"),
                 }),
                 segment: source.segment(),
@@ -315,11 +319,10 @@ mod tests {
                     ),
                     imports: vec![
                         Import::Symbol(ImportedSymbol {
-                            path: vec![InclusionPathItem::Symbol(
-                                "std",
-                                find_in(source.source, "std")
-                            )],
-                            name: "TOKEN",
+                            path: vec![
+                                InclusionPathItem::Symbol("std", find_in(source.source, "std")),
+                                InclusionPathItem::Symbol("TOKEN", find_in(source.source, "TOKEN"))
+                            ],
                             alias: Some("X"),
                             segment: find_in(source.source, "std::TOKEN as X"),
                         }),
@@ -332,8 +335,10 @@ mod tests {
                             ],
                             segment: find_in(source.source, "reef::foo::{my_function}"),
                             imports: vec![Import::Symbol(ImportedSymbol {
-                                path: vec![],
-                                name: "my_function",
+                                path: vec![InclusionPathItem::Symbol(
+                                    "my_function",
+                                    find_in(source.source, "my_function")
+                                )],
                                 alias: None,
                                 segment: find_in(source.source, "my_function"),
                             }),],

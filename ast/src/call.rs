@@ -33,11 +33,8 @@ impl SourceSegmentHolder for Call<'_> {
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ProgrammaticCall<'a> {
-    /// inclusion path
+    /// inclusion path, with the function's name
     pub path: Vec<InclusionPathItem<'a>>,
-
-    /// The name of the function to call.
-    pub name: &'a str,
 
     /// The arguments to pass to the function.
     pub arguments: Vec<Expr<'a>>,

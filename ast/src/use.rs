@@ -1,6 +1,7 @@
 use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
 use src_macros::segment_holder;
+use std::fmt::{Display, Formatter};
 
 /// The expression that imports an external symbol into its current scope
 #[segment_holder]
@@ -21,6 +22,15 @@ impl SourceSegmentHolder for InclusionPathItem<'_> {
         match self {
             InclusionPathItem::Symbol(_, s) => s.clone(),
             InclusionPathItem::Reef(s) => s.clone(),
+        }
+    }
+}
+
+impl Display for InclusionPathItem<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InclusionPathItem::Symbol(str, _) => write!(f, "{str}"),
+            InclusionPathItem::Reef(_) => write!(f, "reef"),
         }
     }
 }
@@ -62,11 +72,8 @@ pub struct ImportList<'a> {
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ImportedSymbol<'a> {
-    ///list of relative prefixed modules
+    ///list of relative prefixed modules, with the symbol's name
     pub path: Vec<InclusionPathItem<'a>>,
-
-    ///The symbol's type
-    pub name: &'a str,
 
     ///The symbol's alias (if any)
     pub alias: Option<&'a str>,

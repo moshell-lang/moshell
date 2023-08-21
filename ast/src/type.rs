@@ -36,11 +36,8 @@ pub struct CastedExpr<'a> {
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ParametrizedType<'a> {
-    /// inclusion path
+    /// inclusion path, with the type's name
     pub path: Vec<InclusionPathItem<'a>>,
-
-    /// the type's name
-    pub name: &'a str,
 
     ///the type's parameters
     pub params: Vec<Type<'a>>,
@@ -94,11 +91,15 @@ impl<'a> Display for CallableType<'a> {
 
 impl<'a> Display for ParametrizedType<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.name)?;
+        if let Some((first, tail)) = self.path.split_first() {
+            write!(f, "{first}")?;
+            for it in tail {
+                write!(f, "::{it}")?;
+            }
+        }
         if self.params.is_empty() {
             return Ok(());
         }
-
         fmt_comma_separated('[', ']', &self.params, f)
     }
 }

@@ -46,7 +46,7 @@ pub trait CallAspect<'a> {
 
 impl<'a> CallAspect<'a> for Parser<'a> {
     fn any_call(&mut self) -> ParseResult<Expr<'a>> {
-        let path = self.parse_inclusion_path()?;
+        let mut path = self.parse_inclusion_path()?;
 
         // Equivalent to #may_be_at_programmatic_call_start, with an additional check for lambda definitions.
         if self
@@ -73,10 +73,11 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         // We don't known if this is a programmatic call, a raw call or a lambda definition yet.
 
         let identifier = self.cursor.next()?;
-        let value = identifier.value;
+        let name = identifier.value;
+        let name_segment = self.cursor.relative_pos(name);
         let callee = Expr::Literal(Literal {
-            parsed: value.into(),
-            segment: self.cursor.relative_pos(value),
+            parsed: name.into(),
+            segment: name_segment.clone(),
         });
         let type_parameters = self.parse_type_parameter_list()?.0;
         if let Some(open_parenthesis) = self.cursor.advance(of_type(TokenType::RoundedLeftBracket))
@@ -95,11 +96,11 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             let start = path
                 .first()
                 .map(InclusionPathItem::segment)
-                .unwrap_or_else(|| self.cursor.relative_pos(value));
+                .unwrap_or_else(|| name_segment.clone());
 
+            path.push(InclusionPathItem::Symbol(name, name_segment));
             Ok(Expr::ProgrammaticCall(ProgrammaticCall {
                 path,
-                name: value,
                 arguments,
                 type_parameters,
                 segment: start.start..args_segment.end,
@@ -120,12 +121,12 @@ impl<'a> CallAspect<'a> for Parser<'a> {
                 Type::segment,
             )?;
             let body = Box::new(self.value()?);
-            let segment = self.cursor.relative_pos(identifier).start..body.segment().end;
+            let segment = name_segment.start..body.segment().end;
             Ok(Expr::LambdaDef(LambdaDef {
                 args: vec![TypedVariable {
-                    name: value,
+                    name,
                     ty: None,
-                    segment: self.cursor.relative_pos(value),
+                    segment: self.cursor.relative_pos(name),
                 }],
                 body,
                 segment,
@@ -157,7 +158,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
     }
 
     fn programmatic_call(&mut self) -> ParseResult<Expr<'a>> {
-        let path = self.parse_inclusion_path()?;
+        let mut path = self.parse_inclusion_path()?;
         let name = self
             .cursor
             .force(of_type(TokenType::Identifier), "Expected function name.")
@@ -167,6 +168,8 @@ impl<'a> CallAspect<'a> for Parser<'a> {
                 ))
             })?;
 
+        let name_segment = self.cursor.relative_pos(name.value);
+
         let type_parameters = self.parse_type_parameter_list()?.0;
         let open_parenthesis = self.cursor.force(
             of_type(TokenType::RoundedLeftBracket),
@@ -175,15 +178,16 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
         self.delimiter_stack.push_back(open_parenthesis.clone());
         let (arguments, args_segment) = self.parse_comma_separated_arguments(open_parenthesis)?;
+
         let start = path
             .first()
             .map(InclusionPathItem::segment)
-            .unwrap_or_else(|| self.cursor.relative_pos(name.value));
+            .unwrap_or_else(|| name_segment.clone());
 
+        path.push(InclusionPathItem::Symbol(name.value, name_segment));
         let segment = start.start..args_segment.end;
         Ok(Expr::ProgrammaticCall(ProgrammaticCall {
             path,
-            name: name.value,
             arguments,
             type_parameters,
             segment,
@@ -555,16 +559,30 @@ mod tests {
         let source2 = Source::unknown("Foo( )");
         let expr = parse(source).expect("Failed to parse");
         let expr2 = parse(source2.clone()).expect("Failed to parse");
-        let mut expected = ProgrammaticCall {
-            path: vec![],
-            name: "Foo",
-            arguments: vec![],
-            type_parameters: vec![],
-            segment: source.segment(),
-        };
-        assert_eq!(expr, vec![Expr::ProgrammaticCall(expected.clone())]);
-        expected.segment = source2.segment();
-        assert_eq!(expr2, vec![Expr::ProgrammaticCall(expected)]);
+        assert_eq!(
+            expr,
+            vec![Expr::ProgrammaticCall(ProgrammaticCall {
+                path: vec![InclusionPathItem::Symbol(
+                    "Foo",
+                    find_in(source.source, "Foo")
+                )],
+                arguments: vec![],
+                type_parameters: vec![],
+                segment: source.segment(),
+            })]
+        );
+        assert_eq!(
+            expr2,
+            vec![Expr::ProgrammaticCall(ProgrammaticCall {
+                path: vec![InclusionPathItem::Symbol(
+                    "Foo",
+                    find_in(source2.source, "Foo")
+                )],
+                arguments: vec![],
+                type_parameters: vec![],
+                segment: source2.segment(),
+            })]
+        );
     }
 
     #[test]
@@ -574,8 +592,10 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![],
-                name: "Foo",
+                path: vec![InclusionPathItem::Symbol(
+                    "Foo",
+                    find_in(source.source, "Foo")
+                )],
                 arguments: vec![
                     literal(source.source, "'a'"),
                     Expr::Literal(Literal {
@@ -597,8 +617,10 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![],
-                name: "Foo",
+                path: vec![InclusionPathItem::Symbol(
+                    "Foo",
+                    find_in(source.source, "Foo")
+                )],
                 arguments: vec![
                     literal(source.source, "'this'"),
                     literal(source.source, "'is'"),
@@ -617,8 +639,10 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![],
-                name: "Foo",
+                path: vec![InclusionPathItem::Symbol(
+                    "Foo",
+                    find_in(source.source, "Foo")
+                )],
                 arguments: vec![
                     Expr::Literal(Literal {
                         parsed: "===\ntesting something\n===".into(),
@@ -639,15 +663,19 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![],
-                name: "List",
+                path: vec![InclusionPathItem::Symbol(
+                    "List",
+                    find_in(source.source, "List")
+                )],
                 arguments: vec![Expr::Literal(Literal {
                     parsed: "hi".into(),
                     segment: find_in(source.source, "'hi'")
                 })],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    path: vec![],
-                    name: "Str",
+                    path: vec![InclusionPathItem::Symbol(
+                        "Str",
+                        find_in(source.source, "Str")
+                    )],
                     params: vec![],
                     segment: find_in(source.source, "Str"),
                 })],
@@ -663,24 +691,29 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![],
-                name: "foo",
+                path: vec![InclusionPathItem::Symbol(
+                    "foo",
+                    find_in(source.source, "foo")
+                )],
                 segment: source.segment(),
                 arguments: vec![
                     Expr::ProgrammaticCall(ProgrammaticCall {
-                        path: vec![],
-                        name: "bar",
+                        path: vec![InclusionPathItem::Symbol(
+                            "bar",
+                            find_in(source.source, "bar")
+                        )],
                         arguments: Vec::new(),
                         type_parameters: Vec::new(),
                         segment: find_in(source.source, "bar()"),
                     }),
                     Expr::ProgrammaticCall(ProgrammaticCall {
-                        path: vec![],
-                        name: "other",
+                        path: vec![InclusionPathItem::Symbol(
+                            "other",
+                            find_in(source.source, "other")
+                        )],
                         arguments: Vec::new(),
                         type_parameters: vec![Type::Parametrized(ParametrizedType {
-                            path: vec![],
-                            name: "A",
+                            path: vec![InclusionPathItem::Symbol("A", find_in(source.source, "A"))],
                             params: Vec::new(),
                             segment: find_in(source.source, "A"),
                         })],
@@ -688,8 +721,10 @@ mod tests {
                     })
                 ],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    path: vec![],
-                    name: "Str",
+                    path: vec![InclusionPathItem::Symbol(
+                        "Str",
+                        find_in(source.source, "Str")
+                    )],
                     params: vec![],
                     segment: find_in(source.source, "Str"),
                 })],
@@ -708,39 +743,39 @@ mod tests {
                     InclusionPathItem::Reef(find_in(source.source, "reef")),
                     InclusionPathItem::Symbol("a", find_in(source.source, "a")),
                     InclusionPathItem::Symbol("b", find_in(source.source, "b")),
+                    InclusionPathItem::Symbol("foo", find_in(source.source, "foo"))
                 ],
-                name: "foo",
                 segment: source.segment(),
                 arguments: vec![
                     Expr::ProgrammaticCall(ProgrammaticCall {
                         path: vec![
                             InclusionPathItem::Reef(find_in_nth(source.source, "reef", 1)),
                             InclusionPathItem::Symbol("std", find_in(source.source, "std")),
+                            InclusionPathItem::Symbol("bar", find_in(source.source, "bar"))
                         ],
-                        name: "bar",
                         arguments: Vec::new(),
                         type_parameters: Vec::new(),
                         segment: find_in(source.source, "reef::std::bar()"),
                     }),
                     Expr::ProgrammaticCall(ProgrammaticCall {
-                        path: vec![InclusionPathItem::Symbol(
-                            "foo",
-                            find_in_nth(source.source, "foo", 1)
-                        ),],
-                        name: "other",
+                        path: vec![
+                            InclusionPathItem::Symbol("foo", find_in_nth(source.source, "foo", 1)),
+                            InclusionPathItem::Symbol("other", find_in(source.source, "other"))
+                        ],
                         arguments: Vec::new(),
                         segment: find_in(source.source, "foo::other[A]()"),
                         type_parameters: vec![Type::Parametrized(ParametrizedType {
-                            path: vec![],
-                            name: "A",
+                            path: vec![InclusionPathItem::Symbol("A", find_in(source.source, "A"))],
                             params: Vec::new(),
                             segment: find_in(source.source, "A"),
                         })]
                     })
                 ],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    path: vec![],
-                    name: "Str",
+                    path: vec![InclusionPathItem::Symbol(
+                        "Str",
+                        find_in(source.source, "Str")
+                    )],
                     params: vec![],
                     segment: find_in(source.source, "Str"),
                 })],
@@ -758,15 +793,17 @@ mod tests {
                 path: vec![
                     InclusionPathItem::Symbol("foo", find_in(source.source, "foo")),
                     InclusionPathItem::Symbol("bar", find_in(source.source, "bar")),
+                    InclusionPathItem::Symbol("List", find_in(source.source, "List")),
                 ],
-                name: "List",
                 arguments: vec![Expr::Literal(Literal {
                     segment: find_in(source.source, "'hi'"),
                     parsed: "hi".into(),
                 })],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    path: vec![],
-                    name: "Str",
+                    path: vec![InclusionPathItem::Symbol(
+                        "Str",
+                        find_in(source.source, "Str")
+                    )],
                     params: vec![],
                     segment: find_in(source.source, "Str")
                 })],

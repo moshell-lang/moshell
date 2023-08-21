@@ -272,7 +272,6 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             ImportExpr::Symbol(s) => {
                 let mut symbol_name = relative_path;
                 symbol_name.extend(map_inclusion_path(&s.path));
-                symbol_name.push(s.name.to_string());
 
                 let name = Name::from(symbol_name);
                 let alias = s.alias.map(|s| s.to_string());
@@ -392,8 +391,8 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 }
             }
             Expr::ProgrammaticCall(call) => {
-                let path = map_inclusion_path(&call.path).collect();
-                let name = Name::qualified(path, call.name.to_string());
+                let path: Vec<_> = map_inclusion_path(&call.path).collect();
+                let name = Name::from(path);
 
                 let symbol = self.identify_variable(
                     *self.stack.last().unwrap(),
