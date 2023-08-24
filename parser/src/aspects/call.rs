@@ -86,7 +86,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
                 return self.expected_with(
                     "Expected function name.",
                     identifier,
-                    ParseErrorKind::Expected("valid function identifier".to_string()),
+                    ParseErrorKind::Expected("identifier".to_owned()),
                 );
             }
             self.delimiter_stack.push_back(open_parenthesis.clone());
@@ -159,14 +159,11 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
     fn programmatic_call(&mut self) -> ParseResult<Expr<'a>> {
         let mut path = self.parse_inclusion_path()?;
-        let name = self
-            .cursor
-            .force(of_type(TokenType::Identifier), "Expected function name.")
-            .map_err(|err| {
-                err.with_kind(ParseErrorKind::Expected(
-                    "valid function identifier".to_string(),
-                ))
-            })?;
+        let name = self.cursor.force_with(
+            of_type(TokenType::Identifier),
+            "Expected function name.",
+            ParseErrorKind::Expected("identifier".to_owned()),
+        )?;
 
         let name_segment = self.cursor.relative_pos(name.value);
 
@@ -199,13 +196,11 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         let name = dot
             .is_some()
             .then(|| {
-                self.cursor
-                    .force(of_type(TokenType::Identifier), "Expected function name.")
-                    .map_err(|err| {
-                        err.with_kind(ParseErrorKind::Expected(
-                            "valid function identifier".to_string(),
-                        ))
-                    })
+                self.cursor.force_with(
+                    of_type(TokenType::Identifier),
+                    "Expected function name.",
+                    ParseErrorKind::Expected("identifier".to_owned()),
+                )
             })
             .transpose()?;
 

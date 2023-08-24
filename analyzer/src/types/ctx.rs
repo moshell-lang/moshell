@@ -74,8 +74,11 @@ impl TypeContext {
                 if param.path.len() > 1 || !param.params.is_empty() {
                     unimplemented!();
                 }
-                let InclusionPathItem::Symbol(sym, _) = param.path.first().unwrap() else { unimplemented!() };
-                self.names.get(*sym).copied()
+                if let InclusionPathItem::Symbol(sym, _) = param.path.first().expect("Type annotation should not be empty") {
+                    self.names.get(*sym).copied()
+                } else {
+                    unimplemented!("type's path cannot start with `reef` yet")
+                }
             }
             ast::r#type::Type::Callable(_) => unimplemented!(),
             ast::r#type::Type::ByName(_) => unimplemented!(),
