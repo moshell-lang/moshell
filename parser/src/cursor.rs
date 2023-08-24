@@ -98,8 +98,10 @@ impl<'a> ParserCursor<'a> {
         err: &str,
         kind: ParseErrorKind,
     ) -> ParseResult<Token<'a>> {
-        self.advance(mov)
-            .ok_or_else(|| self.mk_parse_error(err, self.at(self.pos + 1), kind))
+        self.force(mov, err).map_err(|mut err| {
+            err.kind = kind;
+            err
+        })
     }
 
     ///Advance and returns a selection of token.

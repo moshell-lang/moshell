@@ -74,7 +74,11 @@ impl TypeContext {
                 if param.path.len() > 1 || !param.params.is_empty() {
                     unimplemented!();
                 }
-                if let InclusionPathItem::Symbol(sym, _) = param.path.first().expect("Type annotation should not be empty") {
+                if let InclusionPathItem::Symbol(sym, _) = param
+                    .path
+                    .first()
+                    .expect("Type annotation should not be empty")
+                {
                     self.names.get(*sym).copied()
                 } else {
                     unimplemented!("type's path cannot start with `reef` yet")

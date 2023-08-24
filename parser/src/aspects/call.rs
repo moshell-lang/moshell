@@ -395,7 +395,7 @@ mod tests {
             ParseError {
                 message: "Expected function name.".to_string(),
                 position: find_in(source.source, "reef"),
-                kind: ParseErrorKind::Expected("valid function identifier".to_string())
+                kind: ParseErrorKind::Expected("identifier".to_string())
             }
         );
     }

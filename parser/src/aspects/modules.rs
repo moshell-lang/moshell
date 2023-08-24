@@ -235,7 +235,7 @@ mod tests {
             Err(ParseError {
                 message: "Environment variable name expected.".to_string(),
                 kind: ParseErrorKind::Expected("<identifier>".to_string()),
-                position: source.source.len()..source.source.len(),
+                position: source.source.len() - 1..source.source.len(),
             })
         )
     }
