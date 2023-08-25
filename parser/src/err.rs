@@ -1,5 +1,6 @@
 use ast::Expr;
 use context::source::SourceSegment;
+use lexer::delimiter::UnmatchedDelimiter;
 use lexer::token::Token;
 
 use crate::parser::ParseResult;
@@ -107,18 +108,11 @@ pub struct ParseReport<'a> {
     ///
     /// This may be empty if the parsing process succeeded.
     pub errors: Vec<ParseError>,
-
-    /// Indicates that the end of the input has been reached too early and
-    /// that the parser is waiting for more input.
-    ///
-    /// This flag is set only when a block delimiter is opened, but not closed,
-    /// and there was no actual error in the input.
-    pub stack_ended: bool,
 }
 
 impl<'a> ParseReport<'a> {
     pub fn is_ok(&self) -> bool {
-        self.errors.is_empty() && self.stack_ended
+        self.errors.is_empty()
     }
 
     pub fn is_err(&self) -> bool {
@@ -128,20 +122,16 @@ impl<'a> ParseReport<'a> {
     pub fn expect(self, msg: &str) -> Vec<Expr<'a>> {
         if self.is_ok() {
             self.expr
-        } else if !self.errors.is_empty() {
-            panic!("{msg} {:?}", self.errors)
         } else {
-            panic!("{msg}: The stack was expected to be ended")
+            panic!("{msg} {:?}", self.errors)
         }
     }
 
     pub fn unwrap(self) -> Vec<Expr<'a>> {
         if self.is_ok() {
             self.expr
-        } else if !self.errors.is_empty() {
-            panic!("ParseReport contains errors: {:?}", self.errors)
         } else {
-            panic!("The stack was expected to be ended")
+            panic!("ParseReport contains errors: {:?}", self.errors)
         }
     }
 }
@@ -152,12 +142,10 @@ impl<'a> From<ParseResult<Vec<Expr<'a>>>> for ParseReport<'a> {
             Ok(expr) => Self {
                 expr,
                 errors: Vec::new(),
-                stack_ended: true,
             },
             Err(err) => Self {
                 expr: Vec::new(),
                 errors: vec![err],
-                stack_ended: true,
             },
         }
     }
@@ -170,5 +158,68 @@ impl<'a> From<ParseReport<'a>> for ParseResult<Vec<Expr<'a>>> {
         } else {
             Ok(report.expr)
         }
+    }
+}
+
+/// A list of byte offsets to skip.
+///
+/// Even indexes are start byte offsets, odd indexes are end byte offsets.
+#[derive(Debug)]
+pub(crate) struct SkipSections(Vec<usize>);
+
+impl SkipSections {
+    /// Returns `true` if the given offset is contained in a skip section.
+    pub(crate) fn contains(&self, offset: usize) -> bool {
+        let pos = self
+            .0
+            .binary_search(&offset)
+            .map(|pos| pos + 1)
+            .unwrap_or_else(|pos| pos);
+        pos & 1 == 1
+    }
+}
+
+/// Determines each section to skip.
+pub(crate) fn determine_skip_sections(
+    input_len: usize,
+    unmatched: &[UnmatchedDelimiter],
+) -> SkipSections {
+    let mut skip_sections = Vec::new();
+    for unmatched in unmatched {
+        if let Some(candidate) = unmatched.candidate {
+            skip_sections.push(candidate);
+        } else {
+            break;
+        }
+        if let Some(closing) = unmatched.closing {
+            skip_sections.push(closing);
+        } else {
+            skip_sections.push(input_len + 1); // Matches unclosed delimiters at EOF.
+            break;
+        }
+    }
+    SkipSections(skip_sections)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_skip_sections() {
+        let skip = SkipSections(vec![]);
+        assert!(!skip.contains(0));
+    }
+
+    #[test]
+    fn one_skip_section() {
+        let skip = SkipSections(vec![3, 9]);
+        assert!(!skip.contains(0));
+        assert!(!skip.contains(2));
+        assert!(skip.contains(3));
+        assert!(skip.contains(5));
+        assert!(skip.contains(8));
+        assert!(!skip.contains(9));
+        assert!(!skip.contains(10));
     }
 }

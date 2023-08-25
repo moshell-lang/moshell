@@ -180,11 +180,18 @@ mod tests {
         let err = parse(source);
         assert_eq!(
             err.errors,
-            vec![ParseError {
-                message: "Unexpected word literal".to_string(),
-                position: find_in(content, "echo"),
-                kind: ParseErrorKind::Unexpected,
-            }]
+            vec![
+                ParseError {
+                    message: "Unexpected word literal".to_string(),
+                    position: find_in(content, "echo"),
+                    kind: ParseErrorKind::Unexpected,
+                },
+                ParseError {
+                    message: "Unexpected token ')'.".to_string(),
+                    position: find_in(content, ")"),
+                    kind: ParseErrorKind::Unexpected,
+                }
+            ]
         )
     }
 

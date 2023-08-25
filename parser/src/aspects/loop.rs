@@ -141,8 +141,6 @@ impl<'a> Parser<'a> {
             of_type(TokenType::RoundedLeftBracket),
             "expected '((' at start of conditional for",
         )?;
-        self.delimiter_stack
-            .push_back(outer_opening_parenthesis.clone());
         let kind = self.parse_inner_conditional_for(outer_opening_parenthesis.clone());
 
         match kind {
@@ -159,12 +157,10 @@ impl<'a> Parser<'a> {
         }
     }
     fn parse_inner_conditional_for(&mut self, start: Token<'a>) -> ParseResult<ConditionalFor<'a>> {
-        let inner_opening_parenthesis = self.cursor.force(
+        self.cursor.force(
             of_type(TokenType::RoundedLeftBracket),
             "expected '((' at start of conditional for",
         )?;
-        self.delimiter_stack
-            .push_back(inner_opening_parenthesis.clone());
         match self.parse_three_parts_for() {
             Ok(kind) => {
                 self.expect_one_closing_parentheses_in_for(start)?;
@@ -204,7 +200,7 @@ impl<'a> Parser<'a> {
         outer_opening_parenthesis: Token<'a>,
     ) -> ParseResult<Token<'a>> {
         if self.cursor.lookahead(eog()).is_some() {
-            self.expect_delimiter(TokenType::RoundedRightBracket)
+            self.expect_delimiter(outer_opening_parenthesis, TokenType::RoundedRightBracket)
         } else {
             let mut segment = self.cursor.relative_pos(outer_opening_parenthesis.value);
             segment.end += 1;

@@ -157,7 +157,7 @@ mod tests {
         assert_eq!(
             ast,
             Err(ParseError {
-                message: "expected end of expression or file".to_string(),
+                message: "Unexpected closing delimiter.".to_string(),
                 position: content.find(')').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected
             })

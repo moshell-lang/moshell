@@ -39,8 +39,6 @@ impl<'a> TestAspect<'a> for Parser<'a> {
     }
 
     fn parse_test(&mut self) -> ParseResult<Expr<'a>> {
-        //expect the first '[' lexeme
-
         let start = self.cursor.force(
             of_type(SquaredLeftBracket),
             "expected '[' at start of test expression.",
@@ -51,7 +49,7 @@ impl<'a> TestAspect<'a> for Parser<'a> {
             return self.parse_test_call(start);
         }
 
-        if let Some(end) = self.cursor.lookahead(of_type(SquaredRightBracket)) {
+        if let Some(end) = self.cursor.advance(of_type(SquaredRightBracket)) {
             self.expected_with(
                 "native test evaluation cannot be empty.",
                 start.clone()..end,
@@ -59,7 +57,10 @@ impl<'a> TestAspect<'a> for Parser<'a> {
             )?;
         }
 
-        let underlying = Box::new(self.value()?);
+        let underlying = Box::new(self.value().map_err(|err| {
+            self.repos_to_top_delimiter();
+            err
+        })?);
         let end = self.cursor.force_with(
             //expect trailing ']'
             spaces().then(of_type(SquaredRightBracket)),

@@ -379,9 +379,9 @@ pub(crate) fn identifier_parenthesis() -> AndThenMove<
 
 #[cfg(test)]
 mod tests {
+    use lexer::lex;
     use pretty_assertions::assert_eq;
 
-    use lexer::lexer::lex;
     use lexer::token::{Token, TokenType};
 
     use crate::cursor::ParserCursor;
@@ -389,7 +389,7 @@ mod tests {
 
     #[test]
     fn eox_move() {
-        let tokens = lex(";");
+        let tokens = lex(";").0;
         let cursor = ParserCursor::new(tokens);
         let result = cursor.lookahead(eox());
         assert_eq!(result, Some(Token::new(TokenType::SemiColon, ";")));

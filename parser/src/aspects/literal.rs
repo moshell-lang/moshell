@@ -69,25 +69,10 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             _ if pivot.is_ponctuation()
                 || (leniency == LiteralLeniency::Strict && pivot.is_extended_ponctuation()) =>
             {
-                if pivot.is_closing_ponctuation()
-                    && self
-                        .delimiter_stack
-                        .back()
-                        .map(|d| {
-                            d.token_type
-                                .closing_pair()
-                                .expect("invalid delimiter passed to stack")
-                                != pivot
-                        })
-                        .unwrap_or(false)
-                {
-                    self.mismatched_delimiter(pivot)
-                } else {
-                    self.expected(
-                        format!("Unexpected token '{}'.", token.value),
-                        ParseErrorKind::Unexpected,
-                    )
-                }
+                self.expected(
+                    format!("Unexpected token '{}'.", token.value),
+                    ParseErrorKind::Unexpected,
+                )
             }
 
             _ if leniency == LiteralLeniency::Lenient => self.argument(leniency),

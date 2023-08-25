@@ -67,7 +67,7 @@ impl<'a> GroupAspect<'a> for Parser<'a> {
                 err
             })?
         }
-        let end = self.expect_delimiter(TokenType::RoundedRightBracket)?;
+        let end = self.expect_delimiter(start.clone(), TokenType::RoundedRightBracket)?;
 
         Ok(Parenthesis {
             expression: Box::new(expr),
@@ -83,7 +83,6 @@ impl<'a> Parser<'a> {
             "Unexpected start of group expression",
             ParseErrorKind::Expected(start.str().unwrap_or("specific token").to_string()),
         )?; //consume group start token
-        self.delimiter_stack.push_back(token.clone());
         Ok(token)
     }
 
@@ -112,7 +111,6 @@ impl<'a> Parser<'a> {
 
         //if we directly hit end of group, return an empty block.
         if let Some(eog) = self.cursor.advance(of_type(eog)) {
-            self.delimiter_stack.pop_back();
             return Ok((statements, segment.start..self.cursor.relative_pos(eog).end));
         }
 
@@ -141,7 +139,6 @@ impl<'a> Parser<'a> {
 
             //if the group is closed, then we stop looking for other expressions.
             if let Some(closing) = closed {
-                self.delimiter_stack.pop_back();
                 segment = segment.start..self.cursor.relative_pos(closing).end;
                 break;
             }
@@ -150,17 +147,13 @@ impl<'a> Parser<'a> {
             if eox_res.is_some() {
                 continue;
             }
-            if self.cursor.peek().token_type.is_closing_ponctuation() {
-                self.mismatched_delimiter(eog)?;
-            } else {
-                let error = self.mk_parse_error(
-                    "expected new line or semicolon",
-                    self.cursor.peek(),
-                    ParseErrorKind::Unexpected,
-                );
-                self.repos_delimiter_due_to(&error);
-                return Err(error);
-            }
+            let error = self.mk_parse_error(
+                "expected new line or semicolon",
+                self.cursor.peek(),
+                ParseErrorKind::Unexpected,
+            );
+            self.repos_delimiter_due_to(&error);
+            return Err(error);
         }
         Ok((statements, segment))
     }
@@ -182,7 +175,7 @@ mod tests {
     use context::str_find::{find_between, find_in, find_in_nth};
 
     use crate::aspects::group::GroupAspect;
-    use crate::err::{ParseError, ParseErrorKind};
+    use crate::err::{ParseError, ParseErrorKind, ParseReport};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
     use crate::source::literal;
@@ -446,5 +439,44 @@ mod tests {
                 segment: source.segment()
             }
         )
+    }
+
+    #[test]
+    fn unmatched_closing() {
+        let content = "{]}";
+        let source = Source::unknown(content);
+        let report = parse(source);
+        assert_eq!(
+            report,
+            ParseReport {
+                expr: vec![Expr::Block(Block {
+                    expressions: Vec::new(),
+                    segment: source.segment(),
+                })],
+                errors: vec![ParseError {
+                    message: "Mismatched closing delimiter.".to_string(),
+                    position: content.find(']').map(|p| p..p + 1).unwrap(),
+                    kind: ParseErrorKind::Unpaired(content.find('{').map(|p| p..p + 1).unwrap())
+                }]
+            }
+        );
+    }
+
+    #[test]
+    fn unmatched_opening() {
+        let content = "{(}";
+        let source = Source::unknown(content);
+        let report = parse(source);
+        assert_eq!(
+            report,
+            ParseReport {
+                expr: vec![],
+                errors: vec![ParseError {
+                    message: "Mismatched closing delimiter.".to_string(),
+                    position: content.find('}').map(|p| p..p + 1).unwrap(),
+                    kind: ParseErrorKind::Unpaired(content.find('(').map(|p| p..p + 1).unwrap())
+                }]
+            }
+        );
     }
 }
