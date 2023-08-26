@@ -24,22 +24,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    
-    - name: Cargo Cache
-      uses: actions/cache@v3
-      with:
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          target/
-          
+
+    - name: Rust Cache
+      uses: Swatinem/rust-cache@v2
+
     - name: Build
       run: |
         cargo build
         cargo bench --no-run --profile test
-      
+
     - name: Run tests
       run: cargo test --verbose
