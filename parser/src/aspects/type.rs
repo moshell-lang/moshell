@@ -1,9 +1,7 @@
-use ast::r#type::{ByName, CallableType, CastedExpr, ParametrizedType, Type};
+use ast::r#type::{ByName, CallableType, ParametrizedType, Type};
 use ast::r#use::InclusionPathItem;
-use ast::Expr;
 use context::display::fmt_comma_separated;
 use context::source::{SourceSegment, SourceSegmentHolder};
-use lexer::token::TokenType::*;
 use lexer::token::TokenType::{
     FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket, SquaredLeftBracket,
     SquaredRightBracket,
@@ -22,9 +20,6 @@ pub trait TypeAspect<'a> {
 
     ///parse a type parameter list (`[...]`)
     fn parse_type_parameter_list(&mut self) -> ParseResult<(Vec<Type<'a>>, SourceSegment)>;
-
-    ///parse a casted expression (ex: {..} as Type)
-    fn parse_cast(&mut self, casted_expr: Expr<'a>) -> ParseResult<CastedExpr<'a>>;
 }
 
 impl<'a> TypeAspect<'a> for Parser<'a> {
@@ -94,20 +89,6 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             );
         }
         Ok((tparams, segment))
-    }
-
-    fn parse_cast(&mut self, casted_expr: Expr<'a>) -> ParseResult<CastedExpr<'a>> {
-        self.cursor.force(
-            blanks().then(of_type(As)),
-            "expected 'as' for cast expression.",
-        )?;
-        let casted_type = self.parse_type()?;
-        let segment = casted_expr.segment().start..casted_type.segment().end;
-        Ok(CastedExpr {
-            expr: Box::new(casted_expr),
-            casted_type,
-            segment,
-        })
     }
 }
 

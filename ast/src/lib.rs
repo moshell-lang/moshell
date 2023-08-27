@@ -9,13 +9,13 @@ use crate::control_flow::{For, If, Loop, While};
 use crate::function::{FunctionDeclaration, Return};
 use crate::group::{Block, Parenthesis, Subshell};
 use crate::lambda::LambdaDef;
-use crate::operation::BinaryOperation;
+use crate::operation::{BinaryOperation, UnaryOperation};
 use crate::r#match::Match;
 use crate::r#type::CastedExpr;
 use crate::r#use::Use;
 use crate::range::Iterable;
 use crate::substitution::Substitution;
-use crate::test::{Not, Test};
+use crate::test::Test;
 use crate::value::{Literal, TemplateString};
 use crate::variable::{Assign, VarDeclaration, VarReference};
 
@@ -38,6 +38,7 @@ pub mod variable;
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub enum Expr<'a> {
     Assign(Assign<'a>),
+    Unary(UnaryOperation<'a>),
     Binary(BinaryOperation<'a>),
     Literal(Literal),
 
@@ -60,7 +61,6 @@ pub enum Expr<'a> {
     Casted(CastedExpr<'a>),
 
     Test(Test<'a>),
-    Not(Not<'a>),
 
     If(If<'a>),
     While(While<'a>),
@@ -91,6 +91,7 @@ impl SourceSegmentHolder for Expr<'_> {
     fn segment(&self) -> SourceSegment {
         match self {
             Expr::Assign(assign) => assign.segment(),
+            Expr::Unary(unary) => unary.segment(),
             Expr::Binary(binary) => binary.segment(),
             Expr::Literal(literal) => literal.segment.clone(),
             Expr::Match(m) => m.segment.clone(),
@@ -106,7 +107,6 @@ impl SourceSegmentHolder for Expr<'_> {
             Expr::Use(use_) => use_.segment.clone(),
             Expr::Casted(casted) => casted.segment(),
             Expr::Test(test) => test.segment.clone(),
-            Expr::Not(not) => not.segment.clone(),
             Expr::If(if_) => if_.segment.clone(),
             Expr::While(while_) => while_.segment.clone(),
             Expr::Loop(loop_) => loop_.segment.clone(),

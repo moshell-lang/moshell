@@ -216,7 +216,14 @@ impl TokenType {
                 | LessEqual
                 | Greater
                 | GreaterEqual
+                | DotDot
+                | As
         )
+    }
+
+    /// Tests if this token is an infix operator.
+    pub fn is_infix_operator(self) -> bool {
+        matches!(self, Not | Minus)
     }
 
     ///is this lexeme a lexeme that cannot fusion with other glued tokens

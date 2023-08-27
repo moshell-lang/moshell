@@ -1,8 +1,27 @@
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::Expr;
+use lexer::token::TokenType;
 
 use crate::moves::{bin_op, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
+
+/// Gets the binding power of an infix operator for a Pratt parser.
+///
+/// If the token is not an infix operator, 0 is returned.
+pub const fn infix_precedence(tok: TokenType) -> u8 {
+    const NOT_AN_OPERATOR: u8 = 0;
+    use TokenType::*;
+    match tok {
+        DotDot => 2,
+        Or => 3,
+        And => 4,
+        EqualEqual | NotEqual | Less | LessEqual | Greater | GreaterEqual => 5,
+        Plus | Minus => 6,
+        Star | Slash | Percent => 7,
+        As => 8,
+        _ => NOT_AN_OPERATOR,
+    }
+}
 
 /// A parser aspect to parse any kind of binary operations.
 pub trait BinaryOperationsAspect<'p> {
@@ -21,7 +40,7 @@ impl<'p> BinaryOperationsAspect<'p> for Parser<'p> {
         P: FnMut(&mut Self) -> ParseResult<Expr<'p>> + Copy,
     {
         // Parse a top-level tree with the lowest precedence
-        self.binary_operation_internal(expr, parse, i8::MIN)
+        self.binary_operation_internal(expr, parse, u8::MIN)
     }
 }
 
@@ -30,7 +49,7 @@ impl<'p> Parser<'p> {
         &mut self,
         mut expr: Expr<'p>,
         mut parse: P,
-        min_precedence: i8,
+        min_precedence: u8,
     ) -> ParseResult<Expr<'p>>
     where
         P: FnMut(&mut Self) -> ParseResult<Expr<'p>> + Copy,
@@ -38,7 +57,7 @@ impl<'p> Parser<'p> {
         while let Some(binary_op) = self.cursor.lookahead(spaces().then(bin_op())) {
             let op =
                 BinaryOperator::try_from(binary_op.token_type).expect("Invalid binary operator");
-            let op_priority = op.priority();
+            let op_priority = infix_precedence(binary_op.token_type);
             if op_priority < min_precedence {
                 return Ok(expr);
             }
@@ -46,9 +65,7 @@ impl<'p> Parser<'p> {
 
             let mut right = parse(self)?;
             while let Some(binary_op) = self.cursor.lookahead(spaces().then(bin_op())) {
-                let op = BinaryOperator::try_from(binary_op.token_type)
-                    .expect("Invalid binary operator");
-                let local_op_priority = op.priority();
+                let local_op_priority = infix_precedence(binary_op.token_type);
                 if local_op_priority <= op_priority {
                     break;
                 }

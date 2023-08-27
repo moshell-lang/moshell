@@ -2,14 +2,13 @@ use ast::call::{Call, Pipeline, ProgrammaticCall, RedirOp, Redirected};
 use ast::control_flow::If;
 use ast::function::FunctionDeclaration;
 use ast::group::Block;
-use ast::operation::{BinaryOperation, BinaryOperator};
+use ast::operation::{BinaryOperation, BinaryOperator, UnaryOperation, UnaryOperator};
 use ast::r#type::CastedExpr;
 use ast::substitution::Substitution;
-use ast::test::Not;
 use ast::value::{Literal, LiteralValue, TemplateString};
 use ast::variable::{Assign, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
-use context::source::SourceSegmentHolder;
+use context::source::{SourceSegment, SourceSegmentHolder};
 
 use crate::dependency::topological_sort;
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
@@ -731,8 +730,8 @@ fn ascribe_casted(
     }
 }
 
-fn ascribe_not(
-    not: &Not,
+fn ascribe_unary(
+    unary: &UnaryOperation,
     exploration: &mut Exploration,
     relations: &Relations,
     diagnostics: &mut Vec<Diagnostic>,
@@ -744,15 +743,61 @@ fn ascribe_not(
         relations,
         diagnostics,
         env,
-        &not.underlying,
+        &unary.expr,
         state.with_local_type(),
     );
+    if expr.ty.is_err() {
+        return expr;
+    }
+
+    match unary.op {
+        UnaryOperator::Not => ascribe_not(expr, unary.segment(), exploration, diagnostics, state),
+        UnaryOperator::Negate => {
+            let method = exploration
+                .engine
+                .get_method_exact(expr.ty, "neg", &[], expr.ty);
+            match method {
+                Some(method) => TypedExpr {
+                    kind: ExprKind::MethodCall(MethodCall {
+                        callee: Box::new(expr),
+                        arguments: vec![],
+                        definition: method.definition,
+                    }),
+                    ty: method.return_type,
+                    segment: unary.segment(),
+                },
+                None => {
+                    diagnostics.push(
+                        Diagnostic::new(DiagnosticID::UnknownMethod, "Cannot negate type")
+                            .with_observation(Observation::here(
+                                state.source,
+                                unary.segment(),
+                                format!(
+                                    "`{}` does not implement the `neg` method",
+                                    exploration.get_type(expr.ty).unwrap(),
+                                ),
+                            )),
+                    );
+                    expr
+                }
+            }
+        }
+    }
+}
+
+fn ascribe_not(
+    not: TypedExpr,
+    segment: SourceSegment,
+    exploration: &mut Exploration,
+    diagnostics: &mut Vec<Diagnostic>,
+    state: TypingState,
+) -> TypedExpr {
     let not_method = exploration
         .engine
         .get_method_exact(BOOL, "not", &[], BOOL)
         .expect("A Bool should be invertible");
     match convert_expression(
-        expr,
+        not,
         BOOL,
         &mut exploration.typing,
         &exploration.engine,
@@ -766,14 +811,14 @@ fn ascribe_not(
                 definition: not_method.definition,
             }),
             ty: not_method.return_type,
-            segment: not.segment(),
+            segment,
         },
         Err(expr) => {
             diagnostics.push(
                 Diagnostic::new(DiagnosticID::TypeMismatch, "Cannot invert type").with_observation(
                     Observation::here(
                         state.source,
-                        not.segment(),
+                        segment,
                         format!(
                             "Cannot invert non-boolean type `{}`",
                             exploration.get_type(expr.ty).unwrap()
@@ -1110,7 +1155,7 @@ fn ascribe_types(
             &test.expression,
             state,
         ),
-        Expr::Not(not) => ascribe_not(not, exploration, relations, diagnostics, env, state),
+        Expr::Unary(unary) => ascribe_unary(unary, exploration, relations, diagnostics, env, state),
         e @ (Expr::While(_) | Expr::Loop(_)) => {
             ascribe_loop(e, exploration, relations, diagnostics, env, state)
         }
@@ -1936,6 +1981,24 @@ mod tests {
                 SourceId(0),
                 find_in(content, "!$s"),
                 "Cannot invert non-boolean type `String`"
+            ))])
+        );
+    }
+
+    #[test]
+    fn cannot_negate_unit() {
+        let content = "val opposite = -{}";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::UnknownMethod,
+                "Cannot negate type",
+            )
+            .with_observation(Observation::here(
+                SourceId(0),
+                find_in(content, "-{}"),
+                "`Unit` does not implement the `neg` method"
             ))])
         );
     }
