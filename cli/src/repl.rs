@@ -6,8 +6,8 @@ use analyzer::importer::ImportResult;
 use analyzer::name::Name;
 use analyzer::relations::SourceId;
 use analyzer::Inject;
-use context::source::{OwnedSource, Source};
-use parser::parse;
+use context::source::OwnedSource;
+use lexer::is_unterminated;
 
 use crate::cli::{use_pipeline, Cli};
 use crate::pipeline::{FileImporter, Pipeline, PipelineStatus};
@@ -97,18 +97,13 @@ fn parse_input() -> Option<OwnedSource> {
             continue;
         }
 
-        let source = Source::new(&content, "stdin");
-        let report = parse(source);
-        if !report.stack_ended {
+        if is_unterminated(&content) {
             content.push('\n');
             print_flush!("-> ");
-            continue; // Silently ignore incomplete input
+            continue;
         }
 
-        return Some(OwnedSource::new(
-            source.source.to_string(),
-            source.name.to_string(),
-        ));
+        return Some(OwnedSource::new(content, "stdin".to_owned()));
     }
     None
 }

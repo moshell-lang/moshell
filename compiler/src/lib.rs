@@ -104,7 +104,9 @@ fn compile_chunk(
     bytecode.emit_byte(line_provider.map_or(0, |_| 1));
 
     if let Some(line_provider) = line_provider {
-        let Some(content_id) = ctx.engine.get_original_content(id) else { return };
+        let Some(content_id) = ctx.engine.get_original_content(id) else {
+            return;
+        };
         compile_line_mapping_attribute(segments, content_id, bytecode, line_provider);
     }
 }
@@ -120,7 +122,7 @@ fn compile_line_mapping_attribute(
 
     let Some(((first_pos, first_ip), positions)) = positions.split_first() else {
         bytecode.emit_u32(0);
-        return
+        return;
     };
     let mut last_pos = *first_pos;
     let mut last_ip = *first_ip;

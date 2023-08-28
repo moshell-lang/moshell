@@ -239,7 +239,7 @@ mod tests {
 
     use crate::aspects::r#type::TypeAspect;
     use crate::err::ParseError;
-    use crate::err::ParseErrorKind::{Expected, Unexpected, Unpaired};
+    use crate::err::ParseErrorKind::{Expected, Unexpected};
     use crate::parser::Parser;
 
     #[test]
@@ -384,20 +384,6 @@ mod tests {
                 message: "'@' is not a valid type identifier.".to_string(),
                 kind: Unexpected,
                 position: content.find('@').map(|i| i..i + 1).unwrap(),
-            })
-        );
-    }
-
-    #[test]
-    fn type_invalid_eod() {
-        let content = "Complex[  x  }";
-        let source = Source::unknown(content);
-        assert_eq!(
-            Parser::new(source).parse_specific(Parser::parse_type),
-            Err(ParseError {
-                message: "Mismatched closing delimiter.".to_string(),
-                kind: Unpaired(content.find('[').map(|i| i..i + 1).unwrap()),
-                position: content.find('}').map(|i| i..i + 1).unwrap(),
             })
         );
     }

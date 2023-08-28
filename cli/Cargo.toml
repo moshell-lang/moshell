@@ -12,6 +12,7 @@ harness = false
 
 [dependencies]
 context = { path = "../context", features = ["miette"] }
+lexer = { path = "../lexer" }
 parser = { path = "../parser" }
 analyzer = { path = "../analyzer" }
 ast = { path = "../ast" }

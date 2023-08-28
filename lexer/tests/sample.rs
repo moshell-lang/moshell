@@ -1,7 +1,12 @@
+use lexer::delimiter::UnmatchedDelimiter;
+use lexer::token::{Token, TokenType};
 use pretty_assertions::assert_eq;
 
-use lexer::lexer::lex;
-use lexer::token::{Token, TokenType};
+fn lex(input: &str) -> Vec<Token> {
+    let (tokens, unmatched) = lexer::lex(input);
+    assert_eq!(unmatched, &[]);
+    tokens
+}
 
 #[test]
 fn string_literal() {
@@ -46,7 +51,16 @@ fn glue_tokens() {
 
 #[test]
 fn string_literal_unterminated_due_to_comment() {
-    let tokens = lex("echo \"$(//)\"");
+    let input = "echo \"$(//)\"";
+    let (tokens, unmatched) = lexer::lex(input);
+    assert_eq!(
+        unmatched,
+        vec![UnmatchedDelimiter {
+            opening: Some(input.find("(").unwrap()),
+            candidate: None,
+            closing: None
+        }]
+    );
     assert_eq!(
         tokens,
         vec![
@@ -268,5 +282,54 @@ fn short_divide() {
             Token::new(TokenType::RoundedRightBracket, ")"),
             Token::new(TokenType::RoundedRightBracket, ")"),
         ]
+    );
+}
+
+#[test]
+fn unmatched_delimiter() {
+    let input = "( [ )]) = {";
+    let unmatched = lexer::lex(input).1;
+    assert_eq!(
+        unmatched,
+        vec![
+            UnmatchedDelimiter {
+                opening: Some(input.find('[').unwrap()),
+                candidate: Some(input.find(')').unwrap()),
+                closing: Some(input.find(']').unwrap()),
+            },
+            UnmatchedDelimiter {
+                opening: Some(input.find('{').unwrap()),
+                candidate: None,
+                closing: None,
+            }
+        ]
+    );
+}
+
+#[test]
+fn unfool() {
+    let input = "{) {} }";
+    let unmatched = lexer::lex(input).1;
+    assert_eq!(
+        unmatched,
+        vec![UnmatchedDelimiter {
+            opening: Some(input.find('{').unwrap()),
+            candidate: Some(input.find(')').unwrap()),
+            closing: Some(input.rfind('}').unwrap()),
+        }],
+    );
+}
+
+#[test]
+fn too_many_delimiter() {
+    let input = "())";
+    let unmatched = lexer::lex(input).1;
+    assert_eq!(
+        unmatched,
+        vec![UnmatchedDelimiter {
+            opening: None,
+            candidate: Some(input.rfind(')').unwrap()),
+            closing: None,
+        },]
     );
 }

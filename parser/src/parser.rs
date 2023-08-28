@@ -1,9 +1,7 @@
-use std::collections::vec_deque::VecDeque;
-
 use ast::range::Iterable;
 use ast::Expr;
 use context::source::{Source, SourceSegment};
-use lexer::lexer::lex;
+use lexer::lex;
 use lexer::token::TokenType::*;
 use lexer::token::{Token, TokenType};
 
@@ -26,7 +24,9 @@ use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::cursor::ParserCursor;
 use crate::err::ParseErrorKind::Unexpected;
-use crate::err::{ErrorContext, ParseError, ParseErrorKind, ParseReport};
+use crate::err::{
+    determine_skip_sections, ErrorContext, ParseError, ParseErrorKind, ParseReport, SkipSections,
+};
 use crate::moves::{
     any, bin_op, blanks, eox, like, line_end, next, not, of_type, of_types, repeat, spaces, Move,
     MoveOperations,
@@ -38,7 +38,7 @@ pub(crate) type ParseResult<T> = Result<T, ParseError>;
 pub(crate) struct Parser<'a> {
     pub(crate) cursor: ParserCursor<'a>,
     pub(crate) source: Source<'a>,
-    pub(crate) delimiter_stack: VecDeque<Token<'a>>,
+    pub(crate) skip: SkipSections,
     errors: Vec<ParseError>,
 }
 
@@ -61,11 +61,33 @@ macro_rules! non_infix {
 impl<'a> Parser<'a> {
     /// Creates a new parser from a defined source.
     pub(crate) fn new(source: Source<'a>) -> Self {
+        let (tokens, unmatched) = lex(source.source);
+        let cursor = ParserCursor::new_with_source(tokens, source.source);
+        let skip = determine_skip_sections(source.source.len(), &unmatched);
+        let errors = unmatched
+            .into_iter()
+            .filter_map(|unmatched| {
+                Some(ParseError {
+                    message: if unmatched.opening.is_some() {
+                        "Mismatched closing delimiter."
+                    } else {
+                        "Unexpected closing delimiter."
+                    }
+                    .to_owned(),
+                    position: unmatched.candidate?..(unmatched.candidate? + 1),
+                    kind: if unmatched.opening.is_some() {
+                        ParseErrorKind::Unpaired(unmatched.opening?..unmatched.opening? + 1)
+                    } else {
+                        Unexpected
+                    },
+                })
+            })
+            .collect::<Vec<ParseError>>();
         Self {
-            cursor: ParserCursor::new_with_source(lex(source.source), source.source),
+            cursor,
             source,
-            delimiter_stack: VecDeque::new(),
-            errors: Vec::new(),
+            skip,
+            errors,
         }
     }
 
@@ -76,7 +98,14 @@ impl<'a> Parser<'a> {
         while self.look_for_input() {
             match self.parse_next() {
                 Err(error) => {
+                    let pos = self.cursor.get_pos();
                     self.recover_from(error, line_end());
+                    if self.cursor.get_pos() == pos {
+                        // If the error was not recovered from, advance anyway.
+                        // This prevents infinite loops when delimiters are not
+                        // closed without any candidates.
+                        self.cursor.advance(next());
+                    }
                 }
                 Ok(statement) => statements.push(statement),
             }
@@ -85,7 +114,6 @@ impl<'a> Parser<'a> {
         ParseReport {
             expr: statements,
             errors: self.errors,
-            stack_ended: self.delimiter_stack.is_empty(),
         }
     }
 
@@ -373,38 +401,25 @@ impl<'a> Parser<'a> {
     }
 
     /// Expect a specific delimiter token type and pop it from the delimiter stack.
-    pub(crate) fn expect_delimiter(&mut self, eog: TokenType) -> ParseResult<Token<'a>> {
+    pub(crate) fn expect_delimiter(
+        &mut self,
+        start: Token<'a>,
+        eog: TokenType,
+    ) -> ParseResult<Token<'a>> {
         if let Some(token) = self.cursor.advance(of_type(eog)) {
-            self.delimiter_stack.pop_back();
             Ok(token)
-        } else if self.cursor.peek().token_type.is_closing_ponctuation() {
-            self.mismatched_delimiter(eog)
         } else {
-            self.expected(
+            let err = self.expected(
                 format!(
                     "Expected '{}' delimiter.",
                     eog.str().unwrap_or("specific token")
                 ),
-                self.delimiter_stack
-                    .back()
-                    .map(|last| ParseErrorKind::Unpaired(self.cursor.relative_pos(last)))
-                    .unwrap_or(Unexpected),
-            )
-        }
-    }
-
-    /// Raise a mismatched delimiter error on the current token.
-    pub(crate) fn mismatched_delimiter<T>(&mut self, eog: TokenType) -> ParseResult<T> {
-        if let Some(last) = self.delimiter_stack.back() {
-            self.expected(
-                "Mismatched closing delimiter.",
-                ParseErrorKind::Unpaired(self.cursor.relative_pos(last)),
-            )
-        } else {
-            self.expected(
-                "Unexpected closing delimiter.",
-                ParseErrorKind::Expected(eog.str().unwrap_or("specific token").to_string()),
-            )
+                ParseErrorKind::Unpaired(self.cursor.relative_pos(start)),
+            );
+            if self.cursor.peek().token_type.is_closing_ponctuation() {
+                self.repos_to_top_delimiter();
+            }
+            err
         }
     }
 
@@ -518,6 +533,24 @@ impl<'a> Parser<'a> {
     /// The base behavior is to go to the end of the file or the next valid closing delimiter,
     /// but this can be further configured by the `break_on` parameter.
     pub(crate) fn recover_from(&mut self, error: ParseError, break_on: impl Move + Copy) {
+        if self.skip.contains(error.position.start) {
+            // Mismatched delimiters are already reported by the lexer, so we can skip them
+            // in a section marked as skipped. Contrary to repos_to_top_delimiter, this doesn't
+            // recover after the delimiter, but just before it.
+            while !self.cursor.is_at_end() {
+                let token = self.cursor.peek();
+                if self
+                    .skip
+                    .contains(self.cursor.relative_pos(token.value).start)
+                {
+                    self.cursor.next_opt();
+                } else {
+                    break;
+                }
+            }
+            return;
+        }
+
         match error.kind {
             ParseErrorKind::Unpaired(_) => {
                 self.repos_to_top_delimiter();
@@ -533,12 +566,13 @@ impl<'a> Parser<'a> {
     ///
     /// In most cases, [`Parser::recover_from`] should be used instead.
     ///
-    /// This should be used when a delimiter has been pushed to the stack,
+    /// This should be used when a delimiter was seen by the parser,
     /// but an error occurred before the corresponding closing delimiter was found.
     pub(crate) fn repos_delimiter_due_to(&mut self, error: &ParseError) {
-        // Unpaired delimiters already look for the next valid closing delimiter.
-        // Only handle other errors that would leave the delimiter stack in an invalid state.
-        if !matches!(error.kind, ParseErrorKind::Unpaired(_)) {
+        // Unpaired delimiters are known by the lexer, so we can use that information to
+        // skip them. Repositioning is not strictly necessary, but if used appropriately
+        // the errors will be more precise.
+        if self.skip.contains(error.position.start) {
             self.repos_to_top_delimiter();
         }
     }
@@ -555,62 +589,54 @@ impl<'a> Parser<'a> {
     fn repos_to_next_expr(&mut self, break_on: impl Move + Copy) {
         // If delimiters are encountered while moving, they must be removed from the stack first,
         // before repositioning.
-        let start_len = self.delimiter_stack.len();
+        let mut delimiter_stack = Vec::new();
         while !self.cursor.is_at_end() {
-            // Stop before a break_on token.
-            if self.delimiter_stack.len() == start_len && self.cursor.lookahead(break_on).is_some()
+            if self
+                .skip
+                .contains(self.cursor.relative_pos(self.cursor.peek()).start)
             {
+                self.cursor.next_opt();
+                continue;
+            }
+            // Stop before a break_on token.
+            if delimiter_stack.is_empty() && self.cursor.lookahead(break_on).is_some() {
                 break;
             }
 
             // See if we're at a closing delimiter.
             let token = self.cursor.peek();
             if token.token_type.is_opening_ponctuation() {
-                self.delimiter_stack.push_back(token.clone());
+                delimiter_stack.push(token.token_type);
             }
-            if let Some(last) = self.delimiter_stack.back() {
+            if let Some(last) = delimiter_stack.last() {
                 if last
-                    .token_type
                     .closing_pair()
                     .expect("invalid delimiter passed to stack")
                     == token.token_type
                 {
-                    if self.delimiter_stack.len() > start_len {
-                        self.delimiter_stack.pop_back();
-                    } else {
-                        // Do not consume it to avoid breaking the stack.
-                        // The caller will consume it.
-                        break;
-                    }
+                    delimiter_stack.pop();
                 }
+            } else if token.token_type.is_closing_ponctuation() {
+                // Do not consume it to avoid breaking the stack.
+                // The caller will consume it.
+                break;
             }
             // Otherwise, just advance.
             self.cursor.next_opt();
         }
     }
 
-    /// Goes to the next closing delimiter of the top delimiter on the stack.
+    /// Goes after the next closing delimiter of the top delimiter on the stack.
     ///
-    /// If the stack is empty, this does nothing.
+    /// The implementation will skip invalid sections and goes to the next valid closing delimiter.
     /// Always prefer using [`Parser::recover_from`] instead.
     pub(crate) fn repos_to_top_delimiter(&mut self) {
-        let start_len = self.delimiter_stack.len();
         while let Some(token) = self.cursor.next_opt() {
-            if token.token_type.is_opening_ponctuation() {
-                self.delimiter_stack.push_back(token.clone());
-            } else if let Some(last) = self.delimiter_stack.back() {
-                if last
-                    .token_type
-                    .closing_pair()
-                    .expect("invalid delimiter passed to stack")
-                    == token.token_type
-                {
-                    self.delimiter_stack.pop_back();
-                    if self.delimiter_stack.len() < start_len {
-                        break;
-                    }
-                }
-            } else {
+            if !self
+                .skip
+                .contains(self.cursor.relative_pos(token.value).start)
+                && token.token_type.is_closing_ponctuation()
+            {
                 break;
             }
         }

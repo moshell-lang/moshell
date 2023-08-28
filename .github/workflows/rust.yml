@@ -2,17 +2,11 @@ name: Rust CI
 
 on:
   push:
-    paths: 
-      - '**.rs'
-      - '**.cpp'
-      - '**.h'
-      - '**/Cargo.toml'
+    paths-ignore:
+      - '**.md'
   pull_request:
-    paths:
-      - '**.rs'
-      - '**.cpp'
-      - '**.h'
-      - '**/Cargo.toml'
+    paths-ignore:
+      - '**.md'
   workflow_dispatch:
 
 env:
@@ -24,22 +18,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    
-    - name: Cargo Cache
-      uses: actions/cache@v3
+
+    - name: Setup Rust toolchain and cache
+      uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          target/
-          
+        components: rustfmt
+
     - name: Build
       run: |
         cargo build
         cargo bench --no-run --profile test
-      
+
     - name: Run tests
       run: cargo test --verbose
+
+    - name: Rustfmt Check
+      uses: actions-rust-lang/rustfmt@v1
+      continue-on-error: true

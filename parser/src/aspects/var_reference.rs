@@ -21,9 +21,6 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
             .advance(blanks().then(lookahead(any())))
             .unwrap();
         let bracket = self.cursor.advance(of_type(CurlyLeftBracket));
-        if let Some(bracket) = bracket.clone() {
-            self.delimiter_stack.push_back(bracket);
-        }
 
         let name = self
             .cursor
@@ -34,7 +31,7 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
             .map_err(|mut err| {
                 err.position = self.cursor.relative_pos(self.cursor.peek().value);
                 if bracket.is_some() {
-                    self.repos_delimiter_due_to(&err);
+                    self.repos_to_top_delimiter();
                 }
                 err
             })?
@@ -54,7 +51,7 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
 
         if let Some(bracket) = bracket {
             if self.cursor.peek().token_type.is_closing_ponctuation() {
-                self.expect_delimiter(CurlyRightBracket)?;
+                self.expect_delimiter(start, CurlyRightBracket)?;
             } else {
                 self.cursor.force_with(
                     of_type(CurlyRightBracket),
