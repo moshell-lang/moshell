@@ -1,5 +1,4 @@
 use ast::control_flow::If;
-use ast::Expr;
 use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
 use lexer::token::TokenType::{Else, SemiColon};
@@ -9,30 +8,24 @@ use crate::parser::{ParseResult, Parser};
 
 ///parser aspect for if and else expressions.
 pub trait IfElseAspect<'a> {
-    ///parse a if with optional else expression.
-    /// `parse_branch` argument defines how the branches must be parsed.
-    fn parse_if<F>(&mut self, parse_branch: F) -> ParseResult<If<'a>>
-    where
-        F: FnMut(&mut Self) -> ParseResult<Expr<'a>>;
+    /// Parses a conditional with an optional else expression.
+    fn parse_if(&mut self) -> ParseResult<If<'a>>;
 }
 
 impl<'a> IfElseAspect<'a> for Parser<'a> {
-    fn parse_if<F>(&mut self, mut parse_branch: F) -> ParseResult<If<'a>>
-    where
-        F: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
-    {
+    fn parse_if(&mut self) -> ParseResult<If<'a>> {
         let start = self.cursor.force(
             of_type(TokenType::If),
             "expected 'if' at start of if expression",
         )?;
-        let condition = self.expression_statement()?;
+        let condition = self.statement()?;
 
         //skip only one semicolon if any, surrounded by newlines and spaces
         self.cursor
             .advance(aerated(of_type(SemiColon)).or(blanks()));
 
         //the success_branch of the if
-        let success_branch = parse_branch(self)?;
+        let success_branch = self.statement()?;
 
         //parse the 'else' branch.
         let fail_branch = if self
@@ -44,7 +37,7 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
             )
             .is_some()
         {
-            Some(Box::new(parse_branch(self)?))
+            Some(Box::new(self.statement()?))
         } else {
             None
         };

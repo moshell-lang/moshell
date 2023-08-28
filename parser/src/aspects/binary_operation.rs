@@ -1,15 +1,13 @@
-use ast::operation::{BinaryOperation, BinaryOperator};
-use ast::Expr;
+use crate::aspects::redirection::RedirectionAspect;
+use crate::parser::Parser;
 use lexer::token::TokenType;
 
-use crate::moves::{bin_op, spaces, MoveOperations};
-use crate::parser::{ParseResult, Parser};
+const NOT_AN_OPERATOR: u8 = 0;
 
 /// Gets the binding power of an infix operator for a Pratt parser.
 ///
 /// If the token is not an infix operator, 0 is returned.
-pub const fn infix_precedence(tok: TokenType) -> u8 {
-    const NOT_AN_OPERATOR: u8 = 0;
+pub(crate) const fn infix_precedence(tok: TokenType) -> u8 {
     use TokenType::*;
     match tok {
         DotDot => 2,
@@ -23,61 +21,17 @@ pub const fn infix_precedence(tok: TokenType) -> u8 {
     }
 }
 
-/// A parser aspect to parse any kind of binary operations.
-pub trait BinaryOperationsAspect<'p> {
-    /// Parses a binary operation expression.
-    ///
-    /// `expr`: the left-hand side of the binary operation to start with
-    /// `parse_next`: a function that parses the next expression to the right of the binary operation
-    fn binary_operation<P>(&mut self, expr: Expr<'p>, parse_next: P) -> ParseResult<Expr<'p>>
-    where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'p>> + Copy;
-}
-
-impl<'p> BinaryOperationsAspect<'p> for Parser<'p> {
-    fn binary_operation<P>(&mut self, expr: Expr<'p>, parse: P) -> ParseResult<Expr<'p>>
-    where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'p>> + Copy,
-    {
-        // Parse a top-level tree with the lowest precedence
-        self.binary_operation_internal(expr, parse, u8::MIN)
-    }
-}
-
-impl<'p> Parser<'p> {
-    fn binary_operation_internal<P>(
-        &mut self,
-        mut expr: Expr<'p>,
-        mut parse: P,
-        min_precedence: u8,
-    ) -> ParseResult<Expr<'p>>
-    where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'p>> + Copy,
-    {
-        while let Some(binary_op) = self.cursor.lookahead(spaces().then(bin_op())) {
-            let op =
-                BinaryOperator::try_from(binary_op.token_type).expect("Invalid binary operator");
-            let op_priority = infix_precedence(binary_op.token_type);
-            if op_priority < min_precedence {
-                return Ok(expr);
-            }
-            self.cursor.advance(spaces().then(bin_op()));
-
-            let mut right = parse(self)?;
-            while let Some(binary_op) = self.cursor.lookahead(spaces().then(bin_op())) {
-                let local_op_priority = infix_precedence(binary_op.token_type);
-                if local_op_priority <= op_priority {
-                    break;
-                }
-                right = self.binary_operation_internal(right, parse, local_op_priority)?;
-            }
-            expr = Expr::Binary(BinaryOperation {
-                left: Box::new(expr),
-                op,
-                right: Box::new(right),
-            });
-        }
-        Ok(expr)
+/// Gets the binding power of the current token in a shell context.
+///
+/// If the token is not an infix operator, 0 is returned.
+pub(crate) fn shell_infix_precedence(parser: &Parser) -> u8 {
+    use TokenType::*;
+    match parser.cursor.peek().token_type {
+        Or => 1,
+        And => 2,
+        Bar => 3,
+        _ if parser.is_at_redirection_sign() => 4,
+        _ => NOT_AN_OPERATOR,
     }
 }
 

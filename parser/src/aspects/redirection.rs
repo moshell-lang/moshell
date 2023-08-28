@@ -108,7 +108,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
         })
     }
 
-    fn redirectable(&mut self, mut expr: Expr<'a>) -> ParseResult<Expr<'a>> {
+    fn redirectable(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
         let mut redirections = vec![];
         self.cursor.advance(spaces());
 
@@ -131,23 +131,20 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
             self.cursor.advance(spaces());
         }
 
-        if !redirections.is_empty() {
-            expr = Expr::Redirected(Redirected {
+        Ok(if redirections.is_empty() {
+            expr
+        } else {
+            Expr::Redirected(Redirected {
                 expr: Box::new(expr),
                 redirections,
-            });
-        }
-        if self.cursor.lookahead(of_type(TokenType::Bar)).is_some() {
-            self.pipeline(expr)
-        } else {
-            Ok(expr)
-        }
+            })
+        })
     }
 
     fn is_at_redirection_sign(&self) -> bool {
         let pivot = self.cursor.peek();
         match pivot.token_type {
-            TokenType::Ampersand | TokenType::Less | TokenType::Greater | TokenType::Bar => true,
+            TokenType::Ampersand | TokenType::Less | TokenType::Greater => true,
             //search for '>' or '<' in case of std-determined redirection sign (ex: 2>>)
             _ => self
                 .cursor

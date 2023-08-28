@@ -25,7 +25,7 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
         )?;
         //consume blanks before condition
         self.cursor.advance(blanks());
-        let condition = Box::new(self.expression_statement()?);
+        let condition = Box::new(self.statement()?);
 
         //consume blanks
         self.cursor.advance(blanks());
@@ -597,7 +597,7 @@ mod tests {
         assert_eq!(
             res,
             Err(ParseError {
-                message: "Expected expression statement".to_string(),
+                message: "Expected statement".to_string(),
                 position: content.len()..content.len(),
                 kind: Unexpected,
             })
