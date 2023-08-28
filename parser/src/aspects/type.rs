@@ -1,4 +1,5 @@
 use ast::r#type::{ByName, CallableType, CastedExpr, ParametrizedType, Type};
+use ast::r#use::InclusionPathItem;
 use ast::Expr;
 use context::display::fmt_comma_separated;
 use context::source::{SourceSegment, SourceSegmentHolder};
@@ -182,7 +183,7 @@ impl<'a> Parser<'a> {
     fn parse_parametrized(&mut self) -> ParseResult<Type<'a>> {
         self.cursor.advance(spaces());
         let start = self.cursor.peek();
-        let path = self.parse_inclusion_path()?;
+        let mut path = self.parse_inclusion_path()?;
         self.cursor.advance(spaces());
         let name_token = self.cursor.peek();
         let mut segment = self.cursor.relative_pos_ctx(start..name_token.clone());
@@ -194,9 +195,13 @@ impl<'a> Parser<'a> {
                 if !params.is_empty() {
                     segment.end = params_segment.end;
                 }
+
+                path.push(InclusionPathItem::Symbol(
+                    name_token.value,
+                    self.cursor.relative_pos(name_token),
+                ));
                 Ok(Type::Parametrized(ParametrizedType {
                     path,
-                    name: name_token.value,
                     params,
                     segment,
                 }))
@@ -228,6 +233,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use ast::r#type::{ByName, CallableType, ParametrizedType, Type};
+    use ast::r#use::InclusionPathItem;
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::find_in;
 
@@ -243,8 +249,10 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Parametrized(ParametrizedType {
-                path: vec![],
-                name: "MyType",
+                path: vec![InclusionPathItem::Symbol(
+                    "MyType",
+                    find_in(content, "MyType")
+                )],
                 params: Vec::new(),
                 segment: source.segment(),
             }))
@@ -253,13 +261,16 @@ mod tests {
 
     #[test]
     fn simple_type_include_path() {
-        let content = "std::MyType";
+        let content = "reef::std::MyType";
         let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Parametrized(ParametrizedType {
-                path: vec!["std"],
-                name: "MyType",
+                path: vec![
+                    InclusionPathItem::Reef(find_in(content, "reef")),
+                    InclusionPathItem::Symbol("std", find_in(content, "std")),
+                    InclusionPathItem::Symbol("MyType", find_in(content, "MyType"))
+                ],
                 params: Vec::new(),
                 segment: source.segment(),
             }))
@@ -290,33 +301,36 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Parametrized(ParametrizedType {
-                path: vec![],
-                name: "MyType",
+                path: vec![InclusionPathItem::Symbol(
+                    "MyType",
+                    find_in(content, "MyType")
+                )],
                 params: vec![
                     Type::Parametrized(ParametrizedType {
-                        path: vec![],
-                        name: "A",
+                        path: vec![InclusionPathItem::Symbol("A", find_in(content, "A"))],
                         params: vec![
                             Type::Parametrized(ParametrizedType {
-                                path: vec![],
-                                name: "X",
+                                path: vec![InclusionPathItem::Symbol("X", find_in(content, "X"))],
                                 params: Vec::new(),
                                 segment: find_in(content, "X"),
                             }),
                             Type::Parametrized(ParametrizedType {
-                                path: vec![],
-                                name: "Y",
+                                path: vec![InclusionPathItem::Symbol("Y", find_in(content, "Y"))],
                                 params: vec![Type::Parametrized(ParametrizedType {
-                                    path: vec![],
-                                    name: "Any",
+                                    path: vec![InclusionPathItem::Symbol(
+                                        "Any",
+                                        find_in(content, "Any")
+                                    )],
                                     params: Vec::new(),
                                     segment: find_in(content, "Any"),
                                 })],
                                 segment: find_in(content, "Y[Any]"),
                             }),
                             Type::Parametrized(ParametrizedType {
-                                path: vec!["foo"],
-                                name: "Z",
+                                path: vec![
+                                    InclusionPathItem::Symbol("foo", find_in(content, "foo")),
+                                    InclusionPathItem::Symbol("Z", find_in(content, "Z"))
+                                ],
                                 params: Vec::new(),
                                 segment: find_in(content, "foo::Z"),
                             }),
@@ -324,14 +338,14 @@ mod tests {
                         segment: find_in(content, "A[X, Y[Any], foo::Z]"),
                     }),
                     Type::Parametrized(ParametrizedType {
-                        path: vec![],
-                        name: "B",
+                        path: vec![InclusionPathItem::Symbol("B", find_in(content, "B"))],
                         params: vec![Type::Parametrized(ParametrizedType {
-                            path: vec!["std"],
-                            name: "C",
+                            path: vec![
+                                InclusionPathItem::Symbol("std", find_in(content, "std")),
+                                InclusionPathItem::Symbol("C", find_in(content, "C"))
+                            ],
                             params: vec![Type::Parametrized(ParametrizedType {
-                                path: vec![],
-                                name: "D",
+                                path: vec![InclusionPathItem::Symbol("D", find_in(content, "D"))],
                                 params: Vec::new(),
                                 segment: find_in(content, "D"),
                             })],
@@ -382,14 +396,12 @@ mod tests {
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Callable(CallableType {
                 params: vec![Type::Parametrized(ParametrizedType {
-                    path: vec![],
-                    name: "A",
+                    path: vec![InclusionPathItem::Symbol("A", find_in(content, "A"))],
                     params: Vec::new(),
                     segment: find_in(content, "A"),
                 })],
                 output: Box::new(Type::Parametrized(ParametrizedType {
-                    path: vec![],
-                    name: "B",
+                    path: vec![InclusionPathItem::Symbol("B", find_in(content, "B"))],
                     params: Vec::new(),
                     segment: find_in(content, "B"),
                 })),
@@ -406,8 +418,7 @@ mod tests {
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::ByName(ByName {
                 name: Box::new(Type::Parametrized(ParametrizedType {
-                    path: vec![],
-                    name: "B",
+                    path: vec![InclusionPathItem::Symbol("B", find_in(content, "B"))],
                     params: Vec::new(),
                     segment: find_in(content, "B"),
                 })),
@@ -439,8 +450,9 @@ mod tests {
             Ok(Type::ByName(ByName {
                 name: Box::new(Type::ByName(ByName {
                     name: Box::new(Type::Parametrized(ParametrizedType {
-                        path: vec![],
-                        name: "B",
+                        path: vec![
+                            InclusionPathItem::Symbol("B", find_in(content, "B"))
+                        ],
                         params: Vec::new(),
                         segment: find_in(content, "B"),
                     })),
@@ -458,8 +470,7 @@ mod tests {
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Parametrized(ParametrizedType {
-                path: vec![],
-                name: "A",
+                path: vec![InclusionPathItem::Symbol("A", find_in(content, "A"))],
                 params: Vec::new(),
                 segment: find_in(content, "A"),
             }))
@@ -475,8 +486,7 @@ mod tests {
             Ok(Type::Callable(CallableType {
                 params: vec![],
                 output: Box::new(Type::Parametrized(ParametrizedType {
-                    path: vec![],
-                    name: "B",
+                    path: vec![InclusionPathItem::Symbol("B", find_in(content, "B"))],
                     params: Vec::new(),
                     segment: find_in(content, "B"),
                 })),
@@ -493,14 +503,12 @@ mod tests {
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Callable(CallableType {
                 params: vec![Type::Parametrized(ParametrizedType {
-                    path: vec![],
-                    name: "A",
+                    path: vec![InclusionPathItem::Symbol("A", find_in(content, "A"))],
                     params: Vec::new(),
                     segment: find_in(content, "A"),
                 })],
                 output: Box::new(Type::Parametrized(ParametrizedType {
-                    path: vec![],
-                    name: "Unit",
+                    path: vec![InclusionPathItem::Symbol("Unit", find_in(content, "Unit"))],
                     params: Vec::new(),
                     segment: find_in(content, "Unit"),
                 })),
@@ -518,27 +526,23 @@ mod tests {
             Ok(Type::Callable(CallableType {
                 params: vec![
                     Type::Parametrized(ParametrizedType {
-                        path: vec![],
-                        name: "A",
+                        path: vec![InclusionPathItem::Symbol("A", find_in(content, "A"))],
                         params: Vec::new(),
                         segment: find_in(content, "A"),
                     }),
                     Type::Parametrized(ParametrizedType {
-                        path: vec![],
-                        name: "B",
+                        path: vec![InclusionPathItem::Symbol("B", find_in(content, "B"))],
                         params: Vec::new(),
                         segment: find_in(content, "B"),
                     }),
                     Type::Parametrized(ParametrizedType {
-                        path: vec![],
-                        name: "C",
+                        path: vec![InclusionPathItem::Symbol("C", find_in(content, "C"))],
                         params: Vec::new(),
                         segment: find_in(content, "C"),
                     }),
                 ],
                 output: Box::new(Type::Parametrized(ParametrizedType {
-                    path: vec![],
-                    name: "D",
+                    path: vec![InclusionPathItem::Symbol("D", find_in(content, "D"))],
                     params: Vec::new(),
                     segment: find_in(content, "D"),
                 })),
@@ -558,30 +562,26 @@ mod tests {
                 params: vec![Type::Callable(CallableType {
                     params: vec![Type::Callable(CallableType {
                         params: vec![Type::Parametrized(ParametrizedType {
-                            path: vec![],
-                            name: "A",
+                            path: vec![InclusionPathItem::Symbol("A", find_in(content, "A"))],
                             params: Vec::new(),
                             segment: find_in(content, "A"),
                         }),],
                         output: Box::new(Type::Parametrized(ParametrizedType {
-                            path: vec![],
-                            name: "B",
+                            path: vec![InclusionPathItem::Symbol("B", find_in(content, "B"))],
                             params: Vec::new(),
                             segment: find_in(content, "B"),
                         })),
                         segment: find_in(content, "A => B"),
                     })],
                     output: Box::new(Type::Parametrized(ParametrizedType {
-                        path: vec![],
-                        name: "C",
+                        path: vec![InclusionPathItem::Symbol("C", find_in(content, "C"))],
                         params: Vec::new(),
                         segment: find_in(content, "C"),
                     })),
                     segment: find_in(content, "(A => B) => C"),
                 })],
                 output: Box::new(Type::Parametrized(ParametrizedType {
-                    path: vec![],
-                    name: "D",
+                    path: vec![InclusionPathItem::Symbol("D", find_in(content, "D"))],
                     params: Vec::new(),
                     segment: find_in(content, "D"),
                 })),
@@ -616,34 +616,29 @@ mod tests {
             Ok(Type::Callable(CallableType {
                 params: vec![
                     Type::Parametrized(ParametrizedType {
-                        path: vec![],
-                        name: "A",
+                        path: vec![InclusionPathItem::Symbol("A", find_in(content, "A"))],
                         params: Vec::new(),
                         segment: find_in(content, "A")
                     }),
                     Type::Parametrized(ParametrizedType {
-                        path: vec![],
-                        name: "B",
+                        path: vec![InclusionPathItem::Symbol("B", find_in(content, "B"))],
                         params: Vec::new(),
                         segment: find_in(content, "B")
                     }),
                     Type::Parametrized(ParametrizedType {
-                        path: vec![],
-                        name: "C",
+                        path: vec![InclusionPathItem::Symbol("C", find_in(content, "C"))],
                         params: Vec::new(),
                         segment: find_in(content, "C")
                     }),
                 ],
                 output: Box::new(Type::Callable(CallableType {
                     params: vec![Type::Parametrized(ParametrizedType {
-                        path: vec![],
-                        name: "D",
+                        path: vec![InclusionPathItem::Symbol("D", find_in(content, "D"))],
                         params: Vec::new(),
                         segment: find_in(content, "D")
                     })],
                     output: Box::new(Type::Parametrized(ParametrizedType {
-                        path: vec![],
-                        name: "E",
+                        path: vec![InclusionPathItem::Symbol("E", find_in(content, "E"))],
                         params: Vec::new(),
                         segment: find_in(content, "E")
                     })),

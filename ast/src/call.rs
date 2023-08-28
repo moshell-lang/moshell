@@ -4,6 +4,7 @@ use context::source::{SourceSegment, SourceSegmentHolder};
 use src_macros::segment_holder;
 
 use crate::r#type::Type;
+use crate::r#use::InclusionPathItem;
 use crate::Expr;
 
 /// A raw call to a function or a command.
@@ -32,11 +33,8 @@ impl SourceSegmentHolder for Call<'_> {
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ProgrammaticCall<'a> {
-    /// inclusion path
-    pub path: Vec<&'a str>,
-
-    /// The name of the function to call.
-    pub name: &'a str,
+    /// inclusion path, with the function's name
+    pub path: Vec<InclusionPathItem<'a>>,
 
     /// The arguments to pass to the function.
     pub arguments: Vec<Expr<'a>>,

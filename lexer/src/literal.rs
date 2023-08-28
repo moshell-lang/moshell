@@ -56,6 +56,7 @@ impl<'a> Lexer<'a> {
             "in" => TokenType::In,
             "loop" => TokenType::Loop,
             "match" => TokenType::Match,
+            "reef" => TokenType::Reef,
             "return" => TokenType::Return,
             "shell" => TokenType::Shell,
             "true" => TokenType::True,

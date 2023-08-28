@@ -51,6 +51,8 @@ pub enum TokenType {
     Fun,
     #[assoc(str = "use")]
     Use,
+    #[assoc(str = "reef")]
+    Reef,
     #[assoc(str = "if")]
     If,
     #[assoc(str = "else")]

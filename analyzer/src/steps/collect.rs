@@ -4,7 +4,7 @@ use ast::call::Call;
 use ast::control_flow::ForKind;
 use ast::function::FunctionParameter;
 use ast::r#match::MatchPattern;
-use ast::r#use::Import as ImportExpr;
+use ast::r#use::{Import as ImportExpr, InclusionPathItem};
 use ast::range;
 use ast::value::LiteralValue;
 use ast::Expr;
@@ -271,8 +271,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
         match import {
             ImportExpr::Symbol(s) => {
                 let mut symbol_name = relative_path;
-                symbol_name.extend(s.path.iter().map(|s| s.to_string()));
-                symbol_name.push(s.name.to_string());
+                symbol_name.extend(map_inclusion_path(&s.path));
 
                 let name = Name::from(symbol_name);
                 let alias = s.alias.map(|s| s.to_string());
@@ -284,9 +283,9 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 };
                 self.add_checked_import(mod_id, unresolved, import, name)
             }
-            ImportExpr::AllIn(path, _) => {
+            ImportExpr::AllIn(items, _) => {
                 let mut symbol_name = relative_path;
-                symbol_name.extend(path.iter().map(|s| s.to_string()));
+                symbol_name.extend(map_inclusion_path(items));
 
                 let name = Name::from(symbol_name);
                 to_visit.push(name.clone());
@@ -307,7 +306,7 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 for list_import in &list.imports {
                     //append ImportList's path to current relative path
                     let mut relative = relative_path.clone();
-                    relative.extend(list.path.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+                    relative.extend(map_inclusion_path(&list.root));
 
                     self.collect_symbol_import(list_import, relative, mod_id, to_visit)
                 }
@@ -392,12 +391,8 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
                 }
             }
             Expr::ProgrammaticCall(call) => {
-                let path = call
-                    .path
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>();
-                let name = Name::qualified(path, call.name.to_string());
+                let path: Vec<_> = map_inclusion_path(&call.path).collect();
+                let name = Name::from(path);
 
                 let symbol = self.identify_variable(
                     *self.stack.last().unwrap(),
@@ -723,6 +718,14 @@ fn list_inner_modules<'a>(
             e.parent.is_none() && e.fqn.tail().filter(|tail| tail == module_fqn).is_some()
         })
         .map(|(_, e)| e)
+}
+
+// NOTE: will get removed once the analyzer will be able to support external libraries (reefs)
+fn map_inclusion_path<'a>(v: &'a [InclusionPathItem<'a>]) -> impl Iterator<Item = String> + 'a {
+    v.iter().map(|item| match item {
+        InclusionPathItem::Symbol(s, _) => s.to_string(),
+        InclusionPathItem::Reef(_) => panic!("`reef` not supported by analyzer"),
+    })
 }
 
 #[cfg(test)]

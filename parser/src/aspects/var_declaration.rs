@@ -86,6 +86,7 @@ mod tests {
     use ast::operation::BinaryOperation;
     use ast::operation::BinaryOperator::Plus;
     use ast::r#type::{ParametrizedType, Type};
+    use ast::r#use::InclusionPathItem;
     use ast::value::{Literal, LiteralValue};
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
@@ -127,8 +128,10 @@ mod tests {
                 var: TypedVariable {
                     name: "variable",
                     ty: Some(Type::Parametrized(ParametrizedType {
-                        path: vec![],
-                        name: "Int",
+                        path: vec![InclusionPathItem::Symbol(
+                            "Int",
+                            find_in(source.source, "Int")
+                        )],
                         params: Vec::new(),
                         segment: find_in(&source.source, "Int"),
                     })),

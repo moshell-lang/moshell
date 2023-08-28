@@ -1,6 +1,6 @@
 use ast::range::Iterable;
 use ast::Expr;
-use context::source::Source;
+use context::source::{Source, SourceSegment};
 use lexer::lex;
 use lexer::token::TokenType::*;
 use lexer::token::{Token, TokenType};
@@ -219,7 +219,7 @@ impl<'a> Parser<'a> {
         let expr = match pivot {
             If => self.parse_if(Parser::statement).map(Expr::If),
             Match => self.parse_match(Parser::statement).map(Expr::Match),
-            Identifier => self.any_call(),
+            Identifier | Reef => self.any_call(),
             Dot => self.call(),
             Shell => {
                 self.cursor.next_opt();
@@ -282,7 +282,9 @@ impl<'a> Parser<'a> {
             //expression that can also be used as values
             If => self.parse_if(Parser::value).map(Expr::If),
             Match => self.parse_match(Parser::value).map(Expr::Match),
-            Identifier if self.may_be_at_programmatic_call_start() => self.programmatic_call(),
+            Identifier | Reef if self.may_be_at_programmatic_call_start() => {
+                self.programmatic_call()
+            }
             Identifier
                 if self
                     .cursor
@@ -638,5 +640,28 @@ impl<'a> Parser<'a> {
                 break;
             }
         }
+    }
+}
+
+/// Ensures that the given elements are empty, returning Err(ParseError) with given message otherwise.
+/// The error's context segment will be the segment between first and last elements of given elements.
+pub(crate) fn ensure_empty<T>(
+    msg: &str,
+    elements: Vec<T>,
+    convert: impl Fn(&T) -> SourceSegment,
+) -> ParseResult<()> {
+    if let Some(first) = elements.first() {
+        let position = elements
+            .last()
+            .map(|last| convert(first).start..convert(last).end)
+            .unwrap_or_else(|| convert(first));
+
+        Err(ParseError {
+            message: msg.to_string(),
+            position,
+            kind: Unexpected,
+        })
+    } else {
+        Ok(())
     }
 }

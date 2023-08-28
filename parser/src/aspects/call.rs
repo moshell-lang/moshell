@@ -1,11 +1,11 @@
 use ast::call::{Call, MethodCall, ProgrammaticCall};
 use ast::lambda::LambdaDef;
 use ast::r#type::Type;
+use ast::r#use::InclusionPathItem;
 use ast::value::Literal;
 use ast::variable::TypedVariable;
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
-use lexer::token::TokenType::{ColonColon, Identifier};
 use lexer::token::{Token, TokenType};
 
 use crate::aspects::group::GroupAspect;
@@ -13,12 +13,12 @@ use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
 use crate::aspects::modules::ModulesAspect;
 use crate::aspects::r#type::TypeAspect;
 use crate::aspects::redirection::RedirectionAspect;
-use crate::err::{ParseError, ParseErrorKind};
+use crate::err::ParseErrorKind;
 use crate::moves::{
-    blanks, eog, identifier_parenthesis, like, line_end, lookahead, of_type, of_types, repeat,
-    spaces, MoveOperations,
+    any, blanks, eog, identifier_parenthesis, like, line_end, lookahead, of_type, of_types, spaces,
+    MoveOperations,
 };
-use crate::parser::{ParseResult, Parser};
+use crate::parser::{ensure_empty, ParseResult, Parser};
 
 /// A parse aspect for command and function calls
 pub trait CallAspect<'a> {
@@ -46,44 +46,56 @@ pub trait CallAspect<'a> {
 
 impl<'a> CallAspect<'a> for Parser<'a> {
     fn any_call(&mut self) -> ParseResult<Expr<'a>> {
-        let path = self.parse_inclusion_path()?;
+        let mut path = self.parse_inclusion_path()?;
 
         // Equivalent to #may_be_at_programmatic_call_start, with an additional check for lambda definitions.
         if self
             .cursor
             .lookahead(
-                of_type(Identifier).and_then(
-                    of_types(&[TokenType::RoundedLeftBracket, TokenType::SquaredLeftBracket])
-                        .or(spaces().then(of_type(TokenType::FatArrow))),
+                any().and_then(
+                    of_types(&[
+                        TokenType::RoundedLeftBracket,
+                        TokenType::SquaredLeftBracket,
+                        TokenType::ColonColon,
+                    ])
+                    .or(spaces().then(of_type(TokenType::FatArrow))),
                 ),
             )
             .is_none()
         {
-            ensure_empty("Command calls cannot have inclusion path", path, |str| {
-                self.cursor.relative_pos(*str)
-            })?;
+            ensure_empty(
+                "Command calls cannot have inclusion path",
+                path,
+                InclusionPathItem::segment,
+            )?;
             return self.call();
         }
         // We don't known if this is a programmatic call, a raw call or a lambda definition yet.
 
         let identifier = self.cursor.next()?;
-        let value = identifier.value;
+        let name = identifier.value;
+        let name_segment = self.cursor.relative_pos(name);
         let callee = Expr::Literal(Literal {
-            parsed: value.into(),
-            segment: self.cursor.relative_pos(value),
+            parsed: name.into(),
+            segment: name_segment.clone(),
         });
         let type_parameters = self.parse_type_parameter_list()?.0;
         if let Some(open_parenthesis) = self.cursor.advance(of_type(TokenType::RoundedLeftBracket))
         {
-            let (arguments, segment) = self.parse_comma_separated_arguments(open_parenthesis)?;
+            let (arguments, args_segment) =
+                self.parse_comma_separated_arguments(open_parenthesis)?;
 
-            let start = *path.first().unwrap_or(&value);
+            let start = path
+                .first()
+                .map(InclusionPathItem::segment)
+                .unwrap_or_else(|| name_segment.clone());
+
+            path.push(InclusionPathItem::Symbol(name, name_segment));
             Ok(Expr::ProgrammaticCall(ProgrammaticCall {
                 path,
-                name: value,
                 arguments,
                 type_parameters,
-                segment: self.cursor.relative_pos_ctx(start).start..segment.end,
+                segment: start.start..args_segment.end,
             }))
         } else if self
             .cursor
@@ -93,7 +105,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             ensure_empty(
                 "Illegal expression before lambda parameter declaration",
                 path,
-                |str| self.cursor.relative_pos(*str),
+                InclusionPathItem::segment,
             )?;
             ensure_empty(
                 "Illegal expression after lambda parameter declaration",
@@ -101,12 +113,12 @@ impl<'a> CallAspect<'a> for Parser<'a> {
                 Type::segment,
             )?;
             let body = Box::new(self.value()?);
-            let segment = self.cursor.relative_pos(identifier).start..body.segment().end;
+            let segment = name_segment.start..body.segment().end;
             Ok(Expr::LambdaDef(LambdaDef {
                 args: vec![TypedVariable {
-                    name: value,
+                    name,
                     ty: None,
-                    segment: self.cursor.relative_pos(value),
+                    segment: self.cursor.relative_pos(name),
                 }],
                 body,
                 segment,
@@ -117,9 +129,11 @@ impl<'a> CallAspect<'a> for Parser<'a> {
                 type_parameters,
                 Type::segment,
             )?;
-            ensure_empty("Command calls cannot have inclusion path", path, |str| {
-                self.cursor.relative_pos(*str)
-            })?;
+            ensure_empty(
+                "Command calls cannot have inclusion path",
+                path,
+                InclusionPathItem::segment,
+            )?;
             self.call_arguments(callee)
         }
     }
@@ -136,21 +150,33 @@ impl<'a> CallAspect<'a> for Parser<'a> {
     }
 
     fn programmatic_call(&mut self) -> ParseResult<Expr<'a>> {
-        let path = self.parse_inclusion_path()?;
-        let name = self
-            .cursor
-            .force(of_type(TokenType::Identifier), "Expected function name.")?;
+        let mut path = self.parse_inclusion_path()?;
+        let name = self.cursor.force_with(
+            of_type(TokenType::Identifier),
+            "Expected function name.",
+            ParseErrorKind::Expected("identifier".to_owned()),
+        )?;
+
+        let name_segment = self.cursor.relative_pos(name.value);
+        path.push(InclusionPathItem::Symbol(name.value, name_segment.clone()));
+
         let type_parameters = self.parse_type_parameter_list()?.0;
         let open_parenthesis = self.cursor.force(
             of_type(TokenType::RoundedLeftBracket),
             "Expected opening parenthesis.",
         )?;
-        let (arguments, segment) = self.parse_comma_separated_arguments(open_parenthesis)?;
-        let start = *path.first().unwrap_or(&name.value);
-        let segment = self.cursor.relative_pos(start).start..segment.end;
+
+        let (arguments, args_segment) = self.parse_comma_separated_arguments(open_parenthesis)?;
+
+        let start = path
+            .first()
+            .map(InclusionPathItem::segment)
+            .unwrap_or_else(|| name_segment);
+
+        let segment = start.start..args_segment.end;
+
         Ok(Expr::ProgrammaticCall(ProgrammaticCall {
             path,
-            name: name.value,
             arguments,
             type_parameters,
             segment,
@@ -159,14 +185,17 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
     fn method_call_on(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
         let dot = self.cursor.advance(of_type(TokenType::Dot));
-        let name = if dot.is_some() {
-            Some(
-                self.cursor
-                    .force(of_type(TokenType::Identifier), "Expected function name.")?,
-            )
-        } else {
-            None
-        };
+        let name = dot
+            .is_some()
+            .then(|| {
+                self.cursor.force_with(
+                    of_type(TokenType::Identifier),
+                    "Expected function name.",
+                    ParseErrorKind::Expected("identifier".to_owned()),
+                )
+            })
+            .transpose()?;
+
         let type_parameters = self.parse_type_parameter_list()?.0;
         let open_parenthesis = self.cursor.force(
             of_type(TokenType::RoundedLeftBracket),
@@ -222,34 +251,12 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
     fn may_be_at_programmatic_call_start(&self) -> bool {
         self.cursor
-            .lookahead(
-                repeat(of_type(Identifier).and_then(of_type(ColonColon)))
-                    .then(identifier_parenthesis()),
-            )
+            .lookahead(any().then(of_types(&[
+                TokenType::ColonColon,
+                TokenType::RoundedLeftBracket,
+                TokenType::SquaredLeftBracket,
+            ])))
             .is_some()
-    }
-}
-
-/// Ensures that the given elements are empty, returning Err(ParseError) with given message otherwise.
-/// The error's context segment will be the segment between first and last elements of given elements.
-fn ensure_empty<T>(
-    msg: &str,
-    elements: Vec<T>,
-    convert: impl Fn(&T) -> SourceSegment,
-) -> ParseResult<()> {
-    if let Some(first) = elements.first() {
-        let position = elements
-            .last()
-            .map(|last| convert(first).start..convert(last).end)
-            .unwrap_or_else(|| convert(first));
-
-        Err(ParseError {
-            message: msg.to_string(),
-            position,
-            kind: ParseErrorKind::Unexpected,
-        })
-    } else {
-        Ok(())
     }
 }
 
@@ -262,7 +269,7 @@ impl<'a> Parser<'a> {
         match pivot {
             TokenType::RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
             TokenType::CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
-            TokenType::Identifier if self.may_be_at_programmatic_call_start() => {
+            TokenType::Identifier | TokenType::Reef if self.may_be_at_programmatic_call_start() => {
                 self.programmatic_call()
             }
             _ => self.literal(LiteralLeniency::Lenient),
@@ -329,10 +336,11 @@ mod tests {
 
     use ast::call::{Call, ProgrammaticCall};
     use ast::r#type::{ParametrizedType, Type};
+    use ast::r#use::InclusionPathItem;
     use ast::value::Literal;
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
-    use context::str_find::{find_between, find_in};
+    use context::str_find::{find_between, find_in, find_in_nth};
 
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
@@ -365,6 +373,21 @@ mod tests {
                     literal(source.source, "y"),
                 ],
             }))
+        );
+    }
+
+    #[test]
+    fn echo_reef() {
+        let source = Source::unknown("echo reef()");
+        assert_eq!(
+            Parser::new(source)
+                .parse_next()
+                .expect_err("successful parse"),
+            ParseError {
+                message: "Expected function name.".to_string(),
+                position: find_in(source.source, "reef"),
+                kind: ParseErrorKind::Expected("identifier".to_string())
+            }
         );
     }
 
@@ -522,16 +545,30 @@ mod tests {
         let source2 = Source::unknown("Foo( )");
         let expr = parse(source).expect("Failed to parse");
         let expr2 = parse(source2.clone()).expect("Failed to parse");
-        let mut expected = ProgrammaticCall {
-            path: Vec::new(),
-            name: "Foo",
-            arguments: vec![],
-            type_parameters: vec![],
-            segment: source.segment(),
-        };
-        assert_eq!(expr, vec![Expr::ProgrammaticCall(expected.clone())]);
-        expected.segment = source2.segment();
-        assert_eq!(expr2, vec![Expr::ProgrammaticCall(expected)]);
+        assert_eq!(
+            expr,
+            vec![Expr::ProgrammaticCall(ProgrammaticCall {
+                path: vec![InclusionPathItem::Symbol(
+                    "Foo",
+                    find_in(source.source, "Foo")
+                )],
+                arguments: vec![],
+                type_parameters: vec![],
+                segment: source.segment(),
+            })]
+        );
+        assert_eq!(
+            expr2,
+            vec![Expr::ProgrammaticCall(ProgrammaticCall {
+                path: vec![InclusionPathItem::Symbol(
+                    "Foo",
+                    find_in(source2.source, "Foo")
+                )],
+                arguments: vec![],
+                type_parameters: vec![],
+                segment: source2.segment(),
+            })]
+        );
     }
 
     #[test]
@@ -541,8 +578,10 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![],
-                name: "Foo",
+                path: vec![InclusionPathItem::Symbol(
+                    "Foo",
+                    find_in(source.source, "Foo")
+                )],
                 arguments: vec![
                     literal(source.source, "'a'"),
                     Expr::Literal(Literal {
@@ -564,8 +603,10 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![],
-                name: "Foo",
+                path: vec![InclusionPathItem::Symbol(
+                    "Foo",
+                    find_in(source.source, "Foo")
+                )],
                 arguments: vec![
                     literal(source.source, "'this'"),
                     literal(source.source, "'is'"),
@@ -584,8 +625,10 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![],
-                name: "Foo",
+                path: vec![InclusionPathItem::Symbol(
+                    "Foo",
+                    find_in(source.source, "Foo")
+                )],
                 arguments: vec![
                     Expr::Literal(Literal {
                         parsed: "===\ntesting something\n===".into(),
@@ -606,15 +649,19 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![],
-                name: "List",
+                path: vec![InclusionPathItem::Symbol(
+                    "List",
+                    find_in(source.source, "List")
+                )],
                 arguments: vec![Expr::Literal(Literal {
                     parsed: "hi".into(),
                     segment: find_in(source.source, "'hi'")
                 })],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    path: vec![],
-                    name: "Str",
+                    path: vec![InclusionPathItem::Symbol(
+                        "Str",
+                        find_in(source.source, "Str")
+                    )],
                     params: vec![],
                     segment: find_in(source.source, "Str"),
                 })],
@@ -630,24 +677,29 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![],
-                name: "foo",
+                path: vec![InclusionPathItem::Symbol(
+                    "foo",
+                    find_in(source.source, "foo")
+                )],
                 segment: source.segment(),
                 arguments: vec![
                     Expr::ProgrammaticCall(ProgrammaticCall {
-                        path: Vec::new(),
-                        name: "bar",
+                        path: vec![InclusionPathItem::Symbol(
+                            "bar",
+                            find_in(source.source, "bar")
+                        )],
                         arguments: Vec::new(),
                         type_parameters: Vec::new(),
                         segment: find_in(source.source, "bar()"),
                     }),
                     Expr::ProgrammaticCall(ProgrammaticCall {
-                        path: Vec::new(),
-                        name: "other",
+                        path: vec![InclusionPathItem::Symbol(
+                            "other",
+                            find_in(source.source, "other")
+                        )],
                         arguments: Vec::new(),
                         type_parameters: vec![Type::Parametrized(ParametrizedType {
-                            path: Vec::new(),
-                            name: "A",
+                            path: vec![InclusionPathItem::Symbol("A", find_in(source.source, "A"))],
                             params: Vec::new(),
                             segment: find_in(source.source, "A"),
                         })],
@@ -655,8 +707,10 @@ mod tests {
                     })
                 ],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    path: vec![],
-                    name: "Str",
+                    path: vec![InclusionPathItem::Symbol(
+                        "Str",
+                        find_in(source.source, "Str")
+                    )],
                     params: vec![],
                     segment: find_in(source.source, "Str"),
                 })],
@@ -666,38 +720,48 @@ mod tests {
 
     #[test]
     fn pfc_within_pfc_with_path() {
-        let source = Source::unknown("a::b::foo[Str](std::bar(), foo::other[A]())");
+        let source = Source::unknown("reef::a::b::foo[Str](reef::std::bar(), foo::other[A]())");
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec!["a", "b"],
-                name: "foo",
+                path: vec![
+                    InclusionPathItem::Reef(find_in(source.source, "reef")),
+                    InclusionPathItem::Symbol("a", find_in(source.source, "a")),
+                    InclusionPathItem::Symbol("b", find_in(source.source, "b")),
+                    InclusionPathItem::Symbol("foo", find_in(source.source, "foo"))
+                ],
                 segment: source.segment(),
                 arguments: vec![
                     Expr::ProgrammaticCall(ProgrammaticCall {
-                        path: vec!["std"],
-                        name: "bar",
+                        path: vec![
+                            InclusionPathItem::Reef(find_in_nth(source.source, "reef", 1)),
+                            InclusionPathItem::Symbol("std", find_in(source.source, "std")),
+                            InclusionPathItem::Symbol("bar", find_in(source.source, "bar"))
+                        ],
                         arguments: Vec::new(),
                         type_parameters: Vec::new(),
-                        segment: find_in(source.source, "std::bar()"),
+                        segment: find_in(source.source, "reef::std::bar()"),
                     }),
                     Expr::ProgrammaticCall(ProgrammaticCall {
-                        path: vec!["foo"],
-                        name: "other",
+                        path: vec![
+                            InclusionPathItem::Symbol("foo", find_in_nth(source.source, "foo", 1)),
+                            InclusionPathItem::Symbol("other", find_in(source.source, "other"))
+                        ],
                         arguments: Vec::new(),
                         segment: find_in(source.source, "foo::other[A]()"),
                         type_parameters: vec![Type::Parametrized(ParametrizedType {
-                            path: Vec::new(),
-                            name: "A",
+                            path: vec![InclusionPathItem::Symbol("A", find_in(source.source, "A"))],
                             params: Vec::new(),
                             segment: find_in(source.source, "A"),
                         })]
                     })
                 ],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    path: vec![],
-                    name: "Str",
+                    path: vec![InclusionPathItem::Symbol(
+                        "Str",
+                        find_in(source.source, "Str")
+                    )],
                     params: vec![],
                     segment: find_in(source.source, "Str"),
                 })],
@@ -712,15 +776,20 @@ mod tests {
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec!["foo", "bar"],
-                name: "List",
+                path: vec![
+                    InclusionPathItem::Symbol("foo", find_in(source.source, "foo")),
+                    InclusionPathItem::Symbol("bar", find_in(source.source, "bar")),
+                    InclusionPathItem::Symbol("List", find_in(source.source, "List")),
+                ],
                 arguments: vec![Expr::Literal(Literal {
                     segment: find_in(source.source, "'hi'"),
                     parsed: "hi".into(),
                 })],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    path: vec![],
-                    name: "Str",
+                    path: vec![InclusionPathItem::Symbol(
+                        "Str",
+                        find_in(source.source, "Str")
+                    )],
                     params: vec![],
                     segment: find_in(source.source, "Str")
                 })],

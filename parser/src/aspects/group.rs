@@ -167,6 +167,7 @@ mod tests {
     use ast::group::{Block, Subshell};
     use ast::r#type::ParametrizedType;
     use ast::r#type::Type;
+    use ast::r#use::InclusionPathItem;
     use ast::value::Literal;
     use ast::value::LiteralValue::{Float, Int};
     use ast::variable::{TypedVariable, VarDeclaration, VarKind};
@@ -409,8 +410,10 @@ mod tests {
                         var: TypedVariable {
                             name: "test",
                             ty: Some(Type::Parametrized(ParametrizedType {
-                                path: vec![],
-                                name: "int",
+                                path: vec![InclusionPathItem::Symbol(
+                                    "int",
+                                    find_in(source.source, "int")
+                                )],
                                 params: Vec::new(),
                                 segment: find_in(source.source, "int")
                             })),

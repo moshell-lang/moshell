@@ -45,6 +45,7 @@ mod tests {
     use ast::lambda::LambdaDef;
     use ast::operation::{BinaryOperation, BinaryOperator};
     use ast::r#type::{ParametrizedType, Type};
+    use ast::r#use::InclusionPathItem;
     use ast::variable::{TypedVariable, VarReference};
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
@@ -74,8 +75,10 @@ mod tests {
                     TypedVariable {
                         name: "b",
                         ty: Some(Type::Parametrized(ParametrizedType {
-                            path: vec![],
-                            name: "Int",
+                            path: vec![InclusionPathItem::Symbol(
+                                "Int",
+                                find_in(source.source, "Int")
+                            )],
                             params: Vec::new(),
                             segment: find_in(source.source, "Int"),
                         })),
@@ -141,8 +144,10 @@ mod tests {
                 args: vec![TypedVariable {
                     name: "a",
                     ty: Some(Type::Parametrized(ParametrizedType {
-                        path: vec![],
-                        name: "Int",
+                        path: vec![InclusionPathItem::Symbol(
+                            "Int",
+                            find_in(source.source, "Int")
+                        )],
                         params: Vec::new(),
                         segment: find_in(src, "Int")
                     })),
