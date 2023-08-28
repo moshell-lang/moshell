@@ -5,6 +5,7 @@ use context::source::SourceSegment;
 
 use crate::dependency::Dependencies;
 use crate::engine::Engine;
+use crate::reef::ReefId;
 
 /// The object identifier base.
 ///
@@ -84,6 +85,8 @@ impl From<LocalId> for Symbol {
 /// The resolved information about a symbol.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct ResolvedSymbol {
+    /// The symbol's reef
+    pub reef: ReefId,
     /// The module where the symbol is defined.
     ///
     /// This is used to route the symbol to the correct environment.
@@ -94,8 +97,12 @@ pub struct ResolvedSymbol {
 }
 
 impl ResolvedSymbol {
-    pub fn new(source: SourceId, object_id: LocalId) -> Self {
-        Self { source, object_id }
+    pub fn new(reef: ReefId, source: SourceId, object_id: LocalId) -> Self {
+        Self {
+            reef,
+            source,
+            object_id,
+        }
     }
 }
 
@@ -198,6 +205,14 @@ impl Relations {
             .iter()
             .enumerate()
             .map(|(id, relation)| (RelationId(id), relation))
+    }
+
+    pub fn len(&self) -> usize {
+        self.relations.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.relations.is_empty()
     }
 
     /// Returns the state of the given object.

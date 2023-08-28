@@ -1,6 +1,7 @@
 use analyzer::analyze;
 use analyzer::importer::{ASTImporter, ImportResult, Imported};
 use analyzer::name::Name;
+use analyzer::reef::{ReefContext, Reefs};
 use analyzer::relations::SourceId;
 use ast::Expr;
 use compiler::compile;
@@ -26,13 +27,14 @@ impl<'a> ASTImporter<'a> for SingleImporter<'a> {
 fn prepare_bytecode(code: &str) -> Vec<u8> {
     let mut bytes = Vec::new();
     let expr = parse_trusted(Source::new(code, "test"));
-    let mut analyzer = analyze(Name::new("test"), &mut SingleImporter(Some(expr)));
+    let mut reefs = Reefs::default();
+    let context = ReefContext::declare_new(&mut reefs, "bench");
+    let mut analyzer = analyze(Name::new("test"), &mut SingleImporter(Some(expr)), context);
     assert_eq!(analyzer.take_diagnostics(), &[]);
-    let resolve = analyzer.resolution;
     compile(
         &analyzer.engine,
-        &resolve.engine,
-        &resolve.relations,
+        &analyzer.context.current_reef().engine,
+        &analyzer.context.current_reef().relations,
         SourceId(0),
         &mut bytes,
         None,

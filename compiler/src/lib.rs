@@ -339,6 +339,7 @@ mod tests {
 
     use analyzer::importer::StaticImporter;
     use analyzer::name::Name;
+    use analyzer::reef::{ReefContext, Reefs};
     use analyzer::relations::{LocalId, ResolvedSymbol, SourceId};
     use context::source::Source;
     use parser::parse_trusted;
@@ -366,12 +367,16 @@ mod tests {
            }
         }\
         ";
+        let mut reefs = Reefs::default();
+        let context = ReefContext::declare_new(&mut reefs, "test");
+        let reef_id = context.reef_id;
         let analyzer = analyzer::analyze(
             Name::new("test"),
             &mut StaticImporter::new([(Name::new("test"), Source::unknown(src))], parse_trusted),
+            context,
         );
-        let result = analyzer.resolution;
-        let captures = resolve_captures(&result.engine, &result.relations);
+        let reef = analyzer.context.current_reef();
+        let captures = resolve_captures(&reef.engine, &reef.relations);
 
         assert_eq!(
             captures,
@@ -380,25 +385,25 @@ mod tests {
                 Some(vec![]), //foo
                 Some(vec![
                     //foo1
-                    ResolvedSymbol::new(SourceId(1), LocalId(0)),
-                    ResolvedSymbol::new(SourceId(1), LocalId(1)),
+                    ResolvedSymbol::new(reef_id, SourceId(1), LocalId(0)),
+                    ResolvedSymbol::new(reef_id, SourceId(1), LocalId(1)),
                 ]),
                 Some(vec![
                     //foo2
-                    ResolvedSymbol::new(SourceId(1), LocalId(0)),
-                    ResolvedSymbol::new(SourceId(2), LocalId(0)),
+                    ResolvedSymbol::new(reef_id, SourceId(1), LocalId(0)),
+                    ResolvedSymbol::new(reef_id, SourceId(2), LocalId(0)),
                 ]),
                 Some(vec![
                     //bar
-                    ResolvedSymbol::new(SourceId(1), LocalId(0)),
+                    ResolvedSymbol::new(reef_id, SourceId(1), LocalId(0)),
                 ]),
                 Some(vec![
                     //bar1
-                    ResolvedSymbol::new(SourceId(1), LocalId(0)),
+                    ResolvedSymbol::new(reef_id, SourceId(1), LocalId(0)),
                 ]),
                 Some(vec![
                     //bar2
-                    ResolvedSymbol::new(SourceId(1), LocalId(0)),
+                    ResolvedSymbol::new(reef_id, SourceId(1), LocalId(0)),
                 ]),
             ]
         )

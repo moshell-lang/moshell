@@ -6,6 +6,7 @@ use std::process::{ExitCode, Termination};
 
 use analyzer::importer::{ASTImporter, ImportResult, Imported};
 use analyzer::name::Name;
+use analyzer::reef::ReefContext;
 use analyzer::Analyzer;
 use ast::group::Block;
 use ast::Expr;
@@ -15,15 +16,17 @@ use parser::parse;
 use vm::VM;
 
 /// Holds the state of the analyzer and the virtual machine.
-#[derive(Default)]
-pub struct Pipeline<'a> {
-    pub analyzer: Analyzer<'a>,
+pub struct Pipeline<'a, 'e> {
+    pub analyzer: Analyzer<'a, 'e>,
     pub vm: VM,
 }
 
-impl Pipeline<'_> {
-    pub fn new() -> Self {
-        Self::default()
+impl<'a, 'e> Pipeline<'a, 'e> {
+    pub fn new(context: ReefContext<'a, 'e>) -> Self {
+        Self {
+            analyzer: Analyzer::new(context),
+            vm: VM::default(),
+        }
     }
 }
 

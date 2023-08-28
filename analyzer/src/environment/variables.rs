@@ -1,9 +1,13 @@
+use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
+use crate::name::Name;
+use crate::reef::{Reef, ReefContext, ReefId};
+use ast::r#use::InclusionPathItem;
+use context::source::{SourceSegment, SourceSegmentHolder};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
-use crate::name::Name;
-use crate::relations::{LocalId, RelationId, Symbol};
+use crate::relations::{LocalId, RelationId, SourceId, Symbol};
 
 /// Information over the declared type of a variable
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -12,6 +16,21 @@ pub enum TypeInfo {
     Variable,
     /// The variable is a function declaration
     Function,
+}
+
+#[derive(Debug, Eq, PartialEq, Hash)]
+pub enum SymbolPathItem {
+    Reef(SourceSegment),
+    Symbol(String, SourceSegment),
+}
+
+impl SourceSegmentHolder for SymbolPathItem {
+    fn segment(&self) -> SourceSegment {
+        match self {
+            SymbolPathItem::Reef(s) => s.clone(),
+            SymbolPathItem::Symbol(_, s) => s.clone(),
+        }
+    }
 }
 
 impl Display for TypeInfo {
@@ -23,6 +42,82 @@ impl Display for TypeInfo {
     }
 }
 
+#[derive(Debug, Eq, PartialEq, Hash, Clone)]
+pub struct SymbolLocation {
+    pub name: Name,
+    pub is_current_reef_explicit: bool,
+}
+
+impl SymbolLocation {
+    pub fn in_current_reef(name: Name) -> Self {
+        Self {
+            name,
+            is_current_reef_explicit: true,
+        }
+    }
+
+    pub fn unspecified(name: Name) -> Self {
+        Self {
+            name,
+            is_current_reef_explicit: false,
+        }
+    }
+
+    pub fn compute<'a>(
+        path: &'a [InclusionPathItem<'a>],
+        source_id: SourceId,
+        must_be_relative: bool,
+    ) -> Result<Self, Diagnostic> {
+        let current_reef = path
+            .first()
+            .is_some_and(|f| !must_be_relative && matches!(f, InclusionPathItem::Reef(_)));
+
+        let mut path_it = path.iter();
+
+        if current_reef {
+            path_it.next();
+        }
+
+        let mut parts = Vec::new();
+        let mut observations = Vec::new();
+        for it in path_it {
+            match it {
+                InclusionPathItem::Reef(seg) => observations.push(Observation::context(
+                    source_id,
+                    seg.clone(),
+                    "`reef` keyword is invalid here.",
+                )),
+                InclusionPathItem::Symbol(item, _) => parts.push(item.to_string()),
+            }
+        }
+
+        if !observations.is_empty() {
+            return Err(Diagnostic::new(
+                DiagnosticID::InvalidSymbolPath,
+                "Symbol path contains invalid items",
+            )
+            .with_observations(observations));
+        }
+
+        Ok(Self {
+            name: Name::from(parts),
+            is_current_reef_explicit: current_reef,
+        })
+    }
+}
+
+pub fn resolve_loc<'a, 'e>(
+    loc: &SymbolLocation,
+    ctx: &'a ReefContext<'a, 'e>,
+) -> Option<(&'a Reef<'e>, ReefId)> {
+    if loc.is_current_reef_explicit {
+        return Some((ctx.current_reef(), ctx.reef_id));
+    }
+
+    let reef_name = loc.name.root();
+    ctx.reefs().get_reef_by_name(reef_name)
+}
+
 /// A collection of variables
 #[derive(Debug, Clone, Default)]
 pub struct Variables {
@@ -31,7 +126,7 @@ pub struct Variables {
 
     /// Relations with external variables.
     /// The key is the variable Names, where value is the relation with another external environment's [Locals]
-    externals: HashMap<Name, RelationId>,
+    externals: HashMap<SymbolLocation, RelationId>,
 }
 
 impl Variables {
@@ -46,7 +141,7 @@ impl Variables {
     }
 
     /// Returns an entry for the given external symbol name relation
-    pub fn external(&mut self, name: Name) -> Entry<Name, RelationId> {
+    pub fn external(&mut self, name: SymbolLocation) -> Entry<SymbolLocation, RelationId> {
         self.externals.entry(name)
     }
 
@@ -97,14 +192,14 @@ impl Variables {
     }
 
     /// Iterates over all the global variable ids, with their corresponding name.
-    pub fn external_vars(&self) -> impl Iterator<Item = (&Name, RelationId)> {
-        self.externals.iter().map(|(name, id)| (name, *id))
+    pub fn external_vars(&self) -> impl Iterator<Item = (&SymbolLocation, RelationId)> {
+        self.externals.iter().map(|(loc, id)| (loc, *id))
     }
 
     /// Finds the name of an external variable.
     ///
     /// This returns the name only if the global object comes from this environment.
-    pub fn find_external_symbol_name(&self, object_id: RelationId) -> Option<&Name> {
+    pub fn find_external_symbol_name(&self, object_id: RelationId) -> Option<&SymbolLocation> {
         self.externals
             .iter()
             .find_map(|(name, id)| (id == &object_id).then_some(name))

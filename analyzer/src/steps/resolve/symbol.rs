@@ -2,6 +2,7 @@ use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::imports::{ResolvedImport, SourceImports};
 use crate::name::Name;
+use crate::reef::ReefId;
 use crate::relations::{ResolvedSymbol, SourceId};
 use crate::steps::resolve::SymbolResolver;
 
@@ -17,19 +18,23 @@ pub enum SymbolResolutionResult {
     DeadImport,
     /// The symbol could not be found.
     NotFound,
+    /// The symbol's reef could not be found.
+    ReefNotFound,
 }
 
-impl<'a, 'e> SymbolResolver<'a, 'e> {
+impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
     pub fn resolve_symbol_from_locals(
         env_id: SourceId,
         env: &Environment,
         symbol_name: &Name,
+        current_reef: ReefId,
     ) -> SymbolResolutionResult {
         if env.has_strict_declaration_order() {
             return SymbolResolutionResult::NotFound;
         }
         if let Some(var_id) = env.variables.find_exported(symbol_name.root()) {
             let symbol = ResolvedSymbol {
+                reef: current_reef,
                 source: env_id,
                 object_id: var_id,
             };
@@ -42,7 +47,11 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         SymbolResolutionResult::NotFound
     }
 
-    pub fn resolve_absolute_symbol(engine: &Engine, name: &Name) -> SymbolResolutionResult {
+    pub fn resolve_absolute_symbol(
+        engine: &Engine,
+        name: &Name,
+        reef: ReefId,
+    ) -> SymbolResolutionResult {
         // As we could not resolve the symbol using imports, try to find the symbol from
         // an absolute qualified name
         let env_name = name.tail().unwrap_or(name.clone());
@@ -52,7 +61,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
             let resolved_pos = env.variables.find_exported(name.simple_name());
 
             if let Some(symbol_pos) = resolved_pos {
-                let symbol = ResolvedSymbol::new(env_id, symbol_pos);
+                let symbol = ResolvedSymbol::new(reef, env_id, symbol_pos);
                 return SymbolResolutionResult::Resolved(symbol);
             }
         }
@@ -64,6 +73,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         engine: &Engine,
         imports: &SourceImports,
         name: &Name,
+        reef: ReefId,
     ) -> SymbolResolutionResult {
         let name_root = name.root();
 
@@ -85,6 +95,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
 
                 if let Some(symbol_pos) = resolved_pos {
                     return SymbolResolutionResult::Resolved(ResolvedSymbol::new(
+                        reef,
                         *resolved_module,
                         symbol_pos,
                     ));

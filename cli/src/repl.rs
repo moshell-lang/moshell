@@ -4,6 +4,7 @@ use std::io::Write;
 
 use analyzer::importer::ImportResult;
 use analyzer::name::Name;
+use analyzer::reef::{ReefContext, Reefs};
 use analyzer::relations::SourceId;
 use analyzer::Inject;
 use context::source::OwnedSource;
@@ -16,7 +17,12 @@ use crate::report::print_flush;
 /// Indefinitely prompts a new expression from stdin and executes it.
 pub fn prompt(mut importer: FileImporter, config: &Cli) -> PipelineStatus {
     // Init a new pipeline that will be used to execute each expression.
-    let mut pipeline = Pipeline::new();
+    let mut reefs = Reefs::default();
+
+    let reef_context = ReefContext::declare_new(&mut reefs, "repl");
+    let reef_id = reef_context.reef_id;
+
+    let mut pipeline = Pipeline::new(reef_context);
     let mut status = PipelineStatus::Success;
 
     // Keep track of the previous attributed source, so that we can inject
@@ -35,6 +41,7 @@ pub fn prompt(mut importer: FileImporter, config: &Cli) -> PipelineStatus {
                     name: name.clone(),
                     imported,
                     attached: starting_source,
+                    reef: reef_id,
                 },
                 &mut importer,
             );

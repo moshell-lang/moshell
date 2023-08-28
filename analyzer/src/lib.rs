@@ -19,11 +19,11 @@
 use std::collections::HashSet;
 
 use crate::diagnostic::Diagnostic;
-use crate::engine::Engine;
 use crate::importer::{ASTImporter, Imported};
 use crate::imports::Imports;
 use crate::name::Name;
-use crate::relations::{Relations, SourceId};
+use crate::reef::{ReefContext, ReefId};
+use crate::relations::SourceId;
 use crate::steps::collect::SymbolCollector;
 use crate::steps::resolve_sources;
 use crate::steps::typing::apply_types;
@@ -39,6 +39,7 @@ pub mod relations;
 
 mod dependency;
 pub mod imports;
+pub mod reef;
 pub mod steps;
 pub mod types;
 
@@ -46,17 +47,20 @@ pub mod types;
 ///
 /// The returned analyzer contains the discovered sources and the diagnostics
 /// that were generated, be sure to check them for errors.
-pub fn analyze<'a>(entry_point: Name, importer: &mut impl ASTImporter<'a>) -> Analyzer<'a> {
-    let mut analyzer = Analyzer::new();
+pub fn analyze<'ca, 'e>(
+    entry_point: Name,
+    importer: &mut impl ASTImporter<'e>,
+    context: ReefContext<'ca, 'e>,
+) -> Analyzer<'ca, 'e> {
+    let mut analyzer = Analyzer::new(context);
     analyzer.process(entry_point, importer);
     analyzer
 }
 
 /// Processes sources to resolve symbols and apply types.
-#[derive(Default)]
-pub struct Analyzer<'a> {
+pub struct Analyzer<'ca, 'e> {
     /// The current state of the resolution.
-    pub resolution: ResolutionResult<'a>,
+    pub resolution: ResolutionResult,
 
     /// The current type knowledge.
     pub typing: Typing,
@@ -64,33 +68,42 @@ pub struct Analyzer<'a> {
     /// The applied types over the [`Engine`].
     pub engine: TypedEngine,
 
+    pub context: ReefContext<'ca, 'e>,
+
     /// The diagnostics that were generated during the analysis.
     diagnostics: Vec<Diagnostic>,
 }
 
-impl<'a> Analyzer<'a> {
+impl<'ca, 'e> Analyzer<'ca, 'e> {
     /// Creates a new empty analyzer.
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(context: ReefContext<'ca, 'e>) -> Self {
+        Self {
+            resolution: ResolutionResult::default(),
+            typing: Typing::default(),
+            engine: TypedEngine::default(),
+            context,
+            diagnostics: Vec::new(),
+        }
     }
 
     /// Analyse starting from the given entry point.
     pub fn process(
         &mut self,
         entry_point: Name,
-        importer: &mut impl ASTImporter<'a>,
-    ) -> Analysis<'a, '_> {
-        let last_next_source_id = SourceId(self.resolution.engine.len());
+        importer: &mut impl ASTImporter<'e>,
+    ) -> Analysis<'ca, 'e, '_> {
+        let last_next_source_id = SourceId(self.context.current_reef().engine.len());
         resolve_sources(
             vec![entry_point],
             &mut self.resolution,
             importer,
+            &mut self.context,
             &mut self.diagnostics,
         );
         if self.diagnostics.is_empty() {
             let (engine, typing) = apply_types(
-                &self.resolution.engine,
-                &self.resolution.relations,
+                &self.context.current_reef().engine,
+                &self.context.current_reef().relations,
                 &mut self.diagnostics,
             );
             self.engine = engine;
@@ -108,23 +121,28 @@ impl<'a> Analyzer<'a> {
     /// If the injection refers to itself, this method will panic.
     pub fn inject(
         &mut self,
-        inject: Inject<'a>,
-        importer: &mut impl ASTImporter<'a>,
-    ) -> Analysis<'a, '_> {
-        let last_next_source_id = SourceId(self.resolution.engine.len());
+        inject: Inject<'e>,
+        importer: &mut impl ASTImporter<'e>,
+    ) -> Analysis<'ca, 'e, '_> {
+        let last_next_source_id = SourceId(self.context.current_reef().engine.len());
         let mut visit = vec![inject.name.clone()];
         self.diagnostics.extend(SymbolCollector::inject(
             inject,
-            &mut self.resolution.engine,
-            &mut self.resolution.relations,
             &mut self.resolution.imports,
+            &mut self.context,
             &mut visit,
         ));
-        resolve_sources(visit, &mut self.resolution, importer, &mut self.diagnostics);
+        resolve_sources(
+            visit,
+            &mut self.resolution,
+            importer,
+            &mut self.context,
+            &mut self.diagnostics,
+        );
         if self.diagnostics.is_empty() {
             let (engine, typing) = apply_types(
-                &self.resolution.engine,
-                &self.resolution.relations,
+                &self.context.current_reef().engine,
+                &self.context.current_reef().relations,
                 &mut self.diagnostics,
             );
             self.engine = engine;
@@ -143,22 +161,22 @@ impl<'a> Analyzer<'a> {
 }
 
 /// An analysis result that can be observed and reverted.
-pub struct Analysis<'a, 'revert> {
+pub struct Analysis<'ca, 'e, 'revert> {
     /// Takes the unique ownership of the analyzer to prevent any further modification
     /// that would invalidate any revert.
-    analyzer: &'revert mut Analyzer<'a>,
+    analyzer: &'revert mut Analyzer<'ca, 'e>,
 
     /// Reverting the operation means internally removing all the sources that were added
     /// after the last stable state.
     last_next_source_id: SourceId,
 }
 
-impl Analysis<'_, '_> {
+impl<'ca, 'e> Analysis<'ca, 'e, '_> {
     /// Gets a immutable reference to the analyzer, in order to preview the changes.
     ///
     /// To get back a mutable reference, simply drop the [`Analysis`] or call
     /// [`Analysis::revert`].
-    pub fn analyzer(&self) -> &Analyzer<'_> {
+    pub fn analyzer(&self) -> &Analyzer<'ca, 'e> {
         self.analyzer
     }
 
@@ -177,13 +195,14 @@ impl Analysis<'_, '_> {
     /// This drops the [`Analyzer`] unique ownership.
     pub fn revert(self) {
         let id = self.last_next_source_id;
+        let reef = self.analyzer.context.current_reef_mut();
         let resolution = &mut self.analyzer.resolution;
-        for (_, _, env) in resolution.engine.origins.drain(id.0..) {
+        for (_, _, env) in reef.engine.origins.drain(id.0..) {
             if let Some(env) = env {
                 resolution.visited.remove(&env.fqn);
             }
         }
-        resolution.relations.retain_before(id);
+        reef.relations.retain_before(id);
         resolution.imports.retain_before(id);
     }
 }
@@ -192,13 +211,20 @@ impl Analysis<'_, '_> {
 ///
 /// The completion of a collection followed by its resolution phase is called a cycle.
 /// Multiple cycles can occur if the resolution phase finds new modules to collect.
-pub fn resolve_all<'a>(
+pub fn resolve_all<'a, 'e>(
     entry_point: Name,
-    importer: &mut impl ASTImporter<'a>,
+    context: &mut ReefContext<'a, 'e>,
+    importer: &mut impl ASTImporter<'e>,
     diagnostics: &mut Vec<Diagnostic>,
-) -> ResolutionResult<'a> {
+) -> ResolutionResult {
     let mut result = ResolutionResult::default();
-    resolve_sources(vec![entry_point], &mut result, importer, diagnostics);
+    resolve_sources(
+        vec![entry_point],
+        &mut result,
+        importer,
+        context,
+        diagnostics,
+    );
     result
 }
 
@@ -212,13 +238,14 @@ pub struct Inject<'a> {
 
     /// The environment to inject the source into.
     pub attached: Option<SourceId>,
+
+    /// The injection's reef
+    pub reef: ReefId,
 }
 
 /// The results of an analysis
 #[derive(Debug, Default)]
-pub struct ResolutionResult<'e> {
-    pub engine: Engine<'e>,
-    pub relations: Relations,
+pub struct ResolutionResult {
     imports: Imports,
     visited: HashSet<Name>,
 }

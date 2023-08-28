@@ -29,56 +29,67 @@ pub enum DiagnosticID {
     #[assoc(critical = true)]
     InvalidSymbol,
 
+    /// A symbol path is invalid by its structure
+    /// (for example, the path `reef::foo::reef` is invalid because the last `reef` would targets the current reef)
+    #[assoc(code = 5)]
+    #[assoc(critical = true)]
+    InvalidSymbolPath,
+
     /// There is a `use` statement between two expressions,
     /// `use` needs to be declared before any expressions in an environment.
-    #[assoc(code = 5)]
+    #[assoc(code = 6)]
     #[assoc(critical = true)]
     UseBetweenExprs,
 
     /// A `use` statement is shadowed as the symbol it imports has been imported again below
-    #[assoc(code = 6)]
+    #[assoc(code = 7)]
     ShadowedImport,
 
     /// A symbol have the same fully qualified name (its name with its module's name prepended)
     /// as another module
-    #[assoc(code = 7)]
+    #[assoc(code = 8)]
     #[assoc(critical = true)]
     SymbolConflictsWithModule,
 
     /// A type annotation refers to an unknown type.
-    #[assoc(code = 8)]
+    #[assoc(code = 9)]
     #[assoc(critical = true)]
     UnknownType,
 
     /// A type annotation is not matching the expected type.
-    #[assoc(code = 9)]
+    #[assoc(code = 10)]
     #[assoc(critical = true)]
     TypeMismatch,
 
     /// A type annotation is missing, and cannot be inferred.
-    #[assoc(code = 10)]
+    #[assoc(code = 11)]
     #[assoc(critical = true)]
     CannotInfer,
 
     /// Occurs when a `continue` or `break` directive is declared outside of a loop.
-    #[assoc(code = 11)]
+    #[assoc(code = 12)]
     #[assoc(critical = true)]
     InvalidBreakOrContinue,
 
     /// A type cannot be casted to another type.
-    #[assoc(code = 12)]
+    #[assoc(code = 13)]
     #[assoc(critical = true)]
     IncompatibleCast,
 
     /// A named method is unknown or does not match the expected signature.
-    #[assoc(code = 13)]
+    #[assoc(code = 14)]
     #[assoc(critical = true)]
     UnknownMethod,
 
     /// A variable is being reassigned, but it is not mutable.
-    #[assoc(code = 14)]
+    #[assoc(code = 15)]
     #[assoc(critical = true)]
     CannotReassign,
+
+    /// A variable is being reassigned, but it is not mutable.
+    #[assoc(code = 16)]
+    #[assoc(critical = true)]
+    ReefNotFound,
 }
 
 /// Observations are labels in a code snippet that are used to explain a [`Diagnostic`].

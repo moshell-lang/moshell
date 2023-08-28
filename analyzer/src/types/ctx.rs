@@ -8,6 +8,7 @@ use crate::types::{BOOL, EXIT_CODE, FLOAT, INT, NOTHING, STRING, UNIT};
 /// Holds the symbol to type mapping.
 ///
 /// The actual type definition is in the [`crate::types::Typing`] struct.
+#[derive(Default)]
 pub struct TypeContext {
     names: HashMap<String, TypeId>,
     locals: HashMap<SourceId, Vec<TypedVariable>>,

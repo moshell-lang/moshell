@@ -1,4 +1,5 @@
-use ast::call::{Call, Pipeline, ProgrammaticCall, RedirOp, Redirected};
+use ast::call::RedirOp;
+use ast::call::{Call, Pipeline, ProgrammaticCall, Redirected};
 use ast::control_flow::If;
 use ast::function::FunctionDeclaration;
 use ast::group::Block;
@@ -1176,6 +1177,7 @@ mod tests {
 
     use crate::importer::StaticImporter;
     use crate::name::Name;
+    use crate::reef::{ReefContext, Reefs};
     use crate::relations::{LocalId, NativeId};
     use crate::resolve_all;
     use crate::types::hir::{Convert, MethodCall};
@@ -1187,14 +1189,21 @@ mod tests {
         let typing = Typing::with_lang();
         let name = Name::new(source.name);
         let mut diagnostics = Vec::new();
-        let result = resolve_all(
+        let mut reefs = Reefs::default();
+        let mut context = ReefContext::declare_new(&mut reefs, "test");
+        resolve_all(
             name.clone(),
+            &mut context,
             &mut StaticImporter::new([(name, source)], parse_trusted),
             &mut diagnostics,
         );
         assert_eq!(diagnostics, vec![]);
 
-        let (typed, _) = apply_types(&result.engine, &result.relations, &mut diagnostics);
+        let (typed, _) = apply_types(
+            &context.current_reef().engine,
+            &context.current_reef().relations,
+            &mut diagnostics,
+        );
         let expr = typed.get_user(SourceId(0)).unwrap();
         if !diagnostics.is_empty() {
             return Err(diagnostics);

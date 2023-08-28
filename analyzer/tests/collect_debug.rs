@@ -1,18 +1,20 @@
-use analyzer::engine::Engine;
-use analyzer::environment::variables::Variable;
+use std::collections::HashSet;
+
+use pretty_assertions::assert_eq;
+
+use analyzer::environment::variables::{SymbolLocation, Variable};
 use analyzer::importer::StaticImporter;
 use analyzer::imports::Imports;
 use analyzer::name::Name;
+use analyzer::reef::{ReefContext, Reefs};
 use analyzer::relations::{
-    LocalId, Relation, RelationId, RelationState, Relations, ResolvedSymbol, SourceId, Symbol,
+    LocalId, Relation, RelationId, RelationState, ResolvedSymbol, SourceId, Symbol,
 };
 use analyzer::steps::collect::SymbolCollector;
 use analyzer::steps::resolve::SymbolResolver;
 use context::source::Source;
 use context::str_find::{find_between, find_in};
 use parser::parse_trusted;
-use pretty_assertions::assert_eq;
-use std::collections::HashSet;
 
 #[test]
 fn collect_sample() {
@@ -20,8 +22,7 @@ fn collect_sample() {
     let source = Source::new(content, "debug_sample.msh");
     let root_name = Name::new("debug_sample");
     let lib_name = Name::new("lib");
-    let mut engine = Engine::default();
-    let mut relations = Relations::default();
+
     let mut imports = Imports::default();
 
     let mut to_visit = vec![root_name.clone()];
@@ -36,23 +37,24 @@ fn collect_sample() {
         ],
         parse_trusted,
     );
+
+    let mut reefs = Reefs::default();
+    let mut context = ReefContext::declare_new(&mut reefs, "test");
+
     let diagnostics = SymbolCollector::collect_symbols(
-        &mut engine,
-        &mut relations,
         &mut imports,
+        &mut context,
         &mut to_visit,
         &mut visited,
         &mut importer,
     );
     assert_eq!(diagnostics, vec![]);
-    let diagnostics = SymbolResolver::resolve_symbols(
-        &engine,
-        &mut relations,
-        &mut imports,
-        &mut to_visit,
-        &mut visited,
-    );
+    let diagnostics =
+        SymbolResolver::resolve_symbols(&mut imports, &mut context, &mut to_visit, &mut visited);
     assert_eq!(diagnostics, vec![]);
+
+    let engine = &context.current_reef().engine;
+
     let root_env = engine
         .get_environment(SourceId(0))
         .expect("Unable to get root environment");
@@ -106,12 +108,19 @@ fn collect_sample() {
         .expect("Unable to get debug() environment");
     assert_eq!(debug_env.fqn, root_name.child("debug"));
     let usages = debug_env.variables.external_vars().collect::<Vec<_>>();
-    assert_eq!(usages, vec![(&Name::new("LOG_FILE"), RelationId(0))]);
     assert_eq!(
-        relations[RelationId(0)],
+        usages,
+        vec![(
+            &SymbolLocation::unspecified(Name::new("LOG_FILE")),
+            RelationId(0)
+        )]
+    );
+    assert_eq!(
+        context.current_reef().relations[RelationId(0)],
         Relation {
             origin: SourceId(2),
             state: RelationState::Resolved(ResolvedSymbol {
+                reef: context.reef_id,
                 source: SourceId(6),
                 object_id: LocalId(0),
             }),
@@ -122,21 +131,33 @@ fn collect_sample() {
         .get_environment(SourceId(4))
         .expect("Unable to get callback environment");
     assert_eq!(callback_env.fqn, root_name.child("main").child("callback"));
+
     let mut globals = callback_env.variables.external_vars().collect::<Vec<_>>();
-    globals.sort_by_key(|(name, _)| *name);
+    globals.sort_by_key(|(loc, _)| &loc.name);
     assert_eq!(
         globals,
         vec![
-            (&Name::new("count"), RelationId(1)),
-            (&Name::new("factorial"), RelationId(2)),
-            (&Name::new("n"), RelationId(3)),
+            (
+                &SymbolLocation::unspecified(Name::new("count")),
+                RelationId(1)
+            ),
+            (
+                &SymbolLocation::unspecified(Name::new("factorial")),
+                RelationId(2)
+            ),
+            (&SymbolLocation::unspecified(Name::new("n")), RelationId(3)),
         ]
     );
+
+    let reef_id = context.reef_id;
+    let relations = &context.current_reef().relations;
+
     assert_eq!(
         relations[RelationId(1)],
         Relation {
             origin: SourceId(4),
             state: RelationState::Resolved(ResolvedSymbol {
+                reef: reef_id,
                 source: SourceId(3),
                 object_id: LocalId(0),
             }),
@@ -147,6 +168,7 @@ fn collect_sample() {
         Relation {
             origin: SourceId(4),
             state: RelationState::Resolved(ResolvedSymbol {
+                reef: reef_id,
                 source: SourceId(0),
                 object_id: LocalId(0),
             }),
@@ -157,6 +179,7 @@ fn collect_sample() {
         Relation {
             origin: SourceId(4),
             state: RelationState::Resolved(ResolvedSymbol {
+                reef: reef_id,
                 source: SourceId(0),
                 object_id: LocalId(3),
             }),
@@ -167,5 +190,8 @@ fn collect_sample() {
         .get_environment(SourceId(5))
         .expect("Unable to get lambda environment");
     let variables = lambda_env.variables.external_vars().collect::<Vec<_>>();
-    assert_eq!(variables, vec![(&Name::new("n"), RelationId(4))]);
+    assert_eq!(
+        variables,
+        vec![(&SymbolLocation::unspecified(Name::new("n")), RelationId(4))]
+    );
 }

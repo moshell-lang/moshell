@@ -52,11 +52,17 @@ pub fn diagnose_unresolved_external_symbols(
     env_id: SourceId,
     env: &Environment,
     name: &Name,
+    because_reef_not_found: bool,
 ) -> Diagnostic {
-    let diagnostic = Diagnostic::new(
-        DiagnosticID::UnknownSymbol,
-        format!("Could not resolve symbol `{name}`."),
-    );
+    let mut diagnostic_message = format!("Could not resolve symbol `{name}`");
+
+    if because_reef_not_found {
+        diagnostic_message.push_str(&format!(", because reef `{}` was not found", name.root()))
+    }
+
+    diagnostic_message.push('.');
+
+    let diagnostic = Diagnostic::new(DiagnosticID::UnknownSymbol, diagnostic_message);
 
     let mut observations: Vec<Observation> = env
         .list_definitions()
