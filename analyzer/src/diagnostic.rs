@@ -85,6 +85,11 @@ pub enum DiagnosticID {
     #[assoc(code = 15)]
     #[assoc(critical = true)]
     CannotReassign,
+
+    /// An incorrect number of type arguments was provided.
+    #[assoc(code = 16)]
+    #[assoc(critical = true)]
+    InvalidTypeArguments,
 }
 
 /// Observations are labels in a code snippet that are used to explain a [`Diagnostic`].

@@ -18,7 +18,7 @@ use crate::reef::Externals;
 use crate::relations::{Definition, Relations, SourceId, SymbolRef};
 use crate::steps::typing::coercion::{
     check_type_annotation, coerce_condition, convert_description, convert_expression, convert_many,
-    resolve_type,
+    resolve_type_annotation,
 };
 use crate::steps::typing::exploration::{Exploration, Links};
 use crate::steps::typing::function::{
@@ -39,6 +39,7 @@ mod coercion;
 pub mod exploration;
 mod function;
 mod lower;
+mod view;
 
 pub fn apply_types(
     engine: &Engine,
@@ -121,9 +122,11 @@ fn apply_types_to_source(
     exploration.prepare();
     match expr {
         Expr::FunctionDeclaration(func) => {
+            let mut params = Vec::new();
             for param in &func.parameters {
                 let param = type_parameter(exploration, param, links, diagnostics);
                 exploration.ctx.push_local_typed(source_id, param.ty);
+                params.push(param);
             }
 
             let typed_expr = ascribe_types(
@@ -133,16 +136,8 @@ fn apply_types_to_source(
                 &func.body,
                 TypingState::default().with_local_type(),
             );
-
             let return_type = infer_return(func, &typed_expr, links, diagnostics, exploration);
-
-            let chunk_params = func
-                .parameters
-                .iter()
-                .map(|param| type_parameter(exploration, param, links, diagnostics))
-                .collect();
-
-            Chunk::function(typed_expr, chunk_params, return_type)
+            Chunk::function(typed_expr, params, return_type)
         }
         expr => Chunk::script(ascribe_types(
             exploration,
@@ -183,9 +178,8 @@ fn ascribe_template_string(
         };
     }
 
-    let plus_method = exploration
-        .externals
-        .lang()
+    let lang = exploration.externals.lang();
+    let plus_method = lang
         .typed_engine
         .get_method_exact(
             STRING.type_id,
@@ -242,7 +236,7 @@ fn ascribe_assign(
         .unwrap()
         .type_ref;
 
-    let actual_type = exploration.get_type(actual_type_ref).unwrap();
+    let actual_type = exploration.get_type_ref(actual_type_ref).unwrap();
     if actual_type.is_named() {
         diagnostics.push(
             Diagnostic::new(
@@ -275,8 +269,8 @@ fn ascribe_assign(
                     DiagnosticID::TypeMismatch,
                     format!(
                         "Cannot assign a value of type `{}` to something of type `{}`",
-                        exploration.get_type(rhs_type).unwrap(),
-                        exploration.get_type(var_ty).unwrap()
+                        exploration.get_type(rhs_type),
+                        exploration.get_type(var_ty)
                     ),
                 )
                 .with_observation(Observation::here(
@@ -350,14 +344,6 @@ fn ascribe_var_declaration(
         })
         .expect("Variables without initializers are not supported yet");
 
-    let id = exploration.ctx.push_local(
-        links.source,
-        if decl.kind == VarKind::Val {
-            TypedVariable::immutable(initializer.ty)
-        } else {
-            TypedVariable::assignable(initializer.ty)
-        },
-    );
     if let Some(type_annotation) = &decl.var.ty {
         initializer = check_type_annotation(
             exploration,
@@ -367,6 +353,14 @@ fn ascribe_var_declaration(
             diagnostics,
         );
     }
+    let id = exploration.ctx.push_local(
+        links.source,
+        if decl.kind == VarKind::Val {
+            TypedVariable::immutable(initializer.ty)
+        } else {
+            TypedVariable::assignable(initializer.ty)
+        },
+    );
     TypedExpr {
         kind: ExprKind::Declare(Declaration {
             identifier: id,
@@ -457,7 +451,7 @@ fn ascribe_redirected(
                         DiagnosticID::TypeMismatch,
                         format!(
                             "File descriptor redirections must be given an integer, not `{}`",
-                            exploration.get_type(operand.ty).unwrap()
+                            exploration.get_type(operand.ty)
                         ),
                     )
                     .with_observation(Observation::here(
@@ -576,7 +570,7 @@ fn ascribe_function_declaration(
         .map(|param| type_parameter(exploration, param, declaration_link, &mut Vec::new())) // Silent errors
         .collect::<Vec<_>>();
     let return_type = fun.return_type.as_ref().map_or(UNIT, |ty| {
-        resolve_type(exploration, declaration_link, ty, &mut Vec::new())
+        resolve_type_annotation(exploration, declaration_link, ty, &mut Vec::new())
     }); // Silent errors
 
     exploration.type_engine.insert_if_absent(
@@ -610,14 +604,24 @@ fn ascribe_binary(
 ) -> TypedExpr {
     let left_expr = ascribe_types(exploration, links, diagnostics, &bin.left, state);
     let right_expr = ascribe_types(exploration, links, diagnostics, &bin.right, state);
+    let right_type = right_expr.ty;
     let name = name_operator_method(bin.op);
 
     let method = exploration
         .get_methods(left_expr.ty, name)
-        .and_then(|methods| find_operand_implementation(methods, &right_expr));
-
-    let ty = match method {
-        Some(method) => method.return_type,
+        .and_then(|methods| {
+            find_operand_implementation(exploration, methods, left_expr.ty, right_expr)
+        });
+    match method {
+        Some(method) => TypedExpr {
+            kind: ExprKind::MethodCall(MethodCall {
+                callee: Box::new(left_expr),
+                arguments: method.arguments,
+                definition: method.definition,
+            }),
+            ty: method.return_type,
+            segment: bin.segment(),
+        },
         _ => {
             diagnostics.push(
                 Diagnostic::new(DiagnosticID::UnknownMethod, "Undefined operator")
@@ -627,22 +631,13 @@ fn ascribe_binary(
                         format!(
                             "No operator `{}` between type `{}` and `{}`",
                             name,
-                            exploration.get_type(left_expr.ty).unwrap(),
-                            exploration.get_type(right_expr.ty).unwrap()
+                            exploration.get_type(left_expr.ty),
+                            exploration.get_type(right_type)
                         ),
                     )),
             );
-            ERROR
+            left_expr.poison()
         }
-    };
-    TypedExpr {
-        kind: ExprKind::MethodCall(MethodCall {
-            callee: Box::new(left_expr),
-            arguments: vec![right_expr],
-            definition: method.map_or(Definition::error(), |method| method.definition),
-        }),
-        ty,
-        segment: bin.segment(),
     }
 }
 
@@ -654,17 +649,17 @@ fn ascribe_casted(
     state: TypingState,
 ) -> TypedExpr {
     let expr = ascribe_types(exploration, links, diagnostics, &casted.expr, state);
-
-    let ty = resolve_type(exploration, links, &casted.casted_type, diagnostics);
-
-    if expr.ty.is_ok() && convert_description(exploration, ty, expr.ty).is_err() {
+    let ty = resolve_type_annotation(exploration, links, &casted.casted_type, diagnostics);
+    if ty.is_err() {
+        return expr;
+    } else if expr.ty.is_ok() && convert_description(exploration, ty, expr.ty).is_err() {
         diagnostics.push(
             Diagnostic::new(
                 DiagnosticID::IncompatibleCast,
                 format!(
                     "Casting `{}` as `{}` is invalid",
-                    exploration.get_type(expr.ty).unwrap(),
-                    exploration.get_type(ty).unwrap()
+                    exploration.get_type(expr.ty),
+                    exploration.get_type(ty)
                 ),
             )
             .with_observation(Observation::here(
@@ -724,7 +719,7 @@ fn ascribe_unary(
                                 unary.segment(),
                                 format!(
                                     "`{}` does not implement the `neg` method",
-                                    exploration.get_type(expr.ty,).unwrap(),
+                                    exploration.get_type(expr.ty),
                                 ),
                             )),
                     );
@@ -742,8 +737,8 @@ fn ascribe_not(
     links: Links,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> TypedExpr {
-    let lang_reef = exploration.externals.lang();
-    let not_method = lang_reef
+    let lang = exploration.externals.lang();
+    let not_method = lang
         .typed_engine
         .get_method_exact(BOOL.type_id, "not", &[], BOOL)
         .expect("A Bool should be invertible");
@@ -766,7 +761,7 @@ fn ascribe_not(
                         segment,
                         format!(
                             "Cannot invert non-boolean type `{}`",
-                            exploration.get_type(expr.ty).unwrap()
+                            exploration.get_type(expr.ty)
                         ),
                     ),
                 ),
@@ -822,13 +817,13 @@ fn ascribe_if(
                 .with_observation(Observation::here(
                     links.source,
                     block.success_branch.segment(),
-                    format!("Found `{}`", exploration.get_type(then.ty).unwrap()),
+                    format!("Found `{}`", exploration.get_type(then.ty)),
                 ));
                 if let Some(otherwise) = &otherwise {
                     diagnostic = diagnostic.with_observation(Observation::here(
                         links.source,
                         otherwise.segment(),
-                        format!("Found `{}`", exploration.get_type(otherwise.ty).unwrap()),
+                        format!("Found `{}`", exploration.get_type(otherwise.ty)),
                     ));
                 }
                 diagnostics.push(diagnostic);
@@ -903,29 +898,33 @@ fn ascribe_method_call(
     diagnostics: &mut Vec<Diagnostic>,
     state: TypingState,
 ) -> TypedExpr {
-    let callee = ascribe_types(exploration, links, diagnostics, &method.source, state);
+    let mut callee = ascribe_types(exploration, links, diagnostics, &method.source, state);
     let arguments = method
         .arguments
         .iter()
         .map(|expr| ascribe_types(exploration, links, diagnostics, expr, state))
         .collect::<Vec<_>>();
-
-    let method_type = type_method(
+    match type_method(
         method,
         &callee,
-        &arguments,
+        arguments,
         diagnostics,
         exploration,
         links.source,
-    );
-    TypedExpr {
-        kind: ExprKind::MethodCall(MethodCall {
-            callee: Box::new(callee),
-            arguments,
-            definition: method_type.map_or(Definition::error(), |method| method.definition),
-        }),
-        ty: method_type.map_or(ERROR, |method| method.return_type),
-        segment: method.segment.clone(),
+    ) {
+        Some(fun) => TypedExpr {
+            kind: ExprKind::MethodCall(MethodCall {
+                callee: Box::new(callee),
+                arguments: fun.arguments,
+                definition: fun.definition,
+            }),
+            ty: fun.return_type,
+            segment: method.segment.clone(),
+        },
+        None => {
+            callee.ty = ERROR;
+            callee
+        }
     }
 }
 
@@ -1072,6 +1071,7 @@ mod tests {
     use crate::resolve_all;
     use crate::types::hir::{Convert, MethodCall};
     use crate::types::ty::Type;
+    use crate::types::{EXITCODE, UNIT};
 
     use super::*;
 
@@ -1942,5 +1942,98 @@ mod tests {
             "fun foo() = { fun bar() = { return }; bar() }",
         ));
         assert_eq!(res, Ok(Type::Unit));
+    }
+
+    #[test]
+    fn correct_concretized_type() {
+        let res = extract_type(Source::unknown("'Hello, world'.split(' ').push('!')"));
+        assert_eq!(res, Ok(Type::Unit));
+    }
+
+    #[test]
+    fn incorrect_generic_param() {
+        let content = "'Hello, world'.split(' ').push({})";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                "Type mismatch",
+            )
+            .with_observation(Observation::here(
+                SourceId(0),
+                find_in(content, "{}"),
+                "Expected `String`, found `Unit`"
+            ))
+            .with_observation(Observation::here(
+                SourceId(0),
+                find_in(content, ".push({})"),
+                "Arguments to this method are incorrect"
+            ))])
+        );
+    }
+
+    #[test]
+    fn incorrect_concretized_type() {
+        let content =
+            "val lines: Vec[String] = 'Hello, world'.split('\\n'); val first: Int = $lines.get(0)";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                "Type mismatch",
+            )
+            .with_observation(Observation::here(
+                SourceId(0),
+                find_in(content, "Int"),
+                "Expected `Int`"
+            ))
+            .with_observation(Observation::here(
+                SourceId(0),
+                find_in(content, ".get(0)"),
+                "Found `String`"
+            ))])
+        );
+    }
+    #[test]
+    fn different_concrete_type() {
+        let content = "val lines = 'Hello, world'.split('\\n'); val types: Vec[Float] = $lines";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                "Type mismatch",
+            )
+            .with_observation(Observation::here(
+                SourceId(0),
+                find_in(content, "Vec[Float]"),
+                "Expected `Vec[Float]`"
+            ))
+            .with_observation(Observation::here(
+                SourceId(0),
+                find_in(content, "$lines"),
+                "Found `Vec[String]`"
+            ))])
+        );
+    }
+
+    #[test]
+    fn invalid_type_arguments_count() {
+        let content = "fun foo(n: Int[Int]) = {}";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::InvalidTypeArguments,
+                "Type `Int` were supplied 1 generic argument",
+            )
+            .with_observation(Observation::here(
+                SourceId(1),
+                find_in(content, "Int[Int]"),
+                "Expected 0 generic arguments"
+            ))])
+        );
     }
 }

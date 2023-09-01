@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fmt::Display;
 
 use crate::diagnostic::SourceLocation;
 use crate::reef::ReefId;
@@ -10,7 +9,7 @@ use crate::types::{ERROR, NOTHING};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TypeId(pub ObjectId);
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct TypeRef {
     pub reef: ReefId,
     pub type_id: TypeId,
@@ -74,6 +73,15 @@ pub enum Type {
 
     /// A callable type, that have a separate definition.
     Function(Definition),
+
+    /// A vector type, that contains a list of elements of the same type.
+    Vector,
+
+    /// A generic type, that can be instantiated with concrete type parameters.
+    Polytype,
+
+    /// An instance of a generic type with concrete type parameters.
+    Instantiated(TypeRef, Vec<TypeRef>),
 }
 
 impl Type {
@@ -105,30 +113,6 @@ pub struct Parameter {
     pub ty: TypeRef,
 }
 
-impl Display for Type {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Type::Error => write!(f, "Error"),
-            Type::Unknown => write!(f, "Unknown"),
-            Type::Nothing => write!(f, "Nothing"),
-            Type::Unit => write!(f, "Unit"),
-            Type::Bool => write!(f, "Bool"),
-            Type::ExitCode => write!(f, "ExitCode"),
-            Type::Int => write!(f, "Int"),
-            Type::Float => write!(f, "Float"),
-            Type::String => write!(f, "String"),
-            Type::Function(id) => write!(
-                f,
-                "fun#{}",
-                match id {
-                    Definition::User(id) => id.0,
-                    Definition::Native(id) => id.0,
-                }
-            ),
-        }
-    }
-}
-
 impl FunctionType {
     /// Creates a new native function.
     ///
@@ -155,6 +139,7 @@ impl FunctionType {
 /// be instantiated multiple times with different [`Type`] parameters.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct TypeDescription {
+    pub(crate) generics: Vec<TypeRef>,
     pub(crate) methods: HashMap<String, Vec<MethodType>>,
 }
 

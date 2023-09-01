@@ -10,6 +10,9 @@ pub mod hir;
 pub mod operator;
 pub mod ty;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DefinitionId(pub(crate) TypeRef);
+
 /// Holds all the known types.
 #[derive(Default, Clone)]
 pub struct Typing {
@@ -24,12 +27,14 @@ impl Typing {
     pub(crate) fn set_implicit_conversion(&mut self, from: TypeId, to: TypeRef) {
         self.implicits.insert(from, to);
     }
+
     pub(crate) fn add_type(&mut self, ty: Type) -> TypeId {
         let type_id = TypeId(self.types.len());
         self.types.push(ty);
         type_id
     }
 
+    /// Gets the type with the given identifier.
     pub(crate) fn get_type(&self, type_id: TypeId) -> Option<&Type> {
         self.types.get(type_id.0)
     }
@@ -43,6 +48,8 @@ pub const EXITCODE: TypeRef = TypeRef::new(LANG_REEF, TypeId(4));
 pub const INT: TypeRef = TypeRef::new(LANG_REEF, TypeId(5));
 pub const FLOAT: TypeRef = TypeRef::new(LANG_REEF, TypeId(6));
 pub const STRING: TypeRef = TypeRef::new(LANG_REEF, TypeId(7));
+pub const GENERIC_VECTOR: TypeRef = TypeRef::new(LANG_REEF, TypeId(8));
+pub const POLYTYPE: TypeRef = TypeRef::new(LANG_REEF, TypeId(9));
 
 /// An error that occurs when two types are not compatible.
 #[derive(Debug, PartialEq)]

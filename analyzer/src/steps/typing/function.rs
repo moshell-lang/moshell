@@ -5,16 +5,16 @@ use context::source::{SourceSegment, SourceSegmentHolder};
 use std::fmt;
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation, SourceLocation};
-use crate::reef::Externals;
 use crate::relations::{Definition, SourceId, SymbolRef};
 use crate::steps::typing::coercion::{
-    convert_description, convert_expression, convert_many, resolve_type,
+    convert_description, convert_expression, convert_many, resolve_type_annotation,
 };
 use crate::steps::typing::exploration::{Exploration, Links};
+use crate::steps::typing::view::TypeInstance;
 use crate::types::engine::CodeEntry;
 use crate::types::hir::{ExprKind, TypedExpr};
 use crate::types::ty::{FunctionType, MethodType, Parameter, Type, TypeRef};
-use crate::types::{Typing, ERROR, STRING, UNIT};
+use crate::types::{ERROR, STRING, UNIT};
 
 /// An identified return during the exploration.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,7 +69,7 @@ pub(super) fn infer_return(
 
     let expected_return_type = if let Some(return_type_annotation) = func.return_type.as_ref() {
         // An explicit return type is present, check it against all the return types.
-        resolve_type(exploration, links, return_type_annotation, diagnostics)
+        resolve_type_annotation(exploration, links, return_type_annotation, diagnostics)
     } else {
         UNIT
     };
@@ -82,9 +82,9 @@ pub(super) fn infer_return(
                 links.source,
                 ret.segment.clone(),
                 if func.return_type.is_some() {
-                    format!("Found `{}`", exploration.get_type(ret.ty).unwrap())
+                    format!("Found `{}`", exploration.get_type(ret.ty))
                 } else {
-                    format!("Returning `{}`", exploration.get_type(ret.ty).unwrap())
+                    format!("Returning `{}`", exploration.get_type(ret.ty))
                 },
             ));
         }
@@ -103,7 +103,7 @@ pub(super) fn infer_return(
                     return_type_annotation.segment(),
                     format!(
                         "Expected `{}` because of return type",
-                        exploration.get_type(expected_return_type).unwrap()
+                        exploration.get_type(expected_return_type)
                     ),
                 )),
         );
@@ -125,7 +125,7 @@ pub(super) fn infer_return(
                 .with_observations(typed_return_locations)
                 .with_help(format!(
                     "Add -> {} to the function declaration",
-                    exploration.get_type(common_type).unwrap()
+                    exploration.get_type(common_type)
                 )),
             );
         } else {
@@ -180,7 +180,7 @@ pub(super) fn type_call(
         .unwrap()
         .type_ref;
 
-    match exploration.get_type(type_ref).unwrap() {
+    match exploration.get_type_ref(type_ref).unwrap() {
         &Type::Function(declaration) => {
             let entry: CodeEntry = exploration.get_entry(fun_reef, declaration).unwrap();
             let parameters = entry.parameters().to_owned(); // TODO: avoid clone
@@ -239,7 +239,8 @@ pub(super) fn type_call(
                 }
             }
         }
-        ty => {
+        _ => {
+            let ty = exploration.get_type(type_ref);
             diagnostics.push(
                 Diagnostic::new(
                     DiagnosticID::TypeMismatch,
@@ -261,17 +262,21 @@ pub(super) fn type_call(
 }
 
 /// Checks the type of a method expression.
-pub(super) fn find_operand_implementation<'a>(
-    methods: &'a [MethodType],
-    right: &TypedExpr,
-) -> Option<&'a MethodType> {
+pub(super) fn find_operand_implementation(
+    exploration: &Exploration,
+    methods: &[MethodType],
+    left: TypeRef,
+    right: TypedExpr,
+) -> Option<FunctionMatch> {
     for method in methods {
-        if method.parameters.len() != 1 {
-            continue;
-        }
-        if let Some(ty) = method.parameters.first() {
-            if ty.ty == right.ty {
-                return Some(method);
+        if let [param] = &method.parameters.as_slice() {
+            if param.ty == right.ty {
+                let return_type = exploration.concretize(method.return_type, left).id;
+                return Some(FunctionMatch {
+                    arguments: vec![right],
+                    definition: method.definition,
+                    return_type,
+                });
             }
         }
     }
@@ -279,14 +284,14 @@ pub(super) fn find_operand_implementation<'a>(
 }
 
 /// Checks the type of a method expression.
-pub(super) fn type_method<'a>(
+pub(super) fn type_method(
     method_call: &MethodCall,
     callee: &TypedExpr,
-    arguments: &[TypedExpr],
+    arguments: Vec<TypedExpr>,
     diagnostics: &mut Vec<Diagnostic>,
-    exploration: &'a mut Exploration,
+    exploration: &mut Exploration,
     source: SourceId,
-) -> Option<&'a MethodType> {
+) -> Option<FunctionMatch> {
     if callee.ty.is_err() {
         return None;
     }
@@ -301,12 +306,12 @@ pub(super) fn type_method<'a>(
                 if method_call.name.is_some() {
                     format!(
                         "No method named `{method_name}` found for type `{}`",
-                        exploration.get_type(callee.ty).unwrap()
+                        exploration.get_type(callee.ty)
                     )
                 } else {
                     format!(
                         "Type `{}` is not directly callable",
-                        exploration.get_type(callee.ty).unwrap()
+                        exploration.get_type(callee.ty)
                     )
                 },
             )
@@ -316,10 +321,14 @@ pub(super) fn type_method<'a>(
     }
 
     let methods = type_methods.unwrap(); // We just checked for None
-    let method = find_exact_method(methods, arguments);
+    let method = find_exact_method(exploration, callee.ty, methods, &arguments);
     if let Some(method) = method {
         // We have an exact match
-        return Some(method);
+        return Some(FunctionMatch {
+            arguments,
+            definition: method.definition,
+            return_type: exploration.concretize(method.return_type, callee.ty).id,
+        });
     }
 
     if methods.len() == 1 {
@@ -345,19 +354,19 @@ pub(super) fn type_method<'a>(
                 ))
                 .with_help(format!(
                     "The method signature is `{}::{}`",
-                    exploration.get_type(callee.ty).unwrap(),
-                    Signature::new(
-                        &exploration.typing,
-                        exploration.externals,
-                        method_name,
-                        method
-                    )
+                    exploration.get_type(callee.ty),
+                    Signature::new(exploration, method_name, method)
                 )),
             );
         } else {
             for (param, arg) in method.parameters.iter().zip(arguments.iter()) {
                 if convert_description(exploration, param.ty, arg.ty).is_err() {
-                    let diagnostic = diagnose_arg_mismatch(exploration, source, param, arg)
+                    let type_param = exploration.concretize(param.ty, callee.ty);
+                    let param = Parameter {
+                        location: param.location.clone(),
+                        ty: type_param.id,
+                    };
+                    let diagnostic = diagnose_arg_mismatch(exploration, source, &param, arg)
                         .with_observation(Observation::here(
                             source,
                             method_call.segment(),
@@ -374,7 +383,7 @@ pub(super) fn type_method<'a>(
                 DiagnosticID::UnknownMethod,
                 format!(
                     "No matching method found for `{method_name}::{}`",
-                    exploration.get_type(callee.ty).unwrap()
+                    exploration.get_type(callee.ty)
                 ),
             )
             .with_observation(Observation::here(
@@ -400,8 +409,8 @@ fn diagnose_arg_mismatch(
             arg.segment.clone(),
             format!(
                 "Expected `{}`, found `{}`",
-                exploration.get_type(param.ty).unwrap(),
-                exploration.get_type(arg.ty).unwrap()
+                exploration.get_type(param.ty),
+                exploration.get_type(arg.ty)
             ),
         ),
     );
@@ -417,14 +426,20 @@ fn diagnose_arg_mismatch(
 }
 
 /// Find a matching method for the given arguments.
-fn find_exact_method<'a>(methods: &'a [MethodType], args: &[TypedExpr]) -> Option<&'a MethodType> {
+fn find_exact_method<'a>(
+    exploration: &Exploration,
+    obj: TypeRef,
+    methods: &'a [MethodType],
+    args: &[TypedExpr],
+) -> Option<&'a MethodType> {
     for method in methods {
         if method.parameters.len() != args.len() {
             continue;
         }
         let mut matches = true;
         for (param, arg) in method.parameters.iter().zip(args.iter()) {
-            if param.ty != arg.ty {
+            let param_type = exploration.concretize(param.ty, obj).id;
+            if param_type != arg.ty {
                 matches = false;
                 break;
             }
@@ -446,7 +461,7 @@ pub(super) fn type_parameter(
     match param {
         FunctionParameter::Named(named) => {
             let type_id = named.ty.as_ref().map_or(STRING, |ty| {
-                resolve_type(exploration, links, ty, diagnostics)
+                resolve_type_annotation(exploration, links, ty, diagnostics)
             });
             Parameter {
                 location: Some(SourceLocation::new(links.source, named.segment.clone())),
@@ -474,39 +489,23 @@ fn pluralize<'a>(count: usize, singular: &'a str, plural: &'a str) -> &'a str {
 
 /// A formatted signature of a function.
 struct Signature<'a> {
-    typing: &'a Typing,
-    externals: &'a Externals<'a>,
+    exploration: &'a Exploration<'a>,
     name: &'a str,
     function: &'a FunctionType,
 }
 
 impl<'a> Signature<'a> {
     /// Creates a new signature.
-    fn new(
-        typing: &'a Typing,
-        externals: &'a Externals,
-        name: &'a str,
-        function: &'a FunctionType,
-    ) -> Self {
+    fn new(exploration: &'a Exploration<'a>, name: &'a str, function: &'a FunctionType) -> Self {
         Self {
-            typing,
-            externals,
+            exploration,
             name,
             function,
         }
     }
 
-    fn get_type(&self, id: TypeRef) -> &Type {
-        if id.reef == self.externals.current {
-            self.typing.get_type(id.type_id).unwrap_or(&Type::Error)
-        } else {
-            self.externals
-                .get_reef(id.reef)
-                .unwrap()
-                .typing
-                .get_type(id.type_id)
-                .unwrap_or(&Type::Error)
-        }
+    fn get_type(&self, id: TypeRef) -> TypeInstance {
+        self.exploration.get_type(id)
     }
 }
 
