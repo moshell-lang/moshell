@@ -365,11 +365,6 @@ pub(crate) fn line_end() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) +
     of_types(&[NewLine, SemiColon, EndOfFile])
 }
 
-///a move that consumes a binary operation character
-pub(crate) fn bin_op() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
-    like(TokenType::is_bin_operator)
-}
-
 pub(crate) fn identifier_parenthesis() -> AndThenMove<
     PredicateMove<impl Fn(Token) -> bool + Copy + Sized>,
     PredicateMove<impl Fn(Token) -> bool + Copy + Sized>,

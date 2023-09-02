@@ -16,26 +16,21 @@ use crate::parser::{ParseResult, Parser};
 
 /// A Parser Aspect for match expression-statement and value
 pub trait MatchAspect<'a> {
-    ///parse a match statement, input parser determines how to parse each arm body
-    fn parse_match<P>(&mut self, parse_arm: P) -> ParseResult<Match<'a>>
-    where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'a>> + Clone;
+    /// Parses a match statement.
+    fn parse_match(&mut self) -> ParseResult<Match<'a>>;
 }
 
 impl<'a> MatchAspect<'a> for Parser<'a> {
-    fn parse_match<P>(&mut self, parse_arm: P) -> ParseResult<Match<'a>>
-    where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'a>> + Clone,
-    {
+    fn parse_match(&mut self) -> ParseResult<Match<'a>> {
         let start = self.cursor.force(
             of_type(TokenType::Match),
             "expected 'match' keyword at start of match expression.",
         )?;
         self.cursor.advance(blanks());
 
-        let operand = Box::new(self.expression_statement()?);
+        let operand = Box::new(self.statement()?);
 
-        let (arms, segment) = self.parse_match_arms(parse_arm)?;
+        let (arms, segment) = self.parse_match_arms()?;
 
         Ok(Match {
             operand,
@@ -46,13 +41,7 @@ impl<'a> MatchAspect<'a> for Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn parse_match_arms<P>(
-        &mut self,
-        parse_arm: P,
-    ) -> ParseResult<(Vec<MatchArm<'a>>, SourceSegment)>
-    where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'a>> + Clone,
-    {
+    fn parse_match_arms(&mut self) -> ParseResult<(Vec<MatchArm<'a>>, SourceSegment)> {
         let opening_bracket = self.cursor.force_with(
             blanks().then(of_type(CurlyLeftBracket)),
             "expected match start",
@@ -62,7 +51,7 @@ impl<'a> Parser<'a> {
         let mut arms: Vec<MatchArm<'a>> = Vec::new();
 
         while self.cursor.lookahead(blanks().then(eox())).is_none() {
-            match self.parse_match_arm(parse_arm.clone()) {
+            match self.parse_match_arm() {
                 Ok(arm) => arms.push(arm),
                 Err(err) => {
                     self.recover_from(err, line_end());
@@ -82,10 +71,7 @@ impl<'a> Parser<'a> {
         ))
     }
 
-    fn parse_match_arm<P>(&mut self, parse_arm: P) -> ParseResult<MatchArm<'a>>
-    where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
-    {
+    fn parse_match_arm(&mut self) -> ParseResult<MatchArm<'a>> {
         self.cursor.advance(blanks()); //consume blanks
 
         let start = self.cursor.relative_pos_ctx(self.cursor.peek()).start;
@@ -93,7 +79,7 @@ impl<'a> Parser<'a> {
         let val_name = self.parse_extracted_name()?;
         let patterns = self.parse_patterns()?;
         let guard = self.parse_guard()?;
-        let body = self.parse_body(parse_arm)?;
+        let body = self.parse_body()?;
 
         let segment = start..body.segment().end;
 
@@ -206,13 +192,10 @@ impl<'a> Parser<'a> {
         self.expression().map(Some)
     }
 
-    fn parse_body<P>(&mut self, mut parse_arm: P) -> ParseResult<Expr<'a>>
-    where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
-    {
+    fn parse_body(&mut self) -> ParseResult<Expr<'a>> {
         self.cursor
             .force(aerated(of_type(FatArrow)), "missing '=>'")?;
-        let body = parse_arm(self);
+        let body = self.statement();
         self.cursor.advance(repeat(line_end()));
         body
     }

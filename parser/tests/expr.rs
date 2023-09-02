@@ -7,7 +7,7 @@ use ast::control_flow::{For, ForKind, If, RangeFor};
 use ast::function::Return;
 use ast::group::{Block, Parenthesis};
 use ast::lambda::LambdaDef;
-use ast::operation::{BinaryOperation, BinaryOperator};
+use ast::operation::{BinaryOperation, BinaryOperator, UnaryOperation, UnaryOperator};
 use ast::r#type::{CastedExpr, ParametrizedType, Type};
 use ast::r#use::InclusionPathItem;
 use ast::range::{Iterable, NumericRange};
@@ -56,7 +56,7 @@ fn variable_type_and_initializer() {
 
 #[test]
 fn expr_cast() {
-    let content = "$((1 as Exitcode + 1 as Int)) as Float";
+    let content = "$((1 as Exitcode + -1 as Int)) as Float";
     let source = Source::unknown(content);
     let result = parse(source).expect("parse error");
     assert_eq!(
@@ -81,9 +81,13 @@ fn expr_cast() {
                     })),
                     op: BinaryOperator::Plus,
                     right: Box::new(Expr::Casted(CastedExpr {
-                        expr: Box::new(Expr::Literal(Literal {
-                            parsed: 1.into(),
-                            segment: find_in_nth(content, "1", 1),
+                        expr: Box::new(Expr::Unary(UnaryOperation {
+                            op: UnaryOperator::Negate,
+                            expr: Box::new(Expr::Literal(Literal {
+                                parsed: 1.into(),
+                                segment: find_in_nth(content, "1", 1)
+                            })),
+                            segment: find_in(content, "-1"),
                         })),
                         casted_type: Type::Parametrized(ParametrizedType {
                             path: vec![InclusionPathItem::Symbol(
@@ -93,7 +97,7 @@ fn expr_cast() {
                             params: Vec::new(),
                             segment: find_in(content, "Int"),
                         }),
-                        segment: find_in(content, "1 as Int"),
+                        segment: find_in(content, "-1 as Int"),
                     })),
                 })),
                 segment: find_between(source.source, "$((", "))"),
@@ -303,18 +307,6 @@ fn background_command_echo() {
 }
 
 #[test]
-fn command_starting_with_arg() {
-    let source = Source::unknown("- W");
-    let parsed = parse(source).expect("Failed to parse");
-    assert_eq!(
-        parsed,
-        vec![Expr::Call(Call {
-            arguments: vec![literal(source.source, "-"), literal(source.source, "W")],
-        })]
-    );
-}
-
-#[test]
 fn constructor_in_call() {
     let source = Source::unknown("echo Foo() Bar\\(\\)");
     let parsed = parse(source).expect("Failed to parse");
@@ -483,23 +475,27 @@ fn call_not_assign() {
 
 #[test]
 fn constructor_assign() {
-    let source = Source::unknown("a = Foo(5)");
+    let source = Source::unknown("a = !Foo(5)");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Assign(Assign {
             name: "a",
-            value: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![InclusionPathItem::Symbol(
-                    "Foo",
-                    find_in(source.source, "Foo")
-                )],
-                arguments: vec![Expr::Literal(Literal {
-                    parsed: 5.into(),
-                    segment: find_in(source.source, "5")
-                })],
-                type_parameters: vec![],
-                segment: find_in(source.source, "Foo(5)")
+            value: Box::new(Expr::Unary(UnaryOperation {
+                op: UnaryOperator::Not,
+                expr: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
+                    path: vec![InclusionPathItem::Symbol(
+                        "Foo",
+                        find_in(source.source, "Foo")
+                    )],
+                    arguments: vec![Expr::Literal(Literal {
+                        parsed: 5.into(),
+                        segment: find_in(source.source, "5")
+                    })],
+                    type_parameters: vec![],
+                    segment: find_in(source.source, "Foo(5)")
+                })),
+                segment: find_in(source.source, "!Foo(5)")
             })),
             segment: source.segment()
         })]
@@ -775,6 +771,49 @@ fn if_branch_string() {
                 segment: find_in(source.source, "return 'false'")
             }))),
             segment: source.segment()
+        })]
+    );
+}
+
+#[test]
+fn precedence() {
+    let source = Source::unknown("-$n.convert('a'..='z' as Char / 'r')");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Unary(UnaryOperation {
+            op: UnaryOperator::Negate,
+            expr: Box::new(Expr::MethodCall(MethodCall {
+                source: Box::new(Expr::VarReference(VarReference {
+                    name: "n",
+                    segment: find_in(source.source, "$n")
+                })),
+                name: Some("convert"),
+                arguments: vec![Expr::Range(Iterable::Range(NumericRange {
+                    start: Box::new(literal(source.source, "'a'")),
+                    end: Box::new(Expr::Binary(BinaryOperation {
+                        left: Box::new(Expr::Casted(CastedExpr {
+                            expr: Box::new(literal(source.source, "'z'")),
+                            casted_type: Type::Parametrized(ParametrizedType {
+                                path: vec![InclusionPathItem::Symbol(
+                                    "Char",
+                                    find_in(source.source, "Char")
+                                )],
+                                params: Vec::new(),
+                                segment: find_in(source.source, "Char")
+                            }),
+                            segment: find_in(source.source, "'z' as Char")
+                        })),
+                        op: BinaryOperator::Divide,
+                        right: Box::new(literal(source.source, "'r'")),
+                    })),
+                    step: None,
+                    upper_inclusive: true,
+                })),],
+                type_parameters: Vec::new(),
+                segment: 3..source.source.len(),
+            })),
+            segment: source.segment(),
         })]
     );
 }

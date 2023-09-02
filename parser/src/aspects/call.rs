@@ -352,9 +352,9 @@ mod tests {
         let content = "ls )";
         let source = Source::unknown(content);
         assert_eq!(
-            Parser::new(source).parse_next(),
+            ParseResult::<Vec<Expr>>::from(parse(source)),
             Err(ParseError {
-                message: "expected end of expression or file".to_string(),
+                message: "Unexpected closing delimiter.".to_string(),
                 position: content.find(')').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected,
             })

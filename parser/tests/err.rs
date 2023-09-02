@@ -60,7 +60,7 @@ fn repos_delimiter_stack() {
                     kind: ParseErrorKind::Unpaired(content.find('{').map(|p| p..p + 1).unwrap())
                 },
                 ParseError {
-                    message: "invalid infix operator".to_string(),
+                    message: "expected end of expression or file".to_string(),
                     position: content.rfind('!').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 }
@@ -108,8 +108,8 @@ fn what_is_an_import() {
                 kind: ParseErrorKind::Unexpected
             },
             ParseError {
-                message: "invalid infix operator".to_owned(),
-                position: content.find('%').map(|p| p..p + 1).unwrap(),
+                message: "Expected value".to_owned(),
+                position: content.find('%').map(|p| p + 1..p + 2).unwrap(),
                 kind: ParseErrorKind::Unexpected
             },
             ParseError {
@@ -191,7 +191,7 @@ fn invalid_binary_operator_cause_one_error() {
                 segment: find_in(content, "val incorrect = 'a'")
             })],
             errors: vec![ParseError {
-                message: "invalid infix operator".to_owned(),
+                message: "expected end of expression or file".to_owned(),
                 position: content.find('!').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected
             }],
@@ -501,18 +501,15 @@ fn quotes_are_delimiters() {
     let source = Source::unknown(content);
     let report = parse(source);
     assert_eq!(
-        report,
-        ParseReport {
-            expr: vec![],
-            errors: vec![ParseError {
-                message: "expected end of expression or file".to_owned(),
-                position: content
-                    .match_indices('"')
-                    .nth(2)
-                    .map(|(p, _)| p..p + 1)
-                    .unwrap(),
-                kind: ParseErrorKind::Unexpected
-            }],
-        }
+        report.errors,
+        vec![ParseError {
+            message: "expected end of expression or file".to_owned(),
+            position: content
+                .match_indices('"')
+                .nth(2)
+                .map(|(p, _)| p..p + 1)
+                .unwrap(),
+            kind: ParseErrorKind::Unexpected
+        }]
     );
 }

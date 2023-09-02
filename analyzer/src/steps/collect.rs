@@ -470,8 +470,8 @@ impl<'a, 'e> SymbolCollector<'a, 'e> {
             Expr::Test(test) => {
                 self.tree_walk(state, &test.expression, to_visit);
             }
-            Expr::Not(not) => {
-                self.tree_walk(state, &not.underlying, to_visit);
+            Expr::Unary(unary) => {
+                self.tree_walk(state, &unary.expr, to_visit);
             }
             Expr::Parenthesis(paren) => {
                 self.tree_walk(state, &paren.expression, to_visit);

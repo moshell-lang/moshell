@@ -200,8 +200,8 @@ impl TokenType {
         )
     }
 
-    ///is this lexeme a binary operator ?
-    pub fn is_bin_operator(self) -> bool {
+    /// Tests if this token is a valid identifier.
+    pub fn is_infix_operator(self) -> bool {
         matches!(
             self,
             And | Or
@@ -216,7 +216,14 @@ impl TokenType {
                 | LessEqual
                 | Greater
                 | GreaterEqual
+                | DotDot
+                | As
         )
+    }
+
+    /// Tests if this token is a prefix operator.
+    pub fn is_prefix_operator(self) -> bool {
+        matches!(self, Not | Minus)
     }
 
     ///is this lexeme a lexeme that cannot fusion with other glued tokens

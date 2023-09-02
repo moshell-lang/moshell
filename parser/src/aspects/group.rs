@@ -30,7 +30,7 @@ impl<'a> GroupAspect<'a> for Parser<'a> {
     fn block(&mut self) -> ParseResult<Block<'a>> {
         let start = self.ensure_at_group_start(TokenType::CurlyLeftBracket)?;
         let (expressions, segment) =
-            self.sub_exprs(start, TokenType::CurlyRightBracket, Parser::statement)?;
+            self.sub_exprs(start, TokenType::CurlyRightBracket, Parser::declaration)?;
         Ok(Block {
             expressions,
             segment,
@@ -42,7 +42,7 @@ impl<'a> GroupAspect<'a> for Parser<'a> {
         let (expressions, segment) = self.sub_exprs(
             start.clone(),
             TokenType::RoundedRightBracket,
-            Parser::statement,
+            Parser::declaration,
         )?;
         Ok(Subshell {
             expressions,

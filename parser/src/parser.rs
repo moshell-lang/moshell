@@ -1,12 +1,15 @@
+use ast::operation::{BinaryOperation, BinaryOperator, UnaryOperation, UnaryOperator};
+use ast::r#type::CastedExpr;
 use ast::range::Iterable;
 use ast::Expr;
-use context::source::{Source, SourceSegment};
+use context::source::{Source, SourceSegment, SourceSegmentHolder};
 use lexer::lex;
 use lexer::token::TokenType::*;
 use lexer::token::{Token, TokenType};
+use std::num::NonZeroU8;
 
 use crate::aspects::assign::AssignAspect;
-use crate::aspects::binary_operation::BinaryOperationsAspect;
+use crate::aspects::binary_operation::{infix_precedence, shell_infix_precedence};
 use crate::aspects::call::CallAspect;
 use crate::aspects::detached::DetachedAspect;
 use crate::aspects::function_declaration::FunctionDeclarationAspect;
@@ -28,8 +31,7 @@ use crate::err::{
     determine_skip_sections, ErrorContext, ParseError, ParseErrorKind, ParseReport, SkipSections,
 };
 use crate::moves::{
-    any, bin_op, blanks, eox, like, line_end, next, not, of_type, of_types, repeat, spaces, Move,
-    MoveOperations,
+    any, blanks, line_end, next, of_type, of_types, repeat, spaces, Move, MoveOperations,
 };
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
@@ -40,22 +42,6 @@ pub(crate) struct Parser<'a> {
     pub(crate) source: Source<'a>,
     pub(crate) skip: SkipSections,
     errors: Vec<ParseError>,
-}
-
-//all tokens that can't be an infix operator
-macro_rules! non_infix {
-    () => {
-        eox().or(like(TokenType::is_keyword)).or(of_types(&[
-            RoundedLeftBracket,
-            CurlyLeftBracket,
-            SquaredLeftBracket,
-            Quote,
-            DoubleQuote,
-            Comma,
-            FatArrow,
-            Ampersand,
-        ]))
-    };
 }
 
 impl<'a> Parser<'a> {
@@ -150,103 +136,63 @@ impl<'a> Parser<'a> {
         !self.cursor.is_at_end()
     }
 
-    pub(crate) fn parse_full_expr<P>(&mut self, mut next: P) -> ParseResult<Expr<'a>>
-    where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
-    {
-        let expr = next(self)?;
-        let expr = self.parse_binary_expr(expr)?;
-        self.parse_detached(expr)
-    }
-
-    /// Parses a statement or binary expression.
-    /// a statement is usually on a single line
-    pub(crate) fn statement(&mut self) -> ParseResult<Expr<'a>> {
-        self.parse_full_expr(Parser::next_statement)
-    }
-
-    /// Parses an expression-statement or binary expression.
-    pub(crate) fn expression_statement(&mut self) -> ParseResult<Expr<'a>> {
-        self.parse_full_expr(Parser::next_expression_statement)
-    }
-
-    /// Parses an expression or binary expression.
-    pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
-        self.parse_full_expr(Parser::next_expression)
-    }
-
-    /// Parses a value or binary expression
-    pub(crate) fn value(&mut self) -> ParseResult<Expr<'a>> {
-        let value = self.next_value()?;
-        //values needs a different handling of right-handed binary expressions
-        let value = self.parse_binary_value_expr(value)?;
-        self.parse_detached(value)
-    }
-
-    ///Parse the next statement
-    pub(crate) fn next_statement(&mut self) -> ParseResult<Expr<'a>> {
-        self.repos("Expected statement")?;
-
-        let pivot = self.cursor.peek().token_type;
-        match pivot {
-            Var | Val => self.var_declaration(),
+    /// Parses the root of an expression tree.
+    ///
+    /// It usually spans on at least one entire line.
+    pub(crate) fn declaration(&mut self) -> ParseResult<Expr<'a>> {
+        self.repos("Expected declaration or statement")?;
+        match self.cursor.peek().token_type {
             Use => self.parse_use(),
             Fun => self
                 .parse_function_declaration()
                 .map(Expr::FunctionDeclaration),
-
-            While => self.parse_while().map(Expr::While),
             Loop => self.parse_loop().map(Expr::Loop),
-            For => self.parse_for().map(Expr::For),
-            Identifier
-                if self
-                    .cursor
-                    .lookahead(next().then(spaces().then(of_type(Equal))))
-                    .is_some() =>
-            {
-                self.parse_assign().map(Expr::Assign)
-            }
-
-            _ => self.next_expression_statement(),
+            _ => self.statement(),
         }
     }
 
-    ///Parse the next expression
-    pub(crate) fn next_expression_statement(&mut self) -> ParseResult<Expr<'a>> {
-        self.repos("Expected expression statement")?;
-
-        let pivot = self.cursor.peek().token_type;
-        let expr = match pivot {
-            If => self.parse_if(Parser::statement).map(Expr::If),
-            Match => self.parse_match(Parser::statement).map(Expr::Match),
-            Identifier | Reef => self.any_call(),
-            Dot => self.call(),
-            Shell => {
-                self.cursor.next_opt();
-                self.cursor.advance(spaces());
-                if self.cursor.peek().token_type == CurlyLeftBracket {
-                    self.block().map(Expr::Block)
-                } else {
-                    self.any_call()
-                }
-            }
-            Not if self
-                .cursor
-                .lookahead(next().then(spaces().then(of_types(&[RoundedLeftBracket, Identifier]))))
-                .is_some() =>
-            {
-                self.not(Self::next_expression_statement)
-            }
-
-            _ if pivot.is_bin_operator() => self.call(),
-
-            _ => self.next_expression(),
-        }?;
-        self.expand_call_chain(expr)
+    /// Parses a statement.
+    pub(crate) fn statement(&mut self) -> ParseResult<Expr<'a>> {
+        self.statement_precedence(NonZeroU8::MIN)
     }
 
-    ///Parse the next expression
-    pub(crate) fn next_expression(&mut self) -> ParseResult<Expr<'a>> {
+    fn statement_precedence(&mut self, min_precedence: NonZeroU8) -> ParseResult<Expr<'a>> {
+        let mut lhs = self.next_statement()?;
+        lhs = self.parse_detached(lhs)?;
+        loop {
+            self.cursor.advance(spaces());
+            let tok = self.cursor.peek().token_type;
+            let precedence = shell_infix_precedence(self);
+            if precedence < min_precedence.get() {
+                break;
+            }
+            match tok {
+                Bar => {
+                    lhs = self.pipeline(lhs)?;
+                }
+                _ if self.is_at_redirection_sign() => {
+                    lhs = self.redirectable(lhs)?;
+                }
+                tok => {
+                    self.cursor.next_opt();
+                    let op = BinaryOperator::try_from(tok).expect("Invalid binary operator");
+                    let rhs = self.statement_precedence(
+                        NonZeroU8::new(precedence.saturating_add(1))
+                            .expect("New precedence should be non-zero"),
+                    )?; // + 1 for left-associativity
+                    lhs = Expr::Binary(BinaryOperation {
+                        op,
+                        left: Box::new(lhs),
+                        right: Box::new(rhs),
+                    });
+                }
+            }
+        }
+        Ok(lhs)
+    }
+
+    /// Parses an expression.
+    pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
         self.repos("Expected expression")?;
 
         let pivot = self.cursor.peek().token_type;
@@ -269,19 +215,88 @@ impl<'a> Parser<'a> {
         }
     }
 
-    ///Parse the next value expression
-    pub(crate) fn next_value(&mut self) -> ParseResult<Expr<'a>> {
-        self.repos("Expected value")?;
+    /// Parses a value.
+    pub(crate) fn value(&mut self) -> ParseResult<Expr<'a>> {
+        self.value_precedence(NonZeroU8::MIN)
+    }
+
+    /// Parses the left-hand side of the next statement.
+    fn next_statement(&mut self) -> ParseResult<Expr<'a>> {
+        self.repos("Expected statement")?;
 
         let pivot = self.cursor.peek().token_type;
-        let value = match pivot {
+        let expr = match pivot {
+            While => self.parse_while().map(Expr::While),
+            For => self.parse_for().map(Expr::For),
+            Identifier
+                if self
+                    .cursor
+                    .lookahead(next().then(spaces().then(of_type(Equal))))
+                    .is_some() =>
+            {
+                self.parse_assign().map(Expr::Assign)
+            }
+
+            Var | Val => self.var_declaration(),
+            Identifier | Reef => self.any_call(),
+            Dot => self.call(),
+            Shell => {
+                self.cursor.next_opt();
+                self.cursor.advance(spaces());
+                if self.cursor.peek().token_type == CurlyLeftBracket {
+                    self.block().map(Expr::Block)
+                } else {
+                    self.any_call()
+                }
+            }
+            Not if self
+                .cursor
+                .lookahead(next().then(spaces().then(of_types(&[RoundedLeftBracket, Identifier]))))
+                .is_some() =>
+            {
+                let token = self.cursor.next()?;
+                let expr = self.next_statement()?;
+                let segment = self.cursor.relative_pos(token).start..expr.segment().end;
+                Ok(Expr::Unary(UnaryOperation {
+                    op: UnaryOperator::Not,
+                    expr: Box::new(expr),
+                    segment,
+                }))
+            }
+
+            _ if pivot.is_infix_operator() && !pivot.is_prefix_operator() => self.call(),
+
+            _ => self.expression(),
+        }?;
+        self.expand_call_chain(expr)
+    }
+
+    /// Parses the left-hand side of the next value.
+    fn lhs(&mut self) -> ParseResult<Expr<'a>> {
+        self.repos("Expected value")?;
+        match self.cursor.peek().token_type {
             RoundedLeftBracket => self.lambda_or_parentheses(),
             CurlyLeftBracket => self.block().map(Expr::Block),
-            Not => self.not(Parser::next_value),
-
-            //expression that can also be used as values
-            If => self.parse_if(Parser::value).map(Expr::If),
-            Match => self.parse_match(Parser::value).map(Expr::Match),
+            SquaredLeftBracket => self.expected(
+                "Unexpected start of test expression",
+                ParseErrorKind::Unexpected,
+            )?,
+            ty @ (Minus | Not) => {
+                let op = self.cursor.next()?;
+                let rhs = self.lhs()?;
+                let segment = self.cursor.relative_pos(op).start..rhs.segment().end;
+                Ok(Expr::Unary(UnaryOperation {
+                    op: match ty {
+                        Minus => UnaryOperator::Negate,
+                        Not => UnaryOperator::Not,
+                        _ => unreachable!(),
+                    },
+                    expr: Box::new(rhs),
+                    segment,
+                }))
+            }
+            If => self.parse_if().map(Expr::If),
+            Match => self.parse_match().map(Expr::Match),
             Identifier | Reef if self.may_be_at_programmatic_call_start() => {
                 self.programmatic_call()
             }
@@ -293,33 +308,71 @@ impl<'a> Parser<'a> {
             {
                 self.parse_lambda_definition().map(Expr::LambdaDef)
             }
-
-            //test expressions has nothing to do in a value expression.
-            SquaredLeftBracket => self.expected("Unexpected start of test expression", Unexpected),
             _ => self.literal(LiteralLeniency::Strict),
-        }?;
-        let value = self.expand_call_chain(value)?;
-        self.handle_cast(value)
+        }
+    }
+
+    pub(crate) fn value_precedence(&mut self, min_precedence: NonZeroU8) -> ParseResult<Expr<'a>> {
+        // Parse prefix operators
+        let mut lhs = self.lhs()?;
+
+        // Parse postfix operators
+        lhs = self.expand_call_chain(lhs)?;
+
+        // Parse infix operators
+        loop {
+            self.cursor.advance(spaces());
+            let tok = self.cursor.peek().token_type;
+            let precedence = infix_precedence(tok);
+            if precedence < min_precedence.get() {
+                break;
+            }
+            self.cursor.next_opt();
+            match tok {
+                As => {
+                    let casted_type = self.parse_type()?;
+                    let segment = lhs.segment().start..casted_type.segment().end;
+                    lhs = Expr::Casted(CastedExpr {
+                        expr: Box::new(lhs),
+                        casted_type,
+                        segment,
+                    });
+                }
+                DotDot => {
+                    lhs = self
+                        .parse_range(lhs)
+                        .map(|expr| Expr::Range(Iterable::Range(expr)))?
+                }
+                tok => {
+                    let op = BinaryOperator::try_from(tok).expect("Invalid binary operator");
+                    let rhs = self.value_precedence(
+                        NonZeroU8::new(precedence.saturating_add(1))
+                            .expect("New precedence should be non-zero"),
+                    )?; // + 1 for left-associativity
+                    lhs = Expr::Binary(BinaryOperation {
+                        op,
+                        left: Box::new(lhs),
+                        right: Box::new(rhs),
+                    });
+                }
+            }
+        }
+
+        Ok(lhs)
     }
 
     pub(crate) fn parse_next(&mut self) -> ParseResult<Expr<'a>> {
-        let statement = self.statement();
-        if statement.is_ok() {
-            //consume end of expression
-            self.cursor.force(
+        let declaration = self.declaration();
+        if declaration.is_ok() {
+            // Consume end of statement
+            if let Err(err) = self.cursor.force(
                 spaces().then(line_end()),
                 "expected end of expression or file",
-            )?;
+            ) {
+                self.recover_from(err, line_end());
+            }
         };
-        statement
-    }
-
-    ///handle specific case of casted expressions (<expr> as <type>)
-    fn handle_cast(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
-        if self.cursor.lookahead(blanks().then(of_type(As))).is_some() {
-            return self.parse_cast(expr).map(Expr::Casted);
-        }
-        Ok(expr)
+        declaration
     }
 
     ///handle tricky case of lambda `(e) => x` and parentheses `(e)`
@@ -441,81 +494,6 @@ impl<'a> Parser<'a> {
         let old_len = self.errors.len();
         let result = transaction(self);
         Ok((result?, self.errors.len() == old_len))
-    }
-
-    //parses any binary expression, considering given input expression
-    //as the left arm of the expression.
-    //if given expression is directly followed by an eox delimiter, then return it as is
-    fn parse_binary_expr(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
-        self.cursor.advance(spaces()); //consume spaces
-
-        //if there is an end of expression, it means that the expr is terminated so we return it here
-        //any keyword would also stop this expression.
-        if self.cursor.lookahead(non_infix!()).is_some() {
-            return Ok(expr);
-        }
-
-        if self.cursor.lookahead(of_types(&[Or, And])).is_some() {
-            return self.binary_operation(expr, Parser::next_expression_statement);
-        }
-
-        //now, we know that there is something right after the expression.
-        //test if this 'something' is a redirection.
-        if self.is_at_redirection_sign() {
-            return self.redirectable(expr);
-        }
-
-        if self.cursor.lookahead(of_type(As)).is_some() {
-            let expr = self.parse_cast(expr).map(Expr::Casted)?;
-            return self.parse_binary_expr(expr);
-        }
-
-        if self.cursor.lookahead(bin_op()).is_none() {
-            return Ok(expr);
-        }
-        //else, we hit an invalid binary expression.
-        self.expected("invalid expression operator", Unexpected)
-    }
-
-    //parses any binary value expression, considering given input expression
-    //as the left arm of the expression.
-    //if given expression is directly followed by an eox delimiter, then return it as is
-    fn parse_binary_value_expr(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
-        self.cursor.advance(spaces()); //consume word separators
-
-        if self.cursor.advance(of_type(DotDot)).is_some() {
-            return self
-                .parse_range(expr)
-                .map(|expr| Expr::Range(Iterable::Range(expr)));
-        }
-
-        //if there is an end of expression, it means that the expr is terminated so we return it here
-        //any keyword would also stop this expression.
-        if self.cursor.lookahead(non_infix!()).is_some() {
-            return Ok(expr);
-        }
-
-        //now, we know that there is something right after the expression.
-        //test if this 'something' is a redirection.
-        if self
-            .cursor
-            .lookahead(bin_op().and_then(spaces().then(not(eox()))))
-            .is_some()
-        {
-            return self.binary_operation(expr, Parser::next_value);
-        }
-
-        //else, we hit an invalid binary expression.
-        let token = self.cursor.next()?;
-        let err = self.mk_parse_error("invalid infix operator", token, Unexpected);
-        // Avoid recovering here to block the cursor on the closing delimiter token
-        if self.cursor.lookahead(spaces().then(eox())).is_some() {
-            return Err(err);
-        }
-
-        // We can try something here...
-        self.report_error(err);
-        self.value().map(|_| expr)
     }
 
     ///Skips spaces and verify that this parser is not parsing the end of an expression

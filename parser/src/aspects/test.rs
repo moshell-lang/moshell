@@ -1,9 +1,8 @@
-use ast::test::{Not, Test};
+use ast::test::Test;
 use ast::value::Literal;
 use ast::Expr;
-use context::source::SourceSegmentHolder;
+use lexer::token::Token;
 use lexer::token::TokenType::{SquaredLeftBracket, SquaredRightBracket};
-use lexer::token::{Token, TokenType};
 
 use crate::aspects::call::CallAspect;
 use crate::err::ParseErrorKind;
@@ -11,33 +10,11 @@ use crate::moves::{of_type, spaces, times, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 pub(crate) trait TestAspect<'a> {
-    ///parse a not (! ..) expression.
-    fn not<P>(&mut self, parse_next: P) -> ParseResult<Expr<'a>>
-    where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'a>>;
-
     ///parse [[ ... ]] or [ .. ] expression.
     fn parse_test(&mut self) -> ParseResult<Expr<'a>>;
 }
 
 impl<'a> TestAspect<'a> for Parser<'a> {
-    fn not<P>(&mut self, mut parse_next: P) -> ParseResult<Expr<'a>>
-    where
-        P: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
-    {
-        let lexeme = self
-            .cursor
-            .force(of_type(TokenType::Not), "expected '!'")?
-            .value;
-        let underlying = Box::new(parse_next(self)?);
-        let segment = self.cursor.relative_pos(lexeme).start..underlying.segment().end;
-
-        Ok(Expr::Not(Not {
-            underlying,
-            segment,
-        }))
-    }
-
     fn parse_test(&mut self) -> ParseResult<Expr<'a>> {
         let start = self.cursor.force(
             of_type(SquaredLeftBracket),
@@ -99,8 +76,8 @@ mod tests {
 
     use ast::call::Call;
     use ast::group::{Parenthesis, Subshell};
-    use ast::operation::{BinaryOperation, BinaryOperator};
-    use ast::test::{Not, Test};
+    use ast::operation::{BinaryOperation, BinaryOperator, UnaryOperation, UnaryOperator};
+    use ast::test::Test;
     use ast::value::{Literal, LiteralValue};
     use ast::variable::VarReference;
     use ast::Expr;
@@ -284,8 +261,9 @@ mod tests {
         let result = parse(source).expect("parse fail");
         assert_eq!(
             result,
-            vec![Expr::Not(Not {
-                underlying: Box::new(Expr::Call(Call {
+            vec![Expr::Unary(UnaryOperation {
+                op: UnaryOperator::Not,
+                expr: Box::new(Expr::Call(Call {
                     arguments: vec![
                         literal(source.source, "grep"),
                         literal(source.source, "-E"),
@@ -304,8 +282,9 @@ mod tests {
         assert_eq!(
             result,
             vec![Expr::Binary(BinaryOperation {
-                left: Box::new(Expr::Not(Not {
-                    underlying: Box::new(Expr::Subshell(Subshell {
+                left: Box::new(Expr::Unary(UnaryOperation {
+                    op: UnaryOperator::Not,
+                    expr: Box::new(Expr::Subshell(Subshell {
                         expressions: vec![Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::VarReference(VarReference {
                                 name: "a",
@@ -323,8 +302,9 @@ mod tests {
                 })),
                 op: BinaryOperator::Or,
                 right: Box::new(Expr::Binary(BinaryOperation {
-                    left: Box::new(Expr::Not(Not {
-                        underlying: Box::new(Expr::VarReference(VarReference {
+                    left: Box::new(Expr::Unary(UnaryOperation {
+                        op: UnaryOperator::Not,
+                        expr: Box::new(Expr::VarReference(VarReference {
                             name: "2",
                             segment: find_in(source.source, "$2"),
                         })),
