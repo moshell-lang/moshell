@@ -1,7 +1,7 @@
 use analyzer::analyze;
 use analyzer::importer::{ASTImporter, ImportResult, Imported};
 use analyzer::name::Name;
-use analyzer::reef::{ReefAccessor, ReefContext, Reefs};
+use analyzer::reef::{ReefContext, Reefs};
 use analyzer::relations::SourceId;
 use ast::Expr;
 use compiler::compile;

@@ -1,13 +1,13 @@
-use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
-use crate::name::Name;
-use crate::reef::{Reef, ReefAccessor, ReefContext, ReefId};
-use ast::r#use::InclusionPathItem;
-use context::source::{SourceSegment, SourceSegmentHolder};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
-use crate::relations::{LocalId, RelationId, SourceId, SymbolRef};
+use ast::r#use::InclusionPathItem;
+use context::source::{SourceSegment, SourceSegmentHolder};
+
+use crate::name::Name;
+use crate::reef::{Reef, ReefContext, ReefId};
+use crate::relations::{LocalId, RelationId, SymbolRef};
 use crate::types::ty::TypeRef;
 
 /// Information over the declared type of a variable
@@ -17,7 +17,8 @@ pub enum SymbolInfo {
     Variable,
     /// The symbol is a function declaration
     Function,
-    /// The symbol is a Type
+    /// The symbol is a Type, where the [TypeRef] is the reference to the actual type representation in the
+    /// reef's [Typing]
     Type(TypeRef),
 }
 
@@ -55,6 +56,7 @@ pub enum SymbolRegistry {
 }
 
 impl SymbolRegistry {
+    /// returns true if the given symbol info is part of this registry
     pub(crate) fn accepts(&self, kind: SymbolInfo) -> bool {
         match self {
             SymbolRegistry::Types => matches!(kind, SymbolInfo::Type(_)),
@@ -63,20 +65,26 @@ impl SymbolRegistry {
     }
 }
 
+/// A symbol location is the result of the resolution of a sequence of [SymbolPathItem] (see [SymbolLocation::compute]).
 #[derive(Debug, Eq, PartialEq, Hash, Clone)]
 pub struct SymbolLocation {
+    /// The resolved name, can be relative only if [`is_current_reef_explicit`] is set to false.
     pub name: Name,
+    /// If set to true, this location is an absolute location pointing to the current reef.
     pub is_current_reef_explicit: bool,
 }
 
 impl SymbolLocation {
-    pub fn in_current_reef(name: Name) -> Self {
+    /// constructs an absolute symbol location, pointing to the current reef
+    pub fn in_current_reef(fqn: Name) -> Self {
         Self {
-            name,
+            name: fqn,
             is_current_reef_explicit: true,
         }
     }
 
+    /// constructs a a symbol location, without specifying that the given name is absolute or relative, and
+    /// if this location targets the current reef.
     pub fn unspecified(name: Name) -> Self {
         Self {
             name,
@@ -84,11 +92,18 @@ impl SymbolLocation {
         }
     }
 
+    /// Computes a symbol location from a given slice of [InclusionPathItem],
+    /// returning `Err(Vec<SourceSegment>)` if the path input contains invalid items, where the vector's segments are
+    /// the invalid item segments.
+    ///
+    /// A path is invalid if it contains any non-heading [InclusionPathItem::Reef] item.
+    /// If the [`must_be_relative`] flag is set, the path must not contain any [InclusionPathItem::Reef] to be valid.
+    ///
+    /// The function can also fail if the `must_be_relative`
     pub fn compute<'a>(
         path: &'a [InclusionPathItem<'a>],
-        source_id: SourceId,
         must_be_relative: bool,
-    ) -> Result<Self, Diagnostic> {
+    ) -> Result<Self, Vec<SourceSegment>> {
         let current_reef = path
             .first()
             .is_some_and(|f| !must_be_relative && matches!(f, InclusionPathItem::Reef(_)));
@@ -100,24 +115,16 @@ impl SymbolLocation {
         }
 
         let mut parts = Vec::new();
-        let mut observations = Vec::new();
+        let mut bad_segments = Vec::new();
         for it in path_it {
             match it {
-                InclusionPathItem::Reef(seg) => observations.push(Observation::context(
-                    source_id,
-                    seg.clone(),
-                    "`reef` keyword is invalid here.",
-                )),
+                InclusionPathItem::Reef(seg) => bad_segments.push(seg.clone()),
                 InclusionPathItem::Symbol(item, _) => parts.push(item.to_string()),
             }
         }
 
-        if !observations.is_empty() {
-            return Err(Diagnostic::new(
-                DiagnosticID::InvalidSymbolPath,
-                "Symbol path contains invalid items",
-            )
-            .with_observations(observations));
+        if !bad_segments.is_empty() {
+            return Err(bad_segments);
         }
 
         Ok(Self {
@@ -207,8 +214,8 @@ impl Symbols {
             .map(|(i, v)| (LocalId(i), v))
     }
 
-    /// Iterates over all the exported variables, local to the environment.
-    pub fn exported_vars(&self) -> impl Iterator<Item = (LocalId, &Symbol)> {
+    /// Iterates over all the exported symbols, local to the environment.
+    pub fn exported_symbols(&self) -> impl Iterator<Item = (LocalId, &Symbol)> {
         //consider for now that all local vars of the outermost scope are exported
         self.locals
             .vars
@@ -218,12 +225,12 @@ impl Symbols {
             .map(|(id, var)| (LocalId(id), var))
     }
 
-    /// Iterates over all the global variable ids, with their corresponding name.
-    pub fn external_vars(&self) -> impl Iterator<Item = (&SymbolLocation, RelationId)> {
+    /// Iterates over all the global symbol ids, with their corresponding name.
+    pub fn external_symbols(&self) -> impl Iterator<Item = (&SymbolLocation, RelationId)> {
         self.externals.iter().map(|(loc, sym)| (loc, *sym))
     }
 
-    /// Finds the name of an external variable.
+    /// Finds the name of an external symbol.
     ///
     /// This returns the name only if the global object comes from this environment.
     pub fn find_external_symbol_name(&self, object_id: RelationId) -> Option<&SymbolLocation> {
@@ -253,7 +260,7 @@ struct Locals {
 }
 
 impl Locals {
-    /// Adds a new variable and binds it to the current scope.
+    /// Adds a new symbol and binds it to the current scope.
     fn declare(&mut self, name: String, ty: SymbolInfo) -> SymbolRef {
         let id = self.vars.len();
         self.vars.push(Symbol {
@@ -315,22 +322,23 @@ impl Locals {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Symbol {
-    /// The name identifier of the variable.
+    /// The name identifier of the symbol.
     pub name: String,
 
+    /// Additional information about the symbol
     pub ty: SymbolInfo,
 
-    /// The depth of the variable.
+    /// The depth of the symbol.
     ///
     /// This is used to keep track if the variable is still reachable during the first
-    /// pass of the analyzer. The value is positive if the variable scope has not ended
+    /// pass of the analyzer. The value is positive if the symbol's scope has not ended
     /// yet. If it is out of scope, the value is negative, with the absolute value being
     /// the depth of the scope where the variable was declared.
     depth: isize,
 }
 
 impl Symbol {
-    /// Creates a new variable.
+    /// Creates a new symbol.
     ///
     /// This convenience method accepts negative values as depths, which are the internal
     /// representations of unreachable variables.

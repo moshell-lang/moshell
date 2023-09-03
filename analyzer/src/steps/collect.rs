@@ -273,7 +273,7 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
     ) {
         match import {
             ImportExpr::Symbol(s) => {
-                match SymbolLocation::compute(&s.path, mod_id, is_current_reef_explicit) {
+                match SymbolLocation::compute(&s.path, is_current_reef_explicit) {
                     Ok(mut loc) => {
                         let alias = s.alias.map(|s| s.to_string());
 
@@ -287,11 +287,13 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                         let unresolved = UnresolvedImport::Symbol { alias, loc };
                         self.add_checked_import(mod_id, unresolved, import, name)
                     }
-                    Err(diag) => self.diagnostics.push(diag),
+                    Err(segments) => self
+                        .diagnostics
+                        .push(make_invalid_path_diagnostic(mod_id, segments)),
                 }
             }
             ImportExpr::AllIn(items, _) => {
-                match SymbolLocation::compute(items, mod_id, is_current_reef_explicit) {
+                match SymbolLocation::compute(items, is_current_reef_explicit) {
                     Ok(mut loc) => {
                         relative_path.extend(loc.name.into_vec());
                         loc.name = Name::from(relative_path);
@@ -303,7 +305,9 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                         let unresolved = UnresolvedImport::AllIn(loc);
                         self.add_checked_import(mod_id, unresolved, import, name)
                     }
-                    Err(diag) => self.diagnostics.push(diag),
+                    Err(segments) => self
+                        .diagnostics
+                        .push(make_invalid_path_diagnostic(mod_id, segments)),
                 }
             }
 
@@ -317,7 +321,7 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                 self.diagnostics.push(diagnostic);
             }
             ImportExpr::List(list) => {
-                match SymbolLocation::compute(&list.root, mod_id, is_current_reef_explicit) {
+                match SymbolLocation::compute(&list.root, is_current_reef_explicit) {
                     Ok(mut loc) => {
                         relative_path.extend(loc.name.into_vec());
                         loc.name = Name::from(relative_path);
@@ -333,7 +337,9 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                             )
                         }
                     }
-                    Err(diag) => self.diagnostics.push(diag),
+                    Err(segments) => self
+                        .diagnostics
+                        .push(make_invalid_path_diagnostic(mod_id, segments)),
                 }
             }
         }
@@ -424,7 +430,7 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                 }
             }
             Expr::ProgrammaticCall(call) => {
-                match SymbolLocation::compute(&call.path, state.module, false) {
+                match SymbolLocation::compute(&call.path, false) {
                     Ok(loc) => {
                         let symbol = self.identify_symbol(
                             *self.stack.last().unwrap(),
@@ -436,7 +442,9 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
 
                         self.current_env().annotate(call, symbol);
                     }
-                    Err(diag) => self.diagnostics.push(diag),
+                    Err(segments) => self
+                        .diagnostics
+                        .push(make_invalid_path_diagnostic(state.module, segments)),
                 }
 
                 for arg in &call.arguments {
@@ -678,8 +686,10 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
 
     fn collect_type(&mut self, origin: SourceId, ty: &Type) {
         match ty {
-            Type::Parametrized(p) => match SymbolLocation::compute(&p.path, origin, false) {
-                Err(diag) => self.diagnostics.push(diag),
+            Type::Parametrized(p) => match SymbolLocation::compute(&p.path, false) {
+                Err(segments) => self
+                    .diagnostics
+                    .push(make_invalid_path_diagnostic(origin, segments)),
                 Ok(loc) => {
                     let symref = self.identify_symbol(
                         origin,
@@ -818,6 +828,18 @@ fn list_inner_modules<'a>(
             e.parent.is_none() && e.fqn.tail().filter(|tail| tail == module_fqn).is_some()
         })
         .map(|(_, e)| e)
+}
+
+fn make_invalid_path_diagnostic(source: SourceId, bad_segments: Vec<SourceSegment>) -> Diagnostic {
+    Diagnostic::new(
+        DiagnosticID::InvalidSymbolPath,
+        "Symbol path contains invalid items",
+    )
+    .with_observations(
+        bad_segments
+            .into_iter()
+            .map(|s| Observation::context(source, s, "Invalid path item")),
+    )
 }
 
 #[cfg(test)]

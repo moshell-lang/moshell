@@ -192,7 +192,7 @@ fn resolve_captures(engine: &Engine, relations: &Relations, compiled_reef: ReefI
         // add this function's external referenced variables
         externals.extend(
             env.symbols
-                .external_vars()
+                .external_symbols()
                 .map(|(_, relation)| {
                     relations[relation]
                         .state

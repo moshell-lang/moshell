@@ -85,11 +85,6 @@ pub enum DiagnosticID {
     #[assoc(code = 15)]
     #[assoc(critical = true)]
     CannotReassign,
-
-    /// A variable is being reassigned, but it is not mutable.
-    #[assoc(code = 16)]
-    #[assoc(critical = true)]
-    ReefNotFound,
 }
 
 /// Observations are labels in a code snippet that are used to explain a [`Diagnostic`].

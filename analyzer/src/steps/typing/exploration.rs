@@ -1,5 +1,5 @@
 use crate::engine::Engine;
-use crate::reef::{ReefAccessor, ReefId, Reefs};
+use crate::reef::{ReefId, Reefs};
 use crate::relations::Relations;
 use crate::steps::typing::function::Return;
 use crate::types::ctx::TypeContext;
@@ -21,6 +21,9 @@ pub struct ReefTypes<'a> {
     pub typing: &'a Typing,
 }
 
+/// A proxy that let the user access to any reef's engine, relations and types data.
+/// If the given reef identifier is the `current_reef`, the types data stored in `current` is returned instead
+/// of the data stored by the `reefs`.
 pub struct UniversalReefAccessor<'a, 'e> {
     reefs: &'a Reefs<'e>,
     current_reef: ReefId,
@@ -54,6 +57,8 @@ impl Exploration {
         self.returns.clear();
     }
 
+    /// returns an universal accessor that will return the exploration's types data
+    /// if the accessed reef's identifier is equal to given `current_reef`
     pub(crate) fn universal_accessor<'a, 'e>(
         &'e self,
         current_reef: ReefId,

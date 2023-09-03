@@ -98,7 +98,7 @@ pub struct ResolvedSymbol {
 }
 
 impl ResolvedSymbol {
-    pub fn new(reef: ReefId, source: SourceId, object_id: LocalId) -> Self {
+    pub const fn new(reef: ReefId, source: SourceId, object_id: LocalId) -> Self {
         Self {
             reef,
             source,

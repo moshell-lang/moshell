@@ -144,7 +144,7 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
                                         HashMap<SymbolRegistry, ResolvedSymbol>,
                                     > = HashMap::new();
 
-                                    for (var_id, var) in env.symbols.exported_vars() {
+                                    for (var_id, var) in env.symbols.exported_symbols() {
                                         let symbols =
                                             symbols_map.entry(var.name.clone()).or_default();
 

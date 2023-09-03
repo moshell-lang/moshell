@@ -13,7 +13,7 @@ use context::source::{SourceSegment, SourceSegmentHolder};
 
 use crate::dependency::topological_sort;
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
-use crate::reef::{ReefAccessor, ReefContext, ReefId, Reefs};
+use crate::reef::{ReefContext, ReefId, Reefs};
 use crate::relations::{Definition, SourceId, SymbolRef};
 use crate::steps::typing::coercion::{check_type_annotation, coerce_condition, convert_expression};
 use crate::steps::typing::exploration::{Exploration, UniversalReefAccessor};
@@ -1123,7 +1123,7 @@ mod tests {
 
     use crate::importer::StaticImporter;
     use crate::name::Name;
-    use crate::reef::{ReefAccessor, ReefContext, ReefId, Reefs};
+    use crate::reef::{ReefContext, ReefId, Reefs};
     use crate::relations::{LocalId, NativeId};
     use crate::resolve_all;
     use crate::types::hir::{Convert, MethodCall};

@@ -6,7 +6,7 @@ use crate::environment::symbols::{resolve_loc, SymbolRegistry};
 use crate::environment::Environment;
 use crate::imports::Imports;
 use crate::name::Name;
-use crate::reef::{ReefAccessor, ReefContext, ReefId};
+use crate::reef::{ReefContext, ReefId};
 use crate::relations::{
     LocalId, RelationId, RelationState, Relations, ResolvedSymbol, SourceId, SymbolRef,
 };
@@ -85,7 +85,7 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
         let ((capture_env_id, capture_env), parents) =
             env_stack.split_last().expect("env_stack is empty");
 
-        'capture: for (loc, relation_id) in capture_env.symbols.external_vars() {
+        'capture: for (loc, relation_id) in capture_env.symbols.external_symbols() {
             let name = &loc.name;
             for (pos, (env_id, env)) in parents.iter().rev().enumerate() {
                 let relation = &mut relations[relation_id];
@@ -337,7 +337,7 @@ mod tests {
     use crate::importer::StaticImporter;
     use crate::imports::{Imports, ResolvedImport, SourceImports, UnresolvedImport};
     use crate::name::Name;
-    use crate::reef::{ReefAccessor, ReefContext, ReefId, Reefs};
+    use crate::reef::{ReefContext, ReefId, Reefs, LANG_REEF};
     use crate::relations::{
         LocalId, Relation, RelationId, RelationState, ResolvedSymbol, SourceId,
     };
@@ -398,7 +398,7 @@ mod tests {
         let reef = reefs.get_reef(ReefId(2)).unwrap();
         assert_eq!(reef.name, "test");
         assert_eq!(reefs.get_reef(ReefId(1)).unwrap().name, "std");
-        assert_eq!(reefs.get_reef(ReefId(0)).unwrap().name, "lang");
+        assert_eq!(reefs.get_reef(LANG_REEF).unwrap().name, "lang");
 
         assert_eq!(
             result.imports.get_imports(SourceId(2)).unwrap(),

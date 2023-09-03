@@ -58,7 +58,7 @@ pub const STRING: TypeRef = TypeRef::new(LANG_REEF, TypeId(7));
 /// a conversion function to be called. Use [`crate::steps::typing::convert_expression`] to
 /// generate the conversion code for a typed expression.
 pub fn convert_description(
-    reefs: &UniversalReefAccessor,
+    ura: &UniversalReefAccessor,
     assign_to: TypeRef,
     rvalue: TypeRef,
 ) -> Result<TypeRef, UnificationError> {
@@ -72,9 +72,8 @@ pub fn convert_description(
         return Ok(assign_to);
     }
 
-    let lhs =
-        get_type(assign_to, reefs).unwrap_or_else(|| panic!("cannot find type {assign_to:?}`"));
-    let rhs = get_type(rvalue, reefs).unwrap_or_else(|| panic!("cannot find type {rvalue:?}`"));
+    let lhs = get_type(assign_to, ura).unwrap_or_else(|| panic!("cannot find type {assign_to:?}`"));
+    let rhs = get_type(rvalue, ura).unwrap_or_else(|| panic!("cannot find type {rvalue:?}`"));
     if lhs == rhs {
         return Ok(assign_to);
     }
@@ -84,11 +83,11 @@ pub fn convert_description(
         return Ok(assign_to);
     }
 
-    let rvalue_typing = reefs.get_types(rvalue.reef).unwrap().typing;
+    let rvalue_typing = ura.get_types(rvalue.reef).unwrap().typing;
 
     if let Some(implicit) = rvalue_typing.implicits.get(&rvalue.type_id) {
         let implicit =
-            get_type(*implicit, reefs).unwrap_or_else(|| panic!("cannot find type {implicit:?}`"));
+            get_type(*implicit, ura).unwrap_or_else(|| panic!("cannot find type {implicit:?}`"));
         if lhs == implicit {
             return Ok(assign_to);
         }
@@ -98,7 +97,7 @@ pub fn convert_description(
 
 /// Unifies multiple type identifiers in any direction.
 pub fn convert_many<I: IntoIterator<Item = TypeRef>>(
-    reefs: &UniversalReefAccessor,
+    ura: &UniversalReefAccessor,
     types: I,
 ) -> Result<TypeRef, UnificationError> {
     let mut types = types
@@ -107,7 +106,7 @@ pub fn convert_many<I: IntoIterator<Item = TypeRef>>(
 
     let first = types.next().unwrap_or(NOTHING);
     types.try_fold(first, |acc, ty| {
-        convert_description(reefs, acc, ty).or_else(|_| convert_description(reefs, ty, acc))
+        convert_description(ura, acc, ty).or_else(|_| convert_description(ura, ty, acc))
     })
 }
 
@@ -118,7 +117,7 @@ pub fn get_type<'a>(type_ref: TypeRef, ura: &'a UniversalReefAccessor) -> Option
 
 /// Finds the type reference from an annotation.
 pub(crate) fn resolve_type(
-    reefs: &UniversalReefAccessor,
+    ura: &UniversalReefAccessor,
     reef_id: ReefId,
     env_id: SourceId,
     type_annotation: &ast::r#type::Type,
@@ -133,8 +132,8 @@ pub(crate) fn resolve_type(
                 .first()
                 .expect("Type annotation should not be empty")
             {
-                let engine = reefs.get_engine(reef_id).unwrap();
-                let relations = reefs.get_relations(reef_id).unwrap();
+                let engine = ura.get_engine(reef_id).unwrap();
+                let relations = ura.get_relations(reef_id).unwrap();
 
                 let env = engine.get_environment(env_id).unwrap();
                 let type_symbol_ref = env.get_raw_symbol(type_annotation.segment()).unwrap();
@@ -150,7 +149,7 @@ pub(crate) fn resolve_type(
                             return TypeRef::new(LANG_REEF, primitive_id);
                         }
 
-                        let type_env = reefs
+                        let type_env = ura
                             .get_engine(resolved_symbol.reef)
                             .unwrap()
                             .get_environment(resolved_symbol.source)

@@ -22,29 +22,51 @@ pub struct Reef<'e> {
 #[derive(Clone, Copy, Hash, Eq, PartialEq, Debug)]
 pub struct ReefId(pub ObjectId);
 
+/// An absolute set of reef.
+/// This structure is the highest structure in which the reefs can refer to, because reef's external
+/// relations are relative to this set content.
+///
+/// The reef with id `0` is the lang reef. It is required and is part of the default reef's state.
+///
+/// [ReefId] identifiers are unique and reef names also needs to be. This way, if a new reef is inserted with a
+/// conflicting name, a panic would occur.
 pub struct Reefs<'e> {
     names: HashMap<String, ReefId>,
     reefs: Vec<Reef<'e>>,
 }
 
-pub trait ReefAccessor<'e> {
-    fn lang(&self) -> &Reef<'e>;
-    fn get_reef(&self, id: ReefId) -> Option<&Reef<'e>>;
-    fn get_reef_by_name(&self, name: &str) -> Option<(&Reef<'e>, ReefId)>;
-}
-
 pub const LANG_REEF: ReefId = ReefId(0);
 
 impl Default for Reefs<'_> {
+    /// Creates a Reefs set with the required `lang` reef with id 0
     fn default() -> Self {
         Self {
-            names: HashMap::from([("lang".to_string(), ReefId(0))]),
+            names: HashMap::from([("lang".to_string(), LANG_REEF)]),
             reefs: vec![lang_reef()],
         }
     }
 }
 
 impl<'e> Reefs<'e> {
+    /// Return the lang's reef
+    pub fn lang(&self) -> &Reef<'e> {
+        &self.reefs[LANG_REEF.0]
+    }
+
+    pub fn get_reef(&self, id: ReefId) -> Option<&Reef<'e>> {
+        self.reefs.get(id.0)
+    }
+
+    pub fn get_reef_by_name(&self, name: &str) -> Option<(&Reef<'e>, ReefId)> {
+        self.names
+            .get(name)
+            .and_then(|id| self.get_reef(*id).map(|reef| (reef, *id)))
+    }
+
+    /// Declares a new empty reef with given name.
+    ///
+    /// ## Panic
+    /// If the name is already reserved by another reef
     fn mk_reef(&mut self, name: String) -> ReefId {
         match self.names.entry(name.clone()) {
             Entry::Occupied(_) => {
@@ -68,22 +90,6 @@ impl<'e> Reefs<'e> {
 
     fn get_reef_mut(&mut self, id: ReefId) -> Option<&mut Reef<'e>> {
         self.reefs.get_mut(id.0)
-    }
-}
-
-impl<'e> ReefAccessor<'e> for Reefs<'e> {
-    fn lang(&self) -> &Reef<'e> {
-        &self.reefs[0]
-    }
-
-    fn get_reef(&self, id: ReefId) -> Option<&Reef<'e>> {
-        self.reefs.get(id.0)
-    }
-
-    fn get_reef_by_name(&self, name: &str) -> Option<(&Reef<'e>, ReefId)> {
-        self.names
-            .get(name)
-            .and_then(|id| self.get_reef(*id).map(|reef| (reef, *id)))
     }
 }
 

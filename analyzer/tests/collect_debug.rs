@@ -80,7 +80,7 @@ fn collect_sample() {
             Symbol::scoped("i".to_owned(), -2),
         ]
     );
-    let exported = factorial_env.symbols.exported_vars().collect::<Vec<_>>();
+    let exported = factorial_env.symbols.exported_symbols().collect::<Vec<_>>();
     assert_eq!(exported, vec![]);
 
     let n_parameter = factorial_env
@@ -107,7 +107,7 @@ fn collect_sample() {
         .get_environment(SourceId(2))
         .expect("Unable to get debug() environment");
     assert_eq!(debug_env.fqn, root_name.child("debug"));
-    let usages = debug_env.symbols.external_vars().collect::<Vec<_>>();
+    let usages = debug_env.symbols.external_symbols().collect::<Vec<_>>();
     assert_eq!(
         usages,
         vec![(
@@ -133,7 +133,7 @@ fn collect_sample() {
         .expect("Unable to get callback environment");
     assert_eq!(callback_env.fqn, root_name.child("main").child("callback"));
 
-    let mut globals = callback_env.symbols.external_vars().collect::<Vec<_>>();
+    let mut globals = callback_env.symbols.external_symbols().collect::<Vec<_>>();
     globals.sort_by_key(|(loc, _)| &loc.name);
     assert_eq!(
         globals,
@@ -194,7 +194,7 @@ fn collect_sample() {
         .get_environment(SourceId(5))
         .expect("Unable to get lambda environment");
 
-    let variables = lambda_env.symbols.external_vars().collect::<Vec<_>>();
+    let variables = lambda_env.symbols.external_symbols().collect::<Vec<_>>();
     assert_eq!(
         variables,
         vec![(&SymbolLocation::unspecified(Name::new("n")), RelationId(5))]
