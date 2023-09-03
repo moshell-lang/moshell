@@ -57,7 +57,9 @@ public:
     /**
      * @throws StackOverflowError if the operand stack would overflow by pushing the reference
      */
-    void push_reference(uint64_t r);
+    void push_reference(msh::obj &r);
+
+    void push_unchecked_reference(void *r);
 
     /**
      * @return popped quad-word as an integer
@@ -81,7 +83,7 @@ public:
      * @return popped reference
      * @throws OperandStackUnderflowError if the operand stack does not have enough bytes to pop a reference
      */
-    uint64_t pop_reference();
+    msh::obj &pop_reference();
 
     /**
      * pops `n` bytes

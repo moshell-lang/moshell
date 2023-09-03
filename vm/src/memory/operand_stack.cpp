@@ -18,8 +18,12 @@ void OperandStack::push_int(int64_t i) {
     push(i);
 }
 
-void OperandStack::push_reference(uint64_t r) {
-    push(r);
+void OperandStack::push_reference(msh::obj &r) {
+    push_unchecked_reference(&r);
+}
+
+void OperandStack::push_unchecked_reference(void *r) {
+    push((uint64_t)r);
 }
 
 void OperandStack::push_byte(int8_t b) {
@@ -38,8 +42,8 @@ int8_t OperandStack::pop_byte() {
     return pop<int8_t>();
 }
 
-uint64_t OperandStack::pop_reference() {
-    return pop<uint64_t>();
+msh::obj &OperandStack::pop_reference() {
+    return *(msh::obj *)(pop<uint64_t>());
 }
 
 double OperandStack::pop_double() {
