@@ -29,16 +29,18 @@ Moshell is a project in its early stages.
     - [x] Imports resolution
     - [x] Qualified names
     - [x] Primitive type checking
-    - [x] Built-in primitive type operations *(in progress)*
+    - [x] Built-in primitive type operations
     - [ ] Detailed error reports *(in progress)*
-    - [ ] Reefs (library support)
-    - [ ] List types
+    - [ ] Reefs (library support) *(in progress)*
+    - [ ] Generic types
     - [ ] Standard types (`Option[T]`, `Result[A, E]`, `Iterable[T]`...)
     - [ ] User defined types
 - [x] Bytecode compiler and interpreter
     - [x] Spawn processes and use typed variables
     - [x] Control flow
     - [x] Function calls
+    - [x] Panic
+    - [ ] Array structures
     - [ ] Closures
 - [x] REPL
     - [x] Visualize AST and IR
@@ -103,13 +105,13 @@ Another point is that substitution is automatically protected, thus a `$x` and `
 ```scala
 var user = ''
 var port = 0
-while [ $# ] match shift() { // calls the shift function and substitutes its return value
-     -u | --user    => user = {shift}
-     -port | --port => port = {shift}.parse_int().expect("Invalid port")
+while [ $# ] match {shift} { // calls the shift function and substitutes its return value
+     -u | --user    => user = shift()
+     -port | --port => port = shift().parse_int().expect("Invalid port")
      $arg           => panic "Unknown argument $arg"
 }
 
 if $user.is_empty() || $port == 0 {
-    panic 'No user specified'
+    panic('No user specified')
 }
 ```
