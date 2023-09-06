@@ -30,7 +30,7 @@ use crate::types::hir::{
 use crate::types::operator::name_operator_method;
 use crate::types::ty::{Type, TypeRef};
 use crate::types::{
-    convert_description, convert_many, get_type, resolve_type, Typing, BOOL, ERROR, EXIT_CODE,
+    convert_description, convert_many, get_type, resolve_type, Typing, BOOL, ERROR, EXITCODE,
     FLOAT, INT, NOTHING, STRING, UNIT,
 };
 
@@ -529,7 +529,7 @@ fn ascribe_pipeline(
     }
     TypedExpr {
         kind: ExprKind::Pipeline(commands),
-        ty: EXIT_CODE,
+        ty: EXITCODE,
         segment: pipeline.segment(),
     }
 }
@@ -922,7 +922,7 @@ fn ascribe_call(
 
     TypedExpr {
         kind: ExprKind::ProcessCall(args),
-        ty: EXIT_CODE,
+        ty: EXITCODE,
         segment: call.segment(),
     }
 }
@@ -1731,7 +1731,7 @@ mod tests {
                             segment: find_in(content, "4.2"),
                         }
                     ]),
-                    ty: EXIT_CODE,
+                    ty: EXITCODE,
                     segment: find_in(content, "grep $n 4.2"),
                 }
             ])

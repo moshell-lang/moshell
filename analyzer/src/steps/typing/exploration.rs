@@ -14,7 +14,7 @@ pub(super) struct Exploration {
     pub(super) returns: Vec<Return>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct ReefTypes<'a> {
     pub context: &'a TypeContext,
     pub engine: &'a TypedEngine,
@@ -24,6 +24,7 @@ pub struct ReefTypes<'a> {
 /// A proxy that let the user access to any reef's engine, relations and types data.
 /// If the given reef identifier is the `current_reef`, the types data stored in `current` is returned instead
 /// of the data stored by the `reefs`.
+#[derive(Clone, Copy)]
 pub struct UniversalReefAccessor<'a, 'e> {
     reefs: &'a Reefs<'e>,
     current_reef: ReefId,
@@ -33,7 +34,7 @@ pub struct UniversalReefAccessor<'a, 'e> {
 impl<'a, 'e> UniversalReefAccessor<'a, 'e> {
     pub fn get_types(&self, id: ReefId) -> Option<ReefTypes<'a>> {
         if id == self.current_reef {
-            Some(self.current.clone())
+            Some(self.current)
         } else {
             self.reefs.get_reef(id).map(|reef| ReefTypes {
                 context: &reef.type_context,

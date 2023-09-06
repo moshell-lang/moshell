@@ -243,13 +243,13 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
                 }
 
                 //if the symbol is a type, and if its name is unqualified, try to resolve it from the special `lang` reef.
-                if registry == SymbolRegistry::Types && !symbol_name.is_qualified() {
+                if registry == SymbolRegistry::Types && (!symbol_name.is_qualified() || (symbol_name.parts().len() == 2 && symbol_name.root() == "lang")) {
                     if let Some(primitive_type) = self
                         .context
                         .reefs()
                         .lang()
                         .type_context
-                        .get_type(symbol_name.root())
+                        .get_type_id(symbol_name.simple_name())
                     {
                         result = SymbolResolutionResult::Resolved(ResolvedSymbol::lang_symbol(
                             LocalId(primitive_type.0),
@@ -348,7 +348,7 @@ mod tests {
     use crate::{resolve_all, ResolutionResult};
 
     #[test]
-    fn test_reefs() {
+    fn test_reefs_external_symbols_resolution() {
         let mut reefs = Reefs::default();
 
         fn define_reef<'a, 'e, const N: usize>(
@@ -574,7 +574,7 @@ mod tests {
     }
 
     #[test]
-    fn test_imports_resolution() {
+    fn test_reef_imports_resolution() {
         let math_src = Source::unknown("val PI = 3.14");
         let std_src = Source::unknown("val Foo = 'moshell_std'; val Bar = $Foo");
         let io_src = Source::unknown("fun output() = (); fun input() = ()");

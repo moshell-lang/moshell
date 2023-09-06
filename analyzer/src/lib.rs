@@ -22,7 +22,7 @@ use crate::diagnostic::Diagnostic;
 use crate::importer::{ASTImporter, Imported};
 use crate::imports::Imports;
 use crate::name::Name;
-use crate::reef::{ReefContext, ReefId};
+use crate::reef::{ReefContext};
 use crate::relations::SourceId;
 use crate::steps::collect::SymbolCollector;
 use crate::steps::resolve_sources;
@@ -216,9 +216,6 @@ pub struct Inject<'a> {
 
     /// The environment to inject the source into.
     pub attached: Option<SourceId>,
-
-    /// The injection's reef
-    pub reef: ReefId,
 }
 
 /// The results of an analysis

@@ -55,7 +55,7 @@ impl TypeContext {
         self.names.insert(name, tpe);
     }
 
-    pub fn get_type(&self, name: &str) -> Option<TypeId> {
+    pub fn get_type_id(&self, name: &str) -> Option<TypeId> {
         self.names.get(name).copied()
     }
 }

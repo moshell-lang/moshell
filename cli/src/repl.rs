@@ -20,7 +20,6 @@ pub fn prompt(mut importer: FileImporter, config: &Cli) -> PipelineStatus {
     let mut reefs = Reefs::default();
 
     let reef_context = ReefContext::declare_new(&mut reefs, "repl");
-    let reef_id = reef_context.reef_id;
 
     let mut pipeline = Pipeline::new(reef_context);
     let mut status = PipelineStatus::Success;
@@ -41,7 +40,6 @@ pub fn prompt(mut importer: FileImporter, config: &Cli) -> PipelineStatus {
                     name: name.clone(),
                     imported,
                     attached: starting_source,
-                    reef: reef_id,
                 },
                 &mut importer,
             );

@@ -5,7 +5,7 @@ use ast::control_flow::ForKind;
 use ast::function::FunctionParameter;
 use ast::r#match::MatchPattern;
 use ast::r#type::Type;
-use ast::r#use::Import as ImportExpr;
+use ast::r#use::{Import as ImportExpr, InclusionPathItem};
 use ast::range;
 use ast::value::LiteralValue;
 use ast::Expr;
@@ -70,7 +70,6 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
     ///
     /// This collects all the symbols that are used, locally or not yet resolved if they are global.
     /// Returns a vector of diagnostics raised by the collection process.
-    #[allow(clippy::too_many_arguments)]
     pub fn collect_symbols(
         imports: &'a mut Imports,
         context: &'a mut ReefContext<'ca, 'e>,
@@ -266,20 +265,16 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
     fn collect_symbol_import(
         &mut self,
         import: &'e ImportExpr<'e>,
-        mut relative_path: Vec<String>,
-        is_current_reef_explicit: bool, //true if the current reef target has already been specified
+        mut relative_path: Vec<InclusionPathItem<'e>>,
         mod_id: SourceId,
         to_visit: &mut Vec<Name>,
     ) {
         match import {
             ImportExpr::Symbol(s) => {
-                match SymbolLocation::compute(&s.path, is_current_reef_explicit) {
-                    Ok(mut loc) => {
+                relative_path.extend(s.path.iter().cloned());
+                match SymbolLocation::compute(&relative_path) {
+                    Ok(loc) => {
                         let alias = s.alias.map(|s| s.to_string());
-
-                        relative_path.extend(loc.name.into_vec());
-                        loc.name = Name::from(relative_path);
-                        loc.is_current_reef_explicit |= is_current_reef_explicit;
 
                         let name = loc.name.clone();
                         to_visit.push(name.clone());
@@ -293,13 +288,9 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                 }
             }
             ImportExpr::AllIn(items, _) => {
-                match SymbolLocation::compute(items, is_current_reef_explicit) {
-                    Ok(mut loc) => {
-                        relative_path.extend(loc.name.into_vec());
-                        loc.name = Name::from(relative_path);
-
-                        loc.is_current_reef_explicit |= is_current_reef_explicit;
-
+                relative_path.extend(items.iter().cloned());
+                match SymbolLocation::compute(&relative_path) {
+                    Ok(loc) => {
                         let name = loc.name.clone();
                         to_visit.push(name.clone());
                         let unresolved = UnresolvedImport::AllIn(loc);
@@ -321,17 +312,14 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                 self.diagnostics.push(diagnostic);
             }
             ImportExpr::List(list) => {
-                match SymbolLocation::compute(&list.root, is_current_reef_explicit) {
-                    Ok(mut loc) => {
-                        relative_path.extend(loc.name.into_vec());
-                        loc.name = Name::from(relative_path);
+                relative_path.extend(list.root.iter().cloned());
 
+                match SymbolLocation::compute(&list.root) {
+                    Ok(_) => {
                         for list_import in &list.imports {
-                            let relative_path = loc.name.clone().into_vec();
                             self.collect_symbol_import(
                                 list_import,
-                                relative_path,
-                                true,
+                                relative_path.clone(),
                                 mod_id,
                                 to_visit,
                             )
@@ -364,7 +352,6 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                 self.collect_symbol_import(
                     &import.import,
                     Vec::new(),
-                    false,
                     state.module,
                     to_visit,
                 );
@@ -430,7 +417,7 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                 }
             }
             Expr::ProgrammaticCall(call) => {
-                match SymbolLocation::compute(&call.path, false) {
+                match SymbolLocation::compute(&call.path) {
                     Ok(loc) => {
                         let symbol = self.identify_symbol(
                             *self.stack.last().unwrap(),
@@ -686,7 +673,7 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
 
     fn collect_type(&mut self, origin: SourceId, ty: &Type) {
         match ty {
-            Type::Parametrized(p) => match SymbolLocation::compute(&p.path, false) {
+            Type::Parametrized(p) => match SymbolLocation::compute(&p.path) {
                 Err(segments) => self
                     .diagnostics
                     .push(make_invalid_path_diagnostic(origin, segments)),

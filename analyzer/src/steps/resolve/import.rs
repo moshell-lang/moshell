@@ -28,11 +28,11 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
 
                     match resolve_loc(&loc, context) {
                         None => diagnostics.push(
-                            Diagnostic::new(DiagnosticID::InvalidSymbolPath, "Invalid import")
+                            Diagnostic::new(DiagnosticID::ImportResolution, "Invalid import")
                                 .with_observation(Observation::context(
                                     env_id,
                                     segment,
-                                    format!("Cannot find reef `{}`", loc.name.root()),
+                                    format!("unable to find reef `{}`", loc.name.root()),
                                 )),
                         ),
                         Some((reef, reef_id)) => {

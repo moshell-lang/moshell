@@ -7,7 +7,7 @@ use crate::types::ctx::TypeContext;
 use crate::types::engine::TypedEngine;
 use crate::types::operator::name_operator_method;
 use crate::types::ty::{MethodType, Type};
-use crate::types::{Typing, BOOL, EXIT_CODE, FLOAT, INT, NOTHING, STRING, UNIT};
+use crate::types::{Typing, BOOL, EXITCODE, FLOAT, INT, NOTHING, STRING, UNIT};
 
 const ARITHMETIC_OPERATORS: &[BinaryOperator] = &[
     BinaryOperator::Plus,
@@ -43,7 +43,7 @@ impl VariableGenerator {
 fn fill_lang_typed_engine(engine: &mut TypedEngine) {
     let mut gen = VariableGenerator::default();
     engine.add_method(
-        EXIT_CODE.type_id,
+        EXITCODE.type_id,
         "to_bool",
         MethodType::native(vec![], BOOL, gen.next()),
     );
@@ -87,7 +87,7 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine) {
             );
         }
     }
-    for stringify in [BOOL, EXIT_CODE, INT, FLOAT] {
+    for stringify in [BOOL, EXITCODE, INT, FLOAT] {
         engine.add_method(
             stringify.type_id,
             "to_string",
@@ -124,7 +124,7 @@ fn fill_lang_types(typing: &mut Typing) {
     ] {
         typing.add_type(primitive);
     }
-    typing.set_implicit_conversion(EXIT_CODE.type_id, BOOL);
+    typing.set_implicit_conversion(EXITCODE.type_id, BOOL);
     typing.set_implicit_conversion(INT.type_id, FLOAT);
 }
 
@@ -132,7 +132,7 @@ fn fill_lang_bindings(ctx: &mut TypeContext) {
     ctx.bind_name("Nothing".to_string(), NOTHING.type_id);
     ctx.bind_name("Unit".to_string(), UNIT.type_id);
     ctx.bind_name("Bool".to_string(), BOOL.type_id);
-    ctx.bind_name("Exitcode".to_string(), EXIT_CODE.type_id);
+    ctx.bind_name("Exitcode".to_string(), EXITCODE.type_id);
     ctx.bind_name("Int".to_string(), INT.type_id);
     ctx.bind_name("Float".to_string(), FLOAT.type_id);
     ctx.bind_name("String".to_string(), STRING.type_id);

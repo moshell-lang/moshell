@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use pretty_assertions::assert_eq;
+use analyzer::analyze;
 
 use analyzer::environment::symbols::{Symbol, SymbolLocation, SymbolRegistry};
 use analyzer::importer::StaticImporter;
@@ -31,15 +32,19 @@ fn collect_sample() {
         [
             (root_name.clone(), source),
             (
-                lib_name,
-                Source::new("val LOG_FILE = 'debug.log'; val n", "lib"),
+                lib_name.clone(),
+                Source::new("val LOG_FILE = 'debug.log'; val n = 1", "lib"),
             ),
         ],
         parse_trusted,
     );
 
     let mut reefs = Reefs::default();
-    let mut context = ReefContext::declare_new(&mut reefs, "test");
+    // define the lib reef
+    let lib_context = ReefContext::declare_new(&mut reefs, "test");
+    analyze(lib_name, &mut importer, lib_context);
+
+    let mut context = ReefContext::declare_new(&mut reefs, "lib");
 
     let diagnostics = SymbolCollector::collect_symbols(
         &mut imports,
@@ -49,6 +54,7 @@ fn collect_sample() {
         &mut importer,
     );
     assert_eq!(diagnostics, vec![]);
+
     let diagnostics =
         SymbolResolver::resolve_symbols(&mut imports, &mut context, &mut to_visit, &mut visited);
     assert_eq!(diagnostics, vec![]);

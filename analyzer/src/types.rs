@@ -1,11 +1,12 @@
+use std::collections::HashMap;
+
+use context::source::SourceSegmentHolder;
+
 use crate::environment::symbols::SymbolInfo;
-use crate::reef::{ReefId, LANG_REEF};
+use crate::reef::{LANG_REEF, ReefId};
 use crate::relations::{SourceId, SymbolRef};
 use crate::steps::typing::exploration::UniversalReefAccessor;
 use crate::types::ty::{Type, TypeId, TypeRef};
-use ast::r#use::InclusionPathItem;
-use context::source::SourceSegmentHolder;
-use std::collections::HashMap;
 
 pub(crate) mod builtin;
 pub mod ctx;
@@ -43,7 +44,7 @@ pub const ERROR: TypeRef = TypeRef::new(LANG_REEF, TypeId(0));
 pub const NOTHING: TypeRef = TypeRef::new(LANG_REEF, TypeId(1));
 pub const UNIT: TypeRef = TypeRef::new(LANG_REEF, TypeId(2));
 pub const BOOL: TypeRef = TypeRef::new(LANG_REEF, TypeId(3));
-pub const EXIT_CODE: TypeRef = TypeRef::new(LANG_REEF, TypeId(4));
+pub const EXITCODE: TypeRef = TypeRef::new(LANG_REEF, TypeId(4));
 pub const INT: TypeRef = TypeRef::new(LANG_REEF, TypeId(5));
 pub const FLOAT: TypeRef = TypeRef::new(LANG_REEF, TypeId(6));
 pub const STRING: TypeRef = TypeRef::new(LANG_REEF, TypeId(7));
@@ -124,50 +125,42 @@ pub(crate) fn resolve_type(
 ) -> TypeRef {
     match type_annotation {
         ast::r#type::Type::Parametrized(param) => {
-            if param.path.len() > 1 || !param.params.is_empty() {
+            if !param.params.is_empty() {
                 unimplemented!();
             }
-            if let InclusionPathItem::Symbol(_, _) = param
-                .path
-                .first()
-                .expect("Type annotation should not be empty")
-            {
-                let engine = ura.get_engine(reef_id).unwrap();
-                let relations = ura.get_relations(reef_id).unwrap();
+            let engine = ura.get_engine(reef_id).unwrap();
+            let relations = ura.get_relations(reef_id).unwrap();
 
-                let env = engine.get_environment(env_id).unwrap();
-                let type_symbol_ref = env.get_raw_symbol(type_annotation.segment()).unwrap();
-                let type_symbol = match type_symbol_ref {
-                    SymbolRef::Local(l) => env.symbols.get(l).unwrap(),
-                    SymbolRef::External(r) => {
-                        let resolved_symbol = relations[r]
-                            .state
-                            .expect_resolved("unresolved type symbol during typechecking");
+            let env = engine.get_environment(env_id).unwrap();
+            let type_symbol_ref = env.get_raw_symbol(type_annotation.segment()).unwrap();
+            let type_symbol = match type_symbol_ref {
+                SymbolRef::Local(l) => env.symbols.get(l).unwrap(),
+                SymbolRef::External(r) => {
+                    let resolved_symbol = relations[r]
+                        .state
+                        .expect_resolved("unresolved type symbol during typechecking");
 
-                        if resolved_symbol.reef == LANG_REEF {
-                            let primitive_id = TypeId(resolved_symbol.object_id.0);
-                            return TypeRef::new(LANG_REEF, primitive_id);
-                        }
-
-                        let type_env = ura
-                            .get_engine(resolved_symbol.reef)
-                            .unwrap()
-                            .get_environment(resolved_symbol.source)
-                            .unwrap();
-                        type_env.symbols.get(resolved_symbol.object_id).unwrap()
+                    if resolved_symbol.reef == LANG_REEF {
+                        let primitive_id = TypeId(resolved_symbol.object_id.0);
+                        return TypeRef::new(LANG_REEF, primitive_id);
                     }
-                };
 
-                if let SymbolInfo::Type(type_ref) = type_symbol.ty {
-                    type_ref
-                } else {
-                    panic!(
-                        "type {type_annotation} refers to a {} symbol ",
-                        type_symbol.ty
-                    )
+                    let type_env = ura
+                        .get_engine(resolved_symbol.reef)
+                        .unwrap()
+                        .get_environment(resolved_symbol.source)
+                        .unwrap();
+                    type_env.symbols.get(resolved_symbol.object_id).unwrap()
                 }
+            };
+
+            if let SymbolInfo::Type(type_ref) = type_symbol.ty {
+                type_ref
             } else {
-                unimplemented!("type's path cannot start with `reef` yet")
+                panic!(
+                    "type {type_annotation} refers to a {} symbol ",
+                    type_symbol.ty
+                )
             }
         }
         ast::r#type::Type::Callable(_) => unimplemented!(),

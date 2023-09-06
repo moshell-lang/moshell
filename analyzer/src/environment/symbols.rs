@@ -101,12 +101,11 @@ impl SymbolLocation {
     ///
     /// The function can also fail if the `must_be_relative`
     pub fn compute<'a>(
-        path: &'a [InclusionPathItem<'a>],
-        must_be_relative: bool,
+        path: &'a [InclusionPathItem<'a>]
     ) -> Result<Self, Vec<SourceSegment>> {
         let current_reef = path
             .first()
-            .is_some_and(|f| !must_be_relative && matches!(f, InclusionPathItem::Reef(_)));
+            .is_some_and(|f| matches!(f, InclusionPathItem::Reef(_)));
 
         let mut path_it = path.iter();
 
