@@ -41,7 +41,8 @@ pub(super) fn expose_variable(ctx: EmitterContext, var: Var, cp: &mut ConstantPo
         Var::External(resolved) => {
             // Distinguish captures and static variables.
             let environment = ctx
-                .engine
+                .get_engine(resolved.reef)
+                .unwrap()
                 .get_environment(resolved.source)
                 .expect("Resolved relation targets an unknown environment");
             let variable = environment

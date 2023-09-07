@@ -1,20 +1,24 @@
+use ::std::ffi::OsStr;
+use analyzer::Analyzer;
 use clap::Parser;
 use miette::{IntoDiagnostic, MietteHandlerOpts, WrapErr};
-use std::ffi::OsStr;
 
 use analyzer::name::Name;
 use analyzer::reef::Externals;
 use analyzer::relations::SourceId;
+use vm::VM;
 
 use crate::cli::{use_pipeline, Cli};
-use crate::pipeline::{FileImporter, Pipeline, PipelineStatus};
+use crate::pipeline::{FileImporter, PipelineStatus};
 use crate::repl::prompt;
+use crate::std::build_std;
 
 mod cli;
 mod disassemble;
 mod pipeline;
 mod repl;
 mod report;
+mod std;
 
 fn main() -> Result<PipelineStatus, miette::Error> {
     #[cfg(unix)]
@@ -53,24 +57,28 @@ fn main() -> Result<PipelineStatus, miette::Error> {
         });
         importer.add_redirection(name.clone(), source.clone());
 
-        let externals = Externals::default();
-        let mut pipeline = Pipeline::new();
-        pipeline
-            .analyzer
-            .process(name.clone(), &mut importer, &externals);
-        let diagnostics = pipeline.analyzer.take_diagnostics();
+        let mut externals = Externals::default();
+
+        let mut vm = VM::new();
+        build_std(&mut externals, &mut vm, &cli);
+
+        let mut analyzer = Analyzer::new();
+
+        analyzer.process(name.clone(), &mut importer, &externals);
+        let diagnostics = analyzer.take_diagnostics();
+
         return Ok(use_pipeline(
-            &name,
             SourceId(0),
-            &pipeline.analyzer,
-            &mut pipeline.vm,
+            &analyzer,
+            &externals,
+            &mut vm,
             diagnostics,
             &mut importer,
             &cli,
         ));
     }
     let importer = FileImporter::new(
-        std::env::current_dir()
+        ::std::env::current_dir()
             .into_diagnostic()
             .context("Could not locate working directory")?,
     );

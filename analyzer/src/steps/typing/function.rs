@@ -5,7 +5,7 @@ use context::source::{SourceSegment, SourceSegmentHolder};
 use std::fmt;
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation, SourceLocation};
-use crate::reef::Externals;
+use crate::reef::{Externals, ReefId};
 use crate::relations::{Definition, SourceId, SymbolRef};
 use crate::steps::typing::coercion::{
     convert_description, convert_expression, convert_many, resolve_type,
@@ -39,6 +39,9 @@ pub(super) struct FunctionMatch {
 
     /// The function return type.
     pub(super) return_type: TypeRef,
+
+    /// The function's reef
+    pub(super) reef: ReefId,
 }
 
 /// Gets the returned type of a function.
@@ -184,20 +187,16 @@ pub(super) fn type_call(
 ) -> FunctionMatch {
     let call_symbol_ref = links.env().get_raw_symbol(call.segment()).unwrap();
 
-    let fun_reef = match call_symbol_ref {
-        SymbolRef::Local(_) => exploration.externals.current,
+    let (fun_reef, fun_source) = match call_symbol_ref {
+        SymbolRef::Local(_) => (exploration.externals.current, links.source),
         SymbolRef::External(r) => {
             let call_symbol = links.relations[r].state.expect_resolved("unresolved");
-            call_symbol.reef
+            (call_symbol.reef, call_symbol.source)
         }
     };
 
-    let type_ref: TypeRef = exploration
-        .get_var(
-            links.source, /* FIXME need defining env */
-            call_symbol_ref,
-            links.relations,
-        )
+    let type_ref = exploration
+        .get_var(fun_source, call_symbol_ref, &links.relations)
         .unwrap()
         .type_ref;
 
@@ -228,6 +227,7 @@ pub(super) fn type_call(
                     arguments,
                     definition: Definition::error(),
                     return_type,
+                    reef: fun_reef,
                 }
             } else {
                 let mut casted_arguments = Vec::with_capacity(parameters.len());
@@ -257,6 +257,7 @@ pub(super) fn type_call(
                     arguments: casted_arguments,
                     definition: declaration,
                     return_type,
+                    reef: fun_reef,
                 }
             }
         }
@@ -276,6 +277,7 @@ pub(super) fn type_call(
                 arguments,
                 definition: Definition::error(),
                 return_type: ERROR,
+                reef: fun_reef,
             }
         }
     }

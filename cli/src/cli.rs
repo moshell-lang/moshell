@@ -1,7 +1,7 @@
 use analyzer::diagnostic::Diagnostic;
 use analyzer::importer::ASTImporter;
-use analyzer::name::Name;
-use analyzer::reef::ReefId;
+
+use analyzer::reef::Externals;
 use analyzer::relations::SourceId;
 use analyzer::Analyzer;
 use clap::Parser;
@@ -77,19 +77,15 @@ impl SourceLineProvider for CachedSourceLocationLineProvider {
 
 #[must_use = "The pipeline status should be checked"]
 pub fn use_pipeline<'a>(
-    entry_point: &Name,
     starting_page: SourceId,
     analyzer: &Analyzer<'_>,
+    externals: &Externals,
     vm: &mut VM,
     diagnostics: Vec<Diagnostic>,
     importer: &mut (impl ASTImporter<'a> + ErrorReporter),
     config: &Cli,
 ) -> PipelineStatus {
     let errors = importer.take_errors();
-    if errors.is_empty() && analyzer.resolution.engine.is_empty() {
-        eprintln!("No module found for entry point {entry_point}");
-        return PipelineStatus::IoError;
-    }
 
     let mut import_status = PipelineStatus::Success;
     for error in errors {
@@ -146,9 +142,10 @@ pub fn use_pipeline<'a>(
 
     compile(
         &analyzer.engine,
-        &analyzer.resolution.engine,
         &analyzer.resolution.relations,
-        ReefId(1),
+        &analyzer.resolution.engine,
+        &externals,
+        externals.current,
         starting_page,
         &mut bytes,
         Some(&lines),

@@ -6,26 +6,12 @@ use std::process::{ExitCode, Termination};
 
 use analyzer::importer::{ASTImporter, ImportResult, Imported};
 use analyzer::name::Name;
-use analyzer::Analyzer;
+
 use ast::group::Block;
 use ast::Expr;
 use context::source::{ContentId, OwnedSource, Source, SourceSegmentHolder};
 use parser::err::ParseError;
 use parser::parse;
-use vm::VM;
-
-/// Holds the state of the analyzer and the virtual machine.
-#[derive(Default)]
-pub struct Pipeline<'a> {
-    pub analyzer: Analyzer<'a>,
-    pub vm: VM,
-}
-
-impl<'a> Pipeline<'a> {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
 
 /// Represents the state of the pipeline.
 #[repr(u8)]

@@ -100,13 +100,14 @@ impl<'a> Analyzer<'a> {
             &mut self.diagnostics,
         );
         if self.diagnostics.is_empty() {
-            let (engine, typing) = apply_types(
+            let (engine, context, typing) = apply_types(
                 &self.resolution.engine,
                 &self.resolution.relations,
                 externals,
                 &mut self.diagnostics,
             );
             self.engine = engine;
+            self.type_context = context;
             self.typing = typing;
         }
         Analysis {
@@ -143,13 +144,14 @@ impl<'a> Analyzer<'a> {
             &mut self.diagnostics,
         );
         if self.diagnostics.is_empty() {
-            let (engine, typing) = apply_types(
+            let (engine, context, typing) = apply_types(
                 &self.resolution.engine,
                 &self.resolution.relations,
                 externals,
                 &mut self.diagnostics,
             );
             self.engine = engine;
+            self.type_context = context;
             self.typing = typing;
         }
         Analysis {

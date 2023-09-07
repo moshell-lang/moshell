@@ -1,5 +1,6 @@
 use analyzer::engine::Engine;
 use analyzer::environment::Environment;
+use analyzer::reef::{Externals, ReefId};
 use analyzer::relations::{Definition, SourceId};
 use analyzer::types::hir::{Declaration, ExprKind, TypedExpr, Var};
 use analyzer::types::ty::TypeRef;
@@ -21,10 +22,11 @@ mod invoke;
 mod jump;
 mod native;
 
-#[derive(Debug, Clone, Copy)]
-pub struct EmitterContext<'a> {
-    /// The [`Environment`] engine.
-    pub(crate) engine: &'a Engine<'a>,
+#[derive(Clone, Copy)]
+pub struct EmitterContext<'a, 'e> {
+    current_reef: ReefId,
+    engine: &'a Engine<'e>,
+    externals: &'a Externals<'e>,
 
     /// The currently emitted environment.
     ///
@@ -37,6 +39,38 @@ pub struct EmitterContext<'a> {
 
     /// The current chunk id.
     pub(crate) chunk_id: SourceId,
+}
+
+impl<'a, 'e> EmitterContext<'a, 'e> {
+    pub fn new(
+        current_reef: ReefId,
+        engine: &'a Engine<'e>,
+        externals: &'a Externals<'e>,
+        env: &'a Environment,
+        captures: &'a Captures,
+        chunk_id: SourceId,
+    ) -> Self {
+        Self {
+            current_reef,
+            engine,
+            externals,
+            environment: env,
+            captures,
+            chunk_id,
+        }
+    }
+
+    pub fn engine(&self) -> &'a Engine<'e> {
+        self.engine
+    }
+
+    pub fn get_engine(&self, reef: ReefId) -> Option<&'a Engine<'e>> {
+        if self.current_reef == reef {
+            Some(self.engine)
+        } else {
+            self.externals.get_reef(reef).map(|r| &r.engine)
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]

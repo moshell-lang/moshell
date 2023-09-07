@@ -6,7 +6,7 @@ use crate::types::ty::{TypeId, TypeRef};
 /// Holds the symbol to type mapping.
 ///
 /// The actual type definition is in the [`crate::types::Typing`] struct.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct TypeContext {
     names: HashMap<String, TypeId>,
     locals: HashMap<SourceId, Vec<TypedVariable>>,

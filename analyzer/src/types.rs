@@ -11,7 +11,7 @@ pub mod operator;
 pub mod ty;
 
 /// Holds all the known types.
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct Typing {
     /// The actual types.
     types: Vec<Type>,

@@ -137,7 +137,11 @@ pub fn emit_function_invocation(
             let captures = ctx.captures[id.0]
                 .as_ref()
                 .expect("captures not set during function invocation emission");
-            let env = ctx.engine.get_environment(id).unwrap();
+            let env = ctx
+                .get_engine(function_call.reef)
+                .unwrap()
+                .get_environment(id)
+                .unwrap();
             (env, captures)
         }
         Definition::Native(_) => {

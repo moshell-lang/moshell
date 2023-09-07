@@ -85,6 +85,12 @@ pub enum DiagnosticID {
     #[assoc(code = 15)]
     #[assoc(critical = true)]
     CannotReassign,
+
+    /// A native function is declared outside of the reef with id 1
+    /// Only the first user reef is allowed to define native functions
+    #[assoc(code = 16)]
+    #[assoc(critical = true)]
+    IllegalNativeDefinition,
 }
 
 /// Observations are labels in a code snippet that are used to explain a [`Diagnostic`].

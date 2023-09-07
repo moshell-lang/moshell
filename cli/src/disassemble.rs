@@ -56,10 +56,12 @@ fn display_function(
 ) -> io::Result<()> {
     let function_name = &constants[read!(cursor, u32) as usize];
 
+    println!("{function_name}:");
+
     display_code(cursor, constants, dynamic_symbols)?;
 
     let attribute_count = read!(cursor, u8);
-    println!("{function_name}: ({attribute_count} attributes)");
+    println!("{attribute_count} attributes");
 
     for _ in 0..attribute_count {
         let attribute_id = read!(cursor, u8);

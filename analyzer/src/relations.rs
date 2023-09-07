@@ -234,7 +234,8 @@ impl Relations {
     }
 
     /// Creates a dependency graph for the given engine.
-    pub fn as_dependencies(&self, engine: &Engine) -> Dependencies<SourceId> {
+    /// only symbols that are inside of the engine's reef are placed in the graph.
+    pub fn as_dependencies(&self, engine_reef: ReefId, engine: &Engine) -> Dependencies<SourceId> {
         let mut dependencies = Dependencies::default();
         for (id, _) in engine.environments() {
             dependencies.add_node(id);
@@ -242,7 +243,9 @@ impl Relations {
 
         for object in self.relations.iter() {
             if let RelationState::Resolved(resolved) = object.state {
-                dependencies.add_dependency(object.origin, resolved.source);
+                if resolved.reef == engine_reef {
+                    dependencies.add_dependency(object.origin, resolved.source);
+                }
             }
         }
         dependencies

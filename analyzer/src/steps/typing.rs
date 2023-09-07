@@ -13,7 +13,7 @@ use context::source::{SourceSegment, SourceSegmentHolder};
 use crate::dependency::topological_sort;
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
-use crate::reef::Externals;
+use crate::reef::{Externals, ReefId};
 use crate::relations::{Definition, Relations, SourceId, SymbolRef};
 use crate::steps::typing::coercion::{
     check_type_annotation, coerce_condition, convert_description, convert_expression, convert_many,
@@ -44,8 +44,8 @@ pub fn apply_types(
     relations: &Relations,
     externals: &Externals,
     diagnostics: &mut Vec<Diagnostic>,
-) -> (TypedEngine, Typing) {
-    let dependencies = relations.as_dependencies(engine);
+) -> (TypedEngine, TypeContext, Typing) {
+    let dependencies = relations.as_dependencies(externals.current, engine);
     let environments = topological_sort(&dependencies);
 
     let mut exploration = Exploration {
@@ -60,7 +60,7 @@ pub fn apply_types(
         let entry = apply_types_to_source(&mut exploration, diagnostics, engine, relations, env_id);
         exploration.type_engine.insert(env_id, entry);
     }
-    (exploration.type_engine, exploration.typing)
+    (exploration.type_engine, exploration.ctx, exploration.typing)
 }
 
 /// A state holder, used to informs the type checker about what should be
@@ -104,6 +104,34 @@ impl TypingState {
     }
 }
 
+fn check_nativity(
+    func: &FunctionDeclaration,
+    externals: &Externals,
+    func_id: SourceId,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if func.body.is_some() {
+        return;
+    }
+
+    // only first reef (after lang) can define native functions
+    if externals.current == ReefId(1) {
+        return;
+    }
+
+    diagnostics.push(
+        Diagnostic::new(
+            DiagnosticID::IllegalNativeDefinition,
+            "function without a body",
+        )
+        .with_observation(Observation::context(
+            func_id,
+            func.segment(),
+            "provide a definition for this function",
+        )),
+    );
+}
+
 fn apply_types_to_source(
     exploration: &mut Exploration,
     diagnostics: &mut Vec<Diagnostic>,
@@ -125,7 +153,7 @@ fn apply_types_to_source(
                 exploration.ctx.push_local_typed(source_id, param.ty);
             }
 
-            let typed_expr = func.body.as_ref().map(|body| {
+            let typed_body = func.body.as_ref().map(|body| {
                 ascribe_types(
                     exploration,
                     links,
@@ -136,7 +164,7 @@ fn apply_types_to_source(
             });
 
             let return_type =
-                infer_return(func, links, typed_expr.as_ref(), diagnostics, exploration);
+                infer_return(func, links, typed_body.as_ref(), diagnostics, exploration);
 
             let chunk_params = func
                 .parameters
@@ -144,10 +172,11 @@ fn apply_types_to_source(
                 .map(|param| type_parameter(exploration, param, links, diagnostics))
                 .collect();
 
-            if let Some(typed_expr) = typed_expr {
-                Chunk::function(typed_expr, chunk_params, return_type)
+            if let Some(body) = typed_body {
+                Chunk::function(body, chunk_params, return_type)
             } else {
-                unimplemented!("function declaration with undefined body")
+                check_nativity(func, exploration.externals, source_id, diagnostics);
+                Chunk::native_function(chunk_params, return_type)
             }
         }
         expr => Chunk::script(ascribe_types(
@@ -896,6 +925,7 @@ fn ascribe_pfc(
         kind: ExprKind::FunctionCall(FunctionCall {
             arguments: function_match.arguments,
             definition: function_match.definition,
+            reef: function_match.reef,
         }),
         ty: function_match.return_type,
         segment: call.segment.clone(),
@@ -1094,7 +1124,7 @@ mod tests {
         );
         assert_eq!(diagnostics, vec![]);
 
-        let (typed, _) = apply_types(
+        let (typed, _, _) = apply_types(
             &result.engine,
             &result.relations,
             &externals,
@@ -1102,7 +1132,10 @@ mod tests {
         );
         let expr = typed.get_user(SourceId(0)).unwrap();
         if diagnostics.is_empty() {
-            Ok((externals.lang().typing.clone(), expr.expression.clone()))
+            Ok((
+                externals.lang().typing.clone(),
+                expr.expression.clone().unwrap(),
+            ))
         } else {
             Err(diagnostics)
         }

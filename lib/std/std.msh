@@ -1,0 +1,9 @@
+fun panic(message: String) -> Nothing
+
+fun exit(code: Exitcode) -> Nothing
+
+fun env(name: String) -> String
+
+fun set_env(name: String, value: String) -> String
+
+fun read_line() -> String
