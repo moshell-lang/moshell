@@ -149,10 +149,10 @@ fn tolerance_in_multiple_groups() {
                     segment: find_in(&source.source, "x: T")
                 })],
                 return_type: None,
-                body: Box::new(Expr::VarReference(VarReference {
+                body: Some(Box::new(Expr::VarReference(VarReference {
                     name: "x",
                     segment: find_in(&source.source, "$x")
-                })),
+                }))),
                 segment: source.segment()
             })],
             errors: vec![
@@ -306,10 +306,10 @@ fn do_not_self_lock() {
                 name: "g",
                 parameters: vec![],
                 type_parameters: vec![],
-                body: Box::new(Expr::Block(Block {
+                body: Some(Box::new(Expr::Block(Block {
                     expressions: vec![],
                     segment: find_in(source.source, "{}")
-                })),
+                }))),
                 return_type: None,
                 segment: source.segment()
             })],

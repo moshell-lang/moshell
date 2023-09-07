@@ -1,5 +1,4 @@
-use ast::call::RedirOp;
-use ast::call::{Call, Pipeline, ProgrammaticCall, Redirected};
+use ast::call::{Call, Pipeline, ProgrammaticCall, RedirOp, Redirected};
 use ast::control_flow::If;
 use ast::function::FunctionDeclaration;
 use ast::group::Block;
@@ -126,15 +125,18 @@ fn apply_types_to_source(
                 exploration.ctx.push_local_typed(source_id, param.ty);
             }
 
-            let typed_expr = ascribe_types(
-                exploration,
-                links,
-                diagnostics,
-                &func.body,
-                TypingState::default().with_local_type(),
-            );
+            let typed_expr = func.body.as_ref().map(|body| {
+                ascribe_types(
+                    exploration,
+                    links,
+                    diagnostics,
+                    body,
+                    TypingState::default().with_local_type(),
+                )
+            });
 
-            let return_type = infer_return(func, &typed_expr, links, diagnostics, exploration);
+            let return_type =
+                infer_return(func, links, typed_expr.as_ref(), diagnostics, exploration);
 
             let chunk_params = func
                 .parameters
@@ -142,7 +144,11 @@ fn apply_types_to_source(
                 .map(|param| type_parameter(exploration, param, links, diagnostics))
                 .collect();
 
-            Chunk::function(typed_expr, chunk_params, return_type)
+            if let Some(typed_expr) = typed_expr {
+                Chunk::function(typed_expr, chunk_params, return_type)
+            } else {
+                unimplemented!("function declaration with undefined body")
+            }
         }
         expr => Chunk::script(ascribe_types(
             exploration,

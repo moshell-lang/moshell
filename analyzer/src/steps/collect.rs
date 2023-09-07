@@ -624,7 +624,10 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                 if let Some(ty) = &func.return_type {
                     self.collect_type(func_id, ty)
                 }
-                self.tree_walk(&mut state.fork(func_id), &func.body, to_visit);
+
+                if let Some(body) = &func.body {
+                    self.tree_walk(&mut state.fork(func_id), body, to_visit);
+                }
 
                 Self::resolve_captures(
                     &self.stack,

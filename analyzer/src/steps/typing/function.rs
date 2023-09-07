@@ -47,24 +47,26 @@ pub(super) struct FunctionMatch {
 /// or try to guess the return type.
 pub(super) fn infer_return(
     func: &FunctionDeclaration,
-    typed_func: &TypedExpr,
     links: Links,
+    typed_func_body: Option<&TypedExpr>,
     diagnostics: &mut Vec<Diagnostic>,
     exploration: &mut Exploration,
 ) -> TypeRef {
-    let last = get_last_segment(typed_func);
-    // If the last statement is a return, we don't need re-add it
-    if exploration
-        .returns
-        .last()
-        .map_or(true, |ret| ret.segment != last.segment)
-        && last.ty.is_something()
-        && last.ty.is_ok()
-    {
-        exploration.returns.push(Return {
-            ty: typed_func.ty,
-            segment: last.segment.clone(),
-        });
+    if let Some(typed_func_body) = typed_func_body {
+        let last = get_last_segment(typed_func_body);
+        // If the last statement is a return, we don't need re-add it
+        if exploration
+            .returns
+            .last()
+            .map_or(true, |ret| ret.segment != last.segment)
+            && last.ty.is_something()
+            && last.ty.is_ok()
+        {
+            exploration.returns.push(Return {
+                ty: typed_func_body.ty,
+                segment: last.segment.clone(),
+            });
+        }
     }
 
     let expected_return_type = if let Some(return_type_annotation) = func.return_type.as_ref() {
@@ -107,40 +109,24 @@ pub(super) fn infer_return(
                     ),
                 )),
         );
-    } else if !matches!(func.body.as_ref(), Expr::Block(_)) {
-        let segment = func.segment().start..func.body.segment().start;
-        let returns = std::mem::take(&mut exploration.returns);
-        let unify = convert_many(exploration, returns.iter().map(|ret| ret.ty));
-        if let Ok(common_type) = unify {
-            diagnostics.push(
-                Diagnostic::new(
-                    DiagnosticID::CannotInfer,
-                    "Return type inference is not supported yet",
-                )
-                .with_observation(Observation::context(
-                    links.source,
-                    segment,
-                    "No return type is specified",
-                ))
-                .with_observations(typed_return_locations)
-                .with_help(format!(
-                    "Add -> {} to the function declaration",
-                    exploration.get_type(common_type).unwrap()
-                )),
-            );
-        } else {
-            diagnostics.push(
-                Diagnostic::new(DiagnosticID::CannotInfer, "Failed to infer return type")
-                    .with_observation(Observation::context(
-                        links.source,
-                        segment,
-                        "This function returns multiple types",
-                    ))
-                    .with_observations(typed_return_locations)
-                    .with_help("Try adding an explicit return type to the function"),
-            );
-        }
-    } else {
+
+        return ERROR;
+    }
+
+    let Some(body) = &func.body else {
+        diagnostics.push(
+            Diagnostic::new(
+                DiagnosticID::CannotInfer,
+                "Function declaration needs explicit return type",
+            )
+            .with_observations(typed_return_locations)
+            .with_help("Explicit the function's return type as it's not defined."),
+        );
+
+        return ERROR;
+    };
+
+    if matches!(body.as_ref(), Expr::Block(_)) {
         diagnostics.push(
             Diagnostic::new(
                 DiagnosticID::CannotInfer,
@@ -148,6 +134,41 @@ pub(super) fn infer_return(
             )
             .with_observations(typed_return_locations)
             .with_help("Try adding an explicit return type to the function"),
+        );
+
+        return ERROR;
+    }
+    let segment = func.segment().start..body.segment().start;
+    let types: Vec<_> = exploration.returns.iter().map(|ret| ret.ty).collect();
+    let unify = convert_many(exploration, types);
+
+    if let Ok(common_type) = unify {
+        diagnostics.push(
+            Diagnostic::new(
+                DiagnosticID::CannotInfer,
+                "Return type inference is not supported yet",
+            )
+            .with_observation(Observation::context(
+                links.source,
+                segment,
+                "No return type is specified",
+            ))
+            .with_observations(typed_return_locations)
+            .with_help(format!(
+                "Add -> {} to the function declaration",
+                exploration.get_type(common_type).unwrap()
+            )),
+        );
+    } else {
+        diagnostics.push(
+            Diagnostic::new(DiagnosticID::CannotInfer, "Failed to infer return type")
+                .with_observation(Observation::context(
+                    links.source,
+                    segment,
+                    "This function returns multiple types",
+                ))
+                .with_observations(typed_return_locations)
+                .with_help("Try adding an explicit return type to the function"),
         );
     }
     ERROR
