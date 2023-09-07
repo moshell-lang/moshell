@@ -5,11 +5,13 @@ use context::source::SourceSegment;
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation, SourceLocation};
 use crate::environment::symbols::SymbolInfo;
 use crate::name::Name;
+use crate::reef::ReefId;
 use crate::relations::SourceId;
 
 pub fn diagnose_invalid_symbol(
     base_type: SymbolInfo,
     env_id: SourceId,
+    reef: ReefId,
     name: &Name,
     segments: &[SourceSegment],
 ) -> Diagnostic {
@@ -20,7 +22,7 @@ pub fn diagnose_invalid_symbol(
 
     let mut observations: Vec<_> = segments
         .iter()
-        .map(|seg| Observation::new(SourceLocation::new(env_id, seg.clone())))
+        .map(|seg| Observation::new(SourceLocation::new(env_id, reef, seg.clone())))
         .collect();
     observations.sort_by_key(|s| s.location.segment.start);
 

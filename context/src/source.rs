@@ -58,6 +58,7 @@ impl<'b> SourceCode for Source<'b> {
         let contents = self
             .source
             .read_span(span, context_lines_before, context_lines_after)?;
+
         Ok(Box::new(MietteSpanContents::new_named(
             self.name.to_owned(),
             contents.data(),

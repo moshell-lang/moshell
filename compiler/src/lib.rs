@@ -11,18 +11,18 @@ use analyzer::types::engine::{Chunk, TypedEngine};
 use context::source::ContentId;
 
 use crate::bytecode::{Bytecode, Instructions};
+use crate::captures::{Captures, ReefsCaptures};
 use crate::constant_pool::{ConstantPool, ExportedSymbol};
 use crate::emit::{emit, EmissionState, EmitterContext};
 use crate::locals::LocalsLayout;
 use crate::r#type::{get_type_stack_size, ValueStackSize};
 
 pub mod bytecode;
+pub mod captures;
 mod constant_pool;
 mod emit;
 mod locals;
 mod r#type;
-
-pub type Captures = Vec<Option<Vec<ResolvedSymbol>>>;
 
 pub trait SourceLineProvider {
     /// returns the line, starting from one, attributed to the given byte position of given content.
@@ -36,12 +36,15 @@ pub fn compile(
     relations: &Relations,
     link_engine: &Engine,
     externals: &Externals,
+    reefs_captures: &mut ReefsCaptures,
     reef_id: ReefId,
     starting_page: SourceId,
     writer: &mut impl Write,
     line_provider: Option<&dyn SourceLineProvider>,
 ) -> Result<(), io::Error> {
     let captures = resolve_captures(link_engine, relations, reef_id);
+    reefs_captures.insert(reef_id, captures);
+
     let mut bytecode = Bytecode::default();
     let mut cp = ConstantPool::default();
 
@@ -53,7 +56,7 @@ pub fn compile(
             link_engine,
             externals,
             main_env,
-            &captures,
+            reefs_captures,
             chunk_id,
         );
         compile_chunk(
@@ -77,8 +80,14 @@ pub fn compile(
         bytecode.emit_u32(defined_functions.len() as u32);
 
         for (chunk_id, env, chunk) in defined_functions {
-            let ctx =
-                EmitterContext::new(reef_id, link_engine, externals, env, &captures, chunk_id);
+            let ctx = EmitterContext::new(
+                reef_id,
+                link_engine,
+                externals,
+                env,
+                reefs_captures,
+                chunk_id,
+            );
             compile_chunk(
                 &env.fqn,
                 chunk,
@@ -186,7 +195,7 @@ fn resolve_captures(engine: &Engine, relations: &Relations, compiled_reef: ReefI
         compiled_reef: ReefId,
         engine: &Engine,
         relations: &Relations,
-        captures: &mut Captures,
+        captures: &mut Vec<Option<Vec<ResolvedSymbol>>>,
         externals: &mut HashSet<ResolvedSymbol>,
     ) {
         let env = engine.get_environment(chunk_id).unwrap();
@@ -247,7 +256,7 @@ fn resolve_captures(engine: &Engine, relations: &Relations, compiled_reef: ReefI
             &mut externals,
         );
     }
-    captures
+    Captures::new(captures)
 }
 
 /// compiles chunk's code attribute
@@ -270,7 +279,11 @@ fn compile_chunk_code(
 
     let locals_byte_count = bytecode.emit_u32_placeholder();
 
-    let chunk_captures = ctx.captures[chunk_id.0]
+    let chunk_captures = *ctx
+        .captures
+        .get(&ctx.current_reef)
+        .unwrap()
+        .get(chunk_id)
         .as_ref()
         .expect("unresolved capture after resolution");
 
@@ -380,6 +393,7 @@ fn write_exported(pool: &mut ConstantPool, bytecode: &mut Bytecode) -> Result<()
 mod tests {
     use pretty_assertions::assert_eq;
 
+    use crate::captures::Captures;
     use analyzer::importer::StaticImporter;
     use analyzer::name::Name;
     use analyzer::reef::{Externals, ReefId};
@@ -425,7 +439,7 @@ mod tests {
 
         assert_eq!(
             captures,
-            vec![
+            Captures::new(vec![
                 Some(vec![]), //root
                 Some(vec![]), //foo
                 Some(vec![
@@ -450,7 +464,7 @@ mod tests {
                     //bar2
                     ResolvedSymbol::new(reef_id, SourceId(1), LocalId(0)),
                 ]),
-            ]
+            ])
         )
     }
 }

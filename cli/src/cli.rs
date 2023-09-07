@@ -1,10 +1,10 @@
 use analyzer::diagnostic::Diagnostic;
-use analyzer::importer::ASTImporter;
 
 use analyzer::reef::Externals;
 use analyzer::relations::SourceId;
 use analyzer::Analyzer;
 use clap::Parser;
+use compiler::captures::ReefsCaptures;
 use compiler::{compile, SourceLineProvider};
 use context::source::ContentId;
 use dbg_pls::color;
@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use vm::{VmError, VM};
 
 use crate::disassemble::display_bytecode;
-use crate::pipeline::{ErrorReporter, FileImportError, PipelineStatus, SourceHolder};
+use crate::pipeline::{ErrorReporter, FileImportError, FileImporter, PipelineStatus, SourceHolder};
 use crate::report::{display_diagnostic, display_parse_error};
 
 #[derive(Parser)]
@@ -81,8 +81,9 @@ pub fn use_pipeline<'a>(
     analyzer: &Analyzer<'_>,
     externals: &Externals,
     vm: &mut VM,
+    reefs_captures: &mut ReefsCaptures,
     diagnostics: Vec<Diagnostic>,
-    importer: &mut (impl ASTImporter<'a> + ErrorReporter),
+    importer: &mut FileImporter,
     config: &Cli,
 ) -> PipelineStatus {
     let errors = importer.take_errors();
@@ -97,7 +98,7 @@ pub fn use_pipeline<'a>(
             FileImportError::Parse(report) => {
                 for error in report.errors {
                     display_parse_error(
-                        importer.get_source(report.source).unwrap(),
+                        importer.sources().get_source(report.source).unwrap(),
                         error,
                         &mut stderr(),
                     )
@@ -129,22 +130,32 @@ pub fn use_pipeline<'a>(
     let mut stderr = stderr();
     let had_errors = !diagnostics.is_empty();
     for diagnostic in diagnostics {
-        display_diagnostic(engine, importer, diagnostic, &mut stderr)
-            .expect("IO errors when reporting diagnostic");
+        display_diagnostic(
+            externals,
+            engine,
+            externals.current,
+            importer.sources(),
+            diagnostic,
+            &mut stderr,
+        )
+        .expect("IO errors when reporting diagnostic");
     }
 
     if had_errors {
         return PipelineStatus::AnalysisError;
     }
     let mut bytes = Vec::new();
-    let contents = importer.list_content_ids();
-    let lines = CachedSourceLocationLineProvider::compute(&contents, importer);
+
+    let sources = importer.sources();
+    let contents = sources.list_content_ids();
+    let lines = CachedSourceLocationLineProvider::compute(&contents, sources);
 
     compile(
         &analyzer.engine,
         &analyzer.resolution.relations,
         &analyzer.resolution.engine,
         &externals,
+        reefs_captures,
         externals.current,
         starting_page,
         &mut bytes,

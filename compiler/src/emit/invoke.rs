@@ -134,9 +134,14 @@ pub fn emit_function_invocation(
 
     let (env, captures) = match function_call.definition {
         Definition::User(id) => {
-            let captures = ctx.captures[id.0]
+            let captures = *ctx
+                .captures
+                .get(&function_call.reef)
+                .unwrap()
+                .get(id)
                 .as_ref()
                 .expect("captures not set during function invocation emission");
+
             let env = ctx
                 .get_engine(function_call.reef)
                 .unwrap()

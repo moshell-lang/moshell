@@ -1,28 +1,41 @@
 use std::io;
 use std::io::BufRead;
 use std::io::Write;
+use std::path::PathBuf;
 
 use analyzer::importer::ImportResult;
 use analyzer::name::Name;
 use analyzer::reef::Externals;
 use analyzer::relations::SourceId;
 use analyzer::{Analyzer, Inject};
+use compiler::captures::ReefsCaptures;
 use context::source::OwnedSource;
 use lexer::is_unterminated;
 use vm::VM;
 
 use crate::cli::{use_pipeline, Cli};
-use crate::pipeline::{FileImporter, PipelineStatus};
+use crate::pipeline::{FileImporter, PipelineStatus, SourcesCache};
 use crate::report::print_flush;
 use crate::std::build_std;
 
 /// Indefinitely prompts a new expression from stdin and executes it.
-pub fn prompt(mut importer: FileImporter, config: &Cli) -> PipelineStatus {
+pub fn prompt(dir: PathBuf, config: &Cli) -> PipelineStatus {
     // Init a new pipeline that will be used to execute each expression.
     let mut externals = Externals::default();
+    let mut reefs_captures = ReefsCaptures::default();
+
+    let mut sources = SourcesCache::default();
 
     let mut vm = VM::new();
-    build_std(&mut externals, &mut vm, config);
+    build_std(
+        &mut externals,
+        &mut vm,
+        &mut sources,
+        &mut reefs_captures,
+        config,
+    );
+
+    let mut importer = FileImporter::new(&mut sources, dir);
 
     let mut analyzer = Analyzer::new();
 
@@ -60,6 +73,7 @@ pub fn prompt(mut importer: FileImporter, config: &Cli) -> PipelineStatus {
                 analysis.analyzer(),
                 &externals,
                 &mut vm,
+                &mut reefs_captures,
                 diagnostics,
                 &mut importer,
                 config,
@@ -82,6 +96,7 @@ pub fn prompt(mut importer: FileImporter, config: &Cli) -> PipelineStatus {
                 &analyzer,
                 &externals,
                 &mut vm,
+                &mut reefs_captures,
                 diagnostics,
                 &mut importer,
                 config,

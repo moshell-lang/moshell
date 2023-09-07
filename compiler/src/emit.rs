@@ -7,6 +7,7 @@ use analyzer::types::ty::TypeRef;
 use ast::value::LiteralValue;
 
 use crate::bytecode::{Instructions, Opcode, Placeholder};
+use crate::captures::ReefsCaptures;
 use crate::constant_pool::ConstantPool;
 use crate::emit::identifier::{expose_variable, Identifier};
 use crate::emit::invoke::{
@@ -15,7 +16,6 @@ use crate::emit::invoke::{
 use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
 use crate::emit::native::emit_natives;
 use crate::locals::LocalsLayout;
-use crate::Captures;
 
 mod identifier;
 mod invoke;
@@ -24,7 +24,7 @@ mod native;
 
 #[derive(Clone, Copy)]
 pub struct EmitterContext<'a, 'e> {
-    current_reef: ReefId,
+    pub(crate) current_reef: ReefId,
     engine: &'a Engine<'e>,
     externals: &'a Externals<'e>,
 
@@ -35,7 +35,7 @@ pub struct EmitterContext<'a, 'e> {
     pub(crate) environment: &'a Environment,
 
     /// The captures variables.
-    pub(crate) captures: &'a Captures,
+    pub(crate) captures: &'a ReefsCaptures,
 
     /// The current chunk id.
     pub(crate) chunk_id: SourceId,
@@ -47,7 +47,7 @@ impl<'a, 'e> EmitterContext<'a, 'e> {
         engine: &'a Engine<'e>,
         externals: &'a Externals<'e>,
         env: &'a Environment,
-        captures: &'a Captures,
+        captures: &'a ReefsCaptures,
         chunk_id: SourceId,
     ) -> Self {
         Self {

@@ -20,6 +20,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
         imports: &mut SourceImports,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
+        let reef_id = externals.current;
         //iterate over our unresolved imports
         for (unresolved, segment) in imports.take_unresolved_imports() {
             match unresolved {
@@ -32,6 +33,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                             Diagnostic::new(DiagnosticID::ImportResolution, "Invalid import")
                                 .with_observation(Observation::context(
                                     env_id,
+                                    reef_id,
                                     segment,
                                     format!("unable to find reef `{}`", loc.name.root()),
                                 )),
@@ -45,6 +47,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                                     // if the environment wasn't found, and its name was already known, push a diagnostic as it does not exists
                                     let diagnostic = diagnose_unresolved_import(
                                         env_id,
+                                        reef_id,
                                         name,
                                         None,
                                         segment.clone(),
@@ -97,6 +100,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                                     // the symbol inside the resolved environment could not be found
                                     let diagnostic = diagnose_unresolved_import(
                                         env_id,
+                                        reef_id,
                                         name,
                                         Some(found_env.fqn.clone()),
                                         segment.clone(),
@@ -122,7 +126,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                                 format!("unable to find reef `{}`.", loc.name.root()),
                             )
                             .with_observation(Observation::new(
-                                SourceLocation::new(env_id, segment),
+                                SourceLocation::new(env_id, reef_id, segment),
                             )),
                         ),
                         Some((engine, reef_id)) => {
@@ -133,6 +137,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                                     // if the environment wasn't found, and its name was already known, push a diagnostic as it does not exists
                                     let diagnostic = diagnose_unresolved_import(
                                         env_id,
+                                        reef_id,
                                         &name,
                                         None,
                                         segment.clone(),

@@ -7,6 +7,7 @@ use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::imports::SourceImports;
 use crate::name::Name;
+use crate::reef::ReefId;
 use crate::relations::{RelationId, SourceId, SymbolRef};
 
 /// Creates a diagnostic for a symbol being invalidated due to it's invalid import bound.
@@ -14,6 +15,7 @@ use crate::relations::{RelationId, SourceId, SymbolRef};
 pub fn diagnose_invalid_symbol_from_dead_import(
     engine: &Engine,
     env_id: SourceId,
+    reef: ReefId,
     env_imports: &SourceImports,
     relation: RelationId,
     name: &Name,
@@ -30,7 +32,7 @@ pub fn diagnose_invalid_symbol_from_dead_import(
 
     let mut segments: Vec<Observation> = segments
         .iter()
-        .map(|seg| (env_id, seg.clone()).into())
+        .map(|seg| (env_id, reef, seg.clone()).into())
         .collect();
 
     segments.sort_by_key(|s| s.location.segment.start);
@@ -38,6 +40,7 @@ pub fn diagnose_invalid_symbol_from_dead_import(
     Diagnostic::new(DiagnosticID::InvalidSymbol, msg)
         .with_observation(Observation::here(
             env_id,
+            reef,
             invalid_import_seg,
             "invalid import introduced here",
         ))
@@ -50,6 +53,7 @@ pub fn diagnose_invalid_symbol_from_dead_import(
 pub fn diagnose_unresolved_external_symbols(
     relation: RelationId,
     env_id: SourceId,
+    reef: ReefId,
     env: &Environment,
     name: &Name,
 ) -> Diagnostic {
@@ -63,7 +67,7 @@ pub fn diagnose_unresolved_external_symbols(
             SymbolRef::Local(_) => false,
             SymbolRef::External(g) => *g == relation,
         })
-        .map(|(seg, _)| (env_id, seg.clone()).into())
+        .map(|(seg, _)| (env_id, reef, seg.clone()).into())
         .collect();
 
     observations.sort_by_key(|s| s.location.segment.start);
@@ -74,6 +78,7 @@ pub fn diagnose_unresolved_external_symbols(
 /// Each `use` expressions that was referring to the unknown import will get a diagnostic
 pub fn diagnose_unresolved_import(
     env_id: SourceId,
+    reef: ReefId,
     imported_symbol_name: &Name,
     known_parent: Option<Name>,
     dependent_segment: SourceSegment,
@@ -90,5 +95,5 @@ pub fn diagnose_unresolved_import(
     );
 
     Diagnostic::new(DiagnosticID::ImportResolution, msg)
-        .with_observation((env_id, dependent_segment).into())
+        .with_observation((env_id, reef, dependent_segment).into())
 }

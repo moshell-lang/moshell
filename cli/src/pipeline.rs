@@ -68,12 +68,12 @@ pub enum FileImportError {
 }
 
 /// An importer that imports sources from the file system.
-pub struct FileImporter {
-    /// The root directory from which the files are read.
+pub struct FileImporter<'a> {
+    /// The root directories from which the files are read.
     root: PathBuf,
 
     /// The imported sources, as an importer is the owner of the sources.
-    sources: Vec<OwnedSource>,
+    sources: &'a mut SourcesCache,
 
     /// Paths exceptions to look for when importing a source.
     redirections: HashMap<Name, PathBuf>,
@@ -85,24 +85,34 @@ pub struct FileImporter {
     errors: Vec<FileImportError>,
 }
 
-impl FileImporter {
+#[derive(Default)]
+pub struct SourcesCache {
+    cache: Vec<OwnedSource>,
+}
+
+impl<'a> FileImporter<'a> {
     /// Creates a new file importer that will import sources from the given
     /// root directory.
-    pub fn new(root: PathBuf) -> Self {
+    pub fn new(sources: &'a mut SourcesCache, root: PathBuf) -> Self {
         Self {
+            sources,
             root,
-            sources: Vec::new(),
             redirections: HashMap::new(),
             errors: Vec::new(),
         }
     }
 
+    pub fn sources(&self) -> &SourcesCache {
+        &self.sources
+    }
+
     /// Inserts a new source into the importer.
-    pub fn insert<'a>(&mut self, source: OwnedSource) -> ImportResult<'a> {
-        let id = self.sources.len();
-        self.sources.push(source);
+    pub fn insert<'b>(&mut self, source: OwnedSource) -> ImportResult<'b> {
+        let id = self.sources.cache.len();
+        self.sources.cache.push(source);
         let source = self
             .sources
+            .cache
             .last()
             .expect("the source was just inserted")
             .as_source();
@@ -113,7 +123,7 @@ impl FileImporter {
                 // A Source is the reference version to the Strings inside the OwnedSource,
                 // so if the OwnedSource moves, the strings are still valid.
                 // 'a is used here to disambiguate the lifetime of the source and the mutable borrow.
-                std::mem::transmute::<Vec<Expr>, Vec<Expr<'a>>>(report.expr)
+                std::mem::transmute::<Vec<Expr>, Vec<Expr<'b>>>(report.expr)
             };
             ImportResult::Success(Imported {
                 content: ContentId(id),
@@ -149,7 +159,7 @@ impl FileImporter {
     }
 }
 
-impl<'a> ASTImporter<'a> for FileImporter {
+impl<'a, 'b> ASTImporter<'a> for FileImporter<'b> {
     fn import(&mut self, name: &Name) -> ImportResult<'a> {
         let path = self.get_search_path(name);
         match read_to_string(&path) {
@@ -181,24 +191,24 @@ pub trait SourceHolder {
 }
 
 /// A trait to access errors and to get sources from an importer.
-pub trait ErrorReporter: SourceHolder {
+pub trait ErrorReporter {
     /// Takes the errors from the importer.
     ///
     /// This leaves the importer in a state where it has no errors.
     fn take_errors(&mut self) -> Vec<FileImportError>;
 }
 
-impl SourceHolder for FileImporter {
+impl SourceHolder for SourcesCache {
     fn get_source(&self, id: ContentId) -> Option<Source> {
-        self.sources.get(id.0).map(|s| s.as_source())
+        self.cache.get(id.0).map(|s| s.as_source())
     }
 
     fn list_content_ids(&self) -> Vec<ContentId> {
-        (0..self.sources.len()).map(ContentId).collect()
+        (0..self.cache.len()).map(ContentId).collect()
     }
 }
 
-impl ErrorReporter for FileImporter {
+impl ErrorReporter for FileImporter<'_> {
     fn take_errors(&mut self) -> Vec<FileImportError> {
         std::mem::take(&mut self.errors)
     }

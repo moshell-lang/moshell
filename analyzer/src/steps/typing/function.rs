@@ -85,6 +85,7 @@ pub(super) fn infer_return(
         if convert_description(exploration, expected_return_type, ret.ty).is_err() {
             typed_return_locations.push(Observation::here(
                 links.source,
+                exploration.externals.current,
                 ret.segment.clone(),
                 if func.return_type.is_some() {
                     format!("Found `{}`", exploration.get_type(ret.ty).unwrap())
@@ -105,6 +106,7 @@ pub(super) fn infer_return(
                 .with_observations(typed_return_locations)
                 .with_observation(Observation::context(
                     links.source,
+                    exploration.externals.current,
                     return_type_annotation.segment(),
                     format!(
                         "Expected `{}` because of return type",
@@ -153,6 +155,7 @@ pub(super) fn infer_return(
             )
             .with_observation(Observation::context(
                 links.source,
+                exploration.externals.current,
                 segment,
                 "No return type is specified",
             ))
@@ -167,6 +170,7 @@ pub(super) fn infer_return(
             Diagnostic::new(DiagnosticID::CannotInfer, "Failed to infer return type")
                 .with_observation(Observation::context(
                     links.source,
+                    exploration.externals.current,
                     segment,
                     "This function returns multiple types",
                 ))
@@ -219,6 +223,7 @@ pub(super) fn type_call(
                     )
                     .with_observation(Observation::here(
                         links.source,
+                        exploration.externals.current,
                         call.segment.clone(),
                         "Function is called here",
                     )),
@@ -245,6 +250,8 @@ pub(super) fn type_call(
                                 diagnostics.push(diagnose_arg_mismatch(
                                     exploration,
                                     links.source,
+                                    exploration.externals.current,
+                                    fun_reef,
                                     &param,
                                     &arg,
                                 ));
@@ -269,6 +276,7 @@ pub(super) fn type_call(
                 )
                 .with_observation(Observation::here(
                     links.source,
+                    exploration.externals.current,
                     call.segment(),
                     format!("Call expression requires function, found `{ty}`"),
                 )),
@@ -314,6 +322,8 @@ pub(super) fn type_method<'a>(
         return None;
     }
 
+    let current_reef = exploration.externals.current;
+
     // Directly callable types just have a single method called `apply`
     let method_name = method_call.name.unwrap_or("apply");
     let type_methods = exploration.get_methods(callee.ty, method_name);
@@ -333,7 +343,7 @@ pub(super) fn type_method<'a>(
                     )
                 },
             )
-            .with_observation((source, method_call.segment.clone()).into()),
+            .with_observation((source, current_reef, method_call.segment.clone()).into()),
         );
         return None;
     }
@@ -363,6 +373,7 @@ pub(super) fn type_method<'a>(
                 )
                 .with_observation(Observation::here(
                     source,
+                    current_reef,
                     method_call.segment(),
                     "Method is called here",
                 ))
@@ -380,12 +391,20 @@ pub(super) fn type_method<'a>(
         } else {
             for (param, arg) in method.parameters.iter().zip(arguments.iter()) {
                 if convert_description(exploration, param.ty, arg.ty).is_err() {
-                    let diagnostic = diagnose_arg_mismatch(exploration, source, param, arg)
-                        .with_observation(Observation::here(
-                            source,
-                            method_call.segment(),
-                            "Arguments to this method are incorrect",
-                        ));
+                    let diagnostic = diagnose_arg_mismatch(
+                        exploration,
+                        source,
+                        current_reef,
+                        callee.ty.reef,
+                        param,
+                        arg,
+                    )
+                    .with_observation(Observation::here(
+                        source,
+                        current_reef,
+                        method_call.segment(),
+                        "Arguments to this method are incorrect",
+                    ));
                     diagnostics.push(diagnostic);
                 }
             }
@@ -402,6 +421,7 @@ pub(super) fn type_method<'a>(
             )
             .with_observation(Observation::here(
                 source,
+                current_reef,
                 method_call.segment(),
                 "Method is called here",
             )),
@@ -414,12 +434,15 @@ pub(super) fn type_method<'a>(
 fn diagnose_arg_mismatch(
     exploration: &Exploration,
     source: SourceId,
+    current_reef: ReefId,
+    param_reef: ReefId,
     param: &Parameter,
     arg: &TypedExpr,
 ) -> Diagnostic {
     let diagnostic = Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch").with_observation(
         Observation::here(
             source,
+            current_reef,
             arg.segment.clone(),
             format!(
                 "Expected `{}`, found `{}`",
@@ -431,6 +454,7 @@ fn diagnose_arg_mismatch(
     if let Some(location) = &param.location {
         diagnostic.with_observation(Observation::context(
             location.source,
+            param_reef,
             location.segment.clone(),
             "Parameter is declared here",
         ))
@@ -472,7 +496,11 @@ pub(super) fn type_parameter(
                 resolve_type(exploration, links, ty, diagnostics)
             });
             Parameter {
-                location: Some(SourceLocation::new(links.source, named.segment.clone())),
+                location: Some(SourceLocation::new(
+                    links.source,
+                    exploration.externals.current,
+                    named.segment.clone(),
+                )),
                 ty: type_id,
             }
         }
