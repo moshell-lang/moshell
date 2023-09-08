@@ -76,6 +76,7 @@ impl SourceLineProvider for CachedSourceLocationLineProvider {
 }
 
 #[must_use = "The pipeline status should be checked"]
+#[allow(clippy::too_many_arguments)]
 pub fn use_pipeline(
     starting_page: SourceId,
     analyzer: &Analyzer<'_>,
@@ -154,7 +155,7 @@ pub fn use_pipeline(
         &analyzer.engine,
         &analyzer.resolution.relations,
         &analyzer.resolution.engine,
-        &externals,
+        externals,
         reefs_captures,
         externals.current,
         starting_page,

@@ -150,7 +150,7 @@ fn apply_types_to_source(
     match expr {
         Expr::FunctionDeclaration(func) => {
             for param in &func.parameters {
-                let param = type_parameter(exploration, param, links, diagnostics);
+                let param = type_parameter(exploration, param, links);
                 exploration.ctx.push_local_typed(source_id, param.ty);
             }
 
@@ -170,7 +170,7 @@ fn apply_types_to_source(
             let chunk_params = func
                 .parameters
                 .iter()
-                .map(|param| type_parameter(exploration, param, links, diagnostics))
+                .map(|param| type_parameter(exploration, param, links))
                 .collect();
 
             if let Some(body) = typed_body {
@@ -613,11 +613,12 @@ fn ascribe_function_declaration(
     let parameters = fun
         .parameters
         .iter()
-        .map(|param| type_parameter(exploration, param, declaration_link, &mut Vec::new())) // Silent errors
+        .map(|param| type_parameter(exploration, param, declaration_link)) // Silent errors
         .collect::<Vec<_>>();
-    let return_type = fun.return_type.as_ref().map_or(UNIT, |ty| {
-        resolve_type(exploration, declaration_link, ty, &mut Vec::new())
-    }); // Silent errors
+    let return_type = fun
+        .return_type
+        .as_ref()
+        .map_or(UNIT, |ty| resolve_type(exploration, declaration_link, ty)); // Silent errors
 
     exploration.type_engine.insert_if_absent(
         declaration,
@@ -696,7 +697,7 @@ fn ascribe_casted(
 ) -> TypedExpr {
     let expr = ascribe_types(exploration, links, diagnostics, &casted.expr, state);
 
-    let ty = resolve_type(exploration, links, &casted.casted_type, diagnostics);
+    let ty = resolve_type(exploration, links, &casted.casted_type);
 
     if expr.ty.is_ok() && convert_description(exploration, ty, expr.ty).is_err() {
         diagnostics.push(

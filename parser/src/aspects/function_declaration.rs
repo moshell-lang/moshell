@@ -32,6 +32,8 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
             )?
             .value;
 
+        let segment_start = self.cursor.relative_pos(fun).start;
+
         //consume blanks for each function declaration components
         self.cursor.advance(blanks());
         let name = self.parse_fn_declaration_name()?;
@@ -39,34 +41,48 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
         let tparams = self.parse_type_parameter_list()?.0;
         self.cursor.advance(blanks());
         let params = self.parse_fn_parameter_list()?;
-        let params_end = self.cursor.peek();
+
+        if let Some(token) = self.cursor.lookahead(blanks().then(of_type(SemiColon))) {
+            return Ok(FunctionDeclaration {
+                name,
+                type_parameters: tparams,
+                parameters: params,
+                return_type: None,
+                body: None,
+                segment: segment_start..self.cursor.relative_pos_ctx(token).end,
+            });
+        }
+
         let rtype = self.parse_fn_return_type()?;
+
+        if let Some(token) = self.cursor.lookahead(blanks().then(of_type(SemiColon))) {
+            return Ok(FunctionDeclaration {
+                name,
+                type_parameters: tparams,
+                parameters: params,
+                return_type: rtype,
+                body: None,
+                segment: segment_start..self.cursor.relative_pos_ctx(token).end,
+            });
+        }
 
         let body = self
             .cursor
-            .advance(blanks().then(of_type(Equal)))
-            .map(|_| {
+            .force(blanks().then(of_type(Equal)), "`=` expected")
+            .and_then(|_| {
                 self.cursor.advance(blanks());
                 self.statement()
             })
-            .transpose()?
-            .map(Box::new);
+            .map(Box::new)?;
 
-        let segment_start = self.cursor.relative_pos(fun).start;
-        let segment_end = body
-            .as_ref()
-            .map(|b| b.segment().end)
-            .or_else(|| rtype.as_ref().map(|r| r.segment().end))
-            .unwrap_or_else(|| self.cursor.relative_pos(params_end).end);
-
-        let segment = segment_start..segment_end;
+        let segment = segment_start..body.segment().end;
 
         Ok(FunctionDeclaration {
             name,
             type_parameters: tparams,
             parameters: params,
             return_type: rtype,
-            body,
+            body: Some(body),
             segment,
         })
     }
@@ -351,6 +367,20 @@ mod tests {
     }
 
     #[test]
+    fn function_invalid_body() {
+        let src = "fun foo() \n {}";
+        let errs = parse(Source::unknown(src)).errors;
+        assert_eq!(
+            errs,
+            vec![ParseError {
+                message: "`=` expected".to_string(),
+                position: src.find("{").map(|i| i..i + 1).unwrap(),
+                kind: ParseErrorKind::Unexpected,
+            }]
+        );
+    }
+
+    #[test]
     fn functions_with_blanks() {
         let src = Source::unknown("fun test()\n -> Float\n =\n    2.0");
         let ast = parse(src).expect("parse failed");
@@ -422,7 +452,7 @@ mod tests {
 
     #[test]
     fn function_declaration_no_body() {
-        let source = Source::unknown("fun non_implemented_function(x)");
+        let source = Source::unknown("fun non_implemented_function(x);");
         let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,

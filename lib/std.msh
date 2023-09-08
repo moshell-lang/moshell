@@ -1,15 +1,32 @@
-fun panic(message: String) -> Nothing
+/// makes the runtime panic, with specified message and callstack trace.
+/// once executed the process will exit with code 1.
+/// @param message the cause of the panic
+fun panic(message: String) -> Nothing;
 
-fun exit(code: Exitcode) -> Nothing
+/// exits program with given exitcode
+/// @param code program's exitcode
+fun exit(code: Exitcode) -> Nothing;
 
-fun env(name: String) -> String
+/// @returns string value of given environment variable
+/// @panics if the environment variable isn't set
+fun env(name: String) -> String;
 
-fun set_env(name: String, value: String)
+/// set or override a given environment variable with given string value.
+/// @param name the targeted environment variable name.
+/// @param value the new value of targeted variable.
+fun set_env(name: String, value: String);
 
-fun is_env_def(name: String) -> Bool
+/// tests if given environment variable is defined
+/// @returns true if the given environment variable has a defined value
+/// @param name the targeted environment variable name
+fun is_env_def(name: String) -> Bool;
 
-fun read_line() -> String
+/// reads a line from stdin
+fun read_line() -> String;
 
+/// aborts runtime
+/// prints given message to stderr and then exit with exitcode 1
+/// unlike [[reef::std::panic]], this function does not print the callstack trace
 fun abort(message: String) -> Nothing = {
     echo $message >&2
     exit(reef::std::convert::to_exitcode(1))

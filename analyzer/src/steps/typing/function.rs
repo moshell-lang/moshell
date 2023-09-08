@@ -74,7 +74,7 @@ pub(super) fn infer_return(
 
     let expected_return_type = if let Some(return_type_annotation) = func.return_type.as_ref() {
         // An explicit return type is present, check it against all the return types.
-        resolve_type(exploration, links, return_type_annotation, diagnostics)
+        resolve_type(exploration, links, return_type_annotation)
     } else {
         UNIT
     };
@@ -200,7 +200,7 @@ pub(super) fn type_call(
     };
 
     let type_ref = exploration
-        .get_var(fun_source, call_symbol_ref, &links.relations)
+        .get_var(fun_source, call_symbol_ref, links.relations)
         .unwrap()
         .type_ref;
 
@@ -488,13 +488,13 @@ pub(super) fn type_parameter(
     exploration: &mut Exploration,
     param: &FunctionParameter,
     links: Links,
-    diagnostics: &mut Vec<Diagnostic>,
 ) -> Parameter {
     match param {
         FunctionParameter::Named(named) => {
-            let type_id = named.ty.as_ref().map_or(STRING, |ty| {
-                resolve_type(exploration, links, ty, diagnostics)
-            });
+            let type_id = named
+                .ty
+                .as_ref()
+                .map_or(STRING, |ty| resolve_type(exploration, links, ty));
             Parameter {
                 location: Some(SourceLocation::new(
                     links.source,

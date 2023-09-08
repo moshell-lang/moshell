@@ -4,6 +4,7 @@ use analyzer::name::Name;
 use analyzer::reef::{Externals, ReefId};
 use analyzer::relations::SourceId;
 use ast::Expr;
+use compiler::captures::ReefsCaptures;
 use compiler::compile;
 use context::source::{ContentId, Source};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
@@ -28,6 +29,7 @@ fn prepare_bytecode(code: &str) -> Vec<u8> {
     let mut bytes = Vec::new();
     let expr = parse_trusted(Source::new(code, "test"));
     let externals = Externals::default();
+    let mut captures = ReefsCaptures::default();
     let mut analyzer = analyze(
         Name::new("test"),
         &mut SingleImporter(Some(expr)),
@@ -37,8 +39,10 @@ fn prepare_bytecode(code: &str) -> Vec<u8> {
 
     compile(
         &analyzer.engine,
-        &analyzer.resolution.engine,
         &analyzer.resolution.relations,
+        &analyzer.resolution.engine,
+        &externals,
+        &mut captures,
         ReefId(1),
         SourceId(0),
         &mut bytes,

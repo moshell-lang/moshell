@@ -83,7 +83,6 @@ pub(super) fn resolve_type(
     exploration: &mut Exploration,
     links: Links,
     type_annotation: &ast::r#type::Type,
-    _diagnostics: &mut [Diagnostic],
 ) -> TypeRef {
     match type_annotation {
         ast::r#type::Type::Parametrized(param) => {
@@ -137,7 +136,7 @@ pub(super) fn check_type_annotation(
         return value;
     }
 
-    let expected_type = resolve_type(exploration, links, type_annotation, diagnostics);
+    let expected_type = resolve_type(exploration, links, type_annotation);
     let current_reef = exploration.externals.current;
 
     convert_expression(value, expected_type, exploration, links.source, diagnostics).unwrap_or_else(

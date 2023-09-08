@@ -1,7 +1,12 @@
-fun to_exitcode(i: Int) -> Exitcode
+/// converts given int value to an exitcode
+/// @panics if i cannot be converted to an exitcode, i.e it is negative or superior to 256
+fun to_exitcode(i: Int) -> Exitcode;
 
-fun trunc(f: Float) -> Int
+/// @returns
+fun ceil(f: Float) -> Int;
 
-fun ceil(f: Float) -> Int
+/// @returns smallest int value not less than `f`
+fun floor(f: Float) -> Int;
 
-fun round(f: Float) -> Int
+/// @returns nearest int value
+fun round(f: Float) -> Int;

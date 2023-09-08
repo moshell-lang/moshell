@@ -36,7 +36,10 @@ void str_eq(OperandStack &caller_stack, StringsHeap &) {
 
 void get_env(OperandStack &caller_stack, StringsHeap &strings) {
     const std::string &var_name = *(const std::string *)caller_stack.pop_reference();
-    const std::string value = getenv(var_name.c_str());
+    char *value = getenv(var_name.c_str());
+    if (value == nullptr) {
+        throw RuntimeException("Environment variable " + var_name + " isn't defined.");
+    }
     caller_stack.push_reference((uint64_t)&strings.insert(value));
 }
 
@@ -77,10 +80,10 @@ void to_exitcode(OperandStack &caller_stack, StringsHeap &) {
     caller_stack.push_byte((uint8_t)i);
 }
 
-void truncate(OperandStack &caller_stack, StringsHeap &) {
+void floor(OperandStack &caller_stack, StringsHeap &) {
     double d = caller_stack.pop_double();
 
-    caller_stack.push_int((int64_t)std::trunc(d));
+    caller_stack.push_int((int64_t)std::floor(d));
 }
 
 void ceil(OperandStack &caller_stack, StringsHeap &) {
@@ -111,8 +114,8 @@ load_natives(StringsHeap &strings) {
     map[&strings.insert("std::read_line")] = read_line;
 
     map[&strings.insert("std::convert::to_exitcode")] = to_exitcode;
-    map[&strings.insert("std::convert::trunc")] = truncate;
     map[&strings.insert("std::convert::ceil")] = ceil;
+    map[&strings.insert("std::convert::floor")] = floor;
     map[&strings.insert("std::convert::round")] = round;
     return map;
 }
