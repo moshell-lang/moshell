@@ -10,9 +10,7 @@ fun is_env_def(name: String) -> Bool
 
 fun read_line() -> String
 
-fun to_exitcode(i: Int) -> Exitcode
-
 fun abort(message: String) -> Nothing = {
     echo $message >&2
-    exit(to_exitcode(1))
+    exit(reef::std::convert::to_exitcode(1))
 }

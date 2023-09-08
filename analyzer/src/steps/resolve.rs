@@ -239,6 +239,8 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                 //ultimate step is to try to resolve this symbol as an absolute symbol.
                 if result == SymbolResolutionResult::NotFound {
                     result = resolve_loc(symbol_loc, self.engine, self.externals)
+                        //cannot reference to self content if location does not explicitly references current reef
+                        .filter(|(_, id)| *id != self.externals.current)
                         .map(|(engine, id)| {
                             Self::resolve_absolute_symbol(engine, symbol_name, id, registry)
                         })

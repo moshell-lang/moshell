@@ -1,19 +1,17 @@
-use ::std::ffi::OsStr;
-use ::std::path::PathBuf;
-use analyzer::Analyzer;
-use clap::Parser;
-use miette::{IntoDiagnostic, MietteHandlerOpts, WrapErr};
-
-use analyzer::name::Name;
-use analyzer::reef::Externals;
-use analyzer::relations::SourceId;
-use compiler::captures::ReefsCaptures;
-use vm::VM;
-
 use crate::cli::{use_pipeline, Cli};
 use crate::pipeline::{FileImporter, PipelineStatus, SourcesCache};
 use crate::repl::prompt;
 use crate::std::build_std;
+use ::std::ffi::OsStr;
+use ::std::path::Path;
+use analyzer::name::Name;
+use analyzer::reef::Externals;
+use analyzer::relations::SourceId;
+use analyzer::Analyzer;
+use clap::Parser;
+use compiler::captures::ReefsCaptures;
+use miette::{Context, IntoDiagnostic, MietteHandlerOpts};
+use vm::VM;
 
 mod cli;
 mod disassemble;
@@ -55,7 +53,7 @@ fn main() -> Result<PipelineStatus, miette::Error> {
     Ok(prompt(current_dir, &cli))
 }
 
-fn run(source: &PathBuf, cli: &Cli) -> Result<PipelineStatus, miette::Error> {
+fn run(source: &Path, cli: &Cli) -> Result<PipelineStatus, miette::Error> {
     let name = Name::new(
         source
             .file_name()
@@ -77,21 +75,21 @@ fn run(source: &PathBuf, cli: &Cli) -> Result<PipelineStatus, miette::Error> {
     );
 
     let folder_path = {
-        let mut path = source.clone();
+        let mut path = source.to_path_buf();
         path.pop();
         path
     };
 
     let mut importer = FileImporter::new(&mut sources, folder_path);
 
-    importer.add_redirection(name.clone(), source.clone());
+    importer.add_redirection(name.clone(), source.to_path_buf());
 
     let mut analyzer = Analyzer::new();
 
     analyzer.process(name.clone(), &mut importer, &externals);
 
     let diagnostics = analyzer.take_diagnostics();
-    return Ok(use_pipeline(
+    Ok(use_pipeline(
         SourceId(0),
         &analyzer,
         &externals,
@@ -100,5 +98,5 @@ fn run(source: &PathBuf, cli: &Cli) -> Result<PipelineStatus, miette::Error> {
         diagnostics,
         &mut importer,
         cli,
-    ));
+    ))
 }

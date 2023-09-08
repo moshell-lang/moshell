@@ -31,6 +31,7 @@ pub trait SourceLineProvider {
 
 const MAPPINGS_ATTRIBUTE: u8 = 1;
 
+#[allow(clippy::too_many_arguments)]
 pub fn compile(
     typed_engine: &TypedEngine,
     relations: &Relations,

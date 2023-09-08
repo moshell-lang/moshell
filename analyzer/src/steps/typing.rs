@@ -748,6 +748,7 @@ fn ascribe_unary(
         UnaryOperator::Not => ascribe_not(expr, unary.segment(), exploration, links, diagnostics),
         UnaryOperator::Negate => {
             let method = exploration.get_method_exact(expr.ty, "neg", &[], expr.ty);
+
             match method {
                 Some(method) => TypedExpr {
                     kind: ExprKind::MethodCall(MethodCall {
@@ -790,7 +791,6 @@ fn ascribe_not(
         .typed_engine
         .get_method_exact(BOOL.type_id, "not", &[], BOOL)
         .expect("A Bool should be invertible");
-
     match convert_expression(not, BOOL, exploration, links.source, diagnostics) {
         Ok(expr) => TypedExpr {
             kind: ExprKind::MethodCall(MethodCall {

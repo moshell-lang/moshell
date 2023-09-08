@@ -1,0 +1,7 @@
+fun to_exitcode(i: Int) -> Exitcode
+
+fun trunc(f: Float) -> Int
+
+fun ceil(f: Float) -> Int
+
+fun round(f: Float) -> Int

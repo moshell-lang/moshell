@@ -1,5 +1,6 @@
 #include "stdlib_natives.h"
 #include "interpreter.h"
+#include <cmath>
 #include <iostream>
 #include <limits>
 
@@ -76,6 +77,24 @@ void to_exitcode(OperandStack &caller_stack, StringsHeap &) {
     caller_stack.push_byte((uint8_t)i);
 }
 
+void truncate(OperandStack &caller_stack, StringsHeap &) {
+    double d = caller_stack.pop_double();
+
+    caller_stack.push_int((int64_t)std::trunc(d));
+}
+
+void ceil(OperandStack &caller_stack, StringsHeap &) {
+    double d = caller_stack.pop_double();
+
+    caller_stack.push_int((int64_t)std::ceil(d));
+}
+
+void round(OperandStack &caller_stack, StringsHeap &) {
+    double d = caller_stack.pop_double();
+
+    caller_stack.push_int((int64_t)std::round(d));
+}
+
 natives_functions_t
 load_natives(StringsHeap &strings) {
     natives_functions_t map;
@@ -90,6 +109,10 @@ load_natives(StringsHeap &strings) {
     map[&strings.insert("std::panic")] = panic;
     map[&strings.insert("std::exit")] = exit;
     map[&strings.insert("std::read_line")] = read_line;
-    map[&strings.insert("std::to_exitcode")] = to_exitcode;
+
+    map[&strings.insert("std::convert::to_exitcode")] = to_exitcode;
+    map[&strings.insert("std::convert::trunc")] = truncate;
+    map[&strings.insert("std::convert::ceil")] = ceil;
+    map[&strings.insert("std::convert::round")] = round;
     return map;
 }

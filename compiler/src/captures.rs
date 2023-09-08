@@ -28,6 +28,6 @@ impl ReefsCaptures {
     }
 
     pub fn get(&self, reef: &ReefId) -> Option<&Captures> {
-        self.map.get(&reef)
+        self.map.get(reef)
     }
 }

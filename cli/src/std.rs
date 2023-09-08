@@ -14,8 +14,8 @@ pub fn build_std(
     sources: &mut SourcesCache,
     captures: &mut ReefsCaptures,
     config: &Cli,
-) -> PipelineStatus {
-    let mut importer = FileImporter::new(sources, PathBuf::from("lib/std"));
+) {
+    let mut importer = FileImporter::new(sources, PathBuf::from("lib"));
 
     let mut analyzer = analyze(Name::new("std"), &mut importer, externals);
     let diagnostics = analyzer.take_diagnostics();
@@ -32,5 +32,7 @@ pub fn build_std(
     );
     externals.register(Reef::new("std".to_string(), analyzer));
 
-    status
+    if status != PipelineStatus::Success {
+        panic!("std build did not build successfully")
+    }
 }

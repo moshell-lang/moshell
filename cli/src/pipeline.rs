@@ -103,7 +103,7 @@ impl<'a> FileImporter<'a> {
     }
 
     pub fn sources(&self) -> &SourcesCache {
-        &self.sources
+        self.sources
     }
 
     /// Inserts a new source into the importer.

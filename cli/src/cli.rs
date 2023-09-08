@@ -76,7 +76,7 @@ impl SourceLineProvider for CachedSourceLocationLineProvider {
 }
 
 #[must_use = "The pipeline status should be checked"]
-pub fn use_pipeline<'a>(
+pub fn use_pipeline(
     starting_page: SourceId,
     analyzer: &Analyzer<'_>,
     externals: &Externals,
