@@ -1,11 +1,11 @@
 use context::source::SourceSegmentHolder;
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
-use crate::steps::typing::exploration::UniversalReefAccessor;
-use crate::steps::typing::TypingState;
+use crate::relations::SourceId;
+use crate::steps::typing::exploration::Exploration;
 use crate::types::hir::{ExprKind, MethodCall, TypedExpr};
 use crate::types::ty::{Type, TypeRef};
-use crate::types::{get_type, BOOL, FLOAT, STRING};
+use crate::types::{BOOL, FLOAT, STRING};
 
 pub fn get_converter(ty: TypeRef) -> Option<&'static str> {
     Some(match ty {
@@ -19,17 +19,17 @@ pub fn get_converter(ty: TypeRef) -> Option<&'static str> {
 /// Try to convert an expression into a string.
 pub(super) fn convert_into_string(
     expr: TypedExpr,
-    ura: &UniversalReefAccessor,
+    exploration: &Exploration,
     diagnostics: &mut Vec<Diagnostic>,
-    state: TypingState,
+    source: SourceId,
 ) -> TypedExpr {
     call_convert_on(
         expr,
         STRING,
-        ura,
+        exploration,
         |ty| format!("Cannot stringify type `{ty}`"),
         diagnostics,
-        state,
+        source,
     )
 }
 
@@ -41,10 +41,10 @@ pub(super) fn convert_into_string(
 pub(super) fn call_convert_on(
     expr: TypedExpr,
     into: TypeRef,
-    ura: &UniversalReefAccessor,
+    exploration: &Exploration,
     message: impl FnOnce(&Type) -> String,
     diagnostics: &mut Vec<Diagnostic>,
-    state: TypingState,
+    source: SourceId,
 ) -> TypedExpr {
     // If the expression is already of the needed type, we don't need to do anything.
     // The `Nothing` type can be converted to anything, so we also return early.
@@ -60,23 +60,17 @@ pub(super) fn call_convert_on(
                     DiagnosticID::UnknownMethod,
                     format!(
                         "No conversion method defined for type `{}`",
-                        get_type(into, ura).unwrap()
+                        exploration.get_type(into).unwrap()
                     ),
                 )
-                .with_observation((state.source, expr.segment()).into()),
+                .with_observation((source, expr.segment()).into()),
             );
             return expr;
         }
     };
 
     // Else, we try to find the expected conversion method on the expression's type
-
-    if let Some(method) = ura
-        .get_types(expr.ty.reef)
-        .unwrap()
-        .engine
-        .get_method_exact(expr.ty.type_id, method_name, &[], into)
-    {
+    if let Some(method) = exploration.get_method_exact(expr.ty, method_name, &[], into) {
         let segment = expr.segment.clone();
         return TypedExpr {
             kind: ExprKind::MethodCall(MethodCall {
@@ -89,11 +83,11 @@ pub(super) fn call_convert_on(
         };
     }
 
-    let ty = get_type(expr.ty, ura).unwrap();
+    let ty = exploration.get_type(expr.ty).unwrap();
     diagnostics.push(
         Diagnostic::new(DiagnosticID::TypeMismatch, message(ty)).with_observation(
             Observation::here(
-                state.source,
+                source,
                 expr.segment(),
                 format!("No method `{method_name}` on type `{ty}`"),
             ),

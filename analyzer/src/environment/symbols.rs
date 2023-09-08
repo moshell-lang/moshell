@@ -2,11 +2,12 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
+use crate::engine::Engine;
 use ast::r#use::InclusionPathItem;
 use context::source::{SourceSegment, SourceSegmentHolder};
 
 use crate::name::Name;
-use crate::reef::{Reef, ReefContext, ReefId};
+use crate::reef::{Externals, ReefId};
 use crate::relations::{LocalId, RelationId, SymbolRef};
 use crate::types::ty::TypeRef;
 
@@ -100,9 +101,7 @@ impl SymbolLocation {
     /// If the [`must_be_relative`] flag is set, the path must not contain any [InclusionPathItem::Reef] to be valid.
     ///
     /// The function can also fail if the `must_be_relative`
-    pub fn compute<'a>(
-        path: &'a [InclusionPathItem<'a>]
-    ) -> Result<Self, Vec<SourceSegment>> {
+    pub fn compute<'a>(path: &'a [InclusionPathItem<'a>]) -> Result<Self, Vec<SourceSegment>> {
         let current_reef = path
             .first()
             .is_some_and(|f| matches!(f, InclusionPathItem::Reef(_)));
@@ -135,14 +134,17 @@ impl SymbolLocation {
 
 pub fn resolve_loc<'a, 'e>(
     loc: &SymbolLocation,
-    ctx: &'a ReefContext<'a, 'e>,
-) -> Option<(&'a Reef<'e>, ReefId)> {
+    current: &'a Engine<'e>,
+    externals: &'a Externals<'e>,
+) -> Option<(&'a Engine<'e>, ReefId)> {
     if loc.is_current_reef_explicit {
-        return Some((ctx.current_reef(), ctx.reef_id));
+        Some((current, externals.current))
+    } else {
+        let reef_name = loc.name.root();
+        externals
+            .get_reef_by_name(reef_name)
+            .map(|(reef, id)| (&reef.engine, id))
     }
-
-    let reef_name = loc.name.root();
-    ctx.reefs().get_reef_by_name(reef_name)
 }
 
 /// A collection of variables
@@ -220,7 +222,7 @@ impl Symbols {
             .vars
             .iter()
             .enumerate()
-            .filter(|(_, var)| var.depth == -1)
+            .filter(|(_, var)| var.is_exported())
             .map(|(id, var)| (LocalId(id), var))
     }
 

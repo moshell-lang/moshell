@@ -4,17 +4,18 @@ use crate::environment::symbols::{resolve_loc, SymbolRegistry};
 use crate::environment::Environment;
 use crate::imports::{ResolvedImport, SourceImports, UnresolvedImport};
 use crate::name::Name;
-use crate::reef::ReefContext;
+use crate::reef::Externals;
 use crate::relations::{ResolvedSymbol, SourceId};
 use crate::steps::resolve::{diagnose_unresolved_import, SymbolResolver};
 use std::collections::HashMap;
 
-impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
+impl<'a, 'e> SymbolResolver<'a, 'e> {
     /// Attempts to resolve all given unresolved imports, returning a [ResolvedImports] structure containing the
     /// imports that could get resolved.
     /// This method will append a new diagnostic for each imports that could not be resolved.
     pub fn resolve_imports(
-        context: &ReefContext<'ca, 'e>,
+        externals: &Externals<'a>,
+        engine: &Engine<'a>,
         env_id: SourceId,
         imports: &mut SourceImports,
         diagnostics: &mut Vec<Diagnostic>,
@@ -26,7 +27,7 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
                 UnresolvedImport::Symbol { alias, loc } => {
                     // resolve path and targeted reef
 
-                    match resolve_loc(&loc, context) {
+                    match resolve_loc(&loc, engine, externals) {
                         None => diagnostics.push(
                             Diagnostic::new(DiagnosticID::ImportResolution, "Invalid import")
                                 .with_observation(Observation::context(
@@ -35,10 +36,10 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
                                     format!("unable to find reef `{}`", loc.name.root()),
                                 )),
                         ),
-                        Some((reef, reef_id)) => {
+                        Some((engine, reef_id)) => {
                             let name = &loc.name;
                             // try to get referenced module of the reef
-                            let result = get_mod(name, &reef.engine);
+                            let result = get_mod(name, engine);
                             match result {
                                 None => {
                                     // if the environment wasn't found, and its name was already known, push a diagnostic as it does not exists
@@ -114,7 +115,7 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
 
                 //if the unresolved import is an 'AllIn' import, meaning that it imports all symbols from given module
                 UnresolvedImport::AllIn(loc) => {
-                    match resolve_loc(&loc, context) {
+                    match resolve_loc(&loc, engine, externals) {
                         None => diagnostics.push(
                             Diagnostic::new(
                                 DiagnosticID::ImportResolution,
@@ -124,10 +125,10 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
                                 SourceLocation::new(env_id, segment),
                             )),
                         ),
-                        Some((reef, reef_id)) => {
+                        Some((engine, reef_id)) => {
                             let name = loc.name;
                             // try to get referenced environment of the import
-                            match get_mod(&name, &reef.engine) {
+                            match get_mod(&name, engine) {
                                 None => {
                                     // if the environment wasn't found, and its name was already known, push a diagnostic as it does not exists
                                     let diagnostic = diagnose_unresolved_import(

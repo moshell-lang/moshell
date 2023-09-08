@@ -2,11 +2,12 @@ use std::collections::HashSet;
 use std::iter::once;
 
 use crate::diagnostic::Diagnostic;
+use crate::engine::Engine;
 use crate::environment::symbols::{resolve_loc, SymbolRegistry};
 use crate::environment::Environment;
 use crate::imports::Imports;
 use crate::name::Name;
-use crate::reef::{ReefContext, ReefId};
+use crate::reef::{Externals, ReefId};
 use crate::relations::{
     LocalId, RelationId, RelationState, Relations, ResolvedSymbol, SourceId, SymbolRef,
 };
@@ -24,23 +25,27 @@ mod symbol;
 /// - lifetime 'a is the lifetime of references
 /// - lifetime 'e is the expressions' lifetime, the Engine and Relations needed a special lifetime
 ///   as both of them contains references to AST expressions.
-pub struct SymbolResolver<'a, 'ca, 'e> {
+pub struct SymbolResolver<'a, 'e> {
+    engine: &'a Engine<'e>,
+    relations: &'a mut Relations,
     imports: &'a mut Imports,
-    context: &'a mut ReefContext<'ca, 'e>,
+    externals: &'a Externals<'a>,
 
     diagnostics: Vec<Diagnostic>,
 }
 
-impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
+impl<'a, 'e> SymbolResolver<'a, 'e> {
     ///Attempts to resolve the unresolved Engine's symbols contained in the given Relations.
     /// Returns a vector of diagnostics raised by the resolution process.
     pub fn resolve_symbols(
+        engine: &'a Engine<'e>,
+        relations: &'a mut Relations,
         imports: &'a mut Imports,
-        context: &'a mut ReefContext<'ca, 'e>,
+        externals: &'a Externals<'e>,
         to_visit: &mut Vec<Name>,
         visited: &HashSet<Name>,
     ) -> Vec<Diagnostic> {
-        let mut resolver = Self::new(imports, context);
+        let mut resolver = Self::new(engine, relations, imports, externals);
         resolver.resolve(to_visit, visited);
         resolver.diagnostics
     }
@@ -120,10 +125,17 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
         }
     }
 
-    fn new(imports: &'a mut Imports, context: &'a mut ReefContext<'ca, 'e>) -> Self {
+    fn new(
+        engine: &'a Engine<'e>,
+        relations: &'a mut Relations,
+        imports: &'a mut Imports,
+        externals: &'a Externals<'e>,
+    ) -> Self {
         Self {
+            engine,
+            relations,
             imports,
-            context,
+            externals,
 
             diagnostics: Vec::new(),
         }
@@ -132,9 +144,15 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
     /// The starting point of the resolution phase.
     /// enables the resolution and pushes diagnostics if any symbol could not be resolved.
     fn resolve(&mut self, to_visit: &mut Vec<Name>, visited: &HashSet<Name>) {
-        for (env_id, _) in self.context.current_reef().engine.environments() {
+        for (env_id, _) in self.engine.environments() {
             if let Some(imports) = self.imports.get_imports_mut(env_id) {
-                Self::resolve_imports(self.context, env_id, imports, &mut self.diagnostics);
+                Self::resolve_imports(
+                    self.externals,
+                    self.engine,
+                    env_id,
+                    imports,
+                    &mut self.diagnostics,
+                );
             }
         }
         self.resolve_trees(to_visit, visited);
@@ -145,27 +163,14 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
     /// This resolution should happen after all imports have been resolved in their respective environments,
     /// to allow child environments to use imports from their parents.
     fn resolve_trees(&mut self, to_visit: &mut Vec<Name>, visited: &HashSet<Name>) {
-        let relation_count = self.context.current_reef_mut().relations.len();
-        for relation_id in 0..relation_count {
-            let relation_id = RelationId(relation_id);
-            macro_rules! object {
-                () => {
-                    self.context.current_reef_mut().relations[relation_id]
-                };
-            }
-
-            if object!().state != RelationState::Unresolved {
+        for (relation_id, object) in self.relations.iter_mut() {
+            if object.state != RelationState::Unresolved {
                 continue;
             }
-            let (origin, registry) = {
-                let obj = &object!();
-                (obj.origin, obj.registry)
-            };
+            let (origin, registry) = { (object.origin, object.registry) };
 
             // Get the local naming of the object
             let origin_env = self
-                .context
-                .current_reef()
                 .engine
                 .get_environment(origin)
                 .expect("Environment declared an unknown parent");
@@ -181,9 +186,9 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
             // if it explicitly targets the current reef, then do a simple search of the corresponding name
             if symbol_loc.is_current_reef_explicit {
                 result = Self::resolve_absolute_symbol(
-                    &self.context.current_reef().engine,
+                    self.engine,
                     symbol_name,
-                    self.context.reef_id,
+                    self.externals.current,
                     registry,
                 );
             } else {
@@ -202,7 +207,7 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
                             env_id,
                             env,
                             symbol_name,
-                            self.context.reef_id,
+                            self.externals.current,
                             registry,
                         );
                     }
@@ -211,10 +216,10 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
                         if let Some(imports) = &self.imports.get_imports(env_id) {
                             // If the symbol wasn't found from the environment locals, try to resolve using its imports
                             result = Self::resolve_symbol_from_imports(
-                                &self.context.current_reef().engine,
+                                self.engine,
                                 imports,
                                 symbol_name,
-                                self.context.reef_id,
+                                self.externals.current,
                                 registry,
                             )
                         }
@@ -224,29 +229,27 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
                         break; //we found something
                     }
 
-                    current = env.parent.and_then(|id| {
-                        self.context
-                            .current_reef()
-                            .engine
-                            .get_environment(id)
-                            .map(|env| (id, env))
-                    });
+                    current = env
+                        .parent
+                        .and_then(|id| self.engine.get_environment(id).map(|env| (id, env)));
                 }
 
                 //ultimate step is to try to resolve this symbol as an absolute symbol.
                 if result == SymbolResolutionResult::NotFound {
-                    result = resolve_loc(symbol_loc, self.context)
-                        .map(|(reef, id)| {
-                            Self::resolve_absolute_symbol(&reef.engine, symbol_name, id, registry)
+                    result = resolve_loc(symbol_loc, self.engine, self.externals)
+                        .map(|(engine, id)| {
+                            Self::resolve_absolute_symbol(engine, symbol_name, id, registry)
                         })
                         .unwrap_or(SymbolResolutionResult::NotFound)
                 }
 
                 //if the symbol is a type, and if its name is unqualified, try to resolve it from the special `lang` reef.
-                if registry == SymbolRegistry::Types && (!symbol_name.is_qualified() || (symbol_name.parts().len() == 2 && symbol_name.root() == "lang")) {
+                if registry == SymbolRegistry::Types
+                    && (!symbol_name.is_qualified()
+                        || (symbol_name.parts().len() == 2 && symbol_name.root() == "lang"))
+                {
                     if let Some(primitive_type) = self
-                        .context
-                        .reefs()
+                        .externals
                         .lang()
                         .type_context
                         .get_type_id(symbol_name.simple_name())
@@ -260,23 +263,21 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
 
             match result {
                 SymbolResolutionResult::Resolved(symbol) => {
-                    object!().state = RelationState::Resolved(symbol);
+                    object.state = RelationState::Resolved(symbol);
                 }
                 SymbolResolutionResult::DeadImport => {
                     self.diagnostics
                         .push(diagnose_invalid_symbol_from_dead_import(
-                            &self.context.current_reef().engine,
+                            self.engine,
                             origin,
                             self.imports.get_imports(origin).unwrap(),
                             relation_id,
                             symbol_name,
                         ));
-                    object!().state = RelationState::Dead;
+                    object.state = RelationState::Dead;
                 }
                 SymbolResolutionResult::Invalid(symbol) => {
                     let env_var = self
-                        .context
-                        .current_reef()
                         .engine
                         .get_environment(symbol.source)
                         .expect("resolved symbol points to an unknown environment");
@@ -294,7 +295,7 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
                         symbol_name,
                         &occurrences,
                     ));
-                    object!().state = RelationState::Dead;
+                    object.state = RelationState::Dead;
                 }
                 // All attempts failed to resolve the symbol
                 SymbolResolutionResult::NotFound => {
@@ -314,7 +315,7 @@ impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
                         origin_env,
                         symbol_name,
                     ));
-                    object!().state = RelationState::Dead
+                    object.state = RelationState::Dead
                 }
             }
         }
@@ -326,20 +327,21 @@ mod tests {
     use std::collections::{HashMap, HashSet};
 
     use indexmap::IndexMap;
-    use pretty_assertions::assert_eq;
+    //use pretty_assertions::assert_eq;
 
     use context::source::Source;
     use context::str_find::{find_in, find_in_nth};
     use parser::parse_trusted;
 
     use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
+    use crate::engine::Engine;
     use crate::environment::symbols::{SymbolLocation, SymbolRegistry};
     use crate::importer::StaticImporter;
     use crate::imports::{Imports, ResolvedImport, SourceImports, UnresolvedImport};
     use crate::name::Name;
-    use crate::reef::{ReefContext, ReefId, Reefs, LANG_REEF};
+    use crate::reef::{Externals, Reef, ReefId, LANG_REEF};
     use crate::relations::{
-        LocalId, Relation, RelationId, RelationState, ResolvedSymbol, SourceId,
+        LocalId, Relation, RelationId, RelationState, Relations, ResolvedSymbol, SourceId,
     };
     use crate::steps::collect::SymbolCollector;
     use crate::steps::resolve::SymbolResolver;
@@ -349,41 +351,43 @@ mod tests {
 
     #[test]
     fn test_reefs_external_symbols_resolution() {
-        let mut reefs = Reefs::default();
+        let mut reefs = Externals::default();
 
-        fn define_reef<'a, 'e, const N: usize>(
-            reefs: &'a mut Reefs<'e>,
+        fn define_reef<'e, const N: usize>(
+            externals: &Externals,
             sources: [(Name, Source<'e>); N],
-            reef_name: &str,
-        ) -> (Vec<Diagnostic>, ResolutionResult) {
+        ) -> (Vec<Diagnostic>, ResolutionResult<'e>) {
             let mut diagnostics = Vec::new();
-            let mut context = ReefContext::declare_new(reefs, reef_name);
             let mut result = ResolutionResult::default();
 
             resolve_sources(
                 sources.iter().map(|(n, _)| n.clone()).collect(),
                 &mut result,
                 &mut StaticImporter::new(sources, parse_trusted),
-                &mut context,
+                externals,
                 &mut diagnostics,
             );
 
             (diagnostics, result)
         }
 
-        let (diagnostics, _) = define_reef(
-            &mut reefs,
+        let (diagnostics, result) = define_reef(
+            &reefs,
             [(
                 Name::new("std"),
                 Source::unknown("fun foo() -> Exitcode = echo stdlib"),
             )],
-            "std",
         );
         assert_eq!(diagnostics, vec![]);
+        reefs.register(Reef::new_partial(
+            "std".to_owned(),
+            result.engine,
+            result.relations,
+        ));
 
         let main_source = "use std::foo; use reef::std::foo as my_foo; reef::std::foo(); std::foo(); foo(); my_foo()";
         let (diagnostics, result) = define_reef(
-            &mut reefs,
+            &reefs,
             [
                 (Name::new("main"), Source::unknown(main_source)),
                 (
@@ -391,9 +395,13 @@ mod tests {
                     Source::unknown("fun foo() -> Exitcode = echo fake stdlib"),
                 ),
             ],
-            "test",
         );
         assert_eq!(diagnostics, vec![]);
+        reefs.register(Reef::new_partial(
+            "test".to_owned(),
+            result.engine,
+            result.relations,
+        ));
 
         let reef = reefs.get_reef(ReefId(2)).unwrap();
         assert_eq!(reef.name, "test");
@@ -490,27 +498,24 @@ mod tests {
             ],
             parse_trusted,
         );
+        let externals = Externals::default();
         let mut diagnostics = Vec::new();
-        let mut reefs = Reefs::default();
-        let mut context = ReefContext::declare_new(&mut reefs, "test");
-        resolve_all(
+        let res = resolve_all(
             Name::new("main"),
-            &mut context,
+            &externals,
             &mut importer,
             &mut diagnostics,
         );
         assert_eq!(diagnostics, vec![]);
         assert_eq!(
-            context
-                .current_reef()
-                .relations
+            res.relations
                 .iter()
                 .map(|(_, r)| r.clone())
                 .collect::<Vec<_>>(),
             vec![
                 Relation::resolved(
                     SourceId(0),
-                    ResolvedSymbol::new(context.reef_id, SourceId(1), LocalId(0)),
+                    ResolvedSymbol::new(ReefId(1), SourceId(1), LocalId(0)),
                     SymbolRegistry::Objects,
                 ),
                 Relation::resolved(
@@ -539,25 +544,23 @@ mod tests {
             [(Name::new("main"), Source::new(src, "main"))],
             parse_trusted,
         );
+        let externals = Externals::default();
         let mut diagnostics = Vec::new();
-        let mut reefs = Reefs::default();
-        let mut context = ReefContext::declare_new(&mut reefs, "test");
-
-        resolve_all(
+        let res = resolve_all(
             Name::new("main"),
-            &mut context,
+            &externals,
             &mut importer,
             &mut diagnostics,
         );
         assert_eq!(diagnostics, vec![]);
         assert_eq!(
-            context.current_reef().relations.iter().collect::<Vec<_>>(),
+            res.relations.iter().collect::<Vec<_>>(),
             vec![
                 (
                     RelationId(0),
                     &Relation::resolved(
                         SourceId(2),
-                        ResolvedSymbol::new(context.reef_id, SourceId(1), LocalId(0)),
+                        ResolvedSymbol::new(ReefId(1), SourceId(1), LocalId(0)),
                         SymbolRegistry::Objects,
                     )
                 ),
@@ -565,7 +568,7 @@ mod tests {
                     RelationId(1),
                     &Relation::resolved(
                         SourceId(3),
-                        ResolvedSymbol::new(context.reef_id, SourceId(1), LocalId(0)),
+                        ResolvedSymbol::new(ReefId(1), SourceId(1), LocalId(0)),
                         SymbolRegistry::Objects,
                     )
                 ),
@@ -585,6 +588,8 @@ mod tests {
             use reef::std::io::{input, output}
         ";
 
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
         let mut imports = Imports::default();
 
         let mut to_visit = vec![Name::new("test")];
@@ -598,12 +603,11 @@ mod tests {
             ],
             parse_trusted,
         );
-
-        let mut reefs = Reefs::default();
-        let mut context = ReefContext::declare_new(&mut reefs, "test");
         let mut diagnostics = SymbolCollector::collect_symbols(
+            &mut engine,
+            &mut relations,
             &mut imports,
-            &mut context,
+            &Externals::default(),
             &mut to_visit,
             &mut visited,
             &mut importer,
@@ -658,7 +662,13 @@ mod tests {
             ),
         );
 
-        SymbolResolver::resolve_imports(&context, SourceId(0), test_env_imports, &mut diagnostics);
+        SymbolResolver::resolve_imports(
+            &Externals::default(),
+            &engine,
+            SourceId(0),
+            test_env_imports,
+            &mut diagnostics,
+        );
         assert_eq!(to_visit, vec![]);
         assert_eq!(
             diagnostics,
@@ -687,7 +697,7 @@ mod tests {
                         (
                             ResolvedImport::Symbols(HashMap::from([(
                                 SymbolRegistry::Objects,
-                                ResolvedSymbol::new(context.reef_id, SourceId(5), LocalId(0))
+                                ResolvedSymbol::new(ReefId(1), SourceId(5), LocalId(0))
                             )])),
                             find_in(test_src, "reef::math::PI")
                         )
@@ -697,7 +707,7 @@ mod tests {
                         (
                             ResolvedImport::Symbols(HashMap::from([(
                                 SymbolRegistry::Objects,
-                                ResolvedSymbol::new(context.reef_id, SourceId(4), LocalId(1))
+                                ResolvedSymbol::new(ReefId(1), SourceId(4), LocalId(1))
                             )])),
                             find_in(test_src, "reef::std::*")
                         )
@@ -707,7 +717,7 @@ mod tests {
                         (
                             ResolvedImport::Symbols(HashMap::from([(
                                 SymbolRegistry::Objects,
-                                ResolvedSymbol::new(context.reef_id, SourceId(4), LocalId(0))
+                                ResolvedSymbol::new(ReefId(1), SourceId(4), LocalId(0))
                             )])),
                             find_in(test_src, "reef::std::*")
                         )
@@ -717,7 +727,7 @@ mod tests {
                         (
                             ResolvedImport::Symbols(HashMap::from([(
                                 SymbolRegistry::Objects,
-                                ResolvedSymbol::new(context.reef_id, SourceId(1), LocalId(0))
+                                ResolvedSymbol::new(ReefId(1), SourceId(1), LocalId(0))
                             )])),
                             find_in(test_src, "output")
                         )
@@ -727,7 +737,7 @@ mod tests {
                         (
                             ResolvedImport::Symbols(HashMap::from([(
                                 SymbolRegistry::Objects,
-                                ResolvedSymbol::new(context.reef_id, SourceId(1), LocalId(1))
+                                ResolvedSymbol::new(ReefId(1), SourceId(1), LocalId(1))
                             )])),
                             find_in(test_src, "input")
                         )
@@ -758,6 +768,8 @@ mod tests {
         ",
         );
 
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
         let mut imports = Imports::default();
         let mut importer = StaticImporter::new(
             [
@@ -771,50 +783,48 @@ mod tests {
 
         let mut to_visit = vec![Name::new("test")];
         let mut visited = HashSet::new();
-        let mut reefs = Reefs::default();
-        let mut context = ReefContext::declare_new(&mut reefs, "test");
+
         let diagnostics = SymbolCollector::collect_symbols(
+            &mut engine,
+            &mut relations,
             &mut imports,
-            &mut context,
+            &Externals::default(),
             &mut to_visit,
             &mut visited,
             &mut importer,
         );
         assert_eq!(diagnostics, vec![]);
         let diagnostics = SymbolResolver::resolve_symbols(
+            &engine,
+            &mut relations,
             &mut imports,
-            &mut context,
+            &Externals::default(),
             &mut to_visit,
             &mut visited,
         );
         assert_eq!(diagnostics, vec![]);
 
         assert_eq!(
-            context
-                .current_reef()
-                .relations
-                .iter()
-                .map(|(_, r)| r.clone())
-                .collect::<Vec<_>>(),
+            relations.iter().map(|(_, r)| r.clone()).collect::<Vec<_>>(),
             vec![
                 Relation::resolved(
                     SourceId(1),
-                    ResolvedSymbol::new(context.reef_id, SourceId(0), LocalId(2)),
+                    ResolvedSymbol::new(ReefId(1), SourceId(0), LocalId(2)),
                     SymbolRegistry::Objects,
                 ),
                 Relation::resolved(
                     SourceId(0),
-                    ResolvedSymbol::new(context.reef_id, SourceId(2), LocalId(0)),
+                    ResolvedSymbol::new(ReefId(1), SourceId(2), LocalId(0)),
                     SymbolRegistry::Objects,
                 ),
                 Relation::resolved(
                     SourceId(0),
-                    ResolvedSymbol::new(context.reef_id, SourceId(3), LocalId(1)),
+                    ResolvedSymbol::new(ReefId(1), SourceId(3), LocalId(1)),
                     SymbolRegistry::Objects,
                 ),
                 Relation::resolved(
                     SourceId(0),
-                    ResolvedSymbol::new(context.reef_id, SourceId(4), LocalId(0)),
+                    ResolvedSymbol::new(ReefId(1), SourceId(4), LocalId(0)),
                     SymbolRegistry::Objects,
                 ),
             ]
@@ -836,6 +846,8 @@ mod tests {
         ",
         );
 
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
         let mut imports = Imports::default();
         let mut importer = StaticImporter::new(
             [
@@ -849,20 +861,23 @@ mod tests {
 
         let mut to_visit = vec![Name::new("test")];
         let mut visited = HashSet::new();
-        let mut reefs = Reefs::default();
-        let mut context = ReefContext::declare_new(&mut reefs, "test");
+
         //first cycle
         let diagnostics = SymbolCollector::collect_symbols(
+            &mut engine,
+            &mut relations,
             &mut imports,
-            &mut context,
+            &Externals::default(),
             &mut to_visit,
             &mut visited,
             &mut importer,
         );
         assert_eq!(diagnostics, vec![]);
         let diagnostics = SymbolResolver::resolve_symbols(
+            &engine,
+            &mut relations,
             &mut imports,
-            &mut context,
+            &Externals::default(),
             &mut to_visit,
             &mut visited,
         );
@@ -879,16 +894,20 @@ mod tests {
 
         //second cycle
         let diagnostics = SymbolCollector::collect_symbols(
+            &mut engine,
+            &mut relations,
             &mut imports,
-            &mut context,
+            &Externals::default(),
             &mut to_visit,
             &mut visited,
             &mut importer,
         );
         assert_eq!(diagnostics, vec![]);
         let diagnostics = SymbolResolver::resolve_symbols(
+            &engine,
+            &mut relations,
             &mut imports,
-            &mut context,
+            &Externals::default(),
             &mut to_visit,
             &mut visited,
         );
@@ -908,31 +927,26 @@ mod tests {
         );
 
         assert_eq!(
-            context
-                .current_reef()
-                .relations
-                .iter()
-                .map(|(_, r)| r.clone())
-                .collect::<Vec<_>>(),
+            relations.iter().map(|(_, r)| r.clone()).collect::<Vec<_>>(),
             vec![
                 Relation::resolved(
                     SourceId(0),
-                    ResolvedSymbol::new(context.reef_id, SourceId(3), LocalId(0)),
+                    ResolvedSymbol::new(ReefId(1), SourceId(3), LocalId(0)),
                     SymbolRegistry::Objects,
                 ),
                 Relation::resolved(
                     SourceId(0),
-                    ResolvedSymbol::new(context.reef_id, SourceId(3), LocalId(1)),
+                    ResolvedSymbol::new(ReefId(1), SourceId(3), LocalId(1)),
                     SymbolRegistry::Objects,
                 ),
                 Relation::resolved(
                     SourceId(0),
-                    ResolvedSymbol::new(context.reef_id, SourceId(6), LocalId(0)),
+                    ResolvedSymbol::new(ReefId(1), SourceId(6), LocalId(0)),
                     SymbolRegistry::Objects,
                 ),
                 Relation::resolved(
                     SourceId(0),
-                    ResolvedSymbol::new(context.reef_id, SourceId(1), LocalId(0)),
+                    ResolvedSymbol::new(ReefId(1), SourceId(1), LocalId(0)),
                     SymbolRegistry::Objects,
                 ),
                 Relation::resolved(
@@ -975,16 +989,15 @@ mod tests {
             [(Name::new("test"), Source::unknown(test_src))],
             parse_trusted,
         );
-        let mut reefs = Reefs::default();
-        let mut context = ReefContext::declare_new(&mut reefs, "test");
+        let externals = Externals::default();
         let mut diagnostics = Vec::new();
-        resolve_all(
+        let result = resolve_all(
             Name::new("test"),
-            &mut context,
+            &externals,
             &mut importer,
             &mut diagnostics,
         );
-        let relations = &context.current_reef().relations;
+        let relations = result.relations;
 
         assert_eq!(
             diagnostics,
@@ -1047,6 +1060,8 @@ mod tests {
         $C; $B;
         ";
         let test_src = Source::unknown(source);
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
         let mut imports = Imports::default();
         let mut importer = StaticImporter::new(
             [(Name::new("test"), test_src), (Name::new("A"), a_src)],
@@ -1055,11 +1070,12 @@ mod tests {
 
         let mut to_visit = vec![Name::new("test")];
         let mut visited = HashSet::new();
-        let mut reefs = Reefs::default();
-        let mut context = ReefContext::declare_new(&mut reefs, "test");
+
         let diagnostics = SymbolCollector::collect_symbols(
+            &mut engine,
+            &mut relations,
             &mut imports,
-            &mut context,
+            &Externals::default(),
             &mut to_visit,
             &mut visited,
             &mut importer,
@@ -1067,8 +1083,10 @@ mod tests {
         assert_eq!(diagnostics, vec![]);
 
         let diagnostics = SymbolResolver::resolve_symbols(
+            &engine,
+            &mut relations,
             &mut imports,
-            &mut context,
+            &Externals::default(),
             &mut to_visit,
             &mut visited,
         );
@@ -1091,14 +1109,14 @@ mod tests {
                     DiagnosticID::ImportResolution,
                     "unable to find reef `C`."
                 )
-                .with_observation((SourceId(0), find_in(source, "C::*")).into()),
+                    .with_observation((SourceId(0), find_in(source, "C::*")).into()),
                 Diagnostic::new(
                     DiagnosticID::UnknownSymbol,
                     "Could not resolve symbol `a`."
                 )
-                .with_observation((SourceId(0), find_in_nth(source, "$a", 0)).into())
-                .with_observation((SourceId(0), find_in_nth(source, "$a", 1)).into())
-                .with_observation((SourceId(0), find_in_nth(source, "$a", 2)).into()),
+                    .with_observation((SourceId(0), find_in_nth(source, "$a", 0)).into())
+                    .with_observation((SourceId(0), find_in_nth(source, "$a", 1)).into())
+                    .with_observation((SourceId(0), find_in_nth(source, "$a", 2)).into()),
                 Diagnostic::new(
                     DiagnosticID::InvalidSymbol,
                     "unresolvable symbol `C` has no choice but to be ignored due to invalid import of `C`."
@@ -1124,16 +1142,19 @@ mod tests {
         $C; $C;
         ";
         let test_src = Source::unknown(source);
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
         let mut imports = Imports::default();
         let mut importer = StaticImporter::new([(Name::new("test"), test_src)], parse_trusted);
 
         let mut to_visit = vec![Name::new("test")];
         let mut visited = HashSet::new();
-        let mut reefs = Reefs::default();
-        let mut context = ReefContext::declare_new(&mut reefs, "test");
+
         let diagnostics = SymbolCollector::collect_symbols(
+            &mut engine,
+            &mut relations,
             &mut imports,
-            &mut context,
+            &Externals::default(),
             &mut to_visit,
             &mut visited,
             &mut importer,
@@ -1141,8 +1162,10 @@ mod tests {
         assert_eq!(diagnostics, vec![]);
 
         let diagnostic = SymbolResolver::resolve_symbols(
+            &engine,
+            &mut relations,
             &mut imports,
-            &mut context,
+            &Externals::default(),
             &mut to_visit,
             &mut visited,
         );
@@ -1172,17 +1195,19 @@ mod tests {
         }
         ";
         let test_src = Source::unknown(source);
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
         let mut imports = Imports::default();
         let mut importer = StaticImporter::new([(Name::new("test"), test_src)], parse_trusted);
 
         let mut to_visit = vec![Name::new("test")];
         let mut visited = HashSet::new();
-        let mut reefs = Reefs::default();
-        let mut context = ReefContext::declare_new(&mut reefs, "test");
 
         let diagnostics = SymbolCollector::collect_symbols(
+            &mut engine,
+            &mut relations,
             &mut imports,
-            &mut context,
+            &Externals::default(),
             &mut to_visit,
             &mut visited,
             &mut importer,
@@ -1190,8 +1215,10 @@ mod tests {
         assert_eq!(diagnostics, vec![]);
 
         let diagnostic = SymbolResolver::resolve_symbols(
+            &engine,
+            &mut relations,
             &mut imports,
-            &mut context,
+            &Externals::default(),
             &mut to_visit,
             &mut visited,
         );
@@ -1214,16 +1241,19 @@ mod tests {
     fn find_in_parent_environment() {
         let source = Source::unknown("val found = 'false'; fun find() = $found");
 
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
         let mut imports = Imports::default();
         let mut importer = StaticImporter::new([(Name::new("test"), source)], parse_trusted);
 
         let mut to_visit = vec![Name::new("test")];
         let mut visited = HashSet::new();
-        let mut reefs = Reefs::default();
-        let mut context = ReefContext::declare_new(&mut reefs, "test");
+
         let diagnostics = SymbolCollector::collect_symbols(
+            &mut engine,
+            &mut relations,
             &mut imports,
-            &mut context,
+            &Externals::default(),
             &mut to_visit,
             &mut visited,
             &mut importer,
@@ -1232,8 +1262,10 @@ mod tests {
         assert_eq!(diagnostics, vec![]);
 
         let diagnostics = SymbolResolver::resolve_symbols(
+            &engine,
+            &mut relations,
             &mut imports,
-            &mut context,
+            &Externals::default(),
             &mut to_visit,
             &mut visited,
         );
@@ -1241,15 +1273,10 @@ mod tests {
         assert_eq!(diagnostics, vec![]);
 
         assert_eq!(
-            context
-                .current_reef()
-                .relations
-                .iter()
-                .map(|(_, r)| r.clone())
-                .collect::<Vec<_>>(),
+            relations.iter().map(|(_, r)| r.clone()).collect::<Vec<_>>(),
             vec![Relation::resolved(
                 SourceId(1),
-                ResolvedSymbol::new(context.reef_id, SourceId(0), LocalId(0)),
+                ResolvedSymbol::new(ReefId(1), SourceId(0), LocalId(0)),
                 SymbolRegistry::Objects,
             )]
         )

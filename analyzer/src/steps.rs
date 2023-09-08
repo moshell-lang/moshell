@@ -1,7 +1,7 @@
 use crate::diagnostic::Diagnostic;
 use crate::importer::ASTImporter;
 use crate::name::Name;
-use crate::reef::ReefContext;
+use crate::reef::Externals;
 use crate::steps::collect::SymbolCollector;
 use crate::steps::resolve::SymbolResolver;
 use crate::ResolutionResult;
@@ -11,24 +11,28 @@ pub mod resolve;
 mod shared_diagnostics;
 pub mod typing;
 
-pub(super) fn resolve_sources<'ca, 'e>(
+pub(super) fn resolve_sources<'a>(
     mut to_visit: Vec<Name>,
-    result: &mut ResolutionResult,
-    importer: &mut impl ASTImporter<'e>,
-    context: &mut ReefContext<'ca, 'e>,
+    result: &mut ResolutionResult<'a>,
+    importer: &mut impl ASTImporter<'a>,
+    externals: &Externals,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     while !to_visit.is_empty() {
         diagnostics.extend(SymbolCollector::collect_symbols(
+            &mut result.engine,
+            &mut result.relations,
             &mut result.imports,
-            context,
+            externals,
             &mut to_visit,
             &mut result.visited,
             importer,
         ));
         diagnostics.extend(SymbolResolver::resolve_symbols(
+            &result.engine,
+            &mut result.relations,
             &mut result.imports,
-            context,
+            externals,
             &mut to_visit,
             &result.visited,
         ));

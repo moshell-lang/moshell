@@ -1,6 +1,7 @@
 use analyzer::diagnostic::Diagnostic;
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
+use analyzer::reef::ReefId;
 use analyzer::relations::SourceId;
 use analyzer::Analyzer;
 use clap::Parser;
@@ -78,16 +79,14 @@ impl SourceLineProvider for CachedSourceLocationLineProvider {
 pub fn use_pipeline<'a>(
     entry_point: &Name,
     starting_page: SourceId,
-    analyzer: &Analyzer<'a, '_>,
+    analyzer: &Analyzer<'_>,
     vm: &mut VM,
     diagnostics: Vec<Diagnostic>,
     importer: &mut (impl ASTImporter<'a> + ErrorReporter),
     config: &Cli,
 ) -> PipelineStatus {
     let errors = importer.take_errors();
-    let engine = &analyzer.context.current_reef().engine;
-
-    if errors.is_empty() && engine.is_empty() {
+    if errors.is_empty() && analyzer.resolution.engine.is_empty() {
         eprintln!("No module found for entry point {entry_point}");
         return PipelineStatus::IoError;
     }
@@ -120,6 +119,7 @@ pub fn use_pipeline<'a>(
         return import_status;
     }
 
+    let engine = &analyzer.resolution.engine;
     if config.ast {
         for ast in engine
             .environments()
@@ -143,13 +143,12 @@ pub fn use_pipeline<'a>(
     let mut bytes = Vec::new();
     let contents = importer.list_content_ids();
     let lines = CachedSourceLocationLineProvider::compute(&contents, importer);
-    let reef = analyzer.context.current_reef();
 
     compile(
-        &reef.typed_engine,
-        engine,
-        &reef.relations,
-        analyzer.context.reef_id,
+        &analyzer.engine,
+        &analyzer.resolution.engine,
+        &analyzer.resolution.relations,
+        ReefId(1),
         starting_page,
         &mut bytes,
         Some(&lines),

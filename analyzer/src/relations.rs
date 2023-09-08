@@ -221,14 +221,6 @@ impl Relations {
             .map(|(id, relation)| (RelationId(id), relation))
     }
 
-    pub fn len(&self) -> usize {
-        self.relations.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.relations.is_empty()
-    }
-
     /// Returns the state of the given object.
     ///
     /// If the relation is not referenced, returns [`None`].

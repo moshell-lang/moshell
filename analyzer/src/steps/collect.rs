@@ -19,8 +19,8 @@ use crate::environment::Environment;
 use crate::importer::{ASTImporter, ImportResult, Imported};
 use crate::imports::{Imports, UnresolvedImport};
 use crate::name::Name;
-use crate::reef::ReefContext;
-use crate::relations::{RelationState, SourceId, SymbolRef};
+use crate::reef::{Externals, ReefId};
+use crate::relations::{RelationState, Relations, SourceId, SymbolRef};
 use crate::steps::resolve::SymbolResolver;
 use crate::steps::shared_diagnostics::diagnose_invalid_symbol;
 use crate::Inject;
@@ -56,28 +56,32 @@ impl ResolutionState {
     }
 }
 
-pub struct SymbolCollector<'a, 'ca, 'e> {
+pub struct SymbolCollector<'a, 'b, 'e> {
+    engine: &'a mut Engine<'e>,
+    relations: &'a mut Relations,
     imports: &'a mut Imports,
-    context: &'a mut ReefContext<'ca, 'e>,
+    externals: &'b Externals<'b>,
     diagnostics: Vec<Diagnostic>,
 
     /// The stack of environments currently being collected.
     stack: Vec<SourceId>,
 }
 
-impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
+impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
     /// Explores the entry point and all its recursive dependencies.
     ///
     /// This collects all the symbols that are used, locally or not yet resolved if they are global.
     /// Returns a vector of diagnostics raised by the collection process.
     pub fn collect_symbols(
+        engine: &'a mut Engine<'e>,
+        relations: &'a mut Relations,
         imports: &'a mut Imports,
-        context: &'a mut ReefContext<'ca, 'e>,
+        externals: &'b Externals<'b>,
         to_visit: &mut Vec<Name>,
         visited: &mut HashSet<Name>,
         importer: &mut impl ASTImporter<'e>,
     ) -> Vec<Diagnostic> {
-        let mut collector = Self::new(imports, context);
+        let mut collector = Self::new(engine, relations, imports, externals);
         collector.collect(importer, to_visit, visited);
         collector.check_symbols_identity();
         collector.diagnostics
@@ -85,28 +89,27 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
 
     pub fn inject(
         inject: Inject<'e>,
+        engine: &'a mut Engine<'e>,
+        relations: &'a mut Relations,
         imports: &'a mut Imports,
-        context: &'a mut ReefContext<'ca, 'e>,
+        externals: &'b Externals<'b>,
         to_visit: &mut Vec<Name>,
     ) -> Vec<Diagnostic> {
-        let mut collector = Self::new(imports, context);
-        let engine = &mut collector.context.current_reef_mut().engine;
-
         assert_ne!(
             inject.attached,
             Some(SourceId(engine.len())),
             "Cannot inject a module to itself"
         );
-
-        let root_block = engine.take(inject.imported.expr);
+        let mut collector = Self::new(engine, relations, imports, externals);
+        let root_block = collector.engine.take(inject.imported.expr);
 
         let mut env = Environment::script(inject.name);
         env.parent = inject.attached;
         let mut state = ResolutionState::new(
             inject.imported.content,
-            engine.track(inject.imported.content, root_block),
+            collector.engine.track(inject.imported.content, root_block),
         );
-        engine.attach(state.module, env);
+        collector.engine.attach(state.module, env);
         collector.stack.push(state.module);
 
         collector.tree_walk(&mut state, root_block, to_visit);
@@ -115,22 +118,30 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
         collector.diagnostics
     }
 
-    fn new(imports: &'a mut Imports, context: &'a mut ReefContext<'ca, 'e>) -> Self {
+    fn new(
+        engine: &'a mut Engine<'e>,
+        relations: &'a mut Relations,
+        imports: &'a mut Imports,
+        externals: &'b Externals<'b>,
+    ) -> Self {
         Self {
+            engine,
+            relations,
             imports,
-            context,
+            externals,
             diagnostics: Vec::new(),
             stack: Vec::new(),
         }
     }
 
     fn current_env(&mut self) -> &mut Environment {
-        let current_env_id = *self.stack.last().unwrap();
-        self.engine().get_environment_mut(current_env_id).unwrap()
+        self.engine
+            .get_environment_mut(*self.stack.last().unwrap())
+            .unwrap()
     }
 
     fn engine(&mut self) -> &mut Engine<'e> {
-        &mut self.context.current_reef_mut().engine
+        self.engine
     }
 
     /// Performs a check over the collected symbols of root environments
@@ -141,8 +152,6 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
     /// there is no way to identify if either `a::b` is the symbol, or `a::b` is the module.
     fn check_symbols_identity(&mut self) {
         let roots = self
-            .context
-            .current_reef()
             .engine
             .environments()
             .filter(|(_, e)| e.parent.is_none()); //keep root environments
@@ -163,8 +172,8 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                     .expect("local symbol references an unknown variable");
                 let var_fqn = env_name.appended(Name::new(&symbol.name));
 
-                let engine = &self.context.current_reef().engine;
-                let clashed_module = engine
+                let clashed_module = self
+                    .engine
                     .environments()
                     .find(|(_, e)| e.parent.is_none() && e.fqn == var_fqn)
                     .map(|(_, e)| e);
@@ -172,7 +181,7 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                 if let Some(clashed_module) = clashed_module {
                     let inner_modules = {
                         //we know that the inner envs contains at least one environment (the env being clashed with)
-                        let list = list_inner_modules(engine, &env.fqn)
+                        let list = list_inner_modules(self.engine, &env.fqn)
                             .map(|e| e.fqn.simple_name())
                             .collect::<Vec<_>>();
 
@@ -222,14 +231,15 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
         module_name: Name,
         to_visit: &mut Vec<Name>,
     ) {
-        let engine = &mut self.context.current_reef_mut().engine;
         // Immediately transfer the ownership of the AST to the engine.
-        let root_block = engine.take(imported.expr);
+        let root_block = self.engine.take(imported.expr);
 
         let env = Environment::script(module_name);
-        let mut state =
-            ResolutionState::new(imported.content, engine.track(imported.content, root_block));
-        engine.attach(state.module, env);
+        let mut state = ResolutionState::new(
+            imported.content,
+            self.engine.track(imported.content, root_block),
+        );
+        self.engine.attach(state.module, env);
         self.stack.push(state.module);
 
         self.tree_walk(&mut state, root_block, to_visit);
@@ -349,12 +359,7 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                     self.diagnostics.push(diagnostic);
                     return;
                 }
-                self.collect_symbol_import(
-                    &import.import,
-                    Vec::new(),
-                    state.module,
-                    to_visit,
-                );
+                self.collect_symbol_import(&import.import, Vec::new(), state.module, to_visit);
                 return;
             }
             Expr::Assign(assign) => {
@@ -621,7 +626,13 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                 }
                 self.tree_walk(&mut state.fork(func_id), &func.body, to_visit);
 
-                Self::resolve_captures(&self.stack, self.context, &mut self.diagnostics);
+                Self::resolve_captures(
+                    &self.stack,
+                    self.engine,
+                    self.relations,
+                    self.externals.current,
+                    &mut self.diagnostics,
+                );
                 self.stack.pop();
             }
             Expr::LambdaDef(lambda) => {
@@ -646,7 +657,13 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                     }
                 }
                 self.tree_walk(&mut state.fork(func_id), &lambda.body, to_visit);
-                Self::resolve_captures(&self.stack, self.context, &mut self.diagnostics);
+                Self::resolve_captures(
+                    &self.stack,
+                    self.engine,
+                    self.relations,
+                    self.externals.current,
+                    &mut self.diagnostics,
+                );
                 self.stack.pop();
             }
             Expr::Literal(_) | Expr::Continue(_) | Expr::Break(_) => {}
@@ -656,19 +673,16 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
 
     fn resolve_captures(
         stack: &[SourceId],
-        ctx: &mut ReefContext,
+        engine: &Engine,
+        relations: &mut Relations,
+        reef: ReefId,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let reef_id = ctx.reef_id;
-        let reef = ctx.current_reef_mut();
-
         let stack: Vec<_> = stack
             .iter()
-            .map(|id| (*id, reef.engine.get_environment(*id).unwrap()))
+            .map(|id| (*id, engine.get_environment(*id).unwrap()))
             .collect();
-
-        let relations = &mut reef.relations;
-        SymbolResolver::resolve_captures(&stack, relations, reef_id, diagnostics);
+        SymbolResolver::resolve_captures(&stack, relations, reef, diagnostics);
     }
 
     fn collect_type(&mut self, origin: SourceId, ty: &Type) {
@@ -736,15 +750,13 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
         segment: SourceSegment,
         registry: SymbolRegistry,
     ) -> SymbolRef {
-        let reef = self.context.current_reef_mut();
-
-        let symbols = &mut reef.engine.get_environment_mut(source).unwrap().symbols;
+        let symbols = &mut self.engine.get_environment_mut(source).unwrap().symbols;
 
         macro_rules! track_global {
             () => {
                 *symbols
                     .external(location)
-                    .or_insert_with(|| reef.relations.track_new_object(origin, registry))
+                    .or_insert_with(|| self.relations.track_new_object(origin, registry))
             };
         }
 
@@ -767,7 +779,7 @@ impl<'a, 'ca, 'e> SymbolCollector<'a, 'ca, 'e> {
                 // We could have returned None here to ignore the symbol but it's more appropriate to
                 // bind the variable occurrence with a dead object to signify that its bound symbol is invalid.
                 let id = track_global!();
-                reef.relations[id].state = RelationState::Dead;
+                self.relations[id].state = RelationState::Dead;
                 SymbolRef::External(id)
             }
             Some(id) => SymbolRef::Local(id),
@@ -838,47 +850,43 @@ mod tests {
     use parser::parse_trusted;
 
     use crate::importer::StaticImporter;
-    use crate::reef::Reefs;
-    use crate::relations::{LocalId, RelationId, SymbolRef};
+    use crate::relations::{LocalId, RelationId};
 
     use super::*;
 
-    fn tree_walk<'e>(
+    fn tree_walk<'a, 'e>(
         expr: &'e Expr<'e>,
-        context: &mut ReefContext<'_, 'e>,
+        engine: &'a mut Engine<'e>,
+        relations: &mut Relations,
     ) -> (Vec<Diagnostic>, Environment) {
-        let mut imports = Imports::default();
-        let mut collector = SymbolCollector::new(&mut imports, context);
-
         let env = Environment::script(Name::new("test"));
-        let mut state =
-            ResolutionState::new(ContentId(0), collector.engine().track(ContentId(0), expr));
-
-        collector.engine().attach(SourceId(0), env);
+        let mut imports = Imports::default();
+        let externals = Externals::default();
+        let mut state = ResolutionState::new(ContentId(0), engine.track(ContentId(0), expr));
+        let mut collector = SymbolCollector::new(engine, relations, &mut imports, &externals);
+        collector.engine.attach(SourceId(0), env);
         collector.stack.push(SourceId(0));
         collector.tree_walk(&mut state, &expr, &mut vec![]);
-        let env = collector
-            .engine()
-            .get_environment(SourceId(0))
-            .unwrap()
-            .clone();
+        let env = collector.engine.get_environment(SourceId(0)).unwrap();
         collector.stack.pop();
-        (collector.diagnostics, env)
+        (collector.diagnostics, env.clone())
     }
 
     #[test]
     fn use_between_expressions() {
         let content = "use a; $a; use c; $c";
-        let mut reefs = Reefs::default();
-        let mut context = ReefContext::declare_new(&mut reefs, "test");
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
         let mut imports = Imports::default();
         let mut importer = StaticImporter::new(
             [(Name::new("test"), Source::unknown(content))],
             parse_trusted,
         );
         let res = SymbolCollector::collect_symbols(
+            &mut engine,
+            &mut relations,
             &mut imports,
-            &mut context,
+            &Externals::default(),
             &mut vec![Name::new("test")],
             &mut HashSet::new(),
             &mut importer,
@@ -898,14 +906,11 @@ mod tests {
     #[test]
     fn bind_local_variables() {
         let expr = parse_trusted(Source::unknown("var bar = 4; $bar"));
-        let mut reefs = Reefs::default();
-        let mut context = ReefContext::declare_new(&mut reefs, "test");
-        let diagnostics = tree_walk(&expr, &mut context).0;
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
+        let diagnostics = tree_walk(&expr, &mut engine, &mut relations).0;
         assert_eq!(diagnostics, vec![]);
-        assert_eq!(
-            context.current_reef().relations.iter().collect::<Vec<_>>(),
-            vec![]
-        );
+        assert_eq!(relations.iter().collect::<Vec<_>>(), vec![]);
     }
 
     #[test]
@@ -916,9 +921,10 @@ mod tests {
         let math_add_src = Source::unknown("");
         let math_divide_src = Source::unknown("");
 
-        let mut reefs = Reefs::default();
-        let mut context = ReefContext::declare_new(&mut reefs, "test");
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
         let mut imports = Imports::default();
+        let externals = Externals::default();
         let mut importer = StaticImporter::new(
             [
                 (Name::new("math"), math_src),
@@ -930,8 +936,10 @@ mod tests {
         );
 
         let diagnostics = SymbolCollector::collect_symbols(
+            &mut engine,
+            &mut relations,
             &mut imports,
-            &mut context,
+            &externals,
             &mut vec![Name::new("math")],
             &mut HashSet::new(),
             &mut importer,
@@ -947,15 +955,16 @@ mod tests {
     fn shadowed_imports() {
         let source = "use A; use B; use A; use B";
         let test_src = Source::unknown(source);
-        let mut reefs = Reefs::default();
-        let mut context = ReefContext::declare_new(&mut reefs, "test");
-
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
         let mut imports = Imports::default();
         let mut importer = StaticImporter::new([(Name::new("test"), test_src)], parse_trusted);
 
         let diagnostics = SymbolCollector::collect_symbols(
+            &mut engine,
+            &mut relations,
             &mut imports,
-            &mut context,
+            &Externals::default(),
             &mut vec![Name::new("test")],
             &mut HashSet::new(),
             &mut importer,
@@ -995,25 +1004,18 @@ mod tests {
         let src = "fun id(a) = return $a";
         let source = Source::unknown(src);
         let expr = parse_trusted(source);
-        let mut reefs = Reefs::default();
-        let mut context = ReefContext::declare_new(&mut reefs, "test");
-        let (diagnostics, env) = tree_walk(&expr, &mut context);
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
+        let (diagnostics, env) = tree_walk(&expr, &mut engine, &mut relations);
         assert_eq!(diagnostics, vec![]);
-        assert_eq!(
-            context.current_reef().relations.iter().collect::<Vec<_>>(),
-            vec![]
-        );
+        assert_eq!(relations.iter().collect::<Vec<_>>(), vec![]);
         assert_eq!(
             env.get_raw_symbol(source.segment()),
             Some(SymbolRef::Local(LocalId(0)))
         );
         assert_eq!(env.get_raw_symbol(find_in(src, "a")), None);
         assert_eq!(env.get_raw_symbol(find_in(src, "$a")), None);
-        let func_env = context
-            .current_reef()
-            .engine
-            .get_environment(SourceId(1))
-            .unwrap();
+        let func_env = engine.get_environment(SourceId(1)).unwrap();
         assert_eq!(
             func_env.get_raw_symbol(find_in(src, "a")),
             Some(SymbolRef::Local(LocalId(0)))
@@ -1029,14 +1031,11 @@ mod tests {
         let src = "read foo";
         let source = Source::unknown(src);
         let expr = parse_trusted(source);
-        let mut reefs = Reefs::default();
-        let mut context = ReefContext::declare_new(&mut reefs, "test");
-        let (diagnostics, env) = tree_walk(&expr, &mut context);
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
+        let (diagnostics, env) = tree_walk(&expr, &mut engine, &mut relations);
         assert_eq!(diagnostics, vec![]);
-        assert_eq!(
-            context.current_reef().relations.iter().collect::<Vec<_>>(),
-            vec![]
-        );
+        assert_eq!(relations.iter().collect::<Vec<_>>(), vec![]);
         assert_eq!(env.get_raw_symbol(find_in(src, "read")), None);
         assert_eq!(
             env.get_raw_symbol(find_in(src, "foo")),
@@ -1050,17 +1049,13 @@ mod tests {
         let source = Source::unknown(src);
         let expr = parse_trusted(source);
 
-        let mut reefs = Reefs::default();
-        let mut context = ReefContext::declare_new(&mut reefs, "test");
-        let (diagnostics, _) = tree_walk(&expr, &mut context);
-        let engine = &context.current_reef().engine;
-        let relations = &context.current_reef().relations;
+        let mut engine = Engine::default();
+        let mut relations = Relations::default();
+        let (diagnostics, _) = tree_walk(&expr, &mut engine, &mut relations);
         assert_eq!(diagnostics, vec![]);
         assert_eq!(
-            context
-                .current_reef()
-                .relations
-                .find_references(engine, RelationId(0))
+            relations
+                .find_references(&engine, RelationId(0))
                 .map(|mut references| {
                     references.sort_by_key(|range| range.start);
                     references
@@ -1068,11 +1063,11 @@ mod tests {
             Some(vec![find_in(src, "$bar"), find_in_nth(src, "$bar", 1)])
         );
         assert_eq!(
-            relations.find_references(engine, RelationId(1)),
+            relations.find_references(&engine, RelationId(1)),
             Some(vec![find_in(src, "baz($foo, $bar)")])
         );
         assert_eq!(
-            relations.find_references(engine, RelationId(2)),
+            relations.find_references(&engine, RelationId(2)),
             Some(vec![find_in(src, "$foo")])
         );
     }

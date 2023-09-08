@@ -1,15 +1,16 @@
 use std::collections::HashSet;
 
-use pretty_assertions::assert_eq;
 use analyzer::analyze;
+use analyzer::engine::Engine;
+use pretty_assertions::assert_eq;
 
 use analyzer::environment::symbols::{Symbol, SymbolLocation, SymbolRegistry};
 use analyzer::importer::StaticImporter;
 use analyzer::imports::Imports;
 use analyzer::name::Name;
-use analyzer::reef::{ReefContext, Reefs};
+use analyzer::reef::{Externals, Reef, ReefId};
 use analyzer::relations::{
-    LocalId, Relation, RelationId, RelationState, ResolvedSymbol, SourceId, SymbolRef,
+    LocalId, Relation, RelationId, RelationState, Relations, ResolvedSymbol, SourceId, SymbolRef,
 };
 use analyzer::steps::collect::SymbolCollector;
 use analyzer::steps::resolve::SymbolResolver;
@@ -24,6 +25,8 @@ fn collect_sample() {
     let root_name = Name::new("debug_sample");
     let lib_name = Name::new("lib");
 
+    let mut engine = Engine::default();
+    let mut relations = Relations::default();
     let mut imports = Imports::default();
 
     let mut to_visit = vec![root_name.clone()];
@@ -39,27 +42,33 @@ fn collect_sample() {
         parse_trusted,
     );
 
-    let mut reefs = Reefs::default();
-    // define the lib reef
-    let lib_context = ReefContext::declare_new(&mut reefs, "test");
-    analyze(lib_name, &mut importer, lib_context);
-
-    let mut context = ReefContext::declare_new(&mut reefs, "lib");
+    let mut externals = Externals::default();
+    let lib_reef = Reef::new(
+        "lib".to_owned(),
+        analyze(lib_name, &mut importer, &externals),
+    );
+    externals.register(lib_reef);
 
     let diagnostics = SymbolCollector::collect_symbols(
+        &mut engine,
+        &mut relations,
         &mut imports,
-        &mut context,
+        &externals,
         &mut to_visit,
         &mut visited,
         &mut importer,
     );
     assert_eq!(diagnostics, vec![]);
 
-    let diagnostics =
-        SymbolResolver::resolve_symbols(&mut imports, &mut context, &mut to_visit, &mut visited);
+    let diagnostics = SymbolResolver::resolve_symbols(
+        &mut engine,
+        &mut relations,
+        &mut imports,
+        &externals,
+        &mut to_visit,
+        &mut visited,
+    );
     assert_eq!(diagnostics, vec![]);
-
-    let engine = &context.current_reef().engine;
 
     let root_env = engine
         .get_environment(SourceId(0))
@@ -122,12 +131,12 @@ fn collect_sample() {
         )]
     );
     assert_eq!(
-        context.current_reef().relations[RelationId(1)],
+        relations[RelationId(1)],
         Relation {
             origin: SourceId(2),
             state: RelationState::Resolved(ResolvedSymbol {
-                reef: context.reef_id,
-                source: SourceId(6),
+                reef: ReefId(1),
+                source: SourceId(0),
                 object_id: LocalId(0),
             }),
             registry: SymbolRegistry::Objects
@@ -156,8 +165,7 @@ fn collect_sample() {
         ]
     );
 
-    let reef_id = context.reef_id;
-    let relations = &context.current_reef().relations;
+    let reef_id = ReefId(2);
 
     assert_eq!(
         relations[RelationId(2)],

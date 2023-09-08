@@ -21,7 +21,7 @@ pub enum SymbolResolutionResult {
     NotFound,
 }
 
-impl<'a, 'ca, 'e> SymbolResolver<'a, 'ca, 'e> {
+impl<'a, 'e> SymbolResolver<'a, 'e> {
     pub fn resolve_symbol_from_locals(
         env_id: SourceId,
         env: &Environment,

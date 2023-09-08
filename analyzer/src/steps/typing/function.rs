@@ -2,18 +2,19 @@ use ast::call::{MethodCall, ProgrammaticCall};
 use ast::function::{FunctionDeclaration, FunctionParameter};
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
+use std::fmt;
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation, SourceLocation};
-use crate::reef::{ReefId, Reefs};
+use crate::reef::Externals;
 use crate::relations::{Definition, SourceId, SymbolRef};
-use crate::steps::typing::coercion::convert_expression;
-use crate::steps::typing::exploration::{Exploration, UniversalReefAccessor};
-use crate::steps::typing::TypingState;
+use crate::steps::typing::coercion::{
+    convert_description, convert_expression, convert_many, resolve_type,
+};
+use crate::steps::typing::exploration::{Exploration, Links};
+use crate::types::engine::CodeEntry;
 use crate::types::hir::{ExprKind, TypedExpr};
 use crate::types::ty::{FunctionType, MethodType, Parameter, Type, TypeRef};
-use crate::types::{
-    convert_description, convert_many, get_type, resolve_type, ERROR, STRING, UNIT,
-};
+use crate::types::{Typing, ERROR, STRING, UNIT};
 
 /// An identified return during the exploration.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,10 +48,9 @@ pub(super) struct FunctionMatch {
 pub(super) fn infer_return(
     func: &FunctionDeclaration,
     typed_func: &TypedExpr,
+    links: Links,
     diagnostics: &mut Vec<Diagnostic>,
     exploration: &mut Exploration,
-    reefs: &Reefs,
-    state: TypingState,
 ) -> TypeRef {
     let last = get_last_segment(typed_func);
     // If the last statement is a return, we don't need re-add it
@@ -66,11 +66,10 @@ pub(super) fn infer_return(
             segment: last.segment.clone(),
         });
     }
-    let ura = exploration.universal_accessor(state.reef, reefs);
 
     let expected_return_type = if let Some(return_type_annotation) = func.return_type.as_ref() {
         // An explicit return type is present, check it against all the return types.
-        resolve_type(&ura, state.reef, state.source, return_type_annotation)
+        resolve_type(exploration, links, return_type_annotation, diagnostics)
     } else {
         UNIT
     };
@@ -78,14 +77,14 @@ pub(super) fn infer_return(
     let mut typed_return_locations: Vec<_> = Vec::new();
 
     for ret in &exploration.returns {
-        if convert_description(&ura, expected_return_type, ret.ty).is_err() {
+        if convert_description(exploration, expected_return_type, ret.ty).is_err() {
             typed_return_locations.push(Observation::here(
-                state.source,
+                links.source,
                 ret.segment.clone(),
                 if func.return_type.is_some() {
-                    format!("Found `{}`", get_type(ret.ty, &ura).unwrap())
+                    format!("Found `{}`", exploration.get_type(ret.ty).unwrap())
                 } else {
-                    format!("Returning `{}`", get_type(ret.ty, &ura).unwrap())
+                    format!("Returning `{}`", exploration.get_type(ret.ty).unwrap())
                 },
             ));
         }
@@ -100,17 +99,18 @@ pub(super) fn infer_return(
             Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
                 .with_observations(typed_return_locations)
                 .with_observation(Observation::context(
-                    state.source,
+                    links.source,
                     return_type_annotation.segment(),
                     format!(
                         "Expected `{}` because of return type",
-                        get_type(expected_return_type, &ura).unwrap()
+                        exploration.get_type(expected_return_type).unwrap()
                     ),
                 )),
         );
     } else if !matches!(func.body.as_ref(), Expr::Block(_)) {
         let segment = func.segment().start..func.body.segment().start;
-        let unify = convert_many(&ura, exploration.returns.iter().map(|ret| ret.ty));
+        let returns = std::mem::take(&mut exploration.returns);
+        let unify = convert_many(exploration, returns.iter().map(|ret| ret.ty));
         if let Ok(common_type) = unify {
             diagnostics.push(
                 Diagnostic::new(
@@ -118,21 +118,21 @@ pub(super) fn infer_return(
                     "Return type inference is not supported yet",
                 )
                 .with_observation(Observation::context(
-                    state.source,
+                    links.source,
                     segment,
                     "No return type is specified",
                 ))
                 .with_observations(typed_return_locations)
                 .with_help(format!(
                     "Add -> {} to the function declaration",
-                    get_type(common_type, &ura).unwrap()
+                    exploration.get_type(common_type).unwrap()
                 )),
             );
         } else {
             diagnostics.push(
                 Diagnostic::new(DiagnosticID::CannotInfer, "Failed to infer return type")
                     .with_observation(Observation::context(
-                        state.source,
+                        links.source,
                         segment,
                         "This function returns multiple types",
                     ))
@@ -156,45 +156,34 @@ pub(super) fn infer_return(
 /// Checks the type of a call expression.
 pub(super) fn type_call(
     call: &ProgrammaticCall,
+    exploration: &mut Exploration,
     arguments: Vec<TypedExpr>,
+    links: Links,
     diagnostics: &mut Vec<Diagnostic>,
-    ura: &UniversalReefAccessor,
-    state: TypingState,
 ) -> FunctionMatch {
-    let engine = ura.get_engine(state.reef).unwrap();
-    let relations = ura.get_relations(state.reef).unwrap();
-    let env = engine.get_environment(state.source).unwrap();
-
-    let call_symbol_ref = env.get_raw_symbol(call.segment()).unwrap();
+    let call_symbol_ref = links.env().get_raw_symbol(call.segment()).unwrap();
 
     let fun_reef = match call_symbol_ref {
-        SymbolRef::Local(_) => state.reef,
+        SymbolRef::Local(_) => exploration.externals.current,
         SymbolRef::External(r) => {
-            let call_symbol = relations[r].state.expect_resolved("unresolved");
+            let call_symbol = links.relations[r].state.expect_resolved("unresolved");
             call_symbol.reef
         }
     };
 
-    let fun_reef_relations = ura.get_relations(fun_reef).unwrap();
-
-    let type_ref = ura
-        .get_types(fun_reef)
-        .unwrap()
-        .context
-        .get(fun_reef_relations, state.source, call_symbol_ref)
+    let type_ref: TypeRef = exploration
+        .get_var(
+            links.source, /* FIXME need defining env */
+            call_symbol_ref,
+            links.relations,
+        )
         .unwrap()
         .type_ref;
 
-    match get_type(type_ref, ura).unwrap() {
-        Type::Function(declaration) => {
-            let declaration = *declaration;
-            let entry = ura
-                .get_types(fun_reef)
-                .unwrap()
-                .engine
-                .get(declaration)
-                .unwrap();
-            let parameters = entry.parameters();
+    match exploration.get_type(type_ref).unwrap() {
+        &Type::Function(declaration) => {
+            let entry: CodeEntry = exploration.get_entry(fun_reef, declaration).unwrap();
+            let parameters = entry.parameters().to_owned(); // TODO: avoid clone
             let return_type = entry.return_type();
             if parameters.len() != arguments.len() {
                 diagnostics.push(
@@ -209,7 +198,7 @@ pub(super) fn type_call(
                         ),
                     )
                     .with_observation(Observation::here(
-                        state.source,
+                        links.source,
                         call.segment.clone(),
                         "Function is called here",
                     )),
@@ -221,15 +210,21 @@ pub(super) fn type_call(
                 }
             } else {
                 let mut casted_arguments = Vec::with_capacity(parameters.len());
-                for (param, arg) in parameters.iter().zip(arguments) {
+                for (param, arg) in parameters.iter().cloned().zip(arguments) {
                     casted_arguments.push(
-                        match convert_expression(arg, param.ty, state, ura, diagnostics) {
+                        match convert_expression(
+                            arg,
+                            param.ty,
+                            exploration,
+                            links.source,
+                            diagnostics,
+                        ) {
                             Ok(arg) => arg,
                             Err(arg) => {
                                 diagnostics.push(diagnose_arg_mismatch(
-                                    ura,
-                                    state.source,
-                                    param,
+                                    exploration,
+                                    links.source,
+                                    &param,
                                     &arg,
                                 ));
                                 arg
@@ -251,7 +246,7 @@ pub(super) fn type_call(
                     "Cannot invoke non function type",
                 )
                 .with_observation(Observation::here(
-                    state.source,
+                    links.source,
                     call.segment(),
                     format!("Call expression requires function, found `{ty}`"),
                 )),
@@ -289,8 +284,8 @@ pub(super) fn type_method<'a>(
     callee: &TypedExpr,
     arguments: &[TypedExpr],
     diagnostics: &mut Vec<Diagnostic>,
-    ura: &'a UniversalReefAccessor,
-    state: TypingState,
+    exploration: &'a mut Exploration,
+    source: SourceId,
 ) -> Option<&'a MethodType> {
     if callee.ty.is_err() {
         return None;
@@ -298,11 +293,7 @@ pub(super) fn type_method<'a>(
 
     // Directly callable types just have a single method called `apply`
     let method_name = method_call.name.unwrap_or("apply");
-    let type_reef_types = ura.get_types(callee.ty.reef).unwrap();
-
-    let type_methods = type_reef_types
-        .engine
-        .get_methods(callee.ty.type_id, method_name);
+    let type_methods = exploration.get_methods(callee.ty, method_name);
     if type_methods.is_none() {
         diagnostics.push(
             Diagnostic::new(
@@ -310,16 +301,16 @@ pub(super) fn type_method<'a>(
                 if method_call.name.is_some() {
                     format!(
                         "No method named `{method_name}` found for type `{}`",
-                        get_type(callee.ty, ura).unwrap()
+                        exploration.get_type(callee.ty).unwrap()
                     )
                 } else {
                     format!(
                         "Type `{}` is not directly callable",
-                        get_type(callee.ty, ura).unwrap()
+                        exploration.get_type(callee.ty).unwrap()
                     )
                 },
             )
-            .with_observation((state.source, method_call.segment.clone()).into()),
+            .with_observation((source, method_call.segment.clone()).into()),
         );
         return None;
     }
@@ -348,22 +339,27 @@ pub(super) fn type_method<'a>(
                     ),
                 )
                 .with_observation(Observation::here(
-                    state.source,
+                    source,
                     method_call.segment(),
                     "Method is called here",
                 ))
                 .with_help(format!(
                     "The method signature is `{}::{}`",
-                    get_type(callee.ty, ura).unwrap(),
-                    signature_to_string(method_name, method, ura)
+                    exploration.get_type(callee.ty).unwrap(),
+                    Signature::new(
+                        &exploration.typing,
+                        exploration.externals,
+                        method_name,
+                        method
+                    )
                 )),
             );
         } else {
             for (param, arg) in method.parameters.iter().zip(arguments.iter()) {
-                if convert_description(ura, param.ty, arg.ty).is_err() {
-                    let diagnostic = diagnose_arg_mismatch(ura, state.source, param, arg)
+                if convert_description(exploration, param.ty, arg.ty).is_err() {
+                    let diagnostic = diagnose_arg_mismatch(exploration, source, param, arg)
                         .with_observation(Observation::here(
-                            state.source,
+                            source,
                             method_call.segment(),
                             "Arguments to this method are incorrect",
                         ));
@@ -378,11 +374,11 @@ pub(super) fn type_method<'a>(
                 DiagnosticID::UnknownMethod,
                 format!(
                     "No matching method found for `{method_name}::{}`",
-                    get_type(callee.ty, ura).unwrap()
+                    exploration.get_type(callee.ty).unwrap()
                 ),
             )
             .with_observation(Observation::here(
-                state.source,
+                source,
                 method_call.segment(),
                 "Method is called here",
             )),
@@ -393,7 +389,7 @@ pub(super) fn type_method<'a>(
 
 /// Generates a type mismatch between a parameter and an argument.
 fn diagnose_arg_mismatch(
-    ura: &UniversalReefAccessor,
+    exploration: &Exploration,
     source: SourceId,
     param: &Parameter,
     arg: &TypedExpr,
@@ -404,8 +400,8 @@ fn diagnose_arg_mismatch(
             arg.segment.clone(),
             format!(
                 "Expected `{}`, found `{}`",
-                get_type(param.ty, ura).unwrap(),
-                get_type(arg.ty, ura).unwrap()
+                exploration.get_type(param.ty).unwrap(),
+                exploration.get_type(arg.ty).unwrap()
             ),
         ),
     );
@@ -441,20 +437,19 @@ fn find_exact_method<'a>(methods: &'a [MethodType], args: &[TypedExpr]) -> Optio
 }
 
 /// Type check a single function parameter.
-pub(crate) fn type_parameter(
-    ura: &UniversalReefAccessor,
-    reef: ReefId,
+pub(super) fn type_parameter(
+    exploration: &mut Exploration,
     param: &FunctionParameter,
-    source: SourceId,
+    links: Links,
+    diagnostics: &mut Vec<Diagnostic>,
 ) -> Parameter {
     match param {
         FunctionParameter::Named(named) => {
-            let type_id = named
-                .ty
-                .as_ref()
-                .map_or(STRING, |ty| resolve_type(ura, reef, source, ty));
+            let type_id = named.ty.as_ref().map_or(STRING, |ty| {
+                resolve_type(exploration, links, ty, diagnostics)
+            });
             Parameter {
-                location: Some(SourceLocation::new(source, named.segment.clone())),
+                location: Some(SourceLocation::new(links.source, named.segment.clone())),
                 ty: type_id,
             }
         }
@@ -477,38 +472,57 @@ fn pluralize<'a>(count: usize, singular: &'a str, plural: &'a str) -> &'a str {
     }
 }
 
-pub(crate) fn signature_to_string(
-    name: &str,
-    function: &FunctionType,
-    ura: &UniversalReefAccessor,
-) -> String {
-    let mut buff = String::new();
+/// A formatted signature of a function.
+struct Signature<'a> {
+    typing: &'a Typing,
+    externals: &'a Externals<'a>,
+    name: &'a str,
+    function: &'a FunctionType,
+}
 
-    buff.push_str(name);
-    buff.push('(');
-
-    fn type_to_string(tpe: TypeRef, ura: &UniversalReefAccessor) -> String {
-        let tpe = ura
-            .get_types(tpe.reef)
-            .and_then(|types| types.typing.get_type(tpe.type_id))
-            .unwrap_or(&Type::Error);
-
-        tpe.to_string()
-    }
-
-    if let Some((first, parameters)) = function.parameters.split_first() {
-        buff.push_str(&type_to_string(first.ty, ura));
-        for param in parameters {
-            buff.push_str(", ");
-            buff.push_str(&type_to_string(param.ty, ura));
+impl<'a> Signature<'a> {
+    /// Creates a new signature.
+    fn new(
+        typing: &'a Typing,
+        externals: &'a Externals,
+        name: &'a str,
+        function: &'a FunctionType,
+    ) -> Self {
+        Self {
+            typing,
+            externals,
+            name,
+            function,
         }
     }
 
-    buff.push(')');
-    if function.return_type.is_something() {
-        buff.push_str(" -> ");
-        buff.push_str(&type_to_string(function.return_type, ura));
+    fn get_type(&self, id: TypeRef) -> &Type {
+        if id.reef == self.externals.current {
+            self.typing.get_type(id.type_id).unwrap_or(&Type::Error)
+        } else {
+            self.externals
+                .get_reef(id.reef)
+                .unwrap()
+                .typing
+                .get_type(id.type_id)
+                .unwrap_or(&Type::Error)
+        }
     }
+}
 
-    buff
+impl fmt::Display for Signature<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}(", self.name)?;
+        if let Some((first, parameters)) = self.function.parameters.split_first() {
+            write!(f, "{}", self.get_type(first.ty))?;
+            for param in parameters {
+                write!(f, ", {}", self.get_type(param.ty))?;
+            }
+        }
+        if self.function.return_type.is_nothing() {
+            write!(f, ")")
+        } else {
+            write!(f, ") -> {}", self.get_type(self.function.return_type))
+        }
+    }
 }

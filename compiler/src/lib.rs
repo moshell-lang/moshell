@@ -357,7 +357,7 @@ mod tests {
 
     use analyzer::importer::StaticImporter;
     use analyzer::name::Name;
-    use analyzer::reef::{ReefContext, Reefs};
+    use analyzer::reef::{Externals, ReefId};
     use analyzer::relations::{LocalId, ResolvedSymbol, SourceId};
     use context::source::Source;
     use parser::parse_trusted;
@@ -385,16 +385,18 @@ mod tests {
            }
         }\
         ";
-        let mut reefs = Reefs::default();
-        let context = ReefContext::declare_new(&mut reefs, "test");
-        let reef_id = context.reef_id;
+        let externals = Externals::default();
+        let reef_id = ReefId(1);
         let analyzer = analyzer::analyze(
             Name::new("test"),
             &mut StaticImporter::new([(Name::new("test"), Source::unknown(src))], parse_trusted),
-            context,
+            &externals,
         );
-        let reef = analyzer.context.current_reef();
-        let captures = resolve_captures(&reef.engine, &reef.relations, reef_id);
+        let captures = resolve_captures(
+            &analyzer.resolution.engine,
+            &analyzer.resolution.relations,
+            reef_id,
+        );
 
         assert_eq!(
             captures,
