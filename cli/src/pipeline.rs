@@ -21,7 +21,7 @@ pub struct Pipeline<'a> {
     pub vm: VM,
 }
 
-impl Pipeline<'_> {
+impl<'a> Pipeline<'a> {
     pub fn new() -> Self {
         Self::default()
     }

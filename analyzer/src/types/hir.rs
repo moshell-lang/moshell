@@ -2,12 +2,8 @@ use ast::call::{RedirFd, RedirOp};
 use ast::value::LiteralValue;
 use context::source::{SourceSegment, SourceSegmentHolder};
 
-use crate::relations::{Definition, LocalId, ObjectId, ResolvedSymbol};
-use crate::types::{ERROR, NOTHING};
-
-/// A type identifier in a [`Typing`] instance.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TypeId(pub ObjectId);
+use crate::relations::{Definition, LocalId, ResolvedSymbol};
+use crate::types::ty::TypeRef;
 
 #[derive(Clone, Copy, Debug, PartialEq, Hash, Eq)]
 pub enum Var {
@@ -15,29 +11,11 @@ pub enum Var {
     External(ResolvedSymbol),
 }
 
-impl TypeId {
-    pub fn is_nothing(self) -> bool {
-        self == NOTHING
-    }
-
-    pub fn is_something(self) -> bool {
-        self != NOTHING
-    }
-
-    pub fn is_ok(self) -> bool {
-        self != ERROR
-    }
-
-    pub fn is_err(self) -> bool {
-        self == ERROR
-    }
-}
-
 /// A type checked expression attached to a source segment.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypedExpr {
     pub kind: ExprKind,
-    pub ty: TypeId,
+    pub ty: TypeRef,
     pub segment: SourceSegment,
 }
 
@@ -69,7 +47,7 @@ pub struct Conditional {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Convert {
     pub inner: Box<TypedExpr>,
-    pub into: TypeId,
+    pub into: TypeRef,
 }
 
 #[derive(Clone, Debug, PartialEq)]

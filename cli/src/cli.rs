@@ -1,6 +1,7 @@
 use analyzer::diagnostic::Diagnostic;
 use analyzer::importer::ASTImporter;
 use analyzer::name::Name;
+use analyzer::reef::ReefId;
 use analyzer::relations::SourceId;
 use analyzer::Analyzer;
 use clap::Parser;
@@ -78,7 +79,7 @@ impl SourceLineProvider for CachedSourceLocationLineProvider {
 pub fn use_pipeline<'a>(
     entry_point: &Name,
     starting_page: SourceId,
-    analyzer: &Analyzer<'a>,
+    analyzer: &Analyzer<'_>,
     vm: &mut VM,
     diagnostics: Vec<Diagnostic>,
     importer: &mut (impl ASTImporter<'a> + ErrorReporter),
@@ -118,13 +119,12 @@ pub fn use_pipeline<'a>(
         return import_status;
     }
 
+    let engine = &analyzer.resolution.engine;
     if config.ast {
-        for ast in analyzer
-            .resolution
-            .engine
+        for ast in engine
             .environments()
             .filter(|(_, env)| env.parent.is_none())
-            .filter_map(|(id, _)| analyzer.resolution.engine.get_expression(id))
+            .filter_map(|(id, _)| engine.get_expression(id))
         {
             println!("{}", color(ast))
         }
@@ -133,13 +133,8 @@ pub fn use_pipeline<'a>(
     let mut stderr = stderr();
     let had_errors = !diagnostics.is_empty();
     for diagnostic in diagnostics {
-        display_diagnostic(
-            &analyzer.resolution.engine,
-            importer,
-            diagnostic,
-            &mut stderr,
-        )
-        .expect("IO errors when reporting diagnostic");
+        display_diagnostic(engine, importer, diagnostic, &mut stderr)
+            .expect("IO errors when reporting diagnostic");
     }
 
     if had_errors {
@@ -148,10 +143,12 @@ pub fn use_pipeline<'a>(
     let mut bytes = Vec::new();
     let contents = importer.list_content_ids();
     let lines = CachedSourceLocationLineProvider::compute(&contents, importer);
+
     compile(
         &analyzer.engine,
         &analyzer.resolution.engine,
         &analyzer.resolution.relations,
+        ReefId(1),
         starting_page,
         &mut bytes,
         Some(&lines),

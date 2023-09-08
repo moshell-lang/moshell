@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use crate::types::hir::TypeId;
-use crate::types::ty::Type;
+use crate::reef::LANG_REEF;
+use crate::types::ty::{Type, TypeId, TypeRef};
 
-mod builtin;
+pub(crate) mod builtin;
 pub mod ctx;
 pub mod engine;
 pub mod hir;
@@ -11,84 +11,19 @@ pub mod operator;
 pub mod ty;
 
 /// Holds all the known types.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Typing {
     /// The actual types.
     types: Vec<Type>,
 
     /// A list of implicit conversions from one type to another.
-    implicits: HashMap<TypeId, TypeId>,
+    pub(crate) implicits: HashMap<TypeId, TypeRef>,
 }
 
 impl Typing {
-    /// Constructs a new typing context that already contains the built-in types.
-    pub fn with_lang() -> Self {
-        Self {
-            types: vec![
-                Type::Error,
-                Type::Nothing,
-                Type::Unit,
-                Type::Bool,
-                Type::ExitCode,
-                Type::Int,
-                Type::Float,
-                Type::String,
-            ],
-            implicits: HashMap::from([(EXIT_CODE, BOOL), (INT, FLOAT)]),
-        }
+    pub(crate) fn set_implicit_conversion(&mut self, from: TypeId, to: TypeRef) {
+        self.implicits.insert(from, to);
     }
-
-    /// Unifies two type identifiers, returning the type that the right hand side was unified to.
-    ///
-    /// Unification is successful when the assignation type is a superset of the rvalue type, i.e
-    /// when the assignation type is a parent conceptually or technically of the rvalue type.
-    /// It is not reflexive, i.e. `unify(a, b)` is not the same as `unify(b, a)`.
-    ///
-    /// A conversion may be not as simple as a reinterpretation of the value, and may require
-    /// a conversion function to be called. Use [`crate::steps::typing::convert_expression`] to
-    /// generate the conversion code for a typed expression.
-    pub(crate) fn convert_description(
-        &mut self,
-        assign_to: TypeId,
-        rvalue: TypeId,
-    ) -> Result<TypeId, UnificationError> {
-        if assign_to.is_err() || rvalue.is_err() {
-            return Ok(assign_to); // An error is compatible with everything, as it is a placeholder.
-        }
-        let lhs = &self.types[assign_to.0];
-        let rhs = &self.types[rvalue.0];
-        if lhs == rhs {
-            return Ok(assign_to);
-        }
-
-        // apply the `A U Nothing => A` rule
-        if *rhs == Type::Nothing {
-            return Ok(assign_to);
-        }
-
-        if let Some(implicit) = self.implicits.get(&rvalue) {
-            if lhs == &self.types[implicit.0] {
-                return Ok(assign_to);
-            }
-        }
-        Err(UnificationError())
-    }
-
-    /// Unifies multiple type identifiers in any direction.
-    pub fn convert_many<I: IntoIterator<Item = TypeId>>(
-        &mut self,
-        types: I,
-    ) -> Result<TypeId, UnificationError> {
-        let mut types = types
-            .into_iter()
-            .filter(|ty| ty.is_ok() && !ty.is_nothing());
-        let first = types.next().unwrap_or(NOTHING);
-        types.try_fold(first, |acc, ty| {
-            self.convert_description(acc, ty)
-                .or_else(|_| self.convert_description(ty, acc))
-        })
-    }
-
     pub(crate) fn add_type(&mut self, ty: Type) -> TypeId {
         let type_id = TypeId(self.types.len());
         self.types.push(ty);
@@ -100,14 +35,14 @@ impl Typing {
     }
 }
 
-pub const ERROR: TypeId = TypeId(0);
-pub const NOTHING: TypeId = TypeId(1);
-pub const UNIT: TypeId = TypeId(2);
-pub const BOOL: TypeId = TypeId(3);
-pub const EXIT_CODE: TypeId = TypeId(4);
-pub const INT: TypeId = TypeId(5);
-pub const FLOAT: TypeId = TypeId(6);
-pub const STRING: TypeId = TypeId(7);
+pub const ERROR: TypeRef = TypeRef::new(LANG_REEF, TypeId(0));
+pub const NOTHING: TypeRef = TypeRef::new(LANG_REEF, TypeId(1));
+pub const UNIT: TypeRef = TypeRef::new(LANG_REEF, TypeId(2));
+pub const BOOL: TypeRef = TypeRef::new(LANG_REEF, TypeId(3));
+pub const EXITCODE: TypeRef = TypeRef::new(LANG_REEF, TypeId(4));
+pub const INT: TypeRef = TypeRef::new(LANG_REEF, TypeId(5));
+pub const FLOAT: TypeRef = TypeRef::new(LANG_REEF, TypeId(6));
+pub const STRING: TypeRef = TypeRef::new(LANG_REEF, TypeId(7));
 
 /// An error that occurs when two types are not compatible.
 #[derive(Debug, PartialEq)]

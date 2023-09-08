@@ -4,6 +4,7 @@ use std::io::Write;
 
 use analyzer::importer::ImportResult;
 use analyzer::name::Name;
+use analyzer::reef::Externals;
 use analyzer::relations::SourceId;
 use analyzer::Inject;
 use context::source::OwnedSource;
@@ -16,6 +17,7 @@ use crate::report::print_flush;
 /// Indefinitely prompts a new expression from stdin and executes it.
 pub fn prompt(mut importer: FileImporter, config: &Cli) -> PipelineStatus {
     // Init a new pipeline that will be used to execute each expression.
+    let externals = Externals::default();
     let mut pipeline = Pipeline::new();
     let mut status = PipelineStatus::Success;
 
@@ -37,6 +39,7 @@ pub fn prompt(mut importer: FileImporter, config: &Cli) -> PipelineStatus {
                     attached: starting_source,
                 },
                 &mut importer,
+                &externals,
             );
 
             // Reuse the same diagnotics by moving them, requiring to keep track

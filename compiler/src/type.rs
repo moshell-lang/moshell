@@ -1,11 +1,11 @@
-use analyzer::types::hir::TypeId;
-use analyzer::types::{BOOL, ERROR, EXIT_CODE, FLOAT, INT, NOTHING, UNIT};
+use analyzer::types::ty::TypeRef;
+use analyzer::types::{BOOL, ERROR, EXITCODE, FLOAT, INT, NOTHING, UNIT};
 
 /// returns the size of a given type identifier
-pub fn get_type_stack_size(tpe: TypeId) -> ValueStackSize {
+pub fn get_type_stack_size(tpe: TypeRef) -> ValueStackSize {
     match tpe {
         NOTHING | UNIT => ValueStackSize::Zero,
-        BOOL | EXIT_CODE => ValueStackSize::Byte,
+        BOOL | EXITCODE => ValueStackSize::Byte,
         INT | FLOAT => ValueStackSize::QWord,
         ERROR => panic!("Received 'ERROR' type in compilation phase."),
         _ => ValueStackSize::QWord, //other types are object types which are references (q-words)
@@ -30,8 +30,8 @@ impl From<ValueStackSize> for u8 {
     }
 }
 
-impl From<TypeId> for ValueStackSize {
-    fn from(value: TypeId) -> Self {
+impl From<TypeRef> for ValueStackSize {
+    fn from(value: TypeRef) -> Self {
         get_type_stack_size(value)
     }
 }

@@ -23,10 +23,12 @@ use crate::engine::Engine;
 use crate::importer::{ASTImporter, Imported};
 use crate::imports::Imports;
 use crate::name::Name;
+use crate::reef::Externals;
 use crate::relations::{Relations, SourceId};
 use crate::steps::collect::SymbolCollector;
 use crate::steps::resolve_sources;
 use crate::steps::typing::apply_types;
+use crate::types::ctx::TypeContext;
 use crate::types::engine::TypedEngine;
 use crate::types::Typing;
 
@@ -39,6 +41,7 @@ pub mod relations;
 
 mod dependency;
 pub mod imports;
+pub mod reef;
 pub mod steps;
 pub mod types;
 
@@ -46,9 +49,13 @@ pub mod types;
 ///
 /// The returned analyzer contains the discovered sources and the diagnostics
 /// that were generated, be sure to check them for errors.
-pub fn analyze<'a>(entry_point: Name, importer: &mut impl ASTImporter<'a>) -> Analyzer<'a> {
+pub fn analyze<'a>(
+    entry_point: Name,
+    importer: &mut impl ASTImporter<'a>,
+    externals: &Externals,
+) -> Analyzer<'a> {
     let mut analyzer = Analyzer::new();
-    analyzer.process(entry_point, importer);
+    analyzer.process(entry_point, importer, externals);
     analyzer
 }
 
@@ -60,6 +67,8 @@ pub struct Analyzer<'a> {
 
     /// The current type knowledge.
     pub typing: Typing,
+
+    pub type_context: TypeContext,
 
     /// The applied types over the [`Engine`].
     pub engine: TypedEngine,
@@ -79,18 +88,21 @@ impl<'a> Analyzer<'a> {
         &mut self,
         entry_point: Name,
         importer: &mut impl ASTImporter<'a>,
+        externals: &Externals,
     ) -> Analysis<'a, '_> {
         let last_next_source_id = SourceId(self.resolution.engine.len());
         resolve_sources(
             vec![entry_point],
             &mut self.resolution,
             importer,
+            externals,
             &mut self.diagnostics,
         );
         if self.diagnostics.is_empty() {
             let (engine, typing) = apply_types(
                 &self.resolution.engine,
                 &self.resolution.relations,
+                externals,
                 &mut self.diagnostics,
             );
             self.engine = engine;
@@ -110,6 +122,7 @@ impl<'a> Analyzer<'a> {
         &mut self,
         inject: Inject<'a>,
         importer: &mut impl ASTImporter<'a>,
+        externals: &Externals,
     ) -> Analysis<'a, '_> {
         let last_next_source_id = SourceId(self.resolution.engine.len());
         let mut visit = vec![inject.name.clone()];
@@ -118,13 +131,21 @@ impl<'a> Analyzer<'a> {
             &mut self.resolution.engine,
             &mut self.resolution.relations,
             &mut self.resolution.imports,
+            externals,
             &mut visit,
         ));
-        resolve_sources(visit, &mut self.resolution, importer, &mut self.diagnostics);
+        resolve_sources(
+            visit,
+            &mut self.resolution,
+            importer,
+            externals,
+            &mut self.diagnostics,
+        );
         if self.diagnostics.is_empty() {
             let (engine, typing) = apply_types(
                 &self.resolution.engine,
                 &self.resolution.relations,
+                externals,
                 &mut self.diagnostics,
             );
             self.engine = engine;
@@ -192,13 +213,20 @@ impl Analysis<'_, '_> {
 ///
 /// The completion of a collection followed by its resolution phase is called a cycle.
 /// Multiple cycles can occur if the resolution phase finds new modules to collect.
-pub fn resolve_all<'a>(
+pub fn resolve_all<'a, 'e>(
     entry_point: Name,
-    importer: &mut impl ASTImporter<'a>,
+    externals: &'a Externals<'e>,
+    importer: &mut impl ASTImporter<'e>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> ResolutionResult<'a> {
     let mut result = ResolutionResult::default();
-    resolve_sources(vec![entry_point], &mut result, importer, diagnostics);
+    resolve_sources(
+        vec![entry_point],
+        &mut result,
+        importer,
+        externals,
+        diagnostics,
+    );
     result
 }
 

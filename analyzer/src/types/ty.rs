@@ -2,8 +2,41 @@ use std::collections::HashMap;
 use std::fmt::Display;
 
 use crate::diagnostic::SourceLocation;
-use crate::relations::{Definition, NativeId};
-use crate::types::hir::TypeId;
+use crate::reef::ReefId;
+use crate::relations::{Definition, NativeId, ObjectId};
+use crate::types::{ERROR, NOTHING};
+
+/// A type identifier in a [`Typing`] instance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TypeId(pub ObjectId);
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TypeRef {
+    pub reef: ReefId,
+    pub type_id: TypeId,
+}
+
+impl TypeRef {
+    pub const fn new(reef: ReefId, tpe: TypeId) -> Self {
+        Self { reef, type_id: tpe }
+    }
+
+    pub fn is_nothing(self) -> bool {
+        self == NOTHING
+    }
+
+    pub fn is_something(self) -> bool {
+        self != NOTHING
+    }
+
+    pub fn is_ok(self) -> bool {
+        self != ERROR
+    }
+
+    pub fn is_err(self) -> bool {
+        self == ERROR
+    }
+}
 
 /// An instantiated type representation.
 ///
@@ -59,7 +92,7 @@ pub struct FunctionType {
     pub(crate) parameters: Vec<Parameter>,
 
     /// The return type of the function.
-    pub(crate) return_type: TypeId,
+    pub(crate) return_type: TypeRef,
 
     /// The environment of the function, or the native function ID.
     pub(crate) definition: Definition,
@@ -69,7 +102,7 @@ pub struct FunctionType {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Parameter {
     pub(crate) location: Option<SourceLocation>,
-    pub ty: TypeId,
+    pub ty: TypeRef,
 }
 
 impl Display for Type {
@@ -103,7 +136,7 @@ impl FunctionType {
     /// chicken-and-egg problem. They are defined by the language host,
     /// usually in a Rust or C++ VM. They are identified by a dedicated
     /// [`NativeId`], so that the compiler can quickly identify them.
-    pub fn native(parameters: Vec<TypeId>, return_type: TypeId, id: NativeId) -> Self {
+    pub fn native(parameters: Vec<TypeRef>, return_type: TypeRef, id: NativeId) -> Self {
         Self {
             parameters: parameters
                 .into_iter()

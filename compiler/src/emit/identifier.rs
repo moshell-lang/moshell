@@ -25,8 +25,8 @@ pub(super) fn expose_variable(ctx: EmitterContext, var: Var, cp: &mut ConstantPo
         Var::Local(id) => {
             let variable = ctx
                 .environment
-                .variables
-                .get_var(id)
+                .symbols
+                .get(id)
                 .expect("The declared variable should be in the current environment.");
             if variable.is_exported() && ctx.environment.is_script {
                 let name = &variable.name;
@@ -45,8 +45,8 @@ pub(super) fn expose_variable(ctx: EmitterContext, var: Var, cp: &mut ConstantPo
                 .get_environment(resolved.source)
                 .expect("Resolved relation targets an unknown environment");
             let variable = environment
-                .variables
-                .get_var(resolved.object_id)
+                .symbols
+                .get(resolved.object_id)
                 .expect("Resolved relation targets an unknown variable");
             let is_exported_dynsym = variable.is_exported() && environment.is_script;
             if is_exported_dynsym {

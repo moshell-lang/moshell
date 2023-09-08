@@ -3,9 +3,9 @@ use std::fmt::{Debug, Formatter};
 
 use indexmap::IndexMap;
 
+use crate::environment::symbols::{SymbolLocation, SymbolRegistry};
 use context::source::SourceSegment;
 
-use crate::name::Name;
 use crate::relations::{ResolvedSymbol, SourceId};
 
 #[derive(Debug, Default)]
@@ -62,21 +62,21 @@ pub enum UnresolvedImport {
     /// A symbol import with an optional alias.
     Symbol {
         alias: Option<String>,
-        qualified_name: Name,
+        loc: SymbolLocation,
     },
     /// Variant to target all the exported symbols of a symbol
-    AllIn(Name),
+    AllIn(SymbolLocation),
 }
 
 /// A resolved symbol import
 #[derive(PartialEq, Eq, Debug)]
 pub enum ResolvedImport {
-    /// The import is a symbol
-    Symbol(ResolvedSymbol),
+    /// The import is a symbol name.
+    /// A (non empty) hashmap contains the binding, for the bound name, of the symbol according to its registry
+    Symbols(HashMap<SymbolRegistry, ResolvedSymbol>),
     /// The import is an environment
     Env(SourceId),
-
-    /// The import wasn't found
+    /// The import is unresolvable
     Dead,
 }
 

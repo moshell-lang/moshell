@@ -1,7 +1,9 @@
 use clap::Parser;
 use miette::{IntoDiagnostic, MietteHandlerOpts, WrapErr};
+use std::ffi::OsStr;
 
 use analyzer::name::Name;
+use analyzer::reef::Externals;
 use analyzer::relations::SourceId;
 
 use crate::cli::{use_pipeline, Cli};
@@ -41,7 +43,7 @@ fn main() -> Result<PipelineStatus, miette::Error> {
         let name = Name::new(
             source
                 .file_name()
-                .and_then(|name| name.to_str())
+                .and_then(OsStr::to_str)
                 .expect("Incompatible filename"),
         );
         let mut importer = FileImporter::new({
@@ -50,8 +52,12 @@ fn main() -> Result<PipelineStatus, miette::Error> {
             root
         });
         importer.add_redirection(name.clone(), source.clone());
+
+        let externals = Externals::default();
         let mut pipeline = Pipeline::new();
-        pipeline.analyzer.process(name.clone(), &mut importer);
+        pipeline
+            .analyzer
+            .process(name.clone(), &mut importer, &externals);
         let diagnostics = pipeline.analyzer.take_diagnostics();
         return Ok(use_pipeline(
             &name,

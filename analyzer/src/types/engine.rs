@@ -1,9 +1,8 @@
 use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::relations::{Definition, SourceId};
-use crate::types::builtin::lang;
-use crate::types::hir::{TypeId, TypedExpr};
-use crate::types::ty::{FunctionType, MethodType, Parameter, TypeDescription};
+use crate::types::hir::TypedExpr;
+use crate::types::ty::{FunctionType, MethodType, Parameter, TypeDescription, TypeId, TypeRef};
 use crate::types::UNIT;
 use context::source::ContentId;
 
@@ -40,7 +39,7 @@ impl CodeEntry<'_> {
         }
     }
 
-    pub fn return_type(&self) -> TypeId {
+    pub fn return_type(&self) -> TypeRef {
         match self {
             CodeEntry::User(chunk) => chunk.return_type,
             CodeEntry::Native(native) => native.return_type,
@@ -60,7 +59,7 @@ pub struct Chunk {
     pub parameters: Vec<Parameter>,
 
     /// The return type of the chunk.
-    pub return_type: TypeId,
+    pub return_type: TypeRef,
 }
 
 impl Chunk {
@@ -77,7 +76,7 @@ impl Chunk {
     pub fn function(
         expression: TypedExpr,
         parameters: Vec<Parameter>,
-        return_type: TypeId,
+        return_type: TypeRef,
     ) -> Self {
         Self {
             expression,
@@ -92,15 +91,14 @@ impl TypedEngine {
     ///
     /// In most cases, the capacity is equal to the number of source objects in
     /// the source engine.
-    pub fn with_lang(capacity: usize) -> Self {
-        let mut builder = Self {
+    pub fn new(capacity: usize) -> Self {
+        let mut engine = Self {
             entries: Vec::new(),
             descriptions: Vec::new(),
             natives: Vec::new(),
         };
-        builder.entries.resize_with(capacity, || None);
-        lang(&mut builder);
-        builder
+        engine.entries.resize_with(capacity, || None);
+        engine
     }
 
     /// Returns the chunk with the given id.
@@ -137,8 +135,8 @@ impl TypedEngine {
         &self,
         type_id: TypeId,
         name: &str,
-        args: &[TypeId],
-        return_type: TypeId,
+        args: &[TypeRef],
+        return_type: TypeRef,
     ) -> Option<&MethodType> {
         self.get_methods(type_id, name).and_then(|methods| {
             methods.iter().find(|method| {

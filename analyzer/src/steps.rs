@@ -1,6 +1,7 @@
 use crate::diagnostic::Diagnostic;
 use crate::importer::ASTImporter;
 use crate::name::Name;
+use crate::reef::Externals;
 use crate::steps::collect::SymbolCollector;
 use crate::steps::resolve::SymbolResolver;
 use crate::ResolutionResult;
@@ -14,6 +15,7 @@ pub(super) fn resolve_sources<'a>(
     mut to_visit: Vec<Name>,
     result: &mut ResolutionResult<'a>,
     importer: &mut impl ASTImporter<'a>,
+    externals: &Externals,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     while !to_visit.is_empty() {
@@ -21,6 +23,7 @@ pub(super) fn resolve_sources<'a>(
             &mut result.engine,
             &mut result.relations,
             &mut result.imports,
+            externals,
             &mut to_visit,
             &mut result.visited,
             importer,
@@ -29,6 +32,7 @@ pub(super) fn resolve_sources<'a>(
             &result.engine,
             &mut result.relations,
             &mut result.imports,
+            externals,
             &mut to_visit,
             &result.visited,
         ));
