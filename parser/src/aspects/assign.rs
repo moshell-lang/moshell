@@ -50,7 +50,7 @@ mod tests {
         assert_eq!(
             res,
             Err(ParseError {
-                message: "Expected value".to_string(),
+                message: "Expected expression".to_string(),
                 position: content.len()..content.len(),
                 kind: ParseErrorKind::Unexpected,
             })

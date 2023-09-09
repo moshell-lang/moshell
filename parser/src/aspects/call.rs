@@ -6,8 +6,10 @@ use ast::value::Literal;
 use ast::variable::TypedVariable;
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
+use lexer::token::TokenType::{RoundedLeftBracket, SquaredLeftBracket, SquaredRightBracket};
 use lexer::token::{Token, TokenType};
 
+use crate::aspects::expr_list::ExpressionListAspect;
 use crate::aspects::group::GroupAspect;
 use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
 use crate::aspects::modules::ModulesAspect;
@@ -79,7 +81,13 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             parsed: name.into(),
             segment: name_segment.clone(),
         });
-        let type_parameters = self.parse_type_parameter_list()?.0;
+        let (type_parameters, _) = self.parse_optional_or_nonempty_list(
+            SquaredLeftBracket,
+            SquaredRightBracket,
+            "empty type argument list",
+            Parser::parse_type,
+        )?;
+
         if let Some(open_parenthesis) = self.cursor.advance(of_type(TokenType::RoundedLeftBracket))
         {
             let (arguments, args_segment) =
@@ -140,7 +148,13 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
     fn call(&mut self) -> ParseResult<Expr<'a>> {
         let callee = self.call_argument()?;
-        let type_parameters = self.parse_type_parameter_list()?.0;
+        let (type_parameters, _) = self.parse_optional_or_nonempty_list(
+            SquaredLeftBracket,
+            SquaredRightBracket,
+            "empty type argument list",
+            Parser::parse_type,
+        )?;
+
         ensure_empty(
             "Command calls cannot have generic arguments",
             type_parameters,
@@ -160,7 +174,12 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         let name_segment = self.cursor.relative_pos(name.value);
         path.push(InclusionPathItem::Symbol(name.value, name_segment.clone()));
 
-        let type_parameters = self.parse_type_parameter_list()?.0;
+        let (type_parameters, _) = self.parse_optional_or_nonempty_list(
+            SquaredLeftBracket,
+            SquaredRightBracket,
+            "empty type argument list",
+            Parser::parse_type,
+        )?;
         let open_parenthesis = self.cursor.force(
             of_type(TokenType::RoundedLeftBracket),
             "Expected opening parenthesis.",
@@ -196,11 +215,16 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             })
             .transpose()?;
 
-        let type_arguments = self.parse_type_parameter_list()?.0;
-        let open_parenthesis = self.cursor.force(
-            of_type(TokenType::RoundedLeftBracket),
-            "Expected opening parenthesis.",
+        let (type_arguments, _) = self.parse_optional_or_nonempty_list(
+            SquaredLeftBracket,
+            SquaredRightBracket,
+            "empty type argument list",
+            Parser::parse_type,
         )?;
+
+        let open_parenthesis = self
+            .cursor
+            .force(of_type(RoundedLeftBracket), "Expected opening parenthesis.")?;
         let (arguments, segment) = self.parse_comma_separated_arguments(open_parenthesis)?;
         let segment = dot
             .map(|d| self.cursor.relative_pos(d.value))
@@ -263,7 +287,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 impl<'a> Parser<'a> {
     /// special pivot method for argument methods
     pub(crate) fn call_argument(&mut self) -> ParseResult<Expr<'a>> {
-        self.repos("Expected value")?;
+        self.repos("Expected expression")?;
 
         let pivot = self.cursor.peek().token_type;
         match pivot {

@@ -35,6 +35,13 @@ pub struct CastedExpr<'a> {
 
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
+pub struct GenericType<'a> {
+    pub name: &'a str,
+    pub params: Vec<GenericType<'a>>,
+}
+
+#[segment_holder]
+#[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct ParametrizedType<'a> {
     /// inclusion path, with the type's name
     pub path: Vec<InclusionPathItem<'a>>,

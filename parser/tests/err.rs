@@ -3,7 +3,7 @@ use pretty_assertions::assert_eq;
 use ast::call::{Call, ProgrammaticCall};
 use ast::function::{FunctionDeclaration, FunctionParameter};
 use ast::group::Block;
-use ast::r#type::{ParametrizedType, Type};
+use ast::r#type::{GenericType, ParametrizedType, Type};
 use ast::r#use::InclusionPathItem;
 use ast::value::Literal;
 use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
@@ -108,12 +108,12 @@ fn what_is_an_import() {
                 kind: ParseErrorKind::Unexpected
             },
             ParseError {
-                message: "Expected value".to_owned(),
+                message: "Expected expression".to_owned(),
                 position: content.find('%').map(|p| p + 1..p + 2).unwrap(),
                 kind: ParseErrorKind::Unexpected
             },
             ParseError {
-                message: "Expected value".to_owned(),
+                message: "Expected expression".to_owned(),
                 position: content.find(';').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected
             }
@@ -131,11 +131,11 @@ fn tolerance_in_multiple_groups() {
         ParseReport {
             expr: vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "f",
-                type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    path: vec![InclusionPathItem::Symbol("T", find_in(source.source, "T"))],
-                    params: vec![],
-                    segment: find_in(&source.source, "T")
-                })],
+                type_parameters: vec![GenericType {
+                    name: "T",
+                    params: Vec::new(),
+                    segment: find_in(source.source, "T")
+                },],
                 parameters: vec![FunctionParameter::Named(TypedVariable {
                     name: "x",
                     ty: Some(Type::Parametrized(ParametrizedType {
@@ -157,7 +157,7 @@ fn tolerance_in_multiple_groups() {
             })],
             errors: vec![
                 ParseError {
-                    message: "'$' is not a valid type identifier.".to_owned(),
+                    message: "'$' is not a valid generic type identifier.".to_owned(),
                     position: content.find('$').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 },
@@ -240,7 +240,7 @@ fn no_comma_or_two() {
             expr: vec![],
             errors: vec![
                 ParseError {
-                    message: "'@' is not a valid type identifier.".to_owned(),
+                    message: "'@' is not a valid generic type identifier.".to_owned(),
                     position: content.find('@').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 },
@@ -315,14 +315,9 @@ fn do_not_self_lock() {
             })],
             errors: vec![
                 ParseError {
-                    message: "Expected value.".to_owned(),
+                    message: "Expected expression.".to_owned(),
                     position: content.find(',').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
-                },
-                ParseError {
-                    message: "expected types".to_owned(),
-                    position: content.find(']').map(|p| p..p + 1).unwrap(),
-                    kind: ParseErrorKind::Expected("<types>".to_owned())
                 },
                 ParseError {
                     message: "Expected parameter.".to_owned(),
@@ -362,7 +357,7 @@ fn expected_value_found_eof() {
         ParseReport {
             expr: vec![],
             errors: vec![ParseError {
-                message: "Expected value".to_string(),
+                message: "Expected expression".to_string(),
                 position: content.find('=').map(|p| p + 1..p + 2).unwrap(),
                 kind: ParseErrorKind::Unexpected
             }],
@@ -380,7 +375,7 @@ fn expected_value_found_semicolon() {
         ParseReport {
             expr: vec![],
             errors: vec![ParseError {
-                message: "Expected value".to_string(),
+                message: "Expected expression".to_string(),
                 position: content.find(';').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected
             }],
@@ -486,7 +481,7 @@ fn double_comma_function() {
                     kind: ParseErrorKind::Unexpected
                 },
                 ParseError {
-                    message: "Expected value".to_string(),
+                    message: "Expected expression".to_string(),
                     position: content.len()..content.len(),
                     kind: ParseErrorKind::Unexpected
                 }

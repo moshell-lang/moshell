@@ -1,3 +1,4 @@
+use crate::aspects::expr_list::ExpressionListAspect;
 use ast::function::{FunctionDeclaration, FunctionParameter, Return};
 use ast::r#type::Type;
 use context::source::SourceSegmentHolder;
@@ -36,7 +37,12 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
         self.cursor.advance(blanks());
         let name = self.parse_fn_declaration_name()?;
         self.cursor.advance(blanks());
-        let tparams = self.parse_type_parameter_list()?.0;
+        let (tparams, _) = self.parse_optional_or_nonempty_list(
+            SquaredLeftBracket,
+            SquaredRightBracket,
+            "empty generic parameter list",
+            Parser::parse_generic_type,
+        )?;
         self.cursor.advance(blanks());
         let params = self.parse_fn_parameter_list()?;
         self.cursor.advance(blanks());
@@ -213,7 +219,7 @@ mod tests {
     use ast::call::Call;
     use ast::function::{FunctionDeclaration, FunctionParameter, Return};
     use ast::operation::{BinaryOperation, BinaryOperator};
-    use ast::r#type::{ParametrizedType, Type};
+    use ast::r#type::{GenericType, ParametrizedType, Type};
     use ast::r#use::InclusionPathItem;
     use ast::value::Literal;
     use ast::variable::{TypedVariable, VarReference};
@@ -465,16 +471,16 @@ mod tests {
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "test",
                 type_parameters: vec![
-                    Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol("X", find_in(source.source, "X"))],
+                    GenericType {
+                        name: "X",
                         params: Vec::new(),
                         segment: find_in(source.source, "X")
-                    }),
-                    Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol("Y", find_in(source.source, "Y"))],
+                    },
+                    GenericType {
+                        name: "Y",
                         params: Vec::new(),
                         segment: find_in(source.source, "Y")
-                    }),
+                    },
                 ],
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
@@ -582,16 +588,16 @@ mod tests {
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "test",
                 type_parameters: vec![
-                    Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol("X", find_in(source.source, "X"))],
+                    GenericType {
+                        name: "X",
                         params: Vec::new(),
                         segment: find_in(source.source, "X")
-                    }),
-                    Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol("Y", find_in(source.source, "Y"))],
+                    },
+                    GenericType {
+                        name: "Y",
                         params: Vec::new(),
                         segment: find_in(source.source, "Y")
-                    }),
+                    },
                 ],
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
