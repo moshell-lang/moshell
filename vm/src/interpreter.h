@@ -1,6 +1,6 @@
 #pragma once
 
-#include "memory/strings.h"
+#include "memory/object.h"
 #include "stdlib_natives.h"
 
 namespace msh {
@@ -24,4 +24,4 @@ public:
  * @throws InvalidBytecodeError if an interpreted instruction set contains invalid instructions
  * @return true if the run did not abort
  */
-bool run_unit(const msh::loader &loader, msh::pager &pager, const msh::memory_page &current_page, StringsHeap &strings, const natives_functions_t &natives);
+bool run_unit(const msh::loader &loader, msh::pager &pager, const msh::memory_page &current_page, msh::heap &heap, const natives_functions_t &natives);

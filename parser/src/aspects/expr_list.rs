@@ -34,6 +34,19 @@ pub(super) trait ExpressionListAspect<'a> {
     where
         E: SourceSegmentHolder,
         F: FnMut(&mut Self) -> ParseResult<E>;
+
+    /// parses a list which is either nonexistent or explicit but nonempty.
+    /// - if the current's token does not match `start`, an empty vec is returned.
+    /// - else, an explicit list is parsed, that must end with `end` token.
+    fn parse_optional_list<E, F>(
+        &mut self,
+        start: TokenType,
+        end: TokenType,
+        parse_element: F,
+    ) -> ParseResult<(Vec<E>, Option<SourceSegment>)>
+    where
+        E: SourceSegmentHolder,
+        F: FnMut(&mut Self) -> ParseResult<E>;
 }
 
 impl<'a> ExpressionListAspect<'a> for Parser<'a> {
@@ -77,12 +90,18 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         while self.cursor.lookahead(blanks().then(eog())).is_none() {
             self.cursor.advance(blanks());
             while let Some(comma) = self.cursor.advance(of_type(Comma)) {
+                self.cursor.advance(blanks());
                 self.report_error(self.mk_parse_error(
-                    "Expected value.",
+                    "Expected expression.",
                     comma,
                     ParseErrorKind::Unexpected,
                 ));
             }
+
+            if self.cursor.lookahead(blanks().then(eog())).is_some() {
+                break;
+            }
+
             match parse_element(self) {
                 Err(err) => {
                     self.recover_from(err, of_type(Comma));
@@ -102,5 +121,24 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         let end = self.expect_delimiter(start.clone(), end)?;
 
         Ok((elements, self.cursor.relative_pos_ctx(start..end)))
+    }
+
+    fn parse_optional_list<E, F>(
+        &mut self,
+        start: TokenType,
+        end: TokenType,
+        parse_element: F,
+    ) -> ParseResult<(Vec<E>, Option<SourceSegment>)>
+    where
+        E: SourceSegmentHolder,
+        F: FnMut(&mut Self) -> ParseResult<E>,
+    {
+        if self.cursor.lookahead(of_type(start)).is_none() {
+            return Ok((Vec::new(), None));
+        }
+        self.cursor.advance(blanks());
+        let (tparams, segment) = self.parse_explicit_list(start, end, parse_element)?;
+
+        Ok((tparams, Some(segment)))
     }
 }

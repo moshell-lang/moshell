@@ -2,7 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <string>
+#include <string_view>
 #include <vector>
 
 /**
@@ -12,7 +12,7 @@ struct function_definition {
     /**
      * function's identifier string
      */
-    const std::string *identifier;
+    std::string_view identifier;
     /**
      * Amount, in bytes of the space in the stack frame allocated for local values area
      */

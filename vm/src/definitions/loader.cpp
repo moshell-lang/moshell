@@ -7,10 +7,10 @@
 #define MAPPINGS_ATTRIBUTE 1
 
 namespace msh {
-    void loader::load_raw_bytes(const char *bytes, size_t size, pager &pager, StringsHeap &strings) {
+    void loader::load_raw_bytes(const char *bytes, size_t size, pager &pager, msh::heap &heap) {
         ByteReader reader(bytes, size);
 
-        ConstantPool tmp_pool = load_constant_pool(reader, strings);
+        ConstantPool tmp_pool = load_constant_pool(reader, heap);
         uint32_t dynsym_len = reader.read<uint32_t>();
         size_t pool_index = pager.push_pool(std::move(tmp_pool), dynsym_len);
         const ConstantPool &pool = pager.get_pool(pool_index);
@@ -77,7 +77,7 @@ namespace msh {
         std::copy(instructions, instructions + instruction_count, std::back_inserter(concatened_instructions));
 
         function_definition def = {
-            &identifier,
+            identifier,
             locals_byte_count,
             parameters_byte_count,
             return_byte_count,

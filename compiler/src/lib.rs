@@ -8,6 +8,7 @@ use analyzer::name::Name;
 use analyzer::reef::{Externals, ReefId};
 use analyzer::relations::{LocalId, Relations, ResolvedSymbol, SourceId};
 use analyzer::types::engine::{Chunk, TypedEngine};
+use analyzer::types::Typing;
 use context::source::ContentId;
 
 use crate::bytecode::{Bytecode, Instructions};
@@ -34,6 +35,7 @@ const MAPPINGS_ATTRIBUTE: u8 = 1;
 #[allow(clippy::too_many_arguments)]
 pub fn compile(
     typed_engine: &TypedEngine,
+    typing: &Typing,
     relations: &Relations,
     link_engine: &Engine,
     externals: &Externals,
@@ -54,6 +56,7 @@ pub fn compile(
             reef_id,
             link_engine,
             externals,
+            typing,
             main_env,
             &captures,
             chunk_id,
@@ -76,8 +79,16 @@ pub fn compile(
         bytecode.emit_u32(defined_functions.len() as u32);
 
         for (chunk_id, env, chunk) in defined_functions {
-            let ctx =
-                EmitterContext::new(reef_id, link_engine, externals, env, &captures, chunk_id);
+            let ctx = EmitterContext::new(
+                reef_id,
+                link_engine,
+                externals,
+                typing,
+                env,
+                &captures,
+                chunk_id,
+            );
+
             compile_chunk(
                 &env.fqn,
                 chunk,

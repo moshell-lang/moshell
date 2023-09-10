@@ -10,7 +10,7 @@
 struct vm_state {
     msh::loader loader;
     msh::pager pager;
-    StringsHeap strings;
+    msh::heap heap;
     natives_functions_t natives;
     size_t next_page{};
 };
@@ -25,14 +25,14 @@ int moshell_exec(const char *bytes, size_t byte_count) {
 
 moshell_vm moshell_vm_init() {
     vm_state *state = new vm_state();
-    state->natives = load_natives(state->strings);
+    state->natives = load_natives(state->heap);
     return {state};
 }
 
 int moshell_vm_register(moshell_vm vm, const char *bytes, size_t byte_count) {
     vm_state &state = *static_cast<vm_state *>(vm.vm);
     try {
-        state.loader.load_raw_bytes(bytes, byte_count, state.pager, state.strings);
+        state.loader.load_raw_bytes(bytes, byte_count, state.pager, state.heap);
         return 0;
     } catch (const std::exception &e) {
         std::cerr << e.what() << std::endl;
@@ -47,7 +47,7 @@ int moshell_vm_run(moshell_vm vm) {
         const auto last = state.pager.cbegin() + (state.pager.size() - state.next_page);
         for (auto it = state.pager.cbegin(); it != last; ++it) {
             const msh::memory_page &page = *it;
-            if (!run_unit(state.loader, state.pager, page, state.strings, state.natives)) {
+            if (!run_unit(state.loader, state.pager, page, state.heap, state.natives)) {
                 return 1;
             }
         }

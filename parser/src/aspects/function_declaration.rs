@@ -1,8 +1,8 @@
+use crate::aspects::expr_list::ExpressionListAspect;
 use ast::function::{FunctionDeclaration, FunctionParameter, Return};
 use ast::r#type::Type;
 use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
-use lexer::token::TokenType::*;
 
 use crate::aspects::r#type::TypeAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
@@ -27,7 +27,7 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
         let fun = self
             .cursor
             .force(
-                of_type(Fun),
+                of_type(TokenType::Fun),
                 "expected 'fun' keyword at start of function declaration.",
             )?
             .value;
@@ -38,13 +38,18 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
         self.cursor.advance(blanks());
         let name = self.parse_fn_declaration_name()?;
         self.cursor.advance(blanks());
-        let tparams = self.parse_type_parameter_list()?.0;
+
+        let (tparams, _) = self.parse_optional_list(
+            TokenType::SquaredLeftBracket,
+            TokenType::SquaredRightBracket,
+            Parser::parse_type_parameter,
+        )?;
         self.cursor.advance(blanks());
         let params = self.parse_fn_parameter_list()?;
         self.cursor.advance(blanks());
         let rtype = self.parse_fn_return_type()?;
 
-        if let Some(token) = self.cursor.lookahead(blanks().then(of_type(SemiColon))) {
+        if let Some(token) = self.cursor.lookahead(blanks().then(of_type(TokenType::SemiColon))) {
             return Ok(FunctionDeclaration {
                 name,
                 type_parameters: tparams,
@@ -57,7 +62,7 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
 
         let body = self
             .cursor
-            .force(blanks().then(of_type(Equal)), "expected `=`")
+            .force(blanks().then(of_type(TokenType::Equal)), "expected '='")
             .and_then(|_| {
                 self.cursor.advance(blanks());
                 self.statement()
@@ -79,7 +84,7 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
     fn parse_return(&mut self) -> ParseResult<Return<'a>> {
         let start = self
             .cursor
-            .force(of_type(Return), "'return' keyword expected here")?;
+            .force(of_type(TokenType::Return), "'return' keyword expected here")?;
         if self.cursor.advance(spaces()).is_none() || self.cursor.lookahead(eox()).is_some() {
             return Ok(Return {
                 expr: None,
@@ -97,7 +102,7 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn parse_fn_return_type(&mut self) -> ParseResult<Option<Type<'a>>> {
-        if self.cursor.advance(blanks().then(of_type(Arrow))).is_none() {
+        if self.cursor.advance(of_type(TokenType::Arrow)).is_none() {
             return Ok(None);
         }
         self.cursor.advance(blanks()); // consume blanks
@@ -110,28 +115,29 @@ impl<'a> Parser<'a> {
         let is_vararg = self
             .cursor
             .lookahead(
-                of_type(Vararg).or(repeat(
+                of_type(TokenType::Vararg).or(repeat(
                     // skip everything that could compose a type expression
                     of_types(&[
-                        Space,
-                        NewLine,
-                        Identifier,
-                        SquaredLeftBracket,
-                        SquaredRightBracket,
+                        TokenType::Space,
+                        TokenType::NewLine,
+                        TokenType::Identifier,
+                        TokenType::SquaredLeftBracket,
+                        TokenType::SquaredRightBracket,
                     ]),
                 )
-                .then(of_type(Vararg))),
+                .then(of_type(TokenType::Vararg))),
             )
             .is_some();
 
         if is_vararg {
             let param = self
                 .cursor
-                .lookahead(not(of_type(Vararg)))
+                .lookahead(not(of_type(TokenType::Vararg)))
                 .map(|_| self.parse_type())
                 .transpose()
                 .map(FunctionParameter::Variadic)?;
-            self.cursor.force(of_type(Vararg), "expected '...'")?;
+            self.cursor
+                .force(of_type(TokenType::Vararg), "expected '...'")?;
             return Ok(param);
         }
 
@@ -141,7 +147,7 @@ impl<'a> Parser<'a> {
     fn parse_fn_parameter_list(&mut self) -> ParseResult<Vec<FunctionParameter<'a>>> {
         let parenthesis = self
             .cursor
-            .advance(of_type(RoundedLeftBracket))
+            .advance(of_type(TokenType::RoundedLeftBracket))
             .ok_or_else(|| {
                 self.mk_parse_error(
                     "expected start of parameter list",
@@ -153,7 +159,7 @@ impl<'a> Parser<'a> {
         let mut params = Vec::new();
         loop {
             self.cursor.advance(blanks());
-            while let Some(comma) = self.cursor.advance(of_type(Comma)) {
+            while let Some(comma) = self.cursor.advance(of_type(TokenType::Comma)) {
                 self.report_error(self.mk_parse_error(
                     "Expected parameter.",
                     comma,
@@ -168,11 +174,11 @@ impl<'a> Parser<'a> {
             match param {
                 Ok(param) => params.push(param),
                 Err(err) => {
-                    self.recover_from(err, of_type(Comma));
+                    self.recover_from(err, of_type(TokenType::Comma));
                 }
             }
             if let Err(err) = self.cursor.force(
-                blanks().then(of_type(Comma).or(lookahead(eog()))),
+                blanks().then(of_type(TokenType::Comma).or(lookahead(eog()))),
                 "Expected ','",
             ) {
                 self.cursor.advance(blanks());
@@ -180,7 +186,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        self.expect_delimiter(parenthesis, RoundedRightBracket)?;
+        self.expect_delimiter(parenthesis, TokenType::RoundedRightBracket)?;
 
         Ok(params)
     }
@@ -194,9 +200,9 @@ impl<'a> Parser<'a> {
                     .cursor
                     .collect(repeat(
                         not(blank().or(eox()).or(of_types(&[
-                            CurlyLeftBracket,
-                            SquaredLeftBracket,
-                            RoundedLeftBracket,
+                            TokenType::CurlyLeftBracket,
+                            TokenType::SquaredLeftBracket,
+                            TokenType::RoundedLeftBracket,
                         ])))
                         .and_then(next()),
                     ))
@@ -226,7 +232,7 @@ mod tests {
     use ast::call::Call;
     use ast::function::{FunctionDeclaration, FunctionParameter, Return};
     use ast::operation::{BinaryOperation, BinaryOperator};
-    use ast::r#type::{ParametrizedType, Type};
+    use ast::r#type::{ParametrizedType, Type, TypeParameter};
     use ast::r#use::InclusionPathItem;
     use ast::value::Literal;
     use ast::variable::{TypedVariable, VarReference};
@@ -362,7 +368,7 @@ mod tests {
         assert_eq!(
             errs,
             vec![ParseError {
-                message: "expected `=`".to_string(),
+                message: "expected '='".to_string(),
                 position: src.find("{").map(|i| i..i + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected,
             }]
@@ -398,7 +404,7 @@ mod tests {
 
     #[test]
     fn function_declaration() {
-        let source = Source::unknown("fun test() = x");
+        let source = Source::unknown("fun test[]() = x");
         let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
@@ -462,7 +468,7 @@ mod tests {
 
     #[test]
     fn function_declaration_params() {
-        let source = Source::unknown("fun test(  x : String  ,  y : Test   ) = x");
+        let source = Source::unknown("fun test[](  x : String  ,  y : Test   ) = x");
         let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
@@ -513,16 +519,16 @@ mod tests {
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "test",
                 type_parameters: vec![
-                    Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol("X", find_in(source.source, "X"))],
+                    TypeParameter {
+                        name: "X",
                         params: Vec::new(),
                         segment: find_in(source.source, "X")
-                    }),
-                    Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol("Y", find_in(source.source, "Y"))],
+                    },
+                    TypeParameter {
+                        name: "Y",
                         params: Vec::new(),
                         segment: find_in(source.source, "Y")
-                    }),
+                    },
                 ],
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
@@ -630,16 +636,16 @@ mod tests {
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "test",
                 type_parameters: vec![
-                    Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol("X", find_in(source.source, "X"))],
+                    TypeParameter {
+                        name: "X",
                         params: Vec::new(),
                         segment: find_in(source.source, "X")
-                    }),
-                    Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol("Y", find_in(source.source, "Y"))],
+                    },
+                    TypeParameter {
+                        name: "Y",
                         params: Vec::new(),
                         segment: find_in(source.source, "Y")
-                    }),
+                    },
                 ],
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {

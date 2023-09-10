@@ -1,13 +1,15 @@
 use ast::operation::BinaryOperator;
 
 use crate::engine::Engine;
-use crate::reef::Reef;
+use crate::reef::{Reef, LANG_REEF};
 use crate::relations::{NativeId, Relations};
 use crate::types::ctx::TypeContext;
 use crate::types::engine::TypedEngine;
 use crate::types::operator::name_operator_method;
-use crate::types::ty::{MethodType, Type};
-use crate::types::{Typing, BOOL, EXITCODE, FLOAT, INT, NOTHING, STRING, UNIT};
+use crate::types::ty::{MethodType, Type, TypeId, TypeRef};
+use crate::types::{
+    Typing, BOOL, EXITCODE, FLOAT, GENERIC_VECTOR, INT, NOTHING, POLYTYPE, STRING, UNIT,
+};
 
 const ARITHMETIC_OPERATORS: &[BinaryOperator] = &[
     BinaryOperator::Plus,
@@ -109,6 +111,38 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine) {
         name_operator_method(BinaryOperator::Plus),
         MethodType::native(vec![STRING], STRING, gen.next()),
     );
+
+    engine.add_generic(GENERIC_VECTOR.type_id, POLYTYPE);
+    engine.add_method(
+        GENERIC_VECTOR.type_id,
+        "get",
+        MethodType::native(vec![INT], POLYTYPE, gen.next()),
+    );
+    engine.add_method(
+        GENERIC_VECTOR.type_id,
+        "push",
+        MethodType::native(vec![POLYTYPE], UNIT, gen.next()),
+    );
+    engine.add_method(
+        GENERIC_VECTOR.type_id,
+        "len",
+        MethodType::native(vec![], INT, gen.next()),
+    );
+
+    engine.add_method(
+        STRING.type_id,
+        "split",
+        MethodType::native(
+            vec![STRING],
+            TypeRef::new(LANG_REEF, TypeId(10)),
+            gen.next(),
+        ),
+    );
+    engine.add_method(
+        STRING.type_id,
+        "bytes",
+        MethodType::native(vec![], TypeRef::new(LANG_REEF, TypeId(11)), gen.next()),
+    );
 }
 
 fn fill_lang_types(typing: &mut Typing) {
@@ -121,6 +155,10 @@ fn fill_lang_types(typing: &mut Typing) {
         Type::Int,
         Type::Float,
         Type::String,
+        Type::Vector,
+        Type::Polytype,
+        Type::Instantiated(GENERIC_VECTOR, vec![STRING]),
+        Type::Instantiated(GENERIC_VECTOR, vec![INT]),
     ] {
         typing.add_type(primitive);
     }
@@ -136,6 +174,7 @@ fn fill_lang_bindings(ctx: &mut TypeContext) {
     ctx.bind_name("Int".to_string(), INT.type_id);
     ctx.bind_name("Float".to_string(), FLOAT.type_id);
     ctx.bind_name("String".to_string(), STRING.type_id);
+    ctx.bind_name("Vec".to_string(), GENERIC_VECTOR.type_id);
 }
 
 pub fn lang_reef() -> Reef<'static> {

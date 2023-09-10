@@ -714,6 +714,9 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                     segments,
                 )),
                 Ok(loc) => {
+                    for param in &p.params {
+                        self.collect_type(origin, param)
+                    }
                     let symref = self.identify_symbol(
                         origin,
                         origin,

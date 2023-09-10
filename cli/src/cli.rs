@@ -157,6 +157,7 @@ pub fn use_pipeline(
 
     compile(
         &analyzer.engine,
+        &analyzer.typing,
         &analyzer.resolution.relations,
         &analyzer.resolution.engine,
         externals,

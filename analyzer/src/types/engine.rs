@@ -140,6 +140,11 @@ impl TypedEngine {
         self.descriptions.get(type_id.0)?.methods.get(name)
     }
 
+    /// Returns the description of a given type.
+    pub fn get_description(&self, def: TypeId) -> Option<&TypeDescription> {
+        self.descriptions.get(def.0)
+    }
+
     /// Gets the method that matches exactly the given arguments and return type.
     pub fn get_method_exact(
         &self,
@@ -170,6 +175,16 @@ impl TypedEngine {
             .entry(name.to_owned())
             .or_default()
             .push(method);
+    }
+
+    /// Adds a new generic type parameter to a type.
+    pub fn add_generic(&mut self, type_id: TypeId, generic: TypeRef) {
+        // Extend the vector of type descriptions if necessary.
+        if type_id.0 >= self.descriptions.len() {
+            self.descriptions
+                .resize_with(type_id.0 + 1, Default::default);
+        }
+        self.descriptions[type_id.0].generics.push(generic);
     }
 
     /// Inserts a chunk into the engine if it is not already present.

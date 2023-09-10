@@ -1,0 +1,14 @@
+// Run:
+//   status: success
+//   stdout:
+//    The alphabet has 26 letters.
+//    The first letter has the ASCII code 97.
+//    The last letter has the ASCII code 122.
+
+val letters = 'abcdefghijklmnopqrstuvwxy'.bytes()
+$letters.push(122)
+echo "The alphabet has ${letters.len()} letters."
+var code = $letters.get(0)
+echo "The first letter has the ASCII code ${code}."
+code = $letters.get(25)
+echo "The last letter has the ASCII code ${code}."

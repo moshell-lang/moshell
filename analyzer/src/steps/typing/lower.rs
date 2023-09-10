@@ -3,8 +3,9 @@ use context::source::SourceSegmentHolder;
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::relations::SourceId;
 use crate::steps::typing::exploration::Exploration;
+use crate::steps::typing::view::TypeInstance;
 use crate::types::hir::{ExprKind, MethodCall, TypedExpr};
-use crate::types::ty::{Type, TypeRef};
+use crate::types::ty::TypeRef;
 use crate::types::{BOOL, FLOAT, STRING};
 
 pub fn get_converter(ty: TypeRef) -> Option<&'static str> {
@@ -42,13 +43,13 @@ pub(super) fn call_convert_on(
     expr: TypedExpr,
     into: TypeRef,
     exploration: &Exploration,
-    message: impl FnOnce(&Type) -> String,
+    message: impl FnOnce(TypeInstance) -> String,
     diagnostics: &mut Vec<Diagnostic>,
     source: SourceId,
 ) -> TypedExpr {
     // If the expression is already of the needed type, we don't need to do anything.
     // The `Nothing` type can be converted to anything, so we also return early.
-    if expr.ty.is_err() || into.is_err() || expr.ty == into || expr.ty.is_nothing() {
+    if exploration.is_compatible(into, expr.ty) {
         return expr;
     }
 
@@ -60,7 +61,7 @@ pub(super) fn call_convert_on(
                     DiagnosticID::UnknownMethod,
                     format!(
                         "No conversion method defined for type `{}`",
-                        exploration.get_type(into).unwrap()
+                        exploration.get_type(into)
                     ),
                 )
                 .with_observation((source, exploration.externals.current, expr.segment()).into()),
@@ -83,7 +84,7 @@ pub(super) fn call_convert_on(
         };
     }
 
-    let ty = exploration.get_type(expr.ty).unwrap();
+    let ty = exploration.get_type(expr.ty);
     diagnostics.push(
         Diagnostic::new(DiagnosticID::TypeMismatch, message(ty)).with_observation(
             Observation::here(

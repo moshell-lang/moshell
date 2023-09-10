@@ -92,6 +92,11 @@ pub enum DiagnosticID {
     #[assoc(code = 16)]
     #[assoc(critical = true)]
     IllegalNativeDefinition,
+    
+    /// An incorrect number of type arguments was provided.
+    #[assoc(code = 17)]
+    #[assoc(critical = true)]
+    InvalidTypeArguments,
 }
 
 /// Observations are labels in a code snippet that are used to explain a [`Diagnostic`].

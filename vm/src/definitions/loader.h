@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "memory/constant_pool.h"
-#include "memory/strings.h"
+#include "memory/object.h"
 
 class ByteReader;
 
@@ -67,9 +67,9 @@ namespace msh {
          * @param bytes The bytes to load.
          * @param size The array size of the bytes.
          * @param pager The pager where to initialize the memory.
-         * @param strings The strings heap where to store the constant strings.
+         * @param heap The heap heap where to store the constant strings.
          */
-        void load_raw_bytes(const char *bytes, size_t size, pager &pager, StringsHeap &strings);
+        void load_raw_bytes(const char *bytes, size_t size, pager &pager, msh::heap &heap);
 
         /**
          * Gets the function definition for the given name.
