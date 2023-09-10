@@ -37,6 +37,7 @@ mod tests {
     use ast::variable::Assign;
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
+    use pretty_assertions::assert_eq;
 
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
@@ -50,7 +51,7 @@ mod tests {
         assert_eq!(
             res,
             Err(ParseError {
-                message: "Expected expression".to_string(),
+                message: "Expected value".to_string(),
                 position: content.len()..content.len(),
                 kind: ParseErrorKind::Unexpected,
             })

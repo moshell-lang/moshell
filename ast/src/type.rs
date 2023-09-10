@@ -35,9 +35,9 @@ pub struct CastedExpr<'a> {
 
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
-pub struct GenericType<'a> {
+pub struct TypeParameter<'a> {
     pub name: &'a str,
-    pub params: Vec<GenericType<'a>>,
+    pub params: Vec<TypeParameter<'a>>,
 }
 
 #[segment_holder]

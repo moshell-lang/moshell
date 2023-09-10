@@ -1,4 +1,4 @@
-use ast::r#type::{ByName, CallableType, GenericType, ParametrizedType, Type};
+use ast::r#type::{ByName, CallableType, ParametrizedType, Type, TypeParameter};
 use ast::r#use::InclusionPathItem;
 use context::display::fmt_comma_separated;
 use context::source::{SourceSegment, SourceSegmentHolder};
@@ -19,7 +19,7 @@ pub trait TypeAspect<'a> {
     fn parse_type(&mut self) -> ParseResult<Type<'a>>;
 
     /// parses a generic type
-    fn parse_generic_type(&mut self) -> ParseResult<GenericType<'a>>;
+    fn parse_type_parameter(&mut self) -> ParseResult<TypeParameter<'a>>;
 }
 
 impl<'a> TypeAspect<'a> for Parser<'a> {
@@ -73,36 +73,33 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         Ok(tpe)
     }
 
-    fn parse_generic_type(&mut self) -> ParseResult<GenericType<'a>> {
+    fn parse_type_parameter(&mut self) -> ParseResult<TypeParameter<'a>> {
         let name = self.cursor.next()?;
 
         match name.token_type {
             Identifier => {
-                let (params, params_segment) = self.parse_optional_or_nonempty_list(
+                let (params, params_segment) = self.parse_optional_list(
                     SquaredLeftBracket,
                     SquaredRightBracket,
-                    "empty generic parameter list",
-                    Self::parse_generic_type,
+                    Self::parse_type_parameter,
                 )?;
 
                 let name_segment = self.cursor.relative_pos(name.value);
                 let segment_start = name_segment.start;
-                let segment_end = if params.is_empty() {
-                    name_segment.end
-                } else {
+                let segment_end = if let Some(params_segment) = params_segment {
                     params_segment.end
+                } else {
+                    name_segment.end
                 };
 
                 let segment = segment_start..segment_end;
 
-                Ok(GenericType {
+                Ok(TypeParameter {
                     name: name.value,
                     params,
                     segment,
                 })
             }
-            NewLine => self.expected_with("expected type", name, Expected("<type>".to_string())),
-
             x if x.is_closing_ponctuation() => {
                 self.expected_with("expected type", name, Expected("<type>".to_string()))
             }
@@ -196,13 +193,12 @@ impl<'a> Parser<'a> {
         return match name_token.token_type {
             Identifier => {
                 self.cursor.next_opt();
-                let (params, params_segment) = self.parse_optional_or_nonempty_list(
+                let (params, params_segment) = self.parse_optional_list(
                     SquaredLeftBracket,
                     SquaredRightBracket,
-                    "empty type argument list",
                     Self::parse_type,
                 )?;
-                if !params.is_empty() {
+                if let Some(params_segment) = params_segment {
                     segment.end = params_segment.end;
                 }
 
@@ -289,14 +285,14 @@ mod tests {
         let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
-            Err(ParseError {
-                message: "empty type argument list".to_string(),
-                kind: Unexpected,
-                position: content
-                    .find("[    ]")
-                    .map(|i| i..i + "[    ]".len())
-                    .unwrap()
-            })
+            Ok(Type::Parametrized(ParametrizedType {
+                path: vec![InclusionPathItem::Symbol(
+                    "Complex",
+                    find_in(content, "Complex")
+                )],
+                params: vec![],
+                segment: source.segment()
+            }))
         );
     }
 

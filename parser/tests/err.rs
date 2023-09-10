@@ -3,7 +3,7 @@ use pretty_assertions::assert_eq;
 use ast::call::{Call, ProgrammaticCall};
 use ast::function::{FunctionDeclaration, FunctionParameter};
 use ast::group::Block;
-use ast::r#type::{GenericType, ParametrizedType, Type};
+use ast::r#type::{ParametrizedType, Type, TypeParameter};
 use ast::r#use::InclusionPathItem;
 use ast::value::Literal;
 use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
@@ -108,12 +108,12 @@ fn what_is_an_import() {
                 kind: ParseErrorKind::Unexpected
             },
             ParseError {
-                message: "Expected expression".to_owned(),
+                message: "Expected value".to_owned(),
                 position: content.find('%').map(|p| p + 1..p + 2).unwrap(),
                 kind: ParseErrorKind::Unexpected
             },
             ParseError {
-                message: "Expected expression".to_owned(),
+                message: "Expected value".to_owned(),
                 position: content.find(';').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected
             }
@@ -131,11 +131,11 @@ fn tolerance_in_multiple_groups() {
         ParseReport {
             expr: vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "f",
-                type_parameters: vec![GenericType {
+                type_parameters: vec![TypeParameter {
                     name: "T",
                     params: Vec::new(),
                     segment: find_in(source.source, "T")
-                },],
+                }],
                 parameters: vec![FunctionParameter::Named(TypedVariable {
                     name: "x",
                     ty: Some(Type::Parametrized(ParametrizedType {
@@ -357,7 +357,7 @@ fn expected_value_found_eof() {
         ParseReport {
             expr: vec![],
             errors: vec![ParseError {
-                message: "Expected expression".to_string(),
+                message: "Expected value".to_string(),
                 position: content.find('=').map(|p| p + 1..p + 2).unwrap(),
                 kind: ParseErrorKind::Unexpected
             }],
@@ -375,7 +375,7 @@ fn expected_value_found_semicolon() {
         ParseReport {
             expr: vec![],
             errors: vec![ParseError {
-                message: "Expected expression".to_string(),
+                message: "Expected value".to_string(),
                 position: content.find(';').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected
             }],
@@ -481,7 +481,7 @@ fn double_comma_function() {
                     kind: ParseErrorKind::Unexpected
                 },
                 ParseError {
-                    message: "Expected expression".to_string(),
+                    message: "Expected value".to_string(),
                     position: content.len()..content.len(),
                     kind: ParseErrorKind::Unexpected
                 }

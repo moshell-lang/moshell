@@ -6,7 +6,6 @@ use ast::value::Literal;
 use ast::variable::TypedVariable;
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
-use lexer::token::TokenType::{RoundedLeftBracket, SquaredLeftBracket, SquaredRightBracket};
 use lexer::token::{Token, TokenType};
 
 use crate::aspects::expr_list::ExpressionListAspect;
@@ -81,10 +80,9 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             parsed: name.into(),
             segment: name_segment.clone(),
         });
-        let (type_parameters, _) = self.parse_optional_or_nonempty_list(
-            SquaredLeftBracket,
-            SquaredRightBracket,
-            "empty type argument list",
+        let (type_parameters, _) = self.parse_optional_list(
+            TokenType::SquaredLeftBracket,
+            TokenType::SquaredRightBracket,
             Parser::parse_type,
         )?;
 
@@ -148,10 +146,9 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
     fn call(&mut self) -> ParseResult<Expr<'a>> {
         let callee = self.call_argument()?;
-        let (type_parameters, _) = self.parse_optional_or_nonempty_list(
-            SquaredLeftBracket,
-            SquaredRightBracket,
-            "empty type argument list",
+        let (type_parameters, _) = self.parse_optional_list(
+            TokenType::SquaredLeftBracket,
+            TokenType::SquaredRightBracket,
             Parser::parse_type,
         )?;
 
@@ -174,10 +171,9 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         let name_segment = self.cursor.relative_pos(name.value);
         path.push(InclusionPathItem::Symbol(name.value, name_segment.clone()));
 
-        let (type_parameters, _) = self.parse_optional_or_nonempty_list(
-            SquaredLeftBracket,
-            SquaredRightBracket,
-            "empty type argument list",
+        let (type_parameters, _) = self.parse_optional_list(
+            TokenType::SquaredLeftBracket,
+            TokenType::SquaredRightBracket,
             Parser::parse_type,
         )?;
         let open_parenthesis = self.cursor.force(
@@ -215,16 +211,16 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             })
             .transpose()?;
 
-        let (type_arguments, _) = self.parse_optional_or_nonempty_list(
-            SquaredLeftBracket,
-            SquaredRightBracket,
-            "empty type argument list",
+        let (type_arguments, _) = self.parse_optional_list(
+            TokenType::SquaredLeftBracket,
+            TokenType::SquaredRightBracket,
             Parser::parse_type,
         )?;
 
-        let open_parenthesis = self
-            .cursor
-            .force(of_type(RoundedLeftBracket), "Expected opening parenthesis.")?;
+        let open_parenthesis = self.cursor.force(
+            of_type(TokenType::RoundedLeftBracket),
+            "Expected opening parenthesis.",
+        )?;
         let (arguments, segment) = self.parse_comma_separated_arguments(open_parenthesis)?;
         let segment = dot
             .map(|d| self.cursor.relative_pos(d.value))

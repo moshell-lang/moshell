@@ -273,7 +273,7 @@ impl<'a> Parser<'a> {
 
     /// Parses the left-hand side of the next value.
     fn lhs(&mut self) -> ParseResult<Expr<'a>> {
-        self.repos("Expected expression")?;
+        self.repos("Expected value")?;
         match self.cursor.peek().token_type {
             RoundedLeftBracket => self.lambda_or_parentheses(),
             CurlyLeftBracket => self.block().map(Expr::Block),

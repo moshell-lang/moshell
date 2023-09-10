@@ -3,7 +3,7 @@ use lexer::token::TokenType;
 use lexer::token::TokenType::Comma;
 
 use crate::err::ParseErrorKind;
-use crate::err::ParseErrorKind::{Expected, Unexpected};
+use crate::err::ParseErrorKind::Expected;
 use crate::moves::{blanks, eog, lookahead, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
@@ -39,13 +39,12 @@ pub(super) trait ExpressionListAspect<'a> {
     /// - if the current's token does not match `start`, an empty vec is returned.
     /// - else, an explicit list is parsed, that must end with `end` token.
     ///   if the explicit list is empty, an error is returned with given error message.
-    fn parse_optional_or_nonempty_list<E, F>(
+    fn parse_optional_list<E, F>(
         &mut self,
         start: TokenType,
         end: TokenType,
-        empty_err: &str,
         parse_element: F,
-    ) -> ParseResult<(Vec<E>, SourceSegment)>
+    ) -> ParseResult<(Vec<E>, Option<SourceSegment>)>
     where
         E: SourceSegmentHolder,
         F: FnMut(&mut Self) -> ParseResult<E>;
@@ -125,27 +124,22 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         Ok((elements, self.cursor.relative_pos_ctx(start..end)))
     }
 
-    fn parse_optional_or_nonempty_list<E, F>(
+    fn parse_optional_list<E, F>(
         &mut self,
         start: TokenType,
         end: TokenType,
-        empty_err: &str,
         parse_element: F,
-    ) -> ParseResult<(Vec<E>, SourceSegment)>
+    ) -> ParseResult<(Vec<E>, Option<SourceSegment>)>
     where
         E: SourceSegmentHolder,
         F: FnMut(&mut Self) -> ParseResult<E>,
     {
         if self.cursor.lookahead(of_type(start)).is_none() {
-            return Ok((Vec::new(), self.cursor.relative_pos_ctx(self.cursor.peek())));
+            return Ok((Vec::new(), None));
         }
         self.cursor.advance(blanks());
-        let start_token = self.cursor.peek();
-        let ((tparams, segment), no_nested_errors) =
-            self.observe_error_reports(|p| p.parse_explicit_list(start, end, parse_element))?;
-        if no_nested_errors && tparams.is_empty() {
-            return self.expected_with(empty_err, start_token..self.cursor.peek(), Unexpected);
-        }
-        Ok((tparams, segment))
+        let (tparams, segment) = self.parse_explicit_list(start, end, parse_element)?;
+
+        Ok((tparams, Some(segment)))
     }
 }
