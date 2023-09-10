@@ -692,6 +692,9 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                     .diagnostics
                     .push(make_invalid_path_diagnostic(origin, segments)),
                 Ok(loc) => {
+                    for param in &p.params {
+                        self.collect_type(origin, param)
+                    }
                     let symref = self.identify_symbol(
                         origin,
                         origin,

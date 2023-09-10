@@ -4,6 +4,7 @@ use context::source::{SourceSegment, SourceSegmentHolder};
 
 use crate::relations::{Definition, LocalId, ResolvedSymbol};
 use crate::types::ty::TypeRef;
+use crate::types::ERROR;
 
 #[derive(Clone, Copy, Debug, PartialEq, Hash, Eq)]
 pub enum Var {
@@ -104,4 +105,11 @@ pub enum ExprKind {
     Continue,
     Break,
     Noop,
+}
+
+impl TypedExpr {
+    pub(crate) fn poison(mut self) -> Self {
+        self.ty = ERROR;
+        self
+    }
 }

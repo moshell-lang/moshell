@@ -146,6 +146,7 @@ pub fn use_pipeline<'a>(
 
     compile(
         &analyzer.engine,
+        &analyzer.typing,
         &analyzer.resolution.engine,
         &analyzer.resolution.relations,
         ReefId(1),

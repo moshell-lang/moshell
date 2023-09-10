@@ -1,0 +1,14 @@
+// Run:
+//   status: success
+//   stdout:
+//    The len is 5.
+//    The new len is 6.
+//    characters
+
+val v = 'A long set of characters'.split(' ')
+echo "The len is ${v.len()}."
+$v.push('and more')
+echo "The new len is ${v.len()}."
+
+val chars = $v.get(4)
+echo $chars

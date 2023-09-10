@@ -26,6 +26,9 @@ enum Opcode {
     OP_PUSH_STRING_REF, // with 8 byte string index in constant pool, pushes a reference to the string constant onto the operand stack
     OP_PUSH_LOCAL_REF,  // with 4 bytes locals index, pushes a reference to the locals address onto the stack
 
+    OP_BOX_INT, // pops an int, and push it as a new reference
+    OP_UNBOX,   // pops a reference, and convert it to a value
+
     OP_LOCAL_GET_BYTE,   // pops last reference and pushes its byte value onto the operands
     OP_LOCAL_SET_BYTE,   // pops last reference, pops a byte value then sets the reference's value with byte value
     OP_LOCAL_GET_Q_WORD, // pops last reference and pushes its sword value onto the operands
@@ -105,9 +108,9 @@ bool is_master = true;
  */
 struct runtime_state {
     /**
-     * strings heap space
+     * The VM's heap.
      */
-    StringsHeap &strings;
+    msh::heap &heap;
 
     /**
      * The file descriptor table
@@ -236,7 +239,7 @@ void panic(const std::string &msg, CallStack &stack) {
     while (!stack.is_empty()) {
         stack_frame frame = stack.peek_frame();
         const function_definition &def = frame.function;
-        std::cerr << "\n\tat " << *def.identifier;
+        std::cerr << "\n\tat " << def.identifier;
 
         if (!def.mappings.empty()) {
             size_t instruction_line;
@@ -301,13 +304,13 @@ inline bool handle_function_invocation(const std::string &callee_identifier,
     auto callee_def_it = state.loader.find_function(callee_identifier);
 
     if (callee_def_it == state.loader.functions_cend()) {
-        auto native_function_it = state.native_functions.find(&callee_identifier);
+        auto native_function_it = state.native_functions.find(callee_identifier);
         if (native_function_it == state.native_functions.end()) {
             throw FunctionNotFoundError("Could not find function " + callee_identifier);
         }
 
         auto native_function = native_function_it->second;
-        native_function(caller_operands, state.strings);
+        native_function(caller_operands, state.heap);
 
         return false;
     }
@@ -378,10 +381,8 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             constant_index index = ntohl(*(constant_index *)(instructions + ip));
             ip += sizeof(constant_index);
 
-            const std::string *str_ref = &pool.get_string(index);
-
             // Push the string index onto the stack
-            operands.push_reference((uint64_t)str_ref);
+            operands.push_reference(const_cast<msh::obj &>(pool.get_ref(index))); // Promise not to modify the string
             break;
         }
         case OP_PUSH_LOCAL_REF: {
@@ -392,7 +393,34 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             uint8_t *ref = &locals.reference(local_index);
 
             // Push the string index onto the stack
-            operands.push_reference((uint64_t)ref);
+            operands.push_unchecked_reference(ref);
+            break;
+        }
+        case OP_BOX_INT: {
+            // Pop the value
+            int64_t value = operands.pop_int();
+
+            // Push the reference onto the stack
+            operands.push_reference(state.heap.insert(value));
+            break;
+        }
+        case OP_UNBOX: {
+            // Pop the reference
+            msh::obj &ref = operands.pop_reference();
+
+            // Push the value onto the stack
+            std::visit([&](auto &&arg) {
+                using T = std::decay_t<decltype(arg)>;
+                if constexpr (std::is_same_v<T, int64_t>) {
+                    operands.push_int(arg);
+                } else if constexpr (std::is_same_v<T, double>) {
+                    operands.push_double(arg);
+                } else {
+                    throw InvalidBytecodeError("Cannot unbox type");
+                }
+                operands.push(arg);
+            },
+                       ref);
             break;
         }
         case OP_INVOKE: {
@@ -437,13 +465,11 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             std::vector<std::unique_ptr<char[]>> argv(frame_size + 1);
             for (int i = frame_size - 1; i >= 0; i--) {
                 // Pop the string reference
-                uintptr_t reference = operands.pop_reference();
-                // cast the ref to a string pointer
-                const std::string &arg = *(std::string *)reference;
+                const std::string &arg = std::get<const std::string>(operands.pop_reference());
                 size_t arg_length = arg.length() + 1; // add 1 for the trailing '\0' char
                 // Allocate the string
                 argv[i] = std::make_unique<char[]>(arg_length);
-                // copy the string fata
+                // copy the string data
                 memcpy(argv[i].get(), arg.c_str(), arg_length);
             }
 
@@ -477,8 +503,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
         }
         case OP_OPEN: {
             // Pop the path
-            uint64_t path_ref = operands.pop_reference();
-            const std::string &path = *(std::string *)path_ref;
+            const std::string &path = std::get<const std::string>(operands.pop_reference());
 
             // Read the flags
             int flags = ntohl(*(int *)(instructions + ip));
@@ -572,17 +597,15 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             }
 
             // Push the string onto the stack
-            const std::string &ref = state.strings.insert(std::move(out));
-            operands.push_reference((uintptr_t)&ref);
+            msh::obj &str = state.heap.insert(std::move(out));
+            operands.push_reference(str);
             break;
         }
         case OP_WRITE: {
             // Pop the string reference
-            uintptr_t reference = operands.pop_reference();
+            const std::string &str = std::get<const std::string>(operands.pop_reference());
             // Pop the file descriptor
             int fd = static_cast<int>(operands.pop_int());
-            // cast the ref to a string pointer
-            const std::string &str = *(std::string *)reference;
 
             // Write the string to the file
             if (write(fd, str.data(), str.length()) == -1) {
@@ -598,23 +621,23 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             exit(static_cast<int>(exit_code));
         }
         case OP_REF_GET_BYTE: {
-            char value = *(char *)operands.pop_reference();
+            char value = (char &)operands.pop_reference();
             operands.push_byte(value);
             break;
         }
         case OP_REF_SET_BYTE: {
-            char *value = (char *)operands.pop_reference();
-            *value = operands.pop_byte();
+            char &value = (char &)operands.pop_reference();
+            value = operands.pop_byte();
             break;
         }
         case OP_REF_GET_Q_WORD: {
-            int64_t value = *(int64_t *)operands.pop_reference();
+            int64_t value = (int64_t &)operands.pop_reference();
             operands.push_int(value);
             break;
         }
         case OP_REF_SET_Q_WORD: {
-            int64_t *value = (int64_t *)operands.pop_reference();
-            *value = operands.pop_int();
+            int64_t &value = (int64_t &)operands.pop_reference();
+            value = operands.pop_int();
             break;
         }
         case OP_LOCAL_GET_BYTE: {
@@ -783,9 +806,9 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
     return frame_status::RETURNED; // this frame has returned
 }
 
-bool run_unit(const msh::loader &loader, msh::pager &pager, const msh::memory_page &current_page, StringsHeap &strings, const natives_functions_t &natives) {
+bool run_unit(const msh::loader &loader, msh::pager &pager, const msh::memory_page &current_page, msh::heap &heap, const natives_functions_t &natives) {
     fd_table table;
-    runtime_state state{strings, table, loader, pager, natives};
+    runtime_state state{heap, table, loader, pager, natives};
 
     // prepare the call stack, containing the given root function on top of the stack
     const function_definition &root_def = loader.get_function(current_page.init_function_name);

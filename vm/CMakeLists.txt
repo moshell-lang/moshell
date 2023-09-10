@@ -17,8 +17,8 @@ add_library(vm
         src/memory/constant_pool.cpp
         src/memory/locals.cpp
         src/memory/nix.cpp
+        src/memory/object.cpp
         src/memory/operand_stack.cpp
-        src/memory/strings.cpp
         src/byte_reader.cpp
         src/errors.cpp
         src/interpreter.cpp

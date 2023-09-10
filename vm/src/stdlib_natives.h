@@ -1,10 +1,10 @@
 #pragma once
 
 #include "memory/operand_stack.h"
-#include <string>
+#include <string_view>
 #include <unordered_map>
 
-typedef std::unordered_map<const std::string *, void (*)(OperandStack &, StringsHeap &)> natives_functions_t;
+using natives_functions_t = std::unordered_map<std::string_view, void (*)(OperandStack &, msh::heap &)>;
 
 natives_functions_t
-load_natives(StringsHeap &strings);
+load_natives(msh::heap &heap);

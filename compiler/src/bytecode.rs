@@ -314,6 +314,9 @@ pub enum Opcode {
     PushStringRef,
     PushLocalRef,
 
+    BoxInt,
+    Unbox,
+
     GetLocalByte,
     SetLocalByte,
     GetLocalQWord,
