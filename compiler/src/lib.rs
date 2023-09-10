@@ -8,6 +8,7 @@ use analyzer::name::Name;
 use analyzer::reef::ReefId;
 use analyzer::relations::{LocalId, Relations, ResolvedSymbol, SourceId};
 use analyzer::types::engine::{Chunk, TypedEngine};
+use analyzer::types::Typing;
 use context::source::ContentId;
 
 use crate::bytecode::{Bytecode, Instructions};
@@ -31,8 +32,10 @@ pub trait SourceLineProvider {
 
 const MAPPINGS_ATTRIBUTE: u8 = 1;
 
+#[allow(clippy::too_many_arguments)]
 pub fn compile(
     typed_engine: &TypedEngine,
+    typing: &Typing,
     link_engine: &Engine,
     relations: &Relations,
     reef_id: ReefId,
@@ -49,6 +52,7 @@ pub fn compile(
         let (chunk_id, main_env, main_chunk) = content.main_chunk(&it);
         let ctx = EmitterContext {
             environment: main_env,
+            typing,
             engine: link_engine,
             captures: &captures,
             chunk_id,
@@ -68,6 +72,7 @@ pub fn compile(
         for (chunk_id, env, chunk) in content.function_chunks(&it) {
             let ctx = EmitterContext {
                 environment: env,
+                typing,
                 engine: link_engine,
                 captures: &captures,
                 chunk_id,

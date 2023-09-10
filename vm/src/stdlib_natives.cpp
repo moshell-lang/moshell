@@ -50,6 +50,16 @@ static void str_split(OperandStack &caller_stack, msh::heap &heap) {
     caller_stack.push_reference(heap.insert(std::move(res)));
 }
 
+static void str_bytes(OperandStack &caller_stack, msh::heap &heap) {
+    const std::string &str = std::get<const std::string>(caller_stack.pop_reference());
+    msh::obj_vector res;
+    res.reserve(str.length());
+    for (char c : str) {
+        res.push_back(&heap.insert(static_cast<int64_t>(c)));
+    }
+    caller_stack.push_reference(heap.insert(std::move(res)));
+}
+
 static void vec_len(OperandStack &caller_stack, msh::heap &) {
     const msh::obj_vector &vec = std::get<msh::obj_vector>(caller_stack.pop_reference());
     caller_stack.push_int(static_cast<int64_t>(vec.size()));
@@ -78,6 +88,7 @@ natives_functions_t load_natives(msh::heap &) {
         {"lang::String::concat", str_concat},
         {"lang::String::eq", str_eq},
         {"lang::String::split", str_split},
+        {"lang::String::bytes", str_bytes},
         {"lang::Vec::len", vec_len},
         {"lang::Vec::push", vec_push},
         {"lang::Vec::[]", vec_index},

@@ -37,6 +37,7 @@ fn prepare_bytecode(code: &str) -> Vec<u8> {
 
     compile(
         &analyzer.engine,
+        &analyzer.typing,
         &analyzer.resolution.engine,
         &analyzer.resolution.relations,
         ReefId(1),

@@ -138,6 +138,11 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine) {
             gen.next(),
         ),
     );
+    engine.add_method(
+        STRING.type_id,
+        "bytes",
+        MethodType::native(vec![], TypeRef::new(LANG_REEF, TypeId(11)), gen.next()),
+    );
 }
 
 fn fill_lang_types(typing: &mut Typing) {
@@ -153,6 +158,7 @@ fn fill_lang_types(typing: &mut Typing) {
         Type::Vector,
         Type::Polytype,
         Type::Instantiated(GENERIC_VECTOR, vec![STRING]),
+        Type::Instantiated(GENERIC_VECTOR, vec![INT]),
     ] {
         typing.add_type(primitive);
     }

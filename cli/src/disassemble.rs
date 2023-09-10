@@ -201,6 +201,8 @@ fn get_opcode_mnemonic(opcode: Opcode) -> &'static str {
         Opcode::PushFloat => "fpsh",
         Opcode::PushStringRef => "srpsh",
         Opcode::PushLocalRef => "lrpsh",
+        Opcode::BoxInt => "ibox",
+        Opcode::Unbox => "unbox",
         Opcode::GetLocalByte => "lbget",
         Opcode::SetLocalByte => "lbset",
         Opcode::GetLocalQWord => "lqwget",

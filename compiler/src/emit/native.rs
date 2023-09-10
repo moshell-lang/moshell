@@ -1,9 +1,10 @@
 use analyzer::relations::NativeId;
-use analyzer::types::hir::TypedExpr;
+use analyzer::types::hir::MethodCall;
+use analyzer::types::ty::TypeRef;
 
 use crate::bytecode::{Instructions, Opcode};
 use crate::constant_pool::ConstantPool;
-use crate::emit::{emit, EmissionState, EmitterContext};
+use crate::emit::{emit, is_boxable_primitive, EmissionState, EmitterContext};
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
 
@@ -15,13 +16,18 @@ const VEC_INDEX: &str = "lang::Vec::[]";
 const VEC_PUSH: &str = "lang::Vec::push";
 const VEC_LEN: &str = "lang::Vec::len";
 const STRING_SPLIT: &str = "lang::String::split";
+const STRING_BYTES: &str = "lang::String::bytes";
 
 /// Emits a primitive sequence of instructions.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit_natives(
     native: NativeId,
-    callee: &TypedExpr,
-    args: &[TypedExpr],
+    MethodCall {
+        callee,
+        arguments: args,
+        ..
+    }: &MethodCall,
+    receiver_ty: TypeRef,
     instructions: &mut Instructions,
     ctx: EmitterContext,
     cp: &mut ConstantPool,
@@ -179,19 +185,24 @@ pub(crate) fn emit_natives(
                 state,
             );
             instructions.emit_invoke(cp.insert_string(VEC_INDEX));
+            if state.use_values
+                && is_boxable_primitive(ctx.get_type(receiver_ty).expect("Invalid type"))
+            {
+                instructions.emit_code(Opcode::Unbox);
+            }
             ValueStackSize::QWord
         }
         35 => {
             // vector.push(T)
-            emit(
-                args.get(0)
-                    .expect("Cannot push to a vector without a value"),
-                instructions,
-                ctx,
-                cp,
-                locals,
-                state,
-            );
+            let first = args
+                .first()
+                .expect("Cannot push to a vector without a value");
+            emit(first, instructions, ctx, cp, locals, state);
+            if state.use_values
+                && is_boxable_primitive(ctx.get_type(first.ty).expect("Invalid type"))
+            {
+                instructions.emit_code(Opcode::BoxInt);
+            }
             instructions.emit_invoke(cp.insert_string(VEC_PUSH));
             ValueStackSize::Zero
         }
@@ -212,6 +223,11 @@ pub(crate) fn emit_natives(
                 state,
             );
             instructions.emit_invoke(cp.insert_string(STRING_SPLIT));
+            ValueStackSize::QWord
+        }
+        38 => {
+            // string.bytes()
+            instructions.emit_invoke(cp.insert_string(STRING_BYTES));
             ValueStackSize::QWord
         }
         id => todo!("Native function with id {id}"),

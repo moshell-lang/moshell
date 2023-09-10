@@ -14,7 +14,7 @@ pub mod ty;
 pub struct DefinitionId(pub(crate) TypeRef);
 
 /// Holds all the known types.
-#[derive(Default, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct Typing {
     /// The actual types.
     types: Vec<Type>,
@@ -35,7 +35,7 @@ impl Typing {
     }
 
     /// Gets the type with the given identifier.
-    pub(crate) fn get_type(&self, type_id: TypeId) -> Option<&Type> {
+    pub fn get_type(&self, type_id: TypeId) -> Option<&Type> {
         self.types.get(type_id.0)
     }
 }
