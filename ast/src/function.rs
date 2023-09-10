@@ -1,3 +1,4 @@
+use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
 
 use src_macros::segment_holder;
@@ -26,5 +27,16 @@ pub struct FunctionDeclaration<'a> {
 pub enum FunctionParameter<'a> {
     Named(TypedVariable<'a>),
     ///argument is the type of the variable (if any).
-    Variadic(Option<Type<'a>>),
+    Variadic(Option<Type<'a>>, SourceSegment),
+    Slf(SourceSegment),
+}
+
+impl SourceSegmentHolder for FunctionParameter<'_> {
+    fn segment(&self) -> SourceSegment {
+        match self {
+            FunctionParameter::Named(n) => n.segment(),
+            FunctionParameter::Variadic(_, s) => s.clone(),
+            FunctionParameter::Slf(s) => s.clone(),
+        }
+    }
 }

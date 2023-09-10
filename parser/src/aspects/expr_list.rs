@@ -110,11 +110,13 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
                     elements.push(val);
                 }
             };
-            self.cursor.force_with(
+            if let Err(err) = self.cursor.force_with(
                 blanks().then(of_type(Comma).or(lookahead(eog()))),
                 "A comma or a closing bracket was expected here",
                 Expected(format!("',' or '{}'", end.str().unwrap_or("<undefined>"))),
-            )?;
+            ) {
+                self.report_error(err)
+            }
         }
         self.cursor.advance(blanks());
 

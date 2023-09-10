@@ -11,6 +11,7 @@ use crate::group::{Block, Parenthesis, Subshell};
 use crate::lambda::LambdaDef;
 use crate::operation::{BinaryOperation, UnaryOperation};
 use crate::r#match::Match;
+use crate::r#struct::{StructDeclaration, StructImpl};
 use crate::r#type::CastedExpr;
 use crate::r#use::Use;
 use crate::range::Iterable;
@@ -27,6 +28,7 @@ pub mod lambda;
 pub mod r#match;
 pub mod operation;
 pub mod range;
+pub mod r#struct;
 pub mod substitution;
 pub mod test;
 pub mod r#type;
@@ -62,6 +64,9 @@ pub enum Expr<'a> {
 
     Test(Test<'a>),
 
+    StructDeclaration(StructDeclaration<'a>),
+    Impl(StructImpl<'a>),
+
     If(If<'a>),
     While(While<'a>),
     Loop(Loop<'a>),
@@ -90,6 +95,8 @@ pub enum Expr<'a> {
 impl SourceSegmentHolder for Expr<'_> {
     fn segment(&self) -> SourceSegment {
         match self {
+            Expr::StructDeclaration(d) => d.segment(),
+            Expr::Impl(i) => i.segment(),
             Expr::Assign(assign) => assign.segment(),
             Expr::Unary(unary) => unary.segment(),
             Expr::Binary(binary) => binary.segment(),

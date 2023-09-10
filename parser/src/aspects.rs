@@ -13,6 +13,7 @@ pub(super) mod r#match;
 pub(super) mod modules;
 pub(super) mod range;
 pub(super) mod redirection;
+pub(super) mod r#struct;
 pub(super) mod substitution;
 pub(super) mod test;
 pub(super) mod r#type;
