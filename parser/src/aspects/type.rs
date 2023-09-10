@@ -1,4 +1,4 @@
-use ast::r#type::{ByName, CallableType, ParametrizedType, Type};
+use ast::r#type::{ByName, CallableType, ParametrizedType, Type, TypeParameter};
 use ast::r#use::InclusionPathItem;
 use context::display::fmt_comma_separated;
 use context::source::{SourceSegment, SourceSegmentHolder};
@@ -15,11 +15,11 @@ use crate::parser::{ParseResult, Parser};
 
 ///A parser aspect to parse all type declarations, such as lambdas, constant types, parametrized type and Unit
 pub trait TypeAspect<'a> {
-    ///parse a lambda type signature, a constant or parametrized type or Unit.
+    ///parse a lambda type signature, a constant or parametrized type.
     fn parse_type(&mut self) -> ParseResult<Type<'a>>;
 
-    ///parse a type parameter list (`[...]`)
-    fn parse_type_parameter_list(&mut self) -> ParseResult<(Vec<Type<'a>>, SourceSegment)>;
+    /// parses a generic type
+    fn parse_type_parameter(&mut self) -> ParseResult<TypeParameter<'a>>;
 }
 
 impl<'a> TypeAspect<'a> for Parser<'a> {
@@ -73,22 +73,43 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         Ok(tpe)
     }
 
-    fn parse_type_parameter_list(&mut self) -> ParseResult<(Vec<Type<'a>>, SourceSegment)> {
-        if self.cursor.lookahead(of_type(SquaredLeftBracket)).is_none() {
-            return Ok((Vec::new(), self.cursor.relative_pos_ctx(self.cursor.peek())));
-        }
-        let start = self.cursor.peek();
-        let ((tparams, segment), no_nested_errors) = self.observe_error_reports(|p| {
-            p.parse_explicit_list(SquaredLeftBracket, SquaredRightBracket, Self::parse_type)
-        })?;
-        if no_nested_errors && tparams.is_empty() {
-            return self.expected_with(
-                "unexpected empty type parameter list",
-                start..self.cursor.peek(),
+    fn parse_type_parameter(&mut self) -> ParseResult<TypeParameter<'a>> {
+        let name = self.cursor.next()?;
+
+        match name.token_type {
+            Identifier => {
+                let (params, params_segment) = self.parse_optional_list(
+                    SquaredLeftBracket,
+                    SquaredRightBracket,
+                    Self::parse_type_parameter,
+                )?;
+
+                let name_segment = self.cursor.relative_pos(name.value);
+                let segment_start = name_segment.start;
+                let segment_end = if let Some(params_segment) = params_segment {
+                    params_segment.end
+                } else {
+                    name_segment.end
+                };
+
+                let segment = segment_start..segment_end;
+
+                Ok(TypeParameter {
+                    name: name.value,
+                    params,
+                    segment,
+                })
+            }
+            x if x.is_closing_ponctuation() => {
+                self.expected_with("expected type", name, Expected("<type>".to_string()))
+            }
+
+            _ => self.expected_with(
+                format!("'{}' is not a valid generic type identifier.", name.value),
+                name,
                 Unexpected,
-            );
+            ),
         }
-        Ok((tparams, segment))
     }
 }
 
@@ -172,8 +193,12 @@ impl<'a> Parser<'a> {
         return match name_token.token_type {
             Identifier => {
                 self.cursor.next_opt();
-                let (params, params_segment) = self.parse_type_parameter_list()?;
-                if !params.is_empty() {
+                let (params, params_segment) = self.parse_optional_list(
+                    SquaredLeftBracket,
+                    SquaredRightBracket,
+                    Self::parse_type,
+                )?;
+                if let Some(params_segment) = params_segment {
                     segment.end = params_segment.end;
                 }
 
@@ -188,17 +213,13 @@ impl<'a> Parser<'a> {
                 }))
             }
 
-            NewLine => self.expected_with(
-                "expected types",
-                name_token,
-                Expected("<types>".to_string()),
-            ),
+            NewLine => {
+                self.expected_with("expected type", name_token, Expected("<type>".to_string()))
+            }
 
-            x if x.is_closing_ponctuation() => self.expected_with(
-                "expected types",
-                name_token,
-                Expected("<types>".to_string()),
-            ),
+            x if x.is_closing_ponctuation() => {
+                self.expected_with("expected type", name_token, Expected("<type>".to_string()))
+            }
 
             _ => self.expected_with(
                 format!("'{}' is not a valid type identifier.", name_token.value),
@@ -264,14 +285,14 @@ mod tests {
         let source = Source::unknown(content);
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
-            Err(ParseError {
-                message: "unexpected empty type parameter list".to_string(),
-                kind: Unexpected,
-                position: content
-                    .find("[    ]")
-                    .map(|i| i..i + "[    ]".len())
-                    .unwrap()
-            })
+            Ok(Type::Parametrized(ParametrizedType {
+                path: vec![InclusionPathItem::Symbol(
+                    "Complex",
+                    find_in(content, "Complex")
+                )],
+                params: vec![],
+                segment: source.segment()
+            }))
         );
     }
 

@@ -37,6 +37,7 @@ mod tests {
     use ast::variable::Assign;
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
+    use pretty_assertions::assert_eq;
 
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
