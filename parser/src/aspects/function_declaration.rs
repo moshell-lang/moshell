@@ -134,8 +134,7 @@ impl<'a> Parser<'a> {
 
         let current_token = self.cursor.peek();
 
-        if self.cursor.peek().token_type == TokenType::Slf {
-            self.cursor.next()?;
+        if self.cursor.advance(of_type(TokenType::Slf)).is_some() {
             return Ok(FunctionParameter::Slf(
                 self.cursor.relative_pos(current_token),
             ));

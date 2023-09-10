@@ -49,7 +49,6 @@ impl<'a> Lexer<'a> {
             "break" => TokenType::Break,
             "continue" => TokenType::Continue,
             "else" => TokenType::Else,
-            "enum" => TokenType::Enum,
             "false" => TokenType::False,
             "for" => TokenType::For,
             "fun" => TokenType::Fun,

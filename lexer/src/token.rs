@@ -40,8 +40,9 @@ pub enum TokenType {
     IntLiteral,
     FloatLiteral,
 
+    #[assoc(str = "struct")]
     Struct,
-    Enum,
+    #[assoc(str = "impl")]
     Impl,
 
     #[assoc(str = "\\n")]
