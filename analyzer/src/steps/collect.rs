@@ -625,7 +625,8 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                             }
                             named.name.to_owned()
                         }
-                        FunctionParameter::Variadic(_) => "@".to_owned(),
+                        FunctionParameter::Variadic(_, _) => "@".to_owned(),
+                        FunctionParameter::Slf(_) => continue,
                     };
                     let func_env = self.engine().get_environment_mut(func_id).unwrap();
 
@@ -687,6 +688,8 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                 self.stack.pop();
             }
             Expr::Literal(_) | Expr::Continue(_) | Expr::Break(_) => {}
+            Expr::StructDeclaration(_) => todo!(),
+            Expr::Impl(_) => todo!(),
         }
         state.accept_imports = false;
     }

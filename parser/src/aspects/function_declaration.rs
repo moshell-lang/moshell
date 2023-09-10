@@ -1,15 +1,14 @@
-use crate::aspects::expr_list::ExpressionListAspect;
 use ast::function::{FunctionDeclaration, FunctionParameter, Return};
 use ast::r#type::Type;
 use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
 
+use crate::aspects::expr_list::ExpressionListAspect;
 use crate::aspects::r#type::TypeAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{
-    blank, blanks, eog, eox, like, lookahead, next, not, of_type, of_types, repeat, spaces,
-    MoveOperations,
+    blank, blanks, eox, like, next, not, of_type, of_types, repeat, spaces, MoveOperations,
 };
 use crate::parser::{ParseResult, Parser};
 
@@ -115,82 +114,58 @@ impl<'a> Parser<'a> {
     fn parse_fn_parameter(&mut self) -> ParseResult<FunctionParameter<'a>> {
         self.cursor.advance(blanks()); //consume blanks
 
-        let is_vararg = self
-            .cursor
-            .lookahead(
-                of_type(TokenType::Vararg).or(repeat(
-                    // skip everything that could compose a type expression
-                    of_types(&[
-                        TokenType::Space,
-                        TokenType::NewLine,
-                        TokenType::Identifier,
-                        TokenType::SquaredLeftBracket,
-                        TokenType::SquaredRightBracket,
-                    ]),
-                )
-                .then(of_type(TokenType::Vararg))),
+        let vararg_token = self.cursor.lookahead(
+            repeat(
+                // skip everything that could compose a type expression
+                of_types(&[
+                    TokenType::Space,
+                    TokenType::NewLine,
+                    TokenType::Identifier,
+                    TokenType::SquaredLeftBracket,
+                    TokenType::SquaredRightBracket,
+                ]),
             )
-            .is_some();
+            .then(of_type(TokenType::Vararg)),
+        );
 
-        if is_vararg {
+        if let Some(vararg_token) = vararg_token {
             let param = self
                 .cursor
                 .lookahead(not(of_type(TokenType::Vararg)))
                 .map(|_| self.parse_type())
                 .transpose()
-                .map(FunctionParameter::Variadic)?;
+                .map(|t| {
+                    let vararg_token_segment = self.cursor.relative_pos(vararg_token);
+                    let segment = if let Some(t) = &t {
+                        t.segment().start..vararg_token_segment.end
+                    } else {
+                        vararg_token_segment
+                    };
+                    FunctionParameter::Variadic(t, segment)
+                })?;
             self.cursor
                 .force(of_type(TokenType::Vararg), "expected '...'")?;
             return Ok(param);
+        }
+
+        let current_token = self.cursor.peek();
+
+        if self.cursor.peek().token_type == TokenType::Slf {
+            self.cursor.next()?;
+            return Ok(FunctionParameter::Slf(
+                self.cursor.relative_pos(current_token),
+            ));
         }
 
         self.parse_typed_var().map(FunctionParameter::Named)
     }
 
     fn parse_fn_parameter_list(&mut self) -> ParseResult<Vec<FunctionParameter<'a>>> {
-        let parenthesis = self
-            .cursor
-            .advance(of_type(TokenType::RoundedLeftBracket))
-            .ok_or_else(|| {
-                self.mk_parse_error(
-                    "expected start of parameter list",
-                    self.cursor.peek(),
-                    ParseErrorKind::Expected("(".to_string()),
-                )
-            })?;
-
-        let mut params = Vec::new();
-        loop {
-            self.cursor.advance(blanks());
-            while let Some(comma) = self.cursor.advance(of_type(TokenType::Comma)) {
-                self.report_error(self.mk_parse_error(
-                    "Expected parameter.",
-                    comma,
-                    ParseErrorKind::Unexpected,
-                ));
-                self.cursor.advance(blanks());
-            }
-            if self.cursor.lookahead(eog()).is_some() {
-                break;
-            }
-            let param = self.parse_fn_parameter();
-            match param {
-                Ok(param) => params.push(param),
-                Err(err) => {
-                    self.recover_from(err, of_type(TokenType::Comma));
-                }
-            }
-            if let Err(err) = self.cursor.force(
-                blanks().then(of_type(TokenType::Comma).or(lookahead(eog()))),
-                "Expected ','",
-            ) {
-                self.cursor.advance(blanks());
-                self.report_error(err);
-            }
-        }
-
-        self.expect_delimiter(parenthesis, TokenType::RoundedRightBracket)?;
-
+        let (params, _) = self.parse_explicit_list(
+            TokenType::RoundedLeftBracket,
+            TokenType::RoundedRightBracket,
+            Parser::parse_fn_parameter,
+        )?;
         Ok(params)
     }
 
@@ -343,7 +318,7 @@ mod tests {
         assert_eq!(
             errs,
             vec![ParseError {
-                message: "expected start of parameter list".to_string(),
+                message: "expected start of list expression".to_string(),
                 position: src.find('=').map(|i| i..i + 1).unwrap(),
                 kind: ParseErrorKind::Expected("(".to_string()),
             }]
@@ -471,7 +446,7 @@ mod tests {
 
     #[test]
     fn function_declaration_params() {
-        let source = Source::unknown("fun test[](  x : String  ,  y : Test   ) = x");
+        let source = Source::unknown("fun test[](self,  x : String  ,  y : Test   ) = x");
         let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,
@@ -479,6 +454,7 @@ mod tests {
                 name: "test",
                 type_parameters: vec![],
                 parameters: vec![
+                    FunctionParameter::Slf(find_in(source.source, "self")),
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
                         ty: Some(Type::Parametrized(ParametrizedType {
@@ -577,13 +553,14 @@ mod tests {
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "test",
                 type_parameters: vec![],
-                parameters: vec![FunctionParameter::Variadic(Some(Type::Parametrized(
-                    ParametrizedType {
+                parameters: vec![FunctionParameter::Variadic(
+                    Some(Type::Parametrized(ParametrizedType {
                         path: vec![InclusionPathItem::Symbol("X", find_in(source.source, "X"))],
                         params: Vec::new(),
                         segment: find_in(source.source, "X")
-                    }
-                )))],
+                    })),
+                    find_in(source.source, "X...")
+                )],
                 return_type: None,
                 body: Some(Box::new(Expr::VarReference(VarReference {
                     name: "x",
@@ -603,7 +580,6 @@ mod tests {
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
                 name: "test",
                 type_parameters: vec![],
-
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
                         name: "x",
@@ -617,7 +593,7 @@ mod tests {
                         })),
                         segment: find_in(source.source, "x: int")
                     }),
-                    FunctionParameter::Variadic(None)
+                    FunctionParameter::Variadic(None, find_in(source.source, "..."))
                 ],
 
                 return_type: None,

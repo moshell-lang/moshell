@@ -40,6 +40,10 @@ pub enum TokenType {
     IntLiteral,
     FloatLiteral,
 
+    Struct,
+    Enum,
+    Impl,
+
     #[assoc(str = "\\n")]
     NewLine,
 
@@ -71,6 +75,8 @@ pub enum TokenType {
     As,
     #[assoc(str = "shell")]
     Shell,
+
+    Slf,
 
     #[assoc(str = "continue")]
     Continue,
