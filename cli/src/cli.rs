@@ -7,7 +7,7 @@ use dbg_pls::color;
 
 use analyzer::diagnostic::Diagnostic;
 use analyzer::name::Name;
-use analyzer::reef::Externals;
+use analyzer::reef::{Externals, ReefId};
 use analyzer::relations::SourceId;
 use analyzer::Analyzer;
 use compiler::{compile, SourceLineProvider};
@@ -15,7 +15,7 @@ use context::source::ContentId;
 use vm::{VmError, VM};
 
 use crate::disassemble::display_bytecode;
-use crate::pipeline::{FileImportError, PipelineStatus, SourceHolder, SourcesCache};
+use crate::pipeline::{FileImportError, PipelineStatus, SourcesCache};
 use crate::report::{display_diagnostic, display_parse_error};
 
 #[derive(Parser)]
@@ -43,11 +43,15 @@ struct CachedSourceLocationLineProvider {
 }
 
 impl CachedSourceLocationLineProvider {
-    fn compute(contents: &[ContentId], sources: &impl SourceHolder) -> Self {
+    fn compute(reef: ReefId, sources: &SourcesCache) -> Self {
+        let range = sources.range_content_ids(reef).unwrap();
+        let contents = range.start.0..range.end.0;
         let lines = contents
-            .iter()
+            .into_iter()
             .map(|content_id| {
-                let source = sources.get_source(*content_id).expect("unknown content id");
+                let source = sources
+                    .get(reef, ContentId(content_id))
+                    .expect("unknown content id");
 
                 let source_start_addr = source.source.as_ptr() as usize;
 
@@ -57,7 +61,7 @@ impl CachedSourceLocationLineProvider {
                     .map(|line| line.as_ptr() as usize - source_start_addr)
                     .collect();
 
-                (*content_id, source_lines_starts)
+                (ContentId(content_id), source_lines_starts)
             })
             .collect();
 
@@ -94,6 +98,8 @@ pub fn use_pipeline(
         return PipelineStatus::IoError;
     }
 
+    let reef = externals.current;
+
     let mut import_status = PipelineStatus::Success;
     for error in errors {
         match error {
@@ -103,12 +109,9 @@ pub fn use_pipeline(
             }
             FileImportError::Parse(report) => {
                 for error in report.errors {
-                    display_parse_error(
-                        sources.get_source(report.source).unwrap(),
-                        error,
-                        &mut stderr(),
-                    )
-                    .expect("IO error when reporting diagnostics");
+                    let source = sources.get(reef, report.source).unwrap();
+                    display_parse_error(source, error, &mut stderr())
+                        .expect("IO error when reporting diagnostics");
                 }
 
                 // Prefer the IO error over a generic failure
@@ -152,8 +155,7 @@ pub fn use_pipeline(
     }
     let mut bytes = Vec::new();
 
-    let contents = sources.list_content_ids();
-    let lines = CachedSourceLocationLineProvider::compute(&contents, sources);
+    let lines = CachedSourceLocationLineProvider::compute(reef, sources);
 
     compile(
         &analyzer.engine,

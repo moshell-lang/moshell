@@ -139,7 +139,7 @@ pub fn emit_function_invocation(
             } else {
                 ctx.captures[id.0]
                     .as_ref()
-                    .expect("captures not set during function invocation emission")
+                    .expect("undefined captures when the function is emitted")
             };
             let env = ctx
                 .get_engine(function_call.reef)

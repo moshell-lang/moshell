@@ -25,7 +25,7 @@ pub fn repl(
     mut vm: VM,
 ) -> PipelineStatus {
     let mut analyzer = Analyzer::new();
-    let mut importer = FileImporter::new(sources.len(), dir);
+    let mut importer = FileImporter::new(dir);
 
     let mut status = PipelineStatus::Success;
 
@@ -58,7 +58,7 @@ pub fn repl(
             let is_ready = diagnostics.is_empty();
 
             let errors = importer.take_errors();
-            sources.extend(importer.take_sources());
+            sources.set(externals.current, importer.take_sources());
 
             status = status.compose(use_pipeline(
                 &name,

@@ -78,17 +78,15 @@ fn run(
         path
     };
 
-    let mut importer = FileImporter::new(sources.len(), folder_path);
-
+    let mut importer = FileImporter::new(folder_path);
     importer.add_redirection(name.clone(), source.to_path_buf());
 
     let mut analyzer = Analyzer::new();
-
     analyzer.process(name.clone(), &mut importer, &externals);
 
     let diagnostics = analyzer.take_diagnostics();
     let errors = importer.take_errors();
-    sources.extend(importer.take_sources());
+    sources.set(externals.current, importer.take_sources());
 
     Ok(use_pipeline(
         &name,

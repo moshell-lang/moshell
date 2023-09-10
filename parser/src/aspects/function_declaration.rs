@@ -49,7 +49,10 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
         self.cursor.advance(blanks());
         let rtype = self.parse_fn_return_type()?;
 
-        if let Some(token) = self.cursor.lookahead(blanks().then(of_type(TokenType::SemiColon))) {
+        if let Some(token) = self
+            .cursor
+            .lookahead(blanks().then(of_type(TokenType::SemiColon)))
+        {
             return Ok(FunctionDeclaration {
                 name,
                 type_parameters: tparams,

@@ -10,13 +10,13 @@ use vm::VM;
 
 pub fn build_std(externals: &mut Externals, vm: &mut VM, sources: &mut SourcesCache, config: &Cli) {
     let std_file = find_std();
-    let mut importer = FileImporter::new(sources.len(), std_file);
+    let mut importer = FileImporter::new(std_file);
 
     let name = Name::new("std");
     let mut analyzer = analyze(name.clone(), &mut importer, externals);
     let diagnostics = analyzer.take_diagnostics();
 
-    sources.extend(importer.take_sources());
+    sources.set(externals.current, importer.take_sources());
 
     let status = use_pipeline(
         &name,

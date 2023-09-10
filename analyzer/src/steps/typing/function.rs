@@ -363,7 +363,7 @@ pub(super) fn type_method(
             arguments,
             definition: method.definition,
             return_type: exploration.concretize(method.return_type, callee.ty).id,
-            reef: callee.ty.reef
+            reef: callee.ty.reef,
         });
     }
 
@@ -398,19 +398,25 @@ pub(super) fn type_method(
         } else {
             for (param, arg) in method.parameters.iter().zip(arguments.iter()) {
                 if convert_description(exploration, param.ty, arg.ty).is_err() {
-
                     let type_param = exploration.concretize(param.ty, callee.ty);
                     let param = Parameter {
                         location: param.location.clone(),
                         ty: type_param.id,
                     };
-                    let diagnostic = diagnose_arg_mismatch(exploration, source, current_reef, callee.ty.reef, &param, arg)
-                        .with_observation(Observation::here(
-                            source,
-                            current_reef,
-                            method_call.segment(),
-                            "Arguments to this method are incorrect",
-                        ));
+                    let diagnostic = diagnose_arg_mismatch(
+                        exploration,
+                        source,
+                        current_reef,
+                        callee.ty.reef,
+                        &param,
+                        arg,
+                    )
+                    .with_observation(Observation::here(
+                        source,
+                        current_reef,
+                        method_call.segment(),
+                        "Arguments to this method are incorrect",
+                    ));
                     diagnostics.push(diagnostic);
                 }
             }
@@ -500,11 +506,10 @@ pub(super) fn type_parameter(
     exploration: &mut Exploration,
     param: &FunctionParameter,
     links: Links,
-    diagnostics: &mut Vec<Diagnostic>
+    diagnostics: &mut Vec<Diagnostic>,
 ) -> Parameter {
     match param {
         FunctionParameter::Named(named) => {
-
             let type_id = named.ty.as_ref().map_or(STRING, |ty| {
                 resolve_type_annotation(exploration, links, ty, diagnostics)
             });

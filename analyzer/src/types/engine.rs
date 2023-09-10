@@ -73,7 +73,7 @@ impl Chunk {
         }
     }
 
-    /// Creates a new script chunk.
+    /// Creates a new function that is natively defined.
     pub fn native(parameters: Vec<Parameter>, return_type: TypeRef) -> Self {
         Self {
             expression: None,

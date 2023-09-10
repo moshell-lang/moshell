@@ -105,7 +105,7 @@ impl TypingState {
     }
 }
 
-fn check_nativity(
+fn verify_free_function(
     func: &FunctionDeclaration,
     externals: &Externals,
     func_id: SourceId,
@@ -122,7 +122,7 @@ fn check_nativity(
 
     diagnostics.push(
         Diagnostic::new(
-            DiagnosticID::IllegalNativeDefinition,
+            DiagnosticID::NoFunctionDefinition,
             "function without a body",
         )
         .with_observation(Observation::context(
@@ -170,11 +170,10 @@ fn apply_types_to_source(
             let return_type =
                 infer_return(func, links, typed_body.as_ref(), diagnostics, exploration);
 
-
             if let Some(body) = typed_body {
                 Chunk::function(body, params, return_type)
             } else {
-                check_nativity(func, exploration.externals, source_id, diagnostics);
+                verify_free_function(func, exploration.externals, source_id, diagnostics);
                 Chunk::native(params, return_type)
             }
         }
@@ -654,7 +653,13 @@ fn ascribe_binary(
     let method = exploration
         .get_methods(left_expr.ty, name)
         .and_then(|methods| {
-            find_operand_implementation(exploration, left_expr.ty.reef, methods, left_expr.ty, right_expr)
+            find_operand_implementation(
+                exploration,
+                left_expr.ty.reef,
+                methods,
+                left_expr.ty,
+                right_expr,
+            )
         });
     match method {
         Some(method) => TypedExpr {

@@ -87,12 +87,13 @@ pub enum DiagnosticID {
     #[assoc(critical = true)]
     CannotReassign,
 
-    /// A native function is declared outside of the reef with id 1
-    /// Only the first user reef is allowed to define native functions
+    /// A function does not have a definition.
+    ///
+    /// Only internals reefs that are defined natively can omit an implementation.
     #[assoc(code = 16)]
     #[assoc(critical = true)]
-    IllegalNativeDefinition,
-    
+    NoFunctionDefinition,
+
     /// An incorrect number of type arguments was provided.
     #[assoc(code = 17)]
     #[assoc(critical = true)]
