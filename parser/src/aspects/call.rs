@@ -283,7 +283,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 impl<'a> Parser<'a> {
     /// special pivot method for argument methods
     pub(crate) fn call_argument(&mut self) -> ParseResult<Expr<'a>> {
-        self.repos("Expected expression")?;
+        self.repos("Expected value")?;
 
         let pivot = self.cursor.peek().token_type;
         match pivot {

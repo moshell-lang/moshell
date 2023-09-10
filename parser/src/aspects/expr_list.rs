@@ -38,7 +38,6 @@ pub(super) trait ExpressionListAspect<'a> {
     /// parses a list which is either nonexistent or explicit but nonempty.
     /// - if the current's token does not match `start`, an empty vec is returned.
     /// - else, an explicit list is parsed, that must end with `end` token.
-    ///   if the explicit list is empty, an error is returned with given error message.
     fn parse_optional_list<E, F>(
         &mut self,
         start: TokenType,
