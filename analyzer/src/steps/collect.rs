@@ -201,8 +201,12 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                     let diagnostic = {
                         Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, msg)
                             .with_observation(
-                                Observation::from((env_id, self.externals.current, declaration_segment.clone()))
-                                    .with_message(format!("This symbol has the same fully-qualified name as module {}", clashed_module.fqn))
+                                Observation::here(
+                                    env_id,
+                                    self.externals.current,
+                                    declaration_segment.clone(),
+                                    format!("This symbol has the same fully-qualified name as module {}", clashed_module.fqn)
+                                )
                             )
                             .with_help(format!("You should refactor this symbol with a name that does not conflicts with following modules: {inner_modules}"))
                     };

@@ -1,20 +1,21 @@
-use analyzer::diagnostic::Diagnostic;
-
-use analyzer::reef::Externals;
-use analyzer::relations::SourceId;
-use analyzer::Analyzer;
-use clap::Parser;
-use compiler::captures::ReefsCaptures;
-use compiler::{compile, SourceLineProvider};
-use context::source::ContentId;
-use dbg_pls::color;
 use std::collections::HashMap;
 use std::io::stderr;
 use std::path::PathBuf;
+
+use clap::Parser;
+use dbg_pls::color;
+
+use analyzer::diagnostic::Diagnostic;
+use analyzer::name::Name;
+use analyzer::reef::Externals;
+use analyzer::relations::SourceId;
+use analyzer::Analyzer;
+use compiler::{compile, SourceLineProvider};
+use context::source::ContentId;
 use vm::{VmError, VM};
 
 use crate::disassemble::display_bytecode;
-use crate::pipeline::{ErrorReporter, FileImportError, FileImporter, PipelineStatus, SourceHolder};
+use crate::pipeline::{FileImportError, PipelineStatus, SourceHolder, SourcesCache};
 use crate::report::{display_diagnostic, display_parse_error};
 
 #[derive(Parser)]
@@ -78,16 +79,20 @@ impl SourceLineProvider for CachedSourceLocationLineProvider {
 #[must_use = "The pipeline status should be checked"]
 #[allow(clippy::too_many_arguments)]
 pub fn use_pipeline(
+    entry_point: &Name,
     starting_page: SourceId,
     analyzer: &Analyzer<'_>,
     externals: &Externals,
     vm: &mut VM,
-    reefs_captures: &mut ReefsCaptures,
     diagnostics: Vec<Diagnostic>,
-    importer: &mut FileImporter,
+    errors: Vec<FileImportError>,
+    sources: &SourcesCache,
     config: &Cli,
 ) -> PipelineStatus {
-    let errors = importer.take_errors();
+    if errors.is_empty() && analyzer.resolution.engine.is_empty() {
+        eprintln!("No module found for entry point {entry_point}");
+        return PipelineStatus::IoError;
+    }
 
     let mut import_status = PipelineStatus::Success;
     for error in errors {
@@ -99,7 +104,7 @@ pub fn use_pipeline(
             FileImportError::Parse(report) => {
                 for error in report.errors {
                     display_parse_error(
-                        importer.sources().get_source(report.source).unwrap(),
+                        sources.get_source(report.source).unwrap(),
                         error,
                         &mut stderr(),
                     )
@@ -135,7 +140,7 @@ pub fn use_pipeline(
             externals,
             engine,
             externals.current,
-            importer.sources(),
+            sources,
             diagnostic,
             &mut stderr,
         )
@@ -147,7 +152,6 @@ pub fn use_pipeline(
     }
     let mut bytes = Vec::new();
 
-    let sources = importer.sources();
     let contents = sources.list_content_ids();
     let lines = CachedSourceLocationLineProvider::compute(&contents, sources);
 
@@ -156,7 +160,6 @@ pub fn use_pipeline(
         &analyzer.resolution.relations,
         &analyzer.resolution.engine,
         externals,
-        reefs_captures,
         externals.current,
         starting_page,
         &mut bytes,

@@ -8,36 +8,24 @@ use analyzer::name::Name;
 use analyzer::reef::Externals;
 use analyzer::relations::SourceId;
 use analyzer::{Analyzer, Inject};
-use compiler::captures::ReefsCaptures;
 use context::source::OwnedSource;
 use lexer::is_unterminated;
 use vm::VM;
 
 use crate::cli::{use_pipeline, Cli};
-use crate::pipeline::{FileImporter, PipelineStatus, SourcesCache};
+use crate::pipeline::{ErrorReporter, FileImporter, PipelineStatus, SourcesCache};
 use crate::report::print_flush;
-use crate::std::build_std;
 
 /// Indefinitely prompts a new expression from stdin and executes it.
-pub fn prompt(dir: PathBuf, config: &Cli) -> PipelineStatus {
-    // Init a new pipeline that will be used to execute each expression.
-    let mut externals = Externals::default();
-    let mut reefs_captures = ReefsCaptures::default();
-
-    let mut sources = SourcesCache::default();
-
-    let mut vm = VM::new();
-    build_std(
-        &mut externals,
-        &mut vm,
-        &mut sources,
-        &mut reefs_captures,
-        config,
-    );
-
-    let mut importer = FileImporter::new(&mut sources, dir);
-
+pub fn repl(
+    dir: PathBuf,
+    config: &Cli,
+    mut sources: SourcesCache,
+    externals: Externals,
+    mut vm: VM,
+) -> PipelineStatus {
     let mut analyzer = Analyzer::new();
+    let mut importer = FileImporter::new(sources.len(), dir);
 
     let mut status = PipelineStatus::Success;
 
@@ -68,14 +56,19 @@ pub fn prompt(dir: PathBuf, config: &Cli) -> PipelineStatus {
             // dropped when the analysis is reverted).
             let diagnostics = analysis.take_diagnostics();
             let is_ready = diagnostics.is_empty();
+
+            let errors = importer.take_errors();
+            sources.extend(importer.take_sources());
+
             status = status.compose(use_pipeline(
+                &name,
                 analysis.attributed_id(),
                 analysis.analyzer(),
                 &externals,
                 &mut vm,
-                &mut reefs_captures,
                 diagnostics,
-                &mut importer,
+                errors,
+                &sources,
                 config,
             ));
 
@@ -92,13 +85,14 @@ pub fn prompt(dir: PathBuf, config: &Cli) -> PipelineStatus {
             // end-of-pipeline logic.
             let diagnostics = analyzer.take_diagnostics();
             status = status.compose(use_pipeline(
+                &name,
                 SourceId(0), // this value has no importance
                 &analyzer,
                 &externals,
                 &mut vm,
-                &mut reefs_captures,
                 diagnostics,
-                &mut importer,
+                importer.take_errors(),
+                &sources,
                 config,
             ));
         }

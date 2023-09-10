@@ -141,11 +141,6 @@ impl Observation {
             message: Some(message.into()),
         }
     }
-
-    pub fn with_message(mut self, msg: impl Into<String>) -> Self {
-        self.message = Some(msg.into());
-        self
-    }
 }
 
 /// A location in a source code.

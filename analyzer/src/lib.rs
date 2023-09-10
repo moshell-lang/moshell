@@ -25,7 +25,6 @@ use crate::imports::Imports;
 use crate::name::Name;
 use crate::reef::Externals;
 use crate::relations::{Relations, SourceId};
-
 use crate::steps::collect::SymbolCollector;
 use crate::steps::resolve_sources;
 use crate::steps::typing::apply_types;

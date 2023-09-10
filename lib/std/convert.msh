@@ -2,7 +2,7 @@
 /// @panics if i cannot be converted to an exitcode, i.e it is negative or superior to 256
 fun to_exitcode(i: Int) -> Exitcode;
 
-/// @returns
+/// @returns highest int value not greater than `f`
 fun ceil(f: Float) -> Int;
 
 /// @returns smallest int value not less than `f`

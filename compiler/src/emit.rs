@@ -7,7 +7,6 @@ use analyzer::types::ty::TypeRef;
 use ast::value::LiteralValue;
 
 use crate::bytecode::{Instructions, Opcode, Placeholder};
-use crate::captures::ReefsCaptures;
 use crate::constant_pool::ConstantPool;
 use crate::emit::identifier::{expose_variable, Identifier};
 use crate::emit::invoke::{
@@ -16,13 +15,14 @@ use crate::emit::invoke::{
 use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
 use crate::emit::native::emit_natives;
 use crate::locals::LocalsLayout;
+use crate::Captures;
 
 mod identifier;
 mod invoke;
 mod jump;
 mod native;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct EmitterContext<'a, 'e> {
     pub(crate) current_reef: ReefId,
     engine: &'a Engine<'e>,
@@ -35,7 +35,7 @@ pub struct EmitterContext<'a, 'e> {
     pub(crate) environment: &'a Environment,
 
     /// The captures variables.
-    pub(crate) captures: &'a ReefsCaptures,
+    pub(crate) captures: &'a Captures,
 
     /// The current chunk id.
     pub(crate) chunk_id: SourceId,
@@ -47,7 +47,7 @@ impl<'a, 'e> EmitterContext<'a, 'e> {
         engine: &'a Engine<'e>,
         externals: &'a Externals<'e>,
         env: &'a Environment,
-        captures: &'a ReefsCaptures,
+        captures: &'a Captures,
         chunk_id: SourceId,
     ) -> Self {
         Self {
@@ -126,7 +126,7 @@ fn emit_literal(literal: &LiteralValue, instructions: &mut Instructions, cp: &mu
 
 fn emit_ref(
     var: Var,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     ref_type: TypeRef,
     instructions: &mut Instructions,
     cp: &mut ConstantPool,
@@ -149,7 +149,7 @@ fn emit_ref(
 fn emit_declaration(
     declaration: &Declaration,
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -187,7 +187,7 @@ fn emit_declaration(
 fn emit_block(
     exprs: &[TypedExpr],
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -206,7 +206,7 @@ fn emit_assignment(
     value: &TypedExpr,
     var: Var,
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -234,7 +234,7 @@ fn emit_assignment(
 fn emit_return(
     value: &Option<Box<TypedExpr>>,
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -252,7 +252,7 @@ fn emit_return(
 pub fn emit(
     expr: &TypedExpr,
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,

@@ -2,7 +2,6 @@
 #include "interpreter.h"
 #include <cmath>
 #include <iostream>
-#include <limits>
 
 void int_to_string(OperandStack &caller_stack, StringsHeap &strings) {
     int64_t value = caller_stack.pop_int();
@@ -51,7 +50,7 @@ void set_env(OperandStack &caller_stack, StringsHeap &) {
 
 void is_env_def(OperandStack &caller_stack, StringsHeap &) {
     const std::string &var_name = *(const std::string *)caller_stack.pop_reference();
-    caller_stack.push(getenv(var_name.c_str()) != NULL);
+    caller_stack.push(getenv(var_name.c_str()) != nullptr);
 }
 
 void panic(OperandStack &caller_stack, StringsHeap &) {
@@ -73,29 +72,30 @@ void read_line(OperandStack &caller_stack, StringsHeap &strings) {
 
 void to_exitcode(OperandStack &caller_stack, StringsHeap &) {
     int64_t i = caller_stack.pop_int();
-    if (i < 0 || i > std::numeric_limits<uint8_t>::max()) {
+    uint8_t exitcode = static_cast<uint8_t>(i);
+    if (exitcode != i) {
         throw RuntimeException("cannot cast int to exitcode: " + std::to_string(i) + " is out of bounds.");
     }
 
-    caller_stack.push_byte((uint8_t)i);
+    caller_stack.push_byte(static_cast<int8_t>(exitcode));
 }
 
 void floor(OperandStack &caller_stack, StringsHeap &) {
     double d = caller_stack.pop_double();
 
-    caller_stack.push_int((int64_t)std::floor(d));
+    caller_stack.push_int(static_cast<int64_t>(std::floor(d)));
 }
 
 void ceil(OperandStack &caller_stack, StringsHeap &) {
     double d = caller_stack.pop_double();
 
-    caller_stack.push_int((int64_t)std::ceil(d));
+    caller_stack.push_int(static_cast<int64_t>(std::ceil(d)));
 }
 
 void round(OperandStack &caller_stack, StringsHeap &) {
     double d = caller_stack.pop_double();
 
-    caller_stack.push_int((int64_t)std::round(d));
+    caller_stack.push_int(static_cast<int64_t>(std::round(d)));
 }
 
 natives_functions_t

@@ -41,18 +41,7 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
         let tparams = self.parse_type_parameter_list()?.0;
         self.cursor.advance(blanks());
         let params = self.parse_fn_parameter_list()?;
-
-        if let Some(token) = self.cursor.lookahead(blanks().then(of_type(SemiColon))) {
-            return Ok(FunctionDeclaration {
-                name,
-                type_parameters: tparams,
-                parameters: params,
-                return_type: None,
-                body: None,
-                segment: segment_start..self.cursor.relative_pos_ctx(token).end,
-            });
-        }
-
+        self.cursor.advance(blanks());
         let rtype = self.parse_fn_return_type()?;
 
         if let Some(token) = self.cursor.lookahead(blanks().then(of_type(SemiColon))) {
@@ -68,7 +57,7 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
 
         let body = self
             .cursor
-            .force(blanks().then(of_type(Equal)), "`=` expected")
+            .force(blanks().then(of_type(Equal)), "expected `=`")
             .and_then(|_| {
                 self.cursor.advance(blanks());
                 self.statement()
@@ -373,7 +362,7 @@ mod tests {
         assert_eq!(
             errs,
             vec![ParseError {
-                message: "`=` expected".to_string(),
+                message: "expected `=`".to_string(),
                 position: src.find("{").map(|i| i..i + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected,
             }]

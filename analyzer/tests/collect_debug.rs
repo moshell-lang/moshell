@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
 use analyzer::analyze;
-
 use analyzer::engine::Engine;
 use pretty_assertions::assert_eq;
 

@@ -74,7 +74,7 @@ impl Chunk {
     }
 
     /// Creates a new script chunk.
-    pub fn native_function(parameters: Vec<Parameter>, return_type: TypeRef) -> Self {
+    pub fn native(parameters: Vec<Parameter>, return_type: TypeRef) -> Self {
         Self {
             expression: None,
             parameters,
@@ -267,6 +267,14 @@ impl EncodableContent {
             .as_ref()
             .expect("Engine not properly filled");
         (self.start_inclusive, environment, chunk)
+    }
+
+    pub fn defined_chunks<'a>(
+        self,
+        it: &'a ContentIterator<'a>,
+    ) -> impl Iterator<Item = (SourceId, &'a Environment, &'a Chunk)> {
+        self.function_chunks(it)
+            .filter(|(_, _, chunk)| chunk.expression.is_some())
     }
 
     pub fn function_chunks<'a>(

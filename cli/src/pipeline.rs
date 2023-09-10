@@ -68,12 +68,15 @@ pub enum FileImportError {
 }
 
 /// An importer that imports sources from the file system.
-pub struct FileImporter<'a> {
-    /// The root directories from which the files are read.
+pub struct FileImporter {
+    /// The root directory from which the files are read.
     root: PathBuf,
 
+    /// a shift for local content ids
+    sources_shift: usize,
+
     /// The imported sources, as an importer is the owner of the sources.
-    sources: &'a mut SourcesCache,
+    sources: Vec<OwnedSource>,
 
     /// Paths exceptions to look for when importing a source.
     redirections: HashMap<Name, PathBuf>,
@@ -90,29 +93,35 @@ pub struct SourcesCache {
     cache: Vec<OwnedSource>,
 }
 
-impl<'a> FileImporter<'a> {
+impl SourcesCache {
+    pub fn extend(&mut self, sources: Vec<OwnedSource>) {
+        self.cache.extend(sources)
+    }
+
+    pub fn len(&self) -> usize {
+        self.cache.len()
+    }
+}
+
+impl FileImporter {
     /// Creates a new file importer that will import sources from the given
     /// root directory.
-    pub fn new(sources: &'a mut SourcesCache, root: PathBuf) -> Self {
+    pub fn new(sources_shift: usize, root: PathBuf) -> Self {
         Self {
-            sources,
+            sources_shift,
+            sources: vec![],
             root,
             redirections: HashMap::new(),
             errors: Vec::new(),
         }
     }
 
-    pub fn sources(&self) -> &SourcesCache {
-        self.sources
-    }
-
     /// Inserts a new source into the importer.
     pub fn insert<'b>(&mut self, source: OwnedSource) -> ImportResult<'b> {
-        let id = self.sources.cache.len();
-        self.sources.cache.push(source);
+        let id = self.sources.len() + self.sources_shift;
+        self.sources.push(source);
         let source = self
             .sources
-            .cache
             .last()
             .expect("the source was just inserted")
             .as_source();
@@ -157,9 +166,13 @@ impl<'a> FileImporter<'a> {
             path.with_extension("msh")
         }
     }
+
+    pub fn take_sources(&mut self) -> Vec<OwnedSource> {
+        std::mem::take(&mut self.sources)
+    }
 }
 
-impl<'a, 'b> ASTImporter<'a> for FileImporter<'b> {
+impl<'a> ASTImporter<'a> for FileImporter {
     fn import(&mut self, name: &Name) -> ImportResult<'a> {
         let path = self.get_search_path(name);
         match read_to_string(&path) {
@@ -208,7 +221,7 @@ impl SourceHolder for SourcesCache {
     }
 }
 
-impl ErrorReporter for FileImporter<'_> {
+impl ErrorReporter for FileImporter {
     fn take_errors(&mut self) -> Vec<FileImportError> {
         std::mem::take(&mut self.errors)
     }

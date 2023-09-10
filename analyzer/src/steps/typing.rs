@@ -177,7 +177,7 @@ fn apply_types_to_source(
                 Chunk::function(body, chunk_params, return_type)
             } else {
                 check_nativity(func, exploration.externals, source_id, diagnostics);
-                Chunk::native_function(chunk_params, return_type)
+                Chunk::native(chunk_params, return_type)
             }
         }
         expr => Chunk::script(ascribe_types(

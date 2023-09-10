@@ -11,18 +11,18 @@ use analyzer::types::engine::{Chunk, TypedEngine};
 use context::source::ContentId;
 
 use crate::bytecode::{Bytecode, Instructions};
-use crate::captures::{Captures, ReefsCaptures};
 use crate::constant_pool::{ConstantPool, ExportedSymbol};
 use crate::emit::{emit, EmissionState, EmitterContext};
 use crate::locals::LocalsLayout;
 use crate::r#type::{get_type_stack_size, ValueStackSize};
 
 pub mod bytecode;
-pub mod captures;
 mod constant_pool;
 mod emit;
 mod locals;
 mod r#type;
+
+pub(crate) type Captures = Vec<Option<Vec<ResolvedSymbol>>>;
 
 pub trait SourceLineProvider {
     /// returns the line, starting from one, attributed to the given byte position of given content.
@@ -37,14 +37,12 @@ pub fn compile(
     relations: &Relations,
     link_engine: &Engine,
     externals: &Externals,
-    reefs_captures: &mut ReefsCaptures,
     reef_id: ReefId,
     starting_page: SourceId,
     writer: &mut impl Write,
     line_provider: Option<&dyn SourceLineProvider>,
 ) -> Result<(), io::Error> {
     let captures = resolve_captures(link_engine, relations, reef_id);
-    reefs_captures.insert(reef_id, captures);
 
     let mut bytecode = Bytecode::default();
     let mut cp = ConstantPool::default();
@@ -57,14 +55,14 @@ pub fn compile(
             link_engine,
             externals,
             main_env,
-            reefs_captures,
+            &captures,
             chunk_id,
         );
         compile_chunk(
             &main_env.fqn,
             main_chunk,
             chunk_id,
-            ctx,
+            &ctx,
             &mut bytecode,
             &mut cp,
             line_provider,
@@ -73,27 +71,18 @@ pub fn compile(
         write_exported(&mut cp, &mut bytecode)?;
 
         // filter out native functions
-        let defined_functions: Vec<_> = content
-            .function_chunks(&it)
-            .filter(|(_, _, chunk)| chunk.expression.is_some())
-            .collect();
+        let defined_functions: Vec<_> = content.defined_chunks(&it).collect();
 
         bytecode.emit_u32(defined_functions.len() as u32);
 
         for (chunk_id, env, chunk) in defined_functions {
-            let ctx = EmitterContext::new(
-                reef_id,
-                link_engine,
-                externals,
-                env,
-                reefs_captures,
-                chunk_id,
-            );
+            let ctx =
+                EmitterContext::new(reef_id, link_engine, externals, env, &captures, chunk_id);
             compile_chunk(
                 &env.fqn,
                 chunk,
                 chunk_id,
-                ctx,
+                &ctx,
                 &mut bytecode,
                 &mut cp,
                 line_provider,
@@ -108,23 +97,19 @@ fn compile_chunk(
     name: &Name,
     chunk: &Chunk,
     id: SourceId,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     bytecode: &mut Bytecode,
     cp: &mut ConstantPool,
     line_provider: Option<&dyn SourceLineProvider>,
 ) {
-    if chunk.expression.is_none() {
-        panic!("cannot compile native functions declaration.")
-    }
     // emit the function's name
     let signature_idx = cp.insert_string(name);
     bytecode.emit_constant_ref(signature_idx);
 
     // emits chunk's code attribute
-    let (segments, instructions_count) = compile_chunk_code(chunk, id, bytecode, ctx, cp);
-    let non_empty_chunk = instructions_count != 0;
+    let segments = compile_chunk_code(chunk, id, bytecode, ctx, cp);
 
-    let attribute_count = non_empty_chunk.then_some(line_provider).map_or(0, |_| 1);
+    let attribute_count = line_provider.map_or(0, |_| 1);
     bytecode.emit_byte(attribute_count);
 
     if let Some(line_provider) = line_provider {
@@ -133,9 +118,7 @@ fn compile_chunk(
         let Some(content_id) = content else {
             return;
         };
-        if non_empty_chunk {
-            compile_line_mapping_attribute(segments, content_id, bytecode, line_provider);
-        }
+        compile_line_mapping_attribute(segments, content_id, bytecode, line_provider);
     }
 }
 
@@ -170,7 +153,7 @@ fn compile_line_mapping_attribute(
         last_pos = pos;
     }
 
-    if mappings.is_empty() {
+    if mappings.is_empty() && last_pos != 0 && *first_pos != 0 {
         // if no mappings are set, bind first pos' line with first instruction.
         let line = line_provider.get_line(content_id, *first_pos).unwrap();
         mappings.push((line, 0))
@@ -257,7 +240,7 @@ fn resolve_captures(engine: &Engine, relations: &Relations, compiled_reef: ReefI
             &mut externals,
         );
     }
-    Captures::new(captures)
+    captures
 }
 
 /// compiles chunk's code attribute
@@ -270,21 +253,17 @@ fn compile_chunk_code(
     chunk: &Chunk,
     chunk_id: SourceId,
     bytecode: &mut Bytecode,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
-) -> (Vec<(usize, u32)>, u32) {
+) -> Vec<(usize, u32)> {
     let chunk_expression = chunk
         .expression
         .as_ref()
-        .expect("Cannot compile native function declarations");
+        .expect("Unable to compile a function without a definition");
 
     let locals_byte_count = bytecode.emit_u32_placeholder();
 
-    let chunk_captures = *ctx
-        .captures
-        .get(&ctx.current_reef)
-        .unwrap()
-        .get(chunk_id)
+    let chunk_captures = ctx.captures[chunk_id.0]
         .as_ref()
         .expect("unresolved capture after resolution");
 
@@ -344,7 +323,7 @@ fn compile_chunk_code(
 
     let locals_length = locals.byte_count();
     bytecode.patch_u32_placeholder(locals_byte_count, locals_length);
-    (segments, instruction_byte_count)
+    segments
 }
 
 fn write(
@@ -394,7 +373,6 @@ fn write_exported(pool: &mut ConstantPool, bytecode: &mut Bytecode) -> Result<()
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use crate::captures::Captures;
     use analyzer::importer::StaticImporter;
     use analyzer::name::Name;
     use analyzer::reef::{Externals, ReefId};
@@ -440,7 +418,7 @@ mod tests {
 
         assert_eq!(
             captures,
-            Captures::new(vec![
+            vec![
                 Some(vec![]), //root
                 Some(vec![]), //foo
                 Some(vec![
@@ -465,7 +443,7 @@ mod tests {
                     //bar2
                     ResolvedSymbol::new(reef_id, SourceId(1), LocalId(0)),
                 ]),
-            ])
+            ]
         )
     }
 }

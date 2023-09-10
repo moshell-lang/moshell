@@ -20,7 +20,7 @@ pub(crate) fn emit_natives(
     callee: &TypedExpr,
     args: &[TypedExpr],
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
