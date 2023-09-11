@@ -11,6 +11,10 @@ fn main() {
     println!("cargo:rustc-link-search=native={}", dst.display());
     println!("cargo:rustc-link-lib=static=vm");
 
+    if config.get_profile() == "Debug" {
+        println!("cargo:rustc-link-lib=asan");
+    }
+
     // Link to the C++ standard library.
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
     let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap();
