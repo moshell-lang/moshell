@@ -46,6 +46,12 @@ struct function_definition {
     size_t constant_pool_index;
 
     /**
+     * Object references offsets of function's locals.
+     * Used by gc to determine acquired objects.
+     */
+    std::vector<uint32_t> obj_ref_offsets;
+
+    /**
      * Mappings of instructions with a source code line.
      * The vector contains pairs where the first instruction count (left) is bound with its line (right).
      * The vector must be sorted in ascending order by instructions count.

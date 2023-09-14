@@ -61,7 +61,7 @@ fn display_function(
     display_code(cursor, constants, dynamic_symbols)?;
 
     let attribute_count = read!(cursor, u8);
-    println!("{attribute_count} attributes");
+    println!("\t{attribute_count} attributes");
 
     for _ in 0..attribute_count {
         let attribute_id = read!(cursor, u8);
@@ -156,6 +156,20 @@ fn display_code(
         }
         println!()
     }
+
+    let offsets_count = read!(cursor, u32);
+
+    print!("\tobj_refs_offsets: {offsets_count} - [");
+
+    if offsets_count > 1 {
+        let mut i = 1;
+        print!("{}", read!(cursor, u32));
+        while i < offsets_count {
+            print!(", {}", read!(cursor, u32));
+            i += 1;
+        }
+    }
+    println!("]");
 
     Ok(())
 }

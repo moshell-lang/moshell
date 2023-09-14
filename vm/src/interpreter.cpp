@@ -31,12 +31,12 @@ enum Opcode {
 
     OP_LOCAL_GET_BYTE,   // pops last reference and pushes its byte value onto the operands
     OP_LOCAL_SET_BYTE,   // pops last reference, pops a byte value then sets the reference's value with byte value
-    OP_LOCAL_GET_Q_WORD, // pops last reference and pushes its sword value onto the operands
+    OP_LOCAL_GET_Q_WORD, // pops last reference and pushes its qword value onto the operands
     OP_LOCAL_SET_Q_WORD, // pops last reference, pops a qword value then sets the reference's value with qword value
 
     OP_REF_GET_BYTE,   // pops last reference and pushes its byte value onto the operands
     OP_REF_SET_BYTE,   // pops last reference, pops a byte value then sets the reference's value with byte value
-    OP_REF_GET_Q_WORD, // pops last reference and pushes its sword value onto the operands
+    OP_REF_GET_Q_WORD, // pops last reference and pushes its qword value onto the operands
     OP_REF_SET_Q_WORD, // pops last reference, pops a qword value then sets the reference's value with qword value
 
     OP_FETCH_BYTE,   // with 4 byte external index in constant pool, pushes given external value onto the operand stack
@@ -392,7 +392,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
 
             uint8_t *ref = &locals.reference(local_index);
 
-            // Push the string index onto the stack
+            // Push the local reference onto the stack
             operands.push_unchecked_reference(ref);
             break;
         }
@@ -418,7 +418,6 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
                 } else {
                     throw InvalidBytecodeError("Cannot unbox type");
                 }
-                operands.push(arg);
             },
                        ref);
             break;

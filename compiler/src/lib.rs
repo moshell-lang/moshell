@@ -333,6 +333,13 @@ fn compile_chunk_code(
 
     let locals_length = locals.byte_count();
     bytecode.patch_u32_placeholder(locals_byte_count, locals_length);
+
+    let offsets = locals.refs_offset();
+    bytecode.emit_u32(offsets.len() as u32);
+    for offset in offsets {
+        bytecode.emit_u32(offset)
+    }
+
     segments
 }
 

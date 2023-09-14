@@ -76,6 +76,12 @@ namespace msh {
         size_t effective_address = concatened_instructions.size();
         std::copy(instructions, instructions + instruction_count, std::back_inserter(concatened_instructions));
 
+        uint32_t offsets_count = reader.read<uint32_t>();
+        std::vector<uint32_t> offsets;
+
+        uint32_t *offsets_buff = reader.read_n<uint32_t>(offsets_count);
+        offsets.insert(offsets.begin(), offsets_buff, offsets_buff + offsets_count);
+
         function_definition def = {
             identifier,
             locals_byte_count,
@@ -84,6 +90,7 @@ namespace msh {
             effective_address,
             instruction_count,
             pool_index,
+            offsets,
             {},
         };
 
