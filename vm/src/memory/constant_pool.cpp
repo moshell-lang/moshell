@@ -24,7 +24,7 @@ ConstantPool load_constant_pool(ByteReader &reader, msh::heap &heap) {
 }
 
 ConstantPool::ConstantPool(uint32_t size)
-    : constants{std::make_unique<const msh::obj *[]>(size)},
+    : constants{std::vector<const msh::obj *>(size)},
       size{size} {}
 
 const msh::obj &ConstantPool::get_ref(constant_index at) const {
@@ -35,5 +35,5 @@ const msh::obj &ConstantPool::get_ref(constant_index at) const {
 }
 
 const std::string &ConstantPool::get_string(constant_index at) const {
-    return std::get<const std::string>(get_ref(at));
+    return get_ref(at).get<const std::string>();
 }

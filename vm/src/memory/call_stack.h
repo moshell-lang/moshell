@@ -1,8 +1,8 @@
 #pragma once
 
 #include "definitions/function_definition.h"
-#include "locals.h"
-#include "operand_stack.h"
+#include "memory/locals.h"
+#include "memory/operand_stack.h"
 
 /**
  * The information about a stack frame.
@@ -15,11 +15,14 @@ struct stack_frame {
     Locals locals;
 };
 
+class call_stack_iterator;
+
 /**
  * A thread callstack, with fixed capacity
  */
 class CallStack {
     std::unique_ptr<char[]> block;
+    std::vector<bool> operands_refs_offsets;
 
     /**
      * position of the current frame headers
@@ -35,10 +38,15 @@ class CallStack {
      */
     size_t frame_count;
 
+    friend msh::gc;
+
+public:
     /**
      * creates an empty call stack
      */
     explicit CallStack(size_t capacity);
+
+    friend call_stack_iterator;
 
 public:
     /**
@@ -64,7 +72,7 @@ public:
      * note that the structure holds references into the stack, thus the caller must ensure that
      * the returned stack_frame is manipulated only if the frame is still present in this call stack (not popped)
      */
-    stack_frame peek_frame() const;
+    stack_frame peek_frame();
 
     /**
      * @return the capacity in bytes of this call stack
@@ -85,4 +93,27 @@ public:
      * clears the call stack
      */
     void clear();
+
+    call_stack_iterator begin();
+    call_stack_iterator back();
+    call_stack_iterator end();
+};
+
+// concurrent modification of call_stack is UB
+class call_stack_iterator : public std::iterator<
+                                std::forward_iterator_tag,
+                                const stack_frame,
+                                size_t,
+                                const stack_frame *,
+                                const stack_frame &> {
+    CallStack *call_stack;
+    size_t pos;
+    size_t frame_ord;
+
+public:
+    call_stack_iterator(CallStack *call_stack, size_t pos, size_t frame_ord);
+    call_stack_iterator &operator++();
+    bool operator==(const call_stack_iterator &other);
+    bool operator!=(const call_stack_iterator &other);
+    stack_frame operator*();
 };

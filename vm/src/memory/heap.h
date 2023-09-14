@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdint>
 #include <forward_list>
 #include <string>
 #include <variant>
@@ -13,13 +12,40 @@ namespace msh {
     /**
      * A vector of heap allocated objects.
      */
-    struct obj_vector;
-    /**
-     * An object of the language that can be stored in the heap.
-     */
-    using obj = std::variant<int64_t, double, const std::string, obj_vector>;
+
+    class obj;
+
     struct obj_vector : public std::vector<obj *> {
         using std::vector<obj *>::vector;
+    };
+
+    using obj_data = std::variant<int64_t, double, const std::string, obj_vector>;
+
+    class gc;
+
+    /**
+     * A vm object that can be stored in the heap.
+     */
+    class obj {
+        uint8_t gc_cycle;
+        obj_data data;
+
+        friend gc;
+
+    public:
+        template <typename T>
+        obj(T val) : gc_cycle{0}, data{val} {}
+
+        obj_data &get_data();
+
+        template <typename T>
+        T &get() {
+            return std::get<T>(data);
+        }
+        template <typename T>
+        const T &get() const {
+            return std::get<T>(data);
+        }
     };
 
     /**
@@ -36,6 +62,13 @@ namespace msh {
          */
         std::forward_list<obj> objects;
 
+        /**
+         * heap size
+         * */
+        size_t len;
+
+        friend gc;
+
     public:
         /**
          * Inserts a new object in the heap.
@@ -44,5 +77,7 @@ namespace msh {
          * @return A reference to this object, valid as long as the object is not deleted.
          */
         msh::obj &insert(msh::obj &&obj);
+
+        size_t size();
     };
 }

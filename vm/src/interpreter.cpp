@@ -5,6 +5,7 @@
 #include "definitions/pager.h"
 #include "memory/call_stack.h"
 #include "memory/constant_pool.h"
+#include "memory/gc.h"
 #include "memory/nix.h"
 #include "vm.h"
 
@@ -108,11 +109,6 @@ bool is_master = true;
  */
 struct runtime_state {
     /**
-     * The VM's heap.
-     */
-    msh::heap &heap;
-
-    /**
      * The file descriptor table
      */
     fd_table table;
@@ -132,6 +128,23 @@ struct runtime_state {
 
 RuntimeException::RuntimeException(std::string msg)
     : std::runtime_error(msg) {}
+
+// run GC every n objects allocated
+#define GC_HEAP_GAP 5
+
+runtime_memory::runtime_memory(msh::heap &heap, msh::gc &gc)
+    : heap{heap}, gc{gc}, last_gc_heap_size{heap.size()} {}
+
+void runtime_memory::run_gc() {
+    gc.run();
+    last_gc_heap_size = heap.size();
+}
+
+msh::obj &runtime_memory::emplace(msh::obj_data &&data) {
+    if (heap.size() >= last_gc_heap_size + GC_HEAP_GAP)
+        run_gc();
+    return this->heap.insert(data);
+}
 
 /**
  * Apply an arithmetic operation to two integers
@@ -298,6 +311,7 @@ enum class frame_status {
  */
 inline bool handle_function_invocation(const std::string &callee_identifier,
                                        runtime_state &state,
+                                       runtime_memory &mem,
                                        OperandStack &caller_operands,
                                        CallStack &call_stack) {
 
@@ -310,7 +324,7 @@ inline bool handle_function_invocation(const std::string &callee_identifier,
         }
 
         auto native_function = native_function_it->second;
-        native_function(caller_operands, state.heap);
+        native_function(caller_operands, mem);
 
         return false;
     }
@@ -327,7 +341,7 @@ inline bool handle_function_invocation(const std::string &callee_identifier,
  * Will run a frame until it returns or pushes a new method inside the call_stack
  * @return the frame status
  */
-frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, const char *instructions, size_t instruction_count) {
+frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, const char *instructions, size_t instruction_count, runtime_memory &mem) {
     size_t pool_index = frame.function.constant_pool_index;
     const ConstantPool &pool = state.pager.get_pool(pool_index);
 
@@ -382,7 +396,8 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             ip += sizeof(constant_index);
 
             // Push the string index onto the stack
-            operands.push_reference(const_cast<msh::obj &>(pool.get_ref(index))); // Promise not to modify the string
+            msh::obj &ref = const_cast<msh::obj &>(pool.get_ref(index));
+            operands.push_reference(ref); // Promise not to modify the string
             break;
         }
         case OP_PUSH_LOCAL_REF: {
@@ -401,7 +416,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             int64_t value = operands.pop_int();
 
             // Push the reference onto the stack
-            operands.push_reference(state.heap.insert(value));
+            operands.push_reference(mem.emplace(value));
             break;
         }
         case OP_UNBOX: {
@@ -416,10 +431,10 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
                 } else if constexpr (std::is_same_v<T, double>) {
                     operands.push_double(arg);
                 } else {
-                    throw InvalidBytecodeError("Cannot unbox type");
+                    throw InvalidBytecodeError("Cannot unbox unknown type");
                 }
             },
-                       ref);
+                       ref.get_data());
             break;
         }
         case OP_INVOKE: {
@@ -428,7 +443,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
 
             const std::string &function_identifier = pool.get_string(identifier_idx);
 
-            if (handle_function_invocation(function_identifier, state, operands, call_stack)) {
+            if (handle_function_invocation(function_identifier, state, mem, operands, call_stack)) {
                 // terminate this frame interpretation if a new frame has been pushed in the stack
                 // (natives functions are directly run thus no need to return if no moshell function is to execute)
                 return frame_status::NEW_FRAME;
@@ -446,6 +461,9 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             case 0:
                 // Child process
                 is_master = false;
+#ifndef NDEBUG
+                msh::disable_gc_debug();
+#endif
                 break;
             default:
                 // Parent process
@@ -464,7 +482,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             std::vector<std::unique_ptr<char[]>> argv(frame_size + 1);
             for (int i = frame_size - 1; i >= 0; i--) {
                 // Pop the string reference
-                const std::string &arg = std::get<const std::string>(operands.pop_reference());
+                const std::string &arg = operands.pop_reference().get<const std::string>();
                 size_t arg_length = arg.length() + 1; // add 1 for the trailing '\0' char
                 // Allocate the string
                 argv[i] = std::make_unique<char[]>(arg_length);
@@ -502,7 +520,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
         }
         case OP_OPEN: {
             // Pop the path
-            const std::string &path = std::get<const std::string>(operands.pop_reference());
+            const std::string &path = operands.pop_reference().get<const std::string>();
 
             // Read the flags
             int flags = ntohl(*(int *)(instructions + ip));
@@ -596,13 +614,13 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             }
 
             // Push the string onto the stack
-            msh::obj &str = state.heap.insert(std::move(out));
+            msh::obj &str = mem.emplace(std::move(out));
             operands.push_reference(str);
             break;
         }
         case OP_WRITE: {
             // Pop the string reference
-            const std::string &str = std::get<const std::string>(operands.pop_reference());
+            const std::string &str = operands.pop_reference().get<const std::string>();
             // Pop the file descriptor
             int fd = static_cast<int>(operands.pop_int());
 
@@ -654,7 +672,8 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
         case OP_LOCAL_GET_Q_WORD: {
             int32_t local_index = ntohl(*(int32_t *)(instructions + ip));
             ip += sizeof(int32_t);
-            operands.push_int(locals.get_q_word(local_index));
+            int64_t value = locals.get_q_word(local_index);
+            operands.push_int(value);
             break;
         }
         case OP_LOCAL_SET_Q_WORD: {
@@ -807,11 +826,15 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
 
 bool run_unit(const msh::loader &loader, msh::pager &pager, const msh::memory_page &current_page, msh::heap &heap, const natives_functions_t &natives) {
     fd_table table;
-    runtime_state state{heap, table, loader, pager, natives};
+    runtime_state state{table, loader, pager, natives};
 
     // prepare the call stack, containing the given root function on top of the stack
     const function_definition &root_def = loader.get_function(current_page.init_function_name);
     CallStack call_stack = CallStack::create(10000, root_def);
+
+    msh::gc gc(heap, call_stack, pager, loader);
+
+    runtime_memory mem{heap, gc};
 
     try {
         while (!call_stack.is_empty()) {
@@ -819,12 +842,11 @@ bool run_unit(const msh::loader &loader, msh::pager &pager, const msh::memory_pa
             const function_definition &current_def = current_frame.function;
 
             const char *instructions = loader.get_instructions(current_def.instructions_start);
-            frame_status status = run_frame(state, current_frame, call_stack, instructions, current_def.instruction_count);
+            frame_status status = run_frame(state, current_frame, call_stack, instructions, current_def.instruction_count, mem);
 
             switch (status) {
             case frame_status::RETURNED: {
                 int8_t returned_byte_count = current_def.return_byte_count;
-                const char *bytes = current_frame.operands.pop_bytes(returned_byte_count);
 
                 // pop the current frame.
                 call_stack.pop_frame();
@@ -834,7 +856,7 @@ bool run_unit(const msh::loader &loader, msh::pager &pager, const msh::memory_pa
                     break;
                 }
                 stack_frame caller_frame = call_stack.peek_frame();
-                caller_frame.operands.push(bytes, returned_byte_count);
+                caller_frame.operands.transfer(current_frame.operands, returned_byte_count);
                 break;
             }
             case frame_status::ABORT: {

@@ -17,13 +17,14 @@ add_library(vm
         src/memory/constant_pool.cpp
         src/memory/locals.cpp
         src/memory/nix.cpp
-        src/memory/object.cpp
+        src/memory/heap.cpp
         src/memory/operand_stack.cpp
         src/byte_reader.cpp
         src/errors.cpp
         src/interpreter.cpp
         src/stdlib_natives.cpp
         src/vm.cpp
+        src/memory/gc.cpp
 )
 target_compile_features(vm PUBLIC cxx_std_20)
 add_executable(vm_exe src/main.cpp)

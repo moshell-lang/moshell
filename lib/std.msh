@@ -1,3 +1,7 @@
+use reef::std::convert
+use reef::std::intern
+
+
 /// Causes the runtime to panic, with the specified message.
 /// This also prints the current callstack trace.
 /// Once executed the process will exit with code 1.
@@ -32,5 +36,5 @@ fun read_line() -> String;
 /// Unlike [[reef::std::panic]], this function does not print the callstack trace.
 fun abort(message: String) -> Nothing = {
     echo $message >&2
-    exit(reef::std::convert::to_exitcode(1))
+    exit(convert::to_exitcode(1))
 }

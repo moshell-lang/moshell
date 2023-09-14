@@ -25,9 +25,12 @@ private:
     char *const bytes;
     size_t &current_pos;
     const size_t stack_capacity;
+    std::vector<bool> &operands_refs;
+
+    friend msh::gc;
 
 public:
-    explicit OperandStack(char *const buff, size_t &initial_pos, size_t stack_capacity);
+    explicit OperandStack(char *const buff, size_t &initial_pos, size_t stack_capacity, std::vector<bool> &operands_refs);
 
     /**
      * @return the size in bytes of the operand stack
@@ -91,6 +94,13 @@ public:
      */
     const char *pop_bytes(size_t n);
 
+    /**
+     * transfer to this operand stack the n first bytes of the given caller stack.
+     * The bytes are transferred without modifying the operands object refs vector
+     * in order to keep the information over contained references
+     * */
+    void transfer(OperandStack &caller_stack, size_t n);
+
     void push(const char *bytes, size_t size);
 
     template <typename T>
@@ -98,13 +108,20 @@ public:
         if (current_pos + sizeof(T) > stack_capacity) {
             throw StackOverflowError("exceeded stack capacity via operand stack");
         }
+
+        size_t false_bits_count = sizeof(T);
+        if constexpr (std::is_same_v<T, msh::obj *>) {
+            operands_refs.push_back(true);
+            false_bits_count--;
+        }
+        operands_refs.resize(operands_refs.size() + false_bits_count, false);
+
         *(T *)(bytes + current_pos) = t;
         current_pos += sizeof(T);
     }
 
     template <typename T>
     T pop() {
-        pop_bytes(sizeof(T));
-        return *(T *)(bytes + current_pos);
+        return *(T *)pop_bytes(sizeof(T));
     }
 };

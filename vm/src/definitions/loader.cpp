@@ -21,19 +21,23 @@ namespace msh {
         }
 
         while (reader.position() < size) {
-            size_t page;
             // Read main function
             {
                 const auto &[identifier, function] = load_function(reader, pool, pool_index);
-                page = pager.push_page(memory_page{std::vector<char>(function.locals_size), identifier});
-            }
+                size_t page = pager.push_page(memory_page{std::vector<char>(function.locals_size), identifier});
 
-            uint32_t exports_len = reader.read<uint32_t>();
-            for (uint32_t i = 0; i < exports_len; ++i) {
-                constant_index id_idx = reader.read<constant_index>();
-                const std::string &identifier = pool.get_string(id_idx);
-                uint32_t offset = reader.read<uint32_t>();
-                exported[identifier] = exported_variable{page, offset};
+                // read function exports
+                uint32_t exports_len = reader.read<uint32_t>();
+                for (uint32_t i = 0; i < exports_len; ++i) {
+                    constant_index id_idx = reader.read<constant_index>();
+                    uint32_t offset = reader.read<uint32_t>();
+                    bool is_obj_ref = reader.read<bool>();
+
+                    const std::string &identifier = pool.get_string(id_idx);
+                    exported[identifier] = exported_variable{page, offset, is_obj_ref};
+                }
+
+                std::vector<uint32_t> obj_refs_offsets;
             }
 
             uint32_t functions_len = reader.read<uint32_t>();
@@ -53,6 +57,13 @@ namespace msh {
 
     loader::function_map::const_iterator loader::functions_cend() const {
         return functions.cend();
+    }
+
+    loader::exported_variable_map::const_iterator loader::exported_cbegin() const {
+        return exported.cbegin();
+    }
+    loader::exported_variable_map::const_iterator loader::exported_cend() const {
+        return exported.cend();
     }
 
     const exported_variable &loader::get_exported(const std::string &name) const {
@@ -78,9 +89,10 @@ namespace msh {
 
         uint32_t offsets_count = reader.read<uint32_t>();
         std::vector<uint32_t> offsets;
+        offsets.reserve(offsets_count);
 
-        uint32_t *offsets_buff = reader.read_n<uint32_t>(offsets_count);
-        offsets.insert(offsets.begin(), offsets_buff, offsets_buff + offsets_count);
+        for (uint32_t i = 0; i < offsets_count; i++)
+            offsets.push_back(reader.read<uint32_t>());
 
         function_definition def = {
             identifier,

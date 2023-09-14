@@ -12,6 +12,8 @@
 namespace msh {
     using dynsym = std::variant<void *, function_definition *>;
 
+    class gc;
+
     /**
      * A virtual memory page, that contain the global variable values.
      */
@@ -54,6 +56,8 @@ namespace msh {
          * The dynamic symbols that have been loaded.
          */
         std::vector<index_vector> indexes;
+
+        friend gc;
 
     public:
         /**

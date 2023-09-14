@@ -179,15 +179,13 @@ fn emit_declaration(
         .expect("The declared variable should be in the current environment.");
 
     if let Some(value) = &declaration.value {
-        locals.set_value_space(declaration.identifier, value.ty.into());
+        locals.set_value_space(declaration.identifier, value.ty);
 
         if variable.is_exported() && ctx.environment.is_script {
-            cp.insert_exported(
-                &variable.name,
-                locals
-                    .get_index(declaration.identifier)
-                    .expect("Variable just have been declared"),
-            );
+            let offset = locals
+                .get_index(declaration.identifier)
+                .expect("Variable just have been declared");
+            cp.insert_exported(&variable.name, offset, value.ty.is_obj());
         }
 
         emit_assignment(

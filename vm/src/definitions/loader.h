@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "memory/constant_pool.h"
-#include "memory/object.h"
+#include "memory/heap.h"
 
 class ByteReader;
 
@@ -33,10 +33,16 @@ namespace msh {
          * The offset in the page.
          */
         size_t offset;
+
+        /**
+         * GC hint to mark this variable as being a reference to a heap object
+         * */
+        bool is_obj_ref;
     };
 
     class loader {
         using function_map = std::unordered_map<std::string, function_definition>;
+        using exported_variable_map = std::unordered_map<std::string, exported_variable>;
 
         /**
          * The functions that have been loaded.
@@ -46,7 +52,7 @@ namespace msh {
         /**
          * The effective locations in the loaded pages for each named symbol.
          */
-        std::unordered_map<std::string, exported_variable> exported;
+        exported_variable_map exported;
 
         /**
          * The instructions bytes that have been loaded and concatenated.
@@ -93,6 +99,9 @@ namespace msh {
          * @return The end iterator for the functions.
          */
         function_map::const_iterator functions_cend() const;
+
+        exported_variable_map::const_iterator exported_cbegin() const;
+        exported_variable_map::const_iterator exported_cend() const;
 
         /**
          * Gets the exported variable for the given name.
