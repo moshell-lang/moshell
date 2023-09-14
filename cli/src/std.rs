@@ -31,8 +31,12 @@ pub fn build_std(externals: &mut Externals, vm: &mut VM, sources: &mut SourcesCa
     );
     externals.register(Reef::new("std".to_string(), analyzer));
 
-    if status != PipelineStatus::Success {
-        panic!("std build did not succeed")
+    match status {
+        PipelineStatus::Success => {}
+        PipelineStatus::IoError => panic!(
+            "Unable to find the standard library, check the MOSHELL_STD environment variable"
+        ),
+        _ => panic!("std build did not succeed"),
     }
 }
 
@@ -42,7 +46,14 @@ fn find_std() -> PathBuf {
     }
 
     if let Some(proj_dirs) = ProjectDirs::from("", "", "moshell") {
-        return proj_dirs.data_dir().join("lib").to_path_buf();
+        let lib = proj_dirs.data_dir().join("lib");
+        return if lib.exists() {
+            lib
+        } else {
+            let mut dir = std::env::current_dir().expect("Could not get current directory");
+            dir.push("lib");
+            dir
+        };
     }
     panic!("could not find stdlib path")
 }

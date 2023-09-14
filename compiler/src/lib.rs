@@ -258,8 +258,7 @@ fn resolve_captures(engine: &Engine, relations: &Relations, compiled_reef: ReefI
 /// the code attribute of a chunk is a special attribute that contains the bytecode instructions and
 /// locals specifications
 ///
-/// returns the hir's segments associated with their first instruction,
-/// and the total amount of compiled instructions.
+/// returns the hir's segments associated with their first instruction.
 fn compile_chunk_code(
     chunk: &Chunk,
     chunk_id: SourceId,
