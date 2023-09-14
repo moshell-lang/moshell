@@ -1,5 +1,6 @@
 use enum_assoc::Assoc;
 
+use crate::reef::ReefId;
 use context::source::SourceSegment;
 
 use crate::relations::SourceId;
@@ -86,8 +87,15 @@ pub enum DiagnosticID {
     #[assoc(critical = true)]
     CannotReassign,
 
-    /// An incorrect number of type arguments was provided.
+    /// A function does not have a definition.
+    ///
+    /// Only internals reefs that are defined natively can omit an implementation.
     #[assoc(code = 16)]
+    #[assoc(critical = true)]
+    NoFunctionDefinition,
+
+    /// An incorrect number of type arguments was provided.
+    #[assoc(code = 17)]
     #[assoc(critical = true)]
     InvalidTypeArguments,
 }
@@ -115,17 +123,27 @@ impl Observation {
     }
 
     /// Creates an observation on an erroneous location.
-    pub fn here(source: SourceId, segment: SourceSegment, message: impl Into<String>) -> Self {
+    pub fn here(
+        source: SourceId,
+        reef: ReefId,
+        segment: SourceSegment,
+        message: impl Into<String>,
+    ) -> Self {
         Self {
-            location: SourceLocation::new(source, segment),
+            location: SourceLocation::new(source, reef, segment),
             message: Some(message.into()),
         }
     }
 
     /// Creates a contextual observation.
-    pub fn context(source: SourceId, segment: SourceSegment, message: impl Into<String>) -> Self {
+    pub fn context(
+        source: SourceId,
+        reef: ReefId,
+        segment: SourceSegment,
+        message: impl Into<String>,
+    ) -> Self {
         Self {
-            location: SourceLocation::new(source, segment),
+            location: SourceLocation::new(source, reef, segment),
             message: Some(message.into()),
         }
     }
@@ -135,13 +153,18 @@ impl Observation {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SourceLocation {
     pub source: SourceId,
+    pub reef: ReefId,
     pub segment: SourceSegment,
 }
 
 impl SourceLocation {
     /// Creates a new source location.
-    pub fn new(source: SourceId, segment: SourceSegment) -> Self {
-        Self { source, segment }
+    pub fn new(source: SourceId, reef: ReefId, segment: SourceSegment) -> Self {
+        Self {
+            source,
+            reef,
+            segment,
+        }
     }
 }
 
@@ -187,8 +210,8 @@ impl Diagnostic {
     }
 }
 
-impl From<(SourceId, SourceSegment)> for Observation {
-    fn from((source, segment): (SourceId, SourceSegment)) -> Self {
-        Self::new(SourceLocation::new(source, segment))
+impl From<(SourceId, ReefId, SourceSegment)> for Observation {
+    fn from((source, reef, segment): (SourceId, ReefId, SourceSegment)) -> Self {
+        Self::new(SourceLocation::new(source, reef, segment))
     }
 }

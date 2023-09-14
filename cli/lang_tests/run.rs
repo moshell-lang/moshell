@@ -1,4 +1,5 @@
 use lang_tester::LangTester;
+use std::env::current_dir;
 use std::{fs::read_to_string, process::Command};
 use tempfile::TempDir;
 
@@ -24,7 +25,9 @@ fn main() {
         })
         .test_cmds(move |p| {
             let mut runtime = Command::new(env!("CARGO_BIN_EXE_cli"));
+            let stdlib = current_dir().unwrap().with_file_name("lib");
             runtime
+                .env("MOSHELL_STD", stdlib)
                 .args(&["-s", p.to_str().unwrap()])
                 .current_dir(tempdir.path());
             vec![("Run", runtime)]

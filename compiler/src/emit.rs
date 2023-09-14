@@ -1,5 +1,6 @@
 use analyzer::engine::Engine;
 use analyzer::environment::Environment;
+use analyzer::reef::{Externals, ReefId};
 use analyzer::relations::{Definition, SourceId};
 use analyzer::types::hir::{Declaration, ExprKind, TypedExpr, Var};
 use analyzer::types::ty::{Type, TypeRef};
@@ -22,13 +23,14 @@ mod invoke;
 mod jump;
 mod native;
 
-#[derive(Debug, Clone, Copy)]
-pub struct EmitterContext<'a> {
-    /// The [`Environment`] engine.
-    pub(crate) engine: &'a Engine<'a>,
+#[derive(Clone)]
+pub struct EmitterContext<'a, 'e> {
+    pub(crate) current_reef: ReefId,
+    engine: &'a Engine<'e>,
+    externals: &'a Externals<'e>,
 
     /// The typing context.
-    pub(crate) typing: &'a Typing,
+    typing: &'a Typing,
 
     /// The currently emitted environment.
     ///
@@ -43,7 +45,39 @@ pub struct EmitterContext<'a> {
     pub(crate) chunk_id: SourceId,
 }
 
-impl EmitterContext<'_> {
+impl<'a, 'e> EmitterContext<'a, 'e> {
+    pub fn new(
+        current_reef: ReefId,
+        engine: &'a Engine<'e>,
+        externals: &'a Externals<'e>,
+        typing: &'a Typing,
+        env: &'a Environment,
+        captures: &'a Captures,
+        chunk_id: SourceId,
+    ) -> Self {
+        Self {
+            current_reef,
+            engine,
+            externals,
+            typing,
+            environment: env,
+            captures,
+            chunk_id,
+        }
+    }
+
+    pub fn engine(&self) -> &'a Engine<'e> {
+        self.engine
+    }
+
+    pub fn get_engine(&self, reef: ReefId) -> Option<&'a Engine<'e>> {
+        if self.current_reef == reef {
+            Some(self.engine)
+        } else {
+            self.externals.get_reef(reef).map(|r| &r.engine)
+        }
+    }
+
     /// Gets the type behind a type identifier.
     pub(crate) fn get_type(&self, id: TypeRef) -> Option<&Type> {
         // FIXME: check the type in the right reef
@@ -110,7 +144,7 @@ fn emit_literal(literal: &LiteralValue, instructions: &mut Instructions, cp: &mu
 
 fn emit_ref(
     var: Var,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     ref_type: TypeRef,
     instructions: &mut Instructions,
     cp: &mut ConstantPool,
@@ -133,7 +167,7 @@ fn emit_ref(
 fn emit_declaration(
     declaration: &Declaration,
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -171,7 +205,7 @@ fn emit_declaration(
 fn emit_block(
     exprs: &[TypedExpr],
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -190,7 +224,7 @@ fn emit_assignment(
     value: &TypedExpr,
     var: Var,
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -218,7 +252,7 @@ fn emit_assignment(
 fn emit_return(
     value: &Option<Box<TypedExpr>>,
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -236,7 +270,7 @@ fn emit_return(
 pub fn emit(
     expr: &TypedExpr,
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,

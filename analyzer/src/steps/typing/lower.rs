@@ -64,7 +64,7 @@ pub(super) fn call_convert_on(
                         exploration.get_type(into)
                     ),
                 )
-                .with_observation((source, expr.segment()).into()),
+                .with_observation((source, exploration.externals.current, expr.segment()).into()),
             );
             return expr;
         }
@@ -89,6 +89,7 @@ pub(super) fn call_convert_on(
         Diagnostic::new(DiagnosticID::TypeMismatch, message(ty)).with_observation(
             Observation::here(
                 source,
+                exploration.externals.current,
                 expr.segment(),
                 format!("No method `{method_name}` on type `{ty}`"),
             ),

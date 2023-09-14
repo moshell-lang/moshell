@@ -8,7 +8,7 @@ use crate::locals::LocalsLayout;
 pub fn emit_conditional(
     conditional: &Conditional,
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -39,7 +39,7 @@ pub fn emit_conditional(
 pub fn emit_loop(
     lp: &Loop,
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,

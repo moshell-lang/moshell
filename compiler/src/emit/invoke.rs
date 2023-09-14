@@ -1,6 +1,6 @@
 use libc::{O_APPEND, O_CREAT, O_RDONLY, O_RDWR, O_WRONLY};
 
-use analyzer::relations::Definition;
+use analyzer::relations::{Definition, ResolvedSymbol};
 use analyzer::types::hir::{ExprKind, FunctionCall, Redir, Redirect, TypedExpr, Var};
 use analyzer::types::ty::TypeRef;
 use ast::call::{RedirFd, RedirOp};
@@ -19,7 +19,7 @@ use crate::r#type::ValueStackSize;
 pub fn emit_already_forked(
     expr: &TypedExpr,
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -79,7 +79,7 @@ pub fn emit_process_end(last: Option<&TypedExpr>, instructions: &mut Instruction
 pub fn emit_process_call(
     arguments: &Vec<TypedExpr>,
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -100,7 +100,7 @@ pub fn emit_process_call(
 fn emit_process_call_self(
     arguments: &Vec<TypedExpr>,
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -119,7 +119,7 @@ pub fn emit_function_invocation(
     function_call: &FunctionCall,
     return_type: TypeRef,
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -134,10 +134,18 @@ pub fn emit_function_invocation(
 
     let (env, captures) = match function_call.definition {
         Definition::User(id) => {
-            let captures = ctx.captures[id.0]
-                .as_ref()
-                .expect("captures not set during function invocation emission");
-            let env = ctx.engine.get_environment(id).unwrap();
+            let captures: &[ResolvedSymbol] = if function_call.reef != ctx.current_reef {
+                &[]
+            } else {
+                ctx.captures[id.0]
+                    .as_ref()
+                    .expect("undefined captures when the function is emitted")
+            };
+            let env = ctx
+                .get_engine(function_call.reef)
+                .unwrap()
+                .get_environment(id)
+                .unwrap();
             (env, captures)
         }
         Definition::Native(_) => {
@@ -173,7 +181,7 @@ pub fn emit_function_invocation(
 pub fn emit_redirect(
     redirect: &Redirect,
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -193,7 +201,7 @@ pub fn emit_redirect(
 fn emit_redir(
     redir: &Redir,
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -212,7 +220,7 @@ fn emit_redir(
 fn emit_redir_self(
     redir: &Redir,
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -291,7 +299,7 @@ fn emit_redir_self(
 pub fn emit_pipeline(
     pipeline: &Vec<TypedExpr>,
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
@@ -400,7 +408,7 @@ pub fn emit_pipeline(
 pub fn emit_capture(
     commands: &[TypedExpr],
     instructions: &mut Instructions,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,

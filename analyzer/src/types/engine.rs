@@ -51,7 +51,8 @@ impl CodeEntry<'_> {
 #[derive(Debug)]
 pub struct Chunk {
     /// The expression that is evaluated when the chunk is called.
-    pub expression: TypedExpr,
+    /// if this expression is set to None, the chunk is associated to a native function declaration
+    pub expression: Option<TypedExpr>,
 
     /// The input parameters of the chunk.
     ///
@@ -66,9 +67,18 @@ impl Chunk {
     /// Creates a new script chunk.
     pub fn script(expression: TypedExpr) -> Self {
         Self {
-            expression,
+            expression: Some(expression),
             parameters: Vec::new(),
             return_type: UNIT,
+        }
+    }
+
+    /// Creates a new function that is natively defined.
+    pub fn native(parameters: Vec<Parameter>, return_type: TypeRef) -> Self {
+        Self {
+            expression: None,
+            parameters,
+            return_type,
         }
     }
 
@@ -79,7 +89,7 @@ impl Chunk {
         return_type: TypeRef,
     ) -> Self {
         Self {
-            expression,
+            expression: Some(expression),
             parameters,
             return_type,
         }
@@ -272,6 +282,14 @@ impl EncodableContent {
             .as_ref()
             .expect("Engine not properly filled");
         (self.start_inclusive, environment, chunk)
+    }
+
+    pub fn defined_chunks<'a>(
+        self,
+        it: &'a ContentIterator<'a>,
+    ) -> impl Iterator<Item = (SourceId, &'a Environment, &'a Chunk)> {
+        self.function_chunks(it)
+            .filter(|(_, _, chunk)| chunk.expression.is_some())
     }
 
     pub fn function_chunks<'a>(

@@ -8,6 +8,7 @@ use crate::types::ctx::TypeContext;
 use crate::types::engine::TypedEngine;
 use crate::types::Typing;
 
+#[derive(Debug)]
 pub struct Reef<'e> {
     pub name: String,
 

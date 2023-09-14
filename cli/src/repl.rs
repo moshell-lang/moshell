@@ -1,24 +1,32 @@
 use std::io;
 use std::io::BufRead;
 use std::io::Write;
+use std::path::PathBuf;
 
 use analyzer::importer::ImportResult;
 use analyzer::name::Name;
 use analyzer::reef::Externals;
 use analyzer::relations::SourceId;
-use analyzer::Inject;
+use analyzer::{Analyzer, Inject};
 use context::source::OwnedSource;
 use lexer::is_unterminated;
+use vm::VM;
 
 use crate::cli::{use_pipeline, Cli};
-use crate::pipeline::{FileImporter, Pipeline, PipelineStatus};
+use crate::pipeline::{ErrorReporter, FileImporter, PipelineStatus, SourcesCache};
 use crate::report::print_flush;
 
 /// Indefinitely prompts a new expression from stdin and executes it.
-pub fn prompt(mut importer: FileImporter, config: &Cli) -> PipelineStatus {
-    // Init a new pipeline that will be used to execute each expression.
-    let externals = Externals::default();
-    let mut pipeline = Pipeline::new();
+pub fn repl(
+    dir: PathBuf,
+    config: &Cli,
+    mut sources: SourcesCache,
+    externals: Externals,
+    mut vm: VM,
+) -> PipelineStatus {
+    let mut analyzer = Analyzer::new();
+    let mut importer = FileImporter::new(dir);
+
     let mut status = PipelineStatus::Success;
 
     // Keep track of the previous attributed source, so that we can inject
@@ -32,7 +40,7 @@ pub fn prompt(mut importer: FileImporter, config: &Cli) -> PipelineStatus {
         // its attributed id. It will be used later to inject the next
         // successfully parsed prompt.
         if let ImportResult::Success(imported) = importer.insert(source) {
-            let mut analysis = pipeline.analyzer.inject(
+            let mut analysis = analyzer.inject(
                 Inject {
                     name: name.clone(),
                     imported,
@@ -48,13 +56,19 @@ pub fn prompt(mut importer: FileImporter, config: &Cli) -> PipelineStatus {
             // dropped when the analysis is reverted).
             let diagnostics = analysis.take_diagnostics();
             let is_ready = diagnostics.is_empty();
+
+            let errors = importer.take_errors();
+            sources.set(externals.current, importer.take_sources());
+
             status = status.compose(use_pipeline(
                 &name,
                 analysis.attributed_id(),
                 analysis.analyzer(),
-                &mut pipeline.vm,
+                &externals,
+                &mut vm,
                 diagnostics,
-                &mut importer,
+                errors,
+                &sources,
                 config,
             ));
 
@@ -69,14 +83,16 @@ pub fn prompt(mut importer: FileImporter, config: &Cli) -> PipelineStatus {
             // directly display the errors. There should be no actual diagnostics
             // in the pipeline, but we consume them anyway to reuse the same
             // end-of-pipeline logic.
-            let diagnostics = pipeline.analyzer.take_diagnostics();
+            let diagnostics = analyzer.take_diagnostics();
             status = status.compose(use_pipeline(
                 &name,
                 SourceId(0), // this value has no importance
-                &pipeline.analyzer,
-                &mut pipeline.vm,
+                &analyzer,
+                &externals,
+                &mut vm,
                 diagnostics,
-                &mut importer,
+                importer.take_errors(),
+                &sources,
                 config,
             ));
         }

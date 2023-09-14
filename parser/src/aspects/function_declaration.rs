@@ -32,6 +32,8 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
             )?
             .value;
 
+        let segment_start = self.cursor.relative_pos(fun).start;
+
         //consume blanks for each function declaration components
         self.cursor.advance(blanks());
         let name = self.parse_fn_declaration_name()?;
@@ -46,7 +48,20 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
         let params = self.parse_fn_parameter_list()?;
         self.cursor.advance(blanks());
         let rtype = self.parse_fn_return_type()?;
-        self.cursor.advance(blanks());
+
+        if let Some(token) = self
+            .cursor
+            .lookahead(blanks().then(of_type(TokenType::SemiColon)))
+        {
+            return Ok(FunctionDeclaration {
+                name,
+                type_parameters: tparams,
+                parameters: params,
+                return_type: rtype,
+                body: None,
+                segment: segment_start..self.cursor.relative_pos_ctx(token).end,
+            });
+        }
 
         let body = self
             .cursor
@@ -56,14 +71,15 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
                 self.statement()
             })
             .map(Box::new)?;
-        let segment = self.cursor.relative_pos(fun).start..body.segment().end;
+
+        let segment = segment_start..body.segment().end;
 
         Ok(FunctionDeclaration {
             name,
             type_parameters: tparams,
             parameters: params,
             return_type: rtype,
-            body,
+            body: Some(body),
             segment,
         })
     }
@@ -272,7 +288,7 @@ mod tests {
                 type_parameters: vec![],
                 parameters: vec![],
                 return_type: None,
-                body: Box::new(Expr::Return(Return {
+                body: Some(Box::new(Expr::Return(Return {
                     expr: Some(Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Literal(Literal {
                             parsed: 4.into(),
@@ -285,7 +301,7 @@ mod tests {
                         })),
                     }))),
                     segment: find_between(source.source, "return", "4 + 5")
-                })),
+                }))),
                 segment: source.segment()
             })]
         );
@@ -349,6 +365,20 @@ mod tests {
     }
 
     #[test]
+    fn function_invalid_body() {
+        let src = "fun foo() \n {}";
+        let errs = parse(Source::unknown(src)).errors;
+        assert_eq!(
+            errs,
+            vec![ParseError {
+                message: "expected '='".to_string(),
+                position: src.find("{").map(|i| i..i + 1).unwrap(),
+                kind: ParseErrorKind::Unexpected,
+            }]
+        );
+    }
+
+    #[test]
     fn functions_with_blanks() {
         let src = Source::unknown("fun test()\n -> Float\n =\n    2.0");
         let ast = parse(src).expect("parse failed");
@@ -366,10 +396,10 @@ mod tests {
                     params: vec![],
                     segment: find_in_nth(src.source, "Float", 0),
                 })),
-                body: Box::new(Expr::Literal(Literal {
+                body: Some(Box::new(Expr::Literal(Literal {
                     parsed: 2.0.into(),
                     segment: find_in_nth(src.source, "2.0", 0),
-                })),
+                }))),
                 segment: src.segment(),
             })]
         );
@@ -386,9 +416,9 @@ mod tests {
                 type_parameters: vec![],
                 parameters: vec![],
                 return_type: None,
-                body: Box::new(Expr::Call(Call {
+                body: Some(Box::new(Expr::Call(Call {
                     arguments: vec![literal(source.source, "x")],
-                })),
+                }))),
                 segment: source.segment()
             })]
         )
@@ -409,10 +439,31 @@ mod tests {
                     segment: find_in(source.source, "x")
                 })],
                 return_type: None,
-                body: Box::new(Expr::VarReference(VarReference {
+                body: Some(Box::new(Expr::VarReference(VarReference {
                     name: "x",
                     segment: find_in(source.source, "$x")
-                })),
+                }))),
+                segment: source.segment()
+            })]
+        )
+    }
+
+    #[test]
+    fn function_declaration_no_body() {
+        let source = Source::unknown("fun non_implemented_function(x);");
+        let ast = parse(source).expect("parse failed");
+        assert_eq!(
+            ast,
+            vec![Expr::FunctionDeclaration(FunctionDeclaration {
+                name: "non_implemented_function",
+                type_parameters: vec![],
+                parameters: vec![FunctionParameter::Named(TypedVariable {
+                    name: "x",
+                    ty: None,
+                    segment: find_in(source.source, "x")
+                })],
+                return_type: None,
+                body: None,
                 segment: source.segment()
             })]
         )
@@ -454,9 +505,9 @@ mod tests {
                     }),
                 ],
                 return_type: None,
-                body: Box::new(Expr::Call(Call {
+                body: Some(Box::new(Expr::Call(Call {
                     arguments: vec![literal_nth(source.source, "x", 1)],
-                })),
+                }))),
                 segment: source.segment()
             })]
         )
@@ -509,9 +560,9 @@ mod tests {
                     }),
                 ],
                 return_type: None,
-                body: Box::new(Expr::Call(Call {
+                body: Some(Box::new(Expr::Call(Call {
                     arguments: vec![literal_nth(source.source, "x", 1)],
-                })),
+                }))),
                 segment: source.segment()
             })]
         )
@@ -534,10 +585,10 @@ mod tests {
                     }
                 )))],
                 return_type: None,
-                body: Box::new(Expr::VarReference(VarReference {
+                body: Some(Box::new(Expr::VarReference(VarReference {
                     name: "x",
                     segment: find_in(source.source, "$x")
-                })),
+                }))),
                 segment: source.segment()
             })]
         )
@@ -570,10 +621,10 @@ mod tests {
                 ],
 
                 return_type: None,
-                body: Box::new(Expr::VarReference(VarReference {
+                body: Some(Box::new(Expr::VarReference(VarReference {
                     name: "x",
                     segment: find_in(source.source, "$x")
-                })),
+                }))),
                 segment: source.segment()
             })]
         )
@@ -633,9 +684,9 @@ mod tests {
                     params: Vec::new(),
                     segment: find_in_nth(source.source, "X", 2)
                 })),
-                body: Box::new(Expr::Call(Call {
+                body: Some(Box::new(Expr::Call(Call {
                     arguments: vec![literal_nth(source.source, "x", 1)],
-                })),
+                }))),
                 segment: source.segment()
             })]
         );

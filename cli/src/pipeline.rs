@@ -1,31 +1,18 @@
 use std::collections::HashMap;
 use std::fs::read_to_string;
 use std::io;
+use std::ops::Range;
 use std::path::{PathBuf, MAIN_SEPARATOR_STR};
 use std::process::{ExitCode, Termination};
 
 use analyzer::importer::{ASTImporter, ImportResult, Imported};
 use analyzer::name::Name;
-use analyzer::Analyzer;
+use analyzer::reef::ReefId;
 use ast::group::Block;
 use ast::Expr;
 use context::source::{ContentId, OwnedSource, Source, SourceSegmentHolder};
 use parser::err::ParseError;
 use parser::parse;
-use vm::VM;
-
-/// Holds the state of the analyzer and the virtual machine.
-#[derive(Default)]
-pub struct Pipeline<'a> {
-    pub analyzer: Analyzer<'a>,
-    pub vm: VM,
-}
-
-impl<'a> Pipeline<'a> {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
 
 /// Represents the state of the pipeline.
 #[repr(u8)]
@@ -99,13 +86,39 @@ pub struct FileImporter {
     errors: Vec<FileImportError>,
 }
 
+#[derive(Default)]
+pub struct SourcesCache {
+    cache: Vec<Vec<OwnedSource>>,
+}
+
+impl SourcesCache {
+    pub fn range_content_ids(&self, reef: ReefId) -> Option<Range<ContentId>> {
+        self.cache
+            .get(reef.0)
+            .map(|v| ContentId(0)..ContentId(v.len()))
+    }
+
+    pub fn get(&self, reef: ReefId, content: ContentId) -> Option<Source> {
+        self.cache
+            .get(reef.0)
+            .and_then(|v| v.get(content.0))
+            .map(|s| s.as_source())
+    }
+    pub fn set(&mut self, reef: ReefId, sources: Vec<OwnedSource>) {
+        if self.cache.len() <= reef.0 {
+            self.cache.resize(reef.0 + 1, vec![]);
+        }
+        self.cache[reef.0] = sources
+    }
+}
+
 impl FileImporter {
     /// Creates a new file importer that will import sources from the given
     /// root directory.
     pub fn new(root: PathBuf) -> Self {
         Self {
+            sources: vec![],
             root,
-            sources: Vec::new(),
             redirections: HashMap::new(),
             errors: Vec::new(),
         }
@@ -161,6 +174,10 @@ impl FileImporter {
             path.with_extension("msh")
         }
     }
+
+    pub fn take_sources(&mut self) -> Vec<OwnedSource> {
+        std::mem::take(&mut self.sources)
+    }
 }
 
 impl<'a> ASTImporter<'a> for FileImporter {
@@ -189,27 +206,14 @@ impl<'a> ASTImporter<'a> for FileImporter {
 pub trait SourceHolder {
     /// Gets a source from the importer.
     fn get_source(&self, id: ContentId) -> Option<Source>;
-
-    /// Lists all the contents ids that are available in the importer.
-    fn list_content_ids(&self) -> Vec<ContentId>;
 }
 
 /// A trait to access errors and to get sources from an importer.
-pub trait ErrorReporter: SourceHolder {
+pub trait ErrorReporter {
     /// Takes the errors from the importer.
     ///
     /// This leaves the importer in a state where it has no errors.
     fn take_errors(&mut self) -> Vec<FileImportError>;
-}
-
-impl SourceHolder for FileImporter {
-    fn get_source(&self, id: ContentId) -> Option<Source> {
-        self.sources.get(id.0).map(|s| s.as_source())
-    }
-
-    fn list_content_ids(&self) -> Vec<ContentId> {
-        (0..self.sources.len()).map(ContentId).collect()
-    }
 }
 
 impl ErrorReporter for FileImporter {

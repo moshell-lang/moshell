@@ -18,6 +18,7 @@ analyzer = { path = "../analyzer" }
 ast = { path = "../ast" }
 compiler = { path = "../compiler" }
 vm = { path = "../vm" }
+directories = "5.0.1"
 
 miette = { version = "5.9.0", features = ["fancy-no-backtrace"] }
 thiserror = "1.0.38"

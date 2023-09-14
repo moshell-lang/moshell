@@ -138,6 +138,7 @@ pub(super) fn resolve_type_annotation(
                     )
                     .with_observation(Observation::here(
                         links.source,
+                        exploration.externals.current,
                         type_annotation.segment(),
                         format!(
                             "Expected {} generic argument{}",
@@ -193,6 +194,7 @@ pub(super) fn check_type_annotation(
     }
 
     let expected_type = resolve_type_annotation(exploration, links, type_annotation, diagnostics);
+    let current_reef = exploration.externals.current;
 
     convert_expression(value, expected_type, exploration, links.source, diagnostics).unwrap_or_else(
         |mut value| {
@@ -200,11 +202,13 @@ pub(super) fn check_type_annotation(
                 Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
                     .with_observation(Observation::here(
                         links.source,
+                        current_reef,
                         type_annotation.segment(),
                         format!("Expected `{}`", exploration.get_type(expected_type)),
                     ))
                     .with_observation(Observation::here(
                         links.source,
+                        current_reef,
                         value.segment(),
                         format!("Found `{}`", exploration.get_type(value.ty)),
                     )),
@@ -261,6 +265,7 @@ pub(super) fn coerce_condition(
                 Diagnostic::new(DiagnosticID::TypeMismatch, "Condition must be a boolean")
                     .with_observation(Observation::here(
                         source,
+                        exploration.externals.current,
                         condition.segment(),
                         format!(
                             "Type `{}` cannot be used as a condition",

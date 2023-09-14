@@ -2,13 +2,14 @@ use std::io;
 use std::io::Write;
 
 use analyzer::diagnostic::Diagnostic;
+use analyzer::engine::Engine;
 use miette::{LabeledSpan, MietteDiagnostic, Report, Severity, SourceSpan};
 
-use analyzer::engine::Engine;
+use analyzer::reef::{Externals, ReefId};
 use context::source::{ContentId, Source, SourceSegment};
 use parser::err::{ParseError, ParseErrorKind};
 
-use crate::pipeline::ErrorReporter;
+use crate::pipeline::SourcesCache;
 
 macro_rules! print_flush {
     ( $($t:tt)* ) => {
@@ -61,8 +62,10 @@ pub fn display_parse_error<W: Write>(
 }
 
 pub fn display_diagnostic<W: Write>(
-    engine: &Engine,
-    importer: &impl ErrorReporter,
+    externals: &Externals,
+    current_engine: &Engine,
+    engine_reef: ReefId,
+    sources: &SourcesCache,
     diagnostic: Diagnostic,
     writer: &mut W,
 ) -> io::Result<()> {
@@ -88,24 +91,33 @@ pub fn display_diagnostic<W: Write>(
     }
 
     struct AttachedSource<'a> {
+        reef: ReefId,
         id: ContentId,
         content: Source<'a>,
     }
 
     let mut displayed_source: Option<AttachedSource> = None;
     for obs in diagnostic.observations {
+        let loc = obs.location;
+        let engine = if engine_reef == loc.reef {
+            current_engine
+        } else {
+            &externals.get_reef(loc.reef).unwrap().engine
+        };
+
         let content_id = engine
-            .get_original_content(obs.location.source)
+            .get_original_content(loc.source)
             .expect("Unknown source");
 
         if displayed_source
             .as_ref()
-            .map_or(true, |s| s.id == content_id)
+            .map_or(true, |s| s.id == content_id && s.reef == loc.reef)
         {
-            let source = importer.get_source(content_id).expect("Unknown source");
-            let span = obs.location.segment.clone();
+            let source = sources.get(loc.reef, content_id).expect("Unknown source");
+            let span = loc.segment.clone();
             diag = diag.and_label(LabeledSpan::new(obs.message, span.start, span.len()));
             displayed_source = Some(AttachedSource {
+                reef: loc.reef,
                 id: content_id,
                 content: source,
             });
@@ -124,7 +136,8 @@ fn write_diagnostic<W: Write>(
     if let Some(source) = source {
         unsafe {
             //SAFETY: the CLI source is transmuted to a static lifetime, because `report.with_source_code`
-            //needs a source with a static lifetime. The report and the source are then used to display the formatted diagnostic and are immediately dropped after.
+            // needs a source with a static lifetime.
+            // The report and the source are then used to display the formatted diagnostic and are immediately dropped after.
             let source = std::mem::transmute::<Source, Source<'static>>(source);
             let report = report.with_source_code(source);
             writeln!(writer, "\n{report:?}")

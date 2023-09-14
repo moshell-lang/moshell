@@ -5,7 +5,7 @@ use std::io::Write;
 use analyzer::engine::Engine;
 use analyzer::environment::symbols::SymbolInfo;
 use analyzer::name::Name;
-use analyzer::reef::ReefId;
+use analyzer::reef::{Externals, ReefId};
 use analyzer::relations::{LocalId, Relations, ResolvedSymbol, SourceId};
 use analyzer::types::engine::{Chunk, TypedEngine};
 use analyzer::types::Typing;
@@ -23,7 +23,7 @@ mod emit;
 mod locals;
 mod r#type;
 
-pub type Captures = Vec<Option<Vec<ResolvedSymbol>>>;
+pub(crate) type Captures = Vec<Option<Vec<ResolvedSymbol>>>;
 
 pub trait SourceLineProvider {
     /// returns the line, starting from one, attributed to the given byte position of given content.
@@ -36,52 +36,64 @@ const MAPPINGS_ATTRIBUTE: u8 = 1;
 pub fn compile(
     typed_engine: &TypedEngine,
     typing: &Typing,
-    link_engine: &Engine,
     relations: &Relations,
+    link_engine: &Engine,
+    externals: &Externals,
     reef_id: ReefId,
     starting_page: SourceId,
     writer: &mut impl Write,
     line_provider: Option<&dyn SourceLineProvider>,
 ) -> Result<(), io::Error> {
     let captures = resolve_captures(link_engine, relations, reef_id);
+
     let mut bytecode = Bytecode::default();
     let mut cp = ConstantPool::default();
 
     let mut it = typed_engine.group_by_content(link_engine, starting_page);
     while let Some(content) = it.next() {
         let (chunk_id, main_env, main_chunk) = content.main_chunk(&it);
-        let ctx = EmitterContext {
-            environment: main_env,
+        let ctx = EmitterContext::new(
+            reef_id,
+            link_engine,
+            externals,
             typing,
-            engine: link_engine,
-            captures: &captures,
+            main_env,
+            &captures,
             chunk_id,
-        };
+        );
         compile_chunk(
             &main_env.fqn,
             main_chunk,
             chunk_id,
-            ctx,
+            &ctx,
             &mut bytecode,
             &mut cp,
             line_provider,
         );
+        let _pos = bytecode.len();
         write_exported(&mut cp, &mut bytecode)?;
 
-        bytecode.emit_u32(content.function_count() as u32);
-        for (chunk_id, env, chunk) in content.function_chunks(&it) {
-            let ctx = EmitterContext {
-                environment: env,
+        // filter out native functions
+        let defined_functions: Vec<_> = content.defined_chunks(&it).collect();
+
+        bytecode.emit_u32(defined_functions.len() as u32);
+
+        for (chunk_id, env, chunk) in defined_functions {
+            let ctx = EmitterContext::new(
+                reef_id,
+                link_engine,
+                externals,
                 typing,
-                engine: link_engine,
-                captures: &captures,
+                env,
+                &captures,
                 chunk_id,
-            };
+            );
+
             compile_chunk(
                 &env.fqn,
                 chunk,
                 chunk_id,
-                ctx,
+                &ctx,
                 &mut bytecode,
                 &mut cp,
                 line_provider,
@@ -96,7 +108,7 @@ fn compile_chunk(
     name: &Name,
     chunk: &Chunk,
     id: SourceId,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     bytecode: &mut Bytecode,
     cp: &mut ConstantPool,
     line_provider: Option<&dyn SourceLineProvider>,
@@ -108,10 +120,13 @@ fn compile_chunk(
     // emits chunk's code attribute
     let segments = compile_chunk_code(chunk, id, bytecode, ctx, cp);
 
-    bytecode.emit_byte(line_provider.map_or(0, |_| 1));
+    let attribute_count = line_provider.map_or(0, |_| 1);
+    bytecode.emit_byte(attribute_count);
 
     if let Some(line_provider) = line_provider {
-        let Some(content_id) = ctx.engine.get_original_content(id) else {
+        let content = ctx.engine().get_original_content(id);
+
+        let Some(content_id) = content else {
             return;
         };
         compile_line_mapping_attribute(segments, content_id, bytecode, line_provider);
@@ -149,7 +164,7 @@ fn compile_line_mapping_attribute(
         last_pos = pos;
     }
 
-    if mappings.is_empty() {
+    if mappings.is_empty() && last_pos != 0 && *first_pos != 0 {
         // if no mappings are set, bind first pos' line with first instruction.
         let line = line_provider.get_line(content_id, *first_pos).unwrap();
         mappings.push((line, 0))
@@ -175,7 +190,7 @@ fn resolve_captures(engine: &Engine, relations: &Relations, compiled_reef: ReefI
         compiled_reef: ReefId,
         engine: &Engine,
         relations: &Relations,
-        captures: &mut Captures,
+        captures: &mut Vec<Option<Vec<ResolvedSymbol>>>,
         externals: &mut HashSet<ResolvedSymbol>,
     ) {
         let env = engine.get_environment(chunk_id).unwrap();
@@ -242,13 +257,20 @@ fn resolve_captures(engine: &Engine, relations: &Relations, compiled_reef: ReefI
 /// compiles chunk's code attribute
 /// the code attribute of a chunk is a special attribute that contains the bytecode instructions and
 /// locals specifications
+///
+/// returns the hir's segments associated with their first instruction.
 fn compile_chunk_code(
     chunk: &Chunk,
     chunk_id: SourceId,
     bytecode: &mut Bytecode,
-    ctx: EmitterContext,
+    ctx: &EmitterContext,
     cp: &mut ConstantPool,
 ) -> Vec<(usize, u32)> {
+    let chunk_expression = chunk
+        .expression
+        .as_ref()
+        .expect("Unable to compile a function without a definition");
+
     let locals_byte_count = bytecode.emit_u32_placeholder();
 
     let chunk_captures = ctx.captures[chunk_id.0]
@@ -296,7 +318,7 @@ fn compile_chunk_code(
     };
 
     emit(
-        &chunk.expression,
+        chunk_expression,
         &mut instructions,
         ctx,
         cp,
@@ -343,7 +365,8 @@ fn write_constant_pool(cp: &ConstantPool, writer: &mut impl Write) -> Result<(),
 }
 
 fn write_exported(pool: &mut ConstantPool, bytecode: &mut Bytecode) -> Result<(), io::Error> {
-    bytecode.emit_u32(u32::try_from(pool.exported.len()).expect("too many exported vars"));
+    let symbol_count = u32::try_from(pool.exported.len()).expect("too many exported vars");
+    bytecode.emit_u32(symbol_count);
     for ExportedSymbol {
         name_index,
         local_offset,

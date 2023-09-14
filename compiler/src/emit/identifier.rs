@@ -20,7 +20,7 @@ pub(super) enum Identifier {
 /// The runtime needs to treat certain variables as exported to store them separately.
 /// It mays refers to a local variable or an external symbol, so it needs to be converted
 /// to an identifier before being emitted.
-pub(super) fn expose_variable(ctx: EmitterContext, var: Var, cp: &mut ConstantPool) -> Identifier {
+pub(super) fn expose_variable(ctx: &EmitterContext, var: Var, cp: &mut ConstantPool) -> Identifier {
     match var {
         Var::Local(id) => {
             let variable = ctx
@@ -41,7 +41,8 @@ pub(super) fn expose_variable(ctx: EmitterContext, var: Var, cp: &mut ConstantPo
         Var::External(resolved) => {
             // Distinguish captures and static variables.
             let environment = ctx
-                .engine
+                .get_engine(resolved.reef)
+                .unwrap()
                 .get_environment(resolved.source)
                 .expect("Resolved relation targets an unknown environment");
             let variable = environment

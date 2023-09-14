@@ -1,20 +1,23 @@
-use clap::Parser;
-use miette::{IntoDiagnostic, MietteHandlerOpts, WrapErr};
-use std::ffi::OsStr;
-
+use crate::cli::{use_pipeline, Cli};
+use crate::pipeline::{ErrorReporter, FileImporter, PipelineStatus, SourcesCache};
+use crate::repl::repl;
+use crate::std::build_std;
+use ::std::ffi::OsStr;
+use ::std::path::Path;
 use analyzer::name::Name;
 use analyzer::reef::Externals;
 use analyzer::relations::SourceId;
-
-use crate::cli::{use_pipeline, Cli};
-use crate::pipeline::{FileImporter, Pipeline, PipelineStatus};
-use crate::repl::prompt;
+use analyzer::Analyzer;
+use clap::Parser;
+use miette::{Context, IntoDiagnostic, MietteHandlerOpts};
+use vm::VM;
 
 mod cli;
 mod disassemble;
 mod pipeline;
 mod repl;
 mod report;
+mod std;
 
 fn main() -> Result<PipelineStatus, miette::Error> {
     #[cfg(unix)]
@@ -39,40 +42,61 @@ fn main() -> Result<PipelineStatus, miette::Error> {
     }))
     .expect("miette options setup");
 
-    if let Some(source) = &cli.source {
-        let name = Name::new(
-            source
-                .file_name()
-                .and_then(OsStr::to_str)
-                .expect("Incompatible filename"),
-        );
-        let mut importer = FileImporter::new({
-            let mut root = source.clone();
-            root.pop();
-            root
-        });
-        importer.add_redirection(name.clone(), source.clone());
+    let mut externals = Externals::default();
+    let mut sources = SourcesCache::default();
+    let mut vm = VM::new();
 
-        let externals = Externals::default();
-        let mut pipeline = Pipeline::new();
-        pipeline
-            .analyzer
-            .process(name.clone(), &mut importer, &externals);
-        let diagnostics = pipeline.analyzer.take_diagnostics();
-        return Ok(use_pipeline(
-            &name,
-            SourceId(0),
-            &pipeline.analyzer,
-            &mut pipeline.vm,
-            diagnostics,
-            &mut importer,
-            &cli,
-        ));
+    build_std(&mut externals, &mut vm, &mut sources, &cli);
+
+    if let Some(source) = &cli.source {
+        return run(source, &cli, sources, externals, vm);
     }
-    let importer = FileImporter::new(
-        std::env::current_dir()
-            .into_diagnostic()
-            .context("Could not locate working directory")?,
+    let current_dir = ::std::env::current_dir()
+        .into_diagnostic()
+        .context("Could not locate working directory")?;
+
+    Ok(repl(current_dir, &cli, sources, externals, vm))
+}
+
+fn run(
+    source: &Path,
+    cli: &Cli,
+    mut sources: SourcesCache,
+    externals: Externals,
+    mut vm: VM,
+) -> Result<PipelineStatus, miette::Error> {
+    let name = Name::new(
+        source
+            .file_name()
+            .and_then(OsStr::to_str)
+            .expect("Incompatible filename"),
     );
-    Ok(prompt(importer, &cli))
+
+    let folder_path = {
+        let mut path = source.to_path_buf();
+        path.pop();
+        path
+    };
+
+    let mut importer = FileImporter::new(folder_path);
+    importer.add_redirection(name.clone(), source.to_path_buf());
+
+    let mut analyzer = Analyzer::new();
+    analyzer.process(name.clone(), &mut importer, &externals);
+
+    let diagnostics = analyzer.take_diagnostics();
+    let errors = importer.take_errors();
+    sources.set(externals.current, importer.take_sources());
+
+    Ok(use_pipeline(
+        &name,
+        SourceId(0),
+        &analyzer,
+        &externals,
+        &mut vm,
+        diagnostics,
+        errors,
+        &sources,
+        cli,
+    ))
 }

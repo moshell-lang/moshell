@@ -19,7 +19,7 @@ pub struct FunctionDeclaration<'a> {
     pub type_parameters: Vec<TypeParameter<'a>>,
     pub parameters: Vec<FunctionParameter<'a>>,
     pub return_type: Option<Type<'a>>,
-    pub body: Box<Expr<'a>>,
+    pub body: Option<Box<Expr<'a>>>,
 }
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]

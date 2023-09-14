@@ -1,5 +1,4 @@
-use ast::call::RedirOp;
-use ast::call::{Call, Pipeline, ProgrammaticCall, Redirected};
+use ast::call::{Call, Pipeline, ProgrammaticCall, RedirOp, Redirected};
 use ast::control_flow::If;
 use ast::function::FunctionDeclaration;
 use ast::group::Block;
@@ -14,7 +13,7 @@ use context::source::{SourceSegment, SourceSegmentHolder};
 use crate::dependency::topological_sort;
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
-use crate::reef::Externals;
+use crate::reef::{Externals, ReefId};
 use crate::relations::{Definition, Relations, SourceId, SymbolRef};
 use crate::steps::typing::coercion::{
     check_type_annotation, coerce_condition, convert_description, convert_expression, convert_many,
@@ -46,8 +45,8 @@ pub fn apply_types(
     relations: &Relations,
     externals: &Externals,
     diagnostics: &mut Vec<Diagnostic>,
-) -> (TypedEngine, Typing) {
-    let dependencies = relations.as_dependencies(engine);
+) -> (TypedEngine, TypeContext, Typing) {
+    let dependencies = relations.as_dependencies(externals.current, engine);
     let environments = topological_sort(&dependencies);
 
     let mut exploration = Exploration {
@@ -62,7 +61,7 @@ pub fn apply_types(
         let entry = apply_types_to_source(&mut exploration, diagnostics, engine, relations, env_id);
         exploration.type_engine.insert(env_id, entry);
     }
-    (exploration.type_engine, exploration.typing)
+    (exploration.type_engine, exploration.ctx, exploration.typing)
 }
 
 /// A state holder, used to informs the type checker about what should be
@@ -106,6 +105,35 @@ impl TypingState {
     }
 }
 
+fn verify_free_function(
+    func: &FunctionDeclaration,
+    externals: &Externals,
+    func_id: SourceId,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if func.body.is_some() {
+        return;
+    }
+
+    // only first reef (after lang) can define native functions
+    if externals.current == ReefId(1) {
+        return;
+    }
+
+    diagnostics.push(
+        Diagnostic::new(
+            DiagnosticID::NoFunctionDefinition,
+            "function without a body",
+        )
+        .with_observation(Observation::context(
+            func_id,
+            externals.current,
+            func.segment(),
+            "provide a definition for this function",
+        )),
+    );
+}
+
 fn apply_types_to_source(
     exploration: &mut Exploration,
     diagnostics: &mut Vec<Diagnostic>,
@@ -129,15 +157,25 @@ fn apply_types_to_source(
                 params.push(param);
             }
 
-            let typed_expr = ascribe_types(
-                exploration,
-                links,
-                diagnostics,
-                &func.body,
-                TypingState::default().with_local_type(),
-            );
-            let return_type = infer_return(func, &typed_expr, links, diagnostics, exploration);
-            Chunk::function(typed_expr, params, return_type)
+            let typed_body = func.body.as_ref().map(|body| {
+                ascribe_types(
+                    exploration,
+                    links,
+                    diagnostics,
+                    body,
+                    TypingState::default().with_local_type(),
+                )
+            });
+
+            let return_type =
+                infer_return(func, links, typed_body.as_ref(), diagnostics, exploration);
+
+            if let Some(body) = typed_body {
+                Chunk::function(body, params, return_type)
+            } else {
+                verify_free_function(func, exploration.externals, source_id, diagnostics);
+                Chunk::native(params, return_type)
+            }
         }
         expr => Chunk::script(ascribe_types(
             exploration,
@@ -248,6 +286,7 @@ fn ascribe_assign(
             )
             .with_observation(Observation::here(
                 links.source,
+                exploration.externals.current,
                 assign.segment(),
                 "Assignment happens here",
             )),
@@ -275,6 +314,7 @@ fn ascribe_assign(
                 )
                 .with_observation(Observation::here(
                     links.source,
+                    exploration.externals.current,
                     assign.segment(),
                     "Assignment happens here",
                 )),
@@ -298,6 +338,7 @@ fn ascribe_assign(
             )
             .with_observation(Observation::here(
                 links.source,
+                exploration.externals.current,
                 assign.segment(),
                 "Assignment happens here",
             )),
@@ -456,6 +497,7 @@ fn ascribe_redirected(
                     )
                     .with_observation(Observation::here(
                         links.source,
+                        exploration.externals.current,
                         redirection.segment(),
                         "Redirection happens here",
                     )),
@@ -567,8 +609,9 @@ fn ascribe_function_declaration(
     let parameters = fun
         .parameters
         .iter()
-        .map(|param| type_parameter(exploration, param, declaration_link, &mut Vec::new())) // Silent errors
+        .map(|param| type_parameter(exploration, param, declaration_link, &mut vec![])) // Silent errors
         .collect::<Vec<_>>();
+
     let return_type = fun.return_type.as_ref().map_or(UNIT, |ty| {
         resolve_type_annotation(exploration, declaration_link, ty, &mut Vec::new())
     }); // Silent errors
@@ -610,7 +653,13 @@ fn ascribe_binary(
     let method = exploration
         .get_methods(left_expr.ty, name)
         .and_then(|methods| {
-            find_operand_implementation(exploration, methods, left_expr.ty, right_expr)
+            find_operand_implementation(
+                exploration,
+                left_expr.ty.reef,
+                methods,
+                left_expr.ty,
+                right_expr,
+            )
         });
     match method {
         Some(method) => TypedExpr {
@@ -627,6 +676,7 @@ fn ascribe_binary(
                 Diagnostic::new(DiagnosticID::UnknownMethod, "Undefined operator")
                     .with_observation(Observation::here(
                         links.source,
+                        exploration.externals.current,
                         bin.segment(),
                         format!(
                             "No operator `{}` between type `{}` and `{}`",
@@ -649,10 +699,13 @@ fn ascribe_casted(
     state: TypingState,
 ) -> TypedExpr {
     let expr = ascribe_types(exploration, links, diagnostics, &casted.expr, state);
+
     let ty = resolve_type_annotation(exploration, links, &casted.casted_type, diagnostics);
     if ty.is_err() {
         return expr;
-    } else if expr.ty.is_ok() && convert_description(exploration, ty, expr.ty).is_err() {
+    }
+
+    if expr.ty.is_ok() && convert_description(exploration, ty, expr.ty).is_err() {
         diagnostics.push(
             Diagnostic::new(
                 DiagnosticID::IncompatibleCast,
@@ -664,6 +717,7 @@ fn ascribe_casted(
             )
             .with_observation(Observation::here(
                 links.source,
+                exploration.externals.current,
                 casted.segment(),
                 "Incompatible cast",
             )),
@@ -701,6 +755,7 @@ fn ascribe_unary(
         UnaryOperator::Not => ascribe_not(expr, unary.segment(), exploration, links, diagnostics),
         UnaryOperator::Negate => {
             let method = exploration.get_method_exact(expr.ty, "neg", &[], expr.ty);
+
             match method {
                 Some(method) => TypedExpr {
                     kind: ExprKind::MethodCall(MethodCall {
@@ -716,6 +771,7 @@ fn ascribe_unary(
                         Diagnostic::new(DiagnosticID::UnknownMethod, "Cannot negate type")
                             .with_observation(Observation::here(
                                 links.source,
+                                exploration.externals.current,
                                 unary.segment(),
                                 format!(
                                     "`{}` does not implement the `neg` method",
@@ -742,7 +798,6 @@ fn ascribe_not(
         .typed_engine
         .get_method_exact(BOOL.type_id, "not", &[], BOOL)
         .expect("A Bool should be invertible");
-
     match convert_expression(not, BOOL, exploration, links.source, diagnostics) {
         Ok(expr) => TypedExpr {
             kind: ExprKind::MethodCall(MethodCall {
@@ -758,6 +813,7 @@ fn ascribe_not(
                 Diagnostic::new(DiagnosticID::TypeMismatch, "Cannot invert type").with_observation(
                     Observation::here(
                         links.source,
+                        exploration.externals.current,
                         segment,
                         format!(
                             "Cannot invert non-boolean type `{}`",
@@ -779,6 +835,8 @@ fn ascribe_if(
     state: TypingState,
 ) -> TypedExpr {
     let condition = ascribe_types(exploration, links, diagnostics, &block.condition, state);
+
+    let current_reef = exploration.externals.current;
 
     let condition = coerce_condition(condition, exploration, links.source, diagnostics);
     let mut then = ascribe_types(
@@ -816,12 +874,14 @@ fn ascribe_if(
                 )
                 .with_observation(Observation::here(
                     links.source,
+                    current_reef,
                     block.success_branch.segment(),
                     format!("Found `{}`", exploration.get_type(then.ty)),
                 ));
                 if let Some(otherwise) = &otherwise {
                     diagnostic = diagnostic.with_observation(Observation::here(
                         links.source,
+                        current_reef,
                         otherwise.segment(),
                         format!("Found `{}`", exploration.get_type(otherwise.ty)),
                     ));
@@ -885,6 +945,7 @@ fn ascribe_pfc(
         kind: ExprKind::FunctionCall(FunctionCall {
             arguments: function_match.arguments,
             definition: function_match.definition,
+            reef: function_match.reef,
         }),
         ty: function_match.return_type,
         segment: call.segment.clone(),
@@ -979,6 +1040,7 @@ fn ascribe_continue_or_break(
     expr: &Expr,
     diagnostics: &mut Vec<Diagnostic>,
     source: SourceId,
+    current_reef: ReefId,
     in_loop: bool,
 ) -> TypedExpr {
     let (kind, kind_name) = match expr {
@@ -992,7 +1054,7 @@ fn ascribe_continue_or_break(
                 DiagnosticID::InvalidBreakOrContinue,
                 format!("`{kind_name}` must be declared inside a loop"),
             )
-            .with_observation((source, expr.segment()).into()),
+            .with_observation((source, current_reef, expr.segment()).into()),
         );
     }
     TypedExpr {
@@ -1050,9 +1112,13 @@ fn ascribe_types(
         e @ (Expr::While(_) | Expr::Loop(_)) => {
             ascribe_loop(e, exploration, links, diagnostics, state)
         }
-        e @ (Expr::Continue(_) | Expr::Break(_)) => {
-            ascribe_continue_or_break(e, diagnostics, links.source, state.in_loop)
-        }
+        e @ (Expr::Continue(_) | Expr::Break(_)) => ascribe_continue_or_break(
+            e,
+            diagnostics,
+            links.source,
+            exploration.externals.current,
+            state.in_loop,
+        ),
         _ => todo!("{expr:?}"),
     }
 }
@@ -1067,6 +1133,7 @@ mod tests {
 
     use crate::importer::StaticImporter;
     use crate::name::Name;
+    use crate::reef::ReefId;
     use crate::relations::{LocalId, NativeId};
     use crate::resolve_all;
     use crate::types::hir::{Convert, MethodCall};
@@ -1088,7 +1155,7 @@ mod tests {
         );
         assert_eq!(diagnostics, vec![]);
 
-        let (typed, _) = apply_types(
+        let (typed, _, _) = apply_types(
             &result.engine,
             &result.relations,
             &externals,
@@ -1096,7 +1163,10 @@ mod tests {
         );
         let expr = typed.get_user(SourceId(0)).unwrap();
         if diagnostics.is_empty() {
-            Ok((externals.lang().typing.clone(), expr.expression.clone()))
+            Ok((
+                externals.lang().typing.clone(),
+                expr.expression.clone().unwrap(),
+            ))
         } else {
             Err(diagnostics)
         }
@@ -1147,11 +1217,13 @@ mod tests {
             )
             .with_observation(Observation::context(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "Int"),
                 "Expected `Int`",
             ))
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "1.6"),
                 "Found `Float`",
             ))])
@@ -1176,6 +1248,7 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "l = 2"),
                 "Assignment happens here",
             ))])
@@ -1194,6 +1267,7 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "p = 'a'"),
                 "Assignment happens here",
             ))])
@@ -1212,6 +1286,7 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "str = 4"),
                 "Assignment happens here",
             ))])
@@ -1230,6 +1305,7 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "a = 'a'"),
                 "Assignment happens here",
             ))])
@@ -1260,11 +1336,13 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "4.7"),
                 "Found `Float`",
             ))
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "{}"),
                 "Found `Unit`",
             ))])
@@ -1283,6 +1361,7 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "'a' as Int"),
                 "Incompatible cast",
             ))])
@@ -1320,6 +1399,7 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "square(9, 9)"),
                 "Function is called here",
             ))])
@@ -1338,11 +1418,13 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "4"),
                 "Expected `String`, found `Int`",
             ))
             .with_observation(Observation::context(
                 SourceId(1),
+                ReefId(1),
                 find_in(content, "str: String"),
                 "Parameter is declared here",
             ))]),
@@ -1361,6 +1443,7 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "test()"),
                 "Call expression requires function, found `Int`",
             ))])
@@ -1379,11 +1462,13 @@ mod tests {
             )
             .with_observation(Observation::context(
                 SourceId(1),
+                ReefId(1),
                 find_in(content, "Int"),
                 "Expected `Int`",
             ))
             .with_observation(Observation::here(
                 SourceId(1),
+                ReefId(1),
                 find_in(content, "$a"),
                 "Found `String`",
             ))])
@@ -1418,11 +1503,13 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(1),
+                ReefId(1),
                 find_in(content, "0"),
                 "Found `Int`"
             ))
             .with_observation(Observation::context(
                 SourceId(1),
+                ReefId(1),
                 find_in(content, "String"),
                 "Expected `String` because of return type",
             ))])
@@ -1454,12 +1541,12 @@ mod tests {
                     DiagnosticID::InvalidBreakOrContinue,
                     "`continue` must be declared inside a loop"
                 )
-                .with_observation((SourceId(0), find_in(content, "continue")).into()),
+                .with_observation((SourceId(0), ReefId(1), find_in(content, "continue")).into()),
                 Diagnostic::new(
                     DiagnosticID::InvalidBreakOrContinue,
                     "`break` must be declared inside a loop"
                 )
-                .with_observation((SourceId(0), find_in(content, "break")).into())
+                .with_observation((SourceId(0), ReefId(1), find_in(content, "break")).into())
             ])
         );
     }
@@ -1483,16 +1570,19 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(1),
+                ReefId(1),
                 find_in(content, "return {}"),
                 "Found `Unit`",
             ))
             .with_observation(Observation::here(
                 SourceId(1),
+                ReefId(1),
                 find_in(content, "9"),
                 "Found `Int`"
             ))
             .with_observation(Observation::context(
                 SourceId(1),
+                ReefId(1),
                 find_in(content, "String"),
                 "Expected `String` because of return type",
             ))])
@@ -1511,11 +1601,13 @@ mod tests {
             )
             .with_observation(Observation::context(
                 SourceId(1),
+                ReefId(1),
                 find_in(content, "fun test(n: Float) = "),
                 "No return type is specified",
             ))
             .with_observation(Observation::here(
                 SourceId(1),
+                ReefId(1),
                 find_in(content, "if false; 0.0; else $n"),
                 "Returning `Float`",
             ))
@@ -1535,11 +1627,13 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(1),
+                ReefId(1),
                 find_in(content, "return 0"),
                 "Returning `Int`",
             ))
             .with_observation(Observation::here(
                 SourceId(1),
+                ReefId(1),
                 find_in(content, "$n"),
                 "Returning `Float`",
             ))
@@ -1561,11 +1655,13 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(1),
+                ReefId(1),
                 find_in(content, "fun test() = "),
                 "This function returns multiple types",
             ))
             .with_observation(Observation::here(
                 SourceId(1),
+                ReefId(1),
                 find_in(content, "return 5"),
                 "Returning `Int`",
             ))
@@ -1678,6 +1774,7 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "4 / 'a'"),
                 "No operator `div` between type `Int` and `String`"
             ))]),
@@ -1696,6 +1793,7 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "'operator' - 2.4"),
                 "No operator `sub` between type `String` and `Float`"
             ))]),
@@ -1728,6 +1826,7 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, ".len(5)"),
                 "Method is called here"
             ))
@@ -1747,11 +1846,13 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "'a'"),
                 "Expected `Float`, found `String`"
             ))
             .with_observation(Observation::context(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, ".sub('a')"),
                 "Arguments to this method are incorrect"
             ))])
@@ -1770,6 +1871,7 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "$v"),
                 "No method `to_string` on type `Unit`"
             ))])
@@ -1788,6 +1890,7 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "9.9"),
                 "Type `Float` cannot be used as a condition"
             ))])
@@ -1806,6 +1909,7 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "9.9 % 3.3"),
                 "No operator `mod` between type `Float` and `Float`"
             ))])
@@ -1843,6 +1947,7 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "!$s"),
                 "Cannot invert non-boolean type `String`"
             ))])
@@ -1861,6 +1966,7 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "-{}"),
                 "`Unit` does not implement the `neg` method"
             ))])
@@ -1879,6 +1985,7 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "'text' % 9"),
                 "No operator `mod` between type `String` and `Int`"
             ))])
@@ -1904,6 +2011,7 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "$file"),
                 "No method `to_string` on type `Unit`"
             ))])
@@ -1922,6 +2030,7 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, ">&matches"),
                 "Redirection happens here"
             ))])
@@ -1962,11 +2071,13 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "{}"),
                 "Expected `String`, found `Unit`"
             ))
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, ".push({})"),
                 "Arguments to this method are incorrect"
             ))])
@@ -1986,11 +2097,13 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "Int"),
                 "Expected `Int`"
             ))
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, ".get(0)"),
                 "Found `String`"
             ))])
@@ -2008,11 +2121,13 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "Vec[Float]"),
                 "Expected `Vec[Float]`"
             ))
             .with_observation(Observation::here(
                 SourceId(0),
+                ReefId(1),
                 find_in(content, "$lines"),
                 "Found `Vec[String]`"
             ))])
@@ -2031,6 +2146,7 @@ mod tests {
             )
             .with_observation(Observation::here(
                 SourceId(1),
+                ReefId(1),
                 find_in(content, "Int[Int]"),
                 "Expected 0 generic arguments"
             ))])

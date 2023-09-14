@@ -200,7 +200,14 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                     );
                     let diagnostic = {
                         Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, msg)
-                            .with_observation(Observation::here(env_id, declaration_segment.clone(), format!("This symbol has the same fully-qualified name as module {}", clashed_module.fqn)))
+                            .with_observation(
+                                Observation::here(
+                                    env_id,
+                                    self.externals.current,
+                                    declaration_segment.clone(),
+                                    format!("This symbol has the same fully-qualified name as module {}", clashed_module.fqn)
+                                )
+                            )
                             .with_help(format!("You should refactor this symbol with a name that does not conflicts with following modules: {inner_modules}"))
                     };
                     self.diagnostics.push(diagnostic)
@@ -257,13 +264,20 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
             self.imports
                 .add_unresolved_import(mod_id, import, import_expr.segment())
         {
+            let reef = self.externals.current;
             let diagnostic = Diagnostic::new(
                 DiagnosticID::ShadowedImport,
                 format!("{import_fqn} is imported twice."),
             )
-            .with_observation(Observation::here(mod_id, shadowed, "useless import here"))
+            .with_observation(Observation::here(
+                mod_id,
+                reef,
+                shadowed,
+                "useless import here",
+            ))
             .with_observation(Observation::context(
                 mod_id,
+                reef,
                 import_expr.segment(),
                 "This statement shadows previous import",
             ));
@@ -279,6 +293,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
         mod_id: SourceId,
         to_visit: &mut Vec<Name>,
     ) {
+        let reef = self.externals.current;
         match import {
             ImportExpr::Symbol(s) => {
                 relative_path.extend(s.path.iter().cloned());
@@ -294,7 +309,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                     }
                     Err(segments) => self
                         .diagnostics
-                        .push(make_invalid_path_diagnostic(mod_id, segments)),
+                        .push(make_invalid_path_diagnostic(mod_id, reef, segments)),
                 }
             }
             ImportExpr::AllIn(items, _) => {
@@ -308,7 +323,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                     }
                     Err(segments) => self
                         .diagnostics
-                        .push(make_invalid_path_diagnostic(mod_id, segments)),
+                        .push(make_invalid_path_diagnostic(mod_id, reef, segments)),
                 }
             }
 
@@ -317,7 +332,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                     DiagnosticID::UnsupportedFeature,
                     "import of environment variables and commands are not yet supported.",
                 )
-                .with_observation((mod_id, import.segment()).into());
+                .with_observation((mod_id, reef, import.segment()).into());
 
                 self.diagnostics.push(diagnostic);
             }
@@ -337,7 +352,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                     }
                     Err(segments) => self
                         .diagnostics
-                        .push(make_invalid_path_diagnostic(mod_id, segments)),
+                        .push(make_invalid_path_diagnostic(mod_id, reef, segments)),
                 }
             }
         }
@@ -355,7 +370,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                     let diagnostic = Diagnostic::new(
                         DiagnosticID::UseBetweenExprs,
                         "Unexpected use statement between expressions. Use statements must be at the top of the environment.",
-                    ).with_observation((state.module, import.segment()).into());
+                    ).with_observation((state.module, self.externals.current, import.segment()).into());
                     self.diagnostics.push(diagnostic);
                     return;
                 }
@@ -434,9 +449,11 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
 
                         self.current_env().annotate(call, symbol);
                     }
-                    Err(segments) => self
-                        .diagnostics
-                        .push(make_invalid_path_diagnostic(state.module, segments)),
+                    Err(segments) => self.diagnostics.push(make_invalid_path_diagnostic(
+                        state.module,
+                        self.externals.current,
+                        segments,
+                    )),
                 }
 
                 for arg in &call.arguments {
@@ -624,7 +641,10 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                 if let Some(ty) = &func.return_type {
                     self.collect_type(func_id, ty)
                 }
-                self.tree_walk(&mut state.fork(func_id), &func.body, to_visit);
+
+                if let Some(body) = &func.body {
+                    self.tree_walk(&mut state.fork(func_id), body, to_visit);
+                }
 
                 Self::resolve_captures(
                     &self.stack,
@@ -688,9 +708,11 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
     fn collect_type(&mut self, origin: SourceId, ty: &Type) {
         match ty {
             Type::Parametrized(p) => match SymbolLocation::compute(&p.path) {
-                Err(segments) => self
-                    .diagnostics
-                    .push(make_invalid_path_diagnostic(origin, segments)),
+                Err(segments) => self.diagnostics.push(make_invalid_path_diagnostic(
+                    origin,
+                    self.externals.current,
+                    segments,
+                )),
                 Ok(loc) => {
                     for param in &p.params {
                         self.collect_type(origin, param)
@@ -775,6 +797,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                 self.diagnostics.push(diagnose_invalid_symbol(
                     var.ty,
                     origin,
+                    self.externals.current,
                     &location.name,
                     &[segment],
                 ));
@@ -832,7 +855,11 @@ fn list_inner_modules<'a>(
         .map(|(_, e)| e)
 }
 
-fn make_invalid_path_diagnostic(source: SourceId, bad_segments: Vec<SourceSegment>) -> Diagnostic {
+fn make_invalid_path_diagnostic(
+    source: SourceId,
+    reef: ReefId,
+    bad_segments: Vec<SourceSegment>,
+) -> Diagnostic {
     Diagnostic::new(
         DiagnosticID::InvalidSymbolPath,
         "Symbol path contains invalid items",
@@ -840,7 +867,7 @@ fn make_invalid_path_diagnostic(source: SourceId, bad_segments: Vec<SourceSegmen
     .with_observations(
         bad_segments
             .into_iter()
-            .map(|s| Observation::context(source, s, "Invalid path item")),
+            .map(|s| Observation::context(source, reef, s, "Invalid path item")),
     )
 }
 
@@ -900,6 +927,7 @@ mod tests {
                 Diagnostic::new(DiagnosticID::UseBetweenExprs, "Unexpected use statement between expressions. Use statements must be at the top of the environment.")
                     .with_observation((
                         SourceId(0),
+                        ReefId(1),
                         find_in(content, "use c"),
                     ).into()),
             ]
@@ -949,7 +977,7 @@ mod tests {
         );
         assert_eq!(diagnostics, vec![
             Diagnostic::new(DiagnosticID::SymbolConflictsWithModule, "Declared symbol 'multiply' in module math clashes with module math::multiply")
-                .with_observation(Observation::here(SourceId(0), find_in(math_source, "fun multiply(a: Int, b: Int) = a * b"), "This symbol has the same fully-qualified name as module math::multiply"))
+                .with_observation(Observation::here(SourceId(0), ReefId(1), find_in(math_source, "fun multiply(a: Int, b: Int) = a * b"), "This symbol has the same fully-qualified name as module math::multiply"))
                 .with_help("You should refactor this symbol with a name that does not conflicts with following modules: math::{divide, multiply, add}")
         ]);
     }
@@ -979,22 +1007,26 @@ mod tests {
                 Diagnostic::new(DiagnosticID::ShadowedImport, "A is imported twice.")
                     .with_observation(Observation::here(
                         SourceId(0),
+                        ReefId(1),
                         find_in(source, "A"),
                         "useless import here"
                     ))
                     .with_observation(Observation::context(
                         SourceId(0),
+                        ReefId(1),
                         find_in_nth(source, "A", 1),
                         "This statement shadows previous import"
                     )),
                 Diagnostic::new(DiagnosticID::ShadowedImport, "B is imported twice.")
                     .with_observation(Observation::here(
                         SourceId(0),
+                        ReefId(1),
                         find_in(source, "B"),
                         "useless import here"
                     ))
                     .with_observation(Observation::context(
                         SourceId(0),
+                        ReefId(1),
                         find_in_nth(source, "B", 1),
                         "This statement shadows previous import"
                     )),

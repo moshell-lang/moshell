@@ -1,3 +1,4 @@
+use crate::reef::ReefId;
 use ast::call::{RedirFd, RedirOp};
 use ast::value::LiteralValue;
 use context::source::{SourceSegment, SourceSegmentHolder};
@@ -61,6 +62,7 @@ pub struct Loop {
 pub struct FunctionCall {
     pub arguments: Vec<TypedExpr>,
     pub definition: Definition,
+    pub reef: ReefId,
 }
 
 #[derive(Clone, Debug, PartialEq)]

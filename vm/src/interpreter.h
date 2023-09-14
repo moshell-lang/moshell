@@ -9,6 +9,11 @@ namespace msh {
     struct memory_page;
 }
 
+/**
+ * used to report runtime exceptions.
+ * When caught by the interpreter, the interpreter starts to panic and
+ * uses the exception's message as the panic message
+ * */
 class RuntimeException : public std::runtime_error {
 public:
     explicit RuntimeException(std::string msg);

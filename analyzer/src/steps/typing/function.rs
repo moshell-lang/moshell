@@ -5,6 +5,7 @@ use context::source::{SourceSegment, SourceSegmentHolder};
 use std::fmt;
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation, SourceLocation};
+use crate::reef::ReefId;
 use crate::relations::{Definition, SourceId, SymbolRef};
 use crate::steps::typing::coercion::{
     convert_description, convert_expression, convert_many, resolve_type_annotation,
@@ -39,6 +40,9 @@ pub(super) struct FunctionMatch {
 
     /// The function return type.
     pub(super) return_type: TypeRef,
+
+    /// The function's reef
+    pub(super) reef: ReefId,
 }
 
 /// Gets the returned type of a function.
@@ -47,24 +51,26 @@ pub(super) struct FunctionMatch {
 /// or try to guess the return type.
 pub(super) fn infer_return(
     func: &FunctionDeclaration,
-    typed_func: &TypedExpr,
     links: Links,
+    typed_func_body: Option<&TypedExpr>,
     diagnostics: &mut Vec<Diagnostic>,
     exploration: &mut Exploration,
 ) -> TypeRef {
-    let last = get_last_segment(typed_func);
-    // If the last statement is a return, we don't need re-add it
-    if exploration
-        .returns
-        .last()
-        .map_or(true, |ret| ret.segment != last.segment)
-        && last.ty.is_something()
-        && last.ty.is_ok()
-    {
-        exploration.returns.push(Return {
-            ty: typed_func.ty,
-            segment: last.segment.clone(),
-        });
+    if let Some(typed_func_body) = typed_func_body {
+        let last = get_last_segment(typed_func_body);
+        // If the last statement is a return, we don't need re-add it
+        if exploration
+            .returns
+            .last()
+            .map_or(true, |ret| ret.segment != last.segment)
+            && last.ty.is_something()
+            && last.ty.is_ok()
+        {
+            exploration.returns.push(Return {
+                ty: typed_func_body.ty,
+                segment: last.segment.clone(),
+            });
+        }
     }
 
     let expected_return_type = if let Some(return_type_annotation) = func.return_type.as_ref() {
@@ -80,6 +86,7 @@ pub(super) fn infer_return(
         if convert_description(exploration, expected_return_type, ret.ty).is_err() {
             typed_return_locations.push(Observation::here(
                 links.source,
+                exploration.externals.current,
                 ret.segment.clone(),
                 if func.return_type.is_some() {
                     format!("Found `{}`", exploration.get_type(ret.ty))
@@ -100,6 +107,7 @@ pub(super) fn infer_return(
                 .with_observations(typed_return_locations)
                 .with_observation(Observation::context(
                     links.source,
+                    exploration.externals.current,
                     return_type_annotation.segment(),
                     format!(
                         "Expected `{}` because of return type",
@@ -107,40 +115,23 @@ pub(super) fn infer_return(
                     ),
                 )),
         );
-    } else if !matches!(func.body.as_ref(), Expr::Block(_)) {
-        let segment = func.segment().start..func.body.segment().start;
-        let returns = std::mem::take(&mut exploration.returns);
-        let unify = convert_many(exploration, returns.iter().map(|ret| ret.ty));
-        if let Ok(common_type) = unify {
-            diagnostics.push(
-                Diagnostic::new(
-                    DiagnosticID::CannotInfer,
-                    "Return type inference is not supported yet",
-                )
-                .with_observation(Observation::context(
-                    links.source,
-                    segment,
-                    "No return type is specified",
-                ))
-                .with_observations(typed_return_locations)
-                .with_help(format!(
-                    "Add -> {} to the function declaration",
-                    exploration.get_type(common_type)
-                )),
-            );
-        } else {
-            diagnostics.push(
-                Diagnostic::new(DiagnosticID::CannotInfer, "Failed to infer return type")
-                    .with_observation(Observation::context(
-                        links.source,
-                        segment,
-                        "This function returns multiple types",
-                    ))
-                    .with_observations(typed_return_locations)
-                    .with_help("Try adding an explicit return type to the function"),
-            );
-        }
-    } else {
+        return ERROR;
+    }
+
+    let Some(body) = &func.body else {
+        diagnostics.push(
+            Diagnostic::new(
+                DiagnosticID::CannotInfer,
+                "Function declaration needs explicit return type",
+            )
+            .with_observations(typed_return_locations)
+            .with_help("Explicit the function's return type as it's not defined."),
+        );
+
+        return ERROR;
+    };
+
+    if matches!(body.as_ref(), Expr::Block(_)) {
         diagnostics.push(
             Diagnostic::new(
                 DiagnosticID::CannotInfer,
@@ -148,6 +139,43 @@ pub(super) fn infer_return(
             )
             .with_observations(typed_return_locations)
             .with_help("Try adding an explicit return type to the function"),
+        );
+
+        return ERROR;
+    }
+    let segment = func.segment().start..body.segment().start;
+    let types: Vec<_> = exploration.returns.iter().map(|ret| ret.ty).collect();
+    let unify = convert_many(exploration, types);
+
+    if let Ok(common_type) = unify {
+        diagnostics.push(
+            Diagnostic::new(
+                DiagnosticID::CannotInfer,
+                "Return type inference is not supported yet",
+            )
+            .with_observation(Observation::context(
+                links.source,
+                exploration.externals.current,
+                segment,
+                "No return type is specified",
+            ))
+            .with_observations(typed_return_locations)
+            .with_help(format!(
+                "Add -> {} to the function declaration",
+                exploration.get_type(common_type)
+            )),
+        );
+    } else {
+        diagnostics.push(
+            Diagnostic::new(DiagnosticID::CannotInfer, "Failed to infer return type")
+                .with_observation(Observation::context(
+                    links.source,
+                    exploration.externals.current,
+                    segment,
+                    "This function returns multiple types",
+                ))
+                .with_observations(typed_return_locations)
+                .with_help("Try adding an explicit return type to the function"),
         );
     }
     ERROR
@@ -163,20 +191,16 @@ pub(super) fn type_call(
 ) -> FunctionMatch {
     let call_symbol_ref = links.env().get_raw_symbol(call.segment()).unwrap();
 
-    let fun_reef = match call_symbol_ref {
-        SymbolRef::Local(_) => exploration.externals.current,
+    let (fun_reef, fun_source) = match call_symbol_ref {
+        SymbolRef::Local(_) => (exploration.externals.current, links.source),
         SymbolRef::External(r) => {
             let call_symbol = links.relations[r].state.expect_resolved("unresolved");
-            call_symbol.reef
+            (call_symbol.reef, call_symbol.source)
         }
     };
 
-    let type_ref: TypeRef = exploration
-        .get_var(
-            links.source, /* FIXME need defining env */
-            call_symbol_ref,
-            links.relations,
-        )
+    let type_ref = exploration
+        .get_var(fun_source, call_symbol_ref, links.relations)
         .unwrap()
         .type_ref;
 
@@ -199,6 +223,7 @@ pub(super) fn type_call(
                     )
                     .with_observation(Observation::here(
                         links.source,
+                        exploration.externals.current,
                         call.segment.clone(),
                         "Function is called here",
                     )),
@@ -207,6 +232,7 @@ pub(super) fn type_call(
                     arguments,
                     definition: Definition::error(),
                     return_type,
+                    reef: fun_reef,
                 }
             } else {
                 let mut casted_arguments = Vec::with_capacity(parameters.len());
@@ -224,6 +250,8 @@ pub(super) fn type_call(
                                 diagnostics.push(diagnose_arg_mismatch(
                                     exploration,
                                     links.source,
+                                    exploration.externals.current,
+                                    fun_reef,
                                     &param,
                                     &arg,
                                 ));
@@ -236,6 +264,7 @@ pub(super) fn type_call(
                     arguments: casted_arguments,
                     definition: declaration,
                     return_type,
+                    reef: fun_reef,
                 }
             }
         }
@@ -248,6 +277,7 @@ pub(super) fn type_call(
                 )
                 .with_observation(Observation::here(
                     links.source,
+                    exploration.externals.current,
                     call.segment(),
                     format!("Call expression requires function, found `{ty}`"),
                 )),
@@ -256,6 +286,7 @@ pub(super) fn type_call(
                 arguments,
                 definition: Definition::error(),
                 return_type: ERROR,
+                reef: fun_reef,
             }
         }
     }
@@ -264,6 +295,7 @@ pub(super) fn type_call(
 /// Checks the type of a method expression.
 pub(super) fn find_operand_implementation(
     exploration: &Exploration,
+    reef: ReefId,
     methods: &[MethodType],
     left: TypeRef,
     right: TypedExpr,
@@ -276,6 +308,7 @@ pub(super) fn find_operand_implementation(
                     arguments: vec![right],
                     definition: method.definition,
                     return_type,
+                    reef,
                 });
             }
         }
@@ -296,6 +329,8 @@ pub(super) fn type_method(
         return None;
     }
 
+    let current_reef = exploration.externals.current;
+
     // Directly callable types just have a single method called `apply`
     let method_name = method_call.name.unwrap_or("apply");
     let type_methods = exploration.get_methods(callee.ty, method_name);
@@ -315,7 +350,7 @@ pub(super) fn type_method(
                     )
                 },
             )
-            .with_observation((source, method_call.segment.clone()).into()),
+            .with_observation((source, current_reef, method_call.segment.clone()).into()),
         );
         return None;
     }
@@ -328,6 +363,7 @@ pub(super) fn type_method(
             arguments,
             definition: method.definition,
             return_type: exploration.concretize(method.return_type, callee.ty).id,
+            reef: callee.ty.reef,
         });
     }
 
@@ -349,6 +385,7 @@ pub(super) fn type_method(
                 )
                 .with_observation(Observation::here(
                     source,
+                    current_reef,
                     method_call.segment(),
                     "Method is called here",
                 ))
@@ -366,12 +403,20 @@ pub(super) fn type_method(
                         location: param.location.clone(),
                         ty: type_param.id,
                     };
-                    let diagnostic = diagnose_arg_mismatch(exploration, source, &param, arg)
-                        .with_observation(Observation::here(
-                            source,
-                            method_call.segment(),
-                            "Arguments to this method are incorrect",
-                        ));
+                    let diagnostic = diagnose_arg_mismatch(
+                        exploration,
+                        source,
+                        current_reef,
+                        callee.ty.reef,
+                        &param,
+                        arg,
+                    )
+                    .with_observation(Observation::here(
+                        source,
+                        current_reef,
+                        method_call.segment(),
+                        "Arguments to this method are incorrect",
+                    ));
                     diagnostics.push(diagnostic);
                 }
             }
@@ -388,6 +433,7 @@ pub(super) fn type_method(
             )
             .with_observation(Observation::here(
                 source,
+                current_reef,
                 method_call.segment(),
                 "Method is called here",
             )),
@@ -400,12 +446,15 @@ pub(super) fn type_method(
 fn diagnose_arg_mismatch(
     exploration: &Exploration,
     source: SourceId,
+    current_reef: ReefId,
+    param_reef: ReefId,
     param: &Parameter,
     arg: &TypedExpr,
 ) -> Diagnostic {
     let diagnostic = Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch").with_observation(
         Observation::here(
             source,
+            current_reef,
             arg.segment.clone(),
             format!(
                 "Expected `{}`, found `{}`",
@@ -417,6 +466,7 @@ fn diagnose_arg_mismatch(
     if let Some(location) = &param.location {
         diagnostic.with_observation(Observation::context(
             location.source,
+            param_reef,
             location.segment.clone(),
             "Parameter is declared here",
         ))
@@ -464,7 +514,11 @@ pub(super) fn type_parameter(
                 resolve_type_annotation(exploration, links, ty, diagnostics)
             });
             Parameter {
-                location: Some(SourceLocation::new(links.source, named.segment.clone())),
+                location: Some(SourceLocation::new(
+                    links.source,
+                    exploration.externals.current,
+                    named.segment.clone(),
+                )),
                 ty: type_id,
             }
         }
