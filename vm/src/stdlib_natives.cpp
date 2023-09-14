@@ -133,6 +133,13 @@ static void vec_len(OperandStack &caller_stack, msh::heap &) {
     caller_stack.push_int(static_cast<int64_t>(vec.size()));
 }
 
+static void vec_pop(OperandStack &caller_stack, msh::heap &) {
+    msh::obj_vector &vec = std::get<msh::obj_vector>(caller_stack.pop_reference());
+    msh::obj &last_element = *vec.back();
+    vec.pop_back();
+    caller_stack.push_reference(last_element);
+}
+
 static void vec_push(OperandStack &caller_stack, msh::heap &) {
     msh::obj &ref = caller_stack.pop_reference();
     msh::obj_vector &vec = std::get<msh::obj_vector>(caller_stack.pop_reference());
@@ -159,6 +166,7 @@ natives_functions_t load_natives(msh::heap &) {
         {"lang::String::split", str_split},
         {"lang::String::bytes", str_bytes},
 
+        {"lang::Vec::pop", vec_pop},
         {"lang::Vec::len", vec_len},
         {"lang::Vec::push", vec_push},
         {"lang::Vec::[]", vec_index},
@@ -169,6 +177,7 @@ natives_functions_t load_natives(msh::heap &) {
         {"std::set_env", set_env},
         {"std::is_env_def", is_env_def},
         {"std::read_line", read_line},
+        
         {"std::convert::to_exitcode", to_exitcode},
         {"std::convert::ceil", ceil},
         {"std::convert::floor", floor},

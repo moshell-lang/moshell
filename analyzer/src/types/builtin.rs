@@ -125,6 +125,11 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine) {
     );
     engine.add_method(
         GENERIC_VECTOR.type_id,
+        "pop",
+        MethodType::native(vec![], POLYTYPE, gen.next()),
+    );
+    engine.add_method(
+        GENERIC_VECTOR.type_id,
         "len",
         MethodType::native(vec![], INT, gen.next()),
     );
