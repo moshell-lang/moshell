@@ -12,7 +12,9 @@ use ast::r#type::{CastedExpr, ParametrizedType, Type};
 use ast::r#use::InclusionPathItem;
 use ast::range::{Iterable, NumericRange};
 use ast::value::{Literal, LiteralValue, TemplateString};
-use ast::variable::{Assign, Identifier, TypedVariable, VarDeclaration, VarKind, VarReference};
+use ast::variable::{
+    Assign, AssignOperator, Identifier, TypedVariable, VarDeclaration, VarKind, VarReference,
+};
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
 use context::str_find::{find_between, find_in, find_in_nth};
@@ -408,6 +410,7 @@ fn assign_iterable() {
                 name: "it",
                 segment: find_in(source.source, "it")
             })),
+            operator: AssignOperator::Assign,
             value: Box::new(Expr::Range(Iterable::Range(NumericRange {
                 start: Box::new(Expr::Literal(Literal {
                     parsed: 1.into(),
@@ -486,6 +489,7 @@ fn constructor_assign() {
                 name: "a",
                 segment: find_in(source.source, "a")
             })),
+            operator: AssignOperator::Assign,
             value: Box::new(Expr::Unary(UnaryOperation {
                 op: UnaryOperator::Not,
                 expr: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {

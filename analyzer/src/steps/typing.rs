@@ -6,7 +6,7 @@ use ast::operation::{BinaryOperation, BinaryOperator, UnaryOperation, UnaryOpera
 use ast::r#type::CastedExpr;
 use ast::substitution::Substitution;
 use ast::value::{Literal, LiteralValue, TemplateString};
-use ast::variable::{Assign, Identifier, VarDeclaration, VarKind, VarReference};
+use ast::variable::{Assign, AssignOperator, Identifier, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
 
@@ -260,13 +260,29 @@ fn ascribe_assign(
     diagnostics: &mut Vec<Diagnostic>,
     state: TypingState,
 ) -> TypedExpr {
-    let rhs = ascribe_types(
-        exploration,
-        links,
-        diagnostics,
-        &assign.value,
-        state.with_local_type(),
-    );
+    let rhs = match assign.operator {
+        AssignOperator::Assign => ascribe_types(
+            exploration,
+            links,
+            diagnostics,
+            &assign.value,
+            state.with_local_type(),
+        ),
+        operator => {
+            let binary = Expr::Binary(BinaryOperation {
+                left: assign.left.clone(),
+                op: BinaryOperator::try_from(operator).expect("Invalid assign operator"),
+                right: assign.value.clone(),
+            });
+            ascribe_types(
+                exploration,
+                links,
+                diagnostics,
+                &binary,
+                state.with_local_type(),
+            )
+        }
+    };
 
     let Some(symbol) = links.env().get_raw_symbol(assign.left.segment()) else {
         diagnostics.push(
@@ -1262,6 +1278,12 @@ mod tests {
     #[test]
     fn var_assign_of_same_type() {
         let res = extract_type(Source::unknown("var l = 1; l = 2"));
+        assert_eq!(res, Ok(Type::Unit));
+    }
+
+    #[test]
+    fn var_assign_increment() {
+        let res = extract_type(Source::unknown("var n = 'Hello, '; n += 'world!'"));
         assert_eq!(res, Ok(Type::Unit));
     }
 

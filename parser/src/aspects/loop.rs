@@ -236,7 +236,9 @@ mod tests {
     use ast::operation::{BinaryOperation, BinaryOperator};
     use ast::range::{FilePattern, Iterable, NumericRange};
     use ast::value::Literal;
-    use ast::variable::{Assign, Identifier, TypedVariable, VarDeclaration, VarKind, VarReference};
+    use ast::variable::{
+        Assign, AssignOperator, Identifier, TypedVariable, VarDeclaration, VarKind, VarReference,
+    };
     use ast::Expr;
     use ast::Expr::{Break, Continue};
     use context::source::{Source, SourceSegmentHolder};
@@ -549,6 +551,7 @@ mod tests {
                             name: "i",
                             segment: find_in_nth(source.source, "i", 2)
                         })),
+                        operator: AssignOperator::Assign,
                         value: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::VarReference(VarReference {
                                 name: "i",

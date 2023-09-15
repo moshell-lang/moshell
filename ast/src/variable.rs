@@ -1,5 +1,6 @@
 use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
+use lexer::token::TokenType;
 
 use src_macros::segment_holder;
 
@@ -47,8 +48,21 @@ pub struct VarReference<'a> {
 pub struct Assign<'a> {
     /// The place that is assigned to.
     pub left: Box<Expr<'a>>,
+    /// The operator of the assignation.
+    pub operator: AssignOperator,
     /// The value of the variable to be evaluated.
     pub value: Box<Expr<'a>>,
+}
+
+/// An assignation operator.
+#[derive(Debug, Clone, Copy, PartialEq, DebugPls)]
+pub enum AssignOperator {
+    Assign,
+    Increment,
+    Decrement,
+    Multiply,
+    Divide,
+    Remainder,
 }
 
 /// A simple identifier, that do not start with `$`.
@@ -56,6 +70,22 @@ pub struct Assign<'a> {
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Identifier<'a> {
     pub name: &'a str,
+}
+
+impl TryFrom<TokenType> for AssignOperator {
+    type Error = ();
+
+    fn try_from(value: TokenType) -> Result<Self, Self::Error> {
+        Ok(match value {
+            TokenType::Equal => Self::Assign,
+            TokenType::Plus => Self::Increment,
+            TokenType::Minus => Self::Decrement,
+            TokenType::Star => Self::Multiply,
+            TokenType::Slash => Self::Divide,
+            TokenType::Percent => Self::Remainder,
+            _ => return Err(()),
+        })
+    }
 }
 
 impl SourceSegmentHolder for Assign<'_> {

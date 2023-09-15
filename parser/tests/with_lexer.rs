@@ -7,7 +7,9 @@ use ast::group::{Block, Subshell};
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::substitution::{Substitution, SubstitutionKind};
 use ast::value::{Literal, TemplateString};
-use ast::variable::{Assign, Identifier, TypedVariable, VarDeclaration, VarKind, VarReference};
+use ast::variable::{
+    Assign, AssignOperator, Identifier, TypedVariable, VarDeclaration, VarKind, VarReference,
+};
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
 use context::str_find::{find_between, find_in, find_in_nth};
@@ -413,6 +415,7 @@ fn loop_assign() {
                     name: "a",
                     segment: find_in(source.source, "$a"),
                 })),
+                operator: AssignOperator::Assign,
                 value: Box::new(Expr::Substitution(Substitution {
                     underlying: Subshell {
                         expressions: vec![Expr::Redirected(Redirected {
@@ -520,6 +523,7 @@ fn inner_var_ref() {
                 name: "dest",
                 segment: find_in(source.source, "dest"),
             })),
+            operator: AssignOperator::Assign,
             value: Box::new(Expr::TemplateString(TemplateString {
                 parts: vec![
                     Expr::VarReference(VarReference {
@@ -565,5 +569,29 @@ fn variable_without_initializer() {
                 segment: find_in(source.source, "$bar"),
             })
         ]
+    );
+}
+
+#[test]
+fn short_variable_increment() {
+    let source = Source::unknown("$test += '1' = 2");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Assign(Assign {
+            left: Box::new(Expr::VarReference(VarReference {
+                name: "test",
+                segment: find_in(source.source, "$test"),
+            })),
+            operator: AssignOperator::Increment,
+            value: Box::new(Expr::Assign(Assign {
+                left: Box::new(literal(source.source, "'1'")),
+                operator: AssignOperator::Assign,
+                value: Box::new(Expr::Literal(Literal {
+                    parsed: 2.into(),
+                    segment: find_in(source.source, "2"),
+                })),
+            })),
+        })]
     );
 }
