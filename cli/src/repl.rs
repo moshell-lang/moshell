@@ -84,6 +84,7 @@ pub fn repl(
             // in the pipeline, but we consume them anyway to reuse the same
             // end-of-pipeline logic.
             let diagnostics = analyzer.take_diagnostics();
+            sources.set(externals.current, importer.take_sources());
             status = status.compose(use_pipeline(
                 &name,
                 SourceId(0), // this value has no importance
