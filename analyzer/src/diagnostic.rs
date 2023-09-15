@@ -8,96 +8,85 @@ use crate::relations::SourceId;
 #[non_exhaustive]
 #[derive(PartialEq, Debug, Assoc, Clone, Copy)]
 #[func(pub fn code(&self) -> u16)]
-#[func(pub fn critical(&self) -> bool { false })]
+#[func(pub fn critical(&self) -> bool { true })]
 pub enum DiagnosticID {
     #[assoc(code = 1)]
-    #[assoc(critical = true)]
     UnsupportedFeature,
 
     /// An import could not be resolved
     #[assoc(code = 2)]
-    #[assoc(critical = true)]
     ImportResolution,
 
     /// A symbol is unknown as it could not be resolved
     #[assoc(code = 3)]
-    #[assoc(critical = true)]
     UnknownSymbol,
 
     /// A symbol is invalid as it cannot be accessed in any way
     /// (for example, a symbol into a function, or in a variable)
     #[assoc(code = 4)]
-    #[assoc(critical = true)]
     InvalidSymbol,
 
     /// A symbol path is invalid by its structure
     /// (for example, the path `reef::foo::reef` is invalid because the last `reef` would targets the current reef)
     #[assoc(code = 5)]
-    #[assoc(critical = true)]
     InvalidSymbolPath,
 
     /// There is a `use` statement between two expressions,
     /// `use` needs to be declared before any expressions in an environment.
     #[assoc(code = 6)]
-    #[assoc(critical = true)]
     UseBetweenExprs,
 
     /// A `use` statement is shadowed as the symbol it imports has been imported again below
     #[assoc(code = 7)]
+    #[assoc(critical = false)]
     ShadowedImport,
 
     /// A symbol have the same fully qualified name (its name with its module's name prepended)
     /// as another module
     #[assoc(code = 8)]
-    #[assoc(critical = true)]
     SymbolConflictsWithModule,
 
     /// A type annotation refers to an unknown type.
     #[assoc(code = 9)]
-    #[assoc(critical = true)]
     UnknownType,
 
     /// A type annotation is not matching the expected type.
     #[assoc(code = 10)]
-    #[assoc(critical = true)]
     TypeMismatch,
 
     /// A type annotation is missing, and cannot be inferred.
     #[assoc(code = 11)]
-    #[assoc(critical = true)]
     CannotInfer,
 
     /// Occurs when a `continue` or `break` directive is declared outside of a loop.
     #[assoc(code = 12)]
-    #[assoc(critical = true)]
     InvalidBreakOrContinue,
 
     /// A type cannot be casted to another type.
     #[assoc(code = 13)]
-    #[assoc(critical = true)]
     IncompatibleCast,
 
     /// A named method is unknown or does not match the expected signature.
     #[assoc(code = 14)]
-    #[assoc(critical = true)]
     UnknownMethod,
 
     /// A variable is being reassigned, but it is not mutable.
     #[assoc(code = 15)]
-    #[assoc(critical = true)]
     CannotReassign,
 
     /// A function does not have a definition.
     ///
     /// Only internals reefs that are defined natively can omit an implementation.
     #[assoc(code = 16)]
-    #[assoc(critical = true)]
     NoFunctionDefinition,
 
     /// An incorrect number of type arguments was provided.
     #[assoc(code = 17)]
-    #[assoc(critical = true)]
     InvalidTypeArguments,
+
+    /// An assignment operator was used on a non-place expression.
+    #[assoc(code = 18)]
+    InvalidAssignment,
 }
 
 /// Observations are labels in a code snippet that are used to explain a [`Diagnostic`].

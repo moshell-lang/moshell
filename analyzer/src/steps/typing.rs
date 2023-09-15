@@ -6,7 +6,7 @@ use ast::operation::{BinaryOperation, BinaryOperator, UnaryOperation, UnaryOpera
 use ast::r#type::CastedExpr;
 use ast::substitution::Substitution;
 use ast::value::{Literal, LiteralValue, TemplateString};
-use ast::variable::{Assign, VarDeclaration, VarKind, VarReference};
+use ast::variable::{Assign, Identifier, VarDeclaration, VarKind, VarReference};
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
 
@@ -267,7 +267,22 @@ fn ascribe_assign(
         &assign.value,
         state.with_local_type(),
     );
-    let symbol = links.env().get_raw_symbol(assign.segment()).unwrap();
+
+    let Some(symbol) = links.env().get_raw_symbol(assign.left.segment()) else {
+        diagnostics.push(
+            Diagnostic::new(
+                DiagnosticID::InvalidAssignment,
+                "Invalid left-hand side of assignment",
+            )
+            .with_observation(Observation::here(
+                links.source,
+                exploration.externals.current,
+                assign.left.segment(),
+                "Cannot assign to this expression",
+            )),
+        );
+        return rhs;
+    };
     let actual_type_ref = exploration
         .ctx
         .get(links.relations, links.source, symbol)
@@ -279,10 +294,11 @@ fn ascribe_assign(
         diagnostics.push(
             Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                format!(
-                    "Named object `{}` cannot be assigned like a variable",
-                    assign.name
-                ),
+                if let Some(name) = assign.name() {
+                    format!("Named object `{}` cannot be assigned like a variable", name)
+                } else {
+                    "Expression cannot be assigned like a variable".to_owned()
+                },
             )
             .with_observation(Observation::here(
                 links.source,
@@ -331,10 +347,11 @@ fn ascribe_assign(
         diagnostics.push(
             Diagnostic::new(
                 DiagnosticID::CannotReassign,
-                format!(
-                    "Cannot assign twice to immutable variable `{}`",
-                    assign.name
-                ),
+                if let Some(name) = assign.name() {
+                    format!("Cannot assign twice to immutable variable `{}`", name)
+                } else {
+                    "Cannot reassign immutable expression".to_owned()
+                },
             )
             .with_observation(Observation::here(
                 links.source,
@@ -437,6 +454,17 @@ fn ascribe_var_reference(
         ty: type_ref,
         segment: var_ref.segment.clone(),
     }
+}
+
+fn ascribe_identifier(ident: &Identifier, links: Links, exploration: &Exploration) -> TypedExpr {
+    ascribe_var_reference(
+        &VarReference {
+            name: ident.name,
+            segment: ident.segment.clone(),
+        },
+        links,
+        exploration,
+    )
 }
 
 fn ascribe_block(
@@ -1085,6 +1113,7 @@ fn ascribe_types(
             ascribe_var_declaration(decl, exploration, links, diagnostics, state)
         }
         Expr::VarReference(var) => ascribe_var_reference(var, links, exploration),
+        Expr::Identifier(ident) => ascribe_identifier(ident, links, exploration),
         Expr::If(block) => ascribe_if(block, exploration, links, diagnostics, state),
         Expr::Call(call) => ascribe_call(call, exploration, links, diagnostics, state),
         Expr::ProgrammaticCall(call) => ascribe_pfc(call, exploration, links, diagnostics, state),
@@ -1234,6 +1263,25 @@ mod tests {
     fn var_assign_of_same_type() {
         let res = extract_type(Source::unknown("var l = 1; l = 2"));
         assert_eq!(res, Ok(Type::Unit));
+    }
+
+    #[test]
+    fn invalid_left_hand_side_assignment() {
+        let content = "var foo = 1; foo = 'bar' = 9";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::InvalidAssignment,
+                "Invalid left-hand side of assignment",
+            )
+            .with_observation(Observation::here(
+                SourceId(0),
+                ReefId(1),
+                find_in(content, "'bar'"),
+                "Cannot assign to this expression",
+            ))])
+        );
     }
 
     #[test]
