@@ -4,8 +4,30 @@
 #include "definitions/loader.h"
 #include "definitions/pager.h"
 #include "interpreter.h"
-
 #include <iostream>
+
+uint8_t moshell_value_get_as_byte(moshell_value val) {
+    return *(uint8_t *)val.ptr;
+}
+int64_t moshell_value_get_as_int(moshell_value val) {
+    return *(uint64_t *)val.ptr;
+}
+double moshell_value_get_as_double(moshell_value val) {
+    return *(double *)val.ptr;
+}
+const char *moshell_value_get_as_string(moshell_value val) {
+    msh::obj *obj = (msh::obj *)val.ptr;
+    const char *str = obj->get<const std::string>().c_str();
+    return str;
+}
+moshell_array moshell_value_get_as_array(moshell_value val) {
+    msh::obj *obj = (msh::obj *)val.ptr;
+    msh::obj_vector &vec = obj->get<msh::obj_vector>();
+    return moshell_array{
+        vec.size(),
+        (moshell_value *)vec.data(),
+    };
+}
 
 struct vm_state {
     msh::loader loader;

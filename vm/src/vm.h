@@ -1,5 +1,6 @@
 #pragma once
 #include <stddef.h> // NOLINT(*-deprecated-headers)
+#include <cstdint>
 
 #if UINTPTR_MAX > 0xFFFFFFFFFFFFFFFFu // 64 bits
 #error "VM only supports architectures less than 64 bits architectures"
@@ -14,10 +15,26 @@
 extern "C" {
 #endif
 
+typedef struct {
+    const void *ptr;
+} moshell_value;
+
+typedef struct {
+    uint64_t size;
+    const moshell_value* ptr;
+} moshell_array;
+
+
+uint8_t moshell_value_get_as_byte(moshell_value val);
+int64_t moshell_value_get_as_int(moshell_value val);
+double moshell_value_get_as_double(moshell_value val);
+const char* moshell_value_get_as_string(moshell_value val);
+moshell_array moshell_value_get_as_array(moshell_value val);
+
 /**
  * An opaque handle to a Moshell VM.
  */
-typedef struct moshell_vm {
+typedef struct {
     void *vm;
 } moshell_vm;
 
@@ -36,7 +53,7 @@ typedef struct moshell_vm {
  * @return an exitcode where:
  *    - 0, the vm exited successfully
  *    - 1, the vm aborted due to a panic
- * @deprecated Use `moshell_vm_init`, `moshell_vm_register` and `moshell_vm_run` instead.
+ * @deprecated Use `moshell_vm_init`, `moshell_vm_register` and `moshell_vm_run_all` instead.
  */
 int moshell_exec(const char *bytes, size_t byte_count);
 
@@ -64,6 +81,8 @@ int moshell_vm_register(moshell_vm vm, const char *bytes, size_t byte_count);
  * @return 0 if the execution was successful, -1 otherwise.
  */
 int moshell_vm_run(moshell_vm vm);
+
+moshell_value* moshell_vm_get_exported(moshell_vm vm, char *name);
 
 /**
  * Returns the next page identifier to be executed.

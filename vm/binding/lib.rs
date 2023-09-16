@@ -1,5 +1,8 @@
+mod value;
+
 use context::source::ContentId;
 use std::ffi;
+use std::ffi::CString;
 
 /// Executes the given bytecode.
 ///
@@ -15,6 +18,10 @@ pub unsafe fn execute_bytecode(bytes: &[u8]) -> Result<(), VmError> {
         _ => Err(VmError::Internal),
     }
 }
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+struct VmFFI(*mut ffi::c_void);
 
 /// A virtual machine that can execute Moshell bytecode.
 pub struct VM(VmFFI);
@@ -85,12 +92,53 @@ impl Drop for VM {
     }
 }
 
+
 #[repr(C)]
 #[derive(Copy, Clone)]
-struct VmFFI(*mut ffi::c_void);
+struct VmArrayFFI(u64, *mut VmValueFFI);
+#[repr(C)]
+#[derive(Copy, Clone)]
+struct VmStringFFI(u64, *mut ffi::c_char);
+#[repr(C)]
+#[derive(Copy, Clone)]
+struct VmValueFFI(*mut ffi::c_void);
+
+
+impl VmValueFFI {
+    unsafe fn get_as_u8(self) -> u8 {
+        moshell_value_get_as_byte(self)
+    }
+    unsafe fn get_as_i64(self) -> i64 {
+        moshell_value_get_as_int(self)
+    }
+    unsafe fn get_as_double(self) -> f64 {
+        moshell_value_get_as_double(self)
+    }
+
+    unsafe fn get_as_string(self) -> String {
+        let str = moshell_value_get_as_string(self);
+        let str = CString::from_raw(str).to_str().expect("utf8 error");
+        str.to_string()
+    }
+    unsafe fn get_as_vec(self) -> Vec<VmValueFFI> {
+        let msh_array = moshell_value_get_as_array(self);
+        let mut vec = Vec::with_capacity(msh_array.0 as usize);
+
+        for i in 0..msh_array.0 as usize {
+            vec.push(*(msh_array.1.wrapping_add(i)))
+        }
+        vec
+    }
+}
 
 #[link(name = "vm", kind = "static")]
 extern "C" {
+    fn moshell_value_get_as_byte(val: VmValueFFI) -> u8;
+    fn moshell_value_get_as_int(val:VmValueFFI) -> i64;
+    fn moshell_value_get_as_double(val:VmValueFFI) -> f64;
+    fn moshell_value_get_as_string(val:VmValueFFI) -> * mut ffi::c_char;
+    fn moshell_value_get_as_array(val:VmValueFFI) -> VmArrayFFI;
+
     fn moshell_exec(bytes: *const u8, byte_count: usize) -> ffi::c_int;
 
     fn moshell_vm_init() -> VmFFI;
@@ -102,4 +150,6 @@ extern "C" {
     fn moshell_vm_next_page(vm: VmFFI) -> usize;
 
     fn moshell_vm_free(vm: VmFFI);
+
+    fn moshell_vm_get_exported(vm: VmFFI, name: *const ffi::c_char) -> VmValueFFI;
 }
