@@ -17,7 +17,7 @@ use crate::range::Iterable;
 use crate::substitution::Substitution;
 use crate::test::Test;
 use crate::value::{Literal, TemplateString};
-use crate::variable::{Assign, VarDeclaration, VarReference};
+use crate::variable::{Assign, Identifier, VarDeclaration, VarReference};
 
 pub mod call;
 pub mod control_flow;
@@ -71,7 +71,8 @@ pub enum Expr<'a> {
     Break(SourceSegment),
     Return(Return<'a>),
 
-    //var / val handling expressions
+    // Identifiables
+    Identifier(Identifier<'a>),
     VarReference(VarReference<'a>),
     VarDeclaration(VarDeclaration<'a>),
     Range(Iterable<'a>),
@@ -114,6 +115,7 @@ impl SourceSegmentHolder for Expr<'_> {
             Expr::Continue(source) => source.clone(),
             Expr::Break(source) => source.clone(),
             Expr::Return(return_) => return_.segment.clone(),
+            Expr::Identifier(identifier) => identifier.segment.clone(),
             Expr::VarReference(var_reference) => var_reference.segment.clone(),
             Expr::VarDeclaration(var_declaration) => var_declaration.segment.clone(),
             Expr::Range(range) => range.segment(),

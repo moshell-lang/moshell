@@ -4,7 +4,7 @@ use context::source::{SourceSegment, SourceSegmentHolder};
 use lexer::token::TokenType;
 use src_macros::segment_holder;
 
-use crate::operation::BinaryOperator::*;
+use crate::variable::AssignOperator;
 use crate::Expr;
 
 /// A prefix unary operation.
@@ -81,6 +81,7 @@ impl TryFrom<TokenType> for BinaryOperator {
 
     /// Convert a TokenType to a BinaryOperator
     fn try_from(token_type: TokenType) -> Result<Self, Self::Error> {
+        use crate::operation::BinaryOperator::*;
         match token_type {
             TokenType::And => Ok(And),
             TokenType::Or => Ok(Or),
@@ -99,5 +100,20 @@ impl TryFrom<TokenType> for BinaryOperator {
             TokenType::Percent => Ok(Modulo),
             _ => Err("unexpected non-binary operator token."),
         }
+    }
+}
+
+impl TryFrom<AssignOperator> for BinaryOperator {
+    type Error = ();
+
+    fn try_from(value: AssignOperator) -> Result<Self, Self::Error> {
+        Ok(match value {
+            AssignOperator::Assign => return Err(()),
+            AssignOperator::Increment => Self::Plus,
+            AssignOperator::Decrement => Self::Minus,
+            AssignOperator::Multiply => Self::Times,
+            AssignOperator::Divide => Self::Divide,
+            AssignOperator::Remainder => Self::Modulo,
+        })
     }
 }

@@ -134,17 +134,6 @@ pub enum TokenType {
     #[assoc(str = ">=")]
     GreaterEqual,
 
-    #[assoc(str = "+=")]
-    PlusEqual,
-    #[assoc(str = "-=")]
-    MinusEqual,
-    #[assoc(str = "*=")]
-    StarEqual,
-    #[assoc(str = "/=")]
-    SlashEqual,
-    #[assoc(str = "%=")]
-    ModuloEqual,
-
     #[assoc(str = "+")]
     Plus,
     #[assoc(str = "-")]

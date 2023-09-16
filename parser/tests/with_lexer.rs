@@ -7,7 +7,9 @@ use ast::group::{Block, Subshell};
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::substitution::{Substitution, SubstitutionKind};
 use ast::value::{Literal, TemplateString};
-use ast::variable::{Assign, TypedVariable, VarDeclaration, VarKind, VarReference};
+use ast::variable::{
+    Assign, AssignOperator, Identifier, TypedVariable, VarDeclaration, VarKind, VarReference,
+};
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
 use context::str_find::{find_between, find_in, find_in_nth};
@@ -403,13 +405,17 @@ fn empty_return() {
 
 #[test]
 fn loop_assign() {
-    let source = Source::unknown("loop a = $(pgrep shell 2>/dev/null)");
+    let source = Source::unknown("loop $a = $(pgrep shell 2>/dev/null)");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Loop(Loop {
             body: Box::new(Expr::Assign(Assign {
-                name: "a",
+                left: Box::new(Expr::VarReference(VarReference {
+                    name: "a",
+                    segment: find_in(source.source, "$a"),
+                })),
+                operator: AssignOperator::Assign,
                 value: Box::new(Expr::Substitution(Substitution {
                     underlying: Subshell {
                         expressions: vec![Expr::Redirected(Redirected {
@@ -430,7 +436,6 @@ fn loop_assign() {
                     },
                     kind: SubstitutionKind::Capture,
                 })),
-                segment: find_in(source.source, "a = $(pgrep shell 2>/dev/null)"),
             })),
             segment: source.segment(),
         })]
@@ -514,7 +519,11 @@ fn inner_var_ref() {
     assert_eq!(
         parsed,
         vec![Expr::Assign(Assign {
-            name: "dest",
+            left: Box::new(Expr::Identifier(Identifier {
+                name: "dest",
+                segment: find_in(source.source, "dest"),
+            })),
+            operator: AssignOperator::Assign,
             value: Box::new(Expr::TemplateString(TemplateString {
                 parts: vec![
                     Expr::VarReference(VarReference {
@@ -534,7 +543,6 @@ fn inner_var_ref() {
                 ],
                 segment: find_between(source.source, "\"", "\""),
             })),
-            segment: source.segment(),
         })]
     );
 }
@@ -561,5 +569,29 @@ fn variable_without_initializer() {
                 segment: find_in(source.source, "$bar"),
             })
         ]
+    );
+}
+
+#[test]
+fn short_variable_increment() {
+    let source = Source::unknown("$test += '1' = 2");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Assign(Assign {
+            left: Box::new(Expr::VarReference(VarReference {
+                name: "test",
+                segment: find_in(source.source, "$test"),
+            })),
+            operator: AssignOperator::Increment,
+            value: Box::new(Expr::Assign(Assign {
+                left: Box::new(literal(source.source, "'1'")),
+                operator: AssignOperator::Assign,
+                value: Box::new(Expr::Literal(Literal {
+                    parsed: 2.into(),
+                    segment: find_in(source.source, "2"),
+                })),
+            })),
+        })]
     );
 }

@@ -10,6 +10,7 @@ const NOT_AN_OPERATOR: u8 = 0;
 pub(crate) const fn infix_precedence(tok: TokenType) -> u8 {
     use TokenType::*;
     match tok {
+        Equal => 1,
         DotDot => 2,
         Or => 3,
         And => 4,

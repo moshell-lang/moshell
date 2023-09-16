@@ -378,14 +378,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                 return;
             }
             Expr::Assign(assign) => {
-                let symbol = self.identify_symbol(
-                    *self.stack.last().unwrap(),
-                    state.module,
-                    SymbolLocation::unspecified(Name::new(assign.name)),
-                    assign.segment(),
-                    SymbolRegistry::Objects,
-                );
-                self.current_env().annotate(assign, symbol);
+                self.tree_walk(state, &assign.left, to_visit);
                 self.tree_walk(state, &assign.value, to_visit);
             }
             Expr::Binary(binary) => {
@@ -482,6 +475,16 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
             }
             Expr::Detached(detached) => {
                 self.tree_walk(state, &detached.underlying, to_visit);
+            }
+            Expr::Identifier(ident) => {
+                let symbol = self.identify_symbol(
+                    *self.stack.last().unwrap(),
+                    state.module,
+                    SymbolLocation::unspecified(Name::new(ident.name)),
+                    ident.segment(),
+                    SymbolRegistry::Objects,
+                );
+                self.current_env().annotate(ident, symbol);
             }
             Expr::VarDeclaration(var) => {
                 if let Some(initializer) = &var.initializer {

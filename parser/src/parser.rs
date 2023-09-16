@@ -1,6 +1,7 @@
 use ast::operation::{BinaryOperation, BinaryOperator, UnaryOperation, UnaryOperator};
 use ast::r#type::CastedExpr;
 use ast::range::Iterable;
+use ast::variable::{Assign, AssignOperator};
 use ast::Expr;
 use context::source::{Source, SourceSegment, SourceSegmentHolder};
 use lexer::lex;
@@ -8,7 +9,6 @@ use lexer::token::TokenType::*;
 use lexer::token::{Token, TokenType};
 use std::num::NonZeroU8;
 
-use crate::aspects::assign::AssignAspect;
 use crate::aspects::binary_operation::{infix_precedence, shell_infix_precedence};
 use crate::aspects::call::CallAspect;
 use crate::aspects::detached::DetachedAspect;
@@ -231,10 +231,28 @@ impl<'a> Parser<'a> {
             Identifier
                 if self
                     .cursor
-                    .lookahead(next().then(spaces().then(of_type(Equal))))
+                    .lookahead(next().then(
+                        spaces().then(
+                            of_types(&[Plus, Minus, Star, Slash, Percent]).then(of_type(Equal)),
+                        ),
+                    ))
                     .is_some() =>
             {
-                self.parse_assign().map(Expr::Assign)
+                let name = self.cursor.next()?.value;
+                self.cursor.advance(spaces());
+                let operator = AssignOperator::try_from(self.cursor.next()?.token_type)
+                    .expect("Invalid assign operator");
+                if operator != AssignOperator::Assign {
+                    self.cursor.next_opt();
+                }
+                Ok(Expr::Assign(Assign {
+                    left: Box::new(Expr::Identifier(ast::variable::Identifier {
+                        name,
+                        segment: self.cursor.relative_pos(name),
+                    })),
+                    operator,
+                    value: Box::new(self.value()?),
+                }))
             }
 
             Var | Val => self.var_declaration(),
@@ -343,7 +361,30 @@ impl<'a> Parser<'a> {
                         .parse_range(lhs)
                         .map(|expr| Expr::Range(Iterable::Range(expr)))?
                 }
+                Equal => {
+                    let rhs = self.value_precedence(
+                        NonZeroU8::new(precedence).expect("New precedence should be non-zero"),
+                    )?;
+                    lhs = Expr::Assign(Assign {
+                        left: Box::new(lhs),
+                        operator: AssignOperator::Assign,
+                        value: Box::new(rhs),
+                    });
+                }
                 tok => {
+                    if self.cursor.advance(of_type(Equal)).is_some() {
+                        let rhs = self.value_precedence(
+                            NonZeroU8::new(infix_precedence(Equal))
+                                .expect("New precedence should be non-zero"),
+                        )?;
+                        lhs = Expr::Assign(Assign {
+                            left: Box::new(lhs),
+                            operator: AssignOperator::try_from(tok)
+                                .expect("Invalid assign operator"),
+                            value: Box::new(rhs),
+                        });
+                        continue;
+                    }
                     let op = BinaryOperator::try_from(tok).expect("Invalid binary operator");
                     let rhs = self.value_precedence(
                         NonZeroU8::new(precedence.saturating_add(1))
