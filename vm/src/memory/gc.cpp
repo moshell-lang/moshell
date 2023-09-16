@@ -49,8 +49,7 @@ void debug_obj_freed(msh::obj &obj) {
             debug_file << "vector len:" << vec.size();
         } else {
             // unreachable
-            std::cerr << "unknown object type" << std::endl;
-            exit(1);
+            throw MemoryError("unknown object type");
         }
     },
                obj.get_data());
