@@ -10,12 +10,11 @@ use crate::constant_pool::ConstantPool;
 use crate::emit;
 use crate::emit::{EmissionState, EmitterContext};
 use crate::locals::LocalsLayout;
-use crate::r#type::ValueStackSize;
+use crate::r#type::{get_type_stack_size, ValueStackSize};
 
 /// Emit any expression, knowing that we are already in a forked process.
 ///
 /// Avoid forking another time if we can replace the current process.
-
 pub fn emit_already_forked(
     expr: &TypedExpr,
     instructions: &mut Instructions,
@@ -84,8 +83,15 @@ pub fn emit_process_call(
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
 ) {
+    let last_use = state.use_values(true);
+    for arg in arguments {
+        emit(arg, instructions, ctx, cp, locals, state);
+    }
+    state.use_values(last_use);
+
     let jump_to_parent = instructions.emit_jump(Opcode::Fork);
-    emit_process_call_self(arguments, instructions, ctx, cp, locals, state);
+    instructions
+        .emit_exec(u8::try_from(arguments.len()).expect("too many arguments in process call"));
     instructions.patch_jump(jump_to_parent);
     instructions.emit_code(Opcode::Wait);
 
@@ -94,6 +100,11 @@ pub fn emit_process_call(
         // in order to maintain the stack's size, we instantly pop
         // the stack if the value isn't used later in the code
         instructions.emit_pop(ValueStackSize::Byte);
+    }
+
+    // Remove the arguments from the stack, as they were only needed in the child process
+    for arg in arguments.iter().rev() {
+        instructions.emit_pop(get_type_stack_size(arg.ty));
     }
 }
 

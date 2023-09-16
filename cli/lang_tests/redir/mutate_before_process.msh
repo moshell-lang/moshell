@@ -1,0 +1,15 @@
+// Run:
+//   status: success
+//   stdout:
+//    Process: 1 world!
+//    After: 1 Hello,
+
+var n = 0
+val b = 'Hello, world!'.split(' ')
+fun mutate() -> Int = {
+    n = $n + 1
+    $n
+}
+
+echo Process: mutate() $b.pop()
+echo After: $n $b.pop()
