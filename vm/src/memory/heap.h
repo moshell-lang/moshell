@@ -4,6 +4,7 @@
 #include <string>
 #include <variant>
 #include <vector>
+#include <cstdint>
 
 namespace msh {
     // Create a recursive variant type by forward declaring the vector type.
