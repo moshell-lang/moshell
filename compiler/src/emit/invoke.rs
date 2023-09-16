@@ -93,6 +93,13 @@ pub fn emit_process_call(
     instructions
         .emit_exec(u8::try_from(arguments.len()).expect("too many arguments in process call"));
     instructions.patch_jump(jump_to_parent);
+
+    // Remove the arguments from the stack, as they were only needed for the child process
+    for arg in arguments.iter().rev() {
+        instructions.emit_code(Opcode::Swap);
+        instructions.emit_pop(get_type_stack_size(arg.ty));
+    }
+
     instructions.emit_code(Opcode::Wait);
 
     if !state.use_values {
@@ -102,10 +109,7 @@ pub fn emit_process_call(
         instructions.emit_pop(ValueStackSize::Byte);
     }
 
-    // Remove the arguments from the stack, as they were only needed in the child process
-    for arg in arguments.iter().rev() {
-        instructions.emit_pop(get_type_stack_size(arg.ty));
-    }
+
 }
 
 fn emit_process_call_self(
