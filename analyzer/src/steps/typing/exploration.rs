@@ -126,7 +126,7 @@ impl Exploration<'_> {
         if definition.0.reef == self.externals.current {
             self.type_engine.get_methods(definition.0.type_id, name)
         } else {
-            let reef = self.get_external_type_reef(id.reef);
+            let reef = self.get_external_type_reef(definition.0.reef);
             reef.typed_engine.get_methods(definition.0.type_id, name)
         }
     }

@@ -2060,6 +2060,14 @@ mod tests {
     }
 
     #[test]
+    fn access_method_in_parameter() {
+        let res = extract_type(Source::unknown(
+            "fun len(bytes: Vec[Int]) -> Int = $bytes.len()",
+        ));
+        assert_eq!(res, Ok(Type::Unit));
+    }
+
+    #[test]
     fn incorrect_generic_param() {
         let content = "'Hello, world'.split(' ').push({})";
         let res = extract_type(Source::unknown(content));
