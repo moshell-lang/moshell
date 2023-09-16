@@ -25,10 +25,12 @@ pub(super) trait ExpressionListAspect<'a> {
     /// according that `(` and `)` are the start/end of the list expression.
     /// An explicit list cannot consider an expression A as valid, the expression must be surrounded
     /// with [`start`] and [`end`]
+    /// [`if_absent_msg`] is used if the list's start token is not present
     fn parse_explicit_list<E, F>(
         &mut self,
         start: TokenType,
         end: TokenType,
+        if_absent_msg: &str,
         parse_element: F,
     ) -> ParseResult<(Vec<E>, SourceSegment)>
     where
@@ -38,6 +40,7 @@ pub(super) trait ExpressionListAspect<'a> {
     /// parses a list which is either nonexistent or explicit but nonempty.
     /// - if the current's token does not match `start`, an empty vec is returned.
     /// - else, an explicit list is parsed, that must end with `end` token.
+    /// [`if_absent_msg`] is used if the list's start token is not present
     fn parse_optional_list<E, F>(
         &mut self,
         start: TokenType,
@@ -61,7 +64,7 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         F: FnMut(&mut Self) -> ParseResult<E>,
     {
         if self.cursor.lookahead(of_type(start)).is_some() {
-            self.parse_explicit_list(start, end, parse_element)
+            self.parse_explicit_list(start, end, "", parse_element)
         } else {
             let elem = parse_element(self)?;
             let segment = elem.segment();
@@ -73,6 +76,7 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         &mut self,
         start: TokenType,
         end: TokenType,
+        if_absent_msg: &str,
         mut parse_element: F,
     ) -> ParseResult<(Vec<E>, SourceSegment)>
     where
@@ -82,7 +86,7 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         self.cursor.advance(blanks());
         let start = self.cursor.force_with(
             of_type(start),
-            "expected start of list expression",
+            if_absent_msg,
             Expected(start.str().unwrap_or("<undefined>").to_string()),
         )?;
         let mut elements = vec![];
@@ -139,7 +143,7 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
             return Ok((Vec::new(), None));
         }
         self.cursor.advance(blanks());
-        let (tparams, segment) = self.parse_explicit_list(start, end, parse_element)?;
+        let (tparams, segment) = { self.parse_explicit_list(start, end, "", parse_element)? };
 
         Ok((tparams, Some(segment)))
     }

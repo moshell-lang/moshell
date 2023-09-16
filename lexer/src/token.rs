@@ -77,6 +77,7 @@ pub enum TokenType {
     #[assoc(str = "shell")]
     Shell,
 
+    #[assoc(str = "self")]
     Slf,
 
     #[assoc(str = "continue")]

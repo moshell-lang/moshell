@@ -6,7 +6,7 @@ use lexer::token::TokenType::CurlyLeftBracket;
 use crate::aspects::expr_list::ExpressionListAspect;
 use crate::aspects::function_declaration::FunctionDeclarationAspect;
 use crate::aspects::r#type::TypeAspect;
-use crate::moves::{blanks, of_type, repeat, MoveOperations};
+use crate::moves::{blanks, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 pub trait StructAspect<'a> {
@@ -31,6 +31,7 @@ impl<'a> StructAspect<'a> for Parser<'a> {
         let (parameters, _) = self.parse_explicit_list(
             TokenType::SquaredLeftBracket,
             TokenType::SquaredRightBracket,
+            "expected start of type parameters expression",
             Parser::parse_type_parameter,
         )?;
 
@@ -39,6 +40,7 @@ impl<'a> StructAspect<'a> for Parser<'a> {
         let (fields, body_segment) = self.parse_explicit_list(
             TokenType::CurlyLeftBracket,
             TokenType::CurlyRightBracket,
+            "expected start of structure definition",
             Parser::parse_field,
         )?;
 
@@ -57,7 +59,7 @@ impl<'a> StructAspect<'a> for Parser<'a> {
     fn parse_impl(&mut self) -> ParseResult<StructImpl<'a>> {
         let start = self
             .cursor
-            .force(of_type(TokenType::Impl), "expected `struct`")?;
+            .force(of_type(TokenType::Impl), "expected `impl`")?;
 
         self.cursor.advance(blanks());
 
@@ -80,13 +82,8 @@ impl<'a> StructAspect<'a> for Parser<'a> {
         let mut end_token = None;
 
         while end_token.is_none() {
-            self.cursor
-                .advance(repeat(blanks().then(of_type(TokenType::SemiColon))));
             self.cursor.advance(blanks());
             functions.push(self.parse_function_declaration()?);
-
-            self.cursor
-                .advance(repeat(blanks().then(of_type(TokenType::SemiColon))));
 
             end_token = self
                 .cursor
@@ -205,12 +202,9 @@ mod tests {
     #[test]
     fn test_impl_block() {
         let src = Source::unknown(
-            "impl[A] A {;;
-                        ;;;
-                        fun push() = 0;
-                        ;;
-                        fun len() = 1;;
-                        ;;
+            "impl[A] A {
+                        fun push() = 0
+                        fun len() = 1
                     }",
         );
         let result = parse(src).expect("errors");
@@ -237,10 +231,10 @@ mod tests {
                         type_parameters: vec![],
                         parameters: vec![],
                         return_type: None,
-                        body: Box::new(Expr::Literal(Literal {
+                        body: Some(Box::new(Expr::Literal(Literal {
                             parsed: 0.into(),
                             segment: find_in(src.source, "0"),
-                        })),
+                        }))),
                         segment: find_in(src.source, "fun push() = 0"),
                     },
                     FunctionDeclaration {
@@ -248,10 +242,10 @@ mod tests {
                         type_parameters: vec![],
                         parameters: vec![],
                         return_type: None,
-                        body: Box::new(Expr::Literal(Literal {
+                        body: Some(Box::new(Expr::Literal(Literal {
                             parsed: 1.into(),
                             segment: find_in(src.source, "1"),
-                        })),
+                        }))),
                         segment: find_in(src.source, "fun len() = 1"),
                     },
                 ],

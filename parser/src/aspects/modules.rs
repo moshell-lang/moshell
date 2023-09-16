@@ -109,21 +109,26 @@ impl<'a> Parser<'a> {
         start: Token<'a>,
         root: Vec<InclusionPathItem<'a>>,
     ) -> ParseResult<ImportList<'a>> {
-        self.parse_explicit_list(CurlyLeftBracket, CurlyRightBracket, Self::parse_import)
-            .and_then(|(imports, s)| {
-                if imports.is_empty() {
-                    return self.expected_with(
-                        "empty brackets",
-                        start..self.cursor.peek(),
-                        ParseErrorKind::Expected("non-empty brackets".to_string()),
-                    );
-                }
-                Ok(ImportList {
-                    root,
-                    imports,
-                    segment: self.cursor.relative_pos_ctx(start).start..s.end,
-                })
+        self.parse_explicit_list(
+            CurlyLeftBracket,
+            CurlyRightBracket,
+            "expected start of import list",
+            Self::parse_import,
+        )
+        .and_then(|(imports, s)| {
+            if imports.is_empty() {
+                return self.expected_with(
+                    "empty brackets",
+                    start..self.cursor.peek(),
+                    ParseErrorKind::Expected("non-empty brackets".to_string()),
+                );
+            }
+            Ok(ImportList {
+                root,
+                imports,
+                segment: self.cursor.relative_pos_ctx(start).start..s.end,
             })
+        })
     }
 
     fn expect_identifier(&mut self) -> ParseResult<&'a str> {

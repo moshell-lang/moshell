@@ -163,6 +163,7 @@ impl<'a> Parser<'a> {
         let (params, _) = self.parse_explicit_list(
             TokenType::RoundedLeftBracket,
             TokenType::RoundedRightBracket,
+            "expected start of parameters list",
             Parser::parse_fn_parameter,
         )?;
         Ok(params)
@@ -317,7 +318,7 @@ mod tests {
         assert_eq!(
             errs,
             vec![ParseError {
-                message: "expected start of list expression".to_string(),
+                message: "expected start of parameters list".to_string(),
                 position: src.find('=').map(|i| i..i + 1).unwrap(),
                 kind: ParseErrorKind::Expected("(".to_string()),
             }]
