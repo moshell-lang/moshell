@@ -26,6 +26,7 @@ use crate::name::Name;
 use crate::reef::Externals;
 use crate::relations::{Relations, SourceId};
 use crate::steps::collect::SymbolCollector;
+use crate::steps::resolve::SymbolResolver;
 use crate::steps::resolve_sources;
 use crate::steps::typing::apply_types;
 use crate::types::ctx::TypeContext;
@@ -126,7 +127,7 @@ impl<'a> Analyzer<'a> {
         externals: &Externals,
     ) -> Analysis<'a, '_> {
         let last_next_source_id = SourceId(self.resolution.engine.len());
-        let mut visit = vec![inject.name.clone()];
+        let mut visit = vec![];
         self.diagnostics.extend(SymbolCollector::inject(
             inject,
             &mut self.resolution.engine,
@@ -134,6 +135,14 @@ impl<'a> Analyzer<'a> {
             &mut self.resolution.imports,
             externals,
             &mut visit,
+        ));
+        self.diagnostics.extend(SymbolResolver::resolve_symbols(
+            &self.resolution.engine,
+            &mut self.resolution.relations,
+            &mut self.resolution.imports,
+            externals,
+            &mut visit,
+            &self.resolution.visited,
         ));
         resolve_sources(
             visit,

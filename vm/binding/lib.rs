@@ -1,4 +1,5 @@
-mod value;
+#![allow(unused, dead_code, warnings)]
+pub mod value;
 
 use context::source::ContentId;
 use std::ffi;
@@ -76,6 +77,13 @@ impl VM {
     pub fn get_next_page(&self) -> ContentId {
         ContentId(unsafe { moshell_vm_next_page(self.0) })
     }
+
+    pub fn get_exported_var(&self, name: &str) -> VmValueFFI {
+        unsafe {
+            let c_name = CString::new(name).unwrap();
+            moshell_vm_get_exported(self.0, c_name.into_raw())
+        }
+    }
 }
 
 impl Default for VM {
@@ -92,7 +100,6 @@ impl Drop for VM {
     }
 }
 
-
 #[repr(C)]
 #[derive(Copy, Clone)]
 struct VmArrayFFI(u64, *mut VmValueFFI);
@@ -101,26 +108,26 @@ struct VmArrayFFI(u64, *mut VmValueFFI);
 struct VmStringFFI(u64, *mut ffi::c_char);
 #[repr(C)]
 #[derive(Copy, Clone)]
-struct VmValueFFI(*mut ffi::c_void);
-
+pub struct VmValueFFI(*mut ffi::c_void);
 
 impl VmValueFFI {
-    unsafe fn get_as_u8(self) -> u8 {
+    pub unsafe fn get_as_u8(self) -> u8 {
         moshell_value_get_as_byte(self)
     }
-    unsafe fn get_as_i64(self) -> i64 {
+    pub unsafe fn get_as_i64(self) -> i64 {
         moshell_value_get_as_int(self)
     }
-    unsafe fn get_as_double(self) -> f64 {
+    pub unsafe fn get_as_double(self) -> f64 {
         moshell_value_get_as_double(self)
     }
 
-    unsafe fn get_as_string(self) -> String {
-        let str = moshell_value_get_as_string(self);
-        let str = CString::from_raw(str).to_str().expect("utf8 error");
+    pub unsafe fn get_as_string(self) -> String {
+        let buff = moshell_value_get_as_string(self);
+        let c_str = CString::from_raw(buff.cast_mut());
+        let str = c_str.to_str().expect("utf8 error");
         str.to_string()
     }
-    unsafe fn get_as_vec(self) -> Vec<VmValueFFI> {
+    pub unsafe fn get_as_vec(self) -> Vec<VmValueFFI> {
         let msh_array = moshell_value_get_as_array(self);
         let mut vec = Vec::with_capacity(msh_array.0 as usize);
 
@@ -134,10 +141,10 @@ impl VmValueFFI {
 #[link(name = "vm", kind = "static")]
 extern "C" {
     fn moshell_value_get_as_byte(val: VmValueFFI) -> u8;
-    fn moshell_value_get_as_int(val:VmValueFFI) -> i64;
-    fn moshell_value_get_as_double(val:VmValueFFI) -> f64;
-    fn moshell_value_get_as_string(val:VmValueFFI) -> * mut ffi::c_char;
-    fn moshell_value_get_as_array(val:VmValueFFI) -> VmArrayFFI;
+    fn moshell_value_get_as_int(val: VmValueFFI) -> i64;
+    fn moshell_value_get_as_double(val: VmValueFFI) -> f64;
+    fn moshell_value_get_as_string(val: VmValueFFI) -> *const ffi::c_char;
+    fn moshell_value_get_as_array(val: VmValueFFI) -> VmArrayFFI;
 
     fn moshell_exec(bytes: *const u8, byte_count: usize) -> ffi::c_int;
 

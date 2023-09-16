@@ -21,6 +21,7 @@ ast = { path = "../ast" }
 parser = { path = "../parser" }
 analyzer = { path = "../analyzer" }
 compiler = { path = "../compiler" }
+cli = { path = "../cli" }
 
 [build-dependencies]
 cmake = "0.1.50"

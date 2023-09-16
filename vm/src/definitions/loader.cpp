@@ -24,9 +24,11 @@ namespace msh {
             // Read main function
             {
                 const auto &[identifier, function] = load_function(reader, pool, pool_index);
-                size_t page = pager.push_page(memory_page{std::vector<char>(function.locals_size), identifier});
 
-                // read function exports
+                // read page exports
+                uint32_t page_size = reader.read<uint32_t>();
+                size_t page = pager.push_page(memory_page{std::vector<char>(page_size), identifier});
+
                 uint32_t exports_len = reader.read<uint32_t>();
                 for (uint32_t i = 0; i < exports_len; ++i) {
                     constant_index id_idx = reader.read<constant_index>();

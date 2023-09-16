@@ -1,6 +1,6 @@
 #pragma once
-#include <stddef.h> // NOLINT(*-deprecated-headers)
 #include <cstdint>
+#include <stddef.h> // NOLINT(*-deprecated-headers)
 
 #if UINTPTR_MAX > 0xFFFFFFFFFFFFFFFFu // 64 bits
 #error "VM only supports architectures less than 64 bits architectures"
@@ -16,19 +16,18 @@ extern "C" {
 #endif
 
 typedef struct {
-    const void *ptr;
+    const void *val;
 } moshell_value;
 
 typedef struct {
     uint64_t size;
-    const moshell_value* ptr;
+    const moshell_value *val;
 } moshell_array;
-
 
 uint8_t moshell_value_get_as_byte(moshell_value val);
 int64_t moshell_value_get_as_int(moshell_value val);
 double moshell_value_get_as_double(moshell_value val);
-const char* moshell_value_get_as_string(moshell_value val);
+const char *moshell_value_get_as_string(moshell_value val);
 moshell_array moshell_value_get_as_array(moshell_value val);
 
 /**
@@ -82,7 +81,7 @@ int moshell_vm_register(moshell_vm vm, const char *bytes, size_t byte_count);
  */
 int moshell_vm_run(moshell_vm vm);
 
-moshell_value* moshell_vm_get_exported(moshell_vm vm, char *name);
+moshell_value moshell_vm_get_exported(moshell_vm vm, char *name);
 
 /**
  * Returns the next page identifier to be executed.

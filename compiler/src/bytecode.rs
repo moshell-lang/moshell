@@ -85,6 +85,11 @@ impl Bytecode {
     }
 }
 
+pub struct InstructionPos {
+    pub source_code_byte_pos: usize,
+    pub instruction: u32,
+}
+
 /// This structure is a wrapper around [`Bytecode`] and is used
 /// to emit bytecode instructions.
 pub struct Instructions<'a> {
@@ -93,7 +98,7 @@ pub struct Instructions<'a> {
     ip_offset: u32,
 
     /// Starting byte position in the source code for some instruction pointers
-    positions: Vec<(usize, u32)>,
+    positions: Vec<InstructionPos>,
 }
 
 impl<'a> Instructions<'a> {
@@ -120,10 +125,13 @@ impl<'a> Instructions<'a> {
 
     /// bind a source code byte position to current instruction
     pub fn push_position(&mut self, pos: usize) {
-        self.positions.push((pos, self.current_ip()))
+        self.positions.push(InstructionPos {
+            source_code_byte_pos: pos,
+            instruction: self.current_ip(),
+        })
     }
 
-    pub fn take_positions(&mut self) -> Vec<(usize, u32)> {
+    pub fn take_positions(&mut self) -> Vec<InstructionPos> {
         std::mem::take(&mut self.positions)
     }
 

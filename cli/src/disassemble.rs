@@ -180,9 +180,10 @@ fn display_functions(
     dynamic_symbols: &[usize],
 ) -> io::Result<()> {
     display_function(cursor, constants, dynamic_symbols)?;
-    println!("Exports: ");
-    let exports_len = read!(cursor, u32);
-    for _ in 0..exports_len {
+    let exports_bytes = read!(cursor, u32);
+    println!("Exports: ({exports_bytes} bytes)");
+    let exports_count = read!(cursor, u32);
+    for _ in 0..exports_count {
         let constant_idx = read!(cursor, u32) as usize;
         let str = &constants[constant_idx];
         let offset = read!(cursor, u32);
@@ -203,7 +204,7 @@ fn display_functions(
     Ok(())
 }
 
-pub(crate) fn display_bytecode(bytecode: &[u8]) {
+pub fn display_bytecode(bytecode: &[u8]) {
     let mut cursor = Cursor::new(bytecode);
     let mut dynamic_symbols = Vec::new();
     let constants = load_constants(&mut cursor, &mut dynamic_symbols)

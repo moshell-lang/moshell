@@ -7,21 +7,21 @@
 #include <iostream>
 
 uint8_t moshell_value_get_as_byte(moshell_value val) {
-    return *(uint8_t *)val.ptr;
+    return *(uint8_t *)val.val;
 }
 int64_t moshell_value_get_as_int(moshell_value val) {
-    return *(uint64_t *)val.ptr;
+    return *(uint64_t *)val.val;
 }
 double moshell_value_get_as_double(moshell_value val) {
-    return *(double *)val.ptr;
+    return *(double *)val.val;
 }
 const char *moshell_value_get_as_string(moshell_value val) {
-    msh::obj *obj = (msh::obj *)val.ptr;
+    msh::obj *obj = (msh::obj *)val.val;
     const char *str = obj->get<const std::string>().c_str();
     return str;
 }
 moshell_array moshell_value_get_as_array(moshell_value val) {
-    msh::obj *obj = (msh::obj *)val.ptr;
+    msh::obj *obj = (msh::obj *)val.val;
     msh::obj_vector &vec = obj->get<msh::obj_vector>();
     return moshell_array{
         vec.size(),
@@ -60,6 +60,14 @@ int moshell_vm_register(moshell_vm vm, const char *bytes, size_t byte_count) {
         std::cerr << e.what() << std::endl;
     }
     return -1;
+}
+
+moshell_value moshell_vm_get_exported(moshell_vm vm, char *name) {
+    vm_state &state = *static_cast<vm_state *>(vm.vm);
+    msh::exported_variable var = state.loader.get_exported(name);
+    void *obj = state.pager.get_exported_value<void>(var);
+
+    return {obj};
 }
 
 int moshell_vm_run(moshell_vm vm) {
