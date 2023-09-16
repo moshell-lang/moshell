@@ -130,7 +130,7 @@ RuntimeException::RuntimeException(std::string msg)
     : std::runtime_error(msg) {}
 
 // run GC every n objects allocated
-#define GC_HEAP_GAP 5
+#define GC_HEAP_CYCLE 5
 
 runtime_memory::runtime_memory(msh::heap &heap, msh::gc &gc)
     : heap{heap}, gc{gc}, last_gc_heap_size{heap.size()} {}
@@ -141,7 +141,7 @@ void runtime_memory::run_gc() {
 }
 
 msh::obj &runtime_memory::emplace(msh::obj_data &&data) {
-    if (heap.size() >= last_gc_heap_size + GC_HEAP_GAP)
+    if (heap.size() >= last_gc_heap_size + GC_HEAP_CYCLE)
         run_gc();
     return this->heap.insert(data);
 }

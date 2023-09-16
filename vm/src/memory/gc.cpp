@@ -34,23 +34,19 @@ void debug_obj_freed(msh::obj &obj) {
     if (!debug_file.is_open())
         return;
 
-    std::string obj_type;
-    std::string obj_str;
+    debug_file << "GC: object freed - ";
+
     std::visit([&](auto &&data) {
         using T = std::decay_t<decltype(data)>;
         if constexpr (std::is_same_v<T, std::string>) {
-            obj_type = "string";
-            obj_str = "\"" + data + "\"";
+            debug_file << "string \"" << data << "\"";
         } else if constexpr (std::is_same_v<T, int64_t>) {
-            obj_type = "boxed int64";
-            obj_str = std::to_string(data);
+            debug_file << "boxed int64 " << data;
         } else if constexpr (std::is_same_v<T, double>) {
-            obj_type = "boxed double";
-            obj_str = std::to_string(data);
+            debug_file << "boxed double " << data;
         } else if constexpr (std::is_same_v<T, obj_vector>) {
-            obj_type = "vector";
             obj_vector &vec = static_cast<obj_vector &>(data);
-            obj_str = "len: " + std::to_string(vec.size());
+            debug_file << "vector len:" << vec.size();
         } else {
             // unreachable
             std::cerr << "unknown object type" << std::endl;
@@ -59,7 +55,7 @@ void debug_obj_freed(msh::obj &obj) {
     },
                obj.get_data());
 
-    debug_file << "GC: object freed - " << obj_type << " " << obj_str << std::endl;
+    debug_file << std::endl;
 }
 
 void gc_debug(std::string msg) {
