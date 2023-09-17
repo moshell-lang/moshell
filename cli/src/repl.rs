@@ -13,7 +13,7 @@ use lexer::is_unterminated;
 use vm::VM;
 
 use crate::cli::{use_pipeline, Cli};
-use crate::pipeline::{ErrorReporter, FileImporter, PipelineStatus, SourcesCache};
+use crate::pipeline::{ErrorReporter, PipelineStatus, SourcesCache};
 use crate::report::print_flush;
 
 /// Indefinitely prompts a new expression from stdin and executes it.
@@ -25,7 +25,7 @@ pub fn repl(
     mut vm: VM,
 ) -> PipelineStatus {
     let mut analyzer = Analyzer::new();
-    let mut importer = FileImporter::new(dir);
+    sources.register(dir);
 
     let mut status = PipelineStatus::Success;
 
@@ -39,6 +39,7 @@ pub fn repl(
         // Inject the source directly into the importer, in order to know
         // its attributed id. It will be used later to inject the next
         // successfully parsed prompt.
+        let importer = sources.last_mut();
         if let ImportResult::Success(imported) = importer.insert(source) {
             let mut analysis = analyzer.inject(
                 Inject {
@@ -46,7 +47,7 @@ pub fn repl(
                     imported,
                     attached: starting_source,
                 },
-                &mut importer,
+                importer,
                 &externals,
             );
 
@@ -58,7 +59,6 @@ pub fn repl(
             let is_ready = diagnostics.is_empty();
 
             let errors = importer.take_errors();
-            sources.set(externals.current, importer.take_sources());
 
             status = status.compose(use_pipeline(
                 &name,
@@ -84,7 +84,6 @@ pub fn repl(
             // in the pipeline, but we consume them anyway to reuse the same
             // end-of-pipeline logic.
             let diagnostics = analyzer.take_diagnostics();
-            sources.set(externals.current, importer.take_sources());
             status = status.compose(use_pipeline(
                 &name,
                 SourceId(0), // this value has no importance

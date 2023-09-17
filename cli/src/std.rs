@@ -1,5 +1,5 @@
 use crate::cli::{use_pipeline, Cli};
-use crate::pipeline::{ErrorReporter, FileImporter, PipelineStatus, SourcesCache};
+use crate::pipeline::{ErrorReporter, PipelineStatus, SourcesCache};
 use analyzer::analyze;
 use analyzer::name::Name;
 use analyzer::reef::{Externals, Reef};
@@ -10,13 +10,12 @@ use vm::VM;
 
 pub fn build_std(externals: &mut Externals, vm: &mut VM, sources: &mut SourcesCache, config: &Cli) {
     let std_file = find_std();
-    let mut importer = FileImporter::new(std_file);
+    sources.register(std_file);
+    let importer = sources.last_mut();
 
     let name = Name::new("std");
-    let mut analyzer = analyze(name.clone(), &mut importer, externals);
+    let mut analyzer = analyze(name.clone(), importer, externals);
     let diagnostics = analyzer.take_diagnostics();
-
-    sources.set(externals.current, importer.take_sources());
 
     let status = use_pipeline(
         &name,
