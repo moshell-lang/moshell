@@ -250,7 +250,7 @@ fn no_comma_or_two() {
                     kind: ParseErrorKind::Expected("',' or ')'".to_string())
                 },
                 ParseError {
-                    message: "Expected expression.".to_owned(),
+                    message: "Expected parameter.".to_owned(),
                     position: content.rfind(',').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 },
@@ -315,12 +315,12 @@ fn do_not_self_lock() {
             })],
             errors: vec![
                 ParseError {
-                    message: "Expected expression.".to_owned(),
+                    message: "Expected type parameter.".to_owned(),
                     position: content.find(',').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 },
                 ParseError {
-                    message: "Expected expression.".to_owned(),
+                    message: "Expected parameter.".to_owned(),
                     position: content.rfind(',').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 }
@@ -476,7 +476,7 @@ fn double_comma_function() {
             expr: vec![],
             errors: vec![
                 ParseError {
-                    message: "Expected expression.".to_string(),
+                    message: "Expected parameter.".to_string(),
                     position: content.rfind(',').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 },

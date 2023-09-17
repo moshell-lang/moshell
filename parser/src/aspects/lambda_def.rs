@@ -19,6 +19,7 @@ impl<'a> LambdaDefinitionAspect<'a> for Parser<'a> {
         let (args, mut segment) = self.parse_implicit_list(
             RoundedLeftBracket,
             RoundedRightBracket,
+            "Expected lambda parameter.",
             Self::parse_typed_var,
         )?;
         self.cursor.force_with(

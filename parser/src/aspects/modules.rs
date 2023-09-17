@@ -112,7 +112,8 @@ impl<'a> Parser<'a> {
         self.parse_explicit_list(
             CurlyLeftBracket,
             CurlyRightBracket,
-            "expected start of import list",
+            "Expected start of import list.",
+            "Expected import.",
             Self::parse_import,
         )
         .and_then(|(imports, s)| {

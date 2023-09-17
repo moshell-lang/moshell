@@ -31,7 +31,8 @@ impl<'a> StructAspect<'a> for Parser<'a> {
         let (parameters, _) = self.parse_explicit_list(
             TokenType::SquaredLeftBracket,
             TokenType::SquaredRightBracket,
-            "expected start of type parameters expression",
+            "Expected start of type parameters expression.",
+            "Expected type parameter.",
             Parser::parse_type_parameter,
         )?;
 
@@ -40,7 +41,8 @@ impl<'a> StructAspect<'a> for Parser<'a> {
         let (fields, body_segment) = self.parse_explicit_list(
             TokenType::CurlyLeftBracket,
             TokenType::CurlyRightBracket,
-            "expected start of structure definition",
+            "Expected start of structure definition.",
+            "Expected field.",
             Parser::parse_field,
         )?;
 
@@ -66,6 +68,7 @@ impl<'a> StructAspect<'a> for Parser<'a> {
         let (type_parameters, _) = self.parse_optional_list(
             TokenType::SquaredLeftBracket,
             TokenType::SquaredRightBracket,
+            "Expected type parameter.",
             Parser::parse_type_parameter,
         )?;
 

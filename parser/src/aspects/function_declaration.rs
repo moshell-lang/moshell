@@ -41,6 +41,7 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
         let (tparams, _) = self.parse_optional_list(
             TokenType::SquaredLeftBracket,
             TokenType::SquaredRightBracket,
+            "Expected type parameter.",
             Parser::parse_type_parameter,
         )?;
         self.cursor.advance(blanks());
@@ -163,7 +164,8 @@ impl<'a> Parser<'a> {
         let (params, _) = self.parse_explicit_list(
             TokenType::RoundedLeftBracket,
             TokenType::RoundedRightBracket,
-            "expected start of parameters list",
+            "expected start of parameter list",
+            "Expected parameter.",
             Parser::parse_fn_parameter,
         )?;
         Ok(params)
@@ -318,7 +320,7 @@ mod tests {
         assert_eq!(
             errs,
             vec![ParseError {
-                message: "expected start of parameters list".to_string(),
+                message: "expected start of parameter list".to_string(),
                 position: src.find('=').map(|i| i..i + 1).unwrap(),
                 kind: ParseErrorKind::Expected("(".to_string()),
             }]

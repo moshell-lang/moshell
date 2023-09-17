@@ -83,6 +83,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         let (type_parameters, _) = self.parse_optional_list(
             TokenType::SquaredLeftBracket,
             TokenType::SquaredRightBracket,
+            "Expected type argument.",
             Parser::parse_type,
         )?;
 
@@ -149,6 +150,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         let (type_parameters, _) = self.parse_optional_list(
             TokenType::SquaredLeftBracket,
             TokenType::SquaredRightBracket,
+            "Expected type argument.",
             Parser::parse_type,
         )?;
 
@@ -174,6 +176,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         let (type_parameters, _) = self.parse_optional_list(
             TokenType::SquaredLeftBracket,
             TokenType::SquaredRightBracket,
+            "Expected type argument.",
             Parser::parse_type,
         )?;
         let open_parenthesis = self.cursor.force(
@@ -214,6 +217,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         let (type_arguments, _) = self.parse_optional_list(
             TokenType::SquaredLeftBracket,
             TokenType::SquaredRightBracket,
+            "expected type argument",
             Parser::parse_type,
         )?;
 

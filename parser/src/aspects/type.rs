@@ -78,6 +78,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
                 let (params, params_segment) = self.parse_optional_list(
                     TokenType::SquaredLeftBracket,
                     TokenType::SquaredRightBracket,
+                    "Expected type parameter.",
                     Self::parse_type_parameter,
                 )?;
 
@@ -139,6 +140,7 @@ impl<'a> Parser<'a> {
         let (inputs, segment) = self.parse_implicit_list(
             TokenType::RoundedLeftBracket,
             TokenType::RoundedRightBracket,
+            "Expected type.",
             Self::parse_type,
         )?;
 
@@ -198,6 +200,7 @@ impl<'a> Parser<'a> {
                 let (params, params_segment) = self.parse_optional_list(
                     TokenType::SquaredLeftBracket,
                     TokenType::SquaredRightBracket,
+                    "Expected type.",
                     Self::parse_type,
                 )?;
                 if let Some(params_segment) = params_segment {

@@ -11,10 +11,12 @@ use crate::parser::{ParseResult, Parser};
 pub(super) trait ExpressionListAspect<'a> {
     ///Implicit lists are whether A, (A), (A, B, ...) or () (if it can be empty)
     /// according that `(` and `)` are the [`start`]/[`end`] of the list expression.
+    /// [`if_it_absent_msg`] used when an element is missing
     fn parse_implicit_list<E, F>(
         &mut self,
         start: TokenType,
         end: TokenType,
+        if_it_absent_msg: &str,
         parse_element: F,
     ) -> ParseResult<(Vec<E>, SourceSegment)>
     where
@@ -26,11 +28,13 @@ pub(super) trait ExpressionListAspect<'a> {
     /// An explicit list cannot consider an expression A as valid, the expression must be surrounded
     /// with [`start`] and [`end`]
     /// [`if_absent_msg`] is used if the list's start token is not present
+    /// [`if_it_absent_msg`] used when an element is missing
     fn parse_explicit_list<E, F>(
         &mut self,
         start: TokenType,
         end: TokenType,
         if_absent_msg: &str,
+        if_it_absent_msg: &str,
         parse_element: F,
     ) -> ParseResult<(Vec<E>, SourceSegment)>
     where
@@ -40,11 +44,12 @@ pub(super) trait ExpressionListAspect<'a> {
     /// parses a list which is either nonexistent or explicit but nonempty.
     /// - if the current's token does not match `start`, an empty vec is returned.
     /// - else, an explicit list is parsed, that must end with `end` token.
-    /// [`if_absent_msg`] is used if the list's start token is not present
+    /// [`if_it_absent_msg`] used when an element is missing
     fn parse_optional_list<E, F>(
         &mut self,
         start: TokenType,
         end: TokenType,
+        if_it_absent_msg: &str,
         parse_element: F,
     ) -> ParseResult<(Vec<E>, Option<SourceSegment>)>
     where
@@ -57,6 +62,7 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         &mut self,
         start: TokenType,
         end: TokenType,
+        if_it_absent_msg: &str,
         mut parse_element: F,
     ) -> ParseResult<(Vec<E>, SourceSegment)>
     where
@@ -64,7 +70,7 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         F: FnMut(&mut Self) -> ParseResult<E>,
     {
         if self.cursor.lookahead(of_type(start)).is_some() {
-            self.parse_explicit_list(start, end, "", parse_element)
+            self.parse_explicit_list(start, end, "", if_it_absent_msg, parse_element)
         } else {
             let elem = parse_element(self)?;
             let segment = elem.segment();
@@ -77,6 +83,7 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         start: TokenType,
         end: TokenType,
         if_absent_msg: &str,
+        if_it_absent_msg: &str,
         mut parse_element: F,
     ) -> ParseResult<(Vec<E>, SourceSegment)>
     where
@@ -96,7 +103,7 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
             while let Some(comma) = self.cursor.advance(of_type(Comma)) {
                 self.cursor.advance(blanks());
                 self.report_error(self.mk_parse_error(
-                    "Expected expression.",
+                    if_it_absent_msg,
                     comma,
                     ParseErrorKind::Unexpected,
                 ));
@@ -133,6 +140,7 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         &mut self,
         start: TokenType,
         end: TokenType,
+        if_it_absent_msg: &str,
         parse_element: F,
     ) -> ParseResult<(Vec<E>, Option<SourceSegment>)>
     where
@@ -143,7 +151,7 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
             return Ok((Vec::new(), None));
         }
         self.cursor.advance(blanks());
-        let (tparams, segment) = { self.parse_explicit_list(start, end, "", parse_element)? };
+        let (tparams, segment) = { self.parse_explicit_list(start, end, "", if_it_absent_msg, parse_element)? };
 
         Ok((tparams, Some(segment)))
     }
