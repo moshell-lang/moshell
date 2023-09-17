@@ -1,5 +1,5 @@
 use crate::cli::{use_pipeline, Cli};
-use crate::pipeline::{ErrorReporter, FileImporter, PipelineStatus, SourcesCache};
+use crate::pipeline::{ErrorReporter, PipelineStatus, SourcesCache};
 use crate::repl::repl;
 use crate::std::build_std;
 use ::std::ffi::OsStr;
@@ -20,8 +20,7 @@ mod report;
 mod std;
 
 fn main() -> Result<PipelineStatus, miette::Error> {
-    #[cfg(unix)]
-    {
+    if cfg!(unix) && !cfg!(miri) {
         // Override Rust's default `SIGPIPE` signal handler that ignores the signal.
         // `println!` will no longer panic since the process will be killed before
         // trying to write something. Restoring this Unix behavior is also important
@@ -78,15 +77,15 @@ fn run(
         path
     };
 
-    let mut importer = FileImporter::new(folder_path);
+    sources.register(folder_path);
+    let importer = sources.last_mut();
     importer.add_redirection(name.clone(), source.to_path_buf());
 
     let mut analyzer = Analyzer::new();
-    analyzer.process(name.clone(), &mut importer, &externals);
+    analyzer.process(name.clone(), importer, &externals);
 
     let diagnostics = analyzer.take_diagnostics();
     let errors = importer.take_errors();
-    sources.set(externals.current, importer.take_sources());
 
     Ok(use_pipeline(
         &name,

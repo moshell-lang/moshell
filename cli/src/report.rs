@@ -9,7 +9,7 @@ use analyzer::reef::{Externals, ReefId};
 use context::source::{ContentId, Source, SourceSegment};
 use parser::err::{ParseError, ParseErrorKind};
 
-use crate::pipeline::SourcesCache;
+use crate::pipeline::{SourceHolder, SourcesCache};
 
 macro_rules! print_flush {
     ( $($t:tt)* ) => {
@@ -113,7 +113,10 @@ pub fn display_diagnostic<W: Write>(
             .as_ref()
             .map_or(true, |s| s.id == content_id && s.reef == loc.reef)
         {
-            let source = sources.get(loc.reef, content_id).expect("Unknown source");
+            let source = sources
+                .get(loc.reef)
+                .and_then(|importer| importer.get_source(content_id))
+                .expect("Unknown source");
             let span = loc.segment.clone();
             diag = diag.and_label(LabeledSpan::new(obs.message, span.start, span.len()));
             displayed_source = Some(AttachedSource {

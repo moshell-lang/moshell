@@ -29,7 +29,11 @@ pub enum VmError {
 impl VM {
     /// Creates a new virtual machine.
     pub fn new() -> Self {
-        Self(unsafe { moshell_vm_init() })
+        Self(if cfg!(not(miri)) {
+            unsafe { moshell_vm_init() }
+        } else {
+            VmFFI(std::ptr::null_mut())
+        })
     }
 
     /// Appends new bytecode to the VM.
@@ -38,6 +42,9 @@ impl VM {
     /// An invalid bytecode will almost certainly result in a deterministic error during loading,
     /// or a non-deterministic error during execution.
     pub fn register(&mut self, bytes: &[u8]) -> Result<(), VmError> {
+        if cfg!(miri) {
+            return Ok(()); // Not supported
+        }
         unsafe { moshell_vm_register(self.0, bytes.as_ptr(), bytes.len()) != -1 }
             .then_some(())
             .ok_or(VmError::Internal)
@@ -48,6 +55,9 @@ impl VM {
     /// # Safety
     /// The caller must ensure that the previously registered bytecode is valid.
     pub unsafe fn run(&mut self) -> Result<(), VmError> {
+        if cfg!(miri) {
+            return Ok(()); // Not supported
+        }
         match moshell_vm_run(self.0) {
             0 => Ok(()),
             1 => Err(VmError::Panic),
@@ -69,7 +79,9 @@ impl Default for VM {
 
 impl Drop for VM {
     fn drop(&mut self) {
-        unsafe { moshell_vm_free(self.0) }
+        if cfg!(not(miri)) {
+            unsafe { moshell_vm_free(self.0) }
+        }
     }
 }
 

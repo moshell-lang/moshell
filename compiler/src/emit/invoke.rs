@@ -108,8 +108,6 @@ pub fn emit_process_call(
         // the stack if the value isn't used later in the code
         instructions.emit_pop(ValueStackSize::Byte);
     }
-
-
 }
 
 fn emit_process_call_self(
