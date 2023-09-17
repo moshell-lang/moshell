@@ -20,8 +20,7 @@ mod report;
 mod std;
 
 fn main() -> Result<PipelineStatus, miette::Error> {
-    #[cfg(unix)]
-    {
+    if cfg!(unix) && !cfg!(miri) {
         // Override Rust's default `SIGPIPE` signal handler that ignores the signal.
         // `println!` will no longer panic since the process will be killed before
         // trying to write something. Restoring this Unix behavior is also important
