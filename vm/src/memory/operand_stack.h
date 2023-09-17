@@ -112,7 +112,7 @@ public:
         }
 
         size_t false_bits_count = sizeof(T);
-        if constexpr ((std::is_pointer_v<T> || std::is_reference_v<T>) && std::is_same_v<std::decay_t<T>, msh::obj*>) {
+        if constexpr (std::is_same_v<msh::obj, std::remove_cvref_t<std::remove_pointer_t<T>>>) {
             operands_refs.push_back(true);
             false_bits_count--;
         }

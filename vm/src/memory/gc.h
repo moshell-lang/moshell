@@ -30,10 +30,10 @@ namespace msh {
          * */
         uint8_t cycle;
 
-        void scan_exported_vars(std::vector<msh::obj *> &roots);
-        void scan_constants(std::vector<msh::obj *> &roots);
-        void scan_thread(std::vector<msh::obj *> &roots);
-        void walk_objects(std::vector<msh::obj *> to_visit);
+        void scan_exported_vars(std::vector<const msh::obj *> &roots);
+        void scan_constants(std::vector<const msh::obj *> &roots);
+        void scan_thread(std::vector<const msh::obj *> &roots);
+        void walk_objects(std::vector<const msh::obj *> to_visit);
 
     public:
         gc(heap &heap_space, CallStack &thread_stack, const pager &pages, const loader &ldr);

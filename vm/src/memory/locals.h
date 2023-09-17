@@ -58,8 +58,8 @@ public:
     void set_byte(uint8_t b, size_t at);
 
     template <typename T>
-    T* get(size_t at) const {
-        check_capacity(at, sizeof(T*), "accessing");
+    T *get(size_t at) const {
+        check_capacity(at, sizeof(T *), "accessing");
         return (T *)(bytes + at);
     }
 

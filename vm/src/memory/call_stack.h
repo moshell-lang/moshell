@@ -99,17 +99,18 @@ public:
 };
 
 // concurrent modification of call_stack is UB
-class call_stack_iterator : public std::iterator<
-                                std::forward_iterator_tag,
-                                const stack_frame,
-                                size_t,
-                                const stack_frame *,
-                                const stack_frame &> {
+class call_stack_iterator {
     CallStack *call_stack;
     size_t pos;
     size_t frame_ord;
 
 public:
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = const stack_frame;
+    using difference_type = size_t;
+    using pointer = const stack_frame *;
+    using reference = const stack_frame &;
+
     call_stack_iterator(CallStack *call_stack, size_t pos, size_t frame_ord);
     call_stack_iterator &operator++();
     bool operator==(const call_stack_iterator &other);

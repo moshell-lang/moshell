@@ -28,7 +28,7 @@ namespace msh {
      * A vm object that can be stored in the heap.
      */
     class obj {
-        uint8_t gc_cycle;
+        mutable uint8_t gc_cycle;
         obj_data data;
 
         friend gc;
