@@ -1,10 +1,16 @@
 #![allow(unused, dead_code, warnings)]
-pub mod value;
+
+use std::ffi;
+use std::ffi::{CStr, CString};
+use std::mem::{ManuallyDrop, MaybeUninit};
+use std::pin::Pin;
+use std::ptr::null_mut;
 
 use context::source::ContentId;
-use std::ffi;
-use std::ffi::CString;
 
+use crate::value::VmValue;
+
+pub mod value;
 /// Executes the given bytecode.
 ///
 /// The execution will block the thread until the Moshell program terminates.
@@ -84,6 +90,25 @@ impl VM {
             moshell_vm_get_exported(self.0, c_name.into_raw())
         }
     }
+
+    pub fn gc(&mut self) {
+        unsafe { moshell_vm_gc_run(self.0) }
+    }
+
+    pub fn gc_collect(&mut self) -> Vec<VmValue> {
+        unsafe {
+            let result = moshell_vm_gc_collect_detached(self.0.clone());
+
+            let size = result.collected_objects_count as usize;
+            let mut vec = Vec::with_capacity(size);
+
+            for i in 0..size {
+                let obj = *(result.collected_objects.wrapping_add(i));
+                vec.push(VmValue::from(obj))
+            }
+            vec
+        }
+    }
 }
 
 impl Default for VM {
@@ -102,13 +127,25 @@ impl Drop for VM {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-struct VmArrayFFI(u64, *mut VmValueFFI);
+struct VmArrayFFI(u64, *mut VmObjectFFI);
 #[repr(C)]
 #[derive(Copy, Clone)]
 struct VmStringFFI(u64, *mut ffi::c_char);
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct VmValueFFI(*mut ffi::c_void);
+
+#[derive(Copy, Clone)]
+enum VmObjectType {
+    Str,
+    Int,
+    Double,
+    Vec,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct VmObjectFFI(VmObjectType, *mut ffi::c_void);
 
 impl VmValueFFI {
     pub unsafe fn get_as_u8(self) -> u8 {
@@ -120,21 +157,64 @@ impl VmValueFFI {
     pub unsafe fn get_as_double(self) -> f64 {
         moshell_value_get_as_double(self)
     }
+    pub unsafe fn get_as_obj(self) -> VmObjectFFI {
+        moshell_value_get_as_object(self)
+    }
+}
 
+impl VmObjectFFI {
+    pub unsafe fn unbox(self) -> VmValueFFI {
+        moshell_object_unbox(self)
+    }
     pub unsafe fn get_as_string(self) -> String {
-        let buff = moshell_value_get_as_string(self);
-        let c_str = CString::from_raw(buff.cast_mut());
+        let buff = moshell_object_get_as_string(self);
+        let c_str = CStr::from_ptr(buff.cast_mut());
         let str = c_str.to_str().expect("utf8 error");
         str.to_string()
     }
-    pub unsafe fn get_as_vec(self) -> Vec<VmValueFFI> {
-        let msh_array = moshell_value_get_as_array(self);
+    pub unsafe fn get_as_vec(self) -> Vec<VmObjectFFI> {
+        let msh_array = moshell_object_get_as_array(self);
         let mut vec = Vec::with_capacity(msh_array.0 as usize);
 
         for i in 0..msh_array.0 as usize {
-            vec.push(*(msh_array.1.wrapping_add(i)))
+            let obj = *(msh_array.1.wrapping_add(i));
+            vec.push(obj)
         }
         vec
+    }
+}
+
+impl From<VmValueFFI> for VmValue {
+    fn from(value: VmValueFFI) -> Self {
+        todo!()
+    }
+}
+
+impl From<VmObjectFFI> for VmValue {
+    fn from(value: VmObjectFFI) -> Self {
+        unsafe {
+            match value.0 {
+                VmObjectType::Str => VmValue::String(value.get_as_string()),
+                VmObjectType::Vec => {
+                    VmValue::Vec(value.get_as_vec().into_iter().map(VmValue::from).collect())
+                }
+                VmObjectType::Int => VmValue::Int(value.unbox().get_as_i64()),
+                VmObjectType::Double => VmValue::Double(value.unbox().get_as_double()),
+            }
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Clone)]
+struct VmGcResultFFI {
+    collected_objects_count: u64,
+    collected_objects: *const VmObjectFFI,
+}
+
+impl Drop for VmGcResultFFI {
+    fn drop(&mut self) {
+        unsafe { gc_collection_result_free(self.clone()) }
     }
 }
 
@@ -143,8 +223,10 @@ extern "C" {
     fn moshell_value_get_as_byte(val: VmValueFFI) -> u8;
     fn moshell_value_get_as_int(val: VmValueFFI) -> i64;
     fn moshell_value_get_as_double(val: VmValueFFI) -> f64;
-    fn moshell_value_get_as_string(val: VmValueFFI) -> *const ffi::c_char;
-    fn moshell_value_get_as_array(val: VmValueFFI) -> VmArrayFFI;
+    fn moshell_value_get_as_object(val: VmValueFFI) -> VmObjectFFI;
+    fn moshell_object_unbox(val: VmObjectFFI) -> VmValueFFI;
+    fn moshell_object_get_as_string(val: VmObjectFFI) -> *const ffi::c_char;
+    fn moshell_object_get_as_array(val: VmObjectFFI) -> VmArrayFFI;
 
     fn moshell_exec(bytes: *const u8, byte_count: usize) -> ffi::c_int;
 
@@ -159,4 +241,8 @@ extern "C" {
     fn moshell_vm_free(vm: VmFFI);
 
     fn moshell_vm_get_exported(vm: VmFFI, name: *const ffi::c_char) -> VmValueFFI;
+
+    fn moshell_vm_gc_collect_detached(vm: VmFFI) -> VmGcResultFFI;
+    fn moshell_vm_gc_run(vm: VmFFI);
+    fn gc_collection_result_free(res: VmGcResultFFI);
 }

@@ -17,8 +17,8 @@ static void float_to_string(OperandStack &caller_stack, runtime_memory &mem) {
 }
 
 static void str_concat(OperandStack &caller_stack, runtime_memory &mem) {
-    const std::string &right = caller_stack.pop_reference().get<const std::string>();
-    const std::string &left = caller_stack.pop_reference().get<const std::string>();
+    const std::string &right = caller_stack.pop_reference().get<std::string>();
+    const std::string &left = caller_stack.pop_reference().get<std::string>();
 
     std::string result = left + right;
 
@@ -27,13 +27,13 @@ static void str_concat(OperandStack &caller_stack, runtime_memory &mem) {
 }
 
 static void str_eq(OperandStack &caller_stack, runtime_memory &) {
-    const std::string &right = caller_stack.pop_reference().get<const std::string>();
-    const std::string &left = caller_stack.pop_reference().get<const std::string>();
+    const std::string &right = caller_stack.pop_reference().get<std::string>();
+    const std::string &left = caller_stack.pop_reference().get<std::string>();
     caller_stack.push_byte(static_cast<int8_t>(right == left));
 }
 
 void get_env(OperandStack &caller_stack, runtime_memory &mem) {
-    const std::string &var_name = caller_stack.pop_reference().get<const std::string>();
+    const std::string &var_name = caller_stack.pop_reference().get<std::string>();
     char *value = getenv(var_name.c_str());
     if (value == nullptr) {
         throw RuntimeException("Environment variable " + var_name + " isn't defined.");
@@ -42,18 +42,18 @@ void get_env(OperandStack &caller_stack, runtime_memory &mem) {
 }
 
 void set_env(OperandStack &caller_stack, runtime_memory &) {
-    const std::string &value = caller_stack.pop_reference().get<const std::string>();
-    const std::string &var_name = caller_stack.pop_reference().get<const std::string>();
+    const std::string &value = caller_stack.pop_reference().get<std::string>();
+    const std::string &var_name = caller_stack.pop_reference().get<std::string>();
     setenv(var_name.c_str(), value.c_str(), true);
 }
 
 void is_env_def(OperandStack &caller_stack, runtime_memory &) {
-    const std::string &var_name = caller_stack.pop_reference().get<const std::string>();
+    const std::string &var_name = caller_stack.pop_reference().get<std::string>();
     caller_stack.push_byte(getenv(var_name.c_str()) != nullptr);
 }
 
 void panic(OperandStack &caller_stack, runtime_memory &) {
-    const std::string &message = caller_stack.pop_reference().get<const std::string>();
+    const std::string &message = caller_stack.pop_reference().get<std::string>();
     throw RuntimeException(message);
 }
 
@@ -99,8 +99,8 @@ void round(OperandStack &caller_stack, runtime_memory &) {
 }
 
 static void str_split(OperandStack &caller_stack, runtime_memory &mem) {
-    const std::string &delim = caller_stack.pop_reference().get<const std::string>();
-    const std::string &str = caller_stack.pop_reference().get<const std::string>();
+    const std::string &delim = caller_stack.pop_reference().get<std::string>();
+    const std::string &str = caller_stack.pop_reference().get<std::string>();
 
     msh::obj &res_obj = mem.emplace(msh::obj_vector());
     caller_stack.push_reference(res_obj);
@@ -121,7 +121,7 @@ static void str_split(OperandStack &caller_stack, runtime_memory &mem) {
 }
 
 static void str_bytes(OperandStack &caller_stack, runtime_memory &mem) {
-    const std::string &str = caller_stack.pop_reference().get<const std::string>();
+    const std::string &str = caller_stack.pop_reference().get<std::string>();
     msh::obj_vector res;
     res.reserve(str.length());
 

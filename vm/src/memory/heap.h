@@ -20,7 +20,7 @@ namespace msh {
         using std::vector<obj *>::vector;
     };
 
-    using obj_data = std::variant<int64_t, double, const std::string, obj_vector>;
+    using obj_data = std::variant<int64_t, double, std::string, obj_vector>;
 
     class gc;
 

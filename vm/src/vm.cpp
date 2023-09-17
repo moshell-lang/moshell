@@ -4,6 +4,9 @@
 #include "definitions/loader.h"
 #include "definitions/pager.h"
 #include "interpreter.h"
+#include "memory/call_stack.h"
+#include "memory/gc.h"
+#include <cstring>
 #include <iostream>
 
 uint8_t moshell_value_get_as_byte(moshell_value val) {
@@ -15,17 +18,59 @@ int64_t moshell_value_get_as_int(moshell_value val) {
 double moshell_value_get_as_double(moshell_value val) {
     return *(double *)val.val;
 }
-const char *moshell_value_get_as_string(moshell_value val) {
+
+moshell_object moshell_value_get_as_object(moshell_value val) {
+    moshell_object_type type;
     msh::obj *obj = (msh::obj *)val.val;
-    const char *str = obj->get<const std::string>().c_str();
+
+    std::visit([&](auto &&data) {
+        using T = std::decay_t<decltype(data)>;
+        if constexpr (std::is_same_v<T, std::string>) {
+            type = OBJ_STR;
+        } else if constexpr (std::is_same_v<T, int64_t>) {
+            type = OBJ_INT;
+        } else if constexpr (std::is_same_v<T, double>) {
+            type = OBJ_DOUBLE;
+        } else if constexpr (std::is_same_v<T, msh::obj_vector>) {
+            type = OBJ_VEC;
+        } else {
+            // unreachable
+            static_assert(sizeof(T) != sizeof(T), "missing object variant");
+        }
+    },
+               obj->get_data());
+
+    return moshell_object{type, obj};
+}
+
+moshell_value moshell_object_unbox(moshell_object o) {
+    msh::obj *obj = (msh::obj *)o.val;
+    moshell_value val;
+    std::visit([&](auto &&data) {
+        using T = std::decay_t<decltype(data)>;
+        if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, double>) {
+            val = moshell_value{&data};
+        } else {
+            std::cerr << "not an unboxable object";
+            exit(1);
+        }
+    },
+               obj->get_data());
+    return val;
+}
+
+const char *moshell_object_get_as_string(moshell_object o) {
+    msh::obj *obj = (msh::obj *)o.val;
+    const char *str = obj->get<std::string>().c_str();
     return str;
 }
-moshell_array moshell_value_get_as_array(moshell_value val) {
-    msh::obj *obj = (msh::obj *)val.val;
+moshell_array moshell_object_get_as_array(moshell_object o) {
+    msh::obj *obj = (msh::obj *)o.val;
     msh::obj_vector &vec = obj->get<msh::obj_vector>();
+    moshell_object *data = (moshell_object *)vec.data();
     return moshell_array{
         vec.size(),
-        (moshell_value *)vec.data(),
+        data,
     };
 }
 
@@ -33,6 +78,8 @@ struct vm_state {
     msh::loader loader;
     msh::pager pager;
     msh::heap heap;
+    CallStack thread_stack{10000};
+    msh::gc gc{heap, thread_stack, pager, loader};
     natives_functions_t natives;
     size_t next_page{};
 };
@@ -77,7 +124,7 @@ int moshell_vm_run(moshell_vm vm) {
         const auto last = state.pager.cbegin() + (state.pager.size() - state.next_page);
         for (auto it = state.pager.cbegin(); it != last; ++it) {
             const msh::memory_page &page = *it;
-            if (!run_unit(state.loader, state.pager, page, state.heap, state.natives)) {
+            if (!run_unit(state.thread_stack, state.loader, state.pager, page, {state.heap, state.gc}, state.natives)) {
                 return 1;
             }
         }
@@ -98,4 +145,37 @@ size_t moshell_vm_next_page(moshell_vm vm) {
 
 void moshell_vm_free(moshell_vm vm) {
     delete static_cast<vm_state *>(vm.vm);
+}
+
+gc_collection_result moshell_vm_gc_collect_detached(moshell_vm vm) {
+    vm_state &state = *static_cast<vm_state *>(vm.vm);
+
+    msh::gc_collect gc_collect = state.gc.collect();
+
+    size_t count = gc_collect.object_count;
+
+    moshell_object *collected_objects = static_cast<moshell_object *>(malloc(sizeof(moshell_object) * count));
+
+    for (size_t i = 0; i < count; i++) {
+        const msh::obj *obj = gc_collect.object_refs[i];
+        // moshell values are either numbers or object pointers
+        moshell_value msh_val = moshell_value{obj};
+        // we know the vector contains only objects
+        // (as it is the collected objects from heap)
+        collected_objects[i] = moshell_value_get_as_object(msh_val);
+    }
+
+    return gc_collection_result{
+        count,
+        collected_objects,
+    };
+}
+
+void moshell_vm_gc_run(moshell_vm vm) {
+    vm_state &state = *static_cast<vm_state *>(vm.vm);
+    state.gc.run();
+}
+
+void gc_collection_result_free(gc_collection_result res) {
+    free(const_cast<moshell_object *>(res.collected_objects));
 }

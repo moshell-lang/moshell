@@ -19,16 +19,31 @@ typedef struct {
     const void *val;
 } moshell_value;
 
+typedef enum {
+    OBJ_STR,
+    OBJ_INT,
+    OBJ_DOUBLE,
+    OBJ_VEC
+} moshell_object_type;
+
 typedef struct {
-    uint64_t size;
-    const moshell_value *val;
+    moshell_object_type type;
+    const void *val;
+} moshell_object;
+
+typedef struct {
+    const uint64_t size;
+    const moshell_object *data;
 } moshell_array;
 
 uint8_t moshell_value_get_as_byte(moshell_value val);
 int64_t moshell_value_get_as_int(moshell_value val);
 double moshell_value_get_as_double(moshell_value val);
-const char *moshell_value_get_as_string(moshell_value val);
-moshell_array moshell_value_get_as_array(moshell_value val);
+moshell_object moshell_value_get_as_object(moshell_value val);
+
+moshell_value moshell_object_unbox(moshell_object obj);
+const char *moshell_object_get_as_string(moshell_object obj);
+moshell_array moshell_object_get_as_array(moshell_object obj);
 
 /**
  * An opaque handle to a Moshell VM.
@@ -75,6 +90,7 @@ int moshell_vm_register(moshell_vm vm, const char *bytes, size_t byte_count);
 
 /**
  * Executes the remaining bytecode pages in the VM.
+ * VM runtime does not supports threading and this function must not be called concurrently
  *
  * @param vm The VM to execute.
  * @return 0 if the execution was successful, -1 otherwise.
@@ -97,6 +113,22 @@ size_t moshell_vm_next_page(moshell_vm vm);
  * @param vm The VM to free.
  */
 void moshell_vm_free(moshell_vm vm);
+
+void moshell_vm_gc_run(moshell_vm vm);
+
+typedef struct {
+    const uint64_t collected_objects_count;
+    const moshell_object *collected_objects;
+} gc_collection_result;
+
+/**
+ * For debug and test purposes, runs a gc cycle
+ * but will also place all removed objects from vm's heap
+ * under returned structure.
+ * */
+gc_collection_result moshell_vm_gc_collect_detached(moshell_vm vm);
+
+void gc_collection_result_free(gc_collection_result res);
 
 #ifdef __cplusplus
 }
