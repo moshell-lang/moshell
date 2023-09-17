@@ -49,7 +49,7 @@ void debug_obj_freed(msh::obj &obj) {
             debug_file << "vector len:" << vec.size();
         } else {
             // unreachable
-            throw MemoryError("unknown object type");
+            static_assert(sizeof(T) != sizeof(T), "non-exhaustive object visitor ");
         }
     },
                obj.get_data());
@@ -139,10 +139,10 @@ void gc::scan_thread(std::vector<msh::obj *> &roots) {
     size_t operands_bytes_index = operands_refs_offsets.size();
 
     for (stack_frame frame : thread_call_stack) {
-        const Locals locals = frame.locals;
+        const Locals &locals = frame.locals;
         // add locals roots
         for (size_t obj_ref_offset : frame.function.obj_ref_offsets) {
-            msh::obj *obj_ref = (msh::obj *)locals.get_q_word(obj_ref_offset);
+            msh::obj *obj_ref = *locals.get<msh::obj*>(obj_ref_offset);
             if (obj_ref != nullptr) // might be not yet initialized
                 roots.push_back(obj_ref);
         }

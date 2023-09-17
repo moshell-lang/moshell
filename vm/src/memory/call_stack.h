@@ -95,7 +95,6 @@ public:
     void clear();
 
     call_stack_iterator begin();
-    call_stack_iterator back();
     call_stack_iterator end();
 };
 

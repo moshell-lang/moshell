@@ -12,7 +12,7 @@ namespace msh {
         return objects.front();
     }
 
-    size_t heap::size() {
+    size_t heap::size() const {
         return len;
     }
 }

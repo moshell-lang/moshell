@@ -164,11 +164,9 @@ fn display_code(
     print!("\tobj_refs_offsets: {offsets_count} - [");
 
     if offsets_count >= 1 {
-        let mut i = 1;
         print!("{}", read!(cursor, u32));
-        while i < offsets_count {
+        for _ in 1..offsets_count {
             print!(", {}", read!(cursor, u32));
-            i += 1;
         }
     }
     println!("]");

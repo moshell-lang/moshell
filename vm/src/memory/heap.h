@@ -1,21 +1,21 @@
 #pragma once
 
+#include <cstdint>
 #include <forward_list>
 #include <string>
 #include <variant>
 #include <vector>
-#include <cstdint>
 
 namespace msh {
     // Create a recursive variant type by forward declaring the vector type.
     // Since C++17, `std::vector` doesn't require the type to be complete with
     // an appropriate allocator, and only a pointer is used here.
-    /**
-     * A vector of heap allocated objects.
-     */
 
     class obj;
 
+    /**
+     * A vector of heap allocated objects.
+     */
     struct obj_vector : public std::vector<obj *> {
         using std::vector<obj *>::vector;
     };
@@ -35,7 +35,7 @@ namespace msh {
 
     public:
         template <typename T>
-        obj(T val) : gc_cycle{0}, data{val} {}
+        obj(T val) : gc_cycle{0}, data{std::move(val)} {}
 
         obj_data &get_data();
 
@@ -79,6 +79,6 @@ namespace msh {
          */
         msh::obj &insert(msh::obj &&obj);
 
-        size_t size();
+        size_t size() const;
     };
 }

@@ -1,5 +1,5 @@
 use reef::std::convert
-use reef::std::intern
+use reef::std::memory
 
 
 /// Causes the runtime to panic, with the specified message.

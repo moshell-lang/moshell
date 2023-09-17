@@ -188,7 +188,7 @@ natives_functions_t load_natives() {
         {"std::is_env_def", is_env_def},
         {"std::read_line", read_line},
 
-        {"std::intern::gc", gc},
+        {"std::memory::gc", gc},
 
         {"std::convert::to_exitcode", to_exitcode},
         {"std::convert::ceil", ceil},

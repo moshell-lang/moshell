@@ -132,12 +132,6 @@ call_stack_iterator CallStack::begin() {
     return call_stack_iterator(this, frame_headers_pos, size());
 }
 
-call_stack_iterator CallStack::back() {
-    if (is_empty())
-        return end();
-    return call_stack_iterator(this, 0, 1);
-}
-
 call_stack_iterator CallStack::end() {
     return call_stack_iterator(this, 0, 0);
 }

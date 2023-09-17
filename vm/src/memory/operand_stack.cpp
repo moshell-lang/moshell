@@ -60,12 +60,12 @@ const char *OperandStack::pop_bytes(size_t n) {
     return bytes + current_pos;
 }
 
-void OperandStack::transfer(OperandStack &caller_stack, size_t n) {
+void OperandStack::transfer(OperandStack &callee_stack, size_t n) {
 #ifndef NDEBUG
-    if (n > caller_stack.size())
-        throw std::out_of_range("cannot transfer more byte than contained in source operand stack");
+    if (n > callee_stack.size())
+        throw std::out_of_range("cannot transfer more bytes than contained in the source operand stack");
 #endif
-    memcpy(this->bytes + current_pos, caller_stack.bytes + (caller_stack.size() - n), n);
+    memcpy(this->bytes + current_pos, callee_stack.bytes + (callee_stack.size() - n), n);
     this->current_pos += n;
 }
 

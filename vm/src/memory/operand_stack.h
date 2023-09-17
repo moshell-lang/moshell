@@ -98,8 +98,10 @@ public:
      * transfer to this operand stack the n first bytes of the given caller stack.
      * The bytes are transferred without modifying the operands object refs vector
      * in order to keep the information over contained references
+     *
+     * The operand stacks must be adjacent in callstack (this = caller_stack, callee_stack the callee stack) otherwise this operation will result to undefined state of the callstack
      * */
-    void transfer(OperandStack &caller_stack, size_t n);
+    void transfer(OperandStack &callee_stack, size_t n);
 
     void push(const char *bytes, size_t size);
 
@@ -110,7 +112,7 @@ public:
         }
 
         size_t false_bits_count = sizeof(T);
-        if constexpr (std::is_same_v<T, msh::obj *>) {
+        if constexpr ((std::is_pointer_v<T> || std::is_reference_v<T>) && std::is_same_v<std::decay_t<T>, msh::obj*>) {
             operands_refs.push_back(true);
             false_bits_count--;
         }
