@@ -177,7 +177,7 @@ natives_functions_t load_natives(msh::heap &) {
         {"std::set_env", set_env},
         {"std::is_env_def", is_env_def},
         {"std::read_line", read_line},
-        
+
         {"std::convert::to_exitcode", to_exitcode},
         {"std::convert::ceil", ceil},
         {"std::convert::floor", floor},

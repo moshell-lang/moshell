@@ -245,9 +245,9 @@ fn no_comma_or_two() {
                     kind: ParseErrorKind::Unexpected
                 },
                 ParseError {
-                    message: "Expected ','".to_owned(),
+                    message: "A comma or a closing bracket was expected here".to_owned(),
                     position: content.find(" b").map(|p| p + 1..p + 2).unwrap(),
-                    kind: ParseErrorKind::Unexpected
+                    kind: ParseErrorKind::Expected("',' or ')'".to_string())
                 },
                 ParseError {
                     message: "Expected parameter.".to_owned(),
@@ -315,7 +315,7 @@ fn do_not_self_lock() {
             })],
             errors: vec![
                 ParseError {
-                    message: "Expected expression.".to_owned(),
+                    message: "Expected type parameter.".to_owned(),
                     position: content.find(',').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 },

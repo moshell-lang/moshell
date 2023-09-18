@@ -522,7 +522,8 @@ pub(super) fn type_parameter(
                 ty: type_id,
             }
         }
-        FunctionParameter::Variadic(_) => todo!("Arrays are not supported yet"),
+        FunctionParameter::Slf(_) => todo!("method not supported yet"),
+        FunctionParameter::Variadic(_, _) => todo!("Arrays are not supported yet"),
     }
 }
 

@@ -20,6 +20,7 @@ use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
 use crate::aspects::modules::ModulesAspect;
 use crate::aspects::r#loop::LoopAspect;
 use crate::aspects::r#match::MatchAspect;
+use crate::aspects::r#struct::StructAspect;
 use crate::aspects::r#type::TypeAspect;
 use crate::aspects::range::RangeAspect;
 use crate::aspects::redirection::RedirectionAspect;
@@ -226,6 +227,8 @@ impl<'a> Parser<'a> {
 
         let pivot = self.cursor.peek().token_type;
         let expr = match pivot {
+            Struct => self.parse_struct().map(Expr::StructDeclaration),
+            Impl => self.parse_impl().map(Expr::Impl),
             While => self.parse_while().map(Expr::While),
             For => self.parse_for().map(Expr::For),
             Identifier

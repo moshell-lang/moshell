@@ -2,10 +2,7 @@ use ast::r#type::{ByName, CallableType, ParametrizedType, Type, TypeParameter};
 use ast::r#use::InclusionPathItem;
 use context::display::fmt_comma_separated;
 use context::source::{SourceSegment, SourceSegmentHolder};
-use lexer::token::TokenType::{
-    FatArrow, Identifier, NewLine, RoundedLeftBracket, RoundedRightBracket, SquaredLeftBracket,
-    SquaredRightBracket,
-};
+use lexer::token::TokenType;
 
 use crate::aspects::expr_list::ExpressionListAspect;
 use crate::aspects::modules::ModulesAspect;
@@ -29,15 +26,15 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         let first_token = self.cursor.peek();
         // if there's a parenthesis then the type is necessarily a lambda type
         let mut tpe = match first_token.token_type {
-            RoundedLeftBracket => self.parse_parentheses()?,
-            FatArrow => self.parse_by_name().map(Type::ByName)?,
-            _ => self.parse_parametrized()?,
+            TokenType::RoundedLeftBracket => self.parse_parentheses()?,
+            TokenType::FatArrow => self.parse_by_name().map(Type::ByName)?,
+            _ => self.parse_parametrized().map(Type::Parametrized)?,
         };
         //check if there's an arrow, if some, we are maybe in a case where the type is "A => ..."
         // (a lambda with one parameter and no parenthesis for the input, which is valid)
         if self
             .cursor
-            .advance(blanks().then(of_type(FatArrow)))
+            .advance(blanks().then(of_type(TokenType::FatArrow)))
             .is_none()
         {
             return Ok(tpe);
@@ -49,7 +46,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
                 self.cursor.relative_pos_ctx(first_token.clone()).start..output.segment().end;
             tpe = Type::Callable(CallableType {
                 params: vec![tpe],
-                output: Box::new(output),
+                output: Box::new(Type::Parametrized(output)),
                 segment,
             })
         }
@@ -58,7 +55,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         // (a lambda with one parameter and no parenthesis for the input, which is valid)
         if self
             .cursor
-            .advance(blanks().then(of_type(FatArrow)))
+            .advance(blanks().then(of_type(TokenType::FatArrow)))
             .is_some()
         {
             //parse second lambda output in order to advance on the full invalid lambda expression
@@ -66,7 +63,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             return self.expected_with(
                 "Lambda type as input of another lambda must be surrounded with parenthesis",
                 first_token..self.cursor.peek(),
-                Expected(self.unparenthesised_lambda_input_tip(tpe, second_rt)),
+                Expected(self.unparenthesised_lambda_input_tip(tpe, Type::Parametrized(second_rt))),
             );
         }
 
@@ -77,10 +74,11 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         let name = self.cursor.next()?;
 
         match name.token_type {
-            Identifier => {
+            TokenType::Identifier => {
                 let (params, params_segment) = self.parse_optional_list(
-                    SquaredLeftBracket,
-                    SquaredRightBracket,
+                    TokenType::SquaredLeftBracket,
+                    TokenType::SquaredRightBracket,
+                    "Expected type parameter.",
                     Self::parse_type_parameter,
                 )?;
 
@@ -117,11 +115,13 @@ impl<'a> Parser<'a> {
     fn parse_by_name(&mut self) -> ParseResult<ByName<'a>> {
         let arrow = self
             .cursor
-            .force(of_type(FatArrow), "'=>' expected here.")?;
+            .force(of_type(TokenType::FatArrow), "'=>' expected here.")?;
 
         //control case of => => A which is invalid
-        self.cursor
-            .force(spaces().then(not(of_type(FatArrow))), "unexpected '=>'")?;
+        self.cursor.force(
+            spaces().then(not(of_type(TokenType::FatArrow))),
+            "unexpected '=>'",
+        )?;
 
         let name = self.parse_type().map(Box::new)?;
         let segment = self.cursor.relative_pos_ctx(arrow).start..name.segment().end;
@@ -137,13 +137,17 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_parentheses(&mut self) -> ParseResult<Type<'a>> {
-        let (inputs, segment) =
-            self.parse_implicit_list(RoundedLeftBracket, RoundedRightBracket, Self::parse_type)?;
+        let (inputs, segment) = self.parse_implicit_list(
+            TokenType::RoundedLeftBracket,
+            TokenType::RoundedRightBracket,
+            "Expected type.",
+            Self::parse_type,
+        )?;
 
         //if there is an arrow then it is a lambda
         if self
             .cursor
-            .advance(spaces().then(of_type(FatArrow)))
+            .advance(spaces().then(of_type(TokenType::FatArrow)))
             .is_some()
         {
             return self
@@ -182,7 +186,7 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_parametrized(&mut self) -> ParseResult<Type<'a>> {
+    fn parse_parametrized(&mut self) -> ParseResult<ParametrizedType<'a>> {
         self.cursor.advance(spaces());
         let start = self.cursor.peek();
         let mut path = self.parse_inclusion_path()?;
@@ -191,11 +195,12 @@ impl<'a> Parser<'a> {
         let mut segment = self.cursor.relative_pos_ctx(start..name_token.clone());
 
         return match name_token.token_type {
-            Identifier => {
+            TokenType::Identifier => {
                 self.cursor.next_opt();
                 let (params, params_segment) = self.parse_optional_list(
-                    SquaredLeftBracket,
-                    SquaredRightBracket,
+                    TokenType::SquaredLeftBracket,
+                    TokenType::SquaredRightBracket,
+                    "Expected type.",
                     Self::parse_type,
                 )?;
                 if let Some(params_segment) = params_segment {
@@ -206,14 +211,14 @@ impl<'a> Parser<'a> {
                     name_token.value,
                     self.cursor.relative_pos(name_token),
                 ));
-                Ok(Type::Parametrized(ParametrizedType {
+                Ok(ParametrizedType {
                     path,
                     params,
                     segment,
-                }))
+                })
             }
 
-            NewLine => {
+            TokenType::NewLine => {
                 self.expected_with("expected type", name_token, Expected("<type>".to_string()))
             }
 
