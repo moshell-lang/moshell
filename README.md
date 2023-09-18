@@ -23,7 +23,8 @@ Moshell is a project in its early stages.
     - [x] Control flow
     - [x] Type hints
     - [ ] Array indexing and ranges *(in progress)*
-    - [ ] User defined types
+    - [x] User defined structures
+    - [ ] User defined enums
 - [x] Static analysis
     - [x] Symbol resolution
     - [x] Imports resolution
@@ -31,7 +32,7 @@ Moshell is a project in its early stages.
     - [x] Primitive type checking
     - [x] Built-in primitive type operations
     - [ ] Detailed error reports *(in progress)*
-    - [ ] Reefs (library support) *(in progress)*
+    - [x] Reefs (library support) 
     - [ ] Generic types
     - [ ] Standard types (`Option[T]`, `Result[A, E]`, `Iterable[T]`...)
     - [ ] User defined types
@@ -40,7 +41,8 @@ Moshell is a project in its early stages.
     - [x] Control flow
     - [x] Function calls
     - [x] Panic
-    - [ ] Array structures
+    - [x] Dynamic memory handling (Garbage Collector)
+    - [X] Vectors *(partial)*
     - [ ] Closures
 - [x] REPL
     - [x] Visualize AST and IR
