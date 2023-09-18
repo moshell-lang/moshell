@@ -160,6 +160,13 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine) {
             );
         }
     }
+    for operand in [INT, FLOAT] {
+        engine.add_method(
+            operand.type_id,
+            "neg",
+            MethodType::native(vec![], operand, gen.next()),
+        );
+    }
 }
 
 fn fill_lang_types(typing: &mut Typing) {

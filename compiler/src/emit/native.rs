@@ -285,6 +285,16 @@ pub(crate) fn emit_natives(
             instructions.patch_jump(end_jump);
             ValueStackSize::Byte
         }
+        44 => {
+            // -Int -> Int
+            instructions.emit_code(Opcode::IntNeg);
+            ValueStackSize::QWord
+        }
+        45 => {
+            // -Float -> Float
+            instructions.emit_code(Opcode::FloatNeg);
+            ValueStackSize::QWord
+        }
         id => todo!("Native function with id {id}"),
     };
 

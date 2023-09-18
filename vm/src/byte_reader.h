@@ -25,7 +25,9 @@ public:
     size_t position() const;
 
     template <typename T>
-    T read() requires std::is_trivial_v<T> {
+    T read()
+        requires std::is_trivial_v<T>
+    {
         if (pos + sizeof(T) > byte_count) {
             throw std::out_of_range("Cannot read more bytes: Byte Reader ran out of bytes");
         }
@@ -36,7 +38,9 @@ public:
     }
 
     template <typename T>
-    T *read_n(size_t n) requires std::is_trivial_v<T> {
+    T *read_n(size_t n)
+        requires std::is_trivial_v<T>
+    {
         if (pos + sizeof(T) * n > byte_count) {
             throw std::out_of_range("Cannot read more bytes: Byte Reader ran out of bytes");
         }
