@@ -151,7 +151,8 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
             return Ok((Vec::new(), None));
         }
         self.cursor.advance(blanks());
-        let (tparams, segment) = { self.parse_explicit_list(start, end, "", if_it_absent_msg, parse_element)? };
+        let (tparams, segment) =
+            { self.parse_explicit_list(start, end, "", if_it_absent_msg, parse_element)? };
 
         Ok((tparams, Some(segment)))
     }
