@@ -28,6 +28,8 @@ const COMPARISON_OPERATORS: &[BinaryOperator] = &[
 const EQUALITY_OPERATORS: &[BinaryOperator] =
     &[BinaryOperator::EqualEqual, BinaryOperator::NotEqual];
 
+const LOGICAL_OPERATORS: &[BinaryOperator] = &[BinaryOperator::And, BinaryOperator::Or];
+
 /// A sequential generator for native object ids.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 struct VariableGenerator(usize);
@@ -148,6 +150,16 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine) {
         "bytes",
         MethodType::native(vec![], TypeRef::new(LANG_REEF, TypeId(11)), gen.next()),
     );
+
+    for operand in [BOOL, EXITCODE] {
+        for op in LOGICAL_OPERATORS {
+            engine.add_method(
+                operand.type_id,
+                name_operator_method(*op),
+                MethodType::native(vec![operand], operand, gen.next()),
+            );
+        }
+    }
 }
 
 fn fill_lang_types(typing: &mut Typing) {

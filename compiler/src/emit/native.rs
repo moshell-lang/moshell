@@ -241,6 +241,50 @@ pub(crate) fn emit_natives(
             instructions.emit_invoke(cp.insert_string(STRING_BYTES));
             ValueStackSize::QWord
         }
+        40 | 42 => {
+            // Bool && Bool -> Bool
+            instructions.emit_code(Opcode::DupByte);
+            let end_jump = instructions.emit_jump(if native.0 == 42 {
+                Opcode::IfJump
+            } else {
+                Opcode::IfNotJump
+            });
+            instructions.emit_pop(ValueStackSize::Byte);
+            emit(
+                args.get(0)
+                    .expect("Cannot AND a boolean without a second boolean"),
+                instructions,
+                ctx,
+                cp,
+                locals,
+                state,
+            );
+            instructions.patch_jump(end_jump);
+            ValueStackSize::Byte
+        }
+        41 | 43 => {
+            // Bool || Bool -> Bool
+            instructions.emit_code(Opcode::DupByte);
+            let else_jump = instructions.emit_jump(if native.0 == 43 {
+                Opcode::IfJump
+            } else {
+                Opcode::IfNotJump
+            });
+            let end_jump = instructions.emit_jump(Opcode::Jump);
+            instructions.patch_jump(else_jump);
+            instructions.emit_pop(ValueStackSize::Byte);
+            emit(
+                args.get(0)
+                    .expect("Cannot OR a boolean without a second boolean"),
+                instructions,
+                ctx,
+                cp,
+                locals,
+                state,
+            );
+            instructions.patch_jump(end_jump);
+            ValueStackSize::Byte
+        }
         id => todo!("Native function with id {id}"),
     };
 
