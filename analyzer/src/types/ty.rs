@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::diagnostic::SourceLocation;
 use crate::reef::ReefId;
 use crate::relations::{Definition, NativeId, ObjectId};
-use crate::types::{ERROR, NOTHING};
+use crate::types::{BOOL, ERROR, EXITCODE, FLOAT, INT, NOTHING, UNIT};
 
 /// A type identifier in a [`Typing`] instance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -34,6 +34,10 @@ impl TypeRef {
 
     pub fn is_err(self) -> bool {
         self == ERROR
+    }
+
+    pub fn is_obj(self) -> bool {
+        !matches!(self, NOTHING | UNIT | BOOL | EXITCODE | INT | FLOAT | ERROR)
     }
 }
 

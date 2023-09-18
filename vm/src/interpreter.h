@@ -1,13 +1,28 @@
 #pragma once
 
-#include "memory/object.h"
+#include "memory/heap.h"
 #include "stdlib_natives.h"
 
 namespace msh {
     class loader;
     class pager;
+    class gc;
     struct memory_page;
 }
+
+class runtime_memory {
+    msh::heap &heap;
+    msh::gc &gc;
+
+    size_t last_gc_heap_size;
+
+public:
+    runtime_memory(msh::heap &heap, msh::gc &gc);
+
+    void run_gc();
+
+    msh::obj &emplace(msh::obj_data &&data);
+};
 
 /**
  * used to report runtime exceptions.

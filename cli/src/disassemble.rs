@@ -61,7 +61,9 @@ fn display_function(
     display_code(cursor, constants, dynamic_symbols)?;
 
     let attribute_count = read!(cursor, u8);
-    println!("{attribute_count} attributes");
+    if attribute_count > 0 {
+        println!("{attribute_count} attributes: ");
+    }
 
     for _ in 0..attribute_count {
         let attribute_id = read!(cursor, u8);
@@ -157,6 +159,18 @@ fn display_code(
         println!()
     }
 
+    let offsets_count = read!(cursor, u32);
+
+    print!("\tobj_refs_offsets: {offsets_count} - [");
+
+    if offsets_count >= 1 {
+        print!("{}", read!(cursor, u32));
+        for _ in 1..offsets_count {
+            print!(", {}", read!(cursor, u32));
+        }
+    }
+    println!("]");
+
     Ok(())
 }
 
@@ -172,7 +186,12 @@ fn display_functions(
         let constant_idx = read!(cursor, u32) as usize;
         let str = &constants[constant_idx];
         let offset = read!(cursor, u32);
-        println!("\t{str} {offset}");
+        let is_obj_ref = read!(cursor, u8) == 1;
+        print!("\t{str} {offset}");
+        if is_obj_ref {
+            print!(" (object reference)");
+        }
+        println!()
     }
 
     println!("Functions: ");

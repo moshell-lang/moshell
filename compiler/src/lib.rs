@@ -12,7 +12,7 @@ use analyzer::types::Typing;
 use context::source::ContentId;
 
 use crate::bytecode::{Bytecode, Instructions};
-use crate::constant_pool::{ConstantPool, ExportedSymbol};
+use crate::constant_pool::ConstantPool;
 use crate::emit::{emit, EmissionState, EmitterContext};
 use crate::locals::LocalsLayout;
 use crate::r#type::{get_type_stack_size, ValueStackSize};
@@ -70,7 +70,6 @@ pub fn compile(
             &mut cp,
             line_provider,
         );
-        let _pos = bytecode.len();
         write_exported(&mut cp, &mut bytecode)?;
 
         // filter out native functions
@@ -304,7 +303,7 @@ fn compile_chunk_code(
 
     // set space for explicit parameters
     for (id, param) in chunk.parameters.iter().enumerate() {
-        locals.set_value_space(LocalId(id), param.ty.into())
+        locals.set_value_space(LocalId(id), param.ty)
     }
 
     // set space for implicit captures
@@ -333,6 +332,13 @@ fn compile_chunk_code(
 
     let locals_length = locals.byte_count();
     bytecode.patch_u32_placeholder(locals_byte_count, locals_length);
+
+    let offsets = locals.refs_offset();
+    bytecode.emit_u32(offsets.len() as u32);
+    for offset in offsets {
+        bytecode.emit_u32(offset)
+    }
+
     segments
 }
 
@@ -365,15 +371,11 @@ fn write_constant_pool(cp: &ConstantPool, writer: &mut impl Write) -> Result<(),
 }
 
 fn write_exported(pool: &mut ConstantPool, bytecode: &mut Bytecode) -> Result<(), io::Error> {
-    let symbol_count = u32::try_from(pool.exported.len()).expect("too many exported vars");
-    bytecode.emit_u32(symbol_count);
-    for ExportedSymbol {
-        name_index,
-        local_offset,
-    } in &pool.exported
-    {
-        bytecode.emit_u32(*name_index);
-        bytecode.emit_u32(*local_offset);
+    bytecode.emit_u32(u32::try_from(pool.exported.len()).expect("too many exported vars"));
+    for symbol in &pool.exported {
+        bytecode.emit_u32(symbol.name_index);
+        bytecode.emit_u32(symbol.local_offset);
+        bytecode.emit_byte(symbol.is_obj_ref as u8);
     }
     pool.exported.clear();
     Ok(())

@@ -4,7 +4,9 @@
 #include <string_view>
 #include <unordered_map>
 
-using natives_functions_t = std::unordered_map<std::string_view, void (*)(OperandStack &, msh::heap &)>;
+class runtime_memory;
+
+using natives_functions_t = std::unordered_map<std::string_view, void (*)(OperandStack &, runtime_memory &)>;
 
 natives_functions_t
-load_natives(msh::heap &heap);
+load_natives();

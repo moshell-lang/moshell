@@ -2,7 +2,7 @@
 
 #include "definitions/function_definition.h"
 #include "errors.h"
-#include "memory/object.h"
+#include "memory/heap.h"
 
 #include <memory>
 
@@ -18,7 +18,7 @@ typedef uint32_t constant_index;
  * As the pool isn't the owner of its strings, it contains pointers to the bound `heap` object.
  */
 class ConstantPool {
-    std::unique_ptr<const msh::obj *[]> constants;
+    std::vector<const msh::obj *> constants;
     /**
      * Number of constants in the pool
      */
@@ -27,6 +27,8 @@ class ConstantPool {
     explicit ConstantPool(uint32_t size);
 
     friend ConstantPool load_constant_pool(ByteReader &reader, msh::heap &heap);
+
+    friend msh::gc;
 
 public:
     /**

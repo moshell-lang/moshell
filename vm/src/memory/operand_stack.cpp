@@ -1,10 +1,11 @@
 #include "operand_stack.h"
 #include <cstring>
 
-OperandStack::OperandStack(char *const buff, size_t &position, size_t stack_capacity)
+OperandStack::OperandStack(char *const buff, size_t &position, size_t stack_capacity, std::vector<bool> &operands_refs)
     : bytes{buff},
       current_pos{position},
-      stack_capacity{stack_capacity} {}
+      stack_capacity{stack_capacity},
+      operands_refs{operands_refs} {}
 
 size_t OperandStack::size() const {
     return current_pos;
@@ -19,7 +20,7 @@ void OperandStack::push_int(int64_t i) {
 }
 
 void OperandStack::push_reference(msh::obj &r) {
-    push_unchecked_reference(&r);
+    push(&r);
 }
 
 void OperandStack::push_unchecked_reference(void *r) {
@@ -54,14 +55,26 @@ const char *OperandStack::pop_bytes(size_t n) {
     if (current_pos < n) {
         throw OperandStackUnderflowError("operand stack is empty");
     }
+    operands_refs.resize(operands_refs.size() - n);
     current_pos -= n;
     return bytes + current_pos;
+}
+
+void OperandStack::transfer(OperandStack &callee_stack, size_t n) {
+#ifndef NDEBUG
+    if (n > callee_stack.size())
+        throw std::out_of_range("cannot transfer more bytes than contained in the source operand stack");
+#endif
+    memcpy(this->bytes + current_pos, callee_stack.bytes + (callee_stack.size() - n), n);
+    this->current_pos += n;
 }
 
 void OperandStack::push(const char *bytes, size_t size) {
     if (current_pos + size > stack_capacity) {
         throw StackOverflowError("exceeded stack capacity via operand stack");
     }
-    memcpy(static_cast<void *>(this->bytes + current_pos), bytes, size);
+    // inform that all pushed bytes are not object references
+    operands_refs.resize(operands_refs.size() + size, false);
+    memcpy(this->bytes + current_pos, bytes, size);
     current_pos += size;
 }

@@ -23,6 +23,7 @@ pub struct ConstantPool {
 pub struct ExportedSymbol {
     pub name_index: u32,
     pub local_offset: u32,
+    pub is_obj_ref: bool,
 }
 
 impl ConstantPool {
@@ -43,11 +44,12 @@ impl ConstantPool {
     ///
     /// While this method shouldn't be used for variables that are shadowed later in the code,
     /// it is not an actual problem as the linker will resolve the correct symbol.
-    pub fn insert_exported(&mut self, symbol: &str, local_offset: u32) {
+    pub fn insert_exported(&mut self, symbol: &str, local_offset: u32, is_obj_ref: bool) {
         let name_index = self.insert_string(symbol);
         self.exported.push(ExportedSymbol {
             name_index,
             local_offset,
+            is_obj_ref,
         });
         self.dynsym.insert_full(name_index);
     }

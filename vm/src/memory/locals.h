@@ -57,6 +57,18 @@ public:
      */
     void set_byte(uint8_t b, size_t at);
 
+    template <typename T>
+    T *get(size_t at) const {
+        check_capacity(at, sizeof(T *), "accessing");
+        return (T *)(bytes + at);
+    }
+
+    template <typename T>
+    void set(T t, size_t at) {
+        check_capacity(at, sizeof(T), "updating");
+        *(T *)(bytes + at) = t;
+    }
+
     /**
      * copies the given data from `at` to `at + size`
      * @throws LocalsOutOfBoundError if `at` + size is out of bound
@@ -71,10 +83,4 @@ private:
      * @param action kind of action being made
      */
     inline void check_capacity(size_t at, size_t space_size, std::string_view action) const;
-
-    template <typename T>
-    T get(size_t at) const;
-
-    template <typename T>
-    void set(T t, size_t at);
 };

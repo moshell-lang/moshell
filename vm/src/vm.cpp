@@ -25,7 +25,7 @@ int moshell_exec(const char *bytes, size_t byte_count) {
 
 moshell_vm moshell_vm_init() {
     vm_state *state = new vm_state();
-    state->natives = load_natives(state->heap);
+    state->natives = load_natives();
     return {state};
 }
 

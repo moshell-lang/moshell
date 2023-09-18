@@ -1,0 +1,5 @@
+
+/// forces the Garbage Collector to run a new cycle
+fun gc();
+
+
