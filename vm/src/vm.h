@@ -15,8 +15,11 @@
 extern "C" {
 #endif
 
-typedef struct {
-    const void *val;
+typedef union {
+    int64_t i;
+    uint8_t b;
+    double d;
+    const void *ptr;
 } moshell_value;
 
 typedef enum {
@@ -33,7 +36,7 @@ typedef struct {
 
 typedef struct {
     const uint64_t size;
-    const moshell_object *data;
+    const moshell_value *data;
 } moshell_array;
 
 uint8_t moshell_value_get_as_byte(moshell_value val);

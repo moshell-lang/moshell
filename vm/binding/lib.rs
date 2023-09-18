@@ -2,7 +2,7 @@
 
 use std::ffi;
 use std::ffi::{CStr, CString};
-use std::mem::{ManuallyDrop, MaybeUninit};
+use std::mem::{size_of, ManuallyDrop, MaybeUninit};
 use std::pin::Pin;
 use std::ptr::null_mut;
 
@@ -127,13 +127,18 @@ impl Drop for VM {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-struct VmArrayFFI(u64, *mut VmObjectFFI);
+struct VmArrayFFI(u64, *mut VmValueFFI);
 #[repr(C)]
 #[derive(Copy, Clone)]
 struct VmStringFFI(u64, *mut ffi::c_char);
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct VmValueFFI(*mut ffi::c_void);
+pub union VmValueFFI {
+    int: i64,
+    byte: u8,
+    double: f64,
+    ptr: *const ffi::c_void,
+}
 
 #[derive(Copy, Clone)]
 enum VmObjectType {
@@ -177,31 +182,10 @@ impl VmObjectFFI {
         let mut vec = Vec::with_capacity(msh_array.0 as usize);
 
         for i in 0..msh_array.0 as usize {
-            let obj = *(msh_array.1.wrapping_add(i));
-            vec.push(obj)
+            let val = *msh_array.1.wrapping_add(i);
+            vec.push(val.get_as_obj())
         }
         vec
-    }
-}
-
-impl From<VmValueFFI> for VmValue {
-    fn from(value: VmValueFFI) -> Self {
-        todo!()
-    }
-}
-
-impl From<VmObjectFFI> for VmValue {
-    fn from(value: VmObjectFFI) -> Self {
-        unsafe {
-            match value.0 {
-                VmObjectType::Str => VmValue::String(value.get_as_string()),
-                VmObjectType::Vec => {
-                    VmValue::Vec(value.get_as_vec().into_iter().map(VmValue::from).collect())
-                }
-                VmObjectType::Int => VmValue::Int(value.unbox().get_as_i64()),
-                VmObjectType::Double => VmValue::Double(value.unbox().get_as_double()),
-            }
-        }
     }
 }
 

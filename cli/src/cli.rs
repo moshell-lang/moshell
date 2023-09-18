@@ -7,7 +7,7 @@ use dbg_pls::color;
 
 use analyzer::diagnostic::Diagnostic;
 use analyzer::name::Name;
-use analyzer::reef::Externals;
+use analyzer::reef::{Externals, ReefId};
 use analyzer::relations::SourceId;
 use analyzer::Analyzer;
 use compiler::{compile, CompilerOptions, SourceLineProvider};
@@ -38,7 +38,7 @@ pub struct Cli {
     pub(crate) no_execute: bool,
 }
 
-struct CachedSourceLocationLineProvider {
+pub struct CachedSourceLocationLineProvider {
     lines: HashMap<ContentId, Vec<usize>>,
 }
 

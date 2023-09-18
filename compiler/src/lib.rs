@@ -103,7 +103,10 @@ pub fn compile(
                 &ctx,
                 &mut bytecode,
                 &mut cp,
-                &options,
+                &CompilerOptions {
+                    last_page_storage_var: None,
+                    ..options
+                },
             );
         }
     }

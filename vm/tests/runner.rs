@@ -14,8 +14,7 @@ use parser::parse_trusted;
 use vm::value::VmValue;
 use vm::{VmError, VmValueFFI, VM};
 
-struct Runner<'a> {
-    current_page: usize,
+pub struct Runner<'a> {
     externals: Externals<'a>,
     vm: VM,
     analyzer: Analyzer<'a>,
@@ -52,7 +51,6 @@ impl Default for Runner<'_> {
         externals.register(Reef::new("std".to_string(), analyzer));
 
         Self {
-            current_page: 0,
             externals,
             vm,
             analyzer: Analyzer::default(),
@@ -60,29 +58,8 @@ impl Default for Runner<'_> {
     }
 }
 
-// use an invalid name in moshell's language specs
-const VAR_EXPR_STORAGE: &str = "7 ! ^";
-
-#[derive(Debug, PartialEq)]
-struct GarbageCollection {
-    collected_objects: Vec<VmValue>,
-}
-
-impl From<Vec<&str>> for GarbageCollection {
-    fn from(value: Vec<&str>) -> Self {
-        let vec = value
-            .into_iter()
-            .map(|s| VmValue::String(s.to_string()))
-            .collect();
-
-        GarbageCollection {
-            collected_objects: vec,
-        }
-    }
-}
-
 impl<'a> Runner<'a> {
-    fn eval(&mut self, expr: &'a str) -> VmValue {
+    pub fn eval(&mut self, expr: &'a str) -> VmValue {
         match self.try_eval(expr) {
             Ok(v) => v,
             Err(VmError::Panic) => panic!("VM did panic"),
@@ -90,7 +67,7 @@ impl<'a> Runner<'a> {
         }
     }
 
-    fn try_eval(&mut self, expr: &'a str) -> Result<VmValue, VmError> {
+    pub fn try_eval(&mut self, expr: &'a str) -> Result<VmValue, VmError> {
         let name = Name::new("runner");
         let src = Source::unknown(expr);
         let mut importer = StaticImporter::new([(name.clone(), src)], parse_trusted);
@@ -98,13 +75,15 @@ impl<'a> Runner<'a> {
             unreachable!()
         };
 
+        let current_page = self.analyzer.engine.len();
+
         let inject = Inject {
             name: name.clone(),
             imported,
-            attached: if self.current_page == 0 {
+            attached: if current_page == 0 {
                 None
             } else {
-                Some(SourceId(self.current_page - 1))
+                Some(SourceId(current_page - 1))
             },
         };
 
@@ -121,12 +100,12 @@ impl<'a> Runner<'a> {
         let chunk = self
             .analyzer
             .engine
-            .get_user(SourceId(self.current_page))
+            .get_user(SourceId(current_page))
             .unwrap();
         let chunk_expr = &chunk.expression.as_ref().unwrap();
 
         let evaluated_expr_type = if let ExprKind::Block(exprs) = &chunk_expr.kind {
-            exprs.last().unwrap().ty
+            exprs.last().map_or(types::UNIT, |v| v.ty)
         } else {
             chunk_expr.ty
         };
@@ -141,7 +120,7 @@ impl<'a> Runner<'a> {
             &self.analyzer.resolution.engine,
             &self.externals,
             reef,
-            SourceId(self.current_page),
+            SourceId(current_page),
             &mut bytes,
             CompilerOptions {
                 line_provider: None,
@@ -161,7 +140,11 @@ impl<'a> Runner<'a> {
             Err(e) => return Err(e),
         }
 
-        self.current_page += 1;
+        let chunk = self
+            .analyzer
+            .engine
+            .get_user(SourceId(current_page))
+            .unwrap();
 
         if expr_value_is_void {
             return Ok(VmValue::Void);
@@ -213,8 +196,42 @@ impl<'a> Runner<'a> {
     }
 }
 
+// use an invalid name in moshell's language specs
+const VAR_EXPR_STORAGE: &str = "7 ! ^";
+
+#[derive(Debug, PartialEq)]
+pub struct GarbageCollection {
+    collected_objects: Vec<VmValue>,
+}
+
+impl GarbageCollection {
+    fn extract(&mut self, v: impl Into<VmValue>) -> bool {
+        let v = v.into();
+        let Some(idx) = self.collected_objects.iter().position(|l| *l == v) else {
+            return false;
+        };
+        self.collected_objects.remove(idx);
+        true
+    }
+}
+
+impl From<Vec<&str>> for GarbageCollection {
+    fn from(value: Vec<&str>) -> Self {
+        let vec = value
+            .into_iter()
+            .map(|s| VmValue::String(s.to_string()))
+            .collect();
+
+        GarbageCollection {
+            collected_objects: vec,
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
+    use pretty_assertions::assert_eq;
+
     use vm::value::VmValue;
 
     use crate::Runner;
@@ -261,9 +278,18 @@ mod test {
     fn test_gc_run() {
         let mut runner = Runner::default();
 
-        runner.eval("var a = 'this string will get ' + 'collected'");
-        runner.eval("a = 'string replacement'");
-        assert_eq!(runner.gc(), vec!["this string will get collected"].into());
-        assert_eq!(runner.eval("$a"), "string replacement".into());
+        runner.eval("var a = ('this string will get collected').split(' ')");
+        runner.eval("a = ''.split(' ')");
+
+        let mut collect = runner.gc();
+        // assert for the vector
+        assert!(collect.extract(vec!["this", "string", "will", "get", "collected"]));
+        // assert for the string elements
+        assert_eq!(
+            collect,
+            vec!["collected", "get", "will", "string", "this"].into()
+        );
+
+        assert_eq!(runner.eval("$a"), vec![""].into());
     }
 }

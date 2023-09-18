@@ -1,5 +1,6 @@
 use reef::std::convert
 use reef::std::memory
+use reef::std::assert
 
 
 /// Causes the runtime to panic, with the specified message.

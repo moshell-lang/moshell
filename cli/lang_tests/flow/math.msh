@@ -1,9 +1,0 @@
-// Run:
-//   status: success
-//   stdout:
-//    i is now 18
-
-var i = 2
-i += 3 + 4
-i *= 2
-echo "i is now $i"

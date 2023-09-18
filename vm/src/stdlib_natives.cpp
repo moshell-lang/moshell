@@ -29,7 +29,8 @@ static void str_concat(OperandStack &caller_stack, runtime_memory &mem) {
 static void str_eq(OperandStack &caller_stack, runtime_memory &) {
     const std::string &right = caller_stack.pop_reference().get<std::string>();
     const std::string &left = caller_stack.pop_reference().get<std::string>();
-    caller_stack.push_byte(static_cast<int8_t>(right == left));
+    int8_t test = static_cast<int8_t>(right == left);
+    caller_stack.push_byte(test);
 }
 
 void get_env(OperandStack &caller_stack, runtime_memory &mem) {
@@ -78,6 +79,11 @@ void to_exitcode(OperandStack &caller_stack, runtime_memory &) {
     }
 
     caller_stack.push_byte(static_cast<int8_t>(exitcode));
+}
+
+void to_int(OperandStack &caller_stack, runtime_memory &) {
+    uint8_t exitcode = caller_stack.pop_byte();
+    caller_stack.push_int(static_cast<int64_t>(exitcode));
 }
 
 void floor(OperandStack &caller_stack, runtime_memory &) {
@@ -191,6 +197,7 @@ natives_functions_t load_natives() {
         {"std::memory::gc", gc},
 
         {"std::convert::to_exitcode", to_exitcode},
+        {"std::convert::to_int", to_int},
         {"std::convert::ceil", ceil},
         {"std::convert::floor", floor},
         {"std::convert::round", round},

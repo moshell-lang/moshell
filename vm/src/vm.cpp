@@ -6,22 +6,21 @@
 #include "interpreter.h"
 #include "memory/call_stack.h"
 #include "memory/gc.h"
-#include <cstring>
 #include <iostream>
 
 uint8_t moshell_value_get_as_byte(moshell_value val) {
-    return *(uint8_t *)val.val;
+    return val.b;
 }
 int64_t moshell_value_get_as_int(moshell_value val) {
-    return *(uint64_t *)val.val;
+    return val.i;
 }
 double moshell_value_get_as_double(moshell_value val) {
-    return *(double *)val.val;
+    return val.d;
 }
 
 moshell_object moshell_value_get_as_object(moshell_value val) {
     moshell_object_type type;
-    msh::obj *obj = (msh::obj *)val.val;
+    msh::obj *obj = (msh::obj *)val.ptr;
 
     std::visit([&](auto &&data) {
         using T = std::decay_t<decltype(data)>;
@@ -48,8 +47,10 @@ moshell_value moshell_object_unbox(moshell_object o) {
     moshell_value val;
     std::visit([&](auto &&data) {
         using T = std::decay_t<decltype(data)>;
-        if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, double>) {
-            val = moshell_value{&data};
+        if constexpr (std::is_same_v<T, int64_t>) {
+            val.i = data;
+        } else if constexpr (std::is_same_v<T, double>) {
+            val.d = data;
         } else {
             std::cerr << "not an unboxable object";
             exit(1);
@@ -67,7 +68,7 @@ const char *moshell_object_get_as_string(moshell_object o) {
 moshell_array moshell_object_get_as_array(moshell_object o) {
     msh::obj *obj = (msh::obj *)o.val;
     msh::obj_vector &vec = obj->get<msh::obj_vector>();
-    moshell_object *data = (moshell_object *)vec.data();
+    moshell_value *data = (moshell_value *)vec.data();
     return moshell_array{
         vec.size(),
         data,
@@ -112,9 +113,10 @@ int moshell_vm_register(moshell_vm vm, const char *bytes, size_t byte_count) {
 moshell_value moshell_vm_get_exported(moshell_vm vm, char *name) {
     vm_state &state = *static_cast<vm_state *>(vm.vm);
     msh::exported_variable var = state.loader.get_exported(name);
-    void *obj = state.pager.get_exported_value<void>(var);
-
-    return {obj};
+    void *obj = *state.pager.get_exported_value<void *>(var);
+    moshell_value val;
+    val.ptr = obj;
+    return val;
 }
 
 int moshell_vm_run(moshell_vm vm) {
@@ -159,7 +161,8 @@ gc_collection_result moshell_vm_gc_collect_detached(moshell_vm vm) {
     for (size_t i = 0; i < count; i++) {
         const msh::obj *obj = gc_collect.object_refs[i];
         // moshell values are either numbers or object pointers
-        moshell_value msh_val = moshell_value{obj};
+        moshell_value msh_val;
+        msh_val.ptr = obj;
         // we know the vector contains only objects
         // (as it is the collected objects from heap)
         collected_objects[i] = moshell_value_get_as_object(msh_val);
