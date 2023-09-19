@@ -32,10 +32,10 @@ Moshell is a project in its early stages.
     - [x] Primitive type checking
     - [x] Built-in primitive type operations
     - [ ] Detailed error reports *(in progress)*
-    - [x] Reefs (library support) 
+    - [x] Reefs (library support)
     - [ ] Generic types
     - [ ] Standard types (`Option[T]`, `Result[A, E]`, `Iterable[T]`...)
-    - [ ] User defined types
+    - [ ] User defined structures 
 - [x] Bytecode compiler and interpreter
     - [x] Spawn processes and use typed variables
     - [x] Control flow
