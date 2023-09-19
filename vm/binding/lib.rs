@@ -97,7 +97,7 @@ impl VM {
 
     pub fn gc_collect(&mut self) -> Vec<VmValue> {
         unsafe {
-            let result = moshell_vm_gc_collect_detached(self.0.clone());
+            let result = moshell_vm_gc_collect(self.0.clone());
 
             let size = result.collected_objects_count as usize;
             let mut vec = Vec::with_capacity(size);
@@ -226,7 +226,7 @@ extern "C" {
 
     fn moshell_vm_get_exported(vm: VmFFI, name: *const ffi::c_char) -> VmValueFFI;
 
-    fn moshell_vm_gc_collect_detached(vm: VmFFI) -> VmGcResultFFI;
+    fn moshell_vm_gc_collect(vm: VmFFI) -> VmGcResultFFI;
     fn moshell_vm_gc_run(vm: VmFFI);
     fn gc_collection_result_free(res: VmGcResultFFI);
 }

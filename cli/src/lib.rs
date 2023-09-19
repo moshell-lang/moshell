@@ -5,5 +5,3 @@ pub mod disassemble;
 pub mod cli;
 
 mod report;
-
-mod repl;

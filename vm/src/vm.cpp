@@ -149,7 +149,7 @@ void moshell_vm_free(moshell_vm vm) {
     delete static_cast<vm_state *>(vm.vm);
 }
 
-gc_collection_result moshell_vm_gc_collect_detached(moshell_vm vm) {
+gc_collection_result moshell_vm_gc_collect(moshell_vm vm) {
     vm_state &state = *static_cast<vm_state *>(vm.vm);
 
     msh::gc_collect gc_collect = state.gc.collect();

@@ -6,6 +6,9 @@
 #include <unordered_set>
 
 namespace msh {
+    /**
+     * A collection of moshell object references
+     * */
     struct gc_collect {
         size_t object_count;
         const msh::obj **object_refs;
@@ -47,10 +50,17 @@ namespace msh {
 
         /**
          * Run a new Garbage Collection cycle
-         * and place freed objects in given result if non-null
+         * to remove detached objects from heap.
          * */
         void run();
 
+        /**
+         * Run a new Garbage Collection cycle
+         * but instead of removing detached heap objects,
+         * collect their references and return an array of those objects pointers
+         *
+         * Returned object pointers will be invalidated on the next gc run
+         * */
         gc_collect collect();
     };
 }

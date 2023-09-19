@@ -140,12 +140,6 @@ impl<'a> Runner<'a> {
             Err(e) => return Err(e),
         }
 
-        let chunk = self
-            .analyzer
-            .engine
-            .get_user(SourceId(current_page))
-            .unwrap();
-
         if expr_value_is_void {
             return Ok(VmValue::Void);
         }

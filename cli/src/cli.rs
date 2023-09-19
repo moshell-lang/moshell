@@ -7,7 +7,7 @@ use dbg_pls::color;
 
 use analyzer::diagnostic::Diagnostic;
 use analyzer::name::Name;
-use analyzer::reef::{Externals, ReefId};
+use analyzer::reef::Externals;
 use analyzer::relations::SourceId;
 use analyzer::Analyzer;
 use compiler::{compile, CompilerOptions, SourceLineProvider};

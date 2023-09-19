@@ -11,18 +11,6 @@ use parser::err::{ParseError, ParseErrorKind};
 
 use crate::pipeline::{SourceHolder, SourcesCache};
 
-macro_rules! print_flush {
-    ( $($t:tt)* ) => {
-        {
-            let mut stdout = std::io::stdout();
-            write!(stdout, $($t)* ).unwrap();
-            stdout.flush().unwrap();
-        }
-    }
-}
-
-pub(crate) use print_flush;
-
 fn offset_empty_span(span: SourceSegment) -> SourceSpan {
     if span.start == span.end {
         (span.start - 1..span.end).into()

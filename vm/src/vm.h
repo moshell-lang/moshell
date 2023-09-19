@@ -70,7 +70,8 @@ typedef struct {
  * @return an exitcode where:
  *    - 0, the vm exited successfully
  *    - 1, the vm aborted due to a panic
- * @deprecated Use `moshell_vm_init`, `moshell_vm_register` and `moshell_vm_run_all` instead.
+ *    - -1, tje vm aborted due to an internal error
+ * @deprecated Use `moshell_vm_init`, `moshell_vm_register` and `moshell_vm_run` instead.
  */
 int moshell_exec(const char *bytes, size_t byte_count);
 
@@ -100,6 +101,9 @@ int moshell_vm_register(moshell_vm vm, const char *bytes, size_t byte_count);
  */
 int moshell_vm_run(moshell_vm vm);
 
+/**
+ * Return an exported value from its name identifier
+ * */
 moshell_value moshell_vm_get_exported(moshell_vm vm, char *name);
 
 /**
@@ -117,6 +121,10 @@ size_t moshell_vm_next_page(moshell_vm vm);
  */
 void moshell_vm_free(moshell_vm vm);
 
+/**
+ * Run a new Garbage Collection cycle
+ * to remove detached objects from heap.
+ * */
 void moshell_vm_gc_run(moshell_vm vm);
 
 typedef struct {
@@ -125,12 +133,17 @@ typedef struct {
 } gc_collection_result;
 
 /**
- * For debug and test purposes, runs a gc cycle
- * but will also place all removed objects from vm's heap
- * under returned structure.
+ * For debug and test purposes, runs a new gc cycle
+ * that will not free any object but will collect them and return
+ * them under a gc_collection_result structure.
+ *
+ * Be aware that all the contained objects will be invalidated at the next gc run
  * */
-gc_collection_result moshell_vm_gc_collect_detached(moshell_vm vm);
+gc_collection_result moshell_vm_gc_collect(moshell_vm vm);
 
+/**
+ * free collection result
+ * */
 void gc_collection_result_free(gc_collection_result res);
 
 #ifdef __cplusplus
