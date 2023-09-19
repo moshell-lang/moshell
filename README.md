@@ -53,6 +53,15 @@ Moshell is a project in its early stages.
 
 This repository hosts the source code from the parser to the interpreter.
 
+## Build
+
+You need a stable Rust compiler to build Moshell frontend on a GNU/Linux system.
+The VM needs a C++20 compiler and a CMake installation. Its build script will automatically be called by Cargo.
+
+```sh
+cargo build --release
+```
+
 ## Examples
 
 Here's some Bash vs Moshell comparisons.
