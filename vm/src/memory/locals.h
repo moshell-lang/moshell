@@ -82,5 +82,5 @@ private:
      * @param space_size the space needed
      * @param action kind of action being made
      */
-    inline void check_capacity(size_t at, size_t space_size, std::string_view action) const;
+    void check_capacity(size_t at, size_t space_size, std::string_view action) const;
 };
