@@ -38,6 +38,7 @@ git switch <your-branch> && git rebase master # Rebase your branch on the latest
 We encourage you to keep your pull requests as small as possible. Concise changes have a better chance of being accepted quickly.
 
 When you make a pull request, our CI will build your changes and run them through all the tests and style checks. All of these tests should pass before your pull request can be accepted.
+It is configured to run on Linux, with the latest stable version of Rust, GCC 10 and GCC 12.
 
 ## Code Guidelines
 
@@ -54,7 +55,7 @@ cargo clippy --tests # Lint the code and tests
 
 The virtual machine is written in C++20, compiled with Clang and GCC. Compiler specific features should be avoided.
 
-It is built using CMake. The code should be formatted using [clang-format](https://clang.llvm.org/docs/ClangFormat.html).
+It is built using CMake. The code should be formatted using [clang-format v16](https://clang.llvm.org/docs/ClangFormat.html).
 
 `clang-format` may be run with the following command:
 
@@ -66,7 +67,7 @@ cd vm && make format # Format the code
 
 Changes are expected to be tested. Automated tests are written using the [Rust testing utilities](https://doc.rust-lang.org/book/ch11-00-testing.html) and [lang_tester](https://github.com/softdevteam/lang_tester/) for VM tests.
 
-Add a new test either in the `tests` directory or in the same file as the code it tests.
+Add a new test either in the `tests` directory of the crate or in the same file as the code it tests.
 If a change breaks other tests, please address them.
 
 Run tests with:
