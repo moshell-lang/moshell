@@ -241,6 +241,16 @@ pub(crate) fn emit_natives(
             instructions.emit_invoke(cp.insert_string(STRING_BYTES));
             ValueStackSize::QWord
         }
+        40 => {
+            // Int -> Exitcode
+            instructions.emit_code(Opcode::ConvertIntToByte);
+            ValueStackSize::Byte
+        }
+        41 => {
+            // Exitcode -> Int
+            instructions.emit_code(Opcode::ConvertByteToInt);
+            ValueStackSize::QWord
+        }
         id => todo!("Native function with id {id}"),
     };
 

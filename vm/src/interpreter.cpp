@@ -482,7 +482,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             std::vector<std::unique_ptr<char[]>> argv(frame_size + 1);
             for (int i = frame_size - 1; i >= 0; i--) {
                 // Pop the string reference
-                const std::string &arg = operands.pop_reference().get<std::string>();
+                const std::string &arg = operands.pop_reference().get<const std::string>();
                 size_t arg_length = arg.length() + 1; // add 1 for the trailing '\0' char
                 // Allocate the string
                 argv[i] = std::make_unique<char[]>(arg_length);
@@ -520,7 +520,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
         }
         case OP_OPEN: {
             // Pop the path
-            const std::string &path = operands.pop_reference().get<std::string>();
+            const std::string &path = operands.pop_reference().get<const std::string>();
 
             // Read the flags
             int flags = ntohl(*(int *)(instructions + ip));
@@ -620,7 +620,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
         }
         case OP_WRITE: {
             // Pop the string reference
-            const std::string &str = operands.pop_reference().get<std::string>();
+            const std::string &str = operands.pop_reference().get<const std::string>();
             // Pop the file descriptor
             int fd = static_cast<int>(operands.pop_int());
 

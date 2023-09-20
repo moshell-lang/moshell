@@ -85,6 +85,7 @@ impl Bytecode {
     }
 }
 
+/// binds a source code byte position to a bytecode instruction index
 pub struct InstructionPos {
     pub source_code_byte_pos: usize,
     pub instruction: u32,

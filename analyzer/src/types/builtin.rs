@@ -49,6 +49,7 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine) {
         "to_bool",
         MethodType::native(vec![], BOOL, gen.next()),
     );
+
     for op in ARITHMETIC_OPERATORS {
         engine.add_method(
             INT.type_id,
@@ -101,6 +102,7 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine) {
         "to_float",
         MethodType::native(vec![], FLOAT, gen.next()),
     );
+
     engine.add_method(
         STRING.type_id,
         "len",
@@ -147,6 +149,17 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine) {
         STRING.type_id,
         "bytes",
         MethodType::native(vec![], TypeRef::new(LANG_REEF, TypeId(11)), gen.next()),
+    );
+
+    engine.add_method(
+        INT.type_id,
+        "to_exitcode",
+        MethodType::native(vec![], EXITCODE, gen.next()),
+    );
+    engine.add_method(
+        EXITCODE.type_id,
+        "to_int",
+        MethodType::native(vec![], INT, gen.next()),
     );
 }
 

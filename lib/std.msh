@@ -1,4 +1,4 @@
-use reef::std::convert
+use reef::std::math
 use reef::std::memory
 use reef::std::assert
 
@@ -37,5 +37,5 @@ fun read_line() -> String;
 /// Unlike [[reef::std::panic]], this function does not print the callstack trace.
 fun abort(message: String) -> Nothing = {
     echo $message >&2
-    exit(convert::to_exitcode(1))
+    exit(1.to_exitcode())
 }

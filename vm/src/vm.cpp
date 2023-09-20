@@ -43,7 +43,7 @@ moshell_object moshell_value_get_as_object(moshell_value val) {
 }
 
 moshell_value moshell_object_unbox(moshell_object o) {
-    msh::obj *obj = (msh::obj *)o.val;
+    const msh::obj *obj = static_cast<const msh::obj *>(o.val);
     moshell_value val;
     std::visit([&](auto &&data) {
         using T = std::decay_t<decltype(data)>;
@@ -62,7 +62,7 @@ moshell_value moshell_object_unbox(moshell_object o) {
 
 const char *moshell_object_get_as_string(moshell_object o) {
     msh::obj *obj = (msh::obj *)o.val;
-    const char *str = obj->get<std::string>().c_str();
+    const char *str = obj->get<const std::string>().c_str();
     return str;
 }
 moshell_array moshell_object_get_as_array(moshell_object o) {
@@ -110,7 +110,7 @@ int moshell_vm_register(moshell_vm vm, const char *bytes, size_t byte_count) {
     return -1;
 }
 
-moshell_value moshell_vm_get_exported(moshell_vm vm, char *name) {
+moshell_value moshell_vm_get_exported(moshell_vm vm, const char *name) {
     vm_state &state = *static_cast<vm_state *>(vm.vm);
     msh::exported_variable var = state.loader.get_exported(name);
     void *obj = *state.pager.get_exported_value<void *>(var);

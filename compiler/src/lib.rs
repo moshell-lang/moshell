@@ -347,7 +347,10 @@ fn compile_chunk_code(
     let chunk_is_script = ctx.environment.is_script;
 
     if let Some(storage_exported_val) = &options.last_page_storage_var {
-        debug_assert!(chunk_is_script); // only script chunks can store their last expression value in a storage export
+        assert!(
+            chunk_is_script,
+            "only script chunks can store their last expression value in a storage export"
+        );
         let last_expr = if let ExprKind::Block(b) = &chunk_expression.kind {
             b.last().unwrap_or(chunk_expression)
         } else {

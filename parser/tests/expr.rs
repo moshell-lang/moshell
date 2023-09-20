@@ -21,8 +21,6 @@ use context::str_find::{find_between, find_in, find_in_nth};
 use parser::parse;
 use parser::source::{literal, literal_nth};
 
-pub struct Wtf {}
-
 #[test]
 fn empty() {
     let source = Source::unknown("");

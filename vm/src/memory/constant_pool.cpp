@@ -35,5 +35,5 @@ const msh::obj &ConstantPool::get_ref(constant_index at) const {
 }
 
 const std::string &ConstantPool::get_string(constant_index at) const {
-    return get_ref(at).get<std::string>();
+    return get_ref(at).get<const std::string>();
 }

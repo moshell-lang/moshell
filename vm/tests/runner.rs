@@ -18,6 +18,7 @@ pub struct Runner<'a> {
     externals: Externals<'a>,
     vm: VM,
     analyzer: Analyzer<'a>,
+    current_page: Option<usize>,
 }
 
 impl Default for Runner<'_> {
@@ -54,6 +55,7 @@ impl Default for Runner<'_> {
             externals,
             vm,
             analyzer: Analyzer::default(),
+            current_page: None,
         }
     }
 }
@@ -75,19 +77,15 @@ impl<'a> Runner<'a> {
             unreachable!()
         };
 
-        let current_page = self.analyzer.engine.len();
-
         let inject = Inject {
             name: name.clone(),
             imported,
-            attached: if current_page == 0 {
-                None
-            } else {
-                Some(SourceId(current_page - 1))
-            },
+            attached: self.current_page.map(SourceId),
         };
 
         let mut analysis = self.analyzer.inject(inject, &mut importer, &self.externals);
+        let page = analysis.attributed_id();
+        self.current_page = Some(page.0);
         let diagnostics = analysis.take_diagnostics();
 
         let reef = self.externals.current;
@@ -97,11 +95,7 @@ impl<'a> Runner<'a> {
         }
         let mut bytes = Vec::new();
 
-        let chunk = self
-            .analyzer
-            .engine
-            .get_user(SourceId(current_page))
-            .unwrap();
+        let chunk = self.analyzer.engine.get_user(page).unwrap();
         let chunk_expr = &chunk.expression.as_ref().unwrap();
 
         let evaluated_expr_type = if let ExprKind::Block(exprs) = &chunk_expr.kind {
@@ -120,7 +114,7 @@ impl<'a> Runner<'a> {
             &self.analyzer.resolution.engine,
             &self.externals,
             reef,
-            SourceId(current_page),
+            page,
             &mut bytes,
             CompilerOptions {
                 line_provider: None,
@@ -152,9 +146,9 @@ impl<'a> Runner<'a> {
 
     pub fn gc(&mut self) -> GarbageCollection {
         let result = GarbageCollection {
-            collected_objects: self.vm.gc_collect(),
+            collected_objects: self.vm.gc.collect(),
         };
-        self.vm.gc();
+        self.vm.gc.run();
         result
     }
 

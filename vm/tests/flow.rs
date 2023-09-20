@@ -1,5 +1,6 @@
 use crate::runner::Runner;
 use vm::value::VmValue;
+use vm::VmError;
 
 mod runner;
 
@@ -20,6 +21,18 @@ fn break_loop() {
     assert_eq!(runner.eval("$res"), VmValue::Int(3))
 }
 
+#[test]
+fn test_assertion() {
+    let mut runner = Runner::default();
+    assert_eq!(
+        runner.try_eval(r#"std::assert::assert(true)"#),
+        Ok(VmValue::Void)
+    );
+    assert_eq!(
+        runner.try_eval(r#"std::assert::assert(false)"#),
+        Err(VmError::Panic)
+    );
+}
 #[test]
 fn closure() {
     let mut runner = Runner::default();
@@ -51,7 +64,7 @@ fn closure() {
 #[test]
 fn simple_function_call() {
     let mut runner = Runner::default();
-    runner.eval("use std::{assert::*, convert::*}");
+    runner.eval("use std::{assert::*, convert::*, memory::*}");
     runner.eval("fun concat(a: String, b: String) -> String = $a + $b");
     runner.eval("fun foo() -> String = concat('foo', 'bar')");
 
@@ -62,7 +75,7 @@ fn simple_function_call() {
         fun all_args(a: String, b: Int, c: Exitcode, d: Float, e: Unit, g: Bool) = {
             assert($a == "ABCDEF")
             assert($b == 7)
-            assert(to_int($c) == 9)
+            assert($c.to_int() == 9)
             assert($d == 8.74)
             assert($g)
         }
@@ -70,7 +83,12 @@ fn simple_function_call() {
     );
 
     assert_eq!(
-        runner.try_eval(r#"all_args("ABCDEF", 7, to_exitcode(9), 8.74, {}, true)"#),
+        runner.try_eval(
+            r#"
+            all_args("ABCDEF", 7, 9.to_exitcode(), 8.74, {}, true)
+            assert(empty_operands())
+        "#
+        ),
         Ok(VmValue::Void)
     )
 }

@@ -1,6 +1,6 @@
 #pragma once
-#include <cstdint>
 #include <stddef.h> // NOLINT(*-deprecated-headers)
+#include <stdint.h> // NOLINT(*-deprecated-headers)
 
 #if UINTPTR_MAX > 0xFFFFFFFFFFFFFFFFu // 64 bits
 #error "VM only supports architectures less than 64 bits architectures"
@@ -14,39 +14,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef union {
-    int64_t i;
-    uint8_t b;
-    double d;
-    const void *ptr;
-} moshell_value;
-
-typedef enum {
-    OBJ_STR,
-    OBJ_INT,
-    OBJ_DOUBLE,
-    OBJ_VEC
-} moshell_object_type;
-
-typedef struct {
-    moshell_object_type type;
-    const void *val;
-} moshell_object;
-
-typedef struct {
-    const uint64_t size;
-    const moshell_value *data;
-} moshell_array;
-
-uint8_t moshell_value_get_as_byte(moshell_value val);
-int64_t moshell_value_get_as_int(moshell_value val);
-double moshell_value_get_as_double(moshell_value val);
-moshell_object moshell_value_get_as_object(moshell_value val);
-
-moshell_value moshell_object_unbox(moshell_object obj);
-const char *moshell_object_get_as_string(moshell_object obj);
-moshell_array moshell_object_get_as_array(moshell_object obj);
 
 /**
  * An opaque handle to a Moshell VM.
@@ -68,9 +35,9 @@ typedef struct {
  * @param bytes The bytecode to execute.
  * @param byte_count The number of bytes in the bytecode.
  * @return an exitcode where:
- *    - 0, the vm exited successfully
- *    - 1, the vm aborted due to a panic
- *    - -1, tje vm aborted due to an internal error
+ *    - 0,  the vm exited successfully
+ *    - 1,  the vm aborted due to a panic
+ *    - -1, the vm aborted due to an internal error
  * @deprecated Use `moshell_vm_init`, `moshell_vm_register` and `moshell_vm_run` instead.
  */
 int moshell_exec(const char *bytes, size_t byte_count);
@@ -94,17 +61,12 @@ int moshell_vm_register(moshell_vm vm, const char *bytes, size_t byte_count);
 
 /**
  * Executes the remaining bytecode pages in the VM.
- * VM runtime does not supports threading and this function must not be called concurrently
+ * VM runtime does not supports multithreading which makes this function not thread safe
  *
  * @param vm The VM to execute.
  * @return 0 if the execution was successful, -1 otherwise.
  */
 int moshell_vm_run(moshell_vm vm);
-
-/**
- * Return an exported value from its name identifier
- * */
-moshell_value moshell_vm_get_exported(moshell_vm vm, char *name);
 
 /**
  * Returns the next page identifier to be executed.
@@ -122,13 +84,96 @@ size_t moshell_vm_next_page(moshell_vm vm);
 void moshell_vm_free(moshell_vm vm);
 
 /**
+ * A moshell value, either an i64, a unsigned byte, a double
+ * or an address
+ * */
+typedef union {
+    int64_t i;
+    uint8_t b;
+    double d;
+    const void *ptr;
+} moshell_value;
+
+/**
+ * Different kinds of vm objects
+ * */
+typedef enum {
+    OBJ_STR,
+    OBJ_INT,
+    OBJ_DOUBLE,
+    OBJ_VEC
+} moshell_object_type;
+
+/**
+ * A moshell heap object, with its type
+ * */
+typedef struct {
+    moshell_object_type type;
+    const void *val;
+} moshell_object;
+
+/**
+ * A sized array of values
+ * */
+typedef struct {
+    const uint64_t size;
+    const moshell_value *data;
+} moshell_array;
+
+/**
+ * Return an exported value from its name identifier
+ * */
+moshell_value moshell_vm_get_exported(moshell_vm vm, const char *name);
+/**
+ * Interpret given value as an unsigned byte
+ * */
+uint8_t moshell_value_get_as_byte(moshell_value val);
+/**
+ * Interpret given value as a signed int64
+ * */
+int64_t moshell_value_get_as_int(moshell_value val);
+/**
+ * Interpret given value as a double
+ * */
+double moshell_value_get_as_double(moshell_value val);
+/**
+ * Return given moshell value as a moshell object.
+ * If given value isn't an address to a heap object,
+ * behavior of this function is undefined
+ * */
+moshell_object moshell_value_get_as_object(moshell_value val);
+
+/**
+ * Unbox the value of an object.
+ * */
+moshell_value moshell_object_unbox(moshell_object obj);
+/**
+ * Get this object as a string object and return its c string value.
+ * If the type of the object isn't OBJ_STR, this function throws a cpp error
+ * */
+const char *moshell_object_get_as_string(moshell_object obj);
+/**
+ * Get this object as a string object and return its c string value.
+ * If the type of the object isn't OBJ_VEC, this function throws a cpp error
+ * */
+moshell_array moshell_object_get_as_array(moshell_object obj);
+
+/**
  * Run a new Garbage Collection cycle
  * to remove detached objects from heap.
  * */
 void moshell_vm_gc_run(moshell_vm vm);
 
+/**
+ * the result of a gc collection cycle
+ * */
 typedef struct {
     const uint64_t collected_objects_count;
+    /**
+     * object heap references,
+     * be aware that those reference are no longer valid on the
+     * next GC run cycle.
+     * */
     const moshell_object *collected_objects;
 } gc_collection_result;
 
@@ -142,7 +187,7 @@ typedef struct {
 gc_collection_result moshell_vm_gc_collect(moshell_vm vm);
 
 /**
- * free collection result
+ * Free a gc collection result
  * */
 void gc_collection_result_free(gc_collection_result res);
 
