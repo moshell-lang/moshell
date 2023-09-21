@@ -74,14 +74,17 @@ impl<'a> Parser<'a> {
     fn parse_match_arm(&mut self) -> ParseResult<MatchArm<'a>> {
         self.cursor.advance(blanks()); //consume blanks
 
-        let start = self.cursor.relative_pos_ctx(self.cursor.peek()).start;
-
         let val_name = self.parse_extracted_name()?;
         let patterns = self.parse_patterns()?;
         let guard = self.parse_guard()?;
         let body = self.parse_body()?;
 
-        let segment = start..body.segment().end;
+        let mut segment = body.segment();
+        segment.start = match val_name {
+            Some(name) => self.cursor.relative_pos_ctx(name),
+            None => patterns.first().expect("at least one pattern").segment(),
+        }
+        .start;
 
         Ok(MatchArm {
             val_name,
@@ -156,9 +159,8 @@ impl<'a> Parser<'a> {
         }
 
         if !self.is_at_pattern_end() {
-            let token = self.cursor.lookahead(blanks().then(any())).unwrap().value;
             return self.expected(
-                format!("unexpected token, expected '|', 'if' or '=>', found '{token}'"),
+                "Unexpected token, expected '|', 'if' or '=>'",
                 ParseErrorKind::Unexpected,
             );
         }
@@ -265,7 +267,7 @@ mod tests {
                             patterns: vec![
                                 MatchPattern::Template(TemplateString {
                                     parts: vec![
-                                        literal(source.source, "\"test "),
+                                        literal(source.source, "test "),
                                         Expr::VarReference(VarReference {
                                             name: "2",
                                             segment: find_in(source.source, "$2"),
@@ -344,7 +346,7 @@ mod tests {
                         patterns: vec![
                             MatchPattern::Template(TemplateString {
                                 parts: vec![
-                                    literal(content, "\"test "),
+                                    literal(content, "test "),
                                     Expr::VarReference(VarReference {
                                         name: "2",
                                         segment: find_in(content, "$2"),
@@ -492,7 +494,7 @@ mod tests {
                         patterns: vec![
                             MatchPattern::Template(TemplateString {
                                 parts: vec![
-                                    literal(content, "\"test "),
+                                    literal(content, "test "),
                                     Expr::VarReference(VarReference { name: "2", segment: find_in(content, "$2") }),
                                 ],
                                 segment: find_in(content, "\"test $2\""),
@@ -608,7 +610,7 @@ mod tests {
         assert_eq!(
             res,
             vec![ParseError {
-                message: "unexpected token, expected '|', 'if' or '=>', found '''".to_string(),
+                message: "Unexpected token, expected '|', 'if' or '=>'".to_owned(),
                 kind: Unexpected,
                 position: src.find('y').map(|i| i - 2..i - 1).unwrap(),
             }]
@@ -644,7 +646,7 @@ mod tests {
         assert_eq!(
             res,
             vec![ParseError {
-                message: "unexpected token, expected '|', 'if' or '=>', found '('".to_string(),
+                message: "Unexpected token, expected '|', 'if' or '=>'".to_owned(),
                 kind: Unexpected,
                 position: src.find('(').map(|i| i - 1..i).unwrap(),
             }]

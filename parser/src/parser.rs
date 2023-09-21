@@ -56,14 +56,24 @@ impl<'a> Parser<'a> {
             .filter_map(|unmatched| {
                 Some(ParseError {
                     message: if unmatched.opening.is_some() {
-                        "Mismatched closing delimiter."
+                        if unmatched.candidate.is_none() {
+                            "Unterminated string literal."
+                        } else {
+                            "Mismatched closing delimiter."
+                        }
                     } else {
                         "Unexpected closing delimiter."
                     }
                     .to_owned(),
-                    position: unmatched.candidate?..(unmatched.candidate? + 1),
-                    kind: if unmatched.opening.is_some() {
-                        ParseErrorKind::Unpaired(unmatched.opening?..unmatched.opening? + 1)
+                    position: if let Some(candidate) = unmatched.candidate {
+                        candidate..candidate + 1
+                    } else if source.source.as_bytes()[unmatched.opening?] == b'\'' {
+                        source.source.len()..source.source.len()
+                    } else {
+                        return None;
+                    },
+                    kind: if let Some(opening) = unmatched.opening {
+                        ParseErrorKind::Unpaired(opening..opening + 1)
                     } else {
                         Unexpected
                     },

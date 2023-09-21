@@ -133,18 +133,4 @@ impl<'a> Lexer<'a> {
         }
         Token::new(TokenType::Space, &self.input[start_pos..pos])
     }
-
-    /// Returns `true` if the lexer is currently in a string.
-    pub(crate) fn is_in_string(&self) -> bool {
-        self.string_depth & 1 == 1
-    }
-
-    /// Toggles the string state.
-    pub(crate) fn toggle_in_string_state(&mut self) {
-        if self.is_in_string() {
-            self.string_depth -= 1;
-        } else {
-            self.string_depth += 1;
-        }
-    }
 }

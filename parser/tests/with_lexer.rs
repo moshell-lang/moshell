@@ -67,7 +67,7 @@ fn with_lexer_var_reference_two() {
             arguments: vec![
                 Expr::TemplateString(TemplateString {
                     parts: vec![
-                        literal(source.source, "\"fake"),
+                        literal(source.source, "fake"),
                         Expr::VarReference(VarReference {
                             name: "cmd",
                             segment: find_in(source.source, "$cmd"),
@@ -104,7 +104,7 @@ fn with_lexer_var_reference_three() {
                 literal(source.source, "echo"),
                 Expr::TemplateString(TemplateString {
                     parts: vec![
-                        literal(source.source, "\"hello "),
+                        literal(source.source, "hello "),
                         Expr::VarReference(VarReference {
                             name: "world",
                             segment: find_in(source.source, "$world"),
@@ -118,7 +118,7 @@ fn with_lexer_var_reference_three() {
                             name: "ready",
                             segment: find_in(source.source, "${ready}"),
                         }),
-                        literal(source.source, "!\""),
+                        literal(source.source, "!"),
                     ],
                     segment: find_between(source.source, "\"", "\""),
                 }),
@@ -303,7 +303,7 @@ fn with_lexer_substitution_in_substitution() {
                                             },
                                             kind: SubstitutionKind::Capture,
                                         }),
-                                        literal(source.source, "/test\""),
+                                        literal(source.source, "/test"),
                                     ],
                                     segment: find_in(source.source, "\"$(pwd)/test\""),
                                 }),

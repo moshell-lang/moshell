@@ -6,6 +6,7 @@ use ast::*;
 use context::source::{try_join_str, SourceSegmentHolder};
 use lexer::token::Token;
 use lexer::token::TokenType::*;
+use lexer::unescape;
 
 use crate::aspects::substitution::SubstitutionAspect;
 use crate::err::ParseErrorKind;
@@ -57,8 +58,8 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         let token = self.cursor.peek();
         let pivot = token.token_type;
         match pivot {
-            Quote => self.string_literal().map(Expr::Literal),
-            DoubleQuote => self.templated_string_literal().map(Expr::TemplateString),
+            StringLiteral => self.string_literal().map(Expr::Literal),
+            StringStart => self.templated_string_literal().map(Expr::TemplateString),
             False | True if leniency == LiteralLeniency::Strict => {
                 self.boolean_literal().map(Expr::Literal)
             }
@@ -81,7 +82,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             Identifier
                 if self
                     .cursor
-                    .lookahead(next().then(of_types(&[Quote, DoubleQuote])))
+                    .lookahead(next().then(of_types(&[StringLiteral, StringStart])))
                     .is_some() =>
             {
                 if token.value == "p" {
@@ -113,76 +114,50 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
     }
 
     fn string_literal(&mut self) -> ParseResult<Literal> {
-        let start = self.cursor.force(of_type(Quote), "Expected quote.")?;
-        let mut current;
-        let mut value = String::new();
-
-        loop {
-            current = self.cursor.next()?;
-            match current.token_type {
-                EndOfFile => {
-                    return self.expected(
-                        "Unterminated string literal.",
-                        ParseErrorKind::Unpaired(self.cursor.relative_pos(&start)),
-                    );
-                }
-                Quote => break,
-                _ => value.push_str(current.value),
-            };
-        }
+        let literal = self
+            .cursor
+            .force(of_type(StringLiteral), "Expected string literal.")?;
+        let segment = self.cursor.relative_pos(literal.value);
         Ok(Literal {
-            parsed: LiteralValue::String(value),
-            segment: self.cursor.relative_pos_ctx(start..current),
+            parsed: LiteralValue::String(unescape(literal.value)),
+            segment: (segment.start - 1)..(segment.end + 1),
         })
     }
 
     fn templated_string_literal(&mut self) -> ParseResult<TemplateString<'a>> {
-        let start = self.cursor.force(of_type(DoubleQuote), "Expected quote.")?;
-        let mut begin = start.clone();
-        let mut end = begin.clone();
-        let mut literal_value = String::new();
+        let start = self.cursor.force(of_type(StringStart), "Expected quote.")?;
         let mut parts = Vec::new();
-        loop {
-            if self.cursor.is_at_end() {
-                return self.expected(
-                    "Unterminated string literal.",
-                    ParseErrorKind::Unpaired(self.cursor.relative_pos(start)),
-                );
-            }
-
-            let current = self.cursor.peek();
-            match current.token_type {
-                DoubleQuote => break,
-                BackSlash => {
-                    self.cursor.advance(next());
+        let end = loop {
+            let token = self.cursor.peek();
+            match token.token_type {
+                StringEnd => {
+                    self.cursor.next_opt();
+                    break token;
+                }
+                StringContent => {
+                    self.cursor.next_opt();
+                    parts.push(Expr::Literal(Literal {
+                        parsed: LiteralValue::String(unescape(token.value)),
+                        segment: self.cursor.relative_pos(token.value),
+                    }));
                 }
                 Dollar => {
-                    if !literal_value.is_empty() {
-                        parts.push(Expr::Literal(Literal {
-                            parsed: LiteralValue::String(literal_value.clone()),
-                            segment: self.cursor.relative_pos_ctx(begin..end.clone()),
-                        }));
-                        literal_value.clear();
-                    }
                     parts.push(self.substitution()?);
-                    begin = self.cursor.peek();
                 }
-
+                EndOfFile => {
+                    return self.expected(
+                        "Unterminated string template literal.",
+                        ParseErrorKind::Unpaired(self.cursor.relative_pos_ctx(start)),
+                    )
+                }
                 _ => {
-                    let value = self.cursor.next()?.value;
-                    literal_value.push_str(value);
-                    end = current;
+                    return self.expected(
+                        "Unexpected token in string template literal.",
+                        ParseErrorKind::Unexpected,
+                    )
                 }
-            };
-        }
-        if !literal_value.is_empty() {
-            parts.push(Expr::Literal(Literal {
-                parsed: LiteralValue::String(literal_value),
-                segment: self.cursor.relative_pos_ctx(begin..self.cursor.peek()),
-            }));
-        }
-
-        let end = self.cursor.next()?;
+            }
+        };
         Ok(TemplateString {
             parts,
             segment: self.cursor.relative_pos_ctx(start..end),
@@ -195,6 +170,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
     /// composed of multiple tokens if not separated with a space.
     fn argument(&mut self, leniency: LiteralLeniency) -> ParseResult<Expr<'a>> {
         let current = self.cursor.peek();
+        let mut end = self.cursor.relative_pos(current.value).end;
         let mut parts = Vec::new();
         let mut builder = String::new();
         let mut lexeme = current.value;
@@ -216,6 +192,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 } else {
                     lexeme = value;
                 }
+                end = self.cursor.relative_pos(value).end;
                 ()
             };
         }
@@ -257,9 +234,11 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                         )?);
                         builder.clear();
                     }
-                    parts.push(self.substitution()?);
+                    let substitution = self.substitution()?;
+                    end = substitution.segment().end;
+                    parts.push(substitution);
                 }
-                Quote => {
+                StringLiteral => {
                     if !builder.is_empty() {
                         parts.push(self.literal_or_wildcard(
                             builder.clone(),
@@ -268,9 +247,11 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                         )?);
                         builder.clear();
                     }
-                    parts.push(self.string_literal().map(Expr::Literal)?);
+                    let literal = self.string_literal()?;
+                    end = literal.segment.end;
+                    parts.push(Expr::Literal(literal));
                 }
-                DoubleQuote => {
+                StringStart => {
                     if !builder.is_empty() {
                         parts.push(self.literal_or_wildcard(
                             builder.clone(),
@@ -279,7 +260,9 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                         )?);
                         builder.clear();
                     }
-                    parts.extend(self.templated_string_literal()?.parts);
+                    let template = self.templated_string_literal()?;
+                    end = template.segment.end;
+                    parts.extend(template.parts);
                 }
                 _ if leniency == LiteralLeniency::Strict && pivot.is_extended_ponctuation() => {
                     break
@@ -299,7 +282,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         }
 
         let start = self.cursor.relative_pos_ctx(current).start;
-        let segment = start..parts.last().unwrap().segment().end;
+        let segment = start..end;
         Ok(Expr::TemplateString(TemplateString { parts, segment }))
     }
 }
@@ -482,14 +465,14 @@ mod tests {
 
     #[test]
     fn escaped_template_string_literal() {
-        let source = Source::unknown("\"a\\\"a'\"");
+        let source = Source::unknown(r#""a\"a'""#);
         let parsed = Parser::new(source).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::TemplateString(TemplateString {
                 parts: vec![Expr::Literal(Literal {
                     parsed: "a\"a'".into(),
-                    segment: source.segment()
+                    segment: find_in(source.source, r#"a\"a'"#)
                 })],
                 segment: source.segment()
             })
@@ -537,7 +520,7 @@ mod tests {
             parsed,
             Expr::TemplateString(TemplateString {
                 parts: vec![
-                    literal(source.source, "\"http://localhost:"),
+                    literal(source.source, "http://localhost:"),
                     Expr::VarReference(VarReference {
                         name: "NGINX_PORT",
                         segment: find_in(source.source, "$NGINX_PORT")

@@ -233,12 +233,18 @@ fn do_not_accumulate_delimiters2() {
 fn no_comma_or_two() {
     let content = "fun test[@](a b,,c) = '";
     let source = Source::unknown(content);
-    let report = parse(source);
+    let mut report = parse(source);
+    report.expr.clear();
     assert_eq!(
         report,
         ParseReport {
             expr: vec![],
             errors: vec![
+                ParseError {
+                    message: "Unterminated string literal.".to_owned(),
+                    position: content.len()..content.len(),
+                    kind: ParseErrorKind::Unpaired(content.find('\'').map(|p| p..p + 1).unwrap())
+                },
                 ParseError {
                     message: "'@' is not a valid generic type identifier.".to_owned(),
                     position: content.find('@').map(|p| p..p + 1).unwrap(),
@@ -253,11 +259,6 @@ fn no_comma_or_two() {
                     message: "Expected parameter.".to_owned(),
                     position: content.rfind(',').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
-                },
-                ParseError {
-                    message: "Unterminated string literal.".to_owned(),
-                    position: content.len()..content.len(),
-                    kind: ParseErrorKind::Unpaired(content.find('\'').map(|p| p..p + 1).unwrap())
                 }
             ],
         }
