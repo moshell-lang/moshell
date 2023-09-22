@@ -14,6 +14,14 @@ Arithmetic evaluation traditionally needs to be made explicit to be differentiat
 
 Moshell also comes with different data types, such as `Int`, `Float`, `Bool` or `String`. This allows for clearer and more elegant code and avoids arithmetic between incompatible types.
 
+## Installation
+
+Moshell is available from different sources:
+
+- You can download a prebuilt nightly binary with `curl -L https://moshell.dev/setup.sh | sh`.
+- If you have a Rust toolchain, CMake and a C++20 compiler installed, you can build a [development version](#build-and-run).
+- Docker users can run a prebuilt image with `docker run -it ghcr.io/moshell-lang/moshell:master`.
+
 ## Current state
 
 Moshell is a project in its early stages.
@@ -52,6 +60,26 @@ Moshell is a project in its early stages.
     - [ ] Shell-like prompt
 
 This repository hosts the source code from the parser to the interpreter.
+
+## Build and Run
+
+You need a stable Rust compiler to build Moshell frontend on a GNU/Linux system.
+The MSRV is the latest stable version of Rust.
+
+The VM needs a C++20 compiler and a CMake 3.15+ installation. Its build script will automatically be called by Cargo.
+GCC starting from version 10 and Clang starting from version 11 are supported.
+
+```sh
+cargo build --release
+./target/release/cli # Run the interactive prompt
+./target/release/cli -s <file> # Run a file
+```
+
+You can export the `MOSHELL_STD` environment variable to specify a path to the standard library.
+
+```sh
+export MOSHELL_STD=/path/to/moshell/lib
+```
 
 ## Examples
 
