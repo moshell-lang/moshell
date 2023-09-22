@@ -5,7 +5,7 @@ NIGHTLY_URL=https://moshell.dev/releases/nightly
 BIN_PATH=~/.local/bin
 LIBS_PATH=~/.local/share/moshell
 
-NIGHTLY_VERSION=$(curl -s $NIGHTLY_URL/nightly-version)
+NIGHTLY_VERSION=$(wget -qO- $NIGHTLY_URL/nightly-version)
 
 # Use moshell's bin last modification date to determine if the binaries are up to date
 if [ -e $BIN_PATH/moshell ] && [ "$(date -r $BIN_PATH/moshell +"%D")" = "$NIGHTLY_VERSION" ]; then
@@ -26,10 +26,37 @@ chmod +x $BIN_PATH/moshell
 echo Downloading $NIGHTLY_URL/lib.zip ...
 wget -qc $NIGHTLY_URL/lib.zip -P $LIBS_PATH
 echo Unzipping library
-[ -e $LIBS_PATH/lib ] && rm -r "$LIBS_PATH/lib"
+rm -rf "$LIBS_PATH/lib"
 unzip -q $LIBS_PATH/lib.zip -d $LIBS_PATH && rm $LIBS_PATH/lib.zip
 
 
 echo Moshell Nightly version "$NIGHTLY_VERSION" Successfully installed!
 echo "Binary : $BIN_PATH/moshell"
 echo "Stdlib : $LIBS_PATH/lib"
+
+if ! echo "$PATH" | grep -q $BIN_PATH; then
+  echo
+  echo $BIN_PATH not found in '$PATH' variable
+  echo Do you want to add $BIN_PATH in your '$PATH' ? [Y/n]
+  read CHOICE
+
+  case $(basename -- "$SHELL") in
+      "bash")
+      SHELLRC=~/.bashrc
+    ;;
+      "zsh")
+      SHELLRC=~/.zshrc
+    ;;
+      "nu")
+      SHELLRC=~/.config/nushell/env.nu
+    ;;
+      *)
+        exit 0
+  esac
+
+  if echo "$CHOICE" | grep -qE "^\s*$" || [ "$CHOICE" = "Y" ] || [ "$CHOICE" = "y" ]; then
+      echo export PATH="$PATH:$BIN_PATH" >> $SHELLRC
+      echo your '$PATH' variable has been updated.
+      echo you can use \'source $SHELLRC\' to apply the changes
+  fi
+fi
