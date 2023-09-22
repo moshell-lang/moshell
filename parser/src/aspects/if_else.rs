@@ -248,7 +248,7 @@ mod tests {
                                         Expr::TemplateString(TemplateString {
                                             parts: vec![
                                                 literal(content, "+"),
-                                                literal(content, "\"%Y\"")
+                                                literal(content, "%Y")
                                             ],
                                             segment: find_in(content, "+\"%Y\"")
                                         })
@@ -265,11 +265,11 @@ mod tests {
                         segment: find_between(content, "[", "]"),
                     })),
                     success_branch: Box::new(Expr::TemplateString(TemplateString {
-                        parts: vec![literal(content, "\"bash\"")],
+                        parts: vec![literal(content, "bash")],
                         segment: find_in(content, "\"bash\"")
                     })),
                     fail_branch: Some(Box::new(Expr::TemplateString(TemplateString {
-                        parts: vec![literal(content, "\"moshell\"")],
+                        parts: vec![literal(content, "moshell")],
                         segment: find_in(content, "\"moshell\"")
                     }))),
                     segment: find_between(content, "if", "\"moshell\""),

@@ -1,6 +1,7 @@
 use std::iter::Peekable;
 use std::str::CharIndices;
 
+use crate::delimiter::UnmatchedDelimiter;
 use crate::token::{Token, TokenType};
 
 /// A lexer that iterates over the input string and produces tokens.
@@ -11,14 +12,19 @@ pub(crate) struct Lexer<'a> {
     /// The input string.
     pub(crate) input: &'a str,
 
-    /// The current string depth.
-    ///
-    /// This is mostly used to determine `//` is the start of a comment or not.
-    /// Any even number means we are not in a string and any odd number means we are in a string.
-    /// This is stored as an number because a shell allows strings to be nested.
-    ///
-    /// Use [`Lexer::is_in_string()`] to check if the lexer is in a string.
-    pub(crate) string_depth: usize,
+    /// The stack to keep track of string depths.
+    pub(crate) open_delimiters: Vec<Token<'a>>,
+
+    /// The vector of unmatched delimiter errors.
+    pub(crate) mismatches: Vec<UnmatchedDelimiter>,
+
+    state: LexerState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LexerState {
+    Normal,
+    Variable,
 }
 
 impl<'a> Iterator for Lexer<'a> {
@@ -39,13 +45,27 @@ impl<'a> Lexer<'a> {
         Self {
             iter: input.char_indices().peekable(),
             input,
-            string_depth: 0,
+            open_delimiters: Vec::new(),
+            mismatches: Vec::new(),
+            state: LexerState::Normal,
         }
     }
 
     fn next_token(&mut self) -> Token<'a> {
         if let Some((pos, c)) = self.iter.next() {
-            self.next_token_char(pos, c)
+            if self.is_in_string() {
+                if c == '$' {
+                    self.state = LexerState::Variable;
+                } else if c == '"' {
+                    self.open_delimiters.pop();
+                    return Token::new(TokenType::StringEnd, &self.input[pos..pos + 1]);
+                }
+            }
+            if self.is_in_string() && self.state == LexerState::Normal {
+                self.next_content(pos)
+            } else {
+                self.next_token_char(pos, c)
+            }
         } else {
             Token::new(TokenType::EndOfFile, "")
         }
@@ -53,17 +73,20 @@ impl<'a> Lexer<'a> {
 
     /// Creates the next token, given that the first character is already known.
     fn next_token_char(&mut self, pos: usize, ch: char) -> Token<'a> {
+        self.state = LexerState::Normal;
         let mut size = ch.len_utf8();
         let token_type = match ch {
             '\'' => {
-                self.toggle_in_string_state();
-                TokenType::Quote
+                return self.next_string(pos);
             }
             '"' => {
-                self.toggle_in_string_state();
-                TokenType::DoubleQuote
+                self.open_delimiters.push(Token::new(
+                    TokenType::StringStart,
+                    &self.input[pos..pos + 1],
+                ));
+                TokenType::StringStart
             }
-            '/' if !self.is_in_string() => {
+            '/' => {
                 if self.matches_next('/', &mut size) {
                     return self.skip_line();
                 } else if self.matches_next('*', &mut size) {
@@ -82,21 +105,32 @@ impl<'a> Lexer<'a> {
             '[' => TokenType::SquaredLeftBracket,
             ']' => TokenType::SquaredRightBracket,
             '(' => {
-                if self.is_in_string() {
-                    self.string_depth += 1;
-                }
+                self.open_delimiters.push(Token::new(
+                    TokenType::RoundedLeftBracket,
+                    &self.input[pos..pos + 1],
+                ));
                 TokenType::RoundedLeftBracket
             }
             ')' => {
-                if !self.is_in_string() && self.string_depth != 0 {
-                    self.string_depth -= 1;
-                }
+                self.pop_delimiter_if(TokenType::RoundedLeftBracket);
                 TokenType::RoundedRightBracket
             }
-            '{' => TokenType::CurlyLeftBracket,
-            '}' => TokenType::CurlyRightBracket,
+            '{' => {
+                self.open_delimiters.push(Token::new(
+                    TokenType::CurlyLeftBracket,
+                    &self.input[pos..pos + 1],
+                ));
+                TokenType::CurlyLeftBracket
+            }
+            '}' => {
+                self.pop_delimiter_if(TokenType::CurlyLeftBracket);
+                TokenType::CurlyRightBracket
+            }
             '@' => TokenType::At,
-            '$' => TokenType::Dollar,
+            '$' => {
+                self.state = LexerState::Variable;
+                TokenType::Dollar
+            }
             ',' => TokenType::Comma,
             '.' => {
                 if self.matches_next('.', &mut size) {
@@ -225,6 +259,72 @@ impl<'a> Lexer<'a> {
         while let Some((_, c)) = self.iter.next() {
             if c == '*' && self.iter.next_if(|(_, c)| *c == '/').is_some() {
                 break;
+            }
+        }
+    }
+
+    fn next_string(&mut self, start: usize) -> Token<'a> {
+        let mut end = start + 1;
+        let mut escape = false;
+        for (pos, c) in self.iter.by_ref() {
+            end = pos;
+            if escape {
+                escape = false;
+                continue;
+            }
+            if c == '\\' {
+                escape = true;
+                continue;
+            }
+            if c == '\'' {
+                return Token::new(TokenType::StringLiteral, &self.input[start + 1..end]);
+            }
+        }
+        self.mismatches.push(UnmatchedDelimiter {
+            opening: Some(start),
+            candidate: None,
+            closing: None,
+        });
+        Token::new(TokenType::StringLiteral, &self.input[start + 1..end])
+    }
+
+    fn next_content(&mut self, start: usize) -> Token<'a> {
+        let mut end = start;
+        let mut escape = false;
+        while let Some(&(pos, c)) = self.iter.peek() {
+            end = pos;
+            if escape {
+                escape = false;
+                self.iter.next();
+                continue;
+            }
+            if c == '\\' {
+                escape = true;
+                self.iter.next();
+                continue;
+            }
+            if c == '$' {
+                self.state = LexerState::Variable;
+                break;
+            }
+            if c == '\"' {
+                break;
+            }
+            self.iter.next();
+        }
+        Token::new(TokenType::StringContent, &self.input[start..end])
+    }
+
+    fn is_in_string(&self) -> bool {
+        self.open_delimiters
+            .last()
+            .map_or(false, |token| token.token_type == TokenType::StringStart)
+    }
+
+    fn pop_delimiter_if(&mut self, token_type: TokenType) {
+        if let Some(open_delimiter) = self.open_delimiters.pop() {
+            if open_delimiter.token_type != token_type {
+                self.open_delimiters.push(open_delimiter);
             }
         }
     }

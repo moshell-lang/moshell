@@ -10,7 +10,7 @@ pub mod token;
 pub fn lex(input: &str) -> (Vec<Token>, Vec<UnmatchedDelimiter>) {
     let mut stream = TokenStream::new(input);
     let tokens = Vec::from_iter(&mut stream);
-    let mismatches = stream.mismatches;
+    let mismatches = stream.lexer.mismatches;
     (tokens, mismatches)
 }
 
@@ -18,9 +18,31 @@ pub fn lex(input: &str) -> (Vec<Token>, Vec<UnmatchedDelimiter>) {
 pub fn is_unterminated(input: &str) -> bool {
     let mut stream = TokenStream::new(input);
     for _ in stream.by_ref() {}
-    !stream.mismatches.is_empty()
+    !stream.lexer.mismatches.is_empty()
         && stream
+            .lexer
             .mismatches
             .into_iter()
             .all(|unmatched| unmatched.candidate.is_none())
+}
+
+pub fn unescape(input: &str) -> String {
+    let mut output = String::with_capacity(input.len());
+    let mut chars = input.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            match chars.next().expect("Unterminated escape sequence") {
+                'n' => output.push('\n'),
+                'r' => output.push('\r'),
+                't' => output.push('\t'),
+                '\\' => output.push('\\'),
+                '"' => output.push('"'),
+                '\'' => output.push('\''),
+                _ => output.push(c),
+            }
+        } else {
+            output.push(c);
+        }
+    }
+    output
 }

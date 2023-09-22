@@ -1,6 +1,6 @@
 use dbg_pls::DebugPls;
 
-use context::source::SourceSegment;
+use context::source::{SourceSegment, SourceSegmentHolder};
 use src_macros::segment_holder;
 
 use crate::value::{Literal, TemplateString};
@@ -39,4 +39,15 @@ pub enum MatchPattern<'a> {
     VarRef(VarReference<'a>),
     Literal(Literal),
     Template(TemplateString<'a>),
+}
+
+impl SourceSegmentHolder for MatchPattern<'_> {
+    fn segment(&self) -> SourceSegment {
+        match self {
+            Self::Wildcard(segment) => segment.clone(),
+            Self::VarRef(var_ref) => var_ref.segment(),
+            Self::Literal(literal) => literal.segment(),
+            Self::Template(template) => template.segment(),
+        }
+    }
 }
