@@ -8,7 +8,7 @@ RUN apt-get update \
 
 COPY . .
 
-RUN cargo build --release --bin cli
+RUN cargo build --release --bin cli && strip target/release/cli
 
 FROM alpine:3.18 AS runtime
 
