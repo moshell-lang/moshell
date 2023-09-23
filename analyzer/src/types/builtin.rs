@@ -2,14 +2,14 @@ use ast::operation::BinaryOperator;
 
 use crate::engine::Engine;
 use crate::reef::{Reef, LANG_REEF};
-use crate::relations::{NativeId, Relations};
+use crate::relations::{NativeId, Relations, SourceId};
 use crate::types::ctx::TypeContext;
 use crate::types::engine::TypedEngine;
 use crate::types::operator::name_operator_method;
 use crate::types::ty::{MethodType, Type, TypeId, TypeRef};
 use crate::types::{
-    Typing, BOOL, EXITCODE, FLOAT, GENERIC_OPTION, GENERIC_VECTOR, INT, NOTHING, POLYTYPE, STRING,
-    UNIT,
+    Typing, BOOL, ERROR, EXITCODE, FLOAT, GENERIC_OPTION, GENERIC_VECTOR, INT, NOTHING, POLYTYPE,
+    STRING, UNIT,
 };
 
 const ARITHMETIC_OPERATORS: &[BinaryOperator] = &[
@@ -219,6 +219,17 @@ fn fill_lang_bindings(ctx: &mut TypeContext) {
     ctx.bind_name("String".to_string(), STRING.type_id);
     ctx.bind_name("Vec".to_string(), GENERIC_VECTOR.type_id);
     ctx.bind_name("Option".to_string(), GENERIC_OPTION.type_id);
+
+    ctx.push_local_typed(SourceId(0), ERROR);
+    ctx.push_local_typed(SourceId(0), NOTHING);
+    ctx.push_local_typed(SourceId(0), UNIT);
+    ctx.push_local_typed(SourceId(0), BOOL);
+    ctx.push_local_typed(SourceId(0), EXITCODE);
+    ctx.push_local_typed(SourceId(0), INT);
+    ctx.push_local_typed(SourceId(0), FLOAT);
+    ctx.push_local_typed(SourceId(0), STRING);
+    ctx.push_local_typed(SourceId(0), GENERIC_VECTOR);
+    ctx.push_local_typed(SourceId(0), GENERIC_OPTION);
 }
 
 pub fn lang_reef() -> Reef<'static> {

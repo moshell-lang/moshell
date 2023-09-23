@@ -61,7 +61,7 @@ pub(super) fn call_convert_on(
                     DiagnosticID::UnknownMethod,
                     format!(
                         "No conversion method defined for type `{}`",
-                        exploration.get_type(into)
+                        exploration.get_type_instance(into)
                     ),
                 )
                 .with_observation((source, exploration.externals.current, expr.segment()).into()),
@@ -84,7 +84,7 @@ pub(super) fn call_convert_on(
         };
     }
 
-    let ty = exploration.get_type(expr.ty);
+    let ty = exploration.get_type_instance(expr.ty);
     diagnostics.push(
         Diagnostic::new(DiagnosticID::TypeMismatch, message(ty)).with_observation(
             Observation::here(

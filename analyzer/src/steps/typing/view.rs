@@ -23,11 +23,7 @@ impl fmt::Debug for TypeInstance<'_> {
 
 impl fmt::Display for TypeInstance<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self
-            .exploration
-            .get_type_ref(self.id)
-            .unwrap_or(&Type::Error)
-        {
+        match self.exploration.get_type(self.id).unwrap_or(&Type::Error) {
             Type::Error => write!(f, "Error"),
             Type::Unknown => write!(f, "Unknown"),
             Type::Nothing => write!(f, "Nothing"),

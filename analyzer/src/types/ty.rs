@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::diagnostic::SourceLocation;
 use crate::reef::ReefId;
-use crate::relations::{Definition, NativeId, ObjectId};
+use crate::relations::{Definition, LocalId, NativeId, ObjectId};
 use crate::types::{BOOL, ERROR, EXITCODE, FLOAT, INT, NOTHING, UNIT};
 
 /// A type identifier in a [`Typing`] instance.
@@ -118,6 +118,7 @@ pub struct FunctionType {
 pub struct Parameter {
     pub(crate) location: Option<SourceLocation>,
     pub ty: TypeRef,
+    pub local_id: LocalId,
 }
 
 impl FunctionType {
@@ -131,7 +132,12 @@ impl FunctionType {
         Self {
             parameters: parameters
                 .into_iter()
-                .map(|ty| Parameter { location: None, ty })
+                .enumerate()
+                .map(|(param_offset, ty)| Parameter {
+                    location: None,
+                    ty,
+                    local_id: LocalId(param_offset),
+                })
                 .collect(),
             return_type,
             definition: Definition::Native(id),

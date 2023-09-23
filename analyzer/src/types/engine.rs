@@ -127,6 +127,11 @@ impl TypedEngine {
         self.entries.get(id.0)?.as_ref()
     }
 
+    pub fn take_user(&mut self, id: SourceId) -> Option<Chunk> {
+        self.entries.push(None);
+        self.entries.swap_remove(id.0)
+    }
+
     /// Inserts a chunk into the engine.
     pub fn insert(&mut self, id: SourceId, entry: Chunk) {
         self.entries[id.0] = Some(entry);
@@ -185,15 +190,6 @@ impl TypedEngine {
                 .resize_with(type_id.0 + 1, Default::default);
         }
         self.descriptions[type_id.0].generics.push(generic);
-    }
-
-    /// Inserts a chunk into the engine if it is not already present.
-    ///
-    /// This may be used to insert semi-accurate chunks into the engine.
-    pub fn insert_if_absent(&mut self, id: SourceId, entry: Chunk) {
-        if self.entries[id.0].is_none() {
-            self.entries[id.0] = Some(entry);
-        }
     }
 
     /// returns an iterator over all contained chunks with their identifier

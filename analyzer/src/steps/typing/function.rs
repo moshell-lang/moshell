@@ -1,12 +1,13 @@
+use std::fmt;
+
 use ast::call::{MethodCall, ProgrammaticCall};
 use ast::function::{FunctionDeclaration, FunctionParameter};
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
-use std::fmt;
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation, SourceLocation};
 use crate::reef::ReefId;
-use crate::relations::{Definition, SourceId, SymbolRef};
+use crate::relations::{Definition, LocalId, SourceId, SymbolRef};
 use crate::steps::typing::coercion::{
     convert_description, convert_expression, convert_many, resolve_type_annotation,
 };
@@ -89,9 +90,9 @@ pub(super) fn infer_return(
                 exploration.externals.current,
                 ret.segment.clone(),
                 if func.return_type.is_some() {
-                    format!("Found `{}`", exploration.get_type(ret.ty))
+                    format!("Found `{}`", exploration.get_type_instance(ret.ty))
                 } else {
-                    format!("Returning `{}`", exploration.get_type(ret.ty))
+                    format!("Returning `{}`", exploration.get_type_instance(ret.ty))
                 },
             ));
         }
@@ -111,7 +112,7 @@ pub(super) fn infer_return(
                     return_type_annotation.segment(),
                     format!(
                         "Expected `{}` because of return type",
-                        exploration.get_type(expected_return_type)
+                        exploration.get_type_instance(expected_return_type)
                     ),
                 )),
         );
@@ -162,7 +163,7 @@ pub(super) fn infer_return(
             .with_observations(typed_return_locations)
             .with_help(format!(
                 "Add -> {} to the function declaration",
-                exploration.get_type(common_type)
+                exploration.get_type_instance(common_type)
             )),
         );
     } else {
@@ -204,7 +205,7 @@ pub(super) fn type_call(
         .unwrap()
         .type_ref;
 
-    match exploration.get_type_ref(type_ref).unwrap() {
+    match exploration.get_type(type_ref).unwrap() {
         &Type::Function(declaration) => {
             let entry: CodeEntry = exploration.get_entry(fun_reef, declaration).unwrap();
             let parameters = entry.parameters().to_owned(); // TODO: avoid clone
@@ -237,28 +238,23 @@ pub(super) fn type_call(
             } else {
                 let mut casted_arguments = Vec::with_capacity(parameters.len());
                 for (param, arg) in parameters.iter().cloned().zip(arguments) {
-                    casted_arguments.push(
-                        match convert_expression(
-                            arg,
-                            param.ty,
-                            exploration,
-                            links.source,
-                            diagnostics,
-                        ) {
-                            Ok(arg) => arg,
-                            Err(arg) => {
-                                diagnostics.push(diagnose_arg_mismatch(
-                                    exploration,
-                                    links.source,
-                                    exploration.externals.current,
-                                    fun_reef,
-                                    &param,
-                                    &arg,
-                                ));
-                                arg
-                            }
-                        },
-                    );
+                    let casted_argument =
+                        convert_expression(arg, param.ty, exploration, links.source, diagnostics);
+                    let casted_argument = match casted_argument {
+                        Ok(arg) => arg,
+                        Err(arg) => {
+                            diagnostics.push(diagnose_arg_mismatch(
+                                exploration,
+                                links.source,
+                                exploration.externals.current,
+                                fun_reef,
+                                &param,
+                                &arg,
+                            ));
+                            arg
+                        }
+                    };
+                    casted_arguments.push(casted_argument);
                 }
                 FunctionMatch {
                     arguments: casted_arguments,
@@ -269,7 +265,7 @@ pub(super) fn type_call(
             }
         }
         _ => {
-            let ty = exploration.get_type(type_ref);
+            let ty = exploration.get_type_instance(type_ref);
             diagnostics.push(
                 Diagnostic::new(
                     DiagnosticID::TypeMismatch,
@@ -341,12 +337,12 @@ pub(super) fn type_method(
                 if method_call.name.is_some() {
                     format!(
                         "No method named `{method_name}` found for type `{}`",
-                        exploration.get_type(callee.ty)
+                        exploration.get_type_instance(callee.ty)
                     )
                 } else {
                     format!(
                         "Type `{}` is not directly callable",
-                        exploration.get_type(callee.ty)
+                        exploration.get_type_instance(callee.ty)
                     )
                 },
             )
@@ -391,17 +387,18 @@ pub(super) fn type_method(
                 ))
                 .with_help(format!(
                     "The method signature is `{}::{}`",
-                    exploration.get_type(callee.ty),
+                    exploration.get_type_instance(callee.ty),
                     Signature::new(exploration, method_name, method)
                 )),
             );
         } else {
             for (param, arg) in method.parameters.iter().zip(arguments.iter()) {
-                if convert_description(exploration, param.ty, arg.ty).is_err() {
-                    let type_param = exploration.concretize(param.ty, callee.ty);
+                let type_param = exploration.concretize(param.ty, callee.ty);
+                if convert_description(exploration, type_param.id, arg.ty).is_err() {
                     let param = Parameter {
                         location: param.location.clone(),
                         ty: type_param.id,
+                        local_id: param.local_id,
                     };
                     let diagnostic = diagnose_arg_mismatch(
                         exploration,
@@ -428,7 +425,7 @@ pub(super) fn type_method(
                 DiagnosticID::UnknownMethod,
                 format!(
                     "No matching method found for `{method_name}::{}`",
-                    exploration.get_type(callee.ty)
+                    exploration.get_type_instance(callee.ty)
                 ),
             )
             .with_observation(Observation::here(
@@ -458,8 +455,8 @@ fn diagnose_arg_mismatch(
             arg.segment.clone(),
             format!(
                 "Expected `{}`, found `{}`",
-                exploration.get_type(param.ty),
-                exploration.get_type(arg.ty)
+                exploration.get_type_instance(param.ty),
+                exploration.get_type_instance(arg.ty)
             ),
         ),
     );
@@ -503,6 +500,7 @@ fn find_exact_method<'a>(
 
 /// Type check a single function parameter.
 pub(super) fn type_parameter(
+    local_id: LocalId,
     exploration: &mut Exploration,
     param: &FunctionParameter,
     links: Links,
@@ -520,6 +518,7 @@ pub(super) fn type_parameter(
                     named.segment.clone(),
                 )),
                 ty: type_id,
+                local_id,
             }
         }
         FunctionParameter::Slf(_) => todo!("method not supported yet"),
@@ -560,7 +559,7 @@ impl<'a> Signature<'a> {
     }
 
     fn get_type(&self, id: TypeRef) -> TypeInstance {
-        self.exploration.get_type(id)
+        self.exploration.get_type_instance(id)
     }
 }
 

@@ -2,13 +2,11 @@ use ast::r#type::ParametrizedType;
 use context::source::SourceSegmentHolder;
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
-use crate::environment::symbols::SymbolInfo;
-use crate::reef::LANG_REEF;
 use crate::relations::{SourceId, SymbolRef};
 use crate::steps::typing::exploration::{Exploration, Links};
 use crate::steps::typing::lower::call_convert_on;
 use crate::types::hir::TypedExpr;
-use crate::types::ty::{Type, TypeId, TypeRef};
+use crate::types::ty::{Type, TypeRef};
 use crate::types::{UnificationError, BOOL, ERROR, NOTHING};
 
 /// Unifies two type identifiers, returning the type that the right hand side was unified to.
@@ -36,10 +34,15 @@ pub(super) fn convert_description(
     }
 
     let lhs = exploration
-        .get_type_ref(assign_to)
+        .get_type(assign_to)
         .unwrap_or_else(|| panic!("cannot find type {assign_to:?}`"));
+
+    if *lhs == Type::Polytype {
+        return Ok(assign_to);
+    }
+
     let rhs = exploration
-        .get_type_ref(rvalue)
+        .get_type(rvalue)
         .unwrap_or_else(|| panic!("cannot find type {rvalue:?}`"));
     if lhs == rhs {
         return Ok(assign_to);
@@ -50,11 +53,31 @@ pub(super) fn convert_description(
         return Ok(assign_to);
     }
 
+    if let (Type::Instantiated(base_left, params_lhs), Type::Instantiated(base_right, params_rhs)) =
+        (lhs, rhs)
+    {
+        if base_left == base_right {
+            // simply test if parameters of rvalue can fit to assigned target
+            // when generic parameters will have bounds, we'll probably want to
+            // assign a new type that's the result of the union of rvalue and assigned.
+            let are_parameters_compatible =
+                params_lhs
+                    .iter()
+                    .zip(params_rhs)
+                    .all(|(param_lhs, param_rhs)| {
+                        convert_description(exploration, *param_lhs, *param_rhs).is_ok()
+                    });
+            if are_parameters_compatible {
+                return Ok(assign_to);
+            }
+        }
+    }
+
     let rvalue_typing = exploration.get_types(rvalue.reef).unwrap();
 
     if let Some(implicit) = rvalue_typing.implicits.get(&rvalue.type_id) {
         let implicit = exploration
-            .get_type_ref(*implicit)
+            .get_type(*implicit)
             .unwrap_or_else(|| panic!("cannot find type {implicit:?}`"));
         if lhs == implicit {
             return Ok(assign_to);
@@ -90,32 +113,27 @@ pub(super) fn resolve_type_annotation(
         ast::r#type::Type::Parametrized(ParametrizedType { params, .. }) => {
             let env = links.env();
             let type_symbol_ref = env.get_raw_symbol(type_annotation.segment()).unwrap();
-            let main_type = match type_symbol_ref {
-                SymbolRef::Local(l) => {
-                    let SymbolInfo::Type(main_type) = env.symbols.get(l).unwrap().ty else {
-                        panic!("type symbol is not a type")
-                    };
-                    main_type
-                }
+            let type_variable = match type_symbol_ref {
+                SymbolRef::Local(local) => exploration.ctx.get_local(links.source, local).unwrap(),
                 SymbolRef::External(r) => {
                     let resolved_symbol = links.relations[r]
                         .state
                         .expect_resolved("unresolved type symbol during typechecking");
 
-                    if resolved_symbol.reef == LANG_REEF {
-                        let primitive_id = TypeId(resolved_symbol.object_id.0);
-                        TypeRef::new(LANG_REEF, primitive_id)
+                    let ctx = if resolved_symbol.reef == exploration.externals.current {
+                        &exploration.ctx
                     } else {
-                        let type_env = exploration.get_external_env(env, resolved_symbol).unwrap();
-                        let SymbolInfo::Type(main_type) =
-                            type_env.symbols.get(resolved_symbol.object_id).unwrap().ty
-                        else {
-                            panic!("type symbol is not a type")
-                        };
-                        main_type
-                    }
+                        &exploration
+                            .externals
+                            .get_reef(resolved_symbol.reef)
+                            .unwrap()
+                            .type_context
+                    };
+                    ctx.get_local(resolved_symbol.source, resolved_symbol.object_id)
+                        .unwrap()
                 }
             };
+            let main_type = type_variable.type_ref;
 
             let generics = &exploration
                 .get_description(main_type)
@@ -128,12 +146,12 @@ pub(super) fn resolve_type_annotation(
                         if params.len() < generics.len() {
                             format!(
                                 "Missing generics for type `{}`",
-                                exploration.get_type(main_type)
+                                exploration.get_type_instance(main_type)
                             )
                         } else {
                             format!(
                                 "Type `{}` were supplied {} generic argument{}",
-                                exploration.get_type(main_type),
+                                exploration.get_type_instance(main_type),
                                 params.len(),
                                 if params.len() == 1 { "" } else { "s" }
                             )
@@ -177,8 +195,8 @@ pub(super) fn is_compatible(
     if assign_to.is_err() || rvalue.is_err() || rvalue.is_nothing() {
         return true; // An error is compatible with everything, as it is a placeholder.
     }
-    let lhs = exploration.get_type_ref(assign_to).unwrap();
-    let rhs = exploration.get_type_ref(rvalue).unwrap();
+    let lhs = exploration.get_type(assign_to).unwrap();
+    let rhs = exploration.get_type(rvalue).unwrap();
     lhs == rhs
 }
 
@@ -207,13 +225,16 @@ pub(super) fn check_type_annotation(
                         links.source,
                         current_reef,
                         type_annotation.segment(),
-                        format!("Expected `{}`", exploration.get_type(expected_type)),
+                        format!(
+                            "Expected `{}`",
+                            exploration.get_type_instance(expected_type)
+                        ),
                     ))
                     .with_observation(Observation::here(
                         links.source,
                         current_reef,
                         value.segment(),
-                        format!("Found `{}`", exploration.get_type(value.ty)),
+                        format!("Found `{}`", exploration.get_type_instance(value.ty)),
                     )),
             );
             value.ty = expected_type;
@@ -272,7 +293,7 @@ pub(super) fn coerce_condition(
                         condition.segment(),
                         format!(
                             "Type `{}` cannot be used as a condition",
-                            exploration.get_type(condition.ty)
+                            exploration.get_type_instance(condition.ty)
                         ),
                     )),
             );

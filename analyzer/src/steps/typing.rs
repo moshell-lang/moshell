@@ -14,7 +14,7 @@ use crate::dependency::topological_sort;
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::reef::{Externals, ReefId};
-use crate::relations::{Definition, Relations, SourceId, SymbolRef};
+use crate::relations::{Definition, LocalId, Relations, SourceId, SymbolRef};
 use crate::steps::typing::coercion::{
     check_type_annotation, coerce_condition, convert_description, convert_expression, convert_many,
     resolve_type_annotation,
@@ -150,12 +150,11 @@ fn apply_types_to_source(
     exploration.prepare();
     match expr {
         Expr::FunctionDeclaration(func) => {
-            let mut params = Vec::new();
-            for param in &func.parameters {
-                let param = type_parameter(exploration, param, links, diagnostics);
-                exploration.ctx.push_local_typed(source_id, param.ty);
-                params.push(param);
-            }
+            // is some if this chunk was forward declared
+            let forward_declaration = exploration.type_engine.take_user(source_id);
+
+            let base_chunk = forward_declaration
+                .unwrap_or_else(|| type_function_signature(func, exploration, links, diagnostics));
 
             let typed_body = func.body.as_ref().map(|body| {
                 ascribe_types(
@@ -171,10 +170,10 @@ fn apply_types_to_source(
                 infer_return(func, links, typed_body.as_ref(), diagnostics, exploration);
 
             if let Some(body) = typed_body {
-                Chunk::function(body, params, return_type)
+                Chunk::function(body, base_chunk.parameters, return_type)
             } else {
                 verify_free_function(func, exploration.externals, source_id, diagnostics);
-                Chunk::native(params, return_type)
+                Chunk::native(base_chunk.parameters, return_type)
             }
         }
         expr => Chunk::script(ascribe_types(
@@ -184,6 +183,60 @@ fn apply_types_to_source(
             expr,
             TypingState::new(),
         )),
+    }
+}
+
+fn type_function_signature(
+    func: &FunctionDeclaration,
+    exploration: &mut Exploration,
+    function_links: Links,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Chunk {
+    let mut params = Vec::new();
+
+    let func_source = function_links.source;
+
+    for param in &func.type_parameters {
+        let param_type_id = exploration.typing.add_type(Type::Polytype);
+        let param_type_ref = TypeRef::new(exploration.externals.current, param_type_id);
+        exploration
+            .ctx
+            .push_local_typed(func_source, param_type_ref);
+        exploration
+            .ctx
+            .bind_name(param.name.to_string(), param_type_id);
+    }
+
+    let tparam_count = func.type_parameters.len();
+    for (param_offset, param) in func.parameters.iter().enumerate() {
+        let param = type_parameter(
+            LocalId(tparam_count + param_offset),
+            exploration,
+            param,
+            function_links,
+            diagnostics,
+        );
+        exploration.ctx.push_local_typed(func_source, param.ty);
+        params.push(param);
+    }
+
+    let return_type = func.return_type.as_ref().map_or(UNIT, |ty| {
+        resolve_type_annotation(exploration, function_links, ty, diagnostics)
+    });
+
+    let type_id = exploration
+        .typing
+        .add_type(Type::Function(Definition::User(func_source)));
+    let type_ref = TypeRef::new(exploration.externals.current, type_id);
+
+    Chunk {
+        expression: Some(TypedExpr {
+            kind: ExprKind::Noop,
+            ty: type_ref,
+            segment: func.segment(),
+        }),
+        parameters: params,
+        return_type,
     }
 }
 
@@ -305,7 +358,7 @@ fn ascribe_assign(
         .unwrap()
         .type_ref;
 
-    let actual_type = exploration.get_type_ref(actual_type_ref).unwrap();
+    let actual_type = exploration.get_type(actual_type_ref).unwrap();
     if actual_type.is_named() {
         diagnostics.push(
             Diagnostic::new(
@@ -340,8 +393,8 @@ fn ascribe_assign(
                     DiagnosticID::TypeMismatch,
                     format!(
                         "Cannot assign a value of type `{}` to something of type `{}`",
-                        exploration.get_type(rhs_type),
-                        exploration.get_type(var_ty)
+                        exploration.get_type_instance(rhs_type),
+                        exploration.get_type_instance(var_ty)
                     ),
                 )
                 .with_observation(Observation::here(
@@ -536,7 +589,7 @@ fn ascribe_redirected(
                         DiagnosticID::TypeMismatch,
                         format!(
                             "File descriptor redirections must be given an integer, not `{}`",
-                            exploration.get_type(operand.ty)
+                            exploration.get_type_instance(operand.ty)
                         ),
                     )
                     .with_observation(Observation::here(
@@ -638,9 +691,19 @@ fn ascribe_function_declaration(
     fun: &FunctionDeclaration,
     exploration: &mut Exploration,
     links: Links,
+    diagnostics: &mut Vec<Diagnostic>,
 ) -> TypedExpr {
     let declaration = links.env().get_raw_env(fun.segment()).unwrap();
-    let declaration_link = links.with_source(declaration);
+
+    if exploration.type_engine.get_user(declaration).is_none() {
+        let declaration_link = links.with_source(declaration);
+        let forward_declared_chunk =
+            type_function_signature(fun, exploration, declaration_link, diagnostics);
+
+        exploration
+            .type_engine
+            .insert(declaration, forward_declared_chunk);
+    }
 
     let type_id = exploration
         .typing
@@ -649,29 +712,6 @@ fn ascribe_function_declaration(
 
     let local_id = exploration.ctx.push_local_typed(links.source, type_ref);
 
-    // Forward declare the function
-    let parameters = fun
-        .parameters
-        .iter()
-        .map(|param| type_parameter(exploration, param, declaration_link, &mut vec![])) // Silent errors
-        .collect::<Vec<_>>();
-
-    let return_type = fun.return_type.as_ref().map_or(UNIT, |ty| {
-        resolve_type_annotation(exploration, declaration_link, ty, &mut Vec::new())
-    }); // Silent errors
-
-    exploration.type_engine.insert_if_absent(
-        declaration,
-        Chunk::function(
-            TypedExpr {
-                kind: ExprKind::Noop,
-                ty: type_ref,
-                segment: fun.segment.clone(),
-            },
-            parameters,
-            return_type,
-        ),
-    );
     TypedExpr {
         kind: ExprKind::Declare(Declaration {
             identifier: local_id,
@@ -725,8 +765,8 @@ fn ascribe_binary(
                         format!(
                             "No operator `{}` between type `{}` and `{}`",
                             name,
-                            exploration.get_type(left_expr.ty),
-                            exploration.get_type(right_type)
+                            exploration.get_type_instance(left_expr.ty),
+                            exploration.get_type_instance(right_type)
                         ),
                     )),
             );
@@ -755,8 +795,8 @@ fn ascribe_casted(
                 DiagnosticID::IncompatibleCast,
                 format!(
                     "Casting `{}` as `{}` is invalid",
-                    exploration.get_type(expr.ty),
-                    exploration.get_type(ty)
+                    exploration.get_type_instance(expr.ty),
+                    exploration.get_type_instance(ty)
                 ),
             )
             .with_observation(Observation::here(
@@ -819,7 +859,7 @@ fn ascribe_unary(
                                 unary.segment(),
                                 format!(
                                     "`{}` does not implement the `neg` method",
-                                    exploration.get_type(expr.ty),
+                                    exploration.get_type_instance(expr.ty),
                                 ),
                             )),
                     );
@@ -861,7 +901,7 @@ fn ascribe_not(
                         segment,
                         format!(
                             "Cannot invert non-boolean type `{}`",
-                            exploration.get_type(expr.ty)
+                            exploration.get_type_instance(expr.ty)
                         ),
                     ),
                 ),
@@ -920,14 +960,14 @@ fn ascribe_if(
                     links.source,
                     current_reef,
                     block.success_branch.segment(),
-                    format!("Found `{}`", exploration.get_type(then.ty)),
+                    format!("Found `{}`", exploration.get_type_instance(then.ty)),
                 ));
                 if let Some(otherwise) = &otherwise {
                     diagnostic = diagnostic.with_observation(Observation::here(
                         links.source,
                         current_reef,
                         otherwise.segment(),
-                        format!("Found `{}`", exploration.get_type(otherwise.ty)),
+                        format!("Found `{}`", exploration.get_type_instance(otherwise.ty)),
                     ));
                 }
                 diagnostics.push(diagnostic);
@@ -1119,7 +1159,9 @@ fn ascribe_types(
     state: TypingState,
 ) -> TypedExpr {
     match expr {
-        Expr::FunctionDeclaration(fd) => ascribe_function_declaration(fd, exploration, links),
+        Expr::FunctionDeclaration(fd) => {
+            ascribe_function_declaration(fd, exploration, links, diagnostics)
+        }
         Expr::Literal(lit) => ascribe_literal(lit),
         Expr::TemplateString(tpl) => {
             ascribe_template_string(tpl, exploration, links, diagnostics, state)
@@ -1176,50 +1218,41 @@ mod tests {
     use context::str_find::{find_in, find_in_nth};
     use parser::parse_trusted;
 
+    use crate::analyze;
     use crate::importer::StaticImporter;
     use crate::name::Name;
-    use crate::reef::ReefId;
+    use crate::reef::{Reef, ReefId};
     use crate::relations::{LocalId, NativeId};
-    use crate::resolve_all;
     use crate::types::hir::{Convert, MethodCall};
-    use crate::types::ty::Type;
+    use crate::types::ty::{Type, TypeId};
     use crate::types::{EXITCODE, UNIT};
 
     use super::*;
 
-    fn extract(source: Source) -> Result<(Typing, TypedExpr), Vec<Diagnostic>> {
+    fn extract(source: Source) -> Result<Externals, Vec<Diagnostic>> {
         let name = Name::new(source.name);
-        let mut diagnostics = Vec::new();
-        let externals = Externals::default();
+        let mut externals = Externals::default();
+        let mut importer = StaticImporter::new([(name.clone(), source)], parse_trusted);
+        let analyzer = analyze(name, &mut importer, &externals);
 
-        let result = resolve_all(
-            name.clone(),
-            &externals,
-            &mut StaticImporter::new([(name, source)], parse_trusted),
-            &mut diagnostics,
-        );
-        assert_eq!(diagnostics, vec![]);
-
-        let (typed, _, _) = apply_types(
-            &result.engine,
-            &result.relations,
-            &externals,
-            &mut diagnostics,
-        );
-        let expr = typed.get_user(SourceId(0)).unwrap();
-        if diagnostics.is_empty() {
-            Ok((
-                externals.lang().typing.clone(),
-                expr.expression.clone().unwrap(),
-            ))
-        } else {
-            Err(diagnostics)
+        if !analyzer.diagnostics.is_empty() {
+            return Err(analyzer.diagnostics);
         }
+
+        externals.register(Reef::new(source.name.to_string(), analyzer));
+
+        Ok(externals)
     }
 
     pub(crate) fn extract_expr(source: Source) -> Result<Vec<TypedExpr>, Vec<Diagnostic>> {
-        extract(source).map(|(_, expr)| {
-            if let ExprKind::Block(exprs) = &expr.kind {
+        extract(source).map(|externals| {
+            let chunk = externals
+                .get_reef(ReefId(1))
+                .unwrap()
+                .typed_engine
+                .get_user(SourceId(0))
+                .unwrap();
+            if let ExprKind::Block(exprs) = &chunk.expression.as_ref().unwrap().kind {
                 exprs.clone()
             } else {
                 unreachable!()
@@ -1228,7 +1261,13 @@ mod tests {
     }
 
     pub(crate) fn extract_type(source: Source) -> Result<Type, Vec<Diagnostic>> {
-        let (typing, expr) = extract(source)?;
+        let externals = extract(source)?;
+
+        let reef = externals.get_reef(ReefId(1)).unwrap();
+        let chunk = reef.typed_engine.get_user(SourceId(0)).unwrap();
+        let expr = chunk.expression.as_ref().unwrap();
+        let typing = &externals.get_reef(expr.ty.reef).unwrap().typing;
+
         Ok(typing.get_type(expr.ty.type_id).unwrap().clone())
     }
 
@@ -2228,6 +2267,68 @@ mod tests {
                 find_in(content, "Int[Int]"),
                 "Expected 0 generic arguments"
             ))])
+        );
+    }
+
+    #[test]
+    fn fun_with_generic_args() {
+        let content = "\
+            fun push_into[A, B](v: A, vec: Vec[A], b: B) -> B = {
+                val x: A = $v
+                $vec.push($x)
+                $b
+            }
+        ";
+        let src = Source::unknown(content);
+        let externals = extract(src).expect("typing errors");
+        let typing = &externals.get_reef(ReefId(1)).unwrap().typing;
+        assert_eq!(typing.get_type(TypeId(0)), Some(&Type::Polytype));
+        assert_eq!(typing.get_type(TypeId(1)), Some(&Type::Polytype));
+    }
+
+    #[test]
+    fn fun_call_with_generic_args() {
+        let content = r#"\
+            fun push_into[A, B](v: A, vec: Vec[A], b: B) -> B = {
+                val x: A = $v
+                $vec.push($x)
+                $b
+            }
+
+            val vec = "".split(' ')
+            val i = push_into("item", $vec, 4)
+        "#;
+        let src = Source::unknown(content);
+        let externals = extract(src).expect("typing errors");
+        let context = &externals.get_reef(ReefId(1)).unwrap().type_context;
+
+        // `A` generic argument
+        assert_eq!(
+            context.get_local(SourceId(1), LocalId(0)),
+            Some(TypedVariable::immutable(TypeRef::new(ReefId(1), TypeId(0))))
+        );
+        // `B` generic argument
+        assert_eq!(
+            context.get_local(SourceId(1), LocalId(1)),
+            Some(TypedVariable::immutable(TypeRef::new(ReefId(1), TypeId(1))))
+        );
+
+        // `v` argument
+        assert_eq!(
+            context.get_local(SourceId(1), LocalId(2)),
+            Some(TypedVariable::immutable(TypeRef::new(ReefId(1), TypeId(0))))
+        );
+
+        // `vec` argument (has created a new type instantiation)
+        assert_eq!(
+            context.get_local(SourceId(1), LocalId(3)),
+            Some(TypedVariable::immutable(TypeRef::new(ReefId(1), TypeId(2))))
+        );
+
+        // `b` argument
+        assert_eq!(
+            context.get_local(SourceId(1), LocalId(4)),
+            Some(TypedVariable::immutable(TypeRef::new(ReefId(1), TypeId(1))))
         );
     }
 }
