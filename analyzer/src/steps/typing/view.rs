@@ -61,3 +61,39 @@ impl fmt::Display for TypeInstance<'_> {
         }
     }
 }
+
+pub struct TypeInstanceVec<'a> {
+    pub(super) ids: Vec<TypeRef>,
+    pub(super) exploration: &'a Exploration<'a>,
+}
+
+impl<'a> TypeInstanceVec<'a> {
+    pub(super) fn new(ids: Vec<TypeRef>, exploration: &'a Exploration) -> Self {
+        Self { ids, exploration }
+    }
+}
+
+impl fmt::Debug for TypeInstanceVec<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[")?;
+        for (i, id) in self.ids.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{}", TypeInstance::new(*id, self.exploration))?;
+        }
+        write!(f, "]")
+    }
+}
+
+impl fmt::Display for TypeInstanceVec<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (i, id) in self.ids.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "`{}`", TypeInstance::new(*id, self.exploration))?;
+        }
+        Ok(())
+    }
+}

@@ -8,7 +8,7 @@
 val letters = 'abcdefghijklmnopqrstuvwxy'.bytes()
 $letters.push(122)
 echo "The alphabet has ${letters.len()} letters."
-var code = $letters.get(0)
+var code = $letters[0]
 echo "The first letter has the ASCII code ${code}."
-code = $letters.get(25)
+code = $letters[25]
 echo "The last letter has the ASCII code ${code}."

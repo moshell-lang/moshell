@@ -1,10 +1,11 @@
 use pretty_assertions::assert_eq;
 
-use ast::call::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
+use ast::call::{Call, MethodCall, Pipeline, Redir, RedirFd, RedirOp, Redirected};
 use ast::control_flow::{Loop, While};
 use ast::function::Return;
 use ast::group::{Block, Subshell};
 use ast::operation::{BinaryOperation, BinaryOperator};
+use ast::range::{Iterable, Subscript};
 use ast::substitution::{Substitution, SubstitutionKind};
 use ast::value::{Literal, TemplateString};
 use ast::variable::{
@@ -592,6 +593,47 @@ fn short_variable_increment() {
                     segment: find_in(source.source, "2"),
                 })),
             })),
+        })]
+    );
+}
+
+#[test]
+fn subscript_call() {
+    let source = Source::unknown("$foo[0]()[1..=4]");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Subscript(Subscript {
+            target: Box::new(Expr::MethodCall(MethodCall {
+                source: Box::new(Expr::Subscript(Subscript {
+                    target: Box::new(Expr::VarReference(VarReference {
+                        name: "foo",
+                        segment: find_in(source.source, "$foo"),
+                    })),
+                    index: Box::new(Expr::Literal(Literal {
+                        parsed: 0.into(),
+                        segment: find_in(source.source, "0"),
+                    })),
+                    segment: find_in(source.source, "$foo[0]"),
+                })),
+                name: None,
+                arguments: Vec::new(),
+                type_parameters: Vec::new(),
+                segment: find_in(source.source, "$foo[0]()"),
+            })),
+            index: Box::new(Expr::Range(Iterable::Range(ast::range::NumericRange {
+                start: Box::new(Expr::Literal(Literal {
+                    parsed: 1.into(),
+                    segment: find_in(source.source, "1"),
+                })),
+                end: Box::new(Expr::Literal(Literal {
+                    parsed: 4.into(),
+                    segment: find_in(source.source, "4"),
+                })),
+                step: None,
+                upper_inclusive: true,
+            }))),
+            segment: source.segment(),
         })]
     );
 }

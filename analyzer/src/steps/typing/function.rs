@@ -11,7 +11,7 @@ use crate::steps::typing::coercion::{
     convert_description, convert_expression, convert_many, resolve_type_annotation,
 };
 use crate::steps::typing::exploration::{Exploration, Links};
-use crate::steps::typing::view::TypeInstance;
+use crate::steps::typing::view::{TypeInstance, TypeInstanceVec};
 use crate::types::engine::CodeEntry;
 use crate::types::hir::{ExprKind, TypedExpr};
 use crate::types::ty::{FunctionType, MethodType, Parameter, Type, TypeRef};
@@ -314,6 +314,24 @@ pub(super) fn find_operand_implementation(
         }
     }
     None
+}
+
+/// Creates a list of the type parameters of methods.
+pub(super) fn list_operator_defined_for<'a>(
+    exploration: &'a Exploration,
+    methods: &[MethodType],
+) -> TypeInstanceVec<'a> {
+    let types = methods
+        .iter()
+        .flat_map(|method| {
+            if let [param] = &method.parameters.as_slice() {
+                Some(param.ty)
+            } else {
+                None
+            }
+        })
+        .collect();
+    TypeInstanceVec::new(types, exploration)
 }
 
 /// Checks the type of a method expression.

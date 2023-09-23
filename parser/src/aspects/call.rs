@@ -13,6 +13,7 @@ use crate::aspects::group::GroupAspect;
 use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
 use crate::aspects::modules::ModulesAspect;
 use crate::aspects::r#type::TypeAspect;
+use crate::aspects::range::RangeAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{
@@ -243,13 +244,17 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         while self
             .cursor
             .lookahead(
-                of_type(TokenType::RoundedLeftBracket)
+                of_types(&[TokenType::RoundedLeftBracket, TokenType::SquaredLeftBracket])
                     .or(blanks().then(of_type(TokenType::Dot).and_then(identifier_parenthesis()))),
             )
             .is_some()
         {
             self.cursor.advance(blanks());
-            expr = self.method_call_on(expr)?;
+            if self.cursor.peek().token_type == TokenType::SquaredLeftBracket {
+                expr = self.parse_subscript(expr).map(Expr::Subscript)?;
+            } else {
+                expr = self.method_call_on(expr)?;
+            }
         }
         Ok(expr)
     }
