@@ -33,7 +33,7 @@ impl fmt::Display for TypeInstance<'_> {
             Type::Nothing => write!(f, "Nothing"),
             Type::Unit => write!(f, "Unit"),
             Type::Bool => write!(f, "Bool"),
-            Type::ExitCode => write!(f, "ExitCode"),
+            Type::ExitCode => write!(f, "Exitcode"),
             Type::Int => write!(f, "Int"),
             Type::Float => write!(f, "Float"),
             Type::String => write!(f, "String"),
@@ -46,6 +46,7 @@ impl fmt::Display for TypeInstance<'_> {
                 }
             ),
             Type::Vector => write!(f, "Vec"),
+            Type::Option => write!(f, "Option"),
             Type::Polytype => write!(f, "T"),
             Type::Instantiated(def, parameters) => {
                 write!(f, "{}[", TypeInstance::new(*def, self.exploration))?;

@@ -8,7 +8,8 @@ use crate::types::engine::TypedEngine;
 use crate::types::operator::name_operator_method;
 use crate::types::ty::{MethodType, Type, TypeId, TypeRef};
 use crate::types::{
-    Typing, BOOL, EXITCODE, FLOAT, GENERIC_VECTOR, INT, NOTHING, POLYTYPE, STRING, UNIT,
+    Typing, BOOL, EXITCODE, FLOAT, GENERIC_OPTION, GENERIC_VECTOR, INT, NOTHING, POLYTYPE, STRING,
+    UNIT,
 };
 
 const ARITHMETIC_OPERATORS: &[BinaryOperator] = &[
@@ -141,14 +142,14 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine) {
         "split",
         MethodType::native(
             vec![STRING],
-            TypeRef::new(LANG_REEF, TypeId(10)),
+            TypeRef::new(LANG_REEF, TypeId(11)),
             gen.next(),
         ),
     );
     engine.add_method(
         STRING.type_id,
         "bytes",
-        MethodType::native(vec![], TypeRef::new(LANG_REEF, TypeId(11)), gen.next()),
+        MethodType::native(vec![], TypeRef::new(LANG_REEF, TypeId(12)), gen.next()),
     );
 
     for operand in [BOOL, EXITCODE] {
@@ -167,6 +168,23 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine) {
             MethodType::native(vec![], operand, gen.next()),
         );
     }
+
+    engine.add_generic(GENERIC_OPTION.type_id, POLYTYPE);
+    engine.add_method(
+        GENERIC_OPTION.type_id,
+        "is_none",
+        MethodType::native(vec![], BOOL, gen.next()),
+    );
+    engine.add_method(
+        GENERIC_OPTION.type_id,
+        "is_some",
+        MethodType::native(vec![], BOOL, gen.next()),
+    );
+    engine.add_method(
+        GENERIC_OPTION.type_id,
+        "unwrap",
+        MethodType::native(vec![], POLYTYPE, gen.next()),
+    );
 }
 
 fn fill_lang_types(typing: &mut Typing) {
@@ -180,6 +198,7 @@ fn fill_lang_types(typing: &mut Typing) {
         Type::Float,
         Type::String,
         Type::Vector,
+        Type::Option,
         Type::Polytype,
         Type::Instantiated(GENERIC_VECTOR, vec![STRING]),
         Type::Instantiated(GENERIC_VECTOR, vec![INT]),
@@ -199,6 +218,7 @@ fn fill_lang_bindings(ctx: &mut TypeContext) {
     ctx.bind_name("Float".to_string(), FLOAT.type_id);
     ctx.bind_name("String".to_string(), STRING.type_id);
     ctx.bind_name("Vec".to_string(), GENERIC_VECTOR.type_id);
+    ctx.bind_name("Option".to_string(), GENERIC_OPTION.type_id);
 }
 
 pub fn lang_reef() -> Reef<'static> {

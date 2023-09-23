@@ -1,6 +1,7 @@
 #include "stdlib_natives.h"
 #include "interpreter.h"
 #include "memory/heap.h"
+#include <charconv>
 #include <cmath>
 #include <iostream>
 
@@ -34,11 +35,12 @@ static void str_eq(OperandStack &caller_stack, runtime_memory &) {
 
 void get_env(OperandStack &caller_stack, runtime_memory &mem) {
     const std::string &var_name = caller_stack.pop_reference().get<const std::string>();
-    char *value = getenv(var_name.c_str());
+    const char *value = getenv(var_name.c_str());
     if (value == nullptr) {
-        throw RuntimeException("Environment variable " + var_name + " isn't defined.");
+        caller_stack.push(nullptr);
+    } else {
+        caller_stack.push_reference(mem.emplace(value));
     }
-    caller_stack.push_reference(mem.emplace(value));
 }
 
 void set_env(OperandStack &caller_stack, runtime_memory &) {
@@ -96,6 +98,31 @@ void round(OperandStack &caller_stack, runtime_memory &) {
     double d = caller_stack.pop_double();
 
     caller_stack.push_int(static_cast<int64_t>(std::round(d)));
+}
+
+static void parse_int_radix(OperandStack &caller_stack, runtime_memory &mem) {
+    int base = static_cast<int>(caller_stack.pop_int());
+    const std::string &str = caller_stack.pop_reference().get<const std::string>();
+
+    if (base < 2 || base > 36) {
+        throw RuntimeException("Invalid base: " + std::to_string(base) + ".");
+    }
+    const char *first = str.data();
+    if (!str.empty() && str.front() == '+') { // Allow leading '+'
+        first += 1;
+    }
+
+    int64_t value = 0;
+    const auto result = std::from_chars(first,
+                                        str.data() + str.size(),
+                                        value, base);
+
+    // Ensure that the entire string was consumed and that the result is valid
+    if (result.ec == std::errc() && result.ptr == &*str.end()) {
+        caller_stack.push_reference(mem.emplace(value));
+    } else {
+        caller_stack.push(nullptr);
+    }
 }
 
 static void str_split(OperandStack &caller_stack, runtime_memory &mem) {
@@ -194,5 +221,6 @@ natives_functions_t load_natives() {
         {"std::convert::ceil", ceil},
         {"std::convert::floor", floor},
         {"std::convert::round", round},
+        {"std::convert::parse_int_radix", parse_int_radix},
     };
 }
