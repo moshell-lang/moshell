@@ -6,7 +6,6 @@ if (MSVC)
     add_compile_options(/W4)
 else ()
     add_compile_options(-Wall -Wextra -Wpedantic)
-    add_compile_options($<$<CONFIG:Debug>:-fsanitize=address>)
 endif ()
 
 include_directories(src)
@@ -30,8 +29,6 @@ add_library(vm
 target_compile_features(vm PUBLIC cxx_std_20)
 add_executable(vm_exe src/main.cpp)
 target_compile_features(vm_exe PUBLIC cxx_std_17)
-
-target_link_options(vm_exe PRIVATE $<$<CONFIG:Debug>:-fsanitize=address>)
 
 target_link_libraries(vm_exe vm)
 

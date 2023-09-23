@@ -24,3 +24,6 @@ compiler = { path = "../compiler" }
 
 [build-dependencies]
 cmake = "0.1.50"
+
+[features]
+asan = []
