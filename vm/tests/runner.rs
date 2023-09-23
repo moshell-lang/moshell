@@ -4,7 +4,6 @@ use analyzer::importer::{ASTImporter, ImportResult, StaticImporter};
 use analyzer::name::Name;
 use analyzer::reef::{Externals, Reef};
 use analyzer::relations::SourceId;
-use analyzer::types::hir::ExprKind;
 use analyzer::types::ty::{Type, TypeRef};
 use analyzer::{analyze, types, Analyzer, Inject};
 use cli::pipeline::FileImporter;
@@ -18,7 +17,7 @@ pub struct Runner<'a> {
     externals: Externals<'a>,
     vm: VM,
     analyzer: Analyzer<'a>,
-    current_page: Option<usize>,
+    current_page: Option<SourceId>,
 }
 
 impl Default for Runner<'_> {
@@ -80,12 +79,12 @@ impl<'a> Runner<'a> {
         let inject = Inject {
             name: name.clone(),
             imported,
-            attached: self.current_page.map(SourceId),
+            attached: self.current_page,
         };
 
         let mut analysis = self.analyzer.inject(inject, &mut importer, &self.externals);
         let page = analysis.attributed_id();
-        self.current_page = Some(page.0);
+        self.current_page = Some(page);
         let diagnostics = analysis.take_diagnostics();
 
         let reef = self.externals.current;
@@ -98,11 +97,7 @@ impl<'a> Runner<'a> {
         let chunk = self.analyzer.engine.get_user(page).unwrap();
         let chunk_expr = &chunk.expression.as_ref().unwrap();
 
-        let evaluated_expr_type = if let ExprKind::Block(exprs) = &chunk_expr.kind {
-            exprs.last().map_or(types::UNIT, |v| v.ty)
-        } else {
-            chunk_expr.ty
-        };
+        let evaluated_expr_type = chunk_expr.ty;
 
         let expr_value_is_void =
             evaluated_expr_type == types::UNIT || evaluated_expr_type == types::NOTHING;

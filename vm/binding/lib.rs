@@ -1,12 +1,8 @@
-#![allow(unused, dead_code)]
-
 use std::ffi;
 use std::ffi::{CStr, CString};
 
 use crate::gc::GC;
 use context::source::ContentId;
-
-use crate::value::VmValue;
 
 pub mod gc;
 pub mod value;
@@ -130,6 +126,7 @@ pub union VmValueFFI {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
+#[allow(dead_code)]
 enum VmObjectType {
     Str,
     Int,
@@ -143,22 +140,22 @@ pub struct VmObjectFFI(VmObjectType, *mut ffi::c_void);
 
 impl VmValueFFI {
     /// # Safety
-    /// safety contract must be held by caller
+    /// The caller must ensure that the value has the correct type.
     pub unsafe fn get_as_u8(self) -> u8 {
         moshell_value_get_as_byte(self)
     }
     /// # Safety
-    /// safety contract must be held by caller
+    /// The caller must ensure that the value has the correct type.
     pub unsafe fn get_as_i64(self) -> i64 {
         moshell_value_get_as_int(self)
     }
     /// # Safety
-    /// safety contract must be held by caller
+    /// The caller must ensure that the value has the correct type.
     pub unsafe fn get_as_double(self) -> f64 {
         moshell_value_get_as_double(self)
     }
     /// # Safety
-    /// safety contract must be held by caller
+    /// The caller must ensure that the value has the correct type.
     pub unsafe fn get_as_obj(self) -> VmObjectFFI {
         moshell_value_get_as_object(self)
     }
@@ -166,12 +163,12 @@ impl VmValueFFI {
 
 impl VmObjectFFI {
     /// # Safety
-    /// safety contract must be held by caller
+    /// The caller must ensure that the value has the correct type.
     pub unsafe fn unbox(self) -> VmValueFFI {
         moshell_object_unbox(self)
     }
     /// # Safety
-    /// safety contract must be held by caller
+    /// The caller must ensure that the value has the correct type.
     pub unsafe fn get_as_string(self) -> String {
         let buff = moshell_object_get_as_string(self);
         let c_str = CStr::from_ptr(buff.cast_mut());
@@ -179,7 +176,7 @@ impl VmObjectFFI {
         str.to_string()
     }
     /// # Safety
-    /// safety contract must be held by caller
+    /// The caller must ensure that the value has the correct type.
     pub unsafe fn get_as_vec(self) -> Vec<VmObjectFFI> {
         let msh_array = moshell_object_get_as_array(self);
         let mut vec = Vec::with_capacity(msh_array.0 as usize);

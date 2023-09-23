@@ -88,10 +88,10 @@ void moshell_vm_free(moshell_vm vm);
  * or an address
  * */
 typedef union {
-    int64_t i;
-    uint8_t b;
-    double d;
-    const void *ptr;
+    const int64_t i;
+    const uint8_t b;
+    const double d;
+    const void *const ptr;
 } moshell_value;
 
 /**
@@ -117,7 +117,7 @@ typedef struct {
  * */
 typedef struct {
     const uint64_t size;
-    const moshell_value *data;
+    const moshell_value *const data;
 } moshell_array;
 
 /**

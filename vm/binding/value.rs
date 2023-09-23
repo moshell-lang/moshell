@@ -1,4 +1,4 @@
-use crate::{VmObjectFFI, VmObjectType, VmValueFFI};
+use crate::{VmObjectFFI, VmObjectType};
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum VmValue {
