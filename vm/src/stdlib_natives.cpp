@@ -33,7 +33,7 @@ static void str_eq(OperandStack &caller_stack, runtime_memory &) {
     caller_stack.push_byte(static_cast<int8_t>(right == left));
 }
 
-void get_env(OperandStack &caller_stack, runtime_memory &mem) {
+static void get_env(OperandStack &caller_stack, runtime_memory &mem) {
     const std::string &var_name = caller_stack.pop_reference().get<const std::string>();
     const char *value = getenv(var_name.c_str());
     if (value == nullptr) {
@@ -43,28 +43,23 @@ void get_env(OperandStack &caller_stack, runtime_memory &mem) {
     }
 }
 
-void set_env(OperandStack &caller_stack, runtime_memory &) {
+static void set_env(OperandStack &caller_stack, runtime_memory &) {
     const std::string &value = caller_stack.pop_reference().get<const std::string>();
     const std::string &var_name = caller_stack.pop_reference().get<const std::string>();
     setenv(var_name.c_str(), value.c_str(), true);
 }
 
-void is_env_def(OperandStack &caller_stack, runtime_memory &) {
-    const std::string &var_name = caller_stack.pop_reference().get<const std::string>();
-    caller_stack.push_byte(getenv(var_name.c_str()) != nullptr);
-}
-
-void panic(OperandStack &caller_stack, runtime_memory &) {
+static void panic(OperandStack &caller_stack, runtime_memory &) {
     const std::string &message = caller_stack.pop_reference().get<const std::string>();
     throw RuntimeException(message);
 }
 
-void exit(OperandStack &caller_stack, runtime_memory &) {
+static void exit(OperandStack &caller_stack, runtime_memory &) {
     uint8_t code = caller_stack.pop_byte();
     exit(code);
 }
 
-void read_line(OperandStack &caller_stack, runtime_memory &mem) {
+static void read_line(OperandStack &caller_stack, runtime_memory &mem) {
     std::string line;
     std::getline(std::cin, line);
 
@@ -72,7 +67,7 @@ void read_line(OperandStack &caller_stack, runtime_memory &mem) {
     caller_stack.push_reference(obj);
 }
 
-void to_exitcode(OperandStack &caller_stack, runtime_memory &) {
+static void to_exitcode(OperandStack &caller_stack, runtime_memory &) {
     int64_t i = caller_stack.pop_int();
     uint8_t exitcode = static_cast<uint8_t>(i);
     if (exitcode != i) {
@@ -82,19 +77,19 @@ void to_exitcode(OperandStack &caller_stack, runtime_memory &) {
     caller_stack.push_byte(static_cast<int8_t>(exitcode));
 }
 
-void floor(OperandStack &caller_stack, runtime_memory &) {
+static void floor(OperandStack &caller_stack, runtime_memory &) {
     double d = caller_stack.pop_double();
 
     caller_stack.push_int(static_cast<int64_t>(std::floor(d)));
 }
 
-void ceil(OperandStack &caller_stack, runtime_memory &) {
+static void ceil(OperandStack &caller_stack, runtime_memory &) {
     double d = caller_stack.pop_double();
 
     caller_stack.push_int(static_cast<int64_t>(std::ceil(d)));
 }
 
-void round(OperandStack &caller_stack, runtime_memory &) {
+static void round(OperandStack &caller_stack, runtime_memory &) {
     double d = caller_stack.pop_double();
 
     caller_stack.push_int(static_cast<int64_t>(std::round(d)));
@@ -189,7 +184,7 @@ static void vec_index(OperandStack &caller_stack, runtime_memory &) {
     caller_stack.push_reference(*vec[index]);
 }
 
-void gc(OperandStack &, runtime_memory &mem) {
+static void gc(OperandStack &, runtime_memory &mem) {
     mem.run_gc();
 }
 
@@ -212,7 +207,6 @@ natives_functions_t load_natives() {
         {"std::exit", exit},
         {"std::env", get_env},
         {"std::set_env", set_env},
-        {"std::is_env_def", is_env_def},
         {"std::read_line", read_line},
 
         {"std::memory::gc", gc},
