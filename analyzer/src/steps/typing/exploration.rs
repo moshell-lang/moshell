@@ -84,7 +84,8 @@ impl Exploration<'_> {
         return_ty: TypeRef,
     ) -> Option<&MethodType> {
         let definition = self.get_base_type(id);
-        if definition.0.reef == self.externals.current {
+        let current = self.externals.current;
+        if definition.0.reef == current || id.reef == current {
             self.type_engine
                 .get_method_exact(definition.0.type_id, name, params, return_ty)
         } else {

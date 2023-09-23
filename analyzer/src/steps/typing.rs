@@ -15,6 +15,7 @@ use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::reef::{Externals, ReefId};
 use crate::relations::{Definition, LocalId, Relations, SourceId, SymbolRef};
+use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::coercion::{
     check_type_annotation, coerce_condition, convert_description, convert_expression, convert_many,
     resolve_type_annotation,
@@ -24,6 +25,7 @@ use crate::steps::typing::function::{
     find_operand_implementation, infer_return, type_call, type_method, type_parameter, Return,
 };
 use crate::steps::typing::lower::convert_into_string;
+use crate::steps::typing::view::type_to_string;
 use crate::types::ctx::{TypeContext, TypedVariable};
 use crate::types::engine::{Chunk, TypedEngine};
 use crate::types::hir::{
@@ -34,6 +36,7 @@ use crate::types::operator::name_operator_method;
 use crate::types::ty::{Type, TypeRef};
 use crate::types::{Typing, BOOL, ERROR, EXITCODE, FLOAT, INT, NOTHING, STRING, UNIT};
 
+mod bounds;
 mod coercion;
 pub mod exploration;
 mod function;
@@ -170,10 +173,19 @@ fn apply_types_to_source(
                 infer_return(func, links, typed_body.as_ref(), diagnostics, exploration);
 
             if let Some(body) = typed_body {
-                Chunk::function(body, base_chunk.parameters, return_type)
+                Chunk::function(
+                    base_chunk.type_parameters,
+                    body,
+                    base_chunk.parameters,
+                    return_type,
+                )
             } else {
                 verify_free_function(func, exploration.externals, source_id, diagnostics);
-                Chunk::native(base_chunk.parameters, return_type)
+                Chunk::native(
+                    base_chunk.type_parameters,
+                    base_chunk.parameters,
+                    return_type,
+                )
             }
         }
         expr => Chunk::script(ascribe_types(
@@ -192,19 +204,21 @@ fn type_function_signature(
     function_links: Links,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Chunk {
+    let mut type_params = Vec::new();
     let mut params = Vec::new();
 
     let func_source = function_links.source;
 
-    for param in &func.type_parameters {
+    for type_param in &func.type_parameters {
         let param_type_id = exploration.typing.add_type(Type::Polytype);
         let param_type_ref = TypeRef::new(exploration.externals.current, param_type_id);
+        type_params.push(param_type_ref);
         exploration
             .ctx
             .push_local_typed(func_source, param_type_ref);
         exploration
             .ctx
-            .bind_name(param.name.to_string(), param_type_id);
+            .bind_name(type_param.name.to_string(), param_type_id);
     }
 
     let tparam_count = func.type_parameters.len();
@@ -235,6 +249,7 @@ fn type_function_signature(
             ty: type_ref,
             segment: func.segment(),
         }),
+        type_parameters: type_params,
         parameters: params,
         return_type,
     }
@@ -385,7 +400,14 @@ fn ascribe_assign(
     let var_ty = var_obj.type_ref;
     let rhs_type = rhs.ty;
 
-    let rhs = match convert_expression(rhs, var_ty, exploration, links.source, diagnostics) {
+    let rhs = match convert_expression(
+        rhs,
+        var_ty,
+        &mut TypesBounds::inactive(),
+        exploration,
+        links.source,
+        diagnostics,
+    ) {
         Ok(rhs) => rhs,
         Err(_) => {
             diagnostics.push(
@@ -393,8 +415,8 @@ fn ascribe_assign(
                     DiagnosticID::TypeMismatch,
                     format!(
                         "Cannot assign a value of type `{}` to something of type `{}`",
-                        exploration.get_type_instance(rhs_type),
-                        exploration.get_type_instance(var_ty)
+                        type_to_string(rhs_type, exploration, &TypesBounds::inactive()),
+                        type_to_string(var_ty, exploration, &TypesBounds::inactive()),
                     ),
                 )
                 .with_observation(Observation::here(
@@ -475,6 +497,7 @@ fn ascribe_var_declaration(
         initializer = check_type_annotation(
             exploration,
             type_annotation,
+            &mut TypesBounds::inactive(),
             initializer,
             links,
             diagnostics,
@@ -589,7 +612,7 @@ fn ascribe_redirected(
                         DiagnosticID::TypeMismatch,
                         format!(
                             "File descriptor redirections must be given an integer, not `{}`",
-                            exploration.get_type_instance(operand.ty)
+                            type_to_string(operand.ty, exploration, &TypesBounds::inactive()),
                         ),
                     )
                     .with_observation(Observation::here(
@@ -765,8 +788,8 @@ fn ascribe_binary(
                         format!(
                             "No operator `{}` between type `{}` and `{}`",
                             name,
-                            exploration.get_type_instance(left_expr.ty),
-                            exploration.get_type_instance(right_type)
+                            type_to_string(left_expr.ty, exploration, &TypesBounds::inactive()),
+                            type_to_string(right_type, exploration, &TypesBounds::inactive()),
                         ),
                     )),
             );
@@ -789,14 +812,17 @@ fn ascribe_casted(
         return expr;
     }
 
-    if expr.ty.is_ok() && convert_description(exploration, ty, expr.ty).is_err() {
+    if expr.ty.is_ok()
+        && convert_description(exploration, ty, expr.ty, &mut TypesBounds::inactive(), true)
+            .is_err()
+    {
         diagnostics.push(
             Diagnostic::new(
                 DiagnosticID::IncompatibleCast,
                 format!(
                     "Casting `{}` as `{}` is invalid",
-                    exploration.get_type_instance(expr.ty),
-                    exploration.get_type_instance(ty)
+                    type_to_string(expr.ty, exploration, &TypesBounds::inactive()),
+                    type_to_string(ty, exploration, &TypesBounds::inactive()),
                 ),
             )
             .with_observation(Observation::here(
@@ -859,7 +885,7 @@ fn ascribe_unary(
                                 unary.segment(),
                                 format!(
                                     "`{}` does not implement the `neg` method",
-                                    exploration.get_type_instance(expr.ty),
+                                    type_to_string(expr.ty, exploration, &TypesBounds::inactive()),
                                 ),
                             )),
                     );
@@ -882,7 +908,14 @@ fn ascribe_not(
         .typed_engine
         .get_method_exact(BOOL.type_id, "not", &[], BOOL)
         .expect("A Bool should be invertible");
-    match convert_expression(not, BOOL, exploration, links.source, diagnostics) {
+    match convert_expression(
+        not,
+        BOOL,
+        &mut TypesBounds::inactive(),
+        exploration,
+        links.source,
+        diagnostics,
+    ) {
         Ok(expr) => TypedExpr {
             kind: ExprKind::MethodCall(MethodCall {
                 callee: Box::new(expr),
@@ -901,7 +934,7 @@ fn ascribe_not(
                         segment,
                         format!(
                             "Cannot invert non-boolean type `{}`",
-                            exploration.get_type_instance(expr.ty)
+                            type_to_string(expr.ty, exploration, &TypesBounds::inactive()),
                         ),
                     ),
                 ),
@@ -939,15 +972,30 @@ fn ascribe_if(
     let ty = if state.local_type {
         match convert_many(
             exploration,
+            &mut TypesBounds::inactive(),
             [then.ty, otherwise.as_ref().map_or(UNIT, |expr| expr.ty)],
         ) {
             Ok(ty) => {
                 // Generate appropriate casts and implicits conversions
-                then = convert_expression(then, ty, exploration, links.source, diagnostics)
-                    .expect("Type mismatch should already have been caught");
+                then = convert_expression(
+                    then,
+                    ty,
+                    &mut TypesBounds::inactive(),
+                    exploration,
+                    links.source,
+                    diagnostics,
+                )
+                .expect("Type mismatch should already have been caught");
                 otherwise = otherwise.map(|expr| {
-                    convert_expression(expr, ty, exploration, links.source, diagnostics)
-                        .expect("Type mismatch should already have been caught")
+                    convert_expression(
+                        expr,
+                        ty,
+                        &mut TypesBounds::inactive(),
+                        exploration,
+                        links.source,
+                        diagnostics,
+                    )
+                    .expect("Type mismatch should already have been caught")
                 });
                 ty
             }
@@ -960,14 +1008,20 @@ fn ascribe_if(
                     links.source,
                     current_reef,
                     block.success_branch.segment(),
-                    format!("Found `{}`", exploration.get_type_instance(then.ty)),
+                    format!(
+                        "Found `{}`",
+                        type_to_string(then.ty, exploration, &TypesBounds::inactive()),
+                    ),
                 ));
                 if let Some(otherwise) = &otherwise {
                     diagnostic = diagnostic.with_observation(Observation::here(
                         links.source,
                         current_reef,
                         otherwise.segment(),
-                        format!("Found `{}`", exploration.get_type_instance(otherwise.ty)),
+                        format!(
+                            "Found `{}`",
+                            type_to_string(otherwise.ty, exploration, &TypesBounds::inactive()),
+                        ),
                     ));
                 }
                 diagnostics.push(diagnostic);
@@ -2330,5 +2384,61 @@ mod tests {
             context.get_local(SourceId(1), LocalId(4)),
             Some(TypedVariable::immutable(TypeRef::new(ReefId(1), TypeId(1))))
         );
+    }
+
+    #[test]
+    fn fun_generic_args_constraints() {
+        let content = "\
+            fun foo[A, B](v: A, vec: Vec[A], b: B, c: B) -> B = $b
+
+            val vec = ''.bytes()
+            val i: Option[Float] = foo('str_in_int_argument', $vec, '7', $vec)
+        ";
+        let src = Source::unknown(content);
+        let errs = extract(src).expect_err("no typing errors");
+        assert_eq!(
+            errs,
+            vec![
+                Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
+                    .with_observation(Observation::here(
+                        SourceId(0),
+                        ReefId(1),
+                        find_in(content, "$vec"),
+                        "Expected `Vec[String]`, found `Vec[Int]`"
+                    ))
+                    .with_observation(Observation::here(
+                        SourceId(1),
+                        ReefId(1),
+                        find_in(content, "vec: Vec[A]"),
+                        "Parameter is declared here"
+                    )),
+                Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
+                    .with_observation(Observation::here(
+                        SourceId(0),
+                        ReefId(1),
+                        find_in_nth(content, "$vec", 1),
+                        "Expected `String`, found `Vec[Int]`"
+                    ))
+                    .with_observation(Observation::here(
+                        SourceId(1),
+                        ReefId(1),
+                        find_in(content, "c: B"),
+                        "Parameter is declared here"
+                    )),
+                Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
+                    .with_observation(Observation::here(
+                        SourceId(0),
+                        ReefId(1),
+                        find_in(content, "Option[Float]"),
+                        "Expected `Option[Float]`"
+                    ))
+                    .with_observation(Observation::here(
+                        SourceId(0),
+                        ReefId(1),
+                        find_in(content, "foo('str_in_int_argument', $vec, '7', $vec)"),
+                        "Found `String`"
+                    )),
+            ]
+        )
     }
 }

@@ -47,6 +47,7 @@ impl<'e> Reef<'e> {
 #[derive(Clone, Copy, Hash, Eq, PartialEq, Debug)]
 pub struct ReefId(pub ObjectId);
 
+#[derive(Debug)]
 pub struct Externals<'a> {
     pub current: ReefId,
     names: HashMap<String, ReefId>,

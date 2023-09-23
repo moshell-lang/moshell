@@ -39,6 +39,13 @@ impl CodeEntry<'_> {
         }
     }
 
+    pub fn type_parameters(&self) -> &[TypeRef] {
+        match self {
+            CodeEntry::User(chunk) => &chunk.type_parameters,
+            CodeEntry::Native(native) => &native.type_parameters,
+        }
+    }
+
     pub fn return_type(&self) -> TypeRef {
         match self {
             CodeEntry::User(chunk) => chunk.return_type,
@@ -54,6 +61,9 @@ pub struct Chunk {
     /// if this expression is set to None, the chunk is associated to a native function declaration
     pub expression: Option<TypedExpr>,
 
+    /// List of type parameters declared in chunk's reef typing
+    pub type_parameters: Vec<TypeRef>,
+
     /// The input parameters of the chunk.
     ///
     /// If the chunk is a script, there are no parameters.
@@ -68,15 +78,17 @@ impl Chunk {
     pub fn script(expression: TypedExpr) -> Self {
         Self {
             expression: Some(expression),
+            type_parameters: Vec::new(),
             parameters: Vec::new(),
             return_type: UNIT,
         }
     }
 
     /// Creates a new function that is natively defined.
-    pub fn native(parameters: Vec<Parameter>, return_type: TypeRef) -> Self {
+    pub fn native(tparams: Vec<TypeRef>, parameters: Vec<Parameter>, return_type: TypeRef) -> Self {
         Self {
             expression: None,
+            type_parameters: tparams,
             parameters,
             return_type,
         }
@@ -84,12 +96,14 @@ impl Chunk {
 
     /// Creates a new function chunk.
     pub fn function(
+        tparams: Vec<TypeRef>,
         expression: TypedExpr,
         parameters: Vec<Parameter>,
         return_type: TypeRef,
     ) -> Self {
         Self {
             expression: Some(expression),
+            type_parameters: tparams,
             parameters,
             return_type,
         }

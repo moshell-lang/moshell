@@ -103,6 +103,8 @@ impl Type {
 /// A callable function signature.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FunctionType {
+    /// Type parameters of the function
+    pub(crate) type_parameters: Vec<TypeRef>,
     /// The exact parameters that are expected by the function.
     pub(crate) parameters: Vec<Parameter>,
 
@@ -128,8 +130,14 @@ impl FunctionType {
     /// chicken-and-egg problem. They are defined by the language host,
     /// usually in a Rust or C++ VM. They are identified by a dedicated
     /// [`NativeId`], so that the compiler can quickly identify them.
-    pub fn native(parameters: Vec<TypeRef>, return_type: TypeRef, id: NativeId) -> Self {
+    pub fn native(
+        type_parameters: Vec<TypeRef>,
+        parameters: Vec<TypeRef>,
+        return_type: TypeRef,
+        id: NativeId,
+    ) -> Self {
         Self {
+            type_parameters,
             parameters: parameters
                 .into_iter()
                 .enumerate()

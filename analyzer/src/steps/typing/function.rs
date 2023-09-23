@@ -8,11 +8,12 @@ use context::source::{SourceSegment, SourceSegmentHolder};
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation, SourceLocation};
 use crate::reef::ReefId;
 use crate::relations::{Definition, LocalId, SourceId, SymbolRef};
+use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::coercion::{
     convert_description, convert_expression, convert_many, resolve_type_annotation,
 };
 use crate::steps::typing::exploration::{Exploration, Links};
-use crate::steps::typing::view::TypeInstance;
+use crate::steps::typing::view::{type_to_string, TypeInstance};
 use crate::types::engine::CodeEntry;
 use crate::types::hir::{ExprKind, TypedExpr};
 use crate::types::ty::{FunctionType, MethodType, Parameter, Type, TypeRef};
@@ -31,6 +32,7 @@ pub(super) struct Return {
 /// Identifies a function that correspond to a call.
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct FunctionMatch {
+    pub(super) type_arguments: Vec<TypeRef>,
     /// The converted arguments to pass to the function.
     ///
     /// If any conversion is required, it will be done here.
@@ -84,15 +86,29 @@ pub(super) fn infer_return(
     let mut typed_return_locations: Vec<_> = Vec::new();
 
     for ret in &exploration.returns {
-        if convert_description(exploration, expected_return_type, ret.ty).is_err() {
+        if convert_description(
+            exploration,
+            expected_return_type,
+            ret.ty,
+            &mut TypesBounds::inactive(),
+            true,
+        )
+        .is_err()
+        {
             typed_return_locations.push(Observation::here(
                 links.source,
                 exploration.externals.current,
                 ret.segment.clone(),
                 if func.return_type.is_some() {
-                    format!("Found `{}`", exploration.get_type_instance(ret.ty))
+                    format!(
+                        "Found `{}`",
+                        type_to_string(ret.ty, exploration, &TypesBounds::inactive())
+                    )
                 } else {
-                    format!("Returning `{}`", exploration.get_type_instance(ret.ty))
+                    format!(
+                        "Returning `{}`",
+                        type_to_string(ret.ty, exploration, &TypesBounds::inactive())
+                    )
                 },
             ));
         }
@@ -112,7 +128,7 @@ pub(super) fn infer_return(
                     return_type_annotation.segment(),
                     format!(
                         "Expected `{}` because of return type",
-                        exploration.get_type_instance(expected_return_type)
+                        type_to_string(expected_return_type, exploration, &TypesBounds::inactive()),
                     ),
                 )),
         );
@@ -146,7 +162,7 @@ pub(super) fn infer_return(
     }
     let segment = func.segment().start..body.segment().start;
     let types: Vec<_> = exploration.returns.iter().map(|ret| ret.ty).collect();
-    let unify = convert_many(exploration, types);
+    let unify = convert_many(exploration, &mut TypesBounds::inactive(), types);
 
     if let Ok(common_type) = unify {
         diagnostics.push(
@@ -163,7 +179,7 @@ pub(super) fn infer_return(
             .with_observations(typed_return_locations)
             .with_help(format!(
                 "Add -> {} to the function declaration",
-                exploration.get_type_instance(common_type)
+                type_to_string(common_type, exploration, &TypesBounds::inactive()),
             )),
         );
     } else {
@@ -200,12 +216,12 @@ pub(super) fn type_call(
         }
     };
 
-    let type_ref = exploration
+    let function_type_ref = exploration
         .get_var(fun_source, call_symbol_ref, links.relations)
         .unwrap()
         .type_ref;
 
-    match exploration.get_type(type_ref).unwrap() {
+    match exploration.get_type(function_type_ref).unwrap() {
         &Type::Function(declaration) => {
             let entry: CodeEntry = exploration.get_entry(fun_reef, declaration).unwrap();
             let parameters = entry.parameters().to_owned(); // TODO: avoid clone
@@ -230,18 +246,36 @@ pub(super) fn type_call(
                     )),
                 );
                 FunctionMatch {
+                    type_arguments: entry.type_parameters().to_vec(),
                     arguments,
                     definition: Definition::error(),
                     return_type,
                     reef: fun_reef,
                 }
             } else {
+                let type_arguments = entry.type_parameters().to_vec();
+
+                let mut bounds =
+                    TypesBounds::new(entry.type_parameters().iter().map(|p| (*p, *p)).collect());
+
                 let mut casted_arguments = Vec::with_capacity(parameters.len());
                 for (param, arg) in parameters.iter().cloned().zip(arguments) {
-                    let casted_argument =
-                        convert_expression(arg, param.ty, exploration, links.source, diagnostics);
+                    let param_bound = bounds.get_bound(param.ty);
+
+                    let casted_argument = convert_expression(
+                        arg,
+                        param_bound,
+                        &mut bounds,
+                        exploration,
+                        links.source,
+                        diagnostics,
+                    );
+
                     let casted_argument = match casted_argument {
-                        Ok(arg) => arg,
+                        Ok(arg) => {
+                            bounds.update_bound(param.ty, arg.ty);
+                            arg
+                        }
                         Err(arg) => {
                             diagnostics.push(diagnose_arg_mismatch(
                                 exploration,
@@ -250,13 +284,19 @@ pub(super) fn type_call(
                                 fun_reef,
                                 &param,
                                 &arg,
+                                &bounds,
                             ));
                             arg
                         }
                     };
+
                     casted_arguments.push(casted_argument);
                 }
+
+                let return_type = bounds.get_bound(return_type);
+
                 FunctionMatch {
+                    type_arguments,
                     arguments: casted_arguments,
                     definition: declaration,
                     return_type,
@@ -265,7 +305,7 @@ pub(super) fn type_call(
             }
         }
         _ => {
-            let ty = exploration.get_type_instance(type_ref);
+            let ty = exploration.get_type_instance(function_type_ref);
             diagnostics.push(
                 Diagnostic::new(
                     DiagnosticID::TypeMismatch,
@@ -275,10 +315,14 @@ pub(super) fn type_call(
                     links.source,
                     exploration.externals.current,
                     call.segment(),
-                    format!("Call expression requires function, found `{ty}`"),
+                    format!(
+                        "Call expression requires function, found `{}`",
+                        type_to_string(ty.id, exploration, &TypesBounds::inactive())
+                    ),
                 )),
             );
             FunctionMatch {
+                type_arguments: Vec::new(),
                 arguments,
                 definition: Definition::error(),
                 return_type: ERROR,
@@ -301,6 +345,7 @@ pub(super) fn find_operand_implementation(
             if param.ty == right.ty {
                 let return_type = exploration.concretize(method.return_type, left).id;
                 return Some(FunctionMatch {
+                    type_arguments: vec![method.return_type],
                     arguments: vec![right],
                     definition: method.definition,
                     return_type,
@@ -337,12 +382,12 @@ pub(super) fn type_method(
                 if method_call.name.is_some() {
                     format!(
                         "No method named `{method_name}` found for type `{}`",
-                        exploration.get_type_instance(callee.ty)
+                        type_to_string(callee.ty, exploration, &TypesBounds::inactive())
                     )
                 } else {
                     format!(
                         "Type `{}` is not directly callable",
-                        exploration.get_type_instance(callee.ty)
+                        type_to_string(callee.ty, exploration, &TypesBounds::inactive())
                     )
                 },
             )
@@ -356,6 +401,7 @@ pub(super) fn type_method(
     if let Some(method) = method {
         // We have an exact match
         return Some(FunctionMatch {
+            type_arguments: method.type_parameters.clone(),
             arguments,
             definition: method.definition,
             return_type: exploration.concretize(method.return_type, callee.ty).id,
@@ -387,34 +433,49 @@ pub(super) fn type_method(
                 ))
                 .with_help(format!(
                     "The method signature is `{}::{}`",
-                    exploration.get_type_instance(callee.ty),
+                    type_to_string(callee.ty, exploration, &TypesBounds::inactive()),
                     Signature::new(exploration, method_name, method)
                 )),
             );
         } else {
+            let mut bounds = TypesBounds::new(
+                method
+                    .type_parameters
+                    .iter()
+                    .map(|p| (*p, exploration.concretize(*p, callee.ty).id))
+                    .collect(),
+            );
+
             for (param, arg) in method.parameters.iter().zip(arguments.iter()) {
-                let type_param = exploration.concretize(param.ty, callee.ty);
-                if convert_description(exploration, type_param.id, arg.ty).is_err() {
-                    let param = Parameter {
-                        location: param.location.clone(),
-                        ty: type_param.id,
-                        local_id: param.local_id,
-                    };
-                    let diagnostic = diagnose_arg_mismatch(
-                        exploration,
-                        source,
-                        current_reef,
-                        callee.ty.reef,
-                        &param,
-                        arg,
-                    )
-                    .with_observation(Observation::here(
-                        source,
-                        current_reef,
-                        method_call.segment(),
-                        "Arguments to this method are incorrect",
-                    ));
-                    diagnostics.push(diagnostic);
+                let param_bound = bounds.get_bound(param.ty);
+
+                match convert_description(exploration, param_bound, arg.ty, &mut bounds, true) {
+                    Ok(ty) => {
+                        bounds.update_bound(param.ty, ty);
+                    }
+                    Err(_) => {
+                        let param = Parameter {
+                            location: param.location.clone(),
+                            ty: param_bound,
+                            local_id: param.local_id,
+                        };
+                        let diagnostic = diagnose_arg_mismatch(
+                            exploration,
+                            source,
+                            current_reef,
+                            callee.ty.reef,
+                            &param,
+                            arg,
+                            &bounds,
+                        )
+                        .with_observation(Observation::here(
+                            source,
+                            current_reef,
+                            method_call.segment(),
+                            "Arguments to this method are incorrect",
+                        ));
+                        diagnostics.push(diagnostic);
+                    }
                 }
             }
         }
@@ -425,7 +486,7 @@ pub(super) fn type_method(
                 DiagnosticID::UnknownMethod,
                 format!(
                     "No matching method found for `{method_name}::{}`",
-                    exploration.get_type_instance(callee.ty)
+                    type_to_string(callee.ty, exploration, &TypesBounds::inactive())
                 ),
             )
             .with_observation(Observation::here(
@@ -447,6 +508,7 @@ fn diagnose_arg_mismatch(
     param_reef: ReefId,
     param: &Parameter,
     arg: &TypedExpr,
+    bounds: &TypesBounds,
 ) -> Diagnostic {
     let diagnostic = Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch").with_observation(
         Observation::here(
@@ -455,8 +517,8 @@ fn diagnose_arg_mismatch(
             arg.segment.clone(),
             format!(
                 "Expected `{}`, found `{}`",
-                exploration.get_type_instance(param.ty),
-                exploration.get_type_instance(arg.ty)
+                type_to_string(param.ty, exploration, bounds),
+                type_to_string(arg.ty, exploration, bounds)
             ),
         ),
     );
@@ -567,15 +629,31 @@ impl fmt::Display for Signature<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}(", self.name)?;
         if let Some((first, parameters)) = self.function.parameters.split_first() {
-            write!(f, "{}", self.get_type(first.ty))?;
+            write!(
+                f,
+                "{}",
+                type_to_string(first.ty, self.exploration, &TypesBounds::inactive())
+            )?;
             for param in parameters {
-                write!(f, ", {}", self.get_type(param.ty))?;
+                write!(
+                    f,
+                    ", {}",
+                    type_to_string(param.ty, self.exploration, &TypesBounds::inactive())
+                )?;
             }
         }
         if self.function.return_type.is_nothing() {
             write!(f, ")")
         } else {
-            write!(f, ") -> {}", self.get_type(self.function.return_type))
+            write!(
+                f,
+                ") -> {}",
+                type_to_string(
+                    self.function.return_type,
+                    self.exploration,
+                    &TypesBounds::inactive()
+                )
+            )
         }
     }
 }
