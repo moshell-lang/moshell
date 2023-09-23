@@ -10,3 +10,14 @@ fun floor(f: Float) -> Int;
 
 /// @returns nearest int value
 fun round(f: Float) -> Int;
+
+/// Converts a string to an integer.
+fun parse_int(str: String) -> Option[Int] = parse_int_radix($str, 10);
+
+/// Parses a string in a given base to an integer.
+///
+/// The string is expected to be an optional `+` or `-` sign followed by digits.
+/// Leading and trailing characters represent an error.
+///
+/// @panics if `base` is not in the range 2..36
+fun parse_int_radix(str: String, base: Int) -> Option[Int];

@@ -1,0 +1,27 @@
+// Run:
+//   status: error
+//   stdout:
+//     8
+//     11
+//     true false
+//     170
+//     ok
+//   stderr:
+//     panic: Cannot unwrap `None`.
+//         at option_parse.msh (line 27)
+
+use std::convert::{parse_int, parse_int_radix}
+
+var n = parse_int('+8')
+echo $n.unwrap()
+n = parse_int_radix('1011', 2)
+echo $n.unwrap()
+
+n = parse_int('15t')
+echo $n.is_none() $n.is_some()
+n = parse_int_radix('aA', 16);
+echo $n.unwrap()
+if parse_int('').is_none() {
+  echo 'ok'
+}
+parse_int('0x').unwrap() // panic
