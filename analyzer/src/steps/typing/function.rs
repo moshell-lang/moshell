@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt;
 
 use ast::call::{MethodCall, ProgrammaticCall};
@@ -222,8 +223,8 @@ pub(super) fn type_call(
         .type_ref;
 
     match exploration.get_type(function_type_ref).unwrap() {
-        &Type::Function(declaration) => {
-            let entry: CodeEntry = exploration.get_entry(fun_reef, declaration).unwrap();
+        &Type::Function(definition) => {
+            let entry: CodeEntry = exploration.get_entry(fun_reef, definition).unwrap();
             let parameters = entry.parameters().to_owned(); // TODO: avoid clone
             let return_type = entry.return_type();
             if parameters.len() != arguments.len() {
@@ -255,8 +256,14 @@ pub(super) fn type_call(
             } else {
                 let type_arguments = entry.type_parameters().to_vec();
 
-                let mut bounds =
-                    TypesBounds::new(entry.type_parameters().iter().map(|p| (*p, *p)).collect());
+                let mut bounds = build_bounds(
+                    &call.type_parameters,
+                    fun_reef,
+                    definition,
+                    exploration,
+                    links,
+                    diagnostics,
+                );
 
                 let mut casted_arguments = Vec::with_capacity(parameters.len());
                 for (param, arg) in parameters.iter().cloned().zip(arguments) {
@@ -298,7 +305,7 @@ pub(super) fn type_call(
                 FunctionMatch {
                     type_arguments,
                     arguments: casted_arguments,
-                    definition: declaration,
+                    definition,
                     return_type,
                     reef: fun_reef,
                 }
@@ -330,6 +337,57 @@ pub(super) fn type_call(
             }
         }
     }
+}
+
+fn build_bounds(
+    user_bounds: &[ast::r#type::Type],
+    fun_reef: ReefId,
+    definition: Definition,
+    exploration: &mut Exploration,
+    links: Links,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> TypesBounds {
+    let user_bounds_types: Vec<_> = user_bounds
+        .iter()
+        .map(|ty| resolve_type_annotation(exploration, links, ty, diagnostics))
+        .collect();
+
+    let entry = exploration.get_entry(fun_reef, definition).unwrap();
+
+    let entry_type_parameters = entry.type_parameters();
+
+    let mut bounds = HashMap::new();
+
+    for (idx, type_param) in entry_type_parameters.iter().enumerate() {
+        let user_bound = user_bounds_types.get(idx).cloned();
+        bounds.insert(*type_param, user_bound.unwrap_or(*type_param));
+    }
+
+    if !user_bounds.is_empty() && user_bounds.len() != entry_type_parameters.len() {
+        let first = user_bounds.first().unwrap();
+        let last = user_bounds.last().unwrap();
+
+        let segment = first.segment().start..last.segment().end;
+
+        diagnostics.push(
+            Diagnostic::new(
+                DiagnosticID::InvalidTypeArguments,
+                "Wrong type argument count",
+            )
+            .with_observation(Observation::here(
+                links.source,
+                exploration.externals.current,
+                segment,
+                format!(
+                    "`{}` type parameter specified, expected `{}`.",
+                    user_bounds.len(),
+                    entry_type_parameters.len()
+                ),
+            )),
+        )
+    }
+
+    TypesBounds::new(bounds)
 }
 
 /// Checks the type of a method expression.
@@ -413,6 +471,11 @@ pub(super) fn type_method(
         // If there is only one method, we can give a more specific error by adding
         // an observation for each invalid type
         let method = methods.first().unwrap();
+
+        // release borrow of exploration
+        // TODO avoid clone
+        let method = method.clone();
+
         if method.parameters.len() != arguments.len() {
             diagnostics.push(
                 Diagnostic::new(
@@ -434,10 +497,13 @@ pub(super) fn type_method(
                 .with_help(format!(
                     "The method signature is `{}::{}`",
                     type_to_string(callee.ty, exploration, &TypesBounds::inactive()),
-                    Signature::new(exploration, method_name, method)
+                    Signature::new(exploration, method_name, &method)
                 )),
             );
         } else {
+            // cannot use `build_bounds` as it implies to retrieve a native chunk from its definition, which is
+            // completely broken currently
+
             let mut bounds = TypesBounds::new(
                 method
                     .type_parameters

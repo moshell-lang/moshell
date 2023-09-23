@@ -449,6 +449,10 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                     )),
                 }
 
+                for ty in &call.type_parameters {
+                    self.collect_type(state.module, ty);
+                }
+
                 for arg in &call.arguments {
                     self.tree_walk(state, arg, to_visit);
                 }

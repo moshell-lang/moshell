@@ -2441,4 +2441,100 @@ mod tests {
             ]
         )
     }
+
+    #[test]
+    fn fun_generic_args_explicit() {
+        let content = "\
+            fun foo[A, B](a: A, b: B) -> B = $b
+
+            val vec = ''.bytes()
+            val i: Option[Float] = foo[Float, Vec[Exitcode]](1, '2')
+        ";
+        let src = Source::unknown(content);
+        let errs = extract(src).expect_err("no typing errors");
+        assert_eq!(
+            errs,
+            vec![
+                Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
+                    .with_observation(Observation::here(
+                        SourceId(0),
+                        ReefId(1),
+                        find_in(content, "'2'"),
+                        "Expected `Vec[Exitcode]`, found `String`",
+                    ))
+                    .with_observation(Observation::here(
+                        SourceId(1),
+                        ReefId(1),
+                        find_in(content, "b: B"),
+                        "Parameter is declared here",
+                    )),
+                Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
+                    .with_observation(Observation::here(
+                        SourceId(0),
+                        ReefId(1),
+                        find_in(content, "Option[Float]"),
+                        "Expected `Option[Float]`",
+                    ))
+                    .with_observation(Observation::here(
+                        SourceId(0),
+                        ReefId(1),
+                        find_in(content, "foo[Float, Vec[Exitcode]](1, '2')"),
+                        "Found `Vec[Exitcode]`",
+                    )),
+            ]
+        )
+    }
+
+    #[test]
+    fn fun_generic_args_explicit_wrong_count() {
+        let content = "\
+            fun foo[A, B](a: A, b: B) -> B = $b
+
+            val vec = ''.bytes()
+            val i: Option[Float] = foo[Float, Vec[Exitcode], Int](1, '2')
+        ";
+        let src = Source::unknown(content);
+        let errs = extract(src).expect_err("no typing errors");
+        assert_eq!(
+            errs,
+            vec![
+                Diagnostic::new(
+                    DiagnosticID::InvalidTypeArguments,
+                    "Wrong type argument count"
+                )
+                .with_observation(Observation::here(
+                    SourceId(0),
+                    ReefId(1),
+                    find_in(content, "Float, Vec[Exitcode], Int"),
+                    "`3` type parameter specified, expected `2`.",
+                )),
+                Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
+                    .with_observation(Observation::here(
+                        SourceId(0),
+                        ReefId(1),
+                        find_in(content, "'2'"),
+                        "Expected `Vec[Exitcode]`, found `String`",
+                    ))
+                    .with_observation(Observation::here(
+                        SourceId(1),
+                        ReefId(1),
+                        find_in(content, "b: B"),
+                        "Parameter is declared here",
+                    )),
+                Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
+                    .with_observation(Observation::here(
+                        SourceId(0),
+                        ReefId(1),
+                        find_in(content, "Option[Float]"),
+                        "Expected `Option[Float]`",
+                    ))
+                    .with_observation(Observation::here(
+                        SourceId(0),
+                        ReefId(1),
+                        find_in(content, "foo[Float, Vec[Exitcode], Int](1, '2')"),
+                        "Found `Vec[Exitcode]`",
+                    )),
+            ]
+        )
+    }
 }
