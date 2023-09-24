@@ -4,6 +4,7 @@
 //    The alphabet has 26 letters.
 //    The first letter has the ASCII code 97.
 //    The last letter has the ASCII code 122.
+//    At is 64.
 
 val letters = 'abcdefghijklmnopqrstuvwxy'.bytes()
 $letters.push(122)
@@ -12,3 +13,7 @@ var code = $letters[0]
 echo "The first letter has the ASCII code ${code}."
 code = $letters[25]
 echo "The last letter has the ASCII code ${code}."
+
+$letters[0] = 64
+code = $letters[0]
+echo "At is ${code}."

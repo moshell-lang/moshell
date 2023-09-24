@@ -16,14 +16,14 @@ use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::reef::{Externals, ReefId};
 use crate::relations::{Definition, Relations, SourceId, SymbolRef};
+use crate::steps::typing::assign::{ascribe_assign_subscript, create_subscript};
 use crate::steps::typing::coercion::{
     check_type_annotation, coerce_condition, convert_description, convert_expression, convert_many,
     resolve_type_annotation,
 };
 use crate::steps::typing::exploration::{Exploration, Links};
 use crate::steps::typing::function::{
-    find_operand_implementation, infer_return, list_operator_defined_for, type_call, type_method,
-    type_parameter, Return,
+    find_operand_implementation, infer_return, type_call, type_method, type_parameter, Return,
 };
 use crate::steps::typing::lower::convert_into_string;
 use crate::types::ctx::{TypeContext, TypedVariable};
@@ -36,8 +36,9 @@ use crate::types::operator::name_operator_method;
 use crate::types::ty::{Type, TypeRef};
 use crate::types::{Typing, BOOL, ERROR, EXITCODE, FLOAT, INT, NOTHING, STRING, UNIT};
 
+mod assign;
 mod coercion;
-pub mod exploration;
+mod exploration;
 mod function;
 mod lower;
 mod view;
@@ -285,6 +286,10 @@ fn ascribe_assign(
             )
         }
     };
+
+    if let Expr::Subscript(sub) = assign.left.as_ref() {
+        return ascribe_assign_subscript(assign, sub, rhs, exploration, links, diagnostics, state);
+    }
 
     let Some(symbol) = links.env().get_raw_symbol(assign.left.segment()) else {
         diagnostics.push(
@@ -693,31 +698,23 @@ fn ascribe_binary(
 ) -> TypedExpr {
     let left_expr = ascribe_types(exploration, links, diagnostics, &bin.left, state);
     let right_expr = ascribe_types(exploration, links, diagnostics, &bin.right, state);
+    let left_type = left_expr.ty;
     let right_type = right_expr.ty;
     let name = name_operator_method(bin.op);
 
-    let method = exploration
+    let methods = exploration
         .get_methods(left_expr.ty, name)
-        .and_then(|methods| {
-            find_operand_implementation(
-                exploration,
-                left_expr.ty.reef,
-                methods,
-                left_expr.ty,
-                right_expr,
-            )
-        });
+        .map(|methods| methods.as_slice())
+        .unwrap_or(&[]);
+    let method =
+        find_operand_implementation(exploration, left_type.reef, methods, left_expr, right_expr);
     match method {
-        Some(method) => TypedExpr {
-            kind: ExprKind::MethodCall(MethodCall {
-                callee: Box::new(left_expr),
-                arguments: method.arguments,
-                definition: method.definition,
-            }),
+        Ok(method) => TypedExpr {
             ty: method.return_type,
+            kind: ExprKind::MethodCall(method.into()),
             segment: bin.segment(),
         },
-        _ => {
+        Err(left) => {
             diagnostics.push(
                 Diagnostic::new(DiagnosticID::UnknownMethod, "Undefined operator")
                     .with_observation(Observation::here(
@@ -727,12 +724,12 @@ fn ascribe_binary(
                         format!(
                             "No operator `{}` between type `{}` and `{}`",
                             name,
-                            exploration.get_type(left_expr.ty),
+                            exploration.get_type(left_type),
                             exploration.get_type(right_type)
                         ),
                     )),
             );
-            left_expr.poison()
+            left
         }
     }
 }
@@ -744,73 +741,17 @@ fn ascribe_subscript(
     diagnostics: &mut Vec<Diagnostic>,
     state: TypingState,
 ) -> TypedExpr {
-    let target = ascribe_types(exploration, links, diagnostics, &sub.target, state);
-    let index = ascribe_types(exploration, links, diagnostics, &sub.index, state);
-    if index.ty.is_err() || target.ty.is_err() {
-        return target.poison();
-    }
-
-    let index_ty = index.ty;
-    let methods = exploration.get_methods(target.ty, "[]");
-    let method = methods.and_then(|methods| {
-        find_operand_implementation(
-            exploration,
-            target.ty.reef, // FIXME
-            methods,
-            target.ty,
-            index,
-        )
-    });
-    match method {
-        Some(method) => TypedExpr {
+    match create_subscript(sub, exploration, links, diagnostics, state) {
+        Ok(method) => TypedExpr {
             kind: ExprKind::MethodCall(MethodCall {
-                callee: Box::new(target),
-                arguments: method.arguments,
+                callee: Box::new(method.left),
+                arguments: vec![method.right],
                 definition: method.definition,
             }),
             ty: method.return_type,
             segment: sub.segment(),
         },
-        _ => {
-            diagnostics.push(if let Some(methods) = methods {
-                Diagnostic::new(
-                    DiagnosticID::UnknownMethod,
-                    format!(
-                        "Cannot index into a value of type `{}`",
-                        exploration.get_type(target.ty)
-                    ),
-                )
-                .with_observation(Observation::here(
-                    links.source,
-                    exploration.externals.current,
-                    sub.index.segment(),
-                    format!(
-                        "`{}` indices are of type {}",
-                        exploration.get_type(target.ty),
-                        list_operator_defined_for(exploration, methods),
-                    ),
-                ))
-            } else {
-                Diagnostic::new(
-                    DiagnosticID::UnknownMethod,
-                    format!(
-                        "The type `{}` cannot be indexed by `{}`",
-                        exploration.get_type(target.ty),
-                        exploration.get_type(index_ty)
-                    ),
-                )
-                .with_observation(Observation::here(
-                    links.source,
-                    exploration.externals.current,
-                    sub.index.segment(),
-                    format!(
-                        "Indexing with `{}` is invalid",
-                        exploration.get_type(index_ty)
-                    ),
-                ))
-            });
-            target.poison()
-        }
+        Err(target) => target,
     }
 }
 
@@ -2257,6 +2198,45 @@ mod tests {
                 ReefId(1),
                 find_in(content, "'a'"),
                 "`Vec[Int]` indices are of type `Int`"
+            ))])
+        );
+    }
+
+    #[test]
+    fn assign_vec_index() {
+        let res = extract_type(Source::unknown(
+            "fun mul(v: Vec[Float], x: Float) = {
+                var n = 0
+                while $n < $v.len() {
+                    $v[$n] *= $x
+                    $n += 1
+                }
+            }",
+        ));
+        assert_eq!(res, Ok(Type::Unit));
+    }
+
+    #[test]
+    fn assign_vec_index_incorrect_type() {
+        let content = "val v = ''.bytes(); $v[0] = 'a'";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                "Invalid assignment to `Vec[Int]`",
+            )
+            .with_observation(Observation::here(
+                SourceId(0),
+                ReefId(1),
+                find_in(content, "'a'"),
+                "Found `String`"
+            ))
+            .with_observation(Observation::context(
+                SourceId(0),
+                ReefId(1),
+                find_in(content, "$v[0]"),
+                "Expected due to the type of this binding"
             ))])
         );
     }

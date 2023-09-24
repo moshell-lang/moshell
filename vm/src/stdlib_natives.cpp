@@ -184,6 +184,17 @@ static void vec_index(OperandStack &caller_stack, runtime_memory &) {
     caller_stack.push_reference(*vec[index]);
 }
 
+static void vec_index_set(OperandStack &caller_stack, runtime_memory &) {
+    msh::obj &ref = caller_stack.pop_reference();
+    int64_t n = caller_stack.pop_int();
+    size_t index = static_cast<size_t>(n);
+    msh::obj_vector &vec = caller_stack.pop_reference().get<msh::obj_vector>();
+    if (index >= vec.size()) {
+        throw RuntimeException("Index " + std::to_string(n) + " is out of range, the length is " + std::to_string(vec.size()) + ".");
+    }
+    vec[index] = &ref;
+}
+
 static void gc(OperandStack &, runtime_memory &mem) {
     mem.run_gc();
 }
@@ -202,6 +213,7 @@ natives_functions_t load_natives() {
         {"lang::Vec::len", vec_len},
         {"lang::Vec::push", vec_push},
         {"lang::Vec::[]", vec_index},
+        {"lang::Vec::[]=", vec_index_set},
 
         {"std::panic", panic},
         {"std::exit", exit},

@@ -292,28 +292,48 @@ pub(super) fn type_call(
     }
 }
 
+/// A specialized [`crate::types::hir::MethodCall`] between two expressions.
+pub(super) struct BinaryMethodMatch {
+    pub(crate) left: TypedExpr,
+    pub(crate) right: TypedExpr,
+    pub(crate) return_type: TypeRef,
+    pub(crate) definition: Definition,
+    pub(crate) reef: ReefId,
+}
+
+impl From<BinaryMethodMatch> for crate::types::hir::MethodCall {
+    fn from(binary: BinaryMethodMatch) -> Self {
+        Self {
+            callee: Box::new(binary.left),
+            arguments: vec![binary.right],
+            definition: binary.definition,
+        }
+    }
+}
+
 /// Checks the type of a method expression.
 pub(super) fn find_operand_implementation(
     exploration: &Exploration,
     reef: ReefId,
     methods: &[MethodType],
-    left: TypeRef,
+    left: TypedExpr,
     right: TypedExpr,
-) -> Option<FunctionMatch> {
+) -> Result<BinaryMethodMatch, TypedExpr> {
     for method in methods {
         if let [param] = &method.parameters.as_slice() {
             if param.ty == right.ty {
-                let return_type = exploration.concretize(method.return_type, left).id;
-                return Some(FunctionMatch {
-                    arguments: vec![right],
-                    definition: method.definition,
+                let return_type = exploration.concretize(method.return_type, left.ty).id;
+                return Ok(BinaryMethodMatch {
+                    left,
+                    right,
                     return_type,
+                    definition: method.definition,
                     reef,
                 });
             }
         }
     }
-    None
+    Err(left.poison())
 }
 
 /// Creates a list of the type parameters of methods.
@@ -493,8 +513,8 @@ fn diagnose_arg_mismatch(
     }
 }
 
-/// Find a matching method for the given arguments.
-fn find_exact_method<'a>(
+/// Finds a matching method for the given arguments.
+pub(super) fn find_exact_method<'a>(
     exploration: &Exploration,
     obj: TypeRef,
     methods: &'a [MethodType],

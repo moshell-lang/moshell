@@ -185,6 +185,11 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine) {
         "unwrap",
         MethodType::native(vec![], POLYTYPE, gen.next()),
     );
+    engine.add_method(
+        GENERIC_VECTOR.type_id,
+        "[]",
+        MethodType::native(vec![INT, POLYTYPE], UNIT, gen.next()),
+    );
 }
 
 fn fill_lang_types(typing: &mut Typing) {
