@@ -70,9 +70,8 @@ The VM needs a C++20 compiler and a CMake 3.15+ installation. Its build script w
 GCC starting from version 10 and Clang starting from version 11 are supported.
 
 ```sh
-cargo build --release
-./target/release/cli # Run the interactive prompt
-./target/release/cli -s <file> # Run a file
+cargo run --bin cli # Run the interractive prompt
+cargo run --bin cli -- -s <file> # Run a file
 ```
 
 You can export the `MOSHELL_STD` environment variable to specify a path to the standard library.
