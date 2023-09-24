@@ -1,10 +1,13 @@
 use pretty_assertions::assert_eq;
 
-use ast::call::{Call, MethodCall, Pipeline, Redir, RedirFd, RedirOp, Redirected};
+use ast::call::{
+    Call, MethodCall, Pipeline, ProgrammaticCall, Redir, RedirFd, RedirOp, Redirected,
+};
 use ast::control_flow::{Loop, While};
 use ast::function::Return;
 use ast::group::{Block, Subshell};
 use ast::operation::{BinaryOperation, BinaryOperator};
+use ast::r#use::InclusionPathItem;
 use ast::range::{Iterable, Subscript};
 use ast::substitution::{Substitution, SubstitutionKind};
 use ast::value::{Literal, TemplateString};
@@ -634,6 +637,38 @@ fn subscript_call() {
                 upper_inclusive: true,
             }))),
             segment: source.segment(),
+        })]
+    );
+}
+
+#[test]
+fn call_subscript() {
+    let source = Source::unknown("id()[1] + 2");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Binary(BinaryOperation {
+            left: Box::new(Expr::Subscript(Subscript {
+                target: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
+                    path: vec![InclusionPathItem::Symbol(
+                        "id",
+                        find_in(source.source, "id")
+                    )],
+                    arguments: vec![],
+                    type_parameters: vec![],
+                    segment: find_in(source.source, "id()"),
+                })),
+                index: Box::new(Expr::Literal(Literal {
+                    parsed: 1.into(),
+                    segment: find_in(source.source, "1"),
+                })),
+                segment: find_in(source.source, "id()[1]"),
+            })),
+            op: BinaryOperator::Plus,
+            right: Box::new(Expr::Literal(Literal {
+                parsed: 2.into(),
+                segment: find_in(source.source, "2"),
+            })),
         })]
     );
 }
