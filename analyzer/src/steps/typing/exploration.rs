@@ -2,12 +2,13 @@ use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::reef::{Externals, Reef, ReefId};
 use crate::relations::{Definition, Relations, ResolvedSymbol, SourceId, SymbolRef};
+use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::function::Return;
-use crate::steps::typing::view::TypeInstance;
+use crate::steps::typing::view::TypeView;
+use crate::types::{DefinitionId, Typing};
 use crate::types::ctx::{TypeContext, TypedVariable};
 use crate::types::engine::{CodeEntry, TypedEngine};
 use crate::types::ty::{MethodType, Type, TypeDescription, TypeRef};
-use crate::types::{DefinitionId, Typing};
 
 /// The support for type analysis.
 pub(super) struct Exploration<'a> {
@@ -35,7 +36,7 @@ impl<'a> Links<'a> {
     }
 }
 
-impl Exploration<'_> {
+impl<'a> Exploration<'a> {
     pub(super) fn prepare(&mut self) {
         self.returns.clear();
     }
@@ -62,12 +63,12 @@ impl Exploration<'_> {
     }
 
     /// Gets the type instance of a type identifier.
-    pub(super) fn get_type_instance(&self, id: TypeRef) -> TypeInstance {
-        TypeInstance::new(id, self)
+    pub(super) fn new_type_view(&self, id: TypeRef, bounds: &'a TypesBounds) -> TypeView {
+        TypeView::new(id, self, bounds)
     }
 
     /// Gets the type of a generic type parameter.
-    pub(super) fn concretize(&self, generic: TypeRef, instance_holder: TypeRef) -> TypeInstance {
+    pub(super) fn concretize(&self, generic: TypeRef, instance_holder: TypeRef) -> TypeRef {
         if self.get_type(generic) == Some(&Type::Polytype) {
             if let Some(&Type::Instantiated(polytype, ref parameters)) =
                 self.get_type(instance_holder)
@@ -78,10 +79,10 @@ impl Exploration<'_> {
                     .zip(parameters.iter())
                     .find_map(|(generic_id, concrete)| (generic == *generic_id).then_some(concrete))
                     .expect("Polytype should be instantiated.");
-                return TypeInstance::new(type_id, self);
+                return type_id;
             }
         }
-        TypeInstance::new(generic, self)
+        generic
     }
 
     pub(super) fn get_method_exact(
@@ -159,11 +160,11 @@ impl Exploration<'_> {
         })
     }
 
-    pub(super) fn get_external_env<'a>(
-        &'a self,
-        from_env: &'a Environment,
+    pub(super) fn get_external_env<'b>(
+        &'b self,
+        from_env: &'b Environment,
         to_symbol: ResolvedSymbol,
-    ) -> Option<&'a Environment> {
+    ) -> Option<&'b Environment> {
         if to_symbol.reef == self.externals.current {
             Some(from_env)
         } else {

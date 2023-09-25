@@ -16,7 +16,7 @@ pub struct DefinitionId(pub(crate) TypeRef);
 /// Holds all the known types.
 #[derive(Default, Debug, Clone)]
 pub struct Typing {
-    /// The actual types.
+    /// The actual types, bound with an optional name.
     types: Vec<(Type, Option<String>)>,
 
     /// A list of implicit conversions from one type to another.

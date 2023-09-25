@@ -4,7 +4,6 @@ use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::relations::SourceId;
 use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::exploration::Exploration;
-use crate::steps::typing::view::type_to_string;
 use crate::types::hir::{ExprKind, MethodCall, TypedExpr};
 use crate::types::ty::TypeRef;
 use crate::types::{BOOL, FLOAT, STRING};
@@ -32,7 +31,7 @@ pub(super) fn convert_into_string(
         |ty| {
             format!(
                 "Cannot stringify type `{}`",
-                type_to_string(ty, exploration, &TypesBounds::inactive())
+                exploration.new_type_view(ty, &TypesBounds::inactive())
             )
         },
         diagnostics,
@@ -69,7 +68,7 @@ pub(super) fn call_convert_on(
                     DiagnosticID::UnknownMethod,
                     format!(
                         "No conversion method defined for type `{}`",
-                        type_to_string(into, exploration, bounds)
+                        exploration.new_type_view(into, bounds)
                     ),
                 )
                 .with_observation((source, exploration.externals.current, expr.segment()).into()),
@@ -100,7 +99,7 @@ pub(super) fn call_convert_on(
                 expr.segment(),
                 format!(
                     "No method `{method_name}` on type `{}`",
-                    type_to_string(expr.ty, exploration, bounds)
+                    exploration.new_type_view(expr.ty, bounds)
                 ),
             ),
         ),

@@ -50,9 +50,6 @@ pub enum Type {
     /// Reports a previous type error that is propagated.
     Error,
 
-    /// Unspecified type
-    Wildcard,
-
     /// A type that have not been inferred yet.
     #[default]
     Unknown,

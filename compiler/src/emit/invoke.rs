@@ -205,7 +205,7 @@ pub fn emit_function_invocation(
         // the stack if the value isn't used later in the code
         instructions.emit_pop(return_type_size);
     } else if return_type.is_obj() && !call_return_type.is_obj() {
-        // the return type is an object but call return type is not : its a boxed return value
+        // the function's declared return type is an object but call return type is not : its a boxed return value
         instructions.emit_code(Opcode::Unbox);
     }
 }

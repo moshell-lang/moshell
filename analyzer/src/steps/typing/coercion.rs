@@ -6,7 +6,6 @@ use crate::relations::{SourceId, SymbolRef};
 use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::exploration::{Exploration, Links};
 use crate::steps::typing::lower::call_convert_on;
-use crate::steps::typing::view::type_to_string;
 use crate::types::hir::TypedExpr;
 use crate::types::ty::{Type, TypeRef};
 use crate::types::{UnificationError, BOOL, ERROR, NOTHING};
@@ -162,12 +161,12 @@ pub(super) fn resolve_type_annotation(
                         if params.len() < generics.len() {
                             format!(
                                 "Missing generics for type `{}`",
-                                type_to_string(main_type, exploration, &TypesBounds::inactive()),
+                                exploration.new_type_view(main_type,  &TypesBounds::inactive()),
                             )
                         } else {
                             format!(
                                 "Type `{}` were supplied {} generic argument{}",
-                                type_to_string(main_type, exploration, &TypesBounds::inactive()),
+                                exploration.new_type_view(main_type,  &TypesBounds::inactive()),
                                 params.len(),
                                 if params.len() == 1 { "" } else { "s" }
                             )
@@ -251,14 +250,14 @@ pub(super) fn check_type_annotation(
                     expected_type_segment,
                     format!(
                         "Expected `{}`",
-                        type_to_string(expected_type, exploration, bounds),
+                        exploration.new_type_view(expected_type, bounds),
                     ),
                 ))
                 .with_observation(Observation::here(
                     links.source,
                     current_reef,
                     value.segment(),
-                    format!("Found `{}`", type_to_string(value.ty, exploration, bounds)),
+                    format!("Found `{}`", exploration.new_type_view(value.ty, bounds)),
                 )),
         );
         value.ty = expected_type;
@@ -291,7 +290,7 @@ pub(super) fn convert_expression(
             |ty| {
                 format!(
                     "Cannot convert type `{}`",
-                    type_to_string(ty, exploration, &TypesBounds::inactive())
+                    exploration.new_type_view(ty, &TypesBounds::inactive())
                 )
             },
             diagnostics,
@@ -330,7 +329,7 @@ pub(super) fn coerce_condition(
                         condition.segment(),
                         format!(
                             "Type `{}` cannot be used as a condition",
-                            type_to_string(condition.ty, exploration, &TypesBounds::inactive()),
+                            exploration.new_type_view(condition.ty, &TypesBounds::inactive()),
                         ),
                     )),
             );

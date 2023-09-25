@@ -1,51 +1,51 @@
 use std::fmt;
+use std::fmt::{Display};
 
 use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::exploration::Exploration;
 use crate::types::ty::{Type, TypeRef};
 
 #[derive(Copy, Clone)]
-pub(super) struct TypeInstance<'a> {
+pub(super) struct TypeView<'a> {
     pub(super) id: TypeRef,
     pub(super) exploration: &'a Exploration<'a>,
+    pub(super) bounds: &'a TypesBounds,
 }
 
-impl<'a> TypeInstance<'a> {
-    pub(super) fn new(id: TypeRef, exploration: &'a Exploration) -> Self {
-        Self { id, exploration }
+impl<'a> TypeView<'a> {
+    pub(super) fn new(id: TypeRef, exploration: &'a Exploration, bounds: &'a TypesBounds) -> Self {
+        Self { id, exploration, bounds }
     }
 }
 
-impl fmt::Debug for TypeInstance<'_> {
+impl fmt::Debug for TypeView<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "id: {:?}", self.id)
+        write!(f, "{}", self)
     }
 }
 
-pub(super) fn type_to_string(
-    ty: TypeRef,
-    exploration: &Exploration,
-    bounds: &TypesBounds,
-) -> String {
-    let ty = bounds.get_bound(ty);
-    match exploration.get_type(ty).unwrap_or(&Type::Error) {
-        Type::Instantiated(def, parameters) => {
-            let mut str = type_to_string(*def, exploration, bounds);
-            str.push('[');
+impl Display for TypeView<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let ty = self.bounds.get_bound(self.id);
+
+        let tpe = self.exploration.get_type(ty).unwrap_or(&Type::Error);
+
+        if let Type::Instantiated(def, parameters) = tpe {
+            write!(f, "{}[", Self::new(*def, self.exploration, self.bounds))?;
             for (i, parameter) in parameters.iter().enumerate() {
                 if i > 0 {
-                    str.push_str(", ");
+                    write!(f, ", ")?;
                 }
-                str.push_str(&type_to_string(*parameter, exploration, bounds));
+                write!(f, "{}", &Self::new(*parameter, self.exploration, self.bounds))?;
             }
-            str.push(']');
-            str
+            return write!(f, "]");
         }
-        Type::Wildcard => "_".to_string(),
-        _ => exploration
+
+        write!(f, "{}", self.exploration
             .get_type_name(ty)
             .cloned()
-            .unwrap_or("<?>".to_string()),
+            .unwrap_or("<?>".to_string()))
     }
-    .to_string()
 }
+
+

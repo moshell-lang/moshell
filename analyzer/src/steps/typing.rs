@@ -25,7 +25,6 @@ use crate::steps::typing::function::{
     find_operand_implementation, infer_return, type_call, type_method, type_parameter, Return,
 };
 use crate::steps::typing::lower::convert_into_string;
-use crate::steps::typing::view::type_to_string;
 use crate::types::ctx::{TypeContext, TypedVariable};
 use crate::types::engine::{Chunk, TypedEngine};
 use crate::types::hir::{
@@ -109,6 +108,7 @@ impl TypingState {
         }
     }
 
+    /// return a state with the expected type of the next expression.
     fn with_expected_type(self, ty: Option<TypeRef>) -> Self {
         Self {
             expected_type: ty,
@@ -223,6 +223,8 @@ fn apply_types_to_source(
     }
 }
 
+/// create a basic chunk from a function declaration
+/// type its parameters, type parameters and return type
 fn type_function_signature(
     func: &FunctionDeclaration,
     exploration: &mut Exploration,
@@ -356,32 +358,10 @@ fn ascribe_assign(
     diagnostics: &mut Vec<Diagnostic>,
     state: TypingState,
 ) -> TypedExpr {
-    let Some(symbol) = links.env().get_raw_symbol(assign.left.segment()) else {
-        diagnostics.push(
-            Diagnostic::new(
-                DiagnosticID::InvalidAssignment,
-                "Invalid left-hand side of assignment",
-            )
-            .with_observation(Observation::here(
-                links.source,
-                exploration.externals.current,
-                assign.left.segment(),
-                "Cannot assign to this expression",
-            )),
-        );
-        return TypedExpr {
-            kind: ExprKind::Noop,
-            ty: ERROR,
-            segment: assign.segment(),
-        };
-    };
-    let actual_type_ref = exploration
-        .ctx
-        .get(links.relations, links.source, symbol)
-        .unwrap()
-        .type_ref;
 
-    let rhs = match assign.operator {
+    macro_rules! ascribe_rhs {
+        ($expected_type:expr) => {
+            match assign.operator {
         AssignOperator::Assign => ascribe_types(
             exploration,
             links,
@@ -389,7 +369,7 @@ fn ascribe_assign(
             &assign.value,
             state
                 .with_local_type()
-                .with_expected_type(Some(actual_type_ref)),
+                .with_expected_type($expected_type),
         ),
         operator => {
             let binary = Expr::Binary(BinaryOperation {
@@ -405,7 +385,32 @@ fn ascribe_assign(
                 state.with_local_type(),
             )
         }
+    }
+        }
+    }
+
+    let Some(symbol) = links.env().get_raw_symbol(assign.left.segment()) else {
+        diagnostics.push(
+            Diagnostic::new(
+                DiagnosticID::InvalidAssignment,
+                "Invalid left-hand side of assignment",
+            )
+            .with_observation(Observation::here(
+                links.source,
+                exploration.externals.current,
+                assign.left.segment(),
+                "Cannot assign to this expression",
+            )),
+        );
+        return ascribe_rhs!(None);
     };
+    let actual_type_ref = exploration
+        .ctx
+        .get(links.relations, links.source, symbol)
+        .unwrap()
+        .type_ref;
+
+    let rhs = ascribe_rhs!(Some(actual_type_ref));
 
     let actual_type = exploration.get_type(actual_type_ref).unwrap();
     if actual_type.is_named() {
@@ -449,8 +454,8 @@ fn ascribe_assign(
                     DiagnosticID::TypeMismatch,
                     format!(
                         "Cannot assign a value of type `{}` to something of type `{}`",
-                        type_to_string(rhs_type, exploration, &TypesBounds::inactive()),
-                        type_to_string(var_ty, exploration, &TypesBounds::inactive()),
+                        exploration.new_type_view(rhs_type,  &TypesBounds::inactive()),
+                        exploration.new_type_view(var_ty,  &TypesBounds::inactive()),
                     ),
                 )
                 .with_observation(Observation::here(
@@ -651,7 +656,7 @@ fn ascribe_redirected(
                         DiagnosticID::TypeMismatch,
                         format!(
                             "File descriptor redirections must be given an integer, not `{}`",
-                            type_to_string(operand.ty, exploration, &TypesBounds::inactive()),
+                            exploration.new_type_view(operand.ty, &TypesBounds::inactive()),
                         ),
                     )
                     .with_observation(Observation::here(
@@ -757,7 +762,9 @@ fn ascribe_function_declaration(
 ) -> TypedExpr {
     let declaration = links.env().get_raw_env(fun.segment()).unwrap();
 
+    // check if the function declaration is already known
     if exploration.type_engine.get_user(declaration).is_none() {
+        // if not, forward declare it by typing its declared signature
         let declaration_link = links.with_source(declaration);
         let forward_declared_chunk =
             type_function_signature(fun, exploration, declaration_link, diagnostics);
@@ -828,8 +835,8 @@ fn ascribe_binary(
                         format!(
                             "No operator `{}` between type `{}` and `{}`",
                             name,
-                            type_to_string(left_expr.ty, exploration, &TypesBounds::inactive()),
-                            type_to_string(right_type, exploration, &TypesBounds::inactive()),
+                            exploration.new_type_view(left_expr.ty, &TypesBounds::inactive()),
+                            exploration.new_type_view(right_type, &TypesBounds::inactive()),
                         ),
                     )),
             );
@@ -861,8 +868,8 @@ fn ascribe_casted(
                 DiagnosticID::IncompatibleCast,
                 format!(
                     "Casting `{}` as `{}` is invalid",
-                    type_to_string(expr.ty, exploration, &TypesBounds::inactive()),
-                    type_to_string(ty, exploration, &TypesBounds::inactive()),
+                    exploration.new_type_view(expr.ty, &TypesBounds::inactive()),
+                    exploration.new_type_view(ty, &TypesBounds::inactive()),
                 ),
             )
             .with_observation(Observation::here(
@@ -925,7 +932,7 @@ fn ascribe_unary(
                                 unary.segment(),
                                 format!(
                                     "`{}` does not implement the `neg` method",
-                                    type_to_string(expr.ty, exploration, &TypesBounds::inactive()),
+                                    exploration.new_type_view(expr.ty, &TypesBounds::inactive()),
                                 ),
                             )),
                     );
@@ -974,7 +981,7 @@ fn ascribe_not(
                         segment,
                         format!(
                             "Cannot invert non-boolean type `{}`",
-                            type_to_string(expr.ty, exploration, &TypesBounds::inactive()),
+                            exploration.new_type_view(expr.ty, &TypesBounds::inactive()),
                         ),
                     ),
                 ),
@@ -1050,7 +1057,7 @@ fn ascribe_if(
                     block.success_branch.segment(),
                     format!(
                         "Found `{}`",
-                        type_to_string(then.ty, exploration, &TypesBounds::inactive()),
+                        exploration.new_type_view(then.ty, &TypesBounds::inactive()),
                     ),
                 ));
                 if let Some(otherwise) = &otherwise {
@@ -1060,7 +1067,7 @@ fn ascribe_if(
                         otherwise.segment(),
                         format!(
                             "Found `{}`",
-                            type_to_string(otherwise.ty, exploration, &TypesBounds::inactive()),
+                            exploration.new_type_view(otherwise.ty, &TypesBounds::inactive()),
                         ),
                     ));
                 }

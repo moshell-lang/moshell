@@ -15,7 +15,6 @@ use crate::steps::typing::coercion::{
     convert_description, convert_expression, convert_many, resolve_type_annotation,
 };
 use crate::steps::typing::exploration::{Exploration, Links};
-use crate::steps::typing::view::{type_to_string, TypeInstance};
 use crate::steps::typing::{ascribe_types, TypingState};
 use crate::types::engine::CodeEntry;
 use crate::types::hir::{ExprKind, TypedExpr};
@@ -99,12 +98,12 @@ pub(super) fn infer_return(
                 if func.return_type.is_some() {
                     format!(
                         "Found `{}`",
-                        type_to_string(ret.ty, exploration, &TypesBounds::inactive())
+                        exploration.new_type_view(ret.ty, &TypesBounds::inactive())
                     )
                 } else {
                     format!(
                         "Returning `{}`",
-                        type_to_string(ret.ty, exploration, &TypesBounds::inactive())
+                        exploration.new_type_view(ret.ty, &TypesBounds::inactive())
                     )
                 },
             ));
@@ -125,7 +124,7 @@ pub(super) fn infer_return(
                     return_type_annotation.segment(),
                     format!(
                         "Expected `{}` because of return type",
-                        type_to_string(expected_return_type, exploration, &TypesBounds::inactive()),
+                        exploration.new_type_view(expected_return_type, &TypesBounds::inactive()),
                     ),
                 )),
         );
@@ -176,7 +175,7 @@ pub(super) fn infer_return(
             .with_observations(typed_return_locations)
             .with_help(format!(
                 "Add -> {} to the function declaration",
-                type_to_string(common_type, exploration, &TypesBounds::inactive()),
+                exploration.new_type_view(common_type, &TypesBounds::inactive()),
             )),
         );
     } else {
@@ -215,10 +214,11 @@ fn apply_bounds(exploration: &mut Exploration, ty: TypeRef, bounds: &TypesBounds
     ty_ref
 }
 
+/// Ensures that the return type does not contains any reference to given type parameters of function.
 fn check_for_leaked_type_parameters(
     exploration: &Exploration,
     types_parameters: &[TypeRef],
-    tpe: TypeRef,
+    return_type: TypeRef,
     source: SourceId,
     call_segment: SourceSegment,
     diagnostics: &mut Vec<Diagnostic>,
@@ -243,19 +243,19 @@ fn check_for_leaked_type_parameters(
         }
     }
 
-    collect_leaked_types(exploration, types_parameters, tpe, &mut leaked_types);
+    collect_leaked_types(exploration, types_parameters, return_type, &mut leaked_types);
 
     if let Some((first, tail)) = leaked_types.split_first() {
         let leaked_types_str = {
             tail.iter().fold(
                 format!(
                     "`{}`",
-                    type_to_string(*first, exploration, &TypesBounds::inactive())
+                    exploration.new_type_view(*first, &TypesBounds::inactive())
                 ),
                 |acc, it| {
                     format!(
                         "{acc}, `{}`",
-                        type_to_string(*it, exploration, &TypesBounds::inactive())
+                        exploration.new_type_view(*it, &TypesBounds::inactive())
                     )
                 },
             )
@@ -275,7 +275,7 @@ fn check_for_leaked_type_parameters(
         );
         ERROR
     } else {
-        tpe
+        return_type
     }
 }
 
@@ -420,7 +420,6 @@ pub(super) fn type_call(
             }
         }
         _ => {
-            let ty = exploration.get_type_instance(function_type_ref);
             diagnostics.push(
                 Diagnostic::new(
                     DiagnosticID::TypeMismatch,
@@ -432,7 +431,7 @@ pub(super) fn type_call(
                     call.segment(),
                     format!(
                         "Call expression requires function, found `{}`",
-                        type_to_string(ty.id, exploration, &TypesBounds::inactive())
+                        exploration.new_type_view(function_type_ref, &TypesBounds::inactive())
                     ),
                 )),
             );
@@ -453,7 +452,8 @@ pub(super) fn type_call(
     }
 }
 
-fn correlate(
+/// update given bounds to update type parameters bounds of the function's return type from the given hint
+fn infer_return_from_hint(
     exploration: &Exploration,
     return_type: TypeRef,
     return_type_hint: TypeRef,
@@ -467,10 +467,10 @@ fn correlate(
         }
         (Type::Instantiated(_, return_params), Type::Instantiated(_, hint_params)) => {
             for (return_param, hint_param) in return_params.iter().zip(hint_params) {
-                correlate(exploration, *return_param, *hint_param, bounds)
+                infer_return_from_hint(exploration, *return_param, *hint_param, bounds)
             }
         }
-        _ => {} // nothing to correlate as they are not equals
+        _ => {}
     }
 }
 
@@ -490,6 +490,7 @@ fn extract_polytypes(tpe_ref: TypeRef, exploration: &Exploration) -> Vec<TypeRef
     }
 }
 
+/// search if given type is contained in given polytypes or has any type parameter contained in this list.
 fn type_depends_of(tpe: TypeRef, polytypes: &Vec<TypeRef>, exploration: &Exploration) -> bool {
     if polytypes.contains(&tpe) {
         return true;
@@ -504,6 +505,8 @@ fn type_depends_of(tpe: TypeRef, polytypes: &Vec<TypeRef>, exploration: &Explora
     false
 }
 
+/// build type parameters bounds of a user-defined function.
+/// The return hint is only applied if the function's return type does not depend on function's parameters.
 fn build_bounds(
     user_bounds: &[ast::r#type::Type],
     fun_reef: ReefId,
@@ -531,10 +534,10 @@ fn build_bounds(
         .flat_map(|p| extract_polytypes(p.ty, exploration))
         .collect();
 
-    // Use the return type hint only if it does not contains a polytype bound to the parameters
+    // Use the return type hint only if it does not contains a polytype bound with the parameters
     if !type_depends_of(entry.return_type(), &parameters_polytypes, exploration) {
         if let Some(hint) = return_hint {
-            correlate(exploration, entry.return_type(), hint, &mut bounds);
+            infer_return_from_hint(exploration, entry.return_type(), hint, &mut bounds);
         }
     }
 
@@ -592,7 +595,7 @@ pub(super) fn find_operand_implementation(
     for method in methods {
         if let [param] = &method.parameters.as_slice() {
             if param.ty == right.ty {
-                let return_type = exploration.concretize(method.return_type, left).id;
+                let return_type = exploration.concretize(method.return_type, left);
                 return Some(FunctionMatch {
                     type_arguments: vec![method.return_type],
                     arguments: vec![right],
@@ -638,12 +641,12 @@ pub(super) fn type_method(
                 if method_call.name.is_some() {
                     format!(
                         "No method named `{method_name}` found for type `{}`",
-                        type_to_string(callee.ty, exploration, &TypesBounds::inactive())
+                        exploration.new_type_view(callee.ty, &TypesBounds::inactive())
                     )
                 } else {
                     format!(
                         "Type `{}` is not directly callable",
-                        type_to_string(callee.ty, exploration, &TypesBounds::inactive())
+                        exploration.new_type_view(callee.ty, &TypesBounds::inactive())
                     )
                 },
             )
@@ -659,7 +662,7 @@ pub(super) fn type_method(
         let type_parameters = method.type_parameters.clone();
         let definition = method.definition;
 
-        let return_type = exploration.concretize(method.return_type, callee.ty).id;
+        let return_type = exploration.concretize(method.return_type, callee.ty);
         let return_type = apply_bounds(exploration, return_type, &bounds);
         let return_type = check_for_leaked_type_parameters(
             exploration,
@@ -712,7 +715,7 @@ pub(super) fn type_method(
                 ))
                 .with_help(format!(
                     "The method signature is `{}::{}`",
-                    type_to_string(callee.ty, exploration, &TypesBounds::inactive()),
+                    exploration.new_type_view(callee.ty, &TypesBounds::inactive()),
                     Signature::new(exploration, method_name, &method)
                 )),
             );
@@ -723,7 +726,7 @@ pub(super) fn type_method(
                 method
                     .type_parameters
                     .iter()
-                    .map(|p| (*p, exploration.concretize(*p, callee.ty).id))
+                    .map(|p| (*p, exploration.concretize(*p, callee.ty)))
                     .collect(),
             );
 
@@ -767,7 +770,7 @@ pub(super) fn type_method(
                 DiagnosticID::UnknownMethod,
                 format!(
                     "No matching method found for `{method_name}::{}`",
-                    type_to_string(callee.ty, exploration, &TypesBounds::inactive())
+                    exploration.new_type_view(callee.ty, &TypesBounds::inactive())
                 ),
             )
             .with_observation(Observation::here(
@@ -798,8 +801,8 @@ fn diagnose_arg_mismatch(
             arg.segment.clone(),
             format!(
                 "Expected `{}`, found `{}`",
-                type_to_string(param.ty, exploration, bounds),
-                type_to_string(arg.ty, exploration, bounds)
+                exploration.new_type_view(param.ty, bounds),
+                exploration.new_type_view(arg.ty, bounds)
             ),
         ),
     );
@@ -833,7 +836,7 @@ fn find_exact_method<'a>(
         let mut bounds = TypesBounds::new(bounds_base.clone());
 
         for (param, arg) in method.parameters.iter().zip(args.iter()) {
-            let param_ty = exploration.concretize(param.ty, obj).id;
+            let param_ty = exploration.concretize(param.ty, obj);
             let param_bound = bounds.get_bound(param_ty);
 
             let converted =
@@ -909,10 +912,6 @@ impl<'a> Signature<'a> {
             function,
         }
     }
-
-    fn get_type(&self, id: TypeRef) -> TypeInstance {
-        self.exploration.get_type_instance(id)
-    }
 }
 
 impl fmt::Display for Signature<'_> {
@@ -922,13 +921,13 @@ impl fmt::Display for Signature<'_> {
             write!(
                 f,
                 "{}",
-                type_to_string(first.ty, self.exploration, &TypesBounds::inactive())
+                self.exploration.new_type_view(first.ty,  &TypesBounds::inactive())
             )?;
             for param in parameters {
                 write!(
                     f,
                     ", {}",
-                    type_to_string(param.ty, self.exploration, &TypesBounds::inactive())
+                    self.exploration.new_type_view(param.ty,  &TypesBounds::inactive())
                 )?;
             }
         }
@@ -938,9 +937,8 @@ impl fmt::Display for Signature<'_> {
             write!(
                 f,
                 ") -> {}",
-                type_to_string(
+                self.exploration.new_type_view(
                     self.function.return_type,
-                    self.exploration,
                     &TypesBounds::inactive()
                 )
             )
