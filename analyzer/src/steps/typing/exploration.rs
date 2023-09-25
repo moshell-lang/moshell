@@ -49,15 +49,15 @@ impl Exploration<'_> {
         typing.get_type(id.type_id)
     }
 
-    pub(super) fn get_type_name(&self, ty: TypeRef) -> Option<&str> {
+    pub(super) fn get_type_name(&self, ty: TypeRef) -> Option<&String> {
         if ty.reef == self.externals.current {
-            self.ctx.get_name(ty.type_id)
+            self.typing.get_type_name(ty.type_id)
         } else {
             self.externals
                 .get_reef(ty.reef)
                 .unwrap()
-                .type_context
-                .get_name(ty.type_id)
+                .typing
+                .get_type_name(ty.type_id)
         }
     }
 

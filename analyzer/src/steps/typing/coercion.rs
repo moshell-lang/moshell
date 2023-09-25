@@ -1,5 +1,5 @@
 use ast::r#type::ParametrizedType;
-use context::source::SourceSegmentHolder;
+use context::source::{SourceSegment, SourceSegmentHolder};
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::relations::{SourceId, SymbolRef};
@@ -41,14 +41,16 @@ pub(super) fn convert_description(
         .get_type(assign_to)
         .unwrap_or_else(|| panic!("cannot find type {assign_to:?}`"));
 
-    if *lhs == Type::Polytype {
+    if *lhs == Type::Polytype && is_base_type {
         return Ok(assign_to);
     }
 
     let rhs = exploration
         .get_type(rvalue)
         .unwrap_or_else(|| panic!("cannot find type {rvalue:?}`"));
-    if lhs == rhs {
+
+    // Valid excepted if both types are polytype
+    if *lhs != Type::Polytype && lhs == rhs {
         return Ok(assign_to);
     }
 
@@ -193,7 +195,7 @@ pub(super) fn resolve_type_annotation(
                 .collect();
             let instantiated_id = exploration
                 .typing
-                .add_type(Type::Instantiated(main_type, params));
+                .add_type(Type::Instantiated(main_type, params), None);
             TypeRef::new(exploration.externals.current, instantiated_id)
         }
         ast::r#type::Type::Callable(_) => unimplemented!(),
@@ -219,7 +221,8 @@ pub(super) fn is_compatible(
 /// A type annotation might generate a conversion function call, which is returned.
 pub(super) fn check_type_annotation(
     exploration: &mut Exploration,
-    type_annotation: &ast::r#type::Type,
+    expected_type: TypeRef,
+    expected_type_segment: SourceSegment,
     bounds: &mut TypesBounds,
     value: TypedExpr,
     links: Links,
@@ -229,7 +232,6 @@ pub(super) fn check_type_annotation(
         return value;
     }
 
-    let expected_type = resolve_type_annotation(exploration, links, type_annotation, diagnostics);
     let current_reef = exploration.externals.current;
 
     convert_expression(
@@ -246,7 +248,7 @@ pub(super) fn check_type_annotation(
                 .with_observation(Observation::here(
                     links.source,
                     current_reef,
-                    type_annotation.segment(),
+                    expected_type_segment,
                     format!(
                         "Expected `{}`",
                         type_to_string(expected_type, exploration, bounds),

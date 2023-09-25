@@ -59,15 +59,6 @@ impl TypeContext {
     pub fn get_type_id(&self, name: &str) -> Option<TypeId> {
         self.names.get(name).copied()
     }
-
-    pub fn get_name(&self, ty: TypeId) -> Option<&str> {
-        for (name, bound) in &self.names {
-            if ty == *bound {
-                return Some(name);
-            }
-        }
-        None
-    }
 }
 
 /// The identity of a variable.

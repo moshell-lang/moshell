@@ -1,6 +1,5 @@
 use std::fmt;
 
-use crate::relations::Definition;
 use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::exploration::Exploration;
 use crate::types::ty::{Type, TypeRef};
@@ -30,25 +29,6 @@ pub(super) fn type_to_string(
 ) -> String {
     let ty = bounds.get_bound(ty);
     match exploration.get_type(ty).unwrap_or(&Type::Error) {
-        Type::Error => "Error".to_string(),
-        Type::Unknown => "Unknown".to_string(),
-        Type::Nothing => "Nothing".to_string(),
-        Type::Unit => "Unit".to_string(),
-        Type::Bool => "Bool".to_string(),
-        Type::ExitCode => "Exitcode".to_string(),
-        Type::Int => "Int".to_string(),
-        Type::Float => "Float".to_string(),
-        Type::String => "String".to_string(),
-        Type::Function(id) => format!(
-            "fun#{}",
-            match id {
-                Definition::User(id) => id.0,
-                Definition::Native(id) => id.0,
-            }
-        ),
-        Type::Vector => "Vec".to_string(),
-        Type::Option => "Option".to_string(),
-        Type::Polytype => exploration.get_type_name(ty).unwrap_or("?").to_string(),
         Type::Instantiated(def, parameters) => {
             let mut str = type_to_string(*def, exploration, bounds);
             str.push('[');
@@ -61,6 +41,11 @@ pub(super) fn type_to_string(
             str.push(']');
             str
         }
+        Type::Wildcard => "_".to_string(),
+        _ => exploration
+            .get_type_name(ty)
+            .cloned()
+            .unwrap_or("<?>".to_string()),
     }
     .to_string()
 }

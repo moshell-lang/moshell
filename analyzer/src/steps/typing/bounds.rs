@@ -1,7 +1,7 @@
+use crate::types;
 use crate::types::ty::TypeRef;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use crate::types;
 
 /// Bind a polytype to largest possible monotype
 pub struct TypesBounds {

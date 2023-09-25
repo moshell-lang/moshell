@@ -17,7 +17,7 @@ pub struct DefinitionId(pub(crate) TypeRef);
 #[derive(Default, Debug, Clone)]
 pub struct Typing {
     /// The actual types.
-    types: Vec<Type>,
+    types: Vec<(Type, Option<String>)>,
 
     /// A list of implicit conversions from one type to another.
     pub(crate) implicits: HashMap<TypeId, TypeRef>,
@@ -28,15 +28,21 @@ impl Typing {
         self.implicits.insert(from, to);
     }
 
-    pub(crate) fn add_type(&mut self, ty: Type) -> TypeId {
+    pub(crate) fn add_type(&mut self, ty: Type, name: Option<String>) -> TypeId {
         let type_id = TypeId(self.types.len());
-        self.types.push(ty);
+        self.types.push((ty, name));
         type_id
     }
 
     /// Gets the type with the given identifier.
     pub fn get_type(&self, type_id: TypeId) -> Option<&Type> {
-        self.types.get(type_id.0)
+        self.types.get(type_id.0).map(|(t, _)| t)
+    }
+
+    pub fn get_type_name(&self, type_id: TypeId) -> Option<&String> {
+        self.types
+            .get(type_id.0)
+            .and_then(|(_, name)| name.as_ref())
     }
 }
 

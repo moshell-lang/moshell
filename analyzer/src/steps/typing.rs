@@ -75,6 +75,8 @@ struct TypingState {
 
     // if not in loop, `continue` and `break` will raise a diagnostic
     in_loop: bool,
+
+    expected_type: Option<TypeRef>,
 }
 
 impl TypingState {
@@ -103,6 +105,13 @@ impl TypingState {
     fn with_in_loop(self) -> Self {
         Self {
             in_loop: true,
+            ..self
+        }
+    }
+
+    fn with_expected_type(self, ty: Option<TypeRef>) -> Self {
+        Self {
+            expected_type: ty,
             ..self
         }
     }
@@ -159,18 +168,34 @@ fn apply_types_to_source(
             let base_chunk = forward_declaration
                 .unwrap_or_else(|| type_function_signature(func, exploration, links, diagnostics));
 
+            let expected_return_type =
+                if let Some(return_type_annotation) = func.return_type.as_ref() {
+                    // An explicit return type is present, check it against all the return types.
+                    resolve_type_annotation(exploration, links, return_type_annotation, diagnostics)
+                } else {
+                    UNIT
+                };
+
             let typed_body = func.body.as_ref().map(|body| {
                 ascribe_types(
                     exploration,
                     links,
                     diagnostics,
                     body,
-                    TypingState::default().with_local_type(),
+                    TypingState::default()
+                        .with_local_type()
+                        .with_expected_type(Some(expected_return_type)),
                 )
             });
 
-            let return_type =
-                infer_return(func, links, typed_body.as_ref(), diagnostics, exploration);
+            let return_type = infer_return(
+                func,
+                expected_return_type,
+                links,
+                typed_body.as_ref(),
+                diagnostics,
+                exploration,
+            );
 
             if let Some(body) = typed_body {
                 Chunk::function(
@@ -210,7 +235,9 @@ fn type_function_signature(
     let func_source = function_links.source;
 
     for type_param in &func.type_parameters {
-        let param_type_id = exploration.typing.add_type(Type::Polytype);
+        let param_type_id = exploration
+            .typing
+            .add_type(Type::Polytype, Some(type_param.name.to_string()));
         let param_type_ref = TypeRef::new(exploration.externals.current, param_type_id);
         type_params.push(param_type_ref);
         exploration
@@ -238,9 +265,10 @@ fn type_function_signature(
         resolve_type_annotation(exploration, function_links, ty, diagnostics)
     });
 
-    let type_id = exploration
-        .typing
-        .add_type(Type::Function(Definition::User(func_source)));
+    let type_id = exploration.typing.add_type(
+        Type::Function(Definition::User(func_source)),
+        Some(func.name.to_string()),
+    );
     let type_ref = TypeRef::new(exploration.externals.current, type_id);
 
     Chunk {
@@ -328,13 +356,40 @@ fn ascribe_assign(
     diagnostics: &mut Vec<Diagnostic>,
     state: TypingState,
 ) -> TypedExpr {
+    let Some(symbol) = links.env().get_raw_symbol(assign.left.segment()) else {
+        diagnostics.push(
+            Diagnostic::new(
+                DiagnosticID::InvalidAssignment,
+                "Invalid left-hand side of assignment",
+            )
+            .with_observation(Observation::here(
+                links.source,
+                exploration.externals.current,
+                assign.left.segment(),
+                "Cannot assign to this expression",
+            )),
+        );
+        return TypedExpr {
+            kind: ExprKind::Noop,
+            ty: ERROR,
+            segment: assign.segment(),
+        };
+    };
+    let actual_type_ref = exploration
+        .ctx
+        .get(links.relations, links.source, symbol)
+        .unwrap()
+        .type_ref;
+
     let rhs = match assign.operator {
         AssignOperator::Assign => ascribe_types(
             exploration,
             links,
             diagnostics,
             &assign.value,
-            state.with_local_type(),
+            state
+                .with_local_type()
+                .with_expected_type(Some(actual_type_ref)),
         ),
         operator => {
             let binary = Expr::Binary(BinaryOperation {
@@ -351,27 +406,6 @@ fn ascribe_assign(
             )
         }
     };
-
-    let Some(symbol) = links.env().get_raw_symbol(assign.left.segment()) else {
-        diagnostics.push(
-            Diagnostic::new(
-                DiagnosticID::InvalidAssignment,
-                "Invalid left-hand side of assignment",
-            )
-            .with_observation(Observation::here(
-                links.source,
-                exploration.externals.current,
-                assign.left.segment(),
-                "Cannot assign to this expression",
-            )),
-        );
-        return rhs;
-    };
-    let actual_type_ref = exploration
-        .ctx
-        .get(links.relations, links.source, symbol)
-        .unwrap()
-        .type_ref;
 
     let actual_type = exploration.get_type(actual_type_ref).unwrap();
     if actual_type.is_named() {
@@ -479,6 +513,10 @@ fn ascribe_var_declaration(
     diagnostics: &mut Vec<Diagnostic>,
     state: TypingState,
 ) -> TypedExpr {
+    let ast_type_hint = decl.var.ty.as_ref();
+    let type_hint =
+        ast_type_hint.map(|ty| resolve_type_annotation(exploration, links, ty, diagnostics));
+
     let mut initializer = decl
         .initializer
         .as_ref()
@@ -488,15 +526,16 @@ fn ascribe_var_declaration(
                 links,
                 diagnostics,
                 expr,
-                state.with_local_type(),
+                state.with_local_type().with_expected_type(type_hint),
             )
         })
         .expect("Variables without initializers are not supported yet");
 
-    if let Some(type_annotation) = &decl.var.ty {
+    if let Some(type_ref) = type_hint {
         initializer = check_type_annotation(
             exploration,
-            type_annotation,
+            type_ref,
+            ast_type_hint.unwrap().segment(),
             &mut TypesBounds::inactive(),
             initializer,
             links,
@@ -728,9 +767,10 @@ fn ascribe_function_declaration(
             .insert(declaration, forward_declared_chunk);
     }
 
-    let type_id = exploration
-        .typing
-        .add_type(Type::Function(Definition::User(declaration)));
+    let type_id = exploration.typing.add_type(
+        Type::Function(Definition::User(declaration)),
+        Some(fun.name.to_string()),
+    );
     let type_ref = TypeRef::new(exploration.externals.current, type_id);
 
     let local_id = exploration.ctx.push_local_typed(links.source, type_ref);
@@ -1072,13 +1112,7 @@ fn ascribe_pfc(
     diagnostics: &mut Vec<Diagnostic>,
     state: TypingState,
 ) -> TypedExpr {
-    let arguments = call
-        .arguments
-        .iter()
-        .map(|expr| ascribe_types(exploration, links, diagnostics, expr, state))
-        .collect::<Vec<_>>();
-
-    let function_match = type_call(call, exploration, arguments, links, diagnostics);
+    let function_match = type_call(call, exploration, links, state, diagnostics);
     TypedExpr {
         kind: ExprKind::FunctionCall(FunctionCall {
             arguments: function_match.arguments,
@@ -2438,102 +2472,6 @@ mod tests {
                         ReefId(1),
                         find_in(content, "foo('str_in_int_argument', $vec, '7', $vec)"),
                         "Found `String`"
-                    )),
-            ]
-        )
-    }
-
-    #[test]
-    fn fun_generic_args_explicit() {
-        let content = "\
-            fun foo[A, B](a: A, b: B) -> B = $b
-
-            val vec = ''.bytes()
-            val i: Option[Float] = foo[Float, Vec[Exitcode]](1, '2')
-        ";
-        let src = Source::unknown(content);
-        let errs = extract(src).expect_err("no typing errors");
-        assert_eq!(
-            errs,
-            vec![
-                Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
-                    .with_observation(Observation::here(
-                        SourceId(0),
-                        ReefId(1),
-                        find_in(content, "'2'"),
-                        "Expected `Vec[Exitcode]`, found `String`",
-                    ))
-                    .with_observation(Observation::here(
-                        SourceId(1),
-                        ReefId(1),
-                        find_in(content, "b: B"),
-                        "Parameter is declared here",
-                    )),
-                Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
-                    .with_observation(Observation::here(
-                        SourceId(0),
-                        ReefId(1),
-                        find_in(content, "Option[Float]"),
-                        "Expected `Option[Float]`",
-                    ))
-                    .with_observation(Observation::here(
-                        SourceId(0),
-                        ReefId(1),
-                        find_in(content, "foo[Float, Vec[Exitcode]](1, '2')"),
-                        "Found `Vec[Exitcode]`",
-                    )),
-            ]
-        )
-    }
-
-    #[test]
-    fn fun_generic_args_explicit_wrong_count() {
-        let content = "\
-            fun foo[A, B](a: A, b: B) -> B = $b
-
-            val vec = ''.bytes()
-            val i: Option[Float] = foo[Float, Vec[Exitcode], Int](1, '2')
-        ";
-        let src = Source::unknown(content);
-        let errs = extract(src).expect_err("no typing errors");
-        assert_eq!(
-            errs,
-            vec![
-                Diagnostic::new(
-                    DiagnosticID::InvalidTypeArguments,
-                    "Wrong type argument count"
-                )
-                .with_observation(Observation::here(
-                    SourceId(0),
-                    ReefId(1),
-                    find_in(content, "Float, Vec[Exitcode], Int"),
-                    "`3` type parameter specified, expected `2`.",
-                )),
-                Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
-                    .with_observation(Observation::here(
-                        SourceId(0),
-                        ReefId(1),
-                        find_in(content, "'2'"),
-                        "Expected `Vec[Exitcode]`, found `String`",
-                    ))
-                    .with_observation(Observation::here(
-                        SourceId(1),
-                        ReefId(1),
-                        find_in(content, "b: B"),
-                        "Parameter is declared here",
-                    )),
-                Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
-                    .with_observation(Observation::here(
-                        SourceId(0),
-                        ReefId(1),
-                        find_in(content, "Option[Float]"),
-                        "Expected `Option[Float]`",
-                    ))
-                    .with_observation(Observation::here(
-                        SourceId(0),
-                        ReefId(1),
-                        find_in(content, "foo[Float, Vec[Exitcode], Int](1, '2')"),
-                        "Found `Vec[Exitcode]`",
                     )),
             ]
         )

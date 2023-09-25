@@ -49,7 +49,10 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
     let mut gen = VariableGenerator::default();
 
     // declare one generic parameter type, functions will reuse it
-    let generic_param1 = TypeRef::new(LANG_REEF, typing.add_type(Type::Polytype));
+    let generic_param1 = TypeRef::new(
+        LANG_REEF,
+        typing.add_type(Type::Polytype, Some("A".to_string())),
+    );
 
     engine.add_method(
         EXITCODE.type_id,
@@ -149,7 +152,7 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
         MethodType::native(
             vec![],
             vec![STRING],
-            TypeRef::new(LANG_REEF, TypeId(11)), //Vec[String] instance
+            TypeRef::new(LANG_REEF, TypeId(10)), //Vec[String] instance
             gen.next(),
         ),
     );
@@ -159,7 +162,7 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
         MethodType::native(
             vec![],
             vec![],
-            TypeRef::new(LANG_REEF, TypeId(12)), // Vec[Int] instance
+            TypeRef::new(LANG_REEF, TypeId(11)), // Vec[Int] instance
             gen.next(),
         ),
     );
@@ -200,22 +203,21 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
 }
 
 fn fill_lang_types(typing: &mut Typing) {
-    for primitive in [
-        Type::Error,
-        Type::Nothing,
-        Type::Unit,
-        Type::Bool,
-        Type::ExitCode,
-        Type::Int,
-        Type::Float,
-        Type::String,
-        Type::Vector,
-        Type::Option,
-        Type::Polytype,
-        Type::Instantiated(GENERIC_VECTOR, vec![STRING]),
-        Type::Instantiated(GENERIC_VECTOR, vec![INT]),
+    for (primitive, name) in [
+        (Type::Error, Some("Error")),
+        (Type::Nothing, Some("Nothing")),
+        (Type::Unit, Some("Unit")),
+        (Type::Bool, Some("Bool")),
+        (Type::ExitCode, Some("Exitcode")),
+        (Type::Int, Some("Int")),
+        (Type::Float, Some("Float")),
+        (Type::String, Some("String")),
+        (Type::Vector, Some("Vec")),
+        (Type::Option, Some("Option")),
+        (Type::Instantiated(GENERIC_VECTOR, vec![STRING]), None),
+        (Type::Instantiated(GENERIC_VECTOR, vec![INT]), None),
     ] {
-        typing.add_type(primitive);
+        typing.add_type(primitive, name.map(ToString::to_string));
     }
     typing.set_implicit_conversion(EXITCODE.type_id, BOOL);
     typing.set_implicit_conversion(INT.type_id, FLOAT);
