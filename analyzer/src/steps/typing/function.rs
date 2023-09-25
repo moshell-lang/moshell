@@ -199,6 +199,26 @@ pub(super) fn infer_return(
     ERROR
 }
 
+fn apply_bounds(exploration: &mut Exploration, ty: TypeRef, bounds: &TypesBounds) -> TypeRef {
+    let ty_ref = bounds.get_bound(ty);
+    let ty = exploration.get_type(ty_ref).unwrap();
+    if let Type::Instantiated(base, params) = ty {
+        let base = bounds.get_bound(*base);
+        let params: Vec<_> = params
+            .clone()
+            .into_iter()
+            .map(|ty| apply_bounds(exploration, ty, bounds))
+            .collect();
+
+        let type_id = exploration
+            .typing
+            .add_type(Type::Instantiated(base, params));
+        return TypeRef::new(exploration.externals.current, type_id);
+    }
+
+    ty_ref
+}
+
 /// Checks the type of a call expression.
 pub(super) fn type_call(
     call: &ProgrammaticCall,
@@ -300,8 +320,7 @@ pub(super) fn type_call(
                     casted_arguments.push(casted_argument);
                 }
 
-                let return_type = bounds.get_bound(return_type);
-
+                let return_type = apply_bounds(exploration, return_type, &bounds);
                 FunctionMatch {
                     type_arguments,
                     arguments: casted_arguments,
@@ -419,6 +438,7 @@ pub(super) fn find_operand_implementation(
 pub(super) fn type_method(
     method_call: &MethodCall,
     callee: &TypedExpr,
+    links: Links,
     arguments: Vec<TypedExpr>,
     diagnostics: &mut Vec<Diagnostic>,
     exploration: &mut Exploration,
@@ -427,6 +447,12 @@ pub(super) fn type_method(
     if callee.ty.is_err() {
         return None;
     }
+
+    let type_args: Vec<_> = method_call
+        .type_parameters
+        .iter()
+        .map(|t| resolve_type_annotation(exploration, links, t, diagnostics))
+        .collect();
 
     let current_reef = exploration.externals.current;
 
@@ -455,14 +481,21 @@ pub(super) fn type_method(
     }
 
     let methods = type_methods.unwrap(); // We just checked for None
-    let method = find_exact_method(exploration, callee.ty, methods, &arguments);
-    if let Some(method) = method {
+
+    let result = find_exact_method(exploration, callee.ty, methods, &arguments, &type_args);
+    if let Some((method, bounds)) = result {
+        let type_arguments = method.type_parameters.clone();
+        let definition = method.definition;
+
+        let return_type = exploration.concretize(method.return_type, callee.ty).id;
+        let return_type = apply_bounds(exploration, return_type, &bounds);
+
         // We have an exact match
         return Some(FunctionMatch {
-            type_arguments: method.type_parameters.clone(),
+            type_arguments,
             arguments,
-            definition: method.definition,
-            return_type: exploration.concretize(method.return_type, callee.ty).id,
+            definition,
+            return_type,
             reef: callee.ty.reef,
         });
     }
@@ -501,9 +534,8 @@ pub(super) fn type_method(
                 )),
             );
         } else {
-            // cannot use `build_bounds` as it implies to retrieve a native chunk from its definition, which is
+            // cannot use `build_bounds` as it would imply to retrieve a native chunk from its definition in TypedEngine, which is
             // completely broken currently
-
             let mut bounds = TypesBounds::new(
                 method
                     .type_parameters
@@ -606,22 +638,31 @@ fn find_exact_method<'a>(
     obj: TypeRef,
     methods: &'a [MethodType],
     args: &[TypedExpr],
-) -> Option<&'a MethodType> {
-    for method in methods {
+    type_args: &[TypeRef],
+) -> Option<(&'a MethodType, TypesBounds)> {
+    let bounds_base: HashMap<TypeRef, TypeRef> = type_args.iter().map(|p| (*p, *p)).collect();
+
+
+    'methods: for method in methods {
         if method.parameters.len() != args.len() {
             continue;
         }
-        let mut matches = true;
+
+        let mut bounds = TypesBounds::new(bounds_base.clone());
+
         for (param, arg) in method.parameters.iter().zip(args.iter()) {
-            let param_type = exploration.concretize(param.ty, obj).id;
-            if param_type != arg.ty {
-                matches = false;
-                break;
+            let param_bound = bounds.get_bound(exploration.concretize(param.ty, obj).id);
+
+            let converted =
+                convert_description(exploration, param_bound, arg.ty, &mut bounds, true);
+            match converted {
+                Ok(ty) => {
+                    bounds.update_bound(param.ty, ty);
+                }
+                Err(_) => continue 'methods
             }
         }
-        if matches {
-            return Some(method);
-        }
+        return Some((method, bounds));
     }
     None
 }

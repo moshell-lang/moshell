@@ -27,8 +27,9 @@ enum Opcode {
     OP_PUSH_STRING_REF, // with 8 byte string index in constant pool, pushes a reference to the string constant onto the operand stack
     OP_PUSH_LOCAL_REF,  // with 4 bytes locals index, pushes a reference to the locals address onto the stack
 
-    OP_BOX_INT, // pops an int, and push it as a new reference
-    OP_UNBOX,   // pops a reference, and convert it to a value
+    OP_BOX_Q_WORD, // pops an int, and push it as a new reference
+    OP_BOX_BYTE,   // pops an int, and push it as a new reference
+    OP_UNBOX,      // pops a reference, and convert it to a value
 
     OP_LOCAL_GET_BYTE,   // pops last reference and pushes its byte value onto the operands
     OP_LOCAL_SET_BYTE,   // pops last reference, pops a byte value then sets the reference's value with byte value
@@ -413,9 +414,17 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             operands.push_unchecked_reference(ref);
             break;
         }
-        case OP_BOX_INT: {
+        case OP_BOX_Q_WORD: {
             // Pop the value
             int64_t value = operands.pop_int();
+
+            // Push the reference onto the stack
+            operands.push_reference(mem.emplace(value));
+            break;
+        }
+        case OP_BOX_BYTE: {
+            // Pop the value
+            int8_t value = operands.pop_byte();
 
             // Push the reference onto the stack
             operands.push_reference(mem.emplace(value));
@@ -432,6 +441,8 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
                     operands.push_int(arg);
                 } else if constexpr (std::is_same_v<T, double>) {
                     operands.push_double(arg);
+                } else if constexpr (std::is_same_v<T, int8_t>) {
+                    operands.push_byte(arg);
                 } else {
                     throw InvalidBytecodeError("Cannot unbox unknown type");
                 }

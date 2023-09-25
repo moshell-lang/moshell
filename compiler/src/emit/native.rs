@@ -187,7 +187,7 @@ pub(crate) fn emit_natives(
             if state.use_values
                 && is_boxable_primitive(ctx.get_type(first.ty).expect("Invalid type"))
             {
-                instructions.emit_code(Opcode::BoxInt);
+                instructions.emit_box(first.ty);
             }
             instructions.emit_invoke(cp.insert_string(VEC_PUSH));
         }

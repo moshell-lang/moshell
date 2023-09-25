@@ -48,7 +48,7 @@ pub(super) fn type_to_string(
         ),
         Type::Vector => "Vec".to_string(),
         Type::Option => "Option".to_string(),
-        Type::Polytype => exploration.ctx.get_name(ty.type_id).unwrap().to_string(),
+        Type::Polytype => exploration.get_type_name(ty).unwrap_or("?").to_string(),
         Type::Instantiated(def, parameters) => {
             let mut str = type_to_string(*def, exploration, bounds);
             str.push('[');

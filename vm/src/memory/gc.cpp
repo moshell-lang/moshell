@@ -44,6 +44,8 @@ void debug_obj_freed(msh::obj &obj) {
             debug_file << "boxed int64 " << data;
         } else if constexpr (std::is_same_v<T, double>) {
             debug_file << "boxed double " << data;
+        } else if constexpr (std::is_same_v<T, int8_t>) {
+            debug_file << "boxed byte " << std::to_string(data);
         } else if constexpr (std::is_same_v<T, obj_vector>) {
             obj_vector &vec = static_cast<obj_vector &>(data);
             debug_file << "vector len:" << vec.size();

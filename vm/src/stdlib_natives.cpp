@@ -67,6 +67,19 @@ static void read_line(OperandStack &caller_stack, runtime_memory &mem) {
     caller_stack.push_reference(obj);
 }
 
+static void new_vec(OperandStack &caller_stack, runtime_memory &mem) {
+    msh::obj &obj = mem.emplace(msh::obj_vector());
+    caller_stack.push_reference(obj);
+}
+
+static void some(OperandStack &, runtime_memory &) {
+    // the argument is the returned value
+}
+
+static void none(OperandStack &caller_stack, runtime_memory &) {
+    caller_stack.push(nullptr);
+}
+
 static void to_exitcode(OperandStack &caller_stack, runtime_memory &) {
     int64_t i = caller_stack.pop_int();
     uint8_t exitcode = static_cast<uint8_t>(i);
@@ -208,6 +221,9 @@ natives_functions_t load_natives() {
         {"std::env", get_env},
         {"std::set_env", set_env},
         {"std::read_line", read_line},
+        {"std::new_vec", new_vec},
+        {"std::some", some},
+        {"std::none", none},
 
         {"std::memory::gc", gc},
 

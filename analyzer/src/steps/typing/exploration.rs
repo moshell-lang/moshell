@@ -49,6 +49,18 @@ impl Exploration<'_> {
         typing.get_type(id.type_id)
     }
 
+    pub(super) fn get_type_name(&self, ty: TypeRef) -> Option<&str> {
+        if ty.reef == self.externals.current {
+            self.ctx.get_name(ty.type_id)
+        } else {
+            self.externals
+                .get_reef(ty.reef)
+                .unwrap()
+                .type_context
+                .get_name(ty.type_id)
+        }
+    }
+
     /// Gets the type instance of a type identifier.
     pub(super) fn get_type_instance(&self, id: TypeRef) -> TypeInstance {
         TypeInstance::new(id, self)
@@ -61,16 +73,12 @@ impl Exploration<'_> {
                 self.get_type(instance_holder)
             {
                 let generics = &self.get_description(polytype).unwrap().generics;
-                return TypeInstance::new(
-                    *generics
-                        .iter()
-                        .zip(parameters.iter())
-                        .find_map(|(generic_id, concrete)| {
-                            (generic == *generic_id).then_some(concrete)
-                        })
-                        .expect("Polytype should be instantiated."),
-                    self,
-                );
+                let type_id = *generics
+                    .iter()
+                    .zip(parameters.iter())
+                    .find_map(|(generic_id, concrete)| (generic == *generic_id).then_some(concrete))
+                    .expect("Polytype should be instantiated.");
+                return TypeInstance::new(type_id, self);
             }
         }
         TypeInstance::new(generic, self)

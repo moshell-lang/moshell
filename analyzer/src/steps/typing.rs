@@ -1106,6 +1106,7 @@ fn ascribe_method_call(
     match type_method(
         method,
         &callee,
+        links,
         arguments,
         diagnostics,
         exploration,

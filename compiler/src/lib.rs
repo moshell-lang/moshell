@@ -55,6 +55,7 @@ pub fn compile(
         let ctx = EmitterContext::new(
             reef_id,
             link_engine,
+            typed_engine,
             externals,
             typing,
             main_env,
@@ -81,6 +82,7 @@ pub fn compile(
             let ctx = EmitterContext::new(
                 reef_id,
                 link_engine,
+                typed_engine,
                 externals,
                 typing,
                 env,
