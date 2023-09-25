@@ -44,15 +44,18 @@ fn find_std() -> PathBuf {
         return PathBuf::from(path);
     }
 
+    let mut dir = std::env::current_dir().expect("Could not get current directory");
+    dir.push("lib");
+    if dir.exists() {
+        return dir;
+    }
+
     if let Some(proj_dirs) = ProjectDirs::from("", "", "moshell") {
         let lib = proj_dirs.data_dir().join("lib");
-        return if lib.exists() {
-            lib
-        } else {
-            let mut dir = std::env::current_dir().expect("Could not get current directory");
-            dir.push("lib");
-            dir
-        };
+        if !lib.exists()  {
+            panic!("Could not determine a valid std emplacement (no ./lib found, {lib:?} does not exist. Please provide a valid stdlib path under a MOSHELL_STD=<path> env variable.")
+        }
+        return lib;
     }
     panic!("could not find stdlib path")
 }
