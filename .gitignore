@@ -16,3 +16,4 @@ CMakeFiles
 a.out
 moshell
 *.bin
+completions

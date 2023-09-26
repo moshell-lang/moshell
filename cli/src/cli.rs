@@ -3,6 +3,7 @@ use std::io::stderr;
 use std::path::PathBuf;
 
 use clap::Parser;
+use clap_complete::Shell;
 use dbg_pls::color;
 
 use analyzer::diagnostic::Diagnostic;
@@ -18,6 +19,7 @@ use crate::disassemble::display_bytecode;
 use crate::pipeline::{FileImportError, PipelineStatus, SourceHolder, SourcesCache};
 use crate::report::{display_diagnostic, display_parse_error};
 
+/// The Moshell scripting language.
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 pub struct Cli {
@@ -36,6 +38,10 @@ pub struct Cli {
     /// Do not execute the code
     #[arg(long = "no-execute")]
     pub(crate) no_execute: bool,
+
+    /// Generate tab-completion scripts for your shell
+    #[arg(long = "completions")]
+    pub(crate) completions: Option<Shell>,
 }
 
 struct CachedSourceLocationLineProvider {
