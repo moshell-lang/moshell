@@ -294,7 +294,8 @@ impl<'a> Parser<'a> {
             TokenType::RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
             TokenType::CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
             TokenType::Identifier | TokenType::Reef if self.may_be_at_programmatic_call_start() => {
-                self.programmatic_call()
+                let call = self.programmatic_call()?;
+                self.expand_call_chain(call)
             }
             _ => self.literal(LiteralLeniency::Lenient),
         }
