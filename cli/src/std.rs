@@ -52,7 +52,7 @@ fn find_std() -> PathBuf {
 
     if let Some(proj_dirs) = ProjectDirs::from("", "", "moshell") {
         let lib = proj_dirs.data_dir().join("lib");
-        if !lib.exists()  {
+        if !lib.exists() {
             panic!("Could not determine a valid std emplacement (no ./lib found, {lib:?} does not exist. Please provide a valid stdlib path under a MOSHELL_STD=<path> env variable.")
         }
         return lib;
