@@ -118,7 +118,7 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine) {
     engine.add_generic(GENERIC_VECTOR.type_id, POLYTYPE);
     engine.add_method(
         GENERIC_VECTOR.type_id,
-        "get",
+        "[]",
         MethodType::native(vec![INT], POLYTYPE, gen.next()),
     );
     engine.add_method(
@@ -184,6 +184,11 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine) {
         GENERIC_OPTION.type_id,
         "unwrap",
         MethodType::native(vec![], POLYTYPE, gen.next()),
+    );
+    engine.add_method(
+        GENERIC_VECTOR.type_id,
+        "[]",
+        MethodType::native(vec![INT, POLYTYPE], UNIT, gen.next()),
     );
 }
 

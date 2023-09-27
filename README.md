@@ -123,7 +123,7 @@ Moshell is a project in its early stages.
   - [x] Standard shell expressions
   - [x] Control flow
   - [x] Type hints
-  - [ ] Array indexing and ranges *(in progress)*
+  - [x] Array indexing and ranges
   - [x] User defined structures
   - [ ] User defined enums
 - [x] Static analysis
@@ -151,5 +151,3 @@ Moshell is a project in its early stages.
   - [ ] Display diagnostics *(partial)*
   - [x] Symbol reuse
   - [ ] Shell-like prompt
-
-

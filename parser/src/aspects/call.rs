@@ -1,9 +1,5 @@
 use ast::call::{Call, MethodCall, ProgrammaticCall};
-use ast::lambda::LambdaDef;
-use ast::r#type::Type;
 use ast::r#use::InclusionPathItem;
-use ast::value::Literal;
-use ast::variable::TypedVariable;
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
 use lexer::token::{Token, TokenType};
@@ -13,19 +9,17 @@ use crate::aspects::group::GroupAspect;
 use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
 use crate::aspects::modules::ModulesAspect;
 use crate::aspects::r#type::TypeAspect;
+use crate::aspects::range::RangeAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{
     any, blanks, eog, identifier_parenthesis, like, line_end, lookahead, of_type, of_types, spaces,
     MoveOperations,
 };
-use crate::parser::{ensure_empty, ParseResult, Parser};
+use crate::parser::{ParseResult, Parser};
 
 /// A parse aspect for command and function calls
 pub trait CallAspect<'a> {
-    /// Parses a raw call, a programmatic call or a lambda definition.
-    fn any_call(&mut self) -> ParseResult<Expr<'a>>;
-
     /// Attempts to parse the next raw call expression
     fn call(&mut self) -> ParseResult<Expr<'a>>;
 
@@ -46,119 +40,8 @@ pub trait CallAspect<'a> {
 }
 
 impl<'a> CallAspect<'a> for Parser<'a> {
-    fn any_call(&mut self) -> ParseResult<Expr<'a>> {
-        let mut path = self.parse_inclusion_path()?;
-
-        // Equivalent to #may_be_at_programmatic_call_start, with an additional check for lambda definitions.
-        if self
-            .cursor
-            .lookahead(
-                any().and_then(
-                    of_types(&[
-                        TokenType::RoundedLeftBracket,
-                        TokenType::SquaredLeftBracket,
-                        TokenType::ColonColon,
-                    ])
-                    .or(spaces().then(of_type(TokenType::FatArrow))),
-                ),
-            )
-            .is_none()
-        {
-            ensure_empty(
-                "Command calls cannot have inclusion path",
-                path,
-                InclusionPathItem::segment,
-            )?;
-            return self.call();
-        }
-        // We don't known if this is a programmatic call, a raw call or a lambda definition yet.
-
-        let identifier = self.cursor.next()?;
-        let name = identifier.value;
-        let name_segment = self.cursor.relative_pos(name);
-        let callee = Expr::Literal(Literal {
-            parsed: name.into(),
-            segment: name_segment.clone(),
-        });
-        let (type_parameters, _) = self.parse_optional_list(
-            TokenType::SquaredLeftBracket,
-            TokenType::SquaredRightBracket,
-            "Expected type argument.",
-            Parser::parse_type,
-        )?;
-
-        if let Some(open_parenthesis) = self.cursor.advance(of_type(TokenType::RoundedLeftBracket))
-        {
-            let (arguments, args_segment) =
-                self.parse_comma_separated_arguments(open_parenthesis)?;
-
-            let start = path
-                .first()
-                .map(InclusionPathItem::segment)
-                .unwrap_or_else(|| name_segment.clone());
-
-            path.push(InclusionPathItem::Symbol(name, name_segment));
-            Ok(Expr::ProgrammaticCall(ProgrammaticCall {
-                path,
-                arguments,
-                type_parameters,
-                segment: start.start..args_segment.end,
-            }))
-        } else if self
-            .cursor
-            .advance(spaces().then(of_type(TokenType::FatArrow)))
-            .is_some()
-        {
-            ensure_empty(
-                "Illegal expression before lambda parameter declaration",
-                path,
-                InclusionPathItem::segment,
-            )?;
-            ensure_empty(
-                "Illegal expression after lambda parameter declaration",
-                type_parameters,
-                Type::segment,
-            )?;
-            let body = Box::new(self.value()?);
-            let segment = name_segment.start..body.segment().end;
-            Ok(Expr::LambdaDef(LambdaDef {
-                args: vec![TypedVariable {
-                    name,
-                    ty: None,
-                    segment: self.cursor.relative_pos(name),
-                }],
-                body,
-                segment,
-            }))
-        } else {
-            ensure_empty(
-                "Command calls cannot have generic arguments",
-                type_parameters,
-                Type::segment,
-            )?;
-            ensure_empty(
-                "Command calls cannot have inclusion path",
-                path,
-                InclusionPathItem::segment,
-            )?;
-            self.call_arguments(callee)
-        }
-    }
-
     fn call(&mut self) -> ParseResult<Expr<'a>> {
         let callee = self.call_argument()?;
-        let (type_parameters, _) = self.parse_optional_list(
-            TokenType::SquaredLeftBracket,
-            TokenType::SquaredRightBracket,
-            "Expected type argument.",
-            Parser::parse_type,
-        )?;
-
-        ensure_empty(
-            "Command calls cannot have generic arguments",
-            type_parameters,
-            Type::segment,
-        )?;
         self.call_arguments(callee)
     }
 
@@ -243,13 +126,17 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         while self
             .cursor
             .lookahead(
-                of_type(TokenType::RoundedLeftBracket)
+                of_types(&[TokenType::RoundedLeftBracket, TokenType::SquaredLeftBracket])
                     .or(blanks().then(of_type(TokenType::Dot).and_then(identifier_parenthesis()))),
             )
             .is_some()
         {
             self.cursor.advance(blanks());
-            expr = self.method_call_on(expr)?;
+            if self.cursor.peek().token_type == TokenType::SquaredLeftBracket {
+                expr = self.parse_subscript(expr).map(Expr::Subscript)?;
+            } else {
+                expr = self.method_call_on(expr)?;
+            }
         }
         Ok(expr)
     }
@@ -413,57 +300,6 @@ mod tests {
                 position: find_in(source.source, "reef"),
                 kind: ParseErrorKind::Expected("identifier".to_string())
             }
-        );
-    }
-
-    #[test]
-    fn call_with_inclusion_path() {
-        let source = Source::unknown("a::b::c x y");
-        assert_eq!(
-            Parser::new(source).parse_next(),
-            Err(ParseError {
-                message: "Command calls cannot have inclusion path".to_string(),
-                position: find_in(source.source, "a::b"),
-                kind: ParseErrorKind::Unexpected,
-            })
-        );
-    }
-
-    #[test]
-    fn lambdef_with_inclusion_path() {
-        let source = Source::unknown("a::b => $b");
-        assert_eq!(
-            Parser::new(source).parse_next(),
-            Err(ParseError {
-                message: "Illegal expression before lambda parameter declaration".to_string(),
-                position: find_in(source.source, "a"),
-                kind: ParseErrorKind::Unexpected,
-            })
-        );
-    }
-
-    #[test]
-    fn lambdef_with_type_params() {
-        let source = Source::unknown("b[C] => $b");
-        assert_eq!(
-            Parser::new(source).parse_next(),
-            Err(ParseError {
-                message: "Illegal expression after lambda parameter declaration".to_string(),
-                position: find_in(source.source, "C"),
-                kind: ParseErrorKind::Unexpected,
-            })
-        );
-    }
-    #[test]
-    fn call_with_type_parameters() {
-        let source = Source::unknown("parse[Int] x y");
-        assert_eq!(
-            Parser::new(source).parse_next(),
-            Err(ParseError {
-                message: "Command calls cannot have generic arguments".to_string(),
-                position: find_in(source.source, "Int"),
-                kind: ParseErrorKind::Unexpected,
-            })
         );
     }
 

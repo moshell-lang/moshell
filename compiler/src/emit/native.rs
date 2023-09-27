@@ -13,6 +13,7 @@ const STRING_CONCAT: &str = "lang::String::concat";
 const INT_TO_STRING: &str = "lang::Int::to_string";
 const FLOAT_TO_STRING: &str = "lang::Float::to_string";
 const VEC_INDEX: &str = "lang::Vec::[]";
+const VEC_INDEX_EQ: &str = "lang::Vec::[]=";
 const VEC_POP: &str = "lang::Vec::pop";
 const VEC_PUSH: &str = "lang::Vec::push";
 const VEC_LEN: &str = "lang::Vec::len";
@@ -283,6 +284,16 @@ pub(crate) fn emit_natives(
             instructions.emit_push_constant_ref(cp.insert_string("Cannot unwrap `None`."));
             instructions.emit_invoke(cp.insert_string("std::panic"));
             instructions.patch_jump(end_jump);
+        }
+        49 => {
+            // Vec[T][int] = T
+            for arg in args {
+                emit(arg, instructions, ctx, cp, locals, state);
+            }
+            if is_boxable_primitive(ctx.get_type(args[1].ty).expect("Invalid type")) {
+                instructions.emit_code(Opcode::BoxInt);
+            }
+            instructions.emit_invoke(cp.insert_string(VEC_INDEX_EQ));
         }
         id => todo!("Native function with id {id}"),
     };

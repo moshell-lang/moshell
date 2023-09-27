@@ -4,6 +4,7 @@ use ast::function::FunctionDeclaration;
 use ast::group::Block;
 use ast::operation::{BinaryOperation, BinaryOperator, UnaryOperation, UnaryOperator};
 use ast::r#type::CastedExpr;
+use ast::range::Subscript;
 use ast::substitution::Substitution;
 use ast::value::{Literal, LiteralValue, TemplateString};
 use ast::variable::{Assign, AssignOperator, Identifier, VarDeclaration, VarKind, VarReference};
@@ -15,6 +16,7 @@ use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::reef::{Externals, ReefId};
 use crate::relations::{Definition, Relations, SourceId, SymbolRef};
+use crate::steps::typing::assign::{ascribe_assign_subscript, create_subscript};
 use crate::steps::typing::coercion::{
     check_type_annotation, coerce_condition, convert_description, convert_expression, convert_many,
     resolve_type_annotation,
@@ -34,8 +36,9 @@ use crate::types::operator::name_operator_method;
 use crate::types::ty::{Type, TypeRef};
 use crate::types::{Typing, BOOL, ERROR, EXITCODE, FLOAT, INT, NOTHING, STRING, UNIT};
 
+mod assign;
 mod coercion;
-pub mod exploration;
+mod exploration;
 mod function;
 mod lower;
 mod view;
@@ -283,6 +286,10 @@ fn ascribe_assign(
             )
         }
     };
+
+    if let Expr::Subscript(sub) = assign.left.as_ref() {
+        return ascribe_assign_subscript(assign, sub, rhs, exploration, links, diagnostics, state);
+    }
 
     let Some(symbol) = links.env().get_raw_symbol(assign.left.segment()) else {
         diagnostics.push(
@@ -691,31 +698,23 @@ fn ascribe_binary(
 ) -> TypedExpr {
     let left_expr = ascribe_types(exploration, links, diagnostics, &bin.left, state);
     let right_expr = ascribe_types(exploration, links, diagnostics, &bin.right, state);
+    let left_type = left_expr.ty;
     let right_type = right_expr.ty;
     let name = name_operator_method(bin.op);
 
-    let method = exploration
+    let methods = exploration
         .get_methods(left_expr.ty, name)
-        .and_then(|methods| {
-            find_operand_implementation(
-                exploration,
-                left_expr.ty.reef,
-                methods,
-                left_expr.ty,
-                right_expr,
-            )
-        });
+        .map(|methods| methods.as_slice())
+        .unwrap_or(&[]);
+    let method =
+        find_operand_implementation(exploration, left_type.reef, methods, left_expr, right_expr);
     match method {
-        Some(method) => TypedExpr {
-            kind: ExprKind::MethodCall(MethodCall {
-                callee: Box::new(left_expr),
-                arguments: method.arguments,
-                definition: method.definition,
-            }),
+        Ok(method) => TypedExpr {
             ty: method.return_type,
+            kind: ExprKind::MethodCall(method.into()),
             segment: bin.segment(),
         },
-        _ => {
+        Err(left) => {
             diagnostics.push(
                 Diagnostic::new(DiagnosticID::UnknownMethod, "Undefined operator")
                     .with_observation(Observation::here(
@@ -725,13 +724,34 @@ fn ascribe_binary(
                         format!(
                             "No operator `{}` between type `{}` and `{}`",
                             name,
-                            exploration.get_type(left_expr.ty),
+                            exploration.get_type(left_type),
                             exploration.get_type(right_type)
                         ),
                     )),
             );
-            left_expr.poison()
+            left
         }
+    }
+}
+
+fn ascribe_subscript(
+    sub: &Subscript,
+    exploration: &mut Exploration,
+    links: Links,
+    diagnostics: &mut Vec<Diagnostic>,
+    state: TypingState,
+) -> TypedExpr {
+    match create_subscript(sub, exploration, links, diagnostics, state) {
+        Ok(method) => TypedExpr {
+            kind: ExprKind::MethodCall(MethodCall {
+                callee: Box::new(method.left),
+                arguments: vec![method.right],
+                definition: method.definition,
+            }),
+            ty: method.return_type,
+            segment: sub.segment(),
+        },
+        Err(target) => target,
     }
 }
 
@@ -1152,6 +1172,7 @@ fn ascribe_types(
         }
         Expr::Unary(unary) => ascribe_unary(unary, exploration, links, diagnostics, state),
         Expr::Binary(bo) => ascribe_binary(bo, exploration, links, diagnostics, state),
+        Expr::Subscript(sub) => ascribe_subscript(sub, exploration, links, diagnostics, state),
         Expr::Casted(casted) => ascribe_casted(casted, exploration, links, diagnostics, state),
         Expr::Test(test) => ascribe_types(exploration, links, diagnostics, &test.expression, state),
         e @ (Expr::While(_) | Expr::Loop(_)) => {
@@ -2163,9 +2184,67 @@ mod tests {
     }
 
     #[test]
+    fn incorrect_index_type() {
+        let content = "''.bytes()['a']";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::UnknownMethod,
+                "Cannot index into a value of type `Vec[Int]`",
+            )
+            .with_observation(Observation::here(
+                SourceId(0),
+                ReefId(1),
+                find_in(content, "'a'"),
+                "`Vec[Int]` indices are of type `Int`"
+            ))])
+        );
+    }
+
+    #[test]
+    fn assign_vec_index() {
+        let res = extract_type(Source::unknown(
+            "fun mul(v: Vec[Float], x: Float) = {
+                var n = 0
+                while $n < $v.len() {
+                    $v[$n] *= $x
+                    $n += 1
+                }
+            }",
+        ));
+        assert_eq!(res, Ok(Type::Unit));
+    }
+
+    #[test]
+    fn assign_vec_index_incorrect_type() {
+        let content = "val v = ''.bytes(); $v[0] = 'a'";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                "Invalid assignment to `Vec[Int]`",
+            )
+            .with_observation(Observation::here(
+                SourceId(0),
+                ReefId(1),
+                find_in(content, "'a'"),
+                "Found `String`"
+            ))
+            .with_observation(Observation::context(
+                SourceId(0),
+                ReefId(1),
+                find_in(content, "$v[0]"),
+                "Expected due to the type of this binding"
+            ))])
+        );
+    }
+
+    #[test]
     fn incorrect_concretized_type() {
         let content =
-            "val lines: Vec[String] = 'Hello, world'.split('\\n'); val first: Int = $lines.get(0)";
+            "val lines: Vec[String] = 'Hello, world'.split('\\n'); val first: Int = $lines[0]";
         let res = extract_type(Source::unknown(content));
         assert_eq!(
             res,
@@ -2182,7 +2261,7 @@ mod tests {
             .with_observation(Observation::here(
                 SourceId(0),
                 ReefId(1),
-                find_in(content, ".get(0)"),
+                find_in(content, "$lines[0]"),
                 "Found `String`"
             ))])
         );

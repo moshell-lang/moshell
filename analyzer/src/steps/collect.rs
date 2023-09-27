@@ -516,6 +516,10 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                 }
                 Iterable::Files(_) => {}
             },
+            Expr::Subscript(sub) => {
+                self.tree_walk(state, &sub.target, to_visit);
+                self.tree_walk(state, &sub.index, to_visit);
+            }
             Expr::Substitution(sub) => {
                 self.current_env().begin_scope();
                 for expr in &sub.underlying.expressions {

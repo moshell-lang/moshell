@@ -57,3 +57,10 @@ pub struct FilePattern {
     /// For now, this is just a string that is passed to the libc.
     pub pattern: String,
 }
+
+#[segment_holder]
+#[derive(Debug, Clone, PartialEq, DebugPls)]
+pub struct Subscript<'a> {
+    pub target: Box<Expr<'a>>,
+    pub index: Box<Expr<'a>>,
+}

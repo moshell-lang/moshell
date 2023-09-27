@@ -10,5 +10,5 @@ echo "The len is ${v.len()}."
 $v.push('and more')
 echo "The new len is ${v.len()}."
 
-val chars = $v.get(4)
+val chars = $v[4]
 echo $chars
