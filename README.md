@@ -36,11 +36,11 @@ cargo run --bin cli # Run the interactive prompt
 cargo run --bin cli -- -s <file> # Run a file
 ```
 
-You can also build a release binary :
+You can also build a release binary:
 ```sh
-cargo build --release --bin cli 
-./target/release/cli # Run the interactive prompt
-./target/release/cli -s <file> # Run a file
+cargo build --release
+./target/release/moshell # Run the interactive prompt
+./target/release/moshell -s <file> # Run a file
 ```
 
 You can export the `MOSHELL_STD` environment variable to specify a path to the standard library.

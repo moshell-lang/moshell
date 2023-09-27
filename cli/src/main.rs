@@ -3,12 +3,13 @@ use crate::pipeline::{ErrorReporter, PipelineStatus, SourcesCache};
 use crate::repl::repl;
 use crate::std::build_std;
 use ::std::ffi::OsStr;
+use ::std::io;
 use ::std::path::Path;
 use analyzer::name::Name;
 use analyzer::reef::Externals;
 use analyzer::relations::SourceId;
 use analyzer::Analyzer;
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 use miette::{Context, IntoDiagnostic, MietteHandlerOpts};
 use vm::VM;
 
@@ -35,6 +36,18 @@ fn main() -> Result<PipelineStatus, miette::Error> {
     }
 
     let cli = Cli::parse();
+
+    if let Some(generator) = cli.completions {
+        let mut cmd = Cli::command();
+        eprintln!("Generating completion file for {generator}...");
+        clap_complete::generate(
+            generator,
+            &mut cmd,
+            env!("CARGO_BIN_NAME"),
+            &mut io::stdout(),
+        );
+        return Ok(PipelineStatus::Success);
+    }
 
     miette::set_hook(Box::new(|_| {
         Box::new(MietteHandlerOpts::new().tab_width(2).build())
