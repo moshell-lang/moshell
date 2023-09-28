@@ -1,8 +1,9 @@
 use std::ffi;
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
+
+use context::source::ContentId;
 
 use crate::gc::GC;
-use context::source::ContentId;
 
 pub mod gc;
 pub mod value;
@@ -39,6 +40,7 @@ pub enum VmError {
     Internal,
 }
 
+#[allow(dead_code)]
 impl VM {
     /// Creates a new virtual machine.
     pub fn new() -> Self {
@@ -88,10 +90,7 @@ impl VM {
     }
 
     pub fn get_exported_var(&self, name: &str) -> VmValueFFI {
-        unsafe {
-            let c_name = CString::new(name).unwrap();
-            moshell_vm_get_exported(self.ffi, c_name.into_raw())
-        }
+        unsafe { moshell_vm_get_exported(self.ffi, name.as_ptr().cast(), name.len()) }
     }
 }
 
@@ -111,10 +110,7 @@ impl Drop for VM {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-struct VmArrayFFI(u64, *mut VmValueFFI);
-#[repr(C)]
-#[derive(Copy, Clone)]
-struct VmStringFFI(u64, *mut ffi::c_char);
+struct VmArrayFFI(usize, *mut VmValueFFI);
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub union VmValueFFI {
@@ -179,9 +175,9 @@ impl VmObjectFFI {
     /// The caller must ensure that the value has the correct type.
     pub unsafe fn get_as_vec(self) -> Vec<VmObjectFFI> {
         let msh_array = moshell_object_get_as_array(self);
-        let mut vec = Vec::with_capacity(msh_array.0 as usize);
+        let mut vec = Vec::with_capacity(msh_array.0);
 
-        for i in 0..msh_array.0 as usize {
+        for i in 0..msh_array.0 {
             let val = *msh_array.1.wrapping_add(i);
             vec.push(val.get_as_obj())
         }
@@ -224,7 +220,7 @@ extern "C" {
 
     fn moshell_vm_free(vm: VmFFI);
 
-    fn moshell_vm_get_exported(vm: VmFFI, name: *const ffi::c_char) -> VmValueFFI;
+    fn moshell_vm_get_exported(vm: VmFFI, name: *const ffi::c_char, name_len: usize) -> VmValueFFI;
 
     fn moshell_vm_gc_collect(vm: VmFFI) -> VmGcResultFFI;
     fn moshell_vm_gc_run(vm: VmFFI);

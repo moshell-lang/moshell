@@ -108,9 +108,9 @@ int moshell_vm_register(moshell_vm vm, const char *bytes, size_t byte_count) {
     return -1;
 }
 
-moshell_value moshell_vm_get_exported(moshell_vm vm, const char *name) {
+moshell_value moshell_vm_get_exported(moshell_vm vm, const char *name, size_t len) {
     vm_state &state = *static_cast<vm_state *>(vm.vm);
-    msh::exported_variable var = state.loader.get_exported(name);
+    msh::exported_variable var = state.loader.get_exported(std::string(name, len));
     const void *obj = *state.pager.get_exported_value<const void *>(var);
     return {.ptr = obj};
 }
@@ -148,24 +148,16 @@ void moshell_vm_free(moshell_vm vm) {
 gc_collection_result moshell_vm_gc_collect(moshell_vm vm) {
     vm_state &state = *static_cast<vm_state *>(vm.vm);
 
-    msh::gc_collect gc_collect = state.gc.collect();
-
-    size_t count = gc_collect.object_count;
-
-    moshell_object *collected_objects = static_cast<moshell_object *>(malloc(sizeof(moshell_object) * count));
-
-    for (size_t i = 0; i < count; i++) {
-        const msh::obj *obj = gc_collect.object_refs[i];
+    std::vector<const msh::obj *> gc_collect = state.gc.collect();
+    moshell_object *collected_objects = static_cast<moshell_object *>(malloc(sizeof(moshell_object) * gc_collect.size()));
+    for (size_t i = 0; i < gc_collect.size(); i++) {
+        const msh::obj *obj = gc_collect[i];
         // moshell values are either numbers or object pointers
         // we know the vector contains only objects
         // (as it is the collected objects from heap)
         collected_objects[i] = moshell_value_get_as_object({.ptr = obj});
     }
-
-    return gc_collection_result{
-        count,
-        collected_objects,
-    };
+    return gc_collection_result{gc_collect.size(), collected_objects};
 }
 
 void moshell_vm_gc_run(moshell_vm vm) {

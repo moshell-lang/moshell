@@ -117,28 +117,16 @@ void gc::run() {
 #endif
 }
 
-gc_collect gc::collect() {
+std::vector<const msh::obj *> gc::collect() {
     scan();
-
-#define REALLOC_GAP 5
-
-    size_t collected_array_size = REALLOC_GAP;
-    size_t collected_objects_count = 0;
-    const msh::obj **object_refs = static_cast<const msh::obj **>(malloc(sizeof(msh::obj *) * collected_array_size));
-
+    std::vector<const msh::obj *> object_refs;
     for (const msh::obj &obj : heap_space.objects) {
         bool detached = obj.gc_cycle != cycle;
         if (detached) {
-            if (collected_array_size <= collected_objects_count) {
-                object_refs = static_cast<const msh::obj **>(realloc(object_refs, collected_objects_count + sizeof(msh::obj *) * REALLOC_GAP));
-                collected_array_size += REALLOC_GAP;
-            }
-            object_refs[collected_objects_count] = &obj;
-            collected_objects_count++;
+            object_refs.push_back(&obj);
         }
     }
-
-    return gc_collect{collected_objects_count, object_refs};
+    return object_refs;
 }
 
 void gc::walk_objects(std::vector<const msh::obj *> to_visit) {

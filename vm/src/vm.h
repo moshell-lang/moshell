@@ -19,7 +19,7 @@ extern "C" {
  * An opaque handle to a Moshell VM.
  */
 typedef struct {
-    void *vm;
+    void *const vm;
 } moshell_vm;
 
 /**
@@ -116,14 +116,14 @@ typedef struct {
  * A sized array of values
  * */
 typedef struct {
-    const uint64_t size;
-    const moshell_value *const data;
+    size_t size;
+    const moshell_value *data;
 } moshell_array;
 
 /**
  * Return an exported value from its name identifier
  * */
-moshell_value moshell_vm_get_exported(moshell_vm vm, const char *name);
+moshell_value moshell_vm_get_exported(moshell_vm vm, const char *name, size_t name_len);
 /**
  * Interpret given value as an unsigned byte
  * */
