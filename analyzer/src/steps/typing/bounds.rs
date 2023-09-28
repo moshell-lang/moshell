@@ -1,7 +1,8 @@
 use crate::types;
-use crate::types::ty::TypeRef;
+use crate::types::ty::{Type, TypeRef};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use crate::steps::typing::exploration::Exploration;
 
 /// Bind a polytype to largest possible monotype
 pub struct TypesBounds {
@@ -20,22 +21,34 @@ impl TypesBounds {
     pub fn get_bound(&self, ty: TypeRef) -> TypeRef {
         *self.bounds.get(&ty).unwrap_or(&ty)
     }
+    /// return true if given type is registered as a bound type but is bound to itself
+    pub fn is_self_bound(&self, ty: TypeRef) -> bool {
+        self.bounds.get(&ty).is_some_and(|t| *t == ty)
+    }
 
-    /// update bounds of base only if the new bound is larger and not equal to the base type
-    /// returns true if the bound has been modified, false if the base was not registered in this type's bound
-    /// or if the new bound is invalid
-    pub fn update_bound(&mut self, base: TypeRef, new_bound: TypeRef) -> bool {
-        // As there is no real hierarchy, only the Nothing type can be more specific than any other type
-        // also cancel if the new bound is the same as the base type
-        if new_bound == types::NOTHING || base == new_bound {
-            return false;
-        }
+    /// update bounds of registered polytypes from given type scheme correlated with given bounds.
+    /// This method will only update bounds that are larger than the current polytypes bounds
+    pub(super) fn update_bounds(&mut self, base: TypeRef, new_bounds: TypeRef, exploration: &Exploration) {
+
         match self.bounds.entry(base) {
             Entry::Occupied(mut o) => {
-                o.insert(new_bound);
-                true
+                // As there is no real hierarchy for now, only the Nothing type can be more specific than any other type
+                // if the base type already had a bound (other than himself), we can accept larger types only (thus no NOTHING currently)
+                if *o.get() != base && new_bounds == types::NOTHING {
+                    return;
+                }
+                o.insert(new_bounds);
             }
-            Entry::Vacant(_) => false,
+            Entry::Vacant(_) => {
+                let base_type = exploration.get_type(base).unwrap();
+                let bound_type = exploration.get_type(new_bounds).unwrap();
+                if let (Type::Instantiated(b1, p1), Type::Instantiated(b2, p2)) = (base_type, bound_type) {
+                    for (base, bounds) in p1.iter().zip(p2) {
+                        self.update_bounds(*base, *bounds, exploration);
+                    }
+                    self.update_bounds(*b1, *b2, exploration);
+                }
+            }
         }
     }
 }

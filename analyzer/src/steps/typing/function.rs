@@ -379,7 +379,7 @@ pub(super) fn type_call(
 
                     let casted_argument = match casted_argument {
                         Ok(arg) => {
-                            bounds.update_bound(param.ty, arg.ty);
+                            bounds.update_bounds(param.ty, arg.ty, exploration);
                             arg
                         }
                         Err(arg) => {
@@ -735,7 +735,7 @@ pub(super) fn type_method(
 
                 match convert_description(exploration, param_bound, arg.ty, &mut bounds, true) {
                     Ok(ty) => {
-                        bounds.update_bound(param.ty, ty);
+                        bounds.update_bounds(param.ty, ty, exploration);
                     }
                     Err(_) => {
                         let param = Parameter {
@@ -843,7 +843,7 @@ fn find_exact_method<'a>(
                 convert_description(exploration, param_bound, arg.ty, &mut bounds, true);
             match converted {
                 Ok(ty) => {
-                    bounds.update_bound(param.ty, ty);
+                    bounds.update_bounds(param.ty, ty, exploration);
                 }
                 Err(_) => continue 'methods,
             }

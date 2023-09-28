@@ -40,7 +40,7 @@ pub(super) fn convert_description(
         .get_type(assign_to)
         .unwrap_or_else(|| panic!("cannot find type {assign_to:?}`"));
 
-    if *lhs == Type::Polytype && is_base_type {
+    if *lhs == Type::Polytype && bounds.is_self_bound(assign_to) {
         return Ok(assign_to);
     }
 
@@ -54,7 +54,7 @@ pub(super) fn convert_description(
     }
 
     // apply the `A U Nothing => A` rule only if `A` is a base type
-    if *rhs == Type::Nothing && is_base_type {
+    if is_base_type && *rhs == Type::Nothing {
         return Ok(assign_to);
     }
 
@@ -75,7 +75,7 @@ pub(super) fn convert_description(
                             .is_ok();
 
                         // restrict bound even more
-                        bounds.update_bound(*param_lhs, bound);
+                        bounds.update_bounds(*param_lhs, bound, exploration);
 
                         ty
                     });
