@@ -1,5 +1,5 @@
 use std::fmt;
-use std::fmt::{Display};
+use std::fmt::Display;
 
 use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::exploration::Exploration;
@@ -14,7 +14,11 @@ pub(super) struct TypeView<'a> {
 
 impl<'a> TypeView<'a> {
     pub(super) fn new(id: TypeRef, exploration: &'a Exploration, bounds: &'a TypesBounds) -> Self {
-        Self { id, exploration, bounds }
+        Self {
+            id,
+            exploration,
+            bounds,
+        }
     }
 }
 
@@ -36,16 +40,22 @@ impl Display for TypeView<'_> {
                 if i > 0 {
                     write!(f, ", ")?;
                 }
-                write!(f, "{}", &Self::new(*parameter, self.exploration, self.bounds))?;
+                write!(
+                    f,
+                    "{}",
+                    &Self::new(*parameter, self.exploration, self.bounds)
+                )?;
             }
             return write!(f, "]");
         }
 
-        write!(f, "{}", self.exploration
-            .get_type_name(ty)
-            .cloned()
-            .unwrap_or("<?>".to_string()))
+        write!(
+            f,
+            "{}",
+            self.exploration
+                .get_type_name(ty)
+                .map(String::as_str)
+                .unwrap_or("<?>")
+        )
     }
 }
-
-

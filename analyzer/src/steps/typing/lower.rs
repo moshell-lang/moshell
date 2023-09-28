@@ -4,6 +4,7 @@ use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::relations::SourceId;
 use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::exploration::Exploration;
+use crate::steps::typing::view::TypeView;
 use crate::types::hir::{ExprKind, MethodCall, TypedExpr};
 use crate::types::ty::TypeRef;
 use crate::types::{BOOL, FLOAT, STRING};
@@ -28,12 +29,7 @@ pub(super) fn convert_into_string(
         expr,
         STRING,
         exploration,
-        |ty| {
-            format!(
-                "Cannot stringify type `{}`",
-                exploration.new_type_view(ty, &TypesBounds::inactive())
-            )
-        },
+        |ty| format!("Cannot stringify type `{ty}`",),
         diagnostics,
         &TypesBounds::inactive(),
         source,
@@ -49,7 +45,7 @@ pub(super) fn call_convert_on(
     expr: TypedExpr,
     into: TypeRef,
     exploration: &Exploration,
-    message: impl FnOnce(TypeRef) -> String,
+    message: impl FnOnce(TypeView) -> String,
     diagnostics: &mut Vec<Diagnostic>,
     bounds: &TypesBounds,
     source: SourceId,
@@ -92,17 +88,19 @@ pub(super) fn call_convert_on(
     }
 
     diagnostics.push(
-        Diagnostic::new(DiagnosticID::TypeMismatch, message(expr.ty)).with_observation(
-            Observation::here(
-                source,
-                exploration.externals.current,
-                expr.segment(),
-                format!(
-                    "No method `{method_name}` on type `{}`",
-                    exploration.new_type_view(expr.ty, bounds)
-                ),
+        Diagnostic::new(
+            DiagnosticID::TypeMismatch,
+            message(exploration.new_type_view(expr.ty, bounds)),
+        )
+        .with_observation(Observation::here(
+            source,
+            exploration.externals.current,
+            expr.segment(),
+            format!(
+                "No method `{method_name}` on type `{}`",
+                exploration.new_type_view(expr.ty, bounds)
             ),
-        ),
+        )),
     );
     expr
 }

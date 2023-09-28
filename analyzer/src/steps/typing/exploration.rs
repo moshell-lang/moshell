@@ -5,10 +5,10 @@ use crate::relations::{Definition, Relations, ResolvedSymbol, SourceId, SymbolRe
 use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::function::Return;
 use crate::steps::typing::view::TypeView;
-use crate::types::{DefinitionId, Typing};
 use crate::types::ctx::{TypeContext, TypedVariable};
 use crate::types::engine::{CodeEntry, TypedEngine};
 use crate::types::ty::{MethodType, Type, TypeDescription, TypeRef};
+use crate::types::{DefinitionId, Typing};
 
 /// The support for type analysis.
 pub(super) struct Exploration<'a> {

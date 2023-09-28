@@ -161,12 +161,12 @@ pub(super) fn resolve_type_annotation(
                         if params.len() < generics.len() {
                             format!(
                                 "Missing generics for type `{}`",
-                                exploration.new_type_view(main_type,  &TypesBounds::inactive()),
+                                exploration.new_type_view(main_type, &TypesBounds::inactive()),
                             )
                         } else {
                             format!(
                                 "Type `{}` were supplied {} generic argument{}",
-                                exploration.new_type_view(main_type,  &TypesBounds::inactive()),
+                                exploration.new_type_view(main_type, &TypesBounds::inactive()),
                                 params.len(),
                                 if params.len() == 1 { "" } else { "s" }
                             )
@@ -287,12 +287,7 @@ pub(super) fn convert_expression(
             rvalue,
             ty,
             exploration,
-            |ty| {
-                format!(
-                    "Cannot convert type `{}`",
-                    exploration.new_type_view(ty, &TypesBounds::inactive())
-                )
-            },
+            |ty| format!("Cannot convert type `{ty}`"),
             diagnostics,
             bounds,
             source,

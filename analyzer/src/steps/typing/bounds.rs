@@ -1,21 +1,23 @@
+use crate::steps::typing::exploration::Exploration;
 use crate::types;
 use crate::types::ty::{Type, TypeRef};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use crate::steps::typing::exploration::Exploration;
 
-/// Bind a polytype to largest possible monotype
+/// Binds a polytype to largest possible monotype
+#[derive(Default)]
 pub struct TypesBounds {
     bounds: HashMap<TypeRef, TypeRef>,
 }
 
 impl TypesBounds {
-    pub fn new(base: HashMap<TypeRef, TypeRef>) -> Self {
-        Self { bounds: base }
-    }
-
+    /// Construct a type bounds with no polytype to bound, which makes it inactive
     pub fn inactive() -> Self {
         Self::new(HashMap::new())
+    }
+
+    pub fn new(base: HashMap<TypeRef, TypeRef>) -> Self {
+        Self { bounds: base }
     }
 
     pub fn get_bound(&self, ty: TypeRef) -> TypeRef {
@@ -28,8 +30,12 @@ impl TypesBounds {
 
     /// update bounds of registered polytypes from given type scheme correlated with given bounds.
     /// This method will only update bounds that are larger than the current polytypes bounds
-    pub(super) fn update_bounds(&mut self, base: TypeRef, new_bounds: TypeRef, exploration: &Exploration) {
-
+    pub(super) fn update_bounds(
+        &mut self,
+        base: TypeRef,
+        new_bounds: TypeRef,
+        exploration: &Exploration,
+    ) {
         match self.bounds.entry(base) {
             Entry::Occupied(mut o) => {
                 // As there is no real hierarchy for now, only the Nothing type can be more specific than any other type
@@ -42,7 +48,9 @@ impl TypesBounds {
             Entry::Vacant(_) => {
                 let base_type = exploration.get_type(base).unwrap();
                 let bound_type = exploration.get_type(new_bounds).unwrap();
-                if let (Type::Instantiated(b1, p1), Type::Instantiated(b2, p2)) = (base_type, bound_type) {
+                if let (Type::Instantiated(b1, p1), Type::Instantiated(b2, p2)) =
+                    (base_type, bound_type)
+                {
                     for (base, bounds) in p1.iter().zip(p2) {
                         self.update_bounds(*base, *bounds, exploration);
                     }

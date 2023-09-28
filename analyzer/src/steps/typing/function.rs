@@ -243,7 +243,12 @@ fn check_for_leaked_type_parameters(
         }
     }
 
-    collect_leaked_types(exploration, types_parameters, return_type, &mut leaked_types);
+    collect_leaked_types(
+        exploration,
+        types_parameters,
+        return_type,
+        &mut leaked_types,
+    );
 
     if let Some((first, tail)) = leaked_types.split_first() {
         let leaked_types_str = {
@@ -691,10 +696,6 @@ pub(super) fn type_method(
         // an observation for each invalid type
         let method = methods.first().unwrap();
 
-        // release borrow of exploration
-        // TODO avoid clone
-        let method = method.clone();
-
         if method.parameters.len() != arguments.len() {
             diagnostics.push(
                 Diagnostic::new(
@@ -716,7 +717,7 @@ pub(super) fn type_method(
                 .with_help(format!(
                     "The method signature is `{}::{}`",
                     exploration.new_type_view(callee.ty, &TypesBounds::inactive()),
-                    Signature::new(exploration, method_name, &method)
+                    Signature::new(exploration, method_name, method)
                 )),
             );
         } else {
@@ -921,13 +922,15 @@ impl fmt::Display for Signature<'_> {
             write!(
                 f,
                 "{}",
-                self.exploration.new_type_view(first.ty,  &TypesBounds::inactive())
+                self.exploration
+                    .new_type_view(first.ty, &TypesBounds::inactive())
             )?;
             for param in parameters {
                 write!(
                     f,
                     ", {}",
-                    self.exploration.new_type_view(param.ty,  &TypesBounds::inactive())
+                    self.exploration
+                        .new_type_view(param.ty, &TypesBounds::inactive())
                 )?;
             }
         }
@@ -937,10 +940,8 @@ impl fmt::Display for Signature<'_> {
             write!(
                 f,
                 ") -> {}",
-                self.exploration.new_type_view(
-                    self.function.return_type,
-                    &TypesBounds::inactive()
-                )
+                self.exploration
+                    .new_type_view(self.function.return_type, &TypesBounds::inactive())
             )
         }
     }

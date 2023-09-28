@@ -358,35 +358,32 @@ fn ascribe_assign(
     diagnostics: &mut Vec<Diagnostic>,
     state: TypingState,
 ) -> TypedExpr {
-
     macro_rules! ascribe_rhs {
         ($expected_type:expr) => {
             match assign.operator {
-        AssignOperator::Assign => ascribe_types(
-            exploration,
-            links,
-            diagnostics,
-            &assign.value,
-            state
-                .with_local_type()
-                .with_expected_type($expected_type),
-        ),
-        operator => {
-            let binary = Expr::Binary(BinaryOperation {
-                left: assign.left.clone(),
-                op: BinaryOperator::try_from(operator).expect("Invalid assign operator"),
-                right: assign.value.clone(),
-            });
-            ascribe_types(
-                exploration,
-                links,
-                diagnostics,
-                &binary,
-                state.with_local_type(),
-            )
-        }
-    }
-        }
+                AssignOperator::Assign => ascribe_types(
+                    exploration,
+                    links,
+                    diagnostics,
+                    &assign.value,
+                    state.with_local_type().with_expected_type($expected_type),
+                ),
+                operator => {
+                    let binary = Expr::Binary(BinaryOperation {
+                        left: assign.left.clone(),
+                        op: BinaryOperator::try_from(operator).expect("Invalid assign operator"),
+                        right: assign.value.clone(),
+                    });
+                    ascribe_types(
+                        exploration,
+                        links,
+                        diagnostics,
+                        &binary,
+                        state.with_local_type(),
+                    )
+                }
+            }
+        };
     }
 
     let Some(symbol) = links.env().get_raw_symbol(assign.left.segment()) else {
@@ -454,8 +451,8 @@ fn ascribe_assign(
                     DiagnosticID::TypeMismatch,
                     format!(
                         "Cannot assign a value of type `{}` to something of type `{}`",
-                        exploration.new_type_view(rhs_type,  &TypesBounds::inactive()),
-                        exploration.new_type_view(var_ty,  &TypesBounds::inactive()),
+                        exploration.new_type_view(rhs_type, &TypesBounds::inactive()),
+                        exploration.new_type_view(var_ty, &TypesBounds::inactive()),
                     ),
                 )
                 .with_observation(Observation::here(
