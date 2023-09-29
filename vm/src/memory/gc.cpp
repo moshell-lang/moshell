@@ -174,7 +174,9 @@ void gc::scan_thread(std::vector<const msh::obj *> &roots) {
             // this byte is marked as the first byte of an object reference
             if (operands_refs_offsets[frame_operands_first_byte + operand_index]) {
                 msh::obj *obj_ref = *(msh::obj **)(frame.operands.bytes + operand_index);
-                roots.push_back(obj_ref);
+                if (obj_ref != nullptr) { // might be not yet initialized
+                    roots.push_back(obj_ref);
+                }
                 operand_index += 8;
             } else {
                 operand_index++;

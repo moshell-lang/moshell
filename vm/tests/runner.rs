@@ -60,7 +60,7 @@ impl Default for Runner<'_> {
 }
 
 impl<'a> Runner<'a> {
-    pub fn eval(&mut self, expr: &'a str) -> VmValue {
+    pub fn eval(&mut self, expr: &'a str) -> Option<VmValue> {
         match self.try_eval(expr) {
             Ok(v) => v,
             Err(VmError::Panic) => panic!("VM did panic"),
@@ -68,7 +68,7 @@ impl<'a> Runner<'a> {
         }
     }
 
-    pub fn try_eval(&mut self, expr: &'a str) -> Result<VmValue, VmError> {
+    pub fn try_eval(&mut self, expr: &'a str) -> Result<Option<VmValue>, VmError> {
         let name = Name::new("runner");
         let src = Source::unknown(expr);
         let mut importer = StaticImporter::new([(name.clone(), src)], parse_trusted);
@@ -130,7 +130,7 @@ impl<'a> Runner<'a> {
         }
 
         if expr_value_is_void {
-            return Ok(VmValue::Void);
+            return Ok(Some(VmValue::Void));
         }
 
         let evaluated_value = self.vm.get_exported_var(VAR_EXPR_STORAGE);
@@ -147,14 +147,31 @@ impl<'a> Runner<'a> {
         result
     }
 
-    fn extract_value(&self, value: VmValueFFI, value_type: TypeRef) -> VmValue {
+    fn extract_value(&self, value: VmValueFFI, value_type: TypeRef) -> Option<VmValue> {
         unsafe {
             match self.get_type(value_type) {
-                Type::Bool | Type::ExitCode => VmValue::Byte(value.get_as_u8()),
-                Type::Float => VmValue::Double(value.get_as_double()),
-                Type::Int => VmValue::Int(value.get_as_i64()),
-                Type::String => VmValue::String(value.get_as_obj().get_as_string()),
-                Type::Unit | Type::Nothing => VmValue::Void,
+                Type::Bool | Type::ExitCode => Some(VmValue::Byte(value.get_as_u8())),
+                Type::Float => Some(VmValue::Double(value.get_as_double())),
+                Type::Int => Some(VmValue::Int(value.get_as_i64())),
+                Type::String => Some(VmValue::String(value.get_as_obj().get_as_string())),
+                Type::Unit | Type::Nothing => Some(VmValue::Void),
+                Type::Instantiated(types::GENERIC_OPTION, param) => {
+                    if value.is_ptr_null() {
+                        return None;
+                    }
+                    let content_type =
+                        *param.first().expect("option instance without content type");
+
+                    // option can only wrap an object value
+                    let value = if content_type.is_obj() {
+                        value
+                    } else {
+                        // unbox it if it was a primitive optional
+                        value.get_as_obj().unbox()
+                    };
+
+                    self.extract_value(value, content_type)
+                }
                 Type::Instantiated(types::GENERIC_VECTOR, _) => {
                     let vec = value
                         .get_as_obj()
@@ -162,7 +179,7 @@ impl<'a> Runner<'a> {
                         .into_iter()
                         .map(VmValue::from)
                         .collect();
-                    VmValue::Vec(vec)
+                    Some(VmValue::Vec(vec))
                 }
                 _ => panic!("unknown object"),
             }
@@ -224,7 +241,7 @@ mod test {
         let mut runner = Runner::default();
         assert_eq!(
             runner.eval("4.0 * 8.0 / 7.0 + (4.0 - 2.0) * 2.0 - 1.0"),
-            VmValue::Double(4.0 * 8.0 / 7.0 + (4.0 - 2.0) * 2.0 - 1.0)
+            Some(VmValue::Double(4.0 * 8.0 / 7.0 + (4.0 - 2.0) * 2.0 - 1.0))
         )
     }
 
@@ -233,7 +250,7 @@ mod test {
         let mut runner = Runner::default();
         assert_eq!(
             runner.eval("'this is a moshell string'"),
-            "this is a moshell string".into()
+            Some("this is a moshell string".into())
         )
     }
 
@@ -244,7 +261,7 @@ mod test {
         runner.eval("$vec.push('G')");
         assert_eq!(
             runner.eval("$vec"),
-            vec!["A", "B", "C", "D", "E", "F", "G"].into()
+            Some(vec!["A", "B", "C", "D", "E", "F", "G"].into())
         )
     }
 
@@ -254,7 +271,7 @@ mod test {
         runner.eval("var a = 4");
         runner.eval("a += 4");
         runner.eval("var b = 1");
-        assert_eq!(runner.eval("$a"), VmValue::Int(8));
+        Some(assert_eq!(runner.eval("$a"), Some(VmValue::Int(8))));
     }
 
     #[test]
@@ -273,6 +290,6 @@ mod test {
             vec!["collected", "get", "will", "string", "this"].into()
         );
 
-        assert_eq!(runner.eval("$a"), vec![""].into());
+        assert_eq!(runner.eval("$a"), Some(vec![""].into()));
     }
 }

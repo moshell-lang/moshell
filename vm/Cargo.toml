@@ -26,3 +26,6 @@ pretty_assertions = "1.4.0"
 
 [build-dependencies]
 cmake = "0.1.50"
+
+[features]
+asan = []

@@ -13,6 +13,7 @@ const STRING_CONCAT: &str = "lang::String::concat";
 const INT_TO_STRING: &str = "lang::Int::to_string";
 const FLOAT_TO_STRING: &str = "lang::Float::to_string";
 const VEC_INDEX: &str = "lang::Vec::[]";
+const VEC_INDEX_EQ: &str = "lang::Vec::[]=";
 const VEC_POP: &str = "lang::Vec::pop";
 const VEC_PUSH: &str = "lang::Vec::push";
 const VEC_LEN: &str = "lang::Vec::len";
@@ -38,11 +39,10 @@ pub(crate) fn emit_natives(
     let last_used = state.use_values(true);
     emit(callee, instructions, ctx, cp, locals, state);
 
-    let pushed_size = match native.0 {
+    match native.0 {
         0 => {
             // ExitCode -> Bool
             instructions.emit_bool_inversion();
-            ValueStackSize::Byte
         }
         1..=9 => {
             // Arithmetic expression
@@ -66,12 +66,10 @@ pub(crate) fn emit_natives(
                 9 => Opcode::IntMod,
                 _ => unreachable!("Not a numeric binary expression"),
             });
-            ValueStackSize::QWord
         }
         10 => {
             // !bool
             instructions.emit_bool_inversion();
-            ValueStackSize::Byte
         }
         11..=26 => {
             // Comparison expression
@@ -125,7 +123,6 @@ pub(crate) fn emit_natives(
                 26 => instructions.emit_code(Opcode::FloatGreaterOrEqual),
                 _ => unreachable!("Not a comparison expression"),
             }
-            ValueStackSize::Byte
         }
         27 => {
             // Bool -> String
@@ -143,23 +140,19 @@ pub(crate) fn emit_natives(
             instructions.patch_jump(jump_to_else);
             instructions.emit_push_constant_ref(false_string);
             instructions.patch_jump(jump_to_end);
-            ValueStackSize::QWord
         }
         28 => {
             // ExitCode -> String
             instructions.emit_code(Opcode::ConvertByteToInt);
             instructions.emit_invoke(cp.insert_string(INT_TO_STRING));
-            ValueStackSize::QWord
         }
         29 => {
             // Int -> String
             instructions.emit_invoke(cp.insert_string(INT_TO_STRING));
-            ValueStackSize::QWord
         }
         30 => {
             // Float -> String
             instructions.emit_invoke(cp.insert_string(FLOAT_TO_STRING));
-            ValueStackSize::QWord
         }
         33 => {
             // String + String -> String
@@ -173,7 +166,6 @@ pub(crate) fn emit_natives(
                 state,
             );
             instructions.emit_invoke(cp.insert_string(STRING_CONCAT));
-            ValueStackSize::QWord
         }
         34 => {
             // vector[Int] -> T
@@ -186,12 +178,6 @@ pub(crate) fn emit_natives(
                 state,
             );
             instructions.emit_invoke(cp.insert_string(VEC_INDEX));
-            if state.use_values
-                && is_boxable_primitive(ctx.get_type(receiver_ty).expect("Invalid type"))
-            {
-                instructions.emit_code(Opcode::Unbox);
-            }
-            ValueStackSize::QWord
         }
         35 => {
             // vector.push(T)
@@ -205,22 +191,14 @@ pub(crate) fn emit_natives(
                 instructions.emit_code(Opcode::BoxInt);
             }
             instructions.emit_invoke(cp.insert_string(VEC_PUSH));
-            ValueStackSize::Zero
         }
         36 => {
             // vector.pop() T
             instructions.emit_invoke(cp.insert_string(VEC_POP));
-            if state.use_values
-                && is_boxable_primitive(ctx.get_type(receiver_ty).expect("Invalid type"))
-            {
-                instructions.emit_code(Opcode::Unbox);
-            }
-            ValueStackSize::QWord
         }
         37 => {
             // vector.len()
             instructions.emit_invoke(cp.insert_string(VEC_LEN));
-            ValueStackSize::QWord
         }
         38 => {
             // string.split(delim)
@@ -234,30 +212,109 @@ pub(crate) fn emit_natives(
                 state,
             );
             instructions.emit_invoke(cp.insert_string(STRING_SPLIT));
-            ValueStackSize::QWord
         }
         39 => {
             // string.bytes()
             instructions.emit_invoke(cp.insert_string(STRING_BYTES));
-            ValueStackSize::QWord
         }
-        40 => {
+        40 | 42 => {
+            // Bool && Bool -> Bool
+            instructions.emit_code(Opcode::DupByte);
+            let end_jump = instructions.emit_jump(if native.0 == 42 {
+                Opcode::IfJump
+            } else {
+                Opcode::IfNotJump
+            });
+            instructions.emit_pop(ValueStackSize::Byte);
+            emit(
+                args.get(0)
+                    .expect("Cannot AND a boolean without a second boolean"),
+                instructions,
+                ctx,
+                cp,
+                locals,
+                state,
+            );
+            instructions.patch_jump(end_jump);
+        }
+        41 | 43 => {
+            // Bool || Bool -> Bool
+            instructions.emit_code(Opcode::DupByte);
+            let else_jump = instructions.emit_jump(if native.0 == 43 {
+                Opcode::IfJump
+            } else {
+                Opcode::IfNotJump
+            });
+            let end_jump = instructions.emit_jump(Opcode::Jump);
+            instructions.patch_jump(else_jump);
+            instructions.emit_pop(ValueStackSize::Byte);
+            emit(
+                args.get(0)
+                    .expect("Cannot OR a boolean without a second boolean"),
+                instructions,
+                ctx,
+                cp,
+                locals,
+                state,
+            );
+            instructions.patch_jump(end_jump);
+        }
+        44 => {
+            // -Int -> Int
+            instructions.emit_code(Opcode::IntNeg);
+        }
+        45 => {
+            // -Float -> Float
+            instructions.emit_code(Opcode::FloatNeg);
+        }
+        46 | 47 => {
+            // Option[T].is_some() -> bool
+            instructions.emit_push_int(0);
+            instructions.emit_code(Opcode::IntEqual);
+            if native.0 == 47 {
+                instructions.emit_bool_inversion();
+            }
+        }
+        48 => {
+            // Option[T].unwrap() -> T
+            instructions.emit_code(Opcode::Dup);
+            instructions.emit_push_int(0);
+            instructions.emit_code(Opcode::IntEqual);
+            let end_jump = instructions.emit_jump(Opcode::IfNotJump);
+            instructions.emit_push_constant_ref(cp.insert_string("Cannot unwrap `None`."));
+            instructions.emit_invoke(cp.insert_string("std::panic"));
+            instructions.patch_jump(end_jump);
+        }
+        49 => {
+            // Vec[T][int] = T
+            for arg in args {
+                emit(arg, instructions, ctx, cp, locals, state);
+            }
+            if is_boxable_primitive(ctx.get_type(args[1].ty).expect("Invalid type")) {
+                instructions.emit_code(Opcode::BoxInt);
+            }
+            instructions.emit_invoke(cp.insert_string(VEC_INDEX_EQ));
+        }
+        50 => {
             // Int -> Exitcode
             instructions.emit_code(Opcode::ConvertIntToByte);
-            ValueStackSize::Byte
         }
-        41 => {
+        51 => {
             // Exitcode -> Int
             instructions.emit_code(Opcode::ConvertByteToInt);
-            ValueStackSize::QWord
         }
         id => todo!("Native function with id {id}"),
     };
+
+    let has_generic_return = matches!(native.0, 34 | 36 | 48);
+    if has_generic_return && !receiver_ty.is_obj() {
+        instructions.emit_code(Opcode::Unbox);
+    }
 
     // restore last state of use_values
     state.use_values(last_used);
 
     if !state.use_values {
-        instructions.emit_pop(pushed_size);
+        instructions.emit_pop(ValueStackSize::from(receiver_ty));
     }
 }

@@ -23,13 +23,10 @@ pub struct UnmatchedDelimiter {
 /// An iterator over the tokens of a string.
 pub(crate) struct TokenStream<'a> {
     /// The lexer that produces the tokens.
-    lexer: Lexer<'a>,
+    pub(crate) lexer: Lexer<'a>,
 
-    /// The stack of keep track of delimiter pairs.
+    /// The stack to keep track of delimiter pairs.
     pub(crate) open_delimiters: Vec<Token<'a>>,
-
-    /// The vector of unmatched delimiter errors.
-    pub(crate) mismatches: Vec<UnmatchedDelimiter>,
 }
 
 impl<'a> TokenStream<'a> {
@@ -37,7 +34,6 @@ impl<'a> TokenStream<'a> {
         Self {
             lexer: Lexer::new(input),
             open_delimiters: Vec::new(),
-            mismatches: Vec::new(),
         }
     }
 
@@ -60,13 +56,13 @@ impl<'a> TokenStream<'a> {
                     let open_offset =
                         open_delimiter.value.as_ptr() as usize - self.lexer.input.as_ptr() as usize;
                     if token.token_type == closing_pair {
-                        if let Some(last) = self.mismatches.last_mut() {
+                        if let Some(last) = self.lexer.mismatches.last_mut() {
                             if last.opening == Some(open_offset) && last.closing.is_none() {
                                 last.closing = Some(offset);
                             }
                         }
                     } else {
-                        self.mismatches.push(UnmatchedDelimiter {
+                        self.lexer.mismatches.push(UnmatchedDelimiter {
                             opening: Some(open_offset),
                             candidate: Some(offset),
                             closing: None,
@@ -74,7 +70,7 @@ impl<'a> TokenStream<'a> {
                         self.open_delimiters.push(open_delimiter);
                     }
                 } else {
-                    self.mismatches.push(UnmatchedDelimiter {
+                    self.lexer.mismatches.push(UnmatchedDelimiter {
                         opening: None,
                         candidate: Some(offset),
                         closing: None,
@@ -97,7 +93,7 @@ impl<'a> Iterator for TokenStream<'a> {
                 while let Some(open_delimiter) = self.open_delimiters.pop() {
                     let offset =
                         open_delimiter.value.as_ptr() as usize - self.lexer.input.as_ptr() as usize;
-                    self.mismatches.push(UnmatchedDelimiter {
+                    self.lexer.mismatches.push(UnmatchedDelimiter {
                         opening: Some(offset),
                         candidate: None,
                         closing: None,

@@ -1,6 +1,7 @@
 #include "stdlib_natives.h"
 #include "interpreter.h"
 #include "memory/heap.h"
+#include <charconv>
 #include <cmath>
 #include <iostream>
 
@@ -33,37 +34,33 @@ static void str_eq(OperandStack &caller_stack, runtime_memory &) {
     caller_stack.push_byte(test);
 }
 
-void get_env(OperandStack &caller_stack, runtime_memory &mem) {
+static void get_env(OperandStack &caller_stack, runtime_memory &mem) {
     const std::string &var_name = caller_stack.pop_reference().get<const std::string>();
-    char *value = getenv(var_name.c_str());
+    const char *value = getenv(var_name.c_str());
     if (value == nullptr) {
-        throw RuntimeException("Environment variable " + var_name + " isn't defined.");
+        caller_stack.push(nullptr);
+    } else {
+        caller_stack.push_reference(mem.emplace(value));
     }
-    caller_stack.push_reference(mem.emplace(value));
 }
 
-void set_env(OperandStack &caller_stack, runtime_memory &) {
+static void set_env(OperandStack &caller_stack, runtime_memory &) {
     const std::string &value = caller_stack.pop_reference().get<const std::string>();
     const std::string &var_name = caller_stack.pop_reference().get<const std::string>();
     setenv(var_name.c_str(), value.c_str(), true);
 }
 
-void is_env_def(OperandStack &caller_stack, runtime_memory &) {
-    const std::string &var_name = caller_stack.pop_reference().get<const std::string>();
-    caller_stack.push_byte(getenv(var_name.c_str()) != nullptr);
-}
-
-void panic(OperandStack &caller_stack, runtime_memory &) {
+static void panic(OperandStack &caller_stack, runtime_memory &) {
     const std::string &message = caller_stack.pop_reference().get<const std::string>();
     throw RuntimeException(message);
 }
 
-void exit(OperandStack &caller_stack, runtime_memory &) {
+static void exit(OperandStack &caller_stack, runtime_memory &) {
     uint8_t code = caller_stack.pop_byte();
     exit(code);
 }
 
-void read_line(OperandStack &caller_stack, runtime_memory &mem) {
+static void read_line(OperandStack &caller_stack, runtime_memory &mem) {
     std::string line;
     std::getline(std::cin, line);
 
@@ -77,16 +74,41 @@ void floor(OperandStack &caller_stack, runtime_memory &) {
     caller_stack.push_int(static_cast<int64_t>(std::floor(d)));
 }
 
-void ceil(OperandStack &caller_stack, runtime_memory &) {
+static void ceil(OperandStack &caller_stack, runtime_memory &) {
     double d = caller_stack.pop_double();
 
     caller_stack.push_int(static_cast<int64_t>(std::ceil(d)));
 }
 
-void round(OperandStack &caller_stack, runtime_memory &) {
+static void round(OperandStack &caller_stack, runtime_memory &) {
     double d = caller_stack.pop_double();
 
     caller_stack.push_int(static_cast<int64_t>(std::round(d)));
+}
+
+static void parse_int_radix(OperandStack &caller_stack, runtime_memory &mem) {
+    int base = static_cast<int>(caller_stack.pop_int());
+    const std::string &str = caller_stack.pop_reference().get<const std::string>();
+
+    if (base < 2 || base > 36) {
+        throw RuntimeException("Invalid base: " + std::to_string(base) + ".");
+    }
+    const char *first = str.data();
+    if (!str.empty() && str.front() == '+') { // Allow leading '+'
+        first += 1;
+    }
+
+    int64_t value = 0;
+    const auto result = std::from_chars(first,
+                                        str.data() + str.size(),
+                                        value, base);
+
+    // Ensure that the entire string was consumed and that the result is valid
+    if (result.ec == std::errc() && result.ptr == &*str.end()) {
+        caller_stack.push_reference(mem.emplace(value));
+    } else {
+        caller_stack.push(nullptr);
+    }
 }
 
 static void str_split(OperandStack &caller_stack, runtime_memory &mem) {
@@ -153,6 +175,17 @@ static void vec_index(OperandStack &caller_stack, runtime_memory &) {
     caller_stack.push_reference(*vec[index]);
 }
 
+static void vec_index_set(OperandStack &caller_stack, runtime_memory &) {
+    msh::obj &ref = caller_stack.pop_reference();
+    int64_t n = caller_stack.pop_int();
+    size_t index = static_cast<size_t>(n);
+    msh::obj_vector &vec = caller_stack.pop_reference().get<msh::obj_vector>();
+    if (index >= vec.size()) {
+        throw RuntimeException("Index " + std::to_string(n) + " is out of range, the length is " + std::to_string(vec.size()) + ".");
+    }
+    vec[index] = &ref;
+}
+
 static void gc(OperandStack &, runtime_memory &mem) {
     mem.run_gc();
 }
@@ -175,12 +208,12 @@ natives_functions_t load_natives() {
         {"lang::Vec::len", vec_len},
         {"lang::Vec::push", vec_push},
         {"lang::Vec::[]", vec_index},
+        {"lang::Vec::[]=", vec_index_set},
 
         {"std::panic", panic},
         {"std::exit", exit},
         {"std::env", get_env},
         {"std::set_env", set_env},
-        {"std::is_env_def", is_env_def},
         {"std::read_line", read_line},
 
         {"std::memory::gc", gc},
@@ -189,5 +222,6 @@ natives_functions_t load_natives() {
         {"std::convert::ceil", ceil},
         {"std::convert::floor", floor},
         {"std::convert::round", round},
+        {"std::convert::parse_int_radix", parse_int_radix},
     };
 }

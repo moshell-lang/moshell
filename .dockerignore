@@ -4,3 +4,7 @@ Dockerfile
 .dockerignore
 .git
 .gitignore
+
+cmake-build-debug
+CMakeFiles
+completions

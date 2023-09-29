@@ -81,10 +81,12 @@ enum Opcode {
     OP_INT_MUL,   // pops two ints, multiplies them, and pushes the resulting integer
     OP_INT_DIV,   // pops two ints, divides them, and pushes the resulting integer
     OP_INT_MOD,   // pops two ints, mods them, and pushes the resulting integer
+    OP_INT_NEG,   // pops an int, negates it, and pushes the resulting integer
     OP_FLOAT_ADD, // pops two floats, adds them, and pushes the resulting float
     OP_FLOAT_SUB, // pops two floats, subtracts them, and pushes the resulting float
     OP_FLOAT_MUL, // pops two floats, multiplies them, and pushes the resulting float
     OP_FLOAT_DIV, // pops two floats, divides them, and pushes the resulting float
+    OP_FLOAT_NEG, // pops a float, negates it, and pushes the resulting float
 
     OP_INT_EQ, // pops two ints, checks if they are equal, and pushes the resulting byte
     OP_INT_LT, // pops two ints, checks if the first is less than the second, and pushes the resulting byte
@@ -781,6 +783,11 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             operands.push_int(res);
             break;
         }
+        case OP_INT_NEG: {
+            int64_t a = operands.pop_int();
+            operands.push_int(-a);
+            break;
+        }
         case OP_FLOAT_ADD:
         case OP_FLOAT_SUB:
         case OP_FLOAT_MUL:
@@ -789,6 +796,11 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             double a = operands.pop_double();
             double res = apply_arithmetic(opcode, a, b);
             operands.push_double(res);
+            break;
+        }
+        case OP_FLOAT_NEG: {
+            double a = operands.pop_double();
+            operands.push_double(-a);
             break;
         }
         case OP_INT_EQ:

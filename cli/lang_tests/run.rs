@@ -24,7 +24,7 @@ fn main() {
                 .join("\n")
         })
         .test_cmds(move |p| {
-            let mut runtime = Command::new(env!("CARGO_BIN_EXE_cli"));
+            let mut runtime = Command::new(env!("CARGO_BIN_EXE_moshell"));
             let stdlib = current_dir().unwrap().with_file_name("lib");
             runtime
                 .env("MOSHELL_STD", stdlib)

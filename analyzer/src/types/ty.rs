@@ -81,6 +81,9 @@ pub enum Type {
     /// A vector type, that contains a list of elements of the same type.
     Vector,
 
+    /// A nullable type, that can be either `null` or a value of a given type.
+    Option,
+
     /// A generic type, that can be instantiated with concrete type parameters.
     Polytype,
 

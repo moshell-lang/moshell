@@ -5,7 +5,7 @@ use analyzer::name::Name;
 use analyzer::reef::{Externals, Reef};
 use analyzer::relations::SourceId;
 use directories::ProjectDirs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use vm::VM;
 
 pub fn build_std(externals: &mut Externals, vm: &mut VM, sources: &mut SourcesCache, config: &Cli) {
@@ -44,15 +44,27 @@ fn find_std() -> PathBuf {
         return PathBuf::from(path);
     }
 
+    let mut dir = std::env::current_dir().expect("Could not get current directory");
+    dir.push("lib");
+    if dir.exists() {
+        return dir;
+    }
+
     if let Some(proj_dirs) = ProjectDirs::from("", "", "moshell") {
         let lib = proj_dirs.data_dir().join("lib");
-        return if lib.exists() {
-            lib
-        } else {
-            let mut dir = std::env::current_dir().expect("Could not get current directory");
-            dir.push("lib");
-            dir
-        };
+        if lib.exists() {
+            return lib;
+        }
     }
-    panic!("could not find stdlib path")
+
+    #[cfg(unix)]
+    {
+        for path in ["/usr/local/share/moshell/lib", "/usr/share/moshell/lib"] {
+            let path = Path::new(path);
+            if path.exists() {
+                return path.to_path_buf();
+            }
+        }
+    }
+    panic!("Could not determine a valid std emplacement. Please provide a valid stdlib path under a MOSHELL_STD=<path> env variable.")
 }

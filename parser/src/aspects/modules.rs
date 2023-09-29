@@ -8,7 +8,7 @@ use lexer::token::{Token, TokenType};
 
 use crate::aspects::expr_list::ExpressionListAspect;
 use crate::err::ParseErrorKind;
-use crate::moves::{any, blanks, eox, of_type, of_types, spaces, MoveOperations};
+use crate::moves::{any, blanks, of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 /// Parser aspect to parse all expressions in relation with modules.
@@ -29,15 +29,6 @@ impl<'a> ModulesAspect<'a> for Parser<'a> {
             .force(of_type(TokenType::Use), "expected 'use'")?;
 
         let import = self.parse_import()?;
-
-        self.cursor.advance(spaces()); //consume spaces
-
-        if self.cursor.lookahead(eox()).is_none() {
-            return self.expected(
-                "expected new line or semicolon",
-                ParseErrorKind::Expected("<new_line> or ';'".to_string()),
-            );
-        };
 
         let import_seg_end = import.segment().end;
         Ok(Expr::Use(Use {
@@ -253,8 +244,8 @@ mod tests {
         assert_eq!(
             result,
             Err(ParseError {
-                message: "expected new line or semicolon".to_string(),
-                kind: ParseErrorKind::Expected("<new_line> or ';'".to_string()),
+                message: "expected end of expression or file".to_string(),
+                kind: ParseErrorKind::Unexpected,
                 position: source.source.find("as").map(|i| i..i + 2).unwrap(),
             })
         )
@@ -363,9 +354,9 @@ mod tests {
         assert_eq!(
             result,
             Err(ParseError {
-                message: "expected new line or semicolon".to_string(),
+                message: "expected end of expression or file".to_string(),
                 position: content.find(',').map(|p| p..p + 1).unwrap(),
-                kind: ParseErrorKind::Expected("<new_line> or ';'".to_string()),
+                kind: ParseErrorKind::Unexpected,
             })
         )
     }

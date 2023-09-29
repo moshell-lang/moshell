@@ -1,4 +1,5 @@
 use crate::runner::Runner;
+use pretty_assertions::assert_eq;
 use vm::VmError;
 
 mod runner;

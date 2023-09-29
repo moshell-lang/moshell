@@ -6,6 +6,11 @@ fn main() {
         config.env("CMAKE_COLOR_DIAGNOSTICS", "ON");
     }
 
+    if cfg!(feature = "asan") {
+        config.define("CMAKE_CXX_FLAGS", "-fsanitize=address");
+        println!("cargo:rustc-link-lib=asan");
+    }
+
     // Statically link to the VM library.
     let dst = config.build();
     println!("cargo:rustc-link-search=native={}", dst.display());

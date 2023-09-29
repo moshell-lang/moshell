@@ -1,4 +1,5 @@
 use crate::runner::Runner;
+use pretty_assertions::assert_eq;
 use vm::value::VmValue;
 use vm::VmError;
 
@@ -18,7 +19,7 @@ fn break_loop() {
         res += 1
     ",
     );
-    assert_eq!(runner.eval("$res"), VmValue::Int(3))
+    assert_eq!(runner.eval("$res"), Some(VmValue::Int(3)))
 }
 
 #[test]
@@ -26,7 +27,7 @@ fn test_assertion() {
     let mut runner = Runner::default();
     assert_eq!(
         runner.try_eval(r#"std::assert::assert(true)"#),
-        Ok(VmValue::Void)
+        Ok(Some(VmValue::Void))
     );
     assert_eq!(
         runner.try_eval(r#"std::assert::assert(false)"#),
@@ -58,7 +59,7 @@ fn closure() {
     "#,
     );
 
-    assert_eq!(runner.eval("$vec"), vec!["bar"].into())
+    assert_eq!(runner.eval("$vec"), Some(vec!["bar"].into()))
 }
 
 #[test]
@@ -68,7 +69,7 @@ fn simple_function_call() {
     runner.eval("fun concat(a: String, b: String) -> String = $a + $b");
     runner.eval("fun foo() -> String = concat('foo', 'bar')");
 
-    assert_eq!(runner.eval("foo()"), "foobar".into());
+    assert_eq!(runner.eval("foo()"), Some("foobar".into()));
 
     runner.eval(
         r#"\
@@ -89,7 +90,7 @@ fn simple_function_call() {
             assert(empty_operands())
         "#
         ),
-        Ok(VmValue::Void)
+        Ok(Some(VmValue::Void))
     )
 }
 
@@ -129,8 +130,8 @@ fn str_bytes() {
     let mut runner = Runner::default();
     runner.eval("val letters = 'abcdefghijklmnopqrstuvwxy'.bytes()");
     runner.eval("$letters.push(122)");
-    assert_eq!(runner.eval("$letters.get(0)"), VmValue::Int(97));
-    assert_eq!(runner.eval("$letters.get(25)"), VmValue::Int(122));
+    assert_eq!(runner.eval("$letters[0]"), Some(VmValue::Int(97)));
+    assert_eq!(runner.eval("$letters[25]"), Some(VmValue::Int(122)));
 }
 
 #[test]
@@ -143,9 +144,9 @@ fn str_split() {
         r#"
         var str_recomposed = ""
         var i = 1
-        str_recomposed += $vec.get(0)
+        str_recomposed += $vec[0]
         while $i < $vec.len() {
-            str_recomposed += " " + $vec.get($i)
+            str_recomposed += " " + $vec[$i]
             i += 1
         }
     "#,
@@ -153,6 +154,6 @@ fn str_split() {
 
     assert_eq!(
         runner.eval("$str_recomposed"),
-        "this is a string, hello strings ! ! ! babibel".into()
+        Some("this is a string, hello strings ! ! ! babibel".into())
     )
 }

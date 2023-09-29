@@ -117,7 +117,10 @@ pub(super) fn resolve_type_annotation(
                 }
             };
 
-            let generics = &exploration.get_description(main_type).unwrap().generics;
+            let generics = &exploration
+                .get_description(main_type)
+                .map(|d| d.generics.as_slice())
+                .unwrap_or(&[]);
             if params.len() != generics.len() {
                 diagnostics.push(
                     Diagnostic::new(

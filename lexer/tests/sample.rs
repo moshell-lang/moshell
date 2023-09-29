@@ -14,19 +14,7 @@ fn string_literal() {
     assert_eq!(
         tokens,
         vec![
-            Token::new(TokenType::Quote, "'"),
-            Token::new(TokenType::Identifier, "It"),
-            Token::new(TokenType::Identifier, "'"),
-            Token::new(TokenType::Identifier, "s"),
-            Token::new(TokenType::Space, " "),
-            Token::new(TokenType::Identifier, "http"),
-            Token::new(TokenType::Colon, ":"),
-            Token::new(TokenType::Identifier, "/"),
-            Token::new(TokenType::Identifier, "/localhost"),
-            Token::new(TokenType::Space, "  "),
-            Token::new(TokenType::Identifier, "/"),
-            Token::new(TokenType::Identifier, "/true"),
-            Token::new(TokenType::Quote, "'"),
+            Token::new(TokenType::StringLiteral, "It\\'s http://localhost  //true"),
             Token::new(TokenType::Space, " "),
             Token::new(TokenType::NewLine, "\n"),
             Token::new(TokenType::Identifier, "yes"),
@@ -66,7 +54,7 @@ fn string_literal_unterminated_due_to_comment() {
         vec![
             Token::new(TokenType::Identifier, "echo"),
             Token::new(TokenType::Space, " "),
-            Token::new(TokenType::DoubleQuote, "\""),
+            Token::new(TokenType::StringStart, "\""),
             Token::new(TokenType::Dollar, "$"),
             Token::new(TokenType::RoundedLeftBracket, "("),
         ]
@@ -81,10 +69,10 @@ fn string_literal_comment_after_arithmetic() {
         vec![
             Token::new(TokenType::Identifier, "echo"),
             Token::new(TokenType::Space, " "),
-            Token::new(TokenType::DoubleQuote, "\""),
+            Token::new(TokenType::StringStart, "\""),
             Token::new(TokenType::Dollar, "$"),
             Token::new(TokenType::RoundedLeftBracket, "("),
-            Token::new(TokenType::DoubleQuote, "\""),
+            Token::new(TokenType::StringStart, "\""),
             Token::new(TokenType::Dollar, "$"),
             Token::new(TokenType::RoundedLeftBracket, "("),
             Token::new(TokenType::RoundedLeftBracket, "("),
@@ -93,13 +81,11 @@ fn string_literal_comment_after_arithmetic() {
             Token::new(TokenType::IntLiteral, "1"),
             Token::new(TokenType::RoundedRightBracket, ")"),
             Token::new(TokenType::RoundedRightBracket, ")"),
-            Token::new(TokenType::Identifier, "/"),
-            Token::new(TokenType::Identifier, "/"),
-            Token::new(TokenType::DoubleQuote, "\""),
+            Token::new(TokenType::StringContent, "//"),
+            Token::new(TokenType::StringEnd, "\""),
             Token::new(TokenType::RoundedRightBracket, ")"),
-            Token::new(TokenType::Identifier, "/"),
-            Token::new(TokenType::Identifier, "/"),
-            Token::new(TokenType::DoubleQuote, "\""),
+            Token::new(TokenType::StringContent, "//"),
+            Token::new(TokenType::StringEnd, "\""),
         ]
     );
 }
@@ -116,9 +102,9 @@ fn utf8_compatible() {
             Token::new(TokenType::Space, " "),
             Token::new(TokenType::Equal, "="),
             Token::new(TokenType::Space, " "),
-            Token::new(TokenType::DoubleQuote, "\""),
-            Token::new(TokenType::Identifier, "épique"),
-            Token::new(TokenType::DoubleQuote, "\""),
+            Token::new(TokenType::StringStart, "\""),
+            Token::new(TokenType::StringContent, "épique"),
+            Token::new(TokenType::StringEnd, "\""),
         ]
     );
 }
@@ -167,24 +153,24 @@ fn literal_in_literal() {
         vec![
             Token::new(TokenType::Identifier, "echo"),
             Token::new(TokenType::Space, " "),
-            Token::new(TokenType::DoubleQuote, "\""),
+            Token::new(TokenType::StringStart, "\""),
             Token::new(TokenType::Dollar, "$"),
             Token::new(TokenType::RoundedLeftBracket, "("),
             Token::new(TokenType::Identifier, "ls"),
             Token::new(TokenType::Space, " "),
-            Token::new(TokenType::DoubleQuote, "\""),
-            Token::new(TokenType::Identifier, "tes"),
+            Token::new(TokenType::StringStart, "\""),
+            Token::new(TokenType::StringContent, "tes"),
             Token::new(TokenType::Dollar, "$"),
             Token::new(TokenType::RoundedLeftBracket, "("),
             Token::new(TokenType::Identifier, "echo"),
             Token::new(TokenType::Space, " "),
-            Token::new(TokenType::DoubleQuote, "\""),
-            Token::new(TokenType::Identifier, "t"),
-            Token::new(TokenType::DoubleQuote, "\""),
+            Token::new(TokenType::StringStart, "\""),
+            Token::new(TokenType::StringContent, "t"),
+            Token::new(TokenType::StringEnd, "\""),
             Token::new(TokenType::RoundedRightBracket, ")"),
-            Token::new(TokenType::DoubleQuote, "\""),
+            Token::new(TokenType::StringEnd, "\""),
             Token::new(TokenType::RoundedRightBracket, ")"),
-            Token::new(TokenType::DoubleQuote, "\""),
+            Token::new(TokenType::StringEnd, "\""),
         ]
     );
 }
@@ -195,17 +181,15 @@ fn var_in_literal() {
     assert_eq!(
         tokens,
         vec![
-            Token::new(TokenType::DoubleQuote, "\""),
+            Token::new(TokenType::StringStart, "\""),
             Token::new(TokenType::Dollar, "$"),
             Token::new(TokenType::Identifier, "a"),
-            Token::new(TokenType::Space, " "),
-            Token::new(TokenType::Equal, "="),
-            Token::new(TokenType::Space, " "),
+            Token::new(TokenType::StringContent, " = "),
             Token::new(TokenType::Dollar, "$"),
             Token::new(TokenType::CurlyLeftBracket, "{"),
             Token::new(TokenType::Identifier, "b"),
             Token::new(TokenType::CurlyRightBracket, "}"),
-            Token::new(TokenType::DoubleQuote, "\""),
+            Token::new(TokenType::StringEnd, "\""),
         ]
     );
 }
@@ -218,9 +202,8 @@ fn quoted_arithmetic() {
         vec![
             Token::new(TokenType::Identifier, "echo"),
             Token::new(TokenType::Space, " "),
-            Token::new(TokenType::DoubleQuote, "\""),
-            Token::new(TokenType::Identifier, "Result"),
-            Token::new(TokenType::Space, " "),
+            Token::new(TokenType::StringStart, "\""),
+            Token::new(TokenType::StringContent, "Result "),
             Token::new(TokenType::Dollar, "$"),
             Token::new(TokenType::RoundedLeftBracket, "("),
             Token::new(TokenType::RoundedLeftBracket, "("),
@@ -231,7 +214,7 @@ fn quoted_arithmetic() {
             Token::new(TokenType::IntLiteral, "3"),
             Token::new(TokenType::RoundedRightBracket, ")"),
             Token::new(TokenType::RoundedRightBracket, ")"),
-            Token::new(TokenType::DoubleQuote, "\""),
+            Token::new(TokenType::StringEnd, "\""),
         ]
     );
 }

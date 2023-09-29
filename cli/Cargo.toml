@@ -1,7 +1,15 @@
 [package]
 name = "cli"
+description = "CLI-related functionality for Moshell"
 version = "0.1.0"
 edition = "2021"
+authors = ["Override-6", "syldium"]
+license = "GPL-3.0-only"
+repository = "https://github.com/moshell-lang/moshell"
+
+[[bin]]
+name = "moshell"
+path = "src/main.rs"
 
 [[test]]
 name = "lang_tests"
@@ -24,8 +32,23 @@ miette = { version = "5.9.0", features = ["fancy-no-backtrace"] }
 thiserror = "1.0.38"
 dbg-pls = { version = "0.4.1", features = ["pretty", "colors"] }
 clap = { version = "4.2.2", features = ["derive"] }
+clap_complete = "4.4.1"
 libc = "0.2.147"
 
 [dev-dependencies]
 lang_tester = "0.7.3"
 tempfile = "3.7.0"
+
+[package.metadata.deb]
+name = "moshell"
+maintainer = "syldium <syldium@mailo.com>"
+extended-description = """\
+A scripting language inspired by the shell, with \
+static analysis."""
+section = "devel"
+assets = [
+    ["target/release/moshell", "usr/bin/", "755"],
+    ["lib/std.msh", "usr/share/moshell/lib/", "644"],
+    ["lib/std/*", "usr/share/moshell/lib/std", "755"],
+    ["completions/bash/moshell", "/usr/share/bash-completion/completions/", "755"]
+]

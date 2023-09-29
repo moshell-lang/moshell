@@ -35,6 +35,10 @@ pub enum TokenType {
     #[assoc(str = "val")]
     Val,
 
+    StringStart,
+    StringEnd,
+    StringContent,
+    StringLiteral,
     Identifier,
 
     IntLiteral,
@@ -100,10 +104,6 @@ pub enum TokenType {
     SemiColon,
     #[assoc(str = "=")]
     Equal,
-    #[assoc(str = "'")]
-    Quote,
-    #[assoc(str = "\"")]
-    DoubleQuote,
     #[assoc(str = "$")]
     Dollar,
     #[assoc(str = "&")]
@@ -257,8 +257,6 @@ impl TokenType {
                 | Bar
                 | Or
                 | And
-                | Quote
-                | DoubleQuote
                 | SquaredLeftBracket
                 | SquaredRightBracket
                 | RoundedLeftBracket
@@ -280,17 +278,13 @@ impl TokenType {
     ///is this lexeme a opening punctuation
     pub fn is_opening_ponctuation(self) -> bool {
         matches!(self, |SquaredLeftBracket| RoundedLeftBracket
-            | CurlyLeftBracket
-            | Quote
-            | DoubleQuote)
+            | CurlyLeftBracket)
     }
 
     ///is this lexeme a closing punctuation
     pub fn is_closing_ponctuation(self) -> bool {
         matches!(self, |SquaredRightBracket| RoundedRightBracket
-            | CurlyRightBracket
-            | Quote
-            | DoubleQuote)
+            | CurlyRightBracket)
     }
 
     /// Tests if this token ends an expression, where newlines are not allowed.
@@ -314,13 +308,46 @@ impl TokenType {
         )
     }
 
+    /// Determines if this token creates a shell context when at the start of a statement.
+    pub fn belongs_to_shell(self) -> bool {
+        matches!(
+            self,
+            StringStart
+                | StringLiteral
+                | StringContent
+                | StringEnd
+                | NewLine
+                | SemiColon
+                | Dollar
+                | Ampersand
+                | At
+                | Comma
+                | Dot
+                | Bar
+                | And
+                | Or
+                | Not
+                | Less
+                | Greater
+                | Plus
+                | Minus
+                | Star
+                | Slash
+                | BackSlash
+                | Percent
+                | SquaredRightBracket
+                | RoundedRightBracket
+                | CurlyRightBracket
+                | Space
+                | EndOfFile
+        )
+    }
+
     pub fn closing_pair(self) -> Option<TokenType> {
         match self {
             SquaredLeftBracket => Some(SquaredRightBracket),
             RoundedLeftBracket => Some(RoundedRightBracket),
             CurlyLeftBracket => Some(CurlyRightBracket),
-            Quote => Some(Quote),
-            DoubleQuote => Some(DoubleQuote),
             _ => None,
         }
     }

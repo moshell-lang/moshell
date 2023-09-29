@@ -14,7 +14,7 @@ use crate::r#match::Match;
 use crate::r#struct::{StructDeclaration, StructImpl};
 use crate::r#type::CastedExpr;
 use crate::r#use::Use;
-use crate::range::Iterable;
+use crate::range::{Iterable, Subscript};
 use crate::substitution::Substitution;
 use crate::test::Test;
 use crate::value::{Literal, TemplateString};
@@ -81,6 +81,7 @@ pub enum Expr<'a> {
     VarReference(VarReference<'a>),
     VarDeclaration(VarDeclaration<'a>),
     Range(Iterable<'a>),
+    Subscript(Subscript<'a>),
 
     FunctionDeclaration(FunctionDeclaration<'a>),
 
@@ -126,6 +127,7 @@ impl SourceSegmentHolder for Expr<'_> {
             Expr::VarReference(var_reference) => var_reference.segment.clone(),
             Expr::VarDeclaration(var_declaration) => var_declaration.segment.clone(),
             Expr::Range(range) => range.segment(),
+            Expr::Subscript(subscript) => subscript.segment(),
             Expr::FunctionDeclaration(function_declaration) => function_declaration.segment.clone(),
             Expr::Parenthesis(parenthesis) => parenthesis.segment.clone(),
             Expr::Subshell(subshell) => subshell.segment.clone(),

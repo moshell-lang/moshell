@@ -155,6 +155,10 @@ impl VmValueFFI {
     pub unsafe fn get_as_obj(self) -> VmObjectFFI {
         moshell_value_get_as_object(self)
     }
+
+    pub fn is_ptr_null(self) -> bool {
+        unsafe { self.ptr.is_null() }
+    }
 }
 
 impl VmObjectFFI {

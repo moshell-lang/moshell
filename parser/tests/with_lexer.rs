@@ -1,10 +1,14 @@
 use pretty_assertions::assert_eq;
 
-use ast::call::{Call, Pipeline, Redir, RedirFd, RedirOp, Redirected};
+use ast::call::{
+    Call, MethodCall, Pipeline, ProgrammaticCall, Redir, RedirFd, RedirOp, Redirected,
+};
 use ast::control_flow::{Loop, While};
 use ast::function::Return;
 use ast::group::{Block, Subshell};
 use ast::operation::{BinaryOperation, BinaryOperator};
+use ast::r#use::InclusionPathItem;
+use ast::range::{Iterable, Subscript};
 use ast::substitution::{Substitution, SubstitutionKind};
 use ast::value::{Literal, TemplateString};
 use ast::variable::{
@@ -67,7 +71,7 @@ fn with_lexer_var_reference_two() {
             arguments: vec![
                 Expr::TemplateString(TemplateString {
                     parts: vec![
-                        literal(source.source, "\"fake"),
+                        literal(source.source, "fake"),
                         Expr::VarReference(VarReference {
                             name: "cmd",
                             segment: find_in(source.source, "$cmd"),
@@ -104,7 +108,7 @@ fn with_lexer_var_reference_three() {
                 literal(source.source, "echo"),
                 Expr::TemplateString(TemplateString {
                     parts: vec![
-                        literal(source.source, "\"hello "),
+                        literal(source.source, "hello "),
                         Expr::VarReference(VarReference {
                             name: "world",
                             segment: find_in(source.source, "$world"),
@@ -118,7 +122,7 @@ fn with_lexer_var_reference_three() {
                             name: "ready",
                             segment: find_in(source.source, "${ready}"),
                         }),
-                        literal(source.source, "!\""),
+                        literal(source.source, "!"),
                     ],
                     segment: find_between(source.source, "\"", "\""),
                 }),
@@ -303,7 +307,7 @@ fn with_lexer_substitution_in_substitution() {
                                             },
                                             kind: SubstitutionKind::Capture,
                                         }),
-                                        literal(source.source, "/test\""),
+                                        literal(source.source, "/test"),
                                     ],
                                     segment: find_in(source.source, "\"$(pwd)/test\""),
                                 }),
@@ -591,6 +595,79 @@ fn short_variable_increment() {
                     parsed: 2.into(),
                     segment: find_in(source.source, "2"),
                 })),
+            })),
+        })]
+    );
+}
+
+#[test]
+fn subscript_call() {
+    let source = Source::unknown("$foo[0]()[1..=4]");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Subscript(Subscript {
+            target: Box::new(Expr::MethodCall(MethodCall {
+                source: Box::new(Expr::Subscript(Subscript {
+                    target: Box::new(Expr::VarReference(VarReference {
+                        name: "foo",
+                        segment: find_in(source.source, "$foo"),
+                    })),
+                    index: Box::new(Expr::Literal(Literal {
+                        parsed: 0.into(),
+                        segment: find_in(source.source, "0"),
+                    })),
+                    segment: find_in(source.source, "$foo[0]"),
+                })),
+                name: None,
+                arguments: Vec::new(),
+                type_parameters: Vec::new(),
+                segment: find_in(source.source, "$foo[0]()"),
+            })),
+            index: Box::new(Expr::Range(Iterable::Range(ast::range::NumericRange {
+                start: Box::new(Expr::Literal(Literal {
+                    parsed: 1.into(),
+                    segment: find_in(source.source, "1"),
+                })),
+                end: Box::new(Expr::Literal(Literal {
+                    parsed: 4.into(),
+                    segment: find_in(source.source, "4"),
+                })),
+                step: None,
+                upper_inclusive: true,
+            }))),
+            segment: source.segment(),
+        })]
+    );
+}
+
+#[test]
+fn call_subscript() {
+    let source = Source::unknown("id()[1] + 2");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Binary(BinaryOperation {
+            left: Box::new(Expr::Subscript(Subscript {
+                target: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
+                    path: vec![InclusionPathItem::Symbol(
+                        "id",
+                        find_in(source.source, "id")
+                    )],
+                    arguments: vec![],
+                    type_parameters: vec![],
+                    segment: find_in(source.source, "id()"),
+                })),
+                index: Box::new(Expr::Literal(Literal {
+                    parsed: 1.into(),
+                    segment: find_in(source.source, "1"),
+                })),
+                segment: find_in(source.source, "id()[1]"),
+            })),
+            op: BinaryOperator::Plus,
+            right: Box::new(Expr::Literal(Literal {
+                parsed: 2.into(),
+                segment: find_in(source.source, "2"),
             })),
         })]
     );

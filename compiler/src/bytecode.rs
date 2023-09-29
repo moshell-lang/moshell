@@ -376,10 +376,12 @@ pub enum Opcode {
     IntMul,
     IntDiv,
     IntMod,
+    IntNeg,
     FloatAdd,
     FloatSub,
     FloatMul,
     FloatDiv,
+    FloatNeg,
 
     IntEqual,
     IntLessThan,

@@ -1,6 +1,7 @@
 # Moshell
 
 Moshell is a modern shell scripting language with a static type system.
+This repository hosts the source code from the parser to the interpreter and its standard library.
 
 ## Motivation
 
@@ -14,42 +15,39 @@ Arithmetic evaluation traditionally needs to be made explicit to be differentiat
 
 Moshell also comes with different data types, such as `Int`, `Float`, `Bool` or `String`. This allows for clearer and more elegant code and avoids arithmetic between incompatible types.
 
-## Current state
+## Installation
 
-Moshell is a project in its early stages.
+Moshell is available from different sources:
 
-- [x] Lexer + Parser
-    - [x] Standard shell expressions
-    - [x] Control flow
-    - [x] Type hints
-    - [ ] Array indexing and ranges *(in progress)*
-    - [ ] User defined types
-- [x] Static analysis
-    - [x] Symbol resolution
-    - [x] Imports resolution
-    - [x] Qualified names
-    - [x] Primitive type checking
-    - [x] Built-in primitive type operations
-    - [ ] Detailed error reports *(in progress)*
-    - [ ] Reefs (library support) *(in progress)*
-    - [ ] Generic types
-    - [ ] Standard types (`Option[T]`, `Result[A, E]`, `Iterable[T]`...)
-    - [ ] User defined types
-- [x] Bytecode compiler and interpreter
-    - [x] Spawn processes and use typed variables
-    - [x] Control flow
-    - [x] Function calls
-    - [x] Panic
-    - [ ] Array structures
-    - [ ] Closures
-- [x] REPL
-    - [x] Visualize AST and IR
-    - [x] Visualize Bytecode
-    - [ ] Display diagnostics *(partial)*
-    - [x] Symbol reuse
-    - [ ] Shell-like prompt
+- You can download a prebuilt nightly binary with `curl -L moshell.dev/setup.sh | sh`.
+- If you have a Rust toolchain, CMake and a C++20 compiler installed, you can build a [development version](#build-and-run).
+- Docker users can run a prebuilt image with `docker run -it ghcr.io/moshell-lang/moshell:master`.
 
-This repository hosts the source code from the parser to the interpreter.
+## Build and Run
+
+You need a stable Rust compiler to build Moshell frontend on a GNU/Linux system.
+The MSRV is the latest stable version of Rust.
+
+The VM needs a C++20 compiler and a CMake 3.15+ installation. Its build script will automatically be called by Cargo.
+GCC starting from version 10 and Clang starting from version 11 are supported.
+
+```sh
+cargo run --bin cli # Run the interactive prompt
+cargo run --bin cli -- -s <file> # Run a file
+```
+
+You can also build a release binary:
+```sh
+cargo build --release
+./target/release/moshell # Run the interactive prompt
+./target/release/moshell -s <file> # Run a file
+```
+
+You can export the `MOSHELL_STD` environment variable to specify a path to the standard library.
+
+```sh
+export MOSHELL_STD=/path/to/moshell/lib
+```
 
 ## Examples
 
@@ -115,3 +113,41 @@ if $user.is_empty() || $port == 0 {
     panic('No user specified')
 }
 ```
+
+
+## Current state
+
+Moshell is a project in its early stages.
+
+- [x] Lexer + Parser
+  - [x] Standard shell expressions
+  - [x] Control flow
+  - [x] Type hints
+  - [x] Array indexing and ranges
+  - [x] User defined structures
+  - [ ] User defined enums
+- [x] Static analysis
+  - [x] Symbol resolution
+  - [x] Imports resolution
+  - [x] Qualified names
+  - [x] Primitive type checking
+  - [x] Built-in primitive type operations
+  - [ ] Detailed error reports *(in progress)*
+  - [x] Reefs (library support)
+  - [ ] Generic types
+  - [ ] Standard types (`Option[T]`, `Result[A, E]`, `Iterable[T]`...)
+  - [ ] User defined structures
+- [x] Bytecode compiler and interpreter
+  - [x] Spawn processes and use typed variables
+  - [x] Control flow
+  - [x] Function calls
+  - [x] Panic
+  - [x] Dynamic memory handling (Garbage Collector)
+  - [X] Vectors *(partial)*
+  - [ ] Closures
+- [x] REPL
+  - [x] Visualize AST and IR
+  - [x] Visualize Bytecode
+  - [ ] Display diagnostics *(partial)*
+  - [x] Symbol reuse
+  - [ ] Shell-like prompt

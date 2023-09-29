@@ -33,7 +33,7 @@ impl fmt::Display for TypeInstance<'_> {
             Type::Nothing => write!(f, "Nothing"),
             Type::Unit => write!(f, "Unit"),
             Type::Bool => write!(f, "Bool"),
-            Type::ExitCode => write!(f, "ExitCode"),
+            Type::ExitCode => write!(f, "Exitcode"),
             Type::Int => write!(f, "Int"),
             Type::Float => write!(f, "Float"),
             Type::String => write!(f, "String"),
@@ -46,6 +46,7 @@ impl fmt::Display for TypeInstance<'_> {
                 }
             ),
             Type::Vector => write!(f, "Vec"),
+            Type::Option => write!(f, "Option"),
             Type::Polytype => write!(f, "T"),
             Type::Instantiated(def, parameters) => {
                 write!(f, "{}[", TypeInstance::new(*def, self.exploration))?;
@@ -58,5 +59,41 @@ impl fmt::Display for TypeInstance<'_> {
                 write!(f, "]")
             }
         }
+    }
+}
+
+pub struct TypeInstanceVec<'a> {
+    pub(super) ids: Vec<TypeRef>,
+    pub(super) exploration: &'a Exploration<'a>,
+}
+
+impl<'a> TypeInstanceVec<'a> {
+    pub(super) fn new(ids: Vec<TypeRef>, exploration: &'a Exploration) -> Self {
+        Self { ids, exploration }
+    }
+}
+
+impl fmt::Debug for TypeInstanceVec<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[")?;
+        for (i, id) in self.ids.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{}", TypeInstance::new(*id, self.exploration))?;
+        }
+        write!(f, "]")
+    }
+}
+
+impl fmt::Display for TypeInstanceVec<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (i, id) in self.ids.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "`{}`", TypeInstance::new(*id, self.exploration))?;
+        }
+        Ok(())
     }
 }

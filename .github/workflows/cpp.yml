@@ -1,0 +1,35 @@
+name: C++ CI
+
+on:
+  push:
+    paths:
+      - 'vm/**'
+  pull_request:
+    paths-ignore:
+      - 'vm/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    if: github.event_name != 'pull_request' || github.repository != github.event.pull_request.head.repo.full_name
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        gcc-version: [10, 12]
+    env:
+      CC: gcc-${{ matrix.gcc-version }}
+      CXX: g++-${{ matrix.gcc-version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Debug
+        run: |
+          cd vm
+          cmake -B build -S .
+          cmake --build build
+
+      - name: Build Release
+        run: |
+          cd vm
+          cmake -DCMAKE_BUILD_TYPE=Release -B build -S .
+          cmake --build build

@@ -1,0 +1,42 @@
+fun runAll(String...) = {
+    for host in 0..5 {
+        ssh root@host$host "$@"
+    }
+}
+
+fun testEcho(host: String, port: Int) = {
+    // Interactive: netcat localhost 7
+    // Assume that the remote user is root and use Bash
+    ssh root@$host "
+    res=$(echo 'this is a test' | netcat -q 0 $port 7)
+    if [ \"\$res\" == 'this is a test' ]; then
+        echo 'ERROR : No reply from $host!' >&2
+        exit 1
+    fi"
+}
+
+var moshellVersion = ''
+if [ $moshellVersion ] {
+    moshellVersion = $(curl --silent 'https://api.github.com/repos/moshell-lang/moshell/releases/latest' | jq -r '.tag_name' | sed 's|^v||')
+}
+
+if test -f moshell {
+    echo 'Skipping the binary download since it\'s already there.'
+} else {
+    echo 'Downloading the binary from GitHub…'
+    wget -O moshell https://github.com/moshell-lang/moshell/releases/download/v$moshellVersion/moshell-$moshellVersion-linux-amd64
+    chmod +x moshell
+}
+
+if ! id 'test' &> /dev/null; then
+    echo 'Creating the test user…'
+    adduser \
+        --shell /bin/moshell \
+        --group \
+        --disabled-password \
+        --home /home/test \
+        test
+fi
+
+runAll('apt-get update')
+testEcho('localhost', 7)

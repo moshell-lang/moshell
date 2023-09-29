@@ -1,0 +1,62 @@
+// Run:
+//   status: success
+//   stdout:
+//    foo
+//    true 1
+//    true 2
+//    bar
+//    foo
+//    true 3
+//    bar
+//    false 4
+//    foo
+//    bar
+//    true 5
+//    great
+//    true 6
+
+fun truthy() -> Bool = {
+    echo foo
+    true
+}
+
+fun falsy() -> Bool = {
+    echo bar
+    false
+}
+
+if true && truthy() {
+    echo 'true 1' // Expected
+} else {
+    echo 'false 1'
+}
+
+if true || truthy() {
+    echo 'true 2' // Expected
+} else {
+    echo 'false 2'
+}
+
+if falsy() || truthy() {
+    echo 'true 3' // Expected
+} else {
+    echo 'false 3'
+}
+
+if falsy() && truthy() {
+    echo 'true 4'
+} else {
+    echo 'false 4' // Expected
+}
+
+if grep foo <<< 'foo' && grep bar <<< 'bar' {
+    echo 'true 5' // Expected
+} else {
+    echo 'false 5'
+}
+
+if echo great || echo 'why?' {
+    echo 'true 6' // Expected
+} else {
+    echo 'false 6'
+}
