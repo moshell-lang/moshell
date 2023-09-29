@@ -2,4 +2,5 @@
 /// forces the Garbage Collector to run a new cycle
 fun gc();
 
-
+/// return true if the thread's operands stack is empty
+fun empty_operands() -> Bool;

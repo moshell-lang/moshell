@@ -11,7 +11,7 @@ use analyzer::name::Name;
 use analyzer::reef::Externals;
 use analyzer::relations::SourceId;
 use analyzer::Analyzer;
-use compiler::{compile, SourceLineProvider};
+use compiler::{compile, CompilerOptions, SourceLineProvider};
 use context::source::ContentId;
 use vm::{VmError, VM};
 
@@ -44,7 +44,7 @@ pub struct Cli {
     pub(crate) completions: Option<Shell>,
 }
 
-struct CachedSourceLocationLineProvider {
+pub struct CachedSourceLocationLineProvider {
     lines: HashMap<ContentId, Vec<usize>>,
 }
 
@@ -173,7 +173,10 @@ pub fn use_pipeline(
         externals.current,
         starting_page,
         &mut bytes,
-        Some(&lines),
+        CompilerOptions {
+            line_provider: Some(&lines),
+            last_page_storage_var: None,
+        },
     )
     .expect("write failed");
 

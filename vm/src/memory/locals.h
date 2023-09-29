@@ -59,7 +59,7 @@ public:
 
     template <typename T>
     T *get(size_t at) const {
-        check_capacity(at, sizeof(T *), "accessing");
+        check_capacity(at, sizeof(T), "accessing");
         return (T *)(bytes + at);
     }
 

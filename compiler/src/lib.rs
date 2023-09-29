@@ -8,10 +8,11 @@ use analyzer::name::Name;
 use analyzer::reef::{Externals, ReefId};
 use analyzer::relations::{LocalId, Relations, ResolvedSymbol, SourceId};
 use analyzer::types::engine::{Chunk, TypedEngine};
+use analyzer::types::hir::ExprKind;
 use analyzer::types::Typing;
 use context::source::ContentId;
 
-use crate::bytecode::{Bytecode, Instructions};
+use crate::bytecode::{Bytecode, InstructionPos, Instructions};
 use crate::constant_pool::ConstantPool;
 use crate::emit::{emit, EmissionState, EmitterContext};
 use crate::locals::LocalsLayout;
@@ -30,6 +31,12 @@ pub trait SourceLineProvider {
     fn get_line(&self, content: ContentId, byte_pos: usize) -> Option<usize>;
 }
 
+#[derive(Default)]
+pub struct CompilerOptions<'a> {
+    pub line_provider: Option<&'a dyn SourceLineProvider>,
+    pub last_page_storage_var: Option<String>,
+}
+
 const MAPPINGS_ATTRIBUTE: u8 = 1;
 
 #[allow(clippy::too_many_arguments)]
@@ -42,7 +49,7 @@ pub fn compile(
     reef_id: ReefId,
     starting_page: SourceId,
     writer: &mut impl Write,
-    line_provider: Option<&dyn SourceLineProvider>,
+    options: CompilerOptions,
 ) -> Result<(), io::Error> {
     let captures = resolve_captures(link_engine, relations, reef_id);
 
@@ -61,16 +68,17 @@ pub fn compile(
             &captures,
             chunk_id,
         );
-        compile_chunk(
+        let page_size = compile_chunk(
             &main_env.fqn,
             main_chunk,
             chunk_id,
             &ctx,
             &mut bytecode,
             &mut cp,
-            line_provider,
-        );
-        write_exported(&mut cp, &mut bytecode)?;
+            &options,
+        )
+        .unwrap();
+        write_exported(&mut cp, page_size, &mut bytecode)?;
 
         // filter out native functions
         let defined_functions: Vec<_> = content.defined_chunks(&it).collect();
@@ -95,7 +103,10 @@ pub fn compile(
                 &ctx,
                 &mut bytecode,
                 &mut cp,
-                line_provider,
+                &CompilerOptions {
+                    last_page_storage_var: None,
+                    ..options
+                },
             );
         }
     }
@@ -110,15 +121,16 @@ fn compile_chunk(
     ctx: &EmitterContext,
     bytecode: &mut Bytecode,
     cp: &mut ConstantPool,
-    line_provider: Option<&dyn SourceLineProvider>,
-) {
+    options: &CompilerOptions,
+) -> Option<u32> {
     // emit the function's name
     let signature_idx = cp.insert_string(name);
     bytecode.emit_constant_ref(signature_idx);
 
     // emits chunk's code attribute
-    let segments = compile_chunk_code(chunk, id, bytecode, ctx, cp);
+    let (page_size, segments) = compile_chunk_code(chunk, id, bytecode, ctx, cp, options);
 
+    let line_provider = options.line_provider;
     let attribute_count = line_provider.map_or(0, |_| 1);
     bytecode.emit_byte(attribute_count);
 
@@ -126,20 +138,26 @@ fn compile_chunk(
         let content = ctx.engine().get_original_content(id);
 
         let Some(content_id) = content else {
-            return;
+            return page_size;
         };
         compile_line_mapping_attribute(segments, content_id, bytecode, line_provider);
     }
+    page_size
 }
 
 fn compile_line_mapping_attribute(
-    positions: Vec<(usize, u32)>,
+    positions: Vec<InstructionPos>,
     content_id: ContentId,
     bytecode: &mut Bytecode,
     line_provider: &dyn SourceLineProvider,
 ) {
     bytecode.emit_byte(MAPPINGS_ATTRIBUTE);
     let mut mappings: Vec<(usize, u32)> = Vec::new();
+
+    let positions: Vec<_> = positions
+        .into_iter()
+        .map(|p| (p.source_code_byte_pos, p.instruction))
+        .collect();
 
     let Some(((first_pos, first_ip), positions)) = positions.split_first() else {
         bytecode.emit_u32(0);
@@ -257,14 +275,15 @@ fn resolve_captures(engine: &Engine, relations: &Relations, compiled_reef: ReefI
 /// the code attribute of a chunk is a special attribute that contains the bytecode instructions and
 /// locals specifications
 ///
-/// returns the hir's segments associated with their first instruction.
+/// returns the page length (if chunk is a script) and the hir's segments associated with their first instruction.
 fn compile_chunk_code(
     chunk: &Chunk,
     chunk_id: SourceId,
     bytecode: &mut Bytecode,
     ctx: &EmitterContext,
     cp: &mut ConstantPool,
-) -> Vec<(usize, u32)> {
+    options: &CompilerOptions,
+) -> (Option<u32>, Vec<InstructionPos>) {
     let chunk_expression = chunk
         .expression
         .as_ref()
@@ -293,7 +312,7 @@ fn compile_chunk_code(
     let return_bytes_count: u8 = get_type_stack_size(chunk.return_type).into();
     bytecode.emit_byte(return_bytes_count);
 
-    let use_value = return_bytes_count != 0;
+    let use_value = return_bytes_count != 0 || options.last_page_storage_var.is_some();
 
     // emit instruction count placeholder
     let instruction_count = bytecode.emit_u32_placeholder();
@@ -325,6 +344,29 @@ fn compile_chunk_code(
         &mut state,
     );
 
+    let chunk_is_script = ctx.environment.is_script;
+
+    if let Some(storage_exported_val) = &options.last_page_storage_var {
+        assert!(
+            chunk_is_script,
+            "only script chunks can store their last expression value in a storage export"
+        );
+        let last_expr = if let ExprKind::Block(b) = &chunk_expression.kind {
+            b.last().unwrap_or(chunk_expression)
+        } else {
+            chunk_expression
+        };
+
+        let page_offset = cp.exported.last().map_or(0, |exp| {
+            exp.page_offset + u8::from(ValueStackSize::QWord) as u32
+        });
+        cp.insert_exported(storage_exported_val, page_offset, last_expr.ty.is_obj());
+        instructions.emit_set_external(
+            cp.get_external(storage_exported_val).unwrap(),
+            last_expr.ty.into(),
+        )
+    }
+
     // patch instruction count placeholder
     let instruction_byte_count = instructions.current_ip();
     let segments = instructions.take_positions();
@@ -339,7 +381,15 @@ fn compile_chunk_code(
         bytecode.emit_u32(offset)
     }
 
-    segments
+    if !chunk_is_script {
+        return (None, segments);
+    }
+
+    let mut page_length = locals_length;
+    if options.last_page_storage_var.is_some() {
+        page_length += u8::from(ValueStackSize::QWord) as u32
+    }
+    (Some(page_length), segments)
 }
 
 fn write(
@@ -370,11 +420,16 @@ fn write_constant_pool(cp: &ConstantPool, writer: &mut impl Write) -> Result<(),
     Ok(())
 }
 
-fn write_exported(pool: &mut ConstantPool, bytecode: &mut Bytecode) -> Result<(), io::Error> {
+fn write_exported(
+    pool: &mut ConstantPool,
+    page_size: u32,
+    bytecode: &mut Bytecode,
+) -> Result<(), io::Error> {
+    bytecode.emit_u32(page_size);
     bytecode.emit_u32(u32::try_from(pool.exported.len()).expect("too many exported vars"));
     for symbol in &pool.exported {
         bytecode.emit_u32(symbol.name_index);
-        bytecode.emit_u32(symbol.local_offset);
+        bytecode.emit_u32(symbol.page_offset);
         bytecode.emit_byte(symbol.is_obj_ref as u8);
     }
     pool.exported.clear();

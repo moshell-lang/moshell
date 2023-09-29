@@ -295,6 +295,14 @@ pub(crate) fn emit_natives(
             }
             instructions.emit_invoke(cp.insert_string(VEC_INDEX_EQ));
         }
+        50 => {
+            // Int -> Exitcode
+            instructions.emit_code(Opcode::ConvertIntToByte);
+        }
+        51 => {
+            // Exitcode -> Int
+            instructions.emit_code(Opcode::ConvertByteToInt);
+        }
         id => todo!("Native function with id {id}"),
     };
 

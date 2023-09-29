@@ -54,6 +54,7 @@ impl LocalsLayout {
     }
 
     /// Get the starting byte index allocated for the given local.
+    /// and a flag specifying if the local refers to an object reference.
     ///
     /// Returns [`None`] if the local is size has not yet been initialized.
     ///

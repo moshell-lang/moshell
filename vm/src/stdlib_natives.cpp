@@ -30,7 +30,8 @@ static void str_concat(OperandStack &caller_stack, runtime_memory &mem) {
 static void str_eq(OperandStack &caller_stack, runtime_memory &) {
     const std::string &right = caller_stack.pop_reference().get<const std::string>();
     const std::string &left = caller_stack.pop_reference().get<const std::string>();
-    caller_stack.push_byte(static_cast<int8_t>(right == left));
+    int8_t test = static_cast<int8_t>(right == left);
+    caller_stack.push_byte(test);
 }
 
 static void get_env(OperandStack &caller_stack, runtime_memory &mem) {
@@ -67,17 +68,7 @@ static void read_line(OperandStack &caller_stack, runtime_memory &mem) {
     caller_stack.push_reference(obj);
 }
 
-static void to_exitcode(OperandStack &caller_stack, runtime_memory &) {
-    int64_t i = caller_stack.pop_int();
-    uint8_t exitcode = static_cast<uint8_t>(i);
-    if (exitcode != i) {
-        throw RuntimeException("cannot cast int to exitcode: " + std::to_string(i) + " is out of bounds.");
-    }
-
-    caller_stack.push_byte(static_cast<int8_t>(exitcode));
-}
-
-static void floor(OperandStack &caller_stack, runtime_memory &) {
+void floor(OperandStack &caller_stack, runtime_memory &) {
     double d = caller_stack.pop_double();
 
     caller_stack.push_int(static_cast<int64_t>(std::floor(d)));
@@ -199,6 +190,10 @@ static void gc(OperandStack &, runtime_memory &mem) {
     mem.run_gc();
 }
 
+static void is_operands_empty(OperandStack &os, runtime_memory &) {
+    os.push(os.size() == 0);
+}
+
 natives_functions_t load_natives() {
     return natives_functions_t{
         {"lang::Int::to_string", int_to_string},
@@ -222,8 +217,8 @@ natives_functions_t load_natives() {
         {"std::read_line", read_line},
 
         {"std::memory::gc", gc},
+        {"std::memory::empty_operands", is_operands_empty},
 
-        {"std::convert::to_exitcode", to_exitcode},
         {"std::convert::ceil", ceil},
         {"std::convert::floor", floor},
         {"std::convert::round", round},

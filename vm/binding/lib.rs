@@ -1,5 +1,12 @@
-use context::source::ContentId;
 use std::ffi;
+use std::ffi::CStr;
+
+use context::source::ContentId;
+
+use crate::gc::GC;
+
+pub mod gc;
+pub mod value;
 
 /// Executes the given bytecode.
 ///
@@ -16,8 +23,15 @@ pub unsafe fn execute_bytecode(bytes: &[u8]) -> Result<(), VmError> {
     }
 }
 
+#[repr(C)]
+#[derive(Copy, Clone)]
+struct VmFFI(*mut ffi::c_void);
+
 /// A virtual machine that can execute Moshell bytecode.
-pub struct VM(VmFFI);
+pub struct VM {
+    ffi: VmFFI,
+    pub gc: GC,
+}
 
 /// An error that occurred during the VM lifetime.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -26,14 +40,19 @@ pub enum VmError {
     Internal,
 }
 
+#[allow(dead_code)]
 impl VM {
     /// Creates a new virtual machine.
     pub fn new() -> Self {
-        Self(if cfg!(not(miri)) {
+        let ffi = if cfg!(not(miri)) {
             unsafe { moshell_vm_init() }
         } else {
             VmFFI(std::ptr::null_mut())
-        })
+        };
+        Self {
+            ffi,
+            gc: GC { vm: ffi },
+        }
     }
 
     /// Appends new bytecode to the VM.
@@ -45,7 +64,7 @@ impl VM {
         if cfg!(miri) {
             return Ok(()); // Not supported
         }
-        unsafe { moshell_vm_register(self.0, bytes.as_ptr(), bytes.len()) != -1 }
+        unsafe { moshell_vm_register(self.ffi, bytes.as_ptr(), bytes.len()) != -1 }
             .then_some(())
             .ok_or(VmError::Internal)
     }
@@ -58,7 +77,7 @@ impl VM {
         if cfg!(miri) {
             return Ok(()); // Not supported
         }
-        match moshell_vm_run(self.0) {
+        match moshell_vm_run(self.ffi) {
             0 => Ok(()),
             1 => Err(VmError::Panic),
             _ => Err(VmError::Internal),
@@ -67,7 +86,11 @@ impl VM {
 
     /// Gets the next page of bytecode to be executed.
     pub fn get_next_page(&self) -> ContentId {
-        ContentId(unsafe { moshell_vm_next_page(self.0) })
+        ContentId(unsafe { moshell_vm_next_page(self.ffi) })
+    }
+
+    pub fn get_exported_var(&self, name: &str) -> VmValueFFI {
+        unsafe { moshell_vm_get_exported(self.ffi, name.as_ptr().cast(), name.len()) }
     }
 }
 
@@ -80,17 +103,115 @@ impl Default for VM {
 impl Drop for VM {
     fn drop(&mut self) {
         if cfg!(not(miri)) {
-            unsafe { moshell_vm_free(self.0) }
+            unsafe { moshell_vm_free(self.ffi) }
         }
     }
 }
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-struct VmFFI(*mut ffi::c_void);
+struct VmArrayFFI(usize, *mut VmValueFFI);
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union VmValueFFI {
+    int: i64,
+    byte: u8,
+    double: f64,
+    ptr: *const ffi::c_void,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+#[allow(dead_code)]
+enum VmObjectType {
+    Str,
+    Int,
+    Double,
+    Vec,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct VmObjectFFI(VmObjectType, *mut ffi::c_void);
+
+impl VmValueFFI {
+    /// # Safety
+    /// The caller must ensure that the value has the correct type.
+    pub unsafe fn get_as_u8(self) -> u8 {
+        moshell_value_get_as_byte(self)
+    }
+    /// # Safety
+    /// The caller must ensure that the value has the correct type.
+    pub unsafe fn get_as_i64(self) -> i64 {
+        moshell_value_get_as_int(self)
+    }
+    /// # Safety
+    /// The caller must ensure that the value has the correct type.
+    pub unsafe fn get_as_double(self) -> f64 {
+        moshell_value_get_as_double(self)
+    }
+    /// # Safety
+    /// The caller must ensure that the value has the correct type.
+    pub unsafe fn get_as_obj(self) -> VmObjectFFI {
+        moshell_value_get_as_object(self)
+    }
+
+    pub fn is_ptr_null(self) -> bool {
+        unsafe { self.ptr.is_null() }
+    }
+}
+
+impl VmObjectFFI {
+    /// # Safety
+    /// The caller must ensure that the value has the correct type.
+    pub unsafe fn unbox(self) -> VmValueFFI {
+        moshell_object_unbox(self)
+    }
+    /// # Safety
+    /// The caller must ensure that the value has the correct type.
+    pub unsafe fn get_as_string(self) -> String {
+        let buff = moshell_object_get_as_string(self);
+        let c_str = CStr::from_ptr(buff.cast_mut());
+        let str = c_str.to_str().expect("utf8 error");
+        str.to_string()
+    }
+    /// # Safety
+    /// The caller must ensure that the value has the correct type.
+    pub unsafe fn get_as_vec(self) -> Vec<VmObjectFFI> {
+        let msh_array = moshell_object_get_as_array(self);
+        let mut vec = Vec::with_capacity(msh_array.0);
+
+        for i in 0..msh_array.0 {
+            let val = *msh_array.1.wrapping_add(i);
+            vec.push(val.get_as_obj())
+        }
+        vec
+    }
+}
+
+#[repr(C)]
+#[derive(Clone)]
+struct VmGcResultFFI {
+    collected_objects_count: u64,
+    collected_objects: *const VmObjectFFI,
+}
+
+impl Drop for VmGcResultFFI {
+    fn drop(&mut self) {
+        unsafe { gc_collection_result_free(self.clone()) }
+    }
+}
 
 #[link(name = "vm", kind = "static")]
 extern "C" {
+    fn moshell_value_get_as_byte(val: VmValueFFI) -> u8;
+    fn moshell_value_get_as_int(val: VmValueFFI) -> i64;
+    fn moshell_value_get_as_double(val: VmValueFFI) -> f64;
+    fn moshell_value_get_as_object(val: VmValueFFI) -> VmObjectFFI;
+    fn moshell_object_unbox(val: VmObjectFFI) -> VmValueFFI;
+    fn moshell_object_get_as_string(val: VmObjectFFI) -> *const ffi::c_char;
+    fn moshell_object_get_as_array(val: VmObjectFFI) -> VmArrayFFI;
+
     fn moshell_exec(bytes: *const u8, byte_count: usize) -> ffi::c_int;
 
     fn moshell_vm_init() -> VmFFI;
@@ -102,4 +223,10 @@ extern "C" {
     fn moshell_vm_next_page(vm: VmFFI) -> usize;
 
     fn moshell_vm_free(vm: VmFFI);
+
+    fn moshell_vm_get_exported(vm: VmFFI, name: *const ffi::c_char, name_len: usize) -> VmValueFFI;
+
+    fn moshell_vm_gc_collect(vm: VmFFI) -> VmGcResultFFI;
+    fn moshell_vm_gc_run(vm: VmFFI);
+    fn gc_collection_result_free(res: VmGcResultFFI);
 }

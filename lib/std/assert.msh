@@ -1,0 +1,11 @@
+
+
+fun assert(test: Bool) = {
+    if !$test
+        reef::std::panic("assertion failed")
+}
+
+fun assert_msg(test: Bool, msg) = {
+    if !$test
+        reef::std::panic("assertion failed: $msg")
+}

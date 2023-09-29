@@ -38,13 +38,18 @@ namespace msh {
         obj(T val) : gc_cycle{0}, data{std::move(val)} {}
 
         obj_data &get_data();
+        const obj_data &get_data() const;
 
         template <typename T>
-        T &get() {
+        T &get()
+            requires(!std::is_const_v<T>)
+        {
             return std::get<T>(data);
         }
         template <typename T>
-        const T &get() const {
+        T &get() const
+            requires std::is_const_v<T>
+        {
             return std::get<T>(data);
         }
     };

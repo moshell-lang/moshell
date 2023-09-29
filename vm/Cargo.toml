@@ -21,6 +21,8 @@ ast = { path = "../ast" }
 parser = { path = "../parser" }
 analyzer = { path = "../analyzer" }
 compiler = { path = "../compiler" }
+cli = { path = "../cli" }
+pretty_assertions = "1.4.0"
 
 [build-dependencies]
 cmake = "0.1.50"

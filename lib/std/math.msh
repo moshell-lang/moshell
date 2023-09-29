@@ -1,0 +1,9 @@
+
+/// @returns highest int value not greater than `f`
+fun ceil(f: Float) -> Int;
+
+/// @returns smallest int value not less than `f`
+fun floor(f: Float) -> Int;
+
+/// @returns nearest int value
+fun round(f: Float) -> Int;

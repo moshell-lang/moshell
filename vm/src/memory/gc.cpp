@@ -69,14 +69,8 @@ void msh::disable_gc_debug() {
 
 #endif
 
-void gc::run() {
+void gc::scan() {
     cycle++;
-
-#ifndef NDEBUG
-    gc_debug("-----------");
-    gc_debug("Running cycle " + std::to_string(cycle));
-    int t0 = time(nullptr);
-#endif
 
     std::vector<const msh::obj *> roots;
     roots.reserve(last_roots_size);
@@ -85,15 +79,27 @@ void gc::run() {
     scan_exported_vars(roots);
     scan_thread(roots);
 
-#ifndef NDEBUG
-    gc_debug(std::to_string(roots.size()) + " roots found (last cycle: " + std::to_string(last_roots_size) + ")");
-#endif
-
     last_roots_size = roots.size();
 
     walk_objects(std::move(roots));
+}
 
-    size_t removed_elements = heap_space.objects.remove_if([&](msh::obj &obj) {
+void gc::run() {
+    size_t last_roots_size = this->last_roots_size;
+
+#ifndef NDEBUG
+    gc_debug("-----------");
+    gc_debug("Running cycle " + std::to_string(cycle + 1));
+    int t0 = time(nullptr);
+#endif
+
+    scan();
+
+#ifndef NDEBUG
+    gc_debug(std::to_string(this->last_roots_size) + " roots found (last cycle: " + std::to_string(last_roots_size) + ")");
+#endif
+
+    size_t removed_object_count = heap_space.objects.remove_if([&](msh::obj &obj) {
         bool detached = obj.gc_cycle != cycle;
 #ifndef NDEBUG
         if (detached)
@@ -102,13 +108,25 @@ void gc::run() {
         return detached;
     });
 
-    heap_space.len -= removed_elements;
+    this->heap_space.len -= removed_object_count;
 
 #ifndef NDEBUG
     int t1 = time(nullptr);
-    gc_debug("Removed " + std::to_string(removed_elements) + " objects.");
+    gc_debug("Removed " + std::to_string(removed_object_count) + " objects.");
     gc_debug("Cycle ended in " + std::to_string(t1 - t0) + "ms");
 #endif
+}
+
+std::vector<const msh::obj *> gc::collect() {
+    scan();
+    std::vector<const msh::obj *> object_refs;
+    for (const msh::obj &obj : heap_space.objects) {
+        bool detached = obj.gc_cycle != cycle;
+        if (detached) {
+            object_refs.push_back(&obj);
+        }
+    }
+    return object_refs;
 }
 
 void gc::walk_objects(std::vector<const msh::obj *> to_visit) {
