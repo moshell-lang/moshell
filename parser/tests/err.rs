@@ -281,6 +281,21 @@ fn single_colon() {
 }
 
 #[test]
+fn colon_return_type() {
+    let content = "fun foo(): int = {}";
+    let source = Source::unknown(content);
+    let report = parse(source);
+    assert_eq!(
+        report.errors,
+        vec![ParseError {
+            message: "Return types are denoted using `->`.".to_owned(),
+            position: content.find(':').map(|p| p..p + 1).unwrap(),
+            kind: ParseErrorKind::Expected("`->`".to_owned())
+        }]
+    );
+}
+
+#[test]
 fn multiple_errors_in_parameters() {
     let content = "f(1 + , if true; $, (2 + 3)";
     let source = Source::unknown(content);

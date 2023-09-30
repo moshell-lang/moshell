@@ -105,11 +105,23 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn parse_fn_return_type(&mut self) -> ParseResult<Option<Type<'a>>> {
-        if self.cursor.advance(of_type(TokenType::Arrow)).is_none() {
-            return Ok(None);
+        if let Some(token) = self.cursor.advance(of_types(&[
+            TokenType::Arrow,
+            TokenType::FatArrow,
+            TokenType::Colon,
+        ])) {
+            if token.token_type != TokenType::Arrow {
+                self.report_error(self.mk_parse_error(
+                    "Return types are denoted using `->`.",
+                    token.clone(),
+                    ParseErrorKind::Expected("`->`".to_owned()),
+                ));
+            }
+            self.cursor.advance(blanks()); // consume blanks
+            self.parse_type().map(Some)
+        } else {
+            Ok(None)
         }
-        self.cursor.advance(blanks()); // consume blanks
-        self.parse_type().map(Some)
     }
 
     fn parse_fn_parameter(&mut self) -> ParseResult<FunctionParameter<'a>> {
