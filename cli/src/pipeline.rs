@@ -123,11 +123,16 @@ impl FileImporter {
     pub fn insert<'a>(&mut self, source: OwnedSource) -> ImportResult<'a> {
         let id = self.sources.len();
         self.sources.push(source);
-        let source = self
+        let mut source = self
             .sources
             .last()
             .expect("the source was just inserted")
             .as_source();
+        // Remove the shebang if it exists
+        if source.source.strip_prefix("#!").is_some() {
+            source.source = source.source.split_once('\n').map(|(_, s)| s).unwrap_or("");
+        }
+
         let report = parse(source);
         if report.is_ok() {
             let expressions = unsafe {
