@@ -103,7 +103,7 @@ fn what_is_an_import() {
         report.errors,
         vec![
             ParseError {
-                message: "'break' is not a valid type identifier.".to_owned(),
+                message: "`break` is not a valid type identifier.".to_owned(),
                 position: content.find("break").map(|p| p..p + 5).unwrap(),
                 kind: ParseErrorKind::Unexpected
             },
@@ -157,12 +157,12 @@ fn tolerance_in_multiple_groups() {
             })],
             errors: vec![
                 ParseError {
-                    message: "'$' is not a valid generic type identifier.".to_owned(),
+                    message: "`$` is not a valid generic type identifier.".to_owned(),
                     position: content.find('$').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 },
                 ParseError {
-                    message: "'+' is not a valid type identifier.".to_owned(),
+                    message: "`+` is not a valid type identifier.".to_owned(),
                     position: content.rfind('+').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 }
@@ -207,7 +207,7 @@ fn do_not_accumulate_delimiters() {
     assert_eq!(
         report.errors,
         vec![ParseError {
-            message: "'/' is not a valid type identifier.".to_owned(),
+            message: "`/` is not a valid type identifier.".to_owned(),
             position: content.find('/').map(|p| p..p + 1).unwrap(),
             kind: ParseErrorKind::Unexpected
         }]
@@ -246,7 +246,7 @@ fn no_comma_or_two() {
                     kind: ParseErrorKind::Unpaired(content.find('\'').map(|p| p..p + 1).unwrap())
                 },
                 ParseError {
-                    message: "'@' is not a valid generic type identifier.".to_owned(),
+                    message: "`@` is not a valid generic type identifier.".to_owned(),
                     position: content.find('@').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 },
@@ -262,6 +262,21 @@ fn no_comma_or_two() {
                 }
             ],
         }
+    );
+}
+
+#[test]
+fn single_colon() {
+    let content = "use std::foo:{bar, test}";
+    let source = Source::unknown(content);
+    let report = parse(source);
+    assert_eq!(
+        report.errors,
+        vec![ParseError {
+            message: "Expected `::`.".to_owned(),
+            position: content.rfind(':').map(|p| p..p + 1).unwrap(),
+            kind: ParseErrorKind::Unexpected
+        }]
     );
 }
 

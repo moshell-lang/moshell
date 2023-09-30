@@ -106,7 +106,7 @@ impl SymbolLocation {
 
         let mut path_it = path.iter();
 
-        if current_reef {
+        if current_reef && path.len() > 1 {
             path_it.next();
         }
 
