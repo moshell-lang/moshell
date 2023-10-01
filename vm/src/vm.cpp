@@ -120,13 +120,13 @@ int moshell_vm_run(moshell_vm vm) {
     try {
         state.loader.resolve_all(state.pager);
         const auto last = state.pager.cbegin() + (state.pager.size() - state.next_page);
+        state.next_page = state.pager.size();
         for (auto it = state.pager.cbegin(); it != last; ++it) {
             const msh::memory_page &page = *it;
             if (!run_unit(state.thread_stack, state.loader, state.pager, page, {state.heap, state.gc}, state.natives)) {
                 return 1;
             }
         }
-        state.next_page = state.pager.size();
         return 0;
     } catch (const VirtualMachineError &e) {
         std::cerr << e.name() << ": " << e.what() << std::endl;
