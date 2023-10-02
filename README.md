@@ -33,14 +33,14 @@ GCC starting from version 10 and Clang starting from version 11 are supported.
 
 ```sh
 cargo run --bin cli # Run the interactive prompt
-cargo run --bin cli -- -s <file> # Run a file
+cargo run --bin cli -- <file> # Run a file
 ```
 
 You can also build a release binary:
 ```sh
 cargo build --release
 ./target/release/moshell # Run the interactive prompt
-./target/release/moshell -s <file> # Run a file
+./target/release/moshell <file> # Run a file
 ```
 
 You can export the `MOSHELL_STD` environment variable to specify a path to the standard library.
