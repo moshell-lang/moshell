@@ -28,7 +28,7 @@ fn main() {
             let stdlib = current_dir().unwrap().with_file_name("lib");
             runtime
                 .env("MOSHELL_STD", stdlib)
-                .args(&["-s", p.to_str().unwrap()])
+                .args(&[p.to_str().unwrap()])
                 .current_dir(tempdir.path());
             vec![("Run", runtime)]
         })
