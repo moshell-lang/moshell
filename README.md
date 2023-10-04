@@ -32,8 +32,8 @@ The VM needs a C++20 compiler and a CMake 3.15+ installation. Its build script w
 GCC starting from version 10 and Clang starting from version 11 are supported.
 
 ```sh
-cargo run --bin cli # Run the interactive prompt
-cargo run --bin cli -- <file> # Run a file
+cargo run # Run the interactive prompt
+cargo run -- <file> # Run a file
 ```
 
 You can also build a release binary:
