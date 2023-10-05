@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use ast::call::{Call, Pipeline, ProgrammaticCall, RedirOp, Redirected};
 use ast::control_flow::If;
 use ast::function::FunctionDeclaration;
@@ -16,6 +18,9 @@ use context::source::{SourceSegment, SourceSegmentHolder};
 use crate::dependency::topological_sort;
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
+use crate::environment::symbols::{MagicSymbolKind, SymbolRegistry};
+use crate::is_magic_variable_name;
+use crate::name::Name;
 use crate::reef::{Externals, ReefId};
 use crate::relations::{Relations, SourceId, SymbolRef};
 use crate::steps::typing::assign::{ascribe_assign_subscript, create_subscript};
@@ -37,8 +42,9 @@ use crate::types::hir::{
     Redirect, TypedExpr, Var,
 };
 use crate::types::operator::name_operator_method;
+
 use crate::types::ty::{FunctionType, Type, TypeRef};
-use crate::types::{Typing, BOOL, ERROR, EXITCODE, FLOAT, INT, NOTHING, STRING, UNIT};
+use crate::types::{builtin, Typing, BOOL, ERROR, EXITCODE, FLOAT, INT, NOTHING, STRING, UNIT};
 
 mod assign;
 mod bounds;
@@ -145,6 +151,56 @@ fn verify_free_function(
     );
 }
 
+fn prepend_implicits(body: TypedExpr, exploration: &Exploration, links: Links) -> TypedExpr {
+    if let Some(id) = links
+        .env()
+        .symbols
+        .find_exported("", SymbolRegistry::Magic(MagicSymbolKind::ProgramArguments))
+    {
+        let (std_reef, get_args_function) = exploration
+            .externals
+            .get_reef_by_name("std")
+            .and_then(|(r, reef_id)| {
+                r.engine
+                    .find_environment_by_name(&Name::new("std::memory::program_arguments"))
+                    .zip(Some(reef_id))
+            })
+            .map(|((id, _), reef_id)| (reef_id, id))
+            .expect("could not find `std::memory::program_arguments` function");
+
+        let get_args_chunk = exploration.get_chunk(std_reef, get_args_function).unwrap();
+        let ChunkType::Function(get_args_function_id) = get_args_chunk.kind else {
+            unreachable!()
+        };
+
+        let generated_pargs_expr = TypedExpr {
+            kind: ExprKind::Declare(Declaration {
+                identifier: id,
+                value: Some(Box::new(TypedExpr {
+                    kind: ExprKind::FunctionCall(FunctionCall {
+                        arguments: vec![],
+                        reef: std_reef,
+                        function_id: get_args_function_id,
+                        source_id: Some(get_args_function),
+                    }),
+                    ty: builtin::STRING_VEC,
+                    segment: Default::default(),
+                })),
+            }),
+            ty: UNIT,
+            segment: SourceSegment::default(),
+        };
+
+        TypedExpr {
+            ty: body.ty,
+            segment: body.segment(),
+            kind: ExprKind::Block(vec![generated_pargs_expr, body]),
+        }
+    } else {
+        body
+    }
+}
+
 fn apply_types_to_source(
     exploration: &mut Exploration,
     diagnostics: &mut Vec<Diagnostic>,
@@ -210,8 +266,14 @@ fn apply_types_to_source(
             }
         }
         expr => {
+            exploration
+                .ctx
+                .init_locals(links.source, links.env().symbols.len());
+
             let expression =
                 ascribe_types(exploration, links, diagnostics, expr, TypingState::new());
+
+            let expression = prepend_implicits(expression, exploration, links);
 
             let function_id = exploration.type_engine.add_function(FunctionType::script());
 
@@ -489,8 +551,16 @@ fn ascribe_var_declaration(
             diagnostics,
         );
     }
-    let id = exploration.ctx.push_local(
+
+    let id = links.env().get_raw_symbol(decl.segment()).unwrap();
+
+    let SymbolRef::Local(id) = id else {
+        unreachable!()
+    };
+
+    exploration.ctx.set_local(
         links.source,
+        id,
         if decl.kind == VarKind::Val {
             TypedVariable::immutable(initializer.ty)
         } else {
@@ -507,11 +577,90 @@ fn ascribe_var_declaration(
     }
 }
 
+fn ascribe_magic_var_reference(
+    var_ref: &VarReference,
+    exploration: &Exploration,
+    links: Links,
+) -> Option<TypedExpr> {
+    let var_name = var_ref.name.name();
+    if !is_magic_variable_name(var_name) {
+        return None;
+    }
+
+    let program_arguments_variable = links.env().get_raw_symbol(var_ref.segment()).unwrap();
+
+    let pargs_var = match program_arguments_variable {
+        SymbolRef::Local(l) => Var::Local(l),
+        SymbolRef::External(e) => Var::External(
+            links.relations[e]
+                .state
+                .expect_resolved("unresolved magic variable"),
+        ),
+    };
+
+    let parg_reference_expression = TypedExpr {
+        kind: ExprKind::Reference(pargs_var),
+        ty: builtin::STRING_VEC, //program arguments is of type Vec[String]
+        segment: var_ref.segment(),
+    };
+
+    match var_name {
+        "#" => {
+            let (_, len_method_id) = exploration
+                .get_method_exact(parg_reference_expression.ty, "len", &[], INT)
+                .expect("Vec#len(): Int method not found");
+
+            Some(TypedExpr {
+                kind: ExprKind::MethodCall(MethodCall {
+                    callee: Box::new(parg_reference_expression),
+                    arguments: vec![],
+                    function_id: len_method_id,
+                }),
+                ty: INT,
+                segment: var_ref.segment(),
+            })
+        }
+        "*" | "@" => Some(parg_reference_expression),
+        _ => {
+            let Ok(offset) = u32::from_str(var_name) else {
+                return None;
+            };
+
+            let (_, index_method_id) = exploration
+                .get_method_exact(
+                    parg_reference_expression.ty,
+                    "[]",
+                    &[INT],
+                    builtin::GENERIC_PARAMETER_1,
+                )
+                .expect("Vec#[Int]: T method not found");
+
+            Some(TypedExpr {
+                kind: ExprKind::MethodCall(MethodCall {
+                    callee: Box::new(parg_reference_expression),
+                    arguments: vec![TypedExpr {
+                        kind: ExprKind::Literal(LiteralValue::Int(offset as i64)),
+                        ty: INT,
+                        segment: var_ref.segment(),
+                    }],
+                    function_id: index_method_id,
+                }),
+                ty: STRING,
+                segment: var_ref.segment(),
+            })
+        }
+    }
+}
+
 fn ascribe_var_reference(
     var_ref: &VarReference,
     links: Links,
     exploration: &Exploration,
 ) -> TypedExpr {
+    if let Some(magic_ref) = ascribe_magic_var_reference(var_ref, exploration, links) {
+        return magic_ref;
+    }
+
     let symbol = links.env().get_raw_symbol(var_ref.segment()).unwrap();
     let type_ref = exploration
         .get_var(links.source, symbol, links.relations)
@@ -558,6 +707,7 @@ fn ascribe_block(
         .iter()
         .filter(|expr| !matches!(expr, Expr::Use(_)))
         .peekable();
+
     while let Some(expr) = it.next() {
         expressions.push(ascribe_types(
             exploration,
@@ -727,7 +877,15 @@ fn ascribe_function_declaration(
     );
     let type_ref = TypeRef::new(exploration.externals.current, type_id);
 
-    let local_id = exploration.ctx.push_local_typed(links.source, type_ref);
+    let id = links.env().get_raw_symbol(fun.segment()).unwrap();
+
+    let SymbolRef::Local(local_id) = id else {
+        unreachable!()
+    };
+
+    exploration
+        .ctx
+        .set_local_typed(links.source, local_id, type_ref);
 
     TypedExpr {
         kind: ExprKind::Declare(Declaration {

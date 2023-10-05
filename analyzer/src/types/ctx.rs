@@ -1,3 +1,4 @@
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
 use crate::relations::{LocalId, Relations, SourceId, SymbolRef};
@@ -9,7 +10,7 @@ use crate::types::ty::{TypeId, TypeRef};
 #[derive(Default, Debug)]
 pub struct TypeContext {
     names: HashMap<String, TypeId>,
-    locals: HashMap<SourceId, Vec<TypedVariable>>,
+    locals: HashMap<SourceId, Vec<Option<TypedVariable>>>,
 }
 
 impl TypeContext {
@@ -32,24 +33,33 @@ impl TypeContext {
     }
 
     pub(crate) fn get_local(&self, source: SourceId, id: LocalId) -> Option<TypedVariable> {
-        self.locals.get(&source).unwrap().get(id.0).copied()
+        self.locals
+            .get(&source)
+            .unwrap()
+            .get(id.0)
+            .and_then(Option::clone)
     }
 
-    /// Defines the type of a currently explored symbol.
-    ///
-    /// This must be in sync with the symbol in the environment.
-    pub(crate) fn push_local_typed(&mut self, source: SourceId, type_ref: TypeRef) -> LocalId {
-        self.push_local(source, TypedVariable::immutable(type_ref))
+    /// init a source locals area of the given len
+    pub(crate) fn init_locals(&mut self, source: SourceId, len: usize) {
+        match self.locals.entry(source) {
+            Entry::Occupied(_) => panic!("locals already initialized for source {source:?}"),
+            Entry::Vacant(v) => v.insert(vec![None; len]),
+        };
     }
 
-    /// Defines the identity of a currently explored symbol.
-    ///
-    /// This must be in sync with the symbol in the environment.
-    pub(crate) fn push_local(&mut self, source: SourceId, obj: TypedVariable) -> LocalId {
-        let locals = self.locals.entry(source).or_default();
-        let index = locals.len();
-        locals.push(obj);
-        LocalId(index)
+    /// Defines the type of an environment's local.
+    pub(crate) fn set_local_typed(&mut self, source: SourceId, local: LocalId, type_ref: TypeRef) {
+        self.set_local(source, local, TypedVariable::immutable(type_ref))
+    }
+
+    /// Defines the identity of an environment's local.
+    pub(crate) fn set_local(&mut self, source: SourceId, local: LocalId, obj: TypedVariable) {
+        let locals = self
+            .locals
+            .get_mut(&source)
+            .expect("locals not initialized");
+        locals[local.0] = Some(obj);
     }
 
     pub(crate) fn bind_name(&mut self, name: String, tpe: TypeId) {

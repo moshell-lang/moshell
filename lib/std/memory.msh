@@ -4,3 +4,6 @@ fun gc();
 
 /// return true if the thread's operands stack is empty
 fun empty_operands() -> Bool;
+
+/// return a vector containing this process' arguments
+fun program_arguments() -> Vec[String];

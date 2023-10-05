@@ -1,9 +1,9 @@
 use ast::operation::BinaryOperator;
 
 use crate::engine::Engine;
+
 use crate::reef::{Reef, LANG_REEF};
-use crate::relations::{Relations, SourceId};
-use crate::types;
+use crate::relations::{LocalId, Relations, SourceId};
 use crate::types::ctx::TypeContext;
 use crate::types::engine::TypedEngine;
 use crate::types::operator::name_operator_method;
@@ -32,6 +32,14 @@ const EQUALITY_OPERATORS: &[BinaryOperator] =
 
 const LOGICAL_OPERATORS: &[BinaryOperator] = &[BinaryOperator::And, BinaryOperator::Or];
 
+/// Some common types.
+pub const STRING_VEC: TypeRef = TypeRef::new(LANG_REEF, TypeId(10));
+pub const INT_VEC: TypeRef = TypeRef::new(LANG_REEF, TypeId(11));
+
+/// generic parameters used by the lang reef.
+/// The lang reef is a special reef that reuses the same generic parameters for each functions.
+pub const GENERIC_PARAMETER_1: TypeRef = TypeRef::new(LANG_REEF, TypeId(12));
+
 /// Adds the native methods to the engine.
 fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
     // declare one generic parameter type, methods will reuse it
@@ -42,7 +50,7 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
 
     // option containing generic parameter
     let opt_type = typing.add_type(
-        Type::Instantiated(types::GENERIC_OPTION, vec![generic_param1]),
+        Type::Instantiated(GENERIC_OPTION, vec![generic_param1]),
         None,
     );
 
@@ -235,16 +243,24 @@ fn fill_lang_bindings(ctx: &mut TypeContext) {
     ctx.bind_name("Vec".to_string(), GENERIC_VECTOR.type_id);
     ctx.bind_name("Option".to_string(), GENERIC_OPTION.type_id);
 
-    ctx.push_local_typed(SourceId(0), ERROR);
-    ctx.push_local_typed(SourceId(0), NOTHING);
-    ctx.push_local_typed(SourceId(0), UNIT);
-    ctx.push_local_typed(SourceId(0), BOOL);
-    ctx.push_local_typed(SourceId(0), EXITCODE);
-    ctx.push_local_typed(SourceId(0), INT);
-    ctx.push_local_typed(SourceId(0), FLOAT);
-    ctx.push_local_typed(SourceId(0), STRING);
-    ctx.push_local_typed(SourceId(0), GENERIC_VECTOR);
-    ctx.push_local_typed(SourceId(0), GENERIC_OPTION);
+    let locals = [
+        ERROR,
+        NOTHING,
+        UNIT,
+        BOOL,
+        EXITCODE,
+        INT,
+        FLOAT,
+        STRING,
+        GENERIC_VECTOR,
+        GENERIC_OPTION,
+    ];
+
+    ctx.init_locals(SourceId(0), locals.len());
+
+    for (local_id, local) in locals.iter().enumerate() {
+        ctx.set_local_typed(SourceId(0), LocalId(local_id), *local);
+    }
 }
 
 pub fn lang_reef() -> Reef<'static> {

@@ -6,7 +6,7 @@ use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::function::Return;
 use crate::steps::typing::view::TypeView;
 use crate::types::ctx::{TypeContext, TypedVariable};
-use crate::types::engine::{FunctionId, TypedEngine};
+use crate::types::engine::{Chunk, FunctionId, TypedEngine};
 use crate::types::ty::{FunctionType, MethodType, Type, TypeDescription, TypeRef};
 use crate::types::Typing;
 
@@ -48,6 +48,15 @@ impl<'a> Exploration<'a> {
             &self.get_external_type_reef(id.reef).typing
         };
         typing.get_type(id.type_id)
+    }
+
+    pub(super) fn get_chunk(&self, reef: ReefId, source: SourceId) -> Option<&Chunk> {
+        let engine = if reef == self.externals.current {
+            &self.type_engine
+        } else {
+            &self.get_external_type_reef(reef).typed_engine
+        };
+        engine.get_user(source)
     }
 
     pub(super) fn get_type_name(&self, ty: TypeRef) -> Option<&String> {

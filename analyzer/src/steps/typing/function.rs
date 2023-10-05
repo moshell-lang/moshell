@@ -300,7 +300,11 @@ pub(super) fn type_function_signature(
 
     let func_source = function_links.source;
 
-    for type_param in &func.type_parameters {
+    exploration
+        .ctx
+        .init_locals(func_source, function_links.env().symbols.len());
+
+    for (local_id, type_param) in func.type_parameters.iter().enumerate() {
         let param_type_id = exploration
             .typing
             .add_type(Type::Polytype, Some(type_param.name.to_string()));
@@ -308,7 +312,7 @@ pub(super) fn type_function_signature(
         type_params.push(param_type_ref);
         exploration
             .ctx
-            .push_local_typed(func_source, param_type_ref);
+            .set_local_typed(func_source, LocalId(local_id), param_type_ref);
         exploration
             .ctx
             .bind_name(type_param.name.to_string(), param_type_id);
@@ -316,14 +320,11 @@ pub(super) fn type_function_signature(
 
     let tparam_count = func.type_parameters.len();
     for (param_offset, param) in func.parameters.iter().enumerate() {
-        let param = type_parameter(
-            LocalId(tparam_count + param_offset),
-            exploration,
-            param,
-            function_links,
-            diagnostics,
-        );
-        exploration.ctx.push_local_typed(func_source, param.ty);
+        let local_id = LocalId(tparam_count + param_offset);
+        let param = type_parameter(local_id, exploration, param, function_links, diagnostics);
+        exploration
+            .ctx
+            .set_local_typed(func_source, local_id, param.ty);
         params.push(param);
     }
 

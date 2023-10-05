@@ -17,6 +17,7 @@
 #![allow(dead_code)]
 
 use std::collections::HashSet;
+use std::str::FromStr;
 
 use crate::diagnostic::Diagnostic;
 use crate::engine::Engine;
@@ -255,4 +256,8 @@ pub struct ResolutionResult<'e> {
     pub relations: Relations,
     imports: Imports,
     visited: HashSet<Name>,
+}
+
+pub fn is_magic_variable_name(name: &str) -> bool {
+    u32::from_str(name).is_ok() || matches!(name, "*" | "@" | "#")
 }

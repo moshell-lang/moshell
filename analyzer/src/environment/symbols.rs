@@ -2,13 +2,13 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
-use crate::engine::Engine;
 use ast::r#use::InclusionPathItem;
 use context::source::{SourceSegment, SourceSegmentHolder};
 
+use crate::engine::Engine;
 use crate::name::Name;
 use crate::reef::{Externals, ReefId};
-use crate::relations::{LocalId, RelationId, SymbolRef};
+use crate::relations::{LocalId, RelationId};
 
 /// Information over the declared type of a variable
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -19,6 +19,15 @@ pub enum SymbolInfo {
     Function,
     /// The symbol is a type
     Type,
+
+    /// A magic symbol
+    Magic(MagicSymbolKind),
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum MagicSymbolKind {
+    /// This magic symbol refers to the program's arguments
+    ProgramArguments,
 }
 
 #[derive(Debug, Eq, PartialEq, Hash)]
@@ -42,6 +51,7 @@ impl Display for SymbolInfo {
             SymbolInfo::Variable => write!(f, "variable"),
             SymbolInfo::Function => write!(f, "function"),
             SymbolInfo::Type => write!(f, "type"),
+            SymbolInfo::Magic(MagicSymbolKind::ProgramArguments) => write!(f, "program arguments"),
         }
     }
 }
@@ -52,14 +62,17 @@ pub enum SymbolRegistry {
     Types,
     /// Variable and functions symbols
     Objects,
+    /// Specific magic variable
+    Magic(MagicSymbolKind),
 }
 
 impl SymbolRegistry {
     /// returns true if the given symbol info is part of this registry
-    pub(crate) fn accepts(&self, kind: SymbolInfo) -> bool {
+    pub(crate) fn accepts(self, kind: SymbolInfo) -> bool {
         match self {
             SymbolRegistry::Types => matches!(kind, SymbolInfo::Type),
             SymbolRegistry::Objects => matches!(kind, SymbolInfo::Variable | SymbolInfo::Function),
+            SymbolRegistry::Magic(pr) => matches!(kind, SymbolInfo::Magic(pl) if pr == pl),
         }
     }
 }
@@ -159,7 +172,7 @@ pub struct Symbols {
 
 impl Symbols {
     /// Creates a new local variable.
-    pub fn declare_local(&mut self, name: String, ty: SymbolInfo) -> SymbolRef {
+    pub fn declare_local(&mut self, name: String, ty: SymbolInfo) -> LocalId {
         self.locals.declare(name, ty)
     }
 
@@ -213,6 +226,15 @@ impl Symbols {
             .map(|(i, v)| (LocalId(i), v))
     }
 
+    /// Return the amount of locals presents
+    pub fn len(&self) -> usize {
+        self.locals.vars.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.locals.vars.is_empty()
+    }
+
     /// Iterates over all the exported symbols, local to the environment.
     pub fn exported_symbols(&self) -> impl Iterator<Item = (LocalId, &Symbol)> {
         //consider for now that all local vars of the outermost scope are exported
@@ -260,14 +282,14 @@ struct Locals {
 
 impl Locals {
     /// Adds a new symbol and binds it to the current scope.
-    fn declare(&mut self, name: String, ty: SymbolInfo) -> SymbolRef {
+    fn declare(&mut self, name: String, ty: SymbolInfo) -> LocalId {
         let id = self.vars.len();
         self.vars.push(Symbol {
             name,
             depth: self.current_depth as isize,
             ty,
         });
-        SymbolRef::Local(LocalId(id))
+        LocalId(id)
     }
 
     /// Moves into a new scope.
