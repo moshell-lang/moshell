@@ -6,14 +6,15 @@ fn main() {
         config.env("CMAKE_COLOR_DIAGNOSTICS", "ON");
     }
 
+    if cfg!(feature = "asan") {
+        config.define("CMAKE_CXX_FLAGS", "-fsanitize=address");
+        println!("cargo:rustc-link-lib=asan");
+    }
+
     // Statically link to the VM library.
     let dst = config.build();
     println!("cargo:rustc-link-search=native={}", dst.display());
     println!("cargo:rustc-link-lib=static=vm");
-
-    if config.get_profile() == "Debug" {
-        println!("cargo:rustc-link-lib=asan");
-    }
 
     // Link to the C++ standard library.
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();

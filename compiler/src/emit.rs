@@ -4,8 +4,7 @@ use analyzer::reef::{Externals, ReefId};
 use analyzer::relations::{Definition, SourceId};
 use analyzer::types::engine::{Chunk, TypedEngine};
 use analyzer::types::hir::{Declaration, ExprKind, TypedExpr, Var};
-use analyzer::types::ty::{Type, TypeRef};
-use analyzer::types::Typing;
+use analyzer::types::ty::TypeRef;
 use ast::value::LiteralValue;
 
 use crate::bytecode::{Instructions, Opcode, Placeholder};
@@ -31,9 +30,6 @@ pub struct EmitterContext<'a, 'e> {
     typed_engine: &'a TypedEngine,
     externals: &'a Externals<'e>,
 
-    /// The typing context.
-    typing: &'a Typing,
-
     /// The currently emitted environment.
     ///
     /// It may be used to get the name of the current environment or to get the
@@ -54,7 +50,6 @@ impl<'a, 'e> EmitterContext<'a, 'e> {
         engine: &'a Engine<'e>,
         typed_engine: &'a TypedEngine,
         externals: &'a Externals<'e>,
-        typing: &'a Typing,
         env: &'a Environment,
         captures: &'a Captures,
         chunk_id: SourceId,
@@ -64,7 +59,6 @@ impl<'a, 'e> EmitterContext<'a, 'e> {
             typed_engine,
             engine,
             externals,
-            typing,
             environment: env,
             captures,
             chunk_id,
@@ -93,16 +87,6 @@ impl<'a, 'e> EmitterContext<'a, 'e> {
         } else {
             self.externals.get_reef(reef).map(|r| &r.engine)
         }
-    }
-
-    /// Gets the type behind a type identifier.
-    pub(crate) fn get_type(&self, id: TypeRef) -> Option<&Type> {
-        let typing = if self.current_reef == id.reef {
-            self.typing
-        } else {
-            &self.externals.get_reef(id.reef).unwrap().typing
-        };
-        typing.get_type(id.type_id)
     }
 }
 
@@ -345,9 +329,4 @@ pub fn emit(
         _ => unimplemented!(),
     }
     instructions.push_position(expr.segment.start)
-}
-
-/// Tests if a type is a primitive type that needs to be boxed or unboxed.
-fn is_boxable_primitive(ty: &Type) -> bool {
-    matches!(ty, Type::Int | Type::Float | Type::ExitCode | Type::Bool)
 }

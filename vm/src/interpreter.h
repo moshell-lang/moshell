@@ -1,5 +1,6 @@
 #pragma once
 
+#include "memory/call_stack.h"
 #include "memory/heap.h"
 #include "stdlib_natives.h"
 
@@ -39,4 +40,4 @@ public:
  * @throws InvalidBytecodeError if an interpreted instruction set contains invalid instructions
  * @return true if the run did not abort
  */
-bool run_unit(const msh::loader &loader, msh::pager &pager, const msh::memory_page &current_page, msh::heap &heap, const natives_functions_t &natives);
+bool run_unit(CallStack &call_stack, const msh::loader &loader, msh::pager &pager, const msh::memory_page &current_page, runtime_memory mem, const natives_functions_t &natives);

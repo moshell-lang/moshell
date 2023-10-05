@@ -310,21 +310,27 @@ fn background_command_echo() {
 
 #[test]
 fn constructor_in_call() {
-    let source = Source::unknown("echo Foo() Bar\\(\\)");
+    let source = Source::unknown("echo Foo().test() Bar\\(\\)");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
         vec![Expr::Call(Call {
             arguments: vec![
                 literal(source.source, "echo"),
-                Expr::ProgrammaticCall(ProgrammaticCall {
-                    path: vec![InclusionPathItem::Symbol(
-                        "Foo",
-                        find_in(source.source, "Foo")
-                    )],
-                    arguments: vec![],
-                    type_parameters: vec![],
-                    segment: find_in(source.source, "Foo()"),
+                Expr::MethodCall(MethodCall {
+                    source: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
+                        path: vec![InclusionPathItem::Symbol(
+                            "Foo",
+                            find_in(source.source, "Foo")
+                        )],
+                        arguments: vec![],
+                        type_parameters: vec![],
+                        segment: find_in(source.source, "Foo()"),
+                    })),
+                    name: Some("test"),
+                    arguments: Vec::new(),
+                    type_parameters: Vec::new(),
+                    segment: find_in(source.source, ".test()")
                 }),
                 Expr::Literal(Literal {
                     parsed: "Bar()".into(),

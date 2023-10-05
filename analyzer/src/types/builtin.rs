@@ -59,6 +59,7 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
         "to_bool",
         MethodType::native(vec![], vec![], BOOL, gen.next()),
     );
+
     for op in ARITHMETIC_OPERATORS {
         engine.add_method(
             INT.type_id,
@@ -111,6 +112,7 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
         "to_float",
         MethodType::native(vec![], vec![], FLOAT, gen.next()),
     );
+
     engine.add_method(
         STRING.type_id,
         "len",
@@ -126,7 +128,7 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
 
     engine.add_method(
         GENERIC_VECTOR.type_id,
-        "get",
+        "[]",
         MethodType::native(vec![generic_param1], vec![INT], generic_param1, gen.next()),
     );
 
@@ -199,6 +201,27 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
         GENERIC_OPTION.type_id,
         "unwrap",
         MethodType::native(vec![], vec![], generic_param1, gen.next()),
+    );
+    engine.add_method(
+        GENERIC_VECTOR.type_id,
+        "[]",
+        MethodType::native(
+            vec![generic_param1],
+            vec![INT, generic_param1],
+            UNIT,
+            gen.next(),
+        ),
+    );
+
+    engine.add_method(
+        INT.type_id,
+        "to_exitcode",
+        MethodType::native(vec![], vec![], EXITCODE, gen.next()),
+    );
+    engine.add_method(
+        EXITCODE.type_id,
+        "to_int",
+        MethodType::native(vec![], vec![], INT, gen.next()),
     );
 }
 

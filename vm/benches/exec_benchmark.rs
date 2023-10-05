@@ -4,7 +4,7 @@ use analyzer::name::Name;
 use analyzer::reef::{Externals, ReefId};
 use analyzer::relations::SourceId;
 use ast::Expr;
-use compiler::compile;
+use compiler::{compile, CompilerOptions};
 use context::source::{ContentId, Source};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use parser::parse_trusted;
@@ -37,14 +37,13 @@ fn prepare_bytecode(code: &str) -> Vec<u8> {
 
     compile(
         &analyzer.engine,
-        &analyzer.typing,
         &analyzer.resolution.relations,
         &analyzer.resolution.engine,
         &externals,
         ReefId(1),
         SourceId(0),
         &mut bytes,
-        None,
+        CompilerOptions::default(),
     )
     .unwrap();
     bytes

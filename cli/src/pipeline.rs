@@ -120,14 +120,26 @@ impl FileImporter {
     }
 
     /// Inserts a new source into the importer.
-    pub fn insert<'a>(&mut self, source: OwnedSource) -> ImportResult<'a> {
+    pub fn insert<'a>(&mut self, mut source: OwnedSource) -> ImportResult<'a> {
         let id = self.sources.len();
+        // Remove the shebang if it exists
+        if source.source.strip_prefix("#!").is_some() {
+            // Remove first line
+            source.source.drain(
+                ..source
+                    .source
+                    .find('\n')
+                    .map(|n| n + 1)
+                    .unwrap_or(source.source.len()),
+            );
+        }
         self.sources.push(source);
         let source = self
             .sources
             .last()
             .expect("the source was just inserted")
             .as_source();
+
         let report = parse(source);
         if report.is_ok() {
             let expressions = unsafe {

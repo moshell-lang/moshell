@@ -96,6 +96,12 @@ namespace msh {
 
         page_vector::const_reverse_iterator cend() const;
 
+        template <typename T>
+        T *get_exported_value(exported_variable var) {
+            char *ptr = &pages.at(var.page).bytes.at(var.offset);
+            return (T *)ptr;
+        }
+
         /**
          * Binds the given exported variable to the given dynamic symbol.
          *

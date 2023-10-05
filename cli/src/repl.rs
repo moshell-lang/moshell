@@ -14,10 +14,19 @@ use vm::VM;
 
 use crate::cli::{use_pipeline, Cli};
 use crate::pipeline::{ErrorReporter, PipelineStatus, SourcesCache};
-use crate::report::print_flush;
+
+macro_rules! print_flush {
+    ( $($t:tt)* ) => {
+        {
+            let mut stdout = std::io::stdout();
+            write!(stdout, $($t)* ).unwrap();
+            stdout.flush().unwrap();
+        }
+    }
+}
 
 /// Indefinitely prompts a new expression from stdin and executes it.
-pub fn repl(
+pub(crate) fn repl(
     dir: PathBuf,
     config: &Cli,
     mut sources: SourcesCache,

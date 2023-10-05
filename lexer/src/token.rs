@@ -308,6 +308,41 @@ impl TokenType {
         )
     }
 
+    /// Determines if this token creates a shell context when at the start of a statement.
+    pub fn belongs_to_shell(self) -> bool {
+        matches!(
+            self,
+            StringStart
+                | StringLiteral
+                | StringContent
+                | StringEnd
+                | NewLine
+                | SemiColon
+                | Dollar
+                | Ampersand
+                | At
+                | Comma
+                | Dot
+                | Bar
+                | And
+                | Or
+                | Not
+                | Less
+                | Greater
+                | Plus
+                | Minus
+                | Star
+                | Slash
+                | BackSlash
+                | Percent
+                | SquaredRightBracket
+                | RoundedRightBracket
+                | CurlyRightBracket
+                | Space
+                | EndOfFile
+        )
+    }
+
     pub fn closing_pair(self) -> Option<TokenType> {
         match self {
             SquaredLeftBracket => Some(SquaredRightBracket),

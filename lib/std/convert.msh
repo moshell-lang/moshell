@@ -1,16 +1,3 @@
-/// converts given int value to an exitcode
-/// @panics if i cannot be converted to an exitcode, i.e it is negative or superior to 256
-fun to_exitcode(i: Int) -> Exitcode;
-
-/// @returns highest int value not greater than `f`
-fun ceil(f: Float) -> Int;
-
-/// @returns smallest int value not less than `f`
-fun floor(f: Float) -> Int;
-
-/// @returns nearest int value
-fun round(f: Float) -> Int;
-
 /// Converts a string to an integer.
 fun parse_int(str: String) -> Option[Int] = parse_int_radix($str, 10);
 

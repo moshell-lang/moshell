@@ -4,7 +4,7 @@ use analyzer::types::ty::TypeRef;
 
 use crate::bytecode::{Instructions, Opcode};
 use crate::constant_pool::ConstantPool;
-use crate::emit::{emit, is_boxable_primitive, EmissionState, EmitterContext};
+use crate::emit::{emit, EmissionState, EmitterContext};
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
 
@@ -13,6 +13,7 @@ const STRING_CONCAT: &str = "lang::String::concat";
 const INT_TO_STRING: &str = "lang::Int::to_string";
 const FLOAT_TO_STRING: &str = "lang::Float::to_string";
 const VEC_INDEX: &str = "lang::Vec::[]";
+const VEC_INDEX_EQ: &str = "lang::Vec::[]=";
 const VEC_POP: &str = "lang::Vec::pop";
 const VEC_PUSH: &str = "lang::Vec::push";
 const VEC_LEN: &str = "lang::Vec::len";
@@ -184,10 +185,8 @@ pub(crate) fn emit_natives(
                 .first()
                 .expect("Cannot push to a vector without a value");
             emit(first, instructions, ctx, cp, locals, state);
-            if state.use_values
-                && is_boxable_primitive(ctx.get_type(first.ty).expect("Invalid type"))
-            {
-                instructions.emit_box(first.ty);
+            if state.use_values {
+                instructions.emit_box_if_primitive(first.ty);
             }
             instructions.emit_invoke(cp.insert_string(VEC_PUSH));
         }
@@ -283,6 +282,22 @@ pub(crate) fn emit_natives(
             instructions.emit_push_constant_ref(cp.insert_string("Cannot unwrap `None`."));
             instructions.emit_invoke(cp.insert_string("std::panic"));
             instructions.patch_jump(end_jump);
+        }
+        49 => {
+            // Vec[T][int] = T
+            for arg in args {
+                emit(arg, instructions, ctx, cp, locals, state);
+            }
+            instructions.emit_box_if_primitive(args[1].ty);
+            instructions.emit_invoke(cp.insert_string(VEC_INDEX_EQ));
+        }
+        50 => {
+            // Int -> Exitcode
+            instructions.emit_code(Opcode::ConvertIntToByte);
+        }
+        51 => {
+            // Exitcode -> Int
+            instructions.emit_code(Opcode::ConvertByteToInt);
         }
         id => todo!("Native function with id {id}"),
     };

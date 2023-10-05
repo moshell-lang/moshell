@@ -847,17 +847,13 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
     return frame_status::RETURNED; // this frame has returned
 }
 
-bool run_unit(const msh::loader &loader, msh::pager &pager, const msh::memory_page &current_page, msh::heap &heap, const natives_functions_t &natives) {
+bool run_unit(CallStack &call_stack, const msh::loader &loader, msh::pager &pager, const msh::memory_page &current_page, runtime_memory mem, const natives_functions_t &natives) {
     fd_table table;
     runtime_state state{table, loader, pager, natives};
 
     // prepare the call stack, containing the given root function on top of the stack
     const function_definition &root_def = loader.get_function(current_page.init_function_name);
-    CallStack call_stack = CallStack::create(10000, root_def);
-
-    msh::gc gc(heap, call_stack, pager, loader);
-
-    runtime_memory mem{heap, gc};
+    call_stack.push_frame(root_def);
 
     try {
         while (!call_stack.is_empty()) {

@@ -126,7 +126,9 @@ impl<'a> Analyzer<'a> {
         externals: &Externals,
     ) -> Analysis<'a, '_> {
         let last_next_source_id = SourceId(self.resolution.engine.len());
-        let mut visit = vec![inject.name.clone()];
+        let name = inject.name.clone();
+        let mut visit = vec![name.clone()];
+
         self.diagnostics.extend(SymbolCollector::inject(
             inject,
             &mut self.resolution.engine,
@@ -135,6 +137,8 @@ impl<'a> Analyzer<'a> {
             externals,
             &mut visit,
         ));
+        self.resolution.visited.insert(name);
+
         resolve_sources(
             visit,
             &mut self.resolution,

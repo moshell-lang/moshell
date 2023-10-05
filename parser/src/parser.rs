@@ -1,9 +1,10 @@
+use ast::lambda::LambdaDef;
 use ast::operation::{BinaryOperation, BinaryOperator, UnaryOperation, UnaryOperator};
 use ast::r#type::CastedExpr;
 use ast::range::Iterable;
-use ast::variable::{Assign, AssignOperator};
+use ast::variable::{Assign, AssignOperator, TypedVariable};
 use ast::Expr;
-use context::source::{Source, SourceSegment, SourceSegmentHolder};
+use context::source::{Source, SourceSegmentHolder};
 use lexer::lex;
 use lexer::token::TokenType::*;
 use lexer::token::{Token, TokenType};
@@ -32,7 +33,7 @@ use crate::err::{
     determine_skip_sections, ErrorContext, ParseError, ParseErrorKind, ParseReport, SkipSections,
 };
 use crate::moves::{
-    any, blanks, line_end, next, of_type, of_types, repeat, spaces, Move, MoveOperations,
+    any, blanks, like, line_end, next, of_type, of_types, repeat, spaces, Move, MoveOperations,
 };
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
@@ -244,17 +245,31 @@ impl<'a> Parser<'a> {
             Identifier
                 if self
                     .cursor
-                    .lookahead(next().then(
-                        spaces().then(
-                            of_types(&[Plus, Minus, Star, Slash, Percent]).then(of_type(Equal)),
+                    .lookahead(
+                        next().then(
+                            spaces().then(
+                                of_types(&[Plus, Minus, Star, Slash, Percent])
+                                    .then(of_types(&[Equal, FatArrow])),
+                            ),
                         ),
-                    ))
+                    )
                     .is_some() =>
             {
                 let name = self.cursor.next()?.value;
                 self.cursor.advance(spaces());
-                let operator = AssignOperator::try_from(self.cursor.next()?.token_type)
-                    .expect("Invalid assign operator");
+                let Ok(operator) = AssignOperator::try_from(self.cursor.next()?.token_type) else {
+                    let body = Box::new(self.value()?);
+                    let segment = self.cursor.relative_pos(name).start..body.segment().end;
+                    return Ok(Expr::LambdaDef(LambdaDef {
+                        args: vec![TypedVariable {
+                            name,
+                            ty: None,
+                            segment: self.cursor.relative_pos(name),
+                        }],
+                        body,
+                        segment,
+                    }));
+                };
                 if operator != AssignOperator::Assign {
                     self.cursor.next_opt();
                 }
@@ -269,7 +284,14 @@ impl<'a> Parser<'a> {
             }
 
             Var | Val => self.var_declaration(),
-            Identifier | Reef => self.any_call(),
+            Identifier
+                if self
+                    .cursor
+                    .lookahead(next().then(like(TokenType::belongs_to_shell)))
+                    .is_some() =>
+            {
+                self.call()
+            }
             Dot => self.call(),
             Shell => {
                 self.cursor.next_opt();
@@ -277,7 +299,7 @@ impl<'a> Parser<'a> {
                 if self.cursor.peek().token_type == CurlyLeftBracket {
                     self.block().map(Expr::Block)
                 } else {
-                    self.any_call()
+                    self.call()
                 }
             }
             Not if self
@@ -539,17 +561,6 @@ impl<'a> Parser<'a> {
         self.cursor.mk_parse_error(message, context, kind)
     }
 
-    /// Executes an operation on the parser, and returns the result and whether there were no errors that
-    /// were reported and already handled.
-    pub(crate) fn observe_error_reports<E>(
-        &mut self,
-        transaction: impl FnOnce(&mut Self) -> ParseResult<E>,
-    ) -> ParseResult<(E, bool)> {
-        let old_len = self.errors.len();
-        let result = transaction(self);
-        Ok((result?, self.errors.len() == old_len))
-    }
-
     ///Skips spaces and verify that this parser is not parsing the end of an expression
     /// (unescaped newline or semicolon)
     pub(crate) fn repos(&mut self, message: &str) -> ParseResult<()> {
@@ -672,28 +683,5 @@ impl<'a> Parser<'a> {
                 break;
             }
         }
-    }
-}
-
-/// Ensures that the given elements are empty, returning Err(ParseError) with given message otherwise.
-/// The error's context segment will be the segment between first and last elements of given elements.
-pub(crate) fn ensure_empty<T>(
-    msg: &str,
-    elements: Vec<T>,
-    convert: impl Fn(&T) -> SourceSegment,
-) -> ParseResult<()> {
-    if let Some(first) = elements.first() {
-        let position = elements
-            .last()
-            .map(|last| convert(first).start..convert(last).end)
-            .unwrap_or_else(|| convert(first));
-
-        Err(ParseError {
-            message: msg.to_string(),
-            position,
-            kind: Unexpected,
-        })
-    } else {
-        Ok(())
     }
 }

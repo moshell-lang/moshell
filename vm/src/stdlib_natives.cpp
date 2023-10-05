@@ -30,7 +30,8 @@ static void str_concat(OperandStack &caller_stack, runtime_memory &mem) {
 static void str_eq(OperandStack &caller_stack, runtime_memory &) {
     const std::string &right = caller_stack.pop_reference().get<const std::string>();
     const std::string &left = caller_stack.pop_reference().get<const std::string>();
-    caller_stack.push_byte(static_cast<int8_t>(right == left));
+    int8_t test = static_cast<int8_t>(right == left);
+    caller_stack.push_byte(test);
 }
 
 static void get_env(OperandStack &caller_stack, runtime_memory &mem) {
@@ -78,16 +79,6 @@ static void some(OperandStack &, runtime_memory &) {
 
 static void none(OperandStack &caller_stack, runtime_memory &) {
     caller_stack.push(nullptr);
-}
-
-static void to_exitcode(OperandStack &caller_stack, runtime_memory &) {
-    int64_t i = caller_stack.pop_int();
-    uint8_t exitcode = static_cast<uint8_t>(i);
-    if (exitcode != i) {
-        throw RuntimeException("cannot cast int to exitcode: " + std::to_string(i) + " is out of bounds.");
-    }
-
-    caller_stack.push_byte(static_cast<int8_t>(exitcode));
 }
 
 static void floor(OperandStack &caller_stack, runtime_memory &) {
@@ -197,8 +188,23 @@ static void vec_index(OperandStack &caller_stack, runtime_memory &) {
     caller_stack.push_reference(*vec[index]);
 }
 
+static void vec_index_set(OperandStack &caller_stack, runtime_memory &) {
+    msh::obj &ref = caller_stack.pop_reference();
+    int64_t n = caller_stack.pop_int();
+    size_t index = static_cast<size_t>(n);
+    msh::obj_vector &vec = caller_stack.pop_reference().get<msh::obj_vector>();
+    if (index >= vec.size()) {
+        throw RuntimeException("Index " + std::to_string(n) + " is out of range, the length is " + std::to_string(vec.size()) + ".");
+    }
+    vec[index] = &ref;
+}
+
 static void gc(OperandStack &, runtime_memory &mem) {
     mem.run_gc();
+}
+
+static void is_operands_empty(OperandStack &os, runtime_memory &) {
+    os.push(os.size() == 0);
 }
 
 natives_functions_t load_natives() {
@@ -215,6 +221,7 @@ natives_functions_t load_natives() {
         {"lang::Vec::len", vec_len},
         {"lang::Vec::push", vec_push},
         {"lang::Vec::[]", vec_index},
+        {"lang::Vec::[]=", vec_index_set},
 
         {"std::panic", panic},
         {"std::exit", exit},
@@ -226,8 +233,8 @@ natives_functions_t load_natives() {
         {"std::none", none},
 
         {"std::memory::gc", gc},
+        {"std::memory::empty_operands", is_operands_empty},
 
-        {"std::convert::to_exitcode", to_exitcode},
         {"std::convert::ceil", ceil},
         {"std::convert::floor", floor},
         {"std::convert::round", round},

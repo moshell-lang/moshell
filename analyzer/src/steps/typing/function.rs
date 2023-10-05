@@ -15,8 +15,10 @@ use crate::steps::typing::coercion::{
     convert_description, convert_expression, convert_many, resolve_type_annotation,
 };
 use crate::steps::typing::exploration::{Exploration, Links};
+use crate::steps::typing::view::TypeInstanceVec;
 use crate::steps::typing::{ascribe_types, ExpressionValue, TypingState};
 use crate::types::engine::{Chunk, CodeEntry};
+
 use crate::types::hir::{ExprKind, TypedExpr};
 use crate::types::ty::{FunctionType, MethodType, Parameter, Type, TypeRef};
 use crate::types::{ERROR, STRING, UNIT};
@@ -657,21 +659,40 @@ fn build_bounds(
     TypesBounds::new(bounds)
 }
 
+/// A specialized [`crate::types::hir::MethodCall`] between two expressions.
+pub(super) struct BinaryMethodMatch {
+    pub(crate) left: TypedExpr,
+    pub(crate) right: TypedExpr,
+    pub(crate) return_type: TypeRef,
+    pub(crate) definition: Definition,
+    pub(crate) reef: ReefId,
+}
+
+impl From<BinaryMethodMatch> for crate::types::hir::MethodCall {
+    fn from(binary: BinaryMethodMatch) -> Self {
+        Self {
+            callee: Box::new(binary.left),
+            arguments: vec![binary.right],
+            definition: binary.definition,
+        }
+    }
+}
+
 /// Checks the type of a method expression.
 pub(super) fn find_operand_implementation(
     exploration: &Exploration,
     reef: ReefId,
     methods: &[MethodType],
-    left: TypeRef,
+    left: TypedExpr,
     right: TypedExpr,
-) -> Option<FunctionMatch> {
+) -> Result<BinaryMethodMatch, TypedExpr> {
     for method in methods {
         if let [param] = &method.parameters.as_slice() {
             if param.ty == right.ty {
-                let return_type = exploration.concretize(method.return_type, left);
-                return Some(FunctionMatch {
-                    type_arguments: vec![method.return_type],
-                    arguments: vec![right],
+                let return_type = exploration.concretize(method.return_type, left.ty);
+                return Ok(BinaryMethodMatch {
+                    left,
+                    right,
                     definition: method.definition,
                     return_type,
                     reef,
@@ -679,7 +700,26 @@ pub(super) fn find_operand_implementation(
             }
         }
     }
-    None
+    Err(left.poison())
+}
+
+/// Creates a list of the type parameters of methods.
+pub(super) fn list_operator_defined_for<'a>(
+    exploration: &'a Exploration,
+    methods: &[MethodType],
+    bounds: &'a TypesBounds,
+) -> TypeInstanceVec<'a> {
+    let types = methods
+        .iter()
+        .flat_map(|method| {
+            if let [param] = &method.parameters.as_slice() {
+                Some(param.ty)
+            } else {
+                None
+            }
+        })
+        .collect();
+    TypeInstanceVec::new(types, exploration, bounds)
 }
 
 /// Checks the type of a method expression.
@@ -887,8 +927,8 @@ fn diagnose_arg_mismatch(
     }
 }
 
-/// Find a matching method for the given arguments.
-fn find_exact_method<'a>(
+/// Finds a matching method for the given arguments.
+pub(super) fn find_exact_method<'a>(
     exploration: &Exploration,
     obj: TypeRef,
     methods: &'a [MethodType],

@@ -153,7 +153,7 @@ pub fn emit_function_invocation(
         emit(arg, instructions, ctx, cp, locals, state);
         // The parameter is an object but the argument isn't: may be an argument passed to a generic parameter
         if parameter.ty.is_obj() && !arg.ty.is_obj() {
-            instructions.emit_box(arg.ty)
+            instructions.emit_box_if_primitive(arg.ty)
         }
     }
 

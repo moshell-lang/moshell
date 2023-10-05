@@ -213,6 +213,14 @@ impl TypedEngine {
             .filter_map(|(id, chunk)| chunk.as_ref().map(|chunk| (SourceId(id), chunk)))
     }
 
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
     /// Returns an iterator over all contained chunks grouped by they original content source.
     pub fn group_by_content<'a>(
         &'a self,

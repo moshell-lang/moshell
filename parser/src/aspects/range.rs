@@ -1,6 +1,7 @@
 use crate::aspects::binary_operation::infix_precedence;
-use ast::range::NumericRange;
+use ast::range::{NumericRange, Subscript};
 use ast::Expr;
+use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
 use std::num::NonZeroU8;
 
@@ -10,6 +11,9 @@ use crate::parser::{ParseResult, Parser};
 pub trait RangeAspect<'a> {
     /// Parses a range or an iterable variable expression.
     fn parse_range(&mut self, start: Expr<'a>) -> ParseResult<NumericRange<'a>>;
+
+    /// Parses a subscript expression.
+    fn parse_subscript(&mut self, target: Expr<'a>) -> ParseResult<Subscript<'a>>;
 }
 
 impl<'a> RangeAspect<'a> for Parser<'a> {
@@ -33,6 +37,24 @@ impl<'a> RangeAspect<'a> for Parser<'a> {
             end: Box::new(end),
             step: step.map(Box::new),
             upper_inclusive,
+        })
+    }
+
+    fn parse_subscript(&mut self, target: Expr<'a>) -> ParseResult<Subscript<'a>> {
+        self.cursor.force(
+            of_type(TokenType::SquaredLeftBracket),
+            "Expected '[' after subscript target",
+        )?;
+        let value = self.value()?;
+        let closing_bracket = self.cursor.force(
+            of_type(TokenType::SquaredRightBracket),
+            "Expected ']' after subscript target",
+        )?;
+        let segment = target.segment().start..self.cursor.relative_pos(closing_bracket.value).end;
+        Ok(Subscript {
+            target: Box::new(target),
+            index: Box::new(value),
+            segment,
         })
     }
 }

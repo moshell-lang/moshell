@@ -1,6 +1,7 @@
 # Moshell
 
 Moshell is a modern shell scripting language with a static type system.
+This repository hosts the source code from the parser to the interpreter and its standard library.
 
 ## Motivation
 
@@ -18,48 +19,9 @@ Moshell also comes with different data types, such as `Int`, `Float`, `Bool` or 
 
 Moshell is available from different sources:
 
-- You can download a prebuilt nightly binary with `curl -L https://moshell.dev/setup.sh | sh`.
+- You can download a prebuilt nightly binary with `curl -L moshell.dev/setup.sh | sh`.
 - If you have a Rust toolchain, CMake and a C++20 compiler installed, you can build a [development version](#build-and-run).
 - Docker users can run a prebuilt image with `docker run -it ghcr.io/moshell-lang/moshell:master`.
-
-## Current state
-
-Moshell is a project in its early stages.
-
-- [x] Lexer + Parser
-    - [x] Standard shell expressions
-    - [x] Control flow
-    - [x] Type hints
-    - [ ] Array indexing and ranges *(in progress)*
-    - [x] User defined structures
-    - [ ] User defined enums
-- [x] Static analysis
-    - [x] Symbol resolution
-    - [x] Imports resolution
-    - [x] Qualified names
-    - [x] Primitive type checking
-    - [x] Built-in primitive type operations
-    - [ ] Detailed error reports *(in progress)*
-    - [x] Reefs (library support)
-    - [ ] Generic types
-    - [ ] Standard types (`Option[T]`, `Result[A, E]`, `Iterable[T]`...)
-    - [ ] User defined structures 
-- [x] Bytecode compiler and interpreter
-    - [x] Spawn processes and use typed variables
-    - [x] Control flow
-    - [x] Function calls
-    - [x] Panic
-    - [x] Dynamic memory handling (Garbage Collector)
-    - [X] Vectors *(partial)*
-    - [ ] Closures
-- [x] REPL
-    - [x] Visualize AST and IR
-    - [x] Visualize Bytecode
-    - [ ] Display diagnostics *(partial)*
-    - [x] Symbol reuse
-    - [ ] Shell-like prompt
-
-This repository hosts the source code from the parser to the interpreter.
 
 ## Build and Run
 
@@ -70,9 +32,15 @@ The VM needs a C++20 compiler and a CMake 3.15+ installation. Its build script w
 GCC starting from version 10 and Clang starting from version 11 are supported.
 
 ```sh
+cargo run # Run the interactive prompt
+cargo run -- <file> # Run a file
+```
+
+You can also build a release binary:
+```sh
 cargo build --release
-./target/release/cli # Run the interactive prompt
-./target/release/cli -s <file> # Run a file
+./target/release/moshell # Run the interactive prompt
+./target/release/moshell <file> # Run a file
 ```
 
 You can export the `MOSHELL_STD` environment variable to specify a path to the standard library.
@@ -145,3 +113,41 @@ if $user.is_empty() || $port == 0 {
     panic('No user specified')
 }
 ```
+
+
+## Current state
+
+Moshell is a project in its early stages.
+
+- [x] Lexer + Parser
+  - [x] Standard shell expressions
+  - [x] Control flow
+  - [x] Type hints
+  - [x] Array indexing and ranges
+  - [x] User defined structures
+  - [ ] User defined enums
+- [x] Static analysis
+  - [x] Symbol resolution
+  - [x] Imports resolution
+  - [x] Qualified names
+  - [x] Primitive type checking
+  - [x] Built-in primitive type operations
+  - [ ] Detailed error reports *(in progress)*
+  - [x] Reefs (library support)
+  - [ ] Generic types
+  - [ ] Standard types (`Option[T]`, `Result[A, E]`, `Iterable[T]`...)
+  - [ ] User defined structures
+- [x] Bytecode compiler and interpreter
+  - [x] Spawn processes and use typed variables
+  - [x] Control flow
+  - [x] Function calls
+  - [x] Panic
+  - [x] Dynamic memory handling (Garbage Collector)
+  - [X] Vectors *(partial)*
+  - [ ] Closures
+- [x] REPL
+  - [x] Visualize AST and IR
+  - [x] Visualize Bytecode
+  - [ ] Display diagnostics *(partial)*
+  - [x] Symbol reuse
+  - [ ] Shell-like prompt
