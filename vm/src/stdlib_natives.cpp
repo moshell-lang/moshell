@@ -68,7 +68,20 @@ static void read_line(OperandStack &caller_stack, runtime_memory &mem) {
     caller_stack.push_reference(obj);
 }
 
-void floor(OperandStack &caller_stack, runtime_memory &) {
+static void new_vec(OperandStack &caller_stack, runtime_memory &mem) {
+    msh::obj &obj = mem.emplace(msh::obj_vector());
+    caller_stack.push_reference(obj);
+}
+
+static void some(OperandStack &, runtime_memory &) {
+    // the argument is the returned value
+}
+
+static void none(OperandStack &caller_stack, runtime_memory &) {
+    caller_stack.push(nullptr);
+}
+
+static void floor(OperandStack &caller_stack, runtime_memory &) {
     double d = caller_stack.pop_double();
 
     caller_stack.push_int(static_cast<int64_t>(std::floor(d)));
@@ -215,6 +228,9 @@ natives_functions_t load_natives() {
         {"std::env", get_env},
         {"std::set_env", set_env},
         {"std::read_line", read_line},
+        {"std::new_vec", new_vec},
+        {"std::some", some},
+        {"std::none", none},
 
         {"std::memory::gc", gc},
         {"std::memory::empty_operands", is_operands_empty},

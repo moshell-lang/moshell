@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::diagnostic::SourceLocation;
 use crate::reef::ReefId;
-use crate::relations::{Definition, NativeId, ObjectId};
+use crate::relations::{Definition, LocalId, NativeId, ObjectId};
 use crate::types::{BOOL, ERROR, EXITCODE, FLOAT, INT, NOTHING, UNIT};
 
 /// A type identifier in a [`Typing`] instance.
@@ -103,6 +103,8 @@ impl Type {
 /// A callable function signature.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FunctionType {
+    /// Type parameters of the function
+    pub(crate) type_parameters: Vec<TypeRef>,
     /// The exact parameters that are expected by the function.
     pub(crate) parameters: Vec<Parameter>,
 
@@ -118,6 +120,7 @@ pub struct FunctionType {
 pub struct Parameter {
     pub(crate) location: Option<SourceLocation>,
     pub ty: TypeRef,
+    pub local_id: LocalId,
 }
 
 impl FunctionType {
@@ -127,11 +130,22 @@ impl FunctionType {
     /// chicken-and-egg problem. They are defined by the language host,
     /// usually in a Rust or C++ VM. They are identified by a dedicated
     /// [`NativeId`], so that the compiler can quickly identify them.
-    pub fn native(parameters: Vec<TypeRef>, return_type: TypeRef, id: NativeId) -> Self {
+    pub fn native(
+        type_parameters: Vec<TypeRef>,
+        parameters: Vec<TypeRef>,
+        return_type: TypeRef,
+        id: NativeId,
+    ) -> Self {
         Self {
+            type_parameters,
             parameters: parameters
                 .into_iter()
-                .map(|ty| Parameter { location: None, ty })
+                .enumerate()
+                .map(|(param_offset, ty)| Parameter {
+                    location: None,
+                    ty,
+                    local_id: LocalId(param_offset),
+                })
                 .collect(),
             return_type,
             definition: Definition::Native(id),

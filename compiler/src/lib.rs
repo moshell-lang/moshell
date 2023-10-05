@@ -6,10 +6,9 @@ use analyzer::engine::Engine;
 use analyzer::environment::symbols::SymbolInfo;
 use analyzer::name::Name;
 use analyzer::reef::{Externals, ReefId};
-use analyzer::relations::{LocalId, Relations, ResolvedSymbol, SourceId};
+use analyzer::relations::{Relations, ResolvedSymbol, SourceId};
 use analyzer::types::engine::{Chunk, TypedEngine};
 use analyzer::types::hir::ExprKind;
-use analyzer::types::Typing;
 use context::source::ContentId;
 
 use crate::bytecode::{Bytecode, InstructionPos, Instructions};
@@ -42,7 +41,6 @@ const MAPPINGS_ATTRIBUTE: u8 = 1;
 #[allow(clippy::too_many_arguments)]
 pub fn compile(
     typed_engine: &TypedEngine,
-    typing: &Typing,
     relations: &Relations,
     link_engine: &Engine,
     externals: &Externals,
@@ -62,8 +60,8 @@ pub fn compile(
         let ctx = EmitterContext::new(
             reef_id,
             link_engine,
+            typed_engine,
             externals,
-            typing,
             main_env,
             &captures,
             chunk_id,
@@ -89,8 +87,8 @@ pub fn compile(
             let ctx = EmitterContext::new(
                 reef_id,
                 link_engine,
+                typed_engine,
                 externals,
-                typing,
                 env,
                 &captures,
                 chunk_id,
@@ -318,11 +316,12 @@ fn compile_chunk_code(
     let instruction_count = bytecode.emit_u32_placeholder();
 
     let mut instructions = Instructions::wrap(bytecode);
-    let mut locals = LocalsLayout::new(ctx.environment.symbols.all().len() + chunk_captures.len());
+    let var_count = ctx.environment.symbols.all().len() + chunk_captures.len();
+    let mut locals = LocalsLayout::new(var_count);
 
     // set space for explicit parameters
-    for (id, param) in chunk.parameters.iter().enumerate() {
-        locals.set_value_space(LocalId(id), param.ty)
+    for param in chunk.parameters.iter() {
+        locals.set_value_space(param.local_id, param.ty)
     }
 
     // set space for implicit captures

@@ -39,6 +39,13 @@ impl CodeEntry<'_> {
         }
     }
 
+    pub fn type_parameters(&self) -> &[TypeRef] {
+        match self {
+            CodeEntry::User(chunk) => &chunk.type_parameters,
+            CodeEntry::Native(native) => &native.type_parameters,
+        }
+    }
+
     pub fn return_type(&self) -> TypeRef {
         match self {
             CodeEntry::User(chunk) => chunk.return_type,
@@ -54,6 +61,9 @@ pub struct Chunk {
     /// if this expression is set to None, the chunk is associated to a native function declaration
     pub expression: Option<TypedExpr>,
 
+    /// List of type parameters declared in chunk's reef typing
+    pub type_parameters: Vec<TypeRef>,
+
     /// The input parameters of the chunk.
     ///
     /// If the chunk is a script, there are no parameters.
@@ -68,15 +78,17 @@ impl Chunk {
     pub fn script(expression: TypedExpr) -> Self {
         Self {
             expression: Some(expression),
+            type_parameters: Vec::new(),
             parameters: Vec::new(),
             return_type: UNIT,
         }
     }
 
     /// Creates a new function that is natively defined.
-    pub fn native(parameters: Vec<Parameter>, return_type: TypeRef) -> Self {
+    pub fn native(tparams: Vec<TypeRef>, parameters: Vec<Parameter>, return_type: TypeRef) -> Self {
         Self {
             expression: None,
+            type_parameters: tparams,
             parameters,
             return_type,
         }
@@ -84,12 +96,14 @@ impl Chunk {
 
     /// Creates a new function chunk.
     pub fn function(
+        tparams: Vec<TypeRef>,
         expression: TypedExpr,
         parameters: Vec<Parameter>,
         return_type: TypeRef,
     ) -> Self {
         Self {
             expression: Some(expression),
+            type_parameters: tparams,
             parameters,
             return_type,
         }
@@ -125,6 +139,10 @@ impl TypedEngine {
     /// Use [`Self::get`] to get both user defined and native chunks.
     pub fn get_user(&self, id: SourceId) -> Option<&Chunk> {
         self.entries.get(id.0)?.as_ref()
+    }
+
+    pub fn take_user(&mut self, id: SourceId) -> Option<Chunk> {
+        self.entries.get_mut(id.0)?.take()
     }
 
     /// Inserts a chunk into the engine.
@@ -185,15 +203,6 @@ impl TypedEngine {
                 .resize_with(type_id.0 + 1, Default::default);
         }
         self.descriptions[type_id.0].generics.push(generic);
-    }
-
-    /// Inserts a chunk into the engine if it is not already present.
-    ///
-    /// This may be used to insert semi-accurate chunks into the engine.
-    pub fn insert_if_absent(&mut self, id: SourceId, entry: Chunk) {
-        if self.entries[id.0].is_none() {
-            self.entries[id.0] = Some(entry);
-        }
     }
 
     /// returns an iterator over all contained chunks with their identifier

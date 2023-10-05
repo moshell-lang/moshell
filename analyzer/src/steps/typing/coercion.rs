@@ -1,14 +1,13 @@
 use ast::r#type::ParametrizedType;
-use context::source::SourceSegmentHolder;
+use context::source::{SourceSegment, SourceSegmentHolder};
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
-use crate::environment::symbols::SymbolInfo;
-use crate::reef::LANG_REEF;
 use crate::relations::{SourceId, SymbolRef};
+use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::exploration::{Exploration, Links};
 use crate::steps::typing::lower::call_convert_on;
 use crate::types::hir::TypedExpr;
-use crate::types::ty::{Type, TypeId, TypeRef};
+use crate::types::ty::{Type, TypeRef};
 use crate::types::{UnificationError, BOOL, ERROR, NOTHING};
 
 /// Unifies two type identifiers, returning the type that the right hand side was unified to.
@@ -24,6 +23,8 @@ pub(super) fn convert_description(
     exploration: &Exploration,
     assign_to: TypeRef,
     rvalue: TypeRef,
+    bounds: &mut TypesBounds,
+    is_base_type: bool,
 ) -> Result<TypeRef, UnificationError> {
     if assign_to.is_err() || rvalue.is_err() {
         // An error is compatible with everything, as it is a placeholder.
@@ -36,28 +37,64 @@ pub(super) fn convert_description(
     }
 
     let lhs = exploration
-        .get_type_ref(assign_to)
+        .get_type(assign_to)
         .unwrap_or_else(|| panic!("cannot find type {assign_to:?}`"));
-    let rhs = exploration
-        .get_type_ref(rvalue)
-        .unwrap_or_else(|| panic!("cannot find type {rvalue:?}`"));
-    if lhs == rhs {
+
+    if *lhs == Type::Polytype && bounds.is_self_bound(assign_to) {
         return Ok(assign_to);
     }
 
-    // apply the `A U Nothing => A` rule
-    if *rhs == Type::Nothing {
+    let rhs = exploration
+        .get_type(rvalue)
+        .unwrap_or_else(|| panic!("cannot find type {rvalue:?}`"));
+
+    // Valid excepted if both types are polytype
+    if *lhs != Type::Polytype && lhs == rhs {
         return Ok(assign_to);
+    }
+
+    // apply the `A U Nothing => A` rule only if `A` is a base type
+    if is_base_type && *rhs == Type::Nothing {
+        return Ok(assign_to);
+    }
+
+    if let (Type::Instantiated(base_left, params_lhs), Type::Instantiated(base_right, params_rhs)) =
+        (lhs, rhs)
+    {
+        if is_compatible(exploration, *base_left, *base_right) {
+            // simply test if parameters of rvalue can fit to assigned target
+            // when generic parameters will have bounds, we'll probably want to
+            // assign a new type that's the result of the union of rvalue and assigned.
+            let are_parameters_compatible =
+                params_lhs
+                    .iter()
+                    .zip(params_rhs)
+                    .all(|(param_lhs, param_rhs)| {
+                        let bound = bounds.get_bound(*param_lhs);
+                        let ty = convert_description(exploration, bound, *param_rhs, bounds, false)
+                            .is_ok();
+
+                        // restrict bound even more
+                        bounds.update_bounds(*param_lhs, bound, exploration);
+
+                        ty
+                    });
+            if are_parameters_compatible {
+                return Ok(assign_to);
+            }
+        }
     }
 
     let rvalue_typing = exploration.get_types(rvalue.reef).unwrap();
 
-    if let Some(implicit) = rvalue_typing.implicits.get(&rvalue.type_id) {
-        let implicit = exploration
-            .get_type_ref(*implicit)
-            .unwrap_or_else(|| panic!("cannot find type {implicit:?}`"));
-        if lhs == implicit {
-            return Ok(assign_to);
+    if is_base_type {
+        if let Some(implicit) = rvalue_typing.implicits.get(&rvalue.type_id) {
+            let implicit = exploration
+                .get_type(*implicit)
+                .unwrap_or_else(|| panic!("cannot find type {implicit:?}`"));
+            if lhs == implicit {
+                return Ok(assign_to);
+            }
         }
     }
     Err(UnificationError())
@@ -66,6 +103,7 @@ pub(super) fn convert_description(
 /// Unifies multiple type identifiers in any direction.
 pub(super) fn convert_many<I: IntoIterator<Item = TypeRef>>(
     exploration: &mut Exploration,
+    bounds: &mut TypesBounds,
     types: I,
 ) -> Result<TypeRef, UnificationError> {
     let mut types = types
@@ -74,8 +112,8 @@ pub(super) fn convert_many<I: IntoIterator<Item = TypeRef>>(
 
     let first = types.next().unwrap_or(NOTHING);
     types.try_fold(first, |acc, ty| {
-        convert_description(exploration, acc, ty)
-            .or_else(|_| convert_description(exploration, ty, acc))
+        convert_description(exploration, acc, ty, bounds, true)
+            .or_else(|_| convert_description(exploration, ty, acc, bounds, true))
     })
 }
 
@@ -90,32 +128,27 @@ pub(super) fn resolve_type_annotation(
         ast::r#type::Type::Parametrized(ParametrizedType { params, .. }) => {
             let env = links.env();
             let type_symbol_ref = env.get_raw_symbol(type_annotation.segment()).unwrap();
-            let main_type = match type_symbol_ref {
-                SymbolRef::Local(l) => {
-                    let SymbolInfo::Type(main_type) = env.symbols.get(l).unwrap().ty else {
-                        panic!("type symbol is not a type")
-                    };
-                    main_type
-                }
+            let type_variable = match type_symbol_ref {
+                SymbolRef::Local(local) => exploration.ctx.get_local(links.source, local).unwrap(),
                 SymbolRef::External(r) => {
                     let resolved_symbol = links.relations[r]
                         .state
                         .expect_resolved("unresolved type symbol during typechecking");
 
-                    if resolved_symbol.reef == LANG_REEF {
-                        let primitive_id = TypeId(resolved_symbol.object_id.0);
-                        TypeRef::new(LANG_REEF, primitive_id)
+                    let ctx = if resolved_symbol.reef == exploration.externals.current {
+                        &exploration.ctx
                     } else {
-                        let type_env = exploration.get_external_env(env, resolved_symbol).unwrap();
-                        let SymbolInfo::Type(main_type) =
-                            type_env.symbols.get(resolved_symbol.object_id).unwrap().ty
-                        else {
-                            panic!("type symbol is not a type")
-                        };
-                        main_type
-                    }
+                        &exploration
+                            .externals
+                            .get_reef(resolved_symbol.reef)
+                            .unwrap()
+                            .type_context
+                    };
+                    ctx.get_local(resolved_symbol.source, resolved_symbol.object_id)
+                        .unwrap()
                 }
             };
+            let main_type = type_variable.type_ref;
 
             let generics = &exploration
                 .get_description(main_type)
@@ -128,12 +161,12 @@ pub(super) fn resolve_type_annotation(
                         if params.len() < generics.len() {
                             format!(
                                 "Missing generics for type `{}`",
-                                exploration.get_type(main_type)
+                                exploration.new_type_view(main_type, &TypesBounds::inactive()),
                             )
                         } else {
                             format!(
                                 "Type `{}` were supplied {} generic argument{}",
-                                exploration.get_type(main_type),
+                                exploration.new_type_view(main_type, &TypesBounds::inactive()),
                                 params.len(),
                                 if params.len() == 1 { "" } else { "s" }
                             )
@@ -161,7 +194,7 @@ pub(super) fn resolve_type_annotation(
                 .collect();
             let instantiated_id = exploration
                 .typing
-                .add_type(Type::Instantiated(main_type, params));
+                .add_type(Type::Instantiated(main_type, params), None);
             TypeRef::new(exploration.externals.current, instantiated_id)
         }
         ast::r#type::Type::Callable(_) => unimplemented!(),
@@ -177,8 +210,8 @@ pub(super) fn is_compatible(
     if assign_to.is_err() || rvalue.is_err() || rvalue.is_nothing() {
         return true; // An error is compatible with everything, as it is a placeholder.
     }
-    let lhs = exploration.get_type_ref(assign_to).unwrap();
-    let rhs = exploration.get_type_ref(rvalue).unwrap();
+    let lhs = exploration.get_type(assign_to).unwrap();
+    let rhs = exploration.get_type(rvalue).unwrap();
     lhs == rhs
 }
 
@@ -187,7 +220,9 @@ pub(super) fn is_compatible(
 /// A type annotation might generate a conversion function call, which is returned.
 pub(super) fn check_type_annotation(
     exploration: &mut Exploration,
-    type_annotation: &ast::r#type::Type,
+    expected_type: TypeRef,
+    expected_type_segment: SourceSegment,
+    bounds: &mut TypesBounds,
     value: TypedExpr,
     links: Links,
     diagnostics: &mut Vec<Diagnostic>,
@@ -196,30 +231,38 @@ pub(super) fn check_type_annotation(
         return value;
     }
 
-    let expected_type = resolve_type_annotation(exploration, links, type_annotation, diagnostics);
     let current_reef = exploration.externals.current;
 
-    convert_expression(value, expected_type, exploration, links.source, diagnostics).unwrap_or_else(
-        |mut value| {
-            diagnostics.push(
-                Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
-                    .with_observation(Observation::here(
-                        links.source,
-                        current_reef,
-                        type_annotation.segment(),
-                        format!("Expected `{}`", exploration.get_type(expected_type)),
-                    ))
-                    .with_observation(Observation::here(
-                        links.source,
-                        current_reef,
-                        value.segment(),
-                        format!("Found `{}`", exploration.get_type(value.ty)),
-                    )),
-            );
-            value.ty = expected_type;
-            value
-        },
+    convert_expression(
+        value,
+        expected_type,
+        bounds,
+        exploration,
+        links.source,
+        diagnostics,
     )
+    .unwrap_or_else(|mut value| {
+        diagnostics.push(
+            Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
+                .with_observation(Observation::here(
+                    links.source,
+                    current_reef,
+                    expected_type_segment,
+                    format!(
+                        "Expected `{}`",
+                        exploration.new_type_view(expected_type, bounds),
+                    ),
+                ))
+                .with_observation(Observation::here(
+                    links.source,
+                    current_reef,
+                    value.segment(),
+                    format!("Found `{}`", exploration.new_type_view(value.ty, bounds)),
+                )),
+        );
+        value.ty = expected_type;
+        value
+    })
 }
 
 /// Tries to convert an expression to the given assignation type.
@@ -234,17 +277,19 @@ pub(super) fn check_type_annotation(
 pub(super) fn convert_expression(
     rvalue: TypedExpr,
     assign_to: TypeRef,
+    bounds: &mut TypesBounds,
     exploration: &mut Exploration,
     source: SourceId,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<TypedExpr, TypedExpr> {
-    match convert_description(exploration, assign_to, rvalue.ty) {
+    match convert_description(exploration, assign_to, rvalue.ty, bounds, true) {
         Ok(ty) => Ok(call_convert_on(
             rvalue,
             ty,
             exploration,
             |ty| format!("Cannot convert type `{ty}`"),
             diagnostics,
+            bounds,
             source,
         )),
         Err(_) => Err(rvalue),
@@ -261,7 +306,14 @@ pub(super) fn coerce_condition(
     source: SourceId,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> TypedExpr {
-    match convert_expression(condition, BOOL, exploration, source, diagnostics) {
+    match convert_expression(
+        condition,
+        BOOL,
+        &mut TypesBounds::inactive(),
+        exploration,
+        source,
+        diagnostics,
+    ) {
         Ok(condition) => condition,
         Err(condition) => {
             diagnostics.push(
@@ -272,7 +324,7 @@ pub(super) fn coerce_condition(
                         condition.segment(),
                         format!(
                             "Type `{}` cannot be used as a condition",
-                            exploration.get_type(condition.ty)
+                            exploration.new_type_view(condition.ty, &TypesBounds::inactive()),
                         ),
                     )),
             );

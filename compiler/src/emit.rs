@@ -2,9 +2,9 @@ use analyzer::engine::Engine;
 use analyzer::environment::Environment;
 use analyzer::reef::{Externals, ReefId};
 use analyzer::relations::{Definition, SourceId};
+use analyzer::types::engine::{Chunk, TypedEngine};
 use analyzer::types::hir::{Declaration, ExprKind, TypedExpr, Var};
-use analyzer::types::ty::{Type, TypeRef};
-use analyzer::types::{Typing, INT};
+use analyzer::types::ty::TypeRef;
 use ast::value::LiteralValue;
 
 use crate::bytecode::{Instructions, Opcode, Placeholder};
@@ -27,10 +27,8 @@ mod native;
 pub struct EmitterContext<'a, 'e> {
     pub(crate) current_reef: ReefId,
     engine: &'a Engine<'e>,
+    typed_engine: &'a TypedEngine,
     externals: &'a Externals<'e>,
-
-    /// The typing context.
-    typing: &'a Typing,
 
     /// The currently emitted environment.
     ///
@@ -46,23 +44,36 @@ pub struct EmitterContext<'a, 'e> {
 }
 
 impl<'a, 'e> EmitterContext<'a, 'e> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         current_reef: ReefId,
         engine: &'a Engine<'e>,
+        typed_engine: &'a TypedEngine,
         externals: &'a Externals<'e>,
-        typing: &'a Typing,
         env: &'a Environment,
         captures: &'a Captures,
         chunk_id: SourceId,
     ) -> Self {
         Self {
             current_reef,
+            typed_engine,
             engine,
             externals,
-            typing,
             environment: env,
             captures,
             chunk_id,
+        }
+    }
+
+    pub fn get_function(&self, reef: ReefId, id: SourceId) -> Option<&Chunk> {
+        if reef == self.current_reef {
+            self.typed_engine.get_user(id)
+        } else {
+            self.externals
+                .get_reef(reef)
+                .unwrap()
+                .typed_engine
+                .get_user(id)
         }
     }
 
@@ -76,18 +87,6 @@ impl<'a, 'e> EmitterContext<'a, 'e> {
         } else {
             self.externals.get_reef(reef).map(|r| &r.engine)
         }
-    }
-
-    /// Gets the type behind a type identifier.
-    pub(crate) fn get_type(&self, id: TypeRef) -> Option<&Type> {
-        // FIXME: check the type in the right reef
-        Some(self.typing.get_type(id.type_id).unwrap_or_else(|| {
-            if id == INT {
-                &Type::Int
-            } else {
-                &Type::String
-            }
-        }))
     }
 }
 
@@ -330,9 +329,4 @@ pub fn emit(
         _ => unimplemented!(),
     }
     instructions.push_position(expr.segment.start)
-}
-
-/// Tests if a type is a primitive type that needs to be boxed or unboxed.
-fn is_boxable_primitive(ty: &Type) -> bool {
-    matches!(ty, Type::Int | Type::Float)
 }

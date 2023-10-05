@@ -17,13 +17,15 @@ use crate::engine::Engine;
 use crate::reef::{Externals, ReefId};
 use crate::relations::{Definition, Relations, SourceId, SymbolRef};
 use crate::steps::typing::assign::{ascribe_assign_subscript, create_subscript};
+use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::coercion::{
     check_type_annotation, coerce_condition, convert_description, convert_expression, convert_many,
     resolve_type_annotation,
 };
 use crate::steps::typing::exploration::{Exploration, Links};
 use crate::steps::typing::function::{
-    find_operand_implementation, infer_return, type_call, type_method, type_parameter, Return,
+    find_operand_implementation, infer_return, type_call, type_function_signature, type_method,
+    Return,
 };
 use crate::steps::typing::lower::convert_into_string;
 use crate::types::ctx::{TypeContext, TypedVariable};
@@ -37,6 +39,7 @@ use crate::types::ty::{Type, TypeRef};
 use crate::types::{Typing, BOOL, ERROR, EXITCODE, FLOAT, INT, NOTHING, STRING, UNIT};
 
 mod assign;
+mod bounds;
 mod coercion;
 mod exploration;
 mod function;
@@ -67,14 +70,25 @@ pub fn apply_types(
     (exploration.type_engine, exploration.ctx, exploration.typing)
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Default)]
+enum ExpressionValue {
+    /// The value of the expression is not used
+    #[default]
+    Unused,
+    /// The value of the expression is used but its type is not specified
+    Unspecified,
+    /// The value of the expression is used and is of expected type
+    Expected(TypeRef),
+}
+
 /// A state holder, used to informs the type checker about what should be
 /// checked.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Default)]
 struct TypingState {
-    local_type: bool,
-
     // if not in loop, `continue` and `break` will raise a diagnostic
     in_loop: bool,
+
+    local_value: ExpressionValue,
 }
 
 impl TypingState {
@@ -83,18 +97,10 @@ impl TypingState {
         Self::default()
     }
 
-    /// Returns a new state that should track local returns.
-    fn with_local_type(self) -> Self {
+    /// Returns a new state with given expression value.
+    fn with_local_value(self, v: ExpressionValue) -> Self {
         Self {
-            local_type: true,
-            ..self
-        }
-    }
-
-    /// Returns a new state that indicates to not track local returns.
-    fn without_local_type(self) -> Self {
-        Self {
-            local_type: false,
+            local_value: v,
             ..self
         }
     }
@@ -153,12 +159,13 @@ fn apply_types_to_source(
     exploration.prepare();
     match expr {
         Expr::FunctionDeclaration(func) => {
-            let mut params = Vec::new();
-            for param in &func.parameters {
-                let param = type_parameter(exploration, param, links, diagnostics);
-                exploration.ctx.push_local_typed(source_id, param.ty);
-                params.push(param);
-            }
+            // Take any previous forward declaration if present.
+            let forward_declaration = exploration.type_engine.take_user(source_id);
+
+            let base_chunk = forward_declaration
+                .unwrap_or_else(|| type_function_signature(func, exploration, links, diagnostics));
+
+            let expected_return_type = base_chunk.return_type;
 
             let typed_body = func.body.as_ref().map(|body| {
                 ascribe_types(
@@ -166,18 +173,34 @@ fn apply_types_to_source(
                     links,
                     diagnostics,
                     body,
-                    TypingState::default().with_local_type(),
+                    TypingState::default()
+                        .with_local_value(ExpressionValue::Expected(expected_return_type)),
                 )
             });
 
-            let return_type =
-                infer_return(func, links, typed_body.as_ref(), diagnostics, exploration);
+            let return_type = infer_return(
+                func,
+                expected_return_type,
+                links,
+                typed_body.as_ref(),
+                diagnostics,
+                exploration,
+            );
 
             if let Some(body) = typed_body {
-                Chunk::function(body, params, return_type)
+                Chunk::function(
+                    base_chunk.type_parameters,
+                    body,
+                    base_chunk.parameters,
+                    return_type,
+                )
             } else {
                 verify_free_function(func, exploration.externals, source_id, diagnostics);
-                Chunk::native(params, return_type)
+                Chunk::native(
+                    base_chunk.type_parameters,
+                    base_chunk.parameters,
+                    return_type,
+                )
             }
         }
         expr => Chunk::script(ascribe_types(
@@ -237,7 +260,7 @@ fn ascribe_template_string(
             links,
             diagnostics,
             part,
-            state.without_local_type(),
+            state.with_local_value(ExpressionValue::Unused),
         );
         convert_into_string(typed_part, exploration, diagnostics, links.source)
     });
@@ -263,13 +286,25 @@ fn ascribe_assign(
     diagnostics: &mut Vec<Diagnostic>,
     state: TypingState,
 ) -> TypedExpr {
+    let symbol = links.env().get_raw_symbol(assign.left.segment());
+
+    let actual_type_ref = symbol.map(|symbol| {
+        exploration
+            .ctx
+            .get(links.relations, links.source, symbol)
+            .unwrap()
+            .type_ref
+    });
+
     let rhs = match assign.operator {
         AssignOperator::Assign => ascribe_types(
             exploration,
             links,
             diagnostics,
             &assign.value,
-            state.with_local_type(),
+            state.with_local_value(
+                actual_type_ref.map_or(ExpressionValue::Unspecified, ExpressionValue::Expected),
+            ),
         ),
         operator => {
             let binary = Expr::Binary(BinaryOperation {
@@ -282,7 +317,7 @@ fn ascribe_assign(
                 links,
                 diagnostics,
                 &binary,
-                state.with_local_type(),
+                state.with_local_value(ExpressionValue::Unspecified),
             )
         }
     };
@@ -291,7 +326,8 @@ fn ascribe_assign(
         return ascribe_assign_subscript(assign, sub, rhs, exploration, links, diagnostics, state);
     }
 
-    let Some(symbol) = links.env().get_raw_symbol(assign.left.segment()) else {
+    // actual_type_ref is some if symbol is some
+    let Some((symbol, actual_type_ref)) = symbol.map(|s| (s, actual_type_ref.unwrap())) else {
         diagnostics.push(
             Diagnostic::new(
                 DiagnosticID::InvalidAssignment,
@@ -306,13 +342,8 @@ fn ascribe_assign(
         );
         return rhs;
     };
-    let actual_type_ref = exploration
-        .ctx
-        .get(links.relations, links.source, symbol)
-        .unwrap()
-        .type_ref;
 
-    let actual_type = exploration.get_type_ref(actual_type_ref).unwrap();
+    let actual_type = exploration.get_type(actual_type_ref).unwrap();
     if actual_type.is_named() {
         diagnostics.push(
             Diagnostic::new(
@@ -339,7 +370,14 @@ fn ascribe_assign(
     let var_ty = var_obj.type_ref;
     let rhs_type = rhs.ty;
 
-    let rhs = match convert_expression(rhs, var_ty, exploration, links.source, diagnostics) {
+    let rhs = match convert_expression(
+        rhs,
+        var_ty,
+        &mut TypesBounds::inactive(),
+        exploration,
+        links.source,
+        diagnostics,
+    ) {
         Ok(rhs) => rhs,
         Err(_) => {
             diagnostics.push(
@@ -347,8 +385,8 @@ fn ascribe_assign(
                     DiagnosticID::TypeMismatch,
                     format!(
                         "Cannot assign a value of type `{}` to something of type `{}`",
-                        exploration.get_type(rhs_type),
-                        exploration.get_type(var_ty)
+                        exploration.new_type_view(rhs_type, &TypesBounds::inactive()),
+                        exploration.new_type_view(var_ty, &TypesBounds::inactive()),
                     ),
                 )
                 .with_observation(Observation::here(
@@ -411,6 +449,10 @@ fn ascribe_var_declaration(
     diagnostics: &mut Vec<Diagnostic>,
     state: TypingState,
 ) -> TypedExpr {
+    let ast_type_hint = decl.var.ty.as_ref();
+    let type_hint =
+        ast_type_hint.map(|ty| resolve_type_annotation(exploration, links, ty, diagnostics));
+
     let mut initializer = decl
         .initializer
         .as_ref()
@@ -420,15 +462,19 @@ fn ascribe_var_declaration(
                 links,
                 diagnostics,
                 expr,
-                state.with_local_type(),
+                state.with_local_value(
+                    type_hint.map_or(ExpressionValue::Unspecified, ExpressionValue::Expected),
+                ),
             )
         })
         .expect("Variables without initializers are not supported yet");
 
-    if let Some(type_annotation) = &decl.var.ty {
+    if let Some(type_ref) = type_hint {
         initializer = check_type_annotation(
             exploration,
-            type_annotation,
+            type_ref,
+            ast_type_hint.unwrap().segment(),
+            &mut TypesBounds::inactive(),
             initializer,
             links,
             diagnostics,
@@ -510,7 +556,7 @@ fn ascribe_block(
             diagnostics,
             expr,
             if it.peek().is_some() {
-                state.without_local_type()
+                state.with_local_value(ExpressionValue::Unused)
             } else {
                 state
             },
@@ -543,7 +589,7 @@ fn ascribe_redirected(
                         DiagnosticID::TypeMismatch,
                         format!(
                             "File descriptor redirections must be given an integer, not `{}`",
-                            exploration.get_type(operand.ty)
+                            exploration.new_type_view(operand.ty, &TypesBounds::inactive()),
                         ),
                     )
                     .with_observation(Observation::here(
@@ -645,40 +691,30 @@ fn ascribe_function_declaration(
     fun: &FunctionDeclaration,
     exploration: &mut Exploration,
     links: Links,
+    diagnostics: &mut Vec<Diagnostic>,
 ) -> TypedExpr {
     let declaration = links.env().get_raw_env(fun.segment()).unwrap();
-    let declaration_link = links.with_source(declaration);
 
-    let type_id = exploration
-        .typing
-        .add_type(Type::Function(Definition::User(declaration)));
+    // check if the function declaration is already known
+    if exploration.type_engine.get_user(declaration).is_none() {
+        // if not, forward declare it by typing its declared signature
+        let declaration_link = links.with_source(declaration);
+        let forward_declared_chunk =
+            type_function_signature(fun, exploration, declaration_link, diagnostics);
+
+        exploration
+            .type_engine
+            .insert(declaration, forward_declared_chunk);
+    }
+
+    let type_id = exploration.typing.add_type(
+        Type::Function(Definition::User(declaration)),
+        Some(fun.name.to_string()),
+    );
     let type_ref = TypeRef::new(exploration.externals.current, type_id);
 
     let local_id = exploration.ctx.push_local_typed(links.source, type_ref);
 
-    // Forward declare the function
-    let parameters = fun
-        .parameters
-        .iter()
-        .map(|param| type_parameter(exploration, param, declaration_link, &mut vec![])) // Silent errors
-        .collect::<Vec<_>>();
-
-    let return_type = fun.return_type.as_ref().map_or(UNIT, |ty| {
-        resolve_type_annotation(exploration, declaration_link, ty, &mut Vec::new())
-    }); // Silent errors
-
-    exploration.type_engine.insert_if_absent(
-        declaration,
-        Chunk::function(
-            TypedExpr {
-                kind: ExprKind::Noop,
-                ty: type_ref,
-                segment: fun.segment.clone(),
-            },
-            parameters,
-            return_type,
-        ),
-    );
     TypedExpr {
         kind: ExprKind::Declare(Declaration {
             identifier: local_id,
@@ -706,6 +742,7 @@ fn ascribe_binary(
         .get_methods(left_expr.ty, name)
         .map(|methods| methods.as_slice())
         .unwrap_or(&[]);
+
     let method =
         find_operand_implementation(exploration, left_type.reef, methods, left_expr, right_expr);
     match method {
@@ -724,8 +761,8 @@ fn ascribe_binary(
                         format!(
                             "No operator `{}` between type `{}` and `{}`",
                             name,
-                            exploration.get_type(left_type),
-                            exploration.get_type(right_type)
+                            exploration.new_type_view(left_type, &TypesBounds::inactive()),
+                            exploration.new_type_view(right_type, &TypesBounds::inactive()),
                         ),
                     )),
             );
@@ -769,14 +806,17 @@ fn ascribe_casted(
         return expr;
     }
 
-    if expr.ty.is_ok() && convert_description(exploration, ty, expr.ty).is_err() {
+    if expr.ty.is_ok()
+        && convert_description(exploration, ty, expr.ty, &mut TypesBounds::inactive(), true)
+            .is_err()
+    {
         diagnostics.push(
             Diagnostic::new(
                 DiagnosticID::IncompatibleCast,
                 format!(
                     "Casting `{}` as `{}` is invalid",
-                    exploration.get_type(expr.ty),
-                    exploration.get_type(ty)
+                    exploration.new_type_view(expr.ty, &TypesBounds::inactive()),
+                    exploration.new_type_view(ty, &TypesBounds::inactive()),
                 ),
             )
             .with_observation(Observation::here(
@@ -809,7 +849,7 @@ fn ascribe_unary(
         links,
         diagnostics,
         &unary.expr,
-        state.with_local_type(),
+        state.with_local_value(ExpressionValue::Unspecified),
     );
     if expr.ty.is_err() {
         return expr;
@@ -839,7 +879,7 @@ fn ascribe_unary(
                                 unary.segment(),
                                 format!(
                                     "`{}` does not implement the `neg` method",
-                                    exploration.get_type(expr.ty),
+                                    exploration.new_type_view(expr.ty, &TypesBounds::inactive()),
                                 ),
                             )),
                     );
@@ -862,7 +902,14 @@ fn ascribe_not(
         .typed_engine
         .get_method_exact(BOOL.type_id, "not", &[], BOOL)
         .expect("A Bool should be invertible");
-    match convert_expression(not, BOOL, exploration, links.source, diagnostics) {
+    match convert_expression(
+        not,
+        BOOL,
+        &mut TypesBounds::inactive(),
+        exploration,
+        links.source,
+        diagnostics,
+    ) {
         Ok(expr) => TypedExpr {
             kind: ExprKind::MethodCall(MethodCall {
                 callee: Box::new(expr),
@@ -881,7 +928,7 @@ fn ascribe_not(
                         segment,
                         format!(
                             "Cannot invert non-boolean type `{}`",
-                            exploration.get_type(expr.ty)
+                            exploration.new_type_view(expr.ty, &TypesBounds::inactive()),
                         ),
                     ),
                 ),
@@ -916,18 +963,33 @@ fn ascribe_if(
         .as_ref()
         .map(|expr| ascribe_types(exploration, links, diagnostics, expr, state));
 
-    let ty = if state.local_type {
+    let ty = if state.local_value != ExpressionValue::Unused {
         match convert_many(
             exploration,
+            &mut TypesBounds::inactive(),
             [then.ty, otherwise.as_ref().map_or(UNIT, |expr| expr.ty)],
         ) {
             Ok(ty) => {
                 // Generate appropriate casts and implicits conversions
-                then = convert_expression(then, ty, exploration, links.source, diagnostics)
-                    .expect("Type mismatch should already have been caught");
+                then = convert_expression(
+                    then,
+                    ty,
+                    &mut TypesBounds::inactive(),
+                    exploration,
+                    links.source,
+                    diagnostics,
+                )
+                .expect("Type mismatch should already have been caught");
                 otherwise = otherwise.map(|expr| {
-                    convert_expression(expr, ty, exploration, links.source, diagnostics)
-                        .expect("Type mismatch should already have been caught")
+                    convert_expression(
+                        expr,
+                        ty,
+                        &mut TypesBounds::inactive(),
+                        exploration,
+                        links.source,
+                        diagnostics,
+                    )
+                    .expect("Type mismatch should already have been caught")
                 });
                 ty
             }
@@ -940,14 +1002,20 @@ fn ascribe_if(
                     links.source,
                     current_reef,
                     block.success_branch.segment(),
-                    format!("Found `{}`", exploration.get_type(then.ty)),
+                    format!(
+                        "Found `{}`",
+                        exploration.new_type_view(then.ty, &TypesBounds::inactive()),
+                    ),
                 ));
                 if let Some(otherwise) = &otherwise {
                     diagnostic = diagnostic.with_observation(Observation::here(
                         links.source,
                         current_reef,
                         otherwise.segment(),
-                        format!("Found `{}`", exploration.get_type(otherwise.ty)),
+                        format!(
+                            "Found `{}`",
+                            exploration.new_type_view(otherwise.ty, &TypesBounds::inactive()),
+                        ),
                     ));
                 }
                 diagnostics.push(diagnostic);
@@ -998,13 +1066,7 @@ fn ascribe_pfc(
     diagnostics: &mut Vec<Diagnostic>,
     state: TypingState,
 ) -> TypedExpr {
-    let arguments = call
-        .arguments
-        .iter()
-        .map(|expr| ascribe_types(exploration, links, diagnostics, expr, state))
-        .collect::<Vec<_>>();
-
-    let function_match = type_call(call, exploration, arguments, links, diagnostics);
+    let function_match = type_call(call, exploration, links, state, diagnostics);
     TypedExpr {
         kind: ExprKind::FunctionCall(FunctionCall {
             arguments: function_match.arguments,
@@ -1032,6 +1094,7 @@ fn ascribe_method_call(
     match type_method(
         method,
         &callee,
+        links,
         arguments,
         diagnostics,
         exploration,
@@ -1067,7 +1130,7 @@ fn ascribe_loop(
                 links,
                 diagnostics,
                 &w.condition,
-                state.with_local_type(),
+                state.with_local_value(ExpressionValue::Unspecified),
             );
             (
                 Some(coerce_condition(
@@ -1087,7 +1150,9 @@ fn ascribe_loop(
         links,
         diagnostics,
         body,
-        state.without_local_type().with_in_loop(),
+        state
+            .with_in_loop()
+            .with_local_value(ExpressionValue::Unused),
     );
 
     TypedExpr {
@@ -1139,7 +1204,9 @@ fn ascribe_types(
     state: TypingState,
 ) -> TypedExpr {
     match expr {
-        Expr::FunctionDeclaration(fd) => ascribe_function_declaration(fd, exploration, links),
+        Expr::FunctionDeclaration(fd) => {
+            ascribe_function_declaration(fd, exploration, links, diagnostics)
+        }
         Expr::Literal(lit) => ascribe_literal(lit),
         Expr::TemplateString(tpl) => {
             ascribe_template_string(tpl, exploration, links, diagnostics, state)
@@ -1197,50 +1264,41 @@ mod tests {
     use context::str_find::{find_in, find_in_nth};
     use parser::parse_trusted;
 
+    use crate::analyze;
     use crate::importer::StaticImporter;
     use crate::name::Name;
-    use crate::reef::ReefId;
+    use crate::reef::{Reef, ReefId};
     use crate::relations::{LocalId, NativeId};
-    use crate::resolve_all;
     use crate::types::hir::{Convert, MethodCall};
-    use crate::types::ty::Type;
+    use crate::types::ty::{Type, TypeId};
     use crate::types::{EXITCODE, UNIT};
 
     use super::*;
 
-    fn extract(source: Source) -> Result<(Typing, TypedExpr), Vec<Diagnostic>> {
+    fn extract(source: Source) -> Result<Externals, Vec<Diagnostic>> {
         let name = Name::new(source.name);
-        let mut diagnostics = Vec::new();
-        let externals = Externals::default();
+        let mut externals = Externals::default();
+        let mut importer = StaticImporter::new([(name.clone(), source)], parse_trusted);
+        let analyzer = analyze(name, &mut importer, &externals);
 
-        let result = resolve_all(
-            name.clone(),
-            &externals,
-            &mut StaticImporter::new([(name, source)], parse_trusted),
-            &mut diagnostics,
-        );
-        assert_eq!(diagnostics, vec![]);
-
-        let (typed, _, _) = apply_types(
-            &result.engine,
-            &result.relations,
-            &externals,
-            &mut diagnostics,
-        );
-        let expr = typed.get_user(SourceId(0)).unwrap();
-        if diagnostics.is_empty() {
-            Ok((
-                externals.lang().typing.clone(),
-                expr.expression.clone().unwrap(),
-            ))
-        } else {
-            Err(diagnostics)
+        if !analyzer.diagnostics.is_empty() {
+            return Err(analyzer.diagnostics);
         }
+
+        externals.register(Reef::new(source.name.to_string(), analyzer));
+
+        Ok(externals)
     }
 
     pub(crate) fn extract_expr(source: Source) -> Result<Vec<TypedExpr>, Vec<Diagnostic>> {
-        extract(source).map(|(_, expr)| {
-            if let ExprKind::Block(exprs) = &expr.kind {
+        extract(source).map(|externals| {
+            let chunk = externals
+                .get_reef(ReefId(1))
+                .unwrap()
+                .typed_engine
+                .get_user(SourceId(0))
+                .unwrap();
+            if let ExprKind::Block(exprs) = &chunk.expression.as_ref().unwrap().kind {
                 exprs.clone()
             } else {
                 unreachable!()
@@ -1249,7 +1307,13 @@ mod tests {
     }
 
     pub(crate) fn extract_type(source: Source) -> Result<Type, Vec<Diagnostic>> {
-        let (typing, expr) = extract(source)?;
+        let externals = extract(source)?;
+
+        let reef = externals.get_reef(ReefId(1)).unwrap();
+        let chunk = reef.typed_engine.get_user(SourceId(0)).unwrap();
+        let expr = chunk.expression.as_ref().unwrap();
+        let typing = &externals.get_reef(expr.ty.reef).unwrap().typing;
+
         Ok(typing.get_type(expr.ty.type_id).unwrap().clone())
     }
 
@@ -2308,5 +2372,123 @@ mod tests {
                 "Expected 0 generic arguments"
             ))])
         );
+    }
+
+    #[test]
+    fn fun_with_generic_args() {
+        let content = "\
+            fun push_into[A, B](v: A, vec: Vec[A], b: B) -> B = {
+                val x: A = $v
+                $vec.push($x)
+                $b
+            }
+        ";
+        let src = Source::unknown(content);
+        let externals = extract(src).expect("typing errors");
+        let typing = &externals.get_reef(ReefId(1)).unwrap().typing;
+        assert_eq!(typing.get_type(TypeId(0)), Some(&Type::Polytype));
+        assert_eq!(typing.get_type(TypeId(1)), Some(&Type::Polytype));
+    }
+
+    #[test]
+    fn fun_call_with_generic_args() {
+        let content = r#"\
+            fun push_into[A, B](v: A, vec: Vec[A], b: B) -> B = {
+                val x: A = $v
+                $vec.push($x)
+                $b
+            }
+
+            val vec = "".split(' ')
+            val i = push_into("item", $vec, 4)
+        "#;
+        let src = Source::unknown(content);
+        let externals = extract(src).expect("typing errors");
+        let context = &externals.get_reef(ReefId(1)).unwrap().type_context;
+
+        // `A` generic argument
+        assert_eq!(
+            context.get_local(SourceId(1), LocalId(0)),
+            Some(TypedVariable::immutable(TypeRef::new(ReefId(1), TypeId(0))))
+        );
+        // `B` generic argument
+        assert_eq!(
+            context.get_local(SourceId(1), LocalId(1)),
+            Some(TypedVariable::immutable(TypeRef::new(ReefId(1), TypeId(1))))
+        );
+
+        // `v` argument
+        assert_eq!(
+            context.get_local(SourceId(1), LocalId(2)),
+            Some(TypedVariable::immutable(TypeRef::new(ReefId(1), TypeId(0))))
+        );
+
+        // `vec` argument (has created a new type instantiation)
+        assert_eq!(
+            context.get_local(SourceId(1), LocalId(3)),
+            Some(TypedVariable::immutable(TypeRef::new(ReefId(1), TypeId(2))))
+        );
+
+        // `b` argument
+        assert_eq!(
+            context.get_local(SourceId(1), LocalId(4)),
+            Some(TypedVariable::immutable(TypeRef::new(ReefId(1), TypeId(1))))
+        );
+    }
+
+    #[test]
+    fn fun_generic_args_constraints() {
+        let content = "\
+            fun foo[A, B](v: A, vec: Vec[A], b: B, c: B) -> B = $b
+
+            val vec = ''.bytes()
+            val i: Option[Float] = foo('str_in_int_argument', $vec, '7', $vec)
+        ";
+        let src = Source::unknown(content);
+        let errs = extract(src).expect_err("no typing errors");
+        assert_eq!(
+            errs,
+            vec![
+                Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
+                    .with_observation(Observation::here(
+                        SourceId(0),
+                        ReefId(1),
+                        find_in(content, "$vec"),
+                        "Expected `Vec[String]`, found `Vec[Int]`"
+                    ))
+                    .with_observation(Observation::here(
+                        SourceId(1),
+                        ReefId(1),
+                        find_in(content, "vec: Vec[A]"),
+                        "Parameter is declared here"
+                    )),
+                Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
+                    .with_observation(Observation::here(
+                        SourceId(0),
+                        ReefId(1),
+                        find_in_nth(content, "$vec", 1),
+                        "Expected `String`, found `Vec[Int]`"
+                    ))
+                    .with_observation(Observation::here(
+                        SourceId(1),
+                        ReefId(1),
+                        find_in(content, "c: B"),
+                        "Parameter is declared here"
+                    )),
+                Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
+                    .with_observation(Observation::here(
+                        SourceId(0),
+                        ReefId(1),
+                        find_in(content, "Option[Float]"),
+                        "Expected `Option[Float]`"
+                    ))
+                    .with_observation(Observation::here(
+                        SourceId(0),
+                        ReefId(1),
+                        find_in(content, "foo('str_in_int_argument', $vec, '7', $vec)"),
+                        "Found `String`"
+                    )),
+            ]
+        )
     }
 }

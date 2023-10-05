@@ -130,7 +130,7 @@ fn emit_process_call_self(
 
 pub fn emit_function_invocation(
     function_call: &FunctionCall,
-    return_type: TypeRef,
+    call_return_type: TypeRef,
     instructions: &mut Instructions,
     ctx: &EmitterContext,
     cp: &mut ConstantPool,
@@ -139,8 +139,22 @@ pub fn emit_function_invocation(
 ) {
     let last_used = state.use_values(true);
 
-    for arg in &function_call.arguments {
+    let Definition::User(func_source) = function_call.definition else {
+        panic!("unsupported native function call")
+    };
+
+    let function_definition = ctx.get_function(function_call.reef, func_source).unwrap();
+
+    for (arg, parameter) in function_call
+        .arguments
+        .iter()
+        .zip(&function_definition.parameters)
+    {
         emit(arg, instructions, ctx, cp, locals, state);
+        // The parameter is an object but the argument isn't: may be an argument passed to a generic parameter
+        if parameter.ty.is_obj() && !arg.ty.is_obj() {
+            instructions.emit_box_if_primitive(arg.ty)
+        }
     }
 
     state.use_values(last_used);
@@ -178,6 +192,7 @@ pub fn emit_function_invocation(
         }
     }
 
+    let return_type = function_definition.return_type;
     let return_type_size = return_type.into();
 
     let signature_idx = cp.insert_string(&env.fqn);
@@ -188,6 +203,9 @@ pub fn emit_function_invocation(
         // in order to maintain the stack's size, we instantly pop
         // the stack if the value isn't used later in the code
         instructions.emit_pop(return_type_size);
+    } else if return_type.is_obj() && !call_return_type.is_obj() {
+        // The function's declared return type is an object but the call return type is not: it's a boxed return value
+        instructions.emit_code(Opcode::Unbox);
     }
 }
 

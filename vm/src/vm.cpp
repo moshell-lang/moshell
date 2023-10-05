@@ -32,6 +32,8 @@ moshell_object moshell_value_get_as_object(moshell_value val) {
             type = OBJ_DOUBLE;
         } else if constexpr (std::is_same_v<T, msh::obj_vector>) {
             type = OBJ_VEC;
+        } else if constexpr (std::is_same_v<T, int8_t>) {
+            type = OBJ_BYTE;
         } else {
             // unreachable
             static_assert(sizeof(T) != sizeof(T), "missing object variant");

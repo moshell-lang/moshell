@@ -67,7 +67,7 @@ pub enum Definition {
 impl Definition {
     /// Builds an erroneous definition that is used for error propagation.
     pub fn error() -> Self {
-        Self::User(SourceId(ObjectId::MAX))
+        Self::Native(NativeId(ObjectId::MAX))
     }
 }
 

@@ -126,6 +126,7 @@ pub union VmValueFFI {
 enum VmObjectType {
     Str,
     Int,
+    Byte,
     Double,
     Vec,
 }

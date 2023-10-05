@@ -2,13 +2,13 @@ use ast::operation::BinaryOperator;
 
 use crate::engine::Engine;
 use crate::reef::{Reef, LANG_REEF};
-use crate::relations::{NativeId, Relations};
+use crate::relations::{NativeId, Relations, SourceId};
 use crate::types::ctx::TypeContext;
 use crate::types::engine::TypedEngine;
 use crate::types::operator::name_operator_method;
 use crate::types::ty::{MethodType, Type, TypeId, TypeRef};
 use crate::types::{
-    Typing, BOOL, EXITCODE, FLOAT, GENERIC_OPTION, GENERIC_VECTOR, INT, NOTHING, POLYTYPE, STRING,
+    Typing, BOOL, ERROR, EXITCODE, FLOAT, GENERIC_OPTION, GENERIC_VECTOR, INT, NOTHING, STRING,
     UNIT,
 };
 
@@ -45,42 +45,49 @@ impl VariableGenerator {
 }
 
 /// Adds the native methods to the engine.
-fn fill_lang_typed_engine(engine: &mut TypedEngine) {
+fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
     let mut gen = VariableGenerator::default();
+
+    // declare one generic parameter type, functions will reuse it
+    let generic_param1 = TypeRef::new(
+        LANG_REEF,
+        typing.add_type(Type::Polytype, Some("A".to_string())),
+    );
+
     engine.add_method(
         EXITCODE.type_id,
         "to_bool",
-        MethodType::native(vec![], BOOL, gen.next()),
+        MethodType::native(vec![], vec![], BOOL, gen.next()),
     );
 
     for op in ARITHMETIC_OPERATORS {
         engine.add_method(
             INT.type_id,
             name_operator_method(*op),
-            MethodType::native(vec![INT], INT, gen.next()),
+            MethodType::native(vec![], vec![INT], INT, gen.next()),
         );
         engine.add_method(
             FLOAT.type_id,
             name_operator_method(*op),
-            MethodType::native(vec![FLOAT], FLOAT, gen.next()),
+            MethodType::native(vec![], vec![FLOAT], FLOAT, gen.next()),
         );
     }
     engine.add_method(
         INT.type_id,
         name_operator_method(BinaryOperator::Modulo),
-        MethodType::native(vec![INT], INT, gen.next()),
+        MethodType::native(vec![], vec![INT], INT, gen.next()),
     );
     engine.add_method(
         BOOL.type_id,
         "not",
-        MethodType::native(vec![], BOOL, gen.next()),
+        MethodType::native(vec![], vec![], BOOL, gen.next()),
     );
     for ty in [BOOL, STRING] {
         for op in EQUALITY_OPERATORS {
             engine.add_method(
                 ty.type_id,
                 name_operator_method(*op),
-                MethodType::native(vec![ty], BOOL, gen.next()),
+                MethodType::native(vec![], vec![ty], BOOL, gen.next()),
             );
         }
     }
@@ -89,7 +96,7 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine) {
             engine.add_method(
                 ty.type_id,
                 name_operator_method(*op),
-                MethodType::native(vec![ty], BOOL, gen.next()),
+                MethodType::native(vec![], vec![ty], BOOL, gen.next()),
             );
         }
     }
@@ -97,61 +104,69 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine) {
         engine.add_method(
             stringify.type_id,
             "to_string",
-            MethodType::native(vec![], STRING, gen.next()),
+            MethodType::native(vec![], vec![], STRING, gen.next()),
         );
     }
     engine.add_method(
         INT.type_id,
         "to_float",
-        MethodType::native(vec![], FLOAT, gen.next()),
+        MethodType::native(vec![], vec![], FLOAT, gen.next()),
     );
 
     engine.add_method(
         STRING.type_id,
         "len",
-        MethodType::native(vec![], INT, gen.next()),
+        MethodType::native(vec![], vec![], INT, gen.next()),
     );
     engine.add_method(
         STRING.type_id,
         name_operator_method(BinaryOperator::Plus),
-        MethodType::native(vec![STRING], STRING, gen.next()),
+        MethodType::native(vec![], vec![STRING], STRING, gen.next()),
     );
 
-    engine.add_generic(GENERIC_VECTOR.type_id, POLYTYPE);
+    engine.add_generic(GENERIC_VECTOR.type_id, generic_param1);
+
     engine.add_method(
         GENERIC_VECTOR.type_id,
         "[]",
-        MethodType::native(vec![INT], POLYTYPE, gen.next()),
+        MethodType::native(vec![generic_param1], vec![INT], generic_param1, gen.next()),
     );
+
     engine.add_method(
         GENERIC_VECTOR.type_id,
         "push",
-        MethodType::native(vec![POLYTYPE], UNIT, gen.next()),
+        MethodType::native(vec![generic_param1], vec![generic_param1], UNIT, gen.next()),
     );
     engine.add_method(
         GENERIC_VECTOR.type_id,
         "pop",
-        MethodType::native(vec![], POLYTYPE, gen.next()),
+        MethodType::native(vec![], vec![], generic_param1, gen.next()),
     );
     engine.add_method(
         GENERIC_VECTOR.type_id,
         "len",
-        MethodType::native(vec![], INT, gen.next()),
+        MethodType::native(vec![], vec![], INT, gen.next()),
     );
 
     engine.add_method(
         STRING.type_id,
         "split",
         MethodType::native(
+            vec![],
             vec![STRING],
-            TypeRef::new(LANG_REEF, TypeId(11)),
+            TypeRef::new(LANG_REEF, TypeId(10)), //Vec[String] instance
             gen.next(),
         ),
     );
     engine.add_method(
         STRING.type_id,
         "bytes",
-        MethodType::native(vec![], TypeRef::new(LANG_REEF, TypeId(12)), gen.next()),
+        MethodType::native(
+            vec![],
+            vec![],
+            TypeRef::new(LANG_REEF, TypeId(11)), // Vec[Int] instance
+            gen.next(),
+        ),
     );
 
     for operand in [BOOL, EXITCODE] {
@@ -159,7 +174,7 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine) {
             engine.add_method(
                 operand.type_id,
                 name_operator_method(*op),
-                MethodType::native(vec![operand], operand, gen.next()),
+                MethodType::native(vec![], vec![operand], operand, gen.next()),
             );
         }
     }
@@ -167,61 +182,65 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine) {
         engine.add_method(
             operand.type_id,
             "neg",
-            MethodType::native(vec![], operand, gen.next()),
+            MethodType::native(vec![], vec![], operand, gen.next()),
         );
     }
 
-    engine.add_generic(GENERIC_OPTION.type_id, POLYTYPE);
+    engine.add_generic(GENERIC_OPTION.type_id, generic_param1);
     engine.add_method(
         GENERIC_OPTION.type_id,
         "is_none",
-        MethodType::native(vec![], BOOL, gen.next()),
+        MethodType::native(vec![], vec![], BOOL, gen.next()),
     );
     engine.add_method(
         GENERIC_OPTION.type_id,
         "is_some",
-        MethodType::native(vec![], BOOL, gen.next()),
+        MethodType::native(vec![], vec![], BOOL, gen.next()),
     );
     engine.add_method(
         GENERIC_OPTION.type_id,
         "unwrap",
-        MethodType::native(vec![], POLYTYPE, gen.next()),
+        MethodType::native(vec![], vec![], generic_param1, gen.next()),
     );
     engine.add_method(
         GENERIC_VECTOR.type_id,
         "[]",
-        MethodType::native(vec![INT, POLYTYPE], UNIT, gen.next()),
+        MethodType::native(
+            vec![generic_param1],
+            vec![INT, generic_param1],
+            UNIT,
+            gen.next(),
+        ),
     );
 
     engine.add_method(
         INT.type_id,
         "to_exitcode",
-        MethodType::native(vec![], EXITCODE, gen.next()),
+        MethodType::native(vec![], vec![], EXITCODE, gen.next()),
     );
     engine.add_method(
         EXITCODE.type_id,
         "to_int",
-        MethodType::native(vec![], INT, gen.next()),
+        MethodType::native(vec![], vec![], INT, gen.next()),
     );
 }
 
 fn fill_lang_types(typing: &mut Typing) {
-    for primitive in [
-        Type::Error,
-        Type::Nothing,
-        Type::Unit,
-        Type::Bool,
-        Type::ExitCode,
-        Type::Int,
-        Type::Float,
-        Type::String,
-        Type::Vector,
-        Type::Option,
-        Type::Polytype,
-        Type::Instantiated(GENERIC_VECTOR, vec![STRING]),
-        Type::Instantiated(GENERIC_VECTOR, vec![INT]),
+    for (primitive, name) in [
+        (Type::Error, Some("Error")),
+        (Type::Nothing, Some("Nothing")),
+        (Type::Unit, Some("Unit")),
+        (Type::Bool, Some("Bool")),
+        (Type::ExitCode, Some("Exitcode")),
+        (Type::Int, Some("Int")),
+        (Type::Float, Some("Float")),
+        (Type::String, Some("String")),
+        (Type::Vector, Some("Vec")),
+        (Type::Option, Some("Option")),
+        (Type::Instantiated(GENERIC_VECTOR, vec![STRING]), None),
+        (Type::Instantiated(GENERIC_VECTOR, vec![INT]), None),
     ] {
-        typing.add_type(primitive);
+        typing.add_type(primitive, name.map(ToString::to_string));
     }
     typing.set_implicit_conversion(EXITCODE.type_id, BOOL);
     typing.set_implicit_conversion(INT.type_id, FLOAT);
@@ -237,6 +256,17 @@ fn fill_lang_bindings(ctx: &mut TypeContext) {
     ctx.bind_name("String".to_string(), STRING.type_id);
     ctx.bind_name("Vec".to_string(), GENERIC_VECTOR.type_id);
     ctx.bind_name("Option".to_string(), GENERIC_OPTION.type_id);
+
+    ctx.push_local_typed(SourceId(0), ERROR);
+    ctx.push_local_typed(SourceId(0), NOTHING);
+    ctx.push_local_typed(SourceId(0), UNIT);
+    ctx.push_local_typed(SourceId(0), BOOL);
+    ctx.push_local_typed(SourceId(0), EXITCODE);
+    ctx.push_local_typed(SourceId(0), INT);
+    ctx.push_local_typed(SourceId(0), FLOAT);
+    ctx.push_local_typed(SourceId(0), STRING);
+    ctx.push_local_typed(SourceId(0), GENERIC_VECTOR);
+    ctx.push_local_typed(SourceId(0), GENERIC_OPTION);
 }
 
 pub fn lang_reef() -> Reef<'static> {
@@ -251,7 +281,7 @@ pub fn lang_reef() -> Reef<'static> {
 
     fill_lang_types(&mut reef.typing);
     fill_lang_bindings(&mut reef.type_context);
-    fill_lang_typed_engine(&mut reef.typed_engine);
+    fill_lang_typed_engine(&mut reef.typed_engine, &mut reef.typing);
 
     reef
 }

@@ -2,8 +2,9 @@ use context::source::SourceSegmentHolder;
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::relations::SourceId;
+use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::exploration::Exploration;
-use crate::steps::typing::view::TypeInstance;
+use crate::steps::typing::view::TypeView;
 use crate::types::hir::{ExprKind, MethodCall, TypedExpr};
 use crate::types::ty::TypeRef;
 use crate::types::{BOOL, FLOAT, STRING};
@@ -28,8 +29,9 @@ pub(super) fn convert_into_string(
         expr,
         STRING,
         exploration,
-        |ty| format!("Cannot stringify type `{ty}`"),
+        |ty| format!("Cannot stringify type `{ty}`",),
         diagnostics,
+        &TypesBounds::inactive(),
         source,
     )
 }
@@ -43,8 +45,9 @@ pub(super) fn call_convert_on(
     expr: TypedExpr,
     into: TypeRef,
     exploration: &Exploration,
-    message: impl FnOnce(TypeInstance) -> String,
+    message: impl FnOnce(TypeView) -> String,
     diagnostics: &mut Vec<Diagnostic>,
+    bounds: &TypesBounds,
     source: SourceId,
 ) -> TypedExpr {
     // If the expression is already of the needed type, we don't need to do anything.
@@ -61,7 +64,7 @@ pub(super) fn call_convert_on(
                     DiagnosticID::UnknownMethod,
                     format!(
                         "No conversion method defined for type `{}`",
-                        exploration.get_type(into)
+                        exploration.new_type_view(into, bounds)
                     ),
                 )
                 .with_observation((source, exploration.externals.current, expr.segment()).into()),
@@ -84,16 +87,20 @@ pub(super) fn call_convert_on(
         };
     }
 
-    let ty = exploration.get_type(expr.ty);
     diagnostics.push(
-        Diagnostic::new(DiagnosticID::TypeMismatch, message(ty)).with_observation(
-            Observation::here(
-                source,
-                exploration.externals.current,
-                expr.segment(),
-                format!("No method `{method_name}` on type `{ty}`"),
+        Diagnostic::new(
+            DiagnosticID::TypeMismatch,
+            message(exploration.new_type_view(expr.ty, bounds)),
+        )
+        .with_observation(Observation::here(
+            source,
+            exploration.externals.current,
+            expr.segment(),
+            format!(
+                "No method `{method_name}` on type `{}`",
+                exploration.new_type_view(expr.ty, bounds)
             ),
-        ),
+        )),
     );
     expr
 }

@@ -32,6 +32,7 @@ impl From<VmObjectFFI> for VmValue {
             match value.0 {
                 VmObjectType::Int => VmValue::Int(value.unbox().get_as_i64()),
                 VmObjectType::Double => VmValue::Double(value.unbox().get_as_double()),
+                VmObjectType::Byte => VmValue::Byte(value.unbox().get_as_u8()),
                 VmObjectType::Str => VmValue::String(value.get_as_string()),
                 VmObjectType::Vec => {
                     VmValue::Vec(value.get_as_vec().into_iter().map(VmValue::from).collect())

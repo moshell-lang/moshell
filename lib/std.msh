@@ -34,3 +34,13 @@ fun abort(message: String) -> Nothing = {
     echo $message >&2
     exit(1.to_exitcode())
 }
+
+/// Instantiate a new empty vector of A
+fun new_vec[A]() -> Vec[A];
+
+/// Instantiate an option with some value
+fun some[A](v: A) -> Option[A];
+
+/// Instantiate a None option
+// TODO make Option's generic parameter (`A`) covariant to return an Option[Nothing]
+fun none[A]() -> Option[A];

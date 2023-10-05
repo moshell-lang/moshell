@@ -4,7 +4,7 @@ use analyzer::types::ty::TypeRef;
 
 use crate::bytecode::{Instructions, Opcode};
 use crate::constant_pool::ConstantPool;
-use crate::emit::{emit, is_boxable_primitive, EmissionState, EmitterContext};
+use crate::emit::{emit, EmissionState, EmitterContext};
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
 
@@ -185,10 +185,8 @@ pub(crate) fn emit_natives(
                 .first()
                 .expect("Cannot push to a vector without a value");
             emit(first, instructions, ctx, cp, locals, state);
-            if state.use_values
-                && is_boxable_primitive(ctx.get_type(first.ty).expect("Invalid type"))
-            {
-                instructions.emit_code(Opcode::BoxInt);
+            if state.use_values {
+                instructions.emit_box_if_primitive(first.ty);
             }
             instructions.emit_invoke(cp.insert_string(VEC_PUSH));
         }
@@ -290,9 +288,7 @@ pub(crate) fn emit_natives(
             for arg in args {
                 emit(arg, instructions, ctx, cp, locals, state);
             }
-            if is_boxable_primitive(ctx.get_type(args[1].ty).expect("Invalid type")) {
-                instructions.emit_code(Opcode::BoxInt);
-            }
+            instructions.emit_box_if_primitive(args[1].ty);
             instructions.emit_invoke(cp.insert_string(VEC_INDEX_EQ));
         }
         50 => {

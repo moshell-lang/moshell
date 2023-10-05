@@ -100,6 +100,7 @@ typedef union {
 typedef enum {
     OBJ_STR,
     OBJ_INT,
+    OBJ_BYTE,
     OBJ_DOUBLE,
     OBJ_VEC
 } moshell_object_type;

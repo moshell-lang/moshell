@@ -109,7 +109,7 @@ mod tests {
     fn if_else_if() {
         let content =
             "if echo a && [[ -f /file/exe ]]; echo test\n\n\nelse if [ $a ] \n;\n { $7 }; else $5";
-        let source = Source::unknown(content.clone());
+        let source = Source::unknown(content);
         let ast = parse(source).expect("parse failed");
         assert_eq!(
             ast,

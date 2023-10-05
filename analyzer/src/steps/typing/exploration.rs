@@ -2,8 +2,9 @@ use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::reef::{Externals, Reef, ReefId};
 use crate::relations::{Definition, Relations, ResolvedSymbol, SourceId, SymbolRef};
+use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::function::Return;
-use crate::steps::typing::view::TypeInstance;
+use crate::steps::typing::view::TypeView;
 use crate::types::ctx::{TypeContext, TypedVariable};
 use crate::types::engine::{CodeEntry, TypedEngine};
 use crate::types::ty::{MethodType, Type, TypeDescription, TypeRef};
@@ -35,12 +36,12 @@ impl<'a> Links<'a> {
     }
 }
 
-impl Exploration<'_> {
+impl<'a> Exploration<'a> {
     pub(super) fn prepare(&mut self) {
         self.returns.clear();
     }
 
-    pub(super) fn get_type_ref(&self, id: TypeRef) -> Option<&Type> {
+    pub(super) fn get_type(&self, id: TypeRef) -> Option<&Type> {
         let typing = if id.reef == self.externals.current {
             &self.typing
         } else {
@@ -49,31 +50,39 @@ impl Exploration<'_> {
         typing.get_type(id.type_id)
     }
 
+    pub(super) fn get_type_name(&self, ty: TypeRef) -> Option<&String> {
+        if ty.reef == self.externals.current {
+            self.typing.get_type_name(ty.type_id)
+        } else {
+            self.externals
+                .get_reef(ty.reef)
+                .unwrap()
+                .typing
+                .get_type_name(ty.type_id)
+        }
+    }
+
     /// Gets the type instance of a type identifier.
-    pub(super) fn get_type(&self, id: TypeRef) -> TypeInstance {
-        TypeInstance::new(id, self)
+    pub(super) fn new_type_view(&self, id: TypeRef, bounds: &'a TypesBounds) -> TypeView {
+        TypeView::new(id, self, bounds)
     }
 
     /// Gets the type of a generic type parameter.
-    pub(super) fn concretize(&self, generic: TypeRef, instance_holder: TypeRef) -> TypeInstance {
-        if self.get_type_ref(generic) == Some(&Type::Polytype) {
+    pub(super) fn concretize(&self, generic: TypeRef, instance_holder: TypeRef) -> TypeRef {
+        if self.get_type(generic) == Some(&Type::Polytype) {
             if let Some(&Type::Instantiated(polytype, ref parameters)) =
-                self.get_type_ref(instance_holder)
+                self.get_type(instance_holder)
             {
                 let generics = &self.get_description(polytype).unwrap().generics;
-                return TypeInstance::new(
-                    *generics
-                        .iter()
-                        .zip(parameters.iter())
-                        .find_map(|(generic_id, concrete)| {
-                            (generic == *generic_id).then_some(concrete)
-                        })
-                        .expect("Polytype should be instantiated."),
-                    self,
-                );
+                let type_id = *generics
+                    .iter()
+                    .zip(parameters.iter())
+                    .find_map(|(generic_id, concrete)| (generic == *generic_id).then_some(concrete))
+                    .expect("Polytype should be instantiated.");
+                return type_id;
             }
         }
-        TypeInstance::new(generic, self)
+        generic
     }
 
     pub(super) fn get_method_exact(
@@ -84,7 +93,8 @@ impl Exploration<'_> {
         return_ty: TypeRef,
     ) -> Option<&MethodType> {
         let definition = self.get_base_type(id);
-        if definition.0.reef == self.externals.current {
+        let current = self.externals.current;
+        if definition.0.reef == current || id.reef == current {
             self.type_engine
                 .get_method_exact(definition.0.type_id, name, params, return_ty)
         } else {
@@ -133,7 +143,8 @@ impl Exploration<'_> {
 
     pub(super) fn get_description(&self, id: TypeRef) -> Option<&TypeDescription> {
         let definition = self.get_base_type(id);
-        if definition.0.reef == self.externals.current {
+        let current = self.externals.current;
+        if definition.0.reef == current || id.reef == current {
             self.type_engine.get_description(definition.0.type_id)
         } else {
             let reef = self.get_external_type_reef(id.reef);
@@ -143,13 +154,13 @@ impl Exploration<'_> {
 
     /// Gets the base type of a type identifier.
     pub(crate) fn get_base_type(&self, type_id: TypeRef) -> DefinitionId {
-        DefinitionId(match self.get_type_ref(type_id).unwrap_or(&Type::Error) {
+        DefinitionId(match self.get_type(type_id).unwrap_or(&Type::Error) {
             Type::Instantiated(def, _) => *def,
             _ => type_id,
         })
     }
 
-    pub(super) fn get_external_env<'a>(
+    pub(super) fn get_external_env(
         &'a self,
         from_env: &'a Environment,
         to_symbol: ResolvedSymbol,
@@ -187,8 +198,17 @@ impl Exploration<'_> {
         if assign_to.is_err() || rvalue.is_err() || rvalue.is_nothing() {
             return true; // An error is compatible with everything, as it is a placeholder.
         }
-        let lhs = self.get_type_ref(assign_to).unwrap();
-        let rhs = self.get_type_ref(rvalue).unwrap();
+        let lhs = self.get_type(assign_to).unwrap();
+        if *lhs == Type::Polytype {
+            return true;
+        }
+
+        let rhs = self.get_type(rvalue).unwrap();
+
+        if let (Type::Instantiated(base_lhs, _), Type::Instantiated(base_rhs, _)) = (lhs, rhs) {
+            return base_lhs == base_rhs;
+        }
+
         lhs == rhs
     }
 

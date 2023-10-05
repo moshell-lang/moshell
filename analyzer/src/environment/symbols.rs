@@ -9,7 +9,6 @@ use context::source::{SourceSegment, SourceSegmentHolder};
 use crate::name::Name;
 use crate::reef::{Externals, ReefId};
 use crate::relations::{LocalId, RelationId, SymbolRef};
-use crate::types::ty::TypeRef;
 
 /// Information over the declared type of a variable
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -18,9 +17,8 @@ pub enum SymbolInfo {
     Variable,
     /// The symbol is a function declaration
     Function,
-    /// The symbol is a Type, where the [TypeRef] is the reference to the actual type representation in the
-    /// reef's [Typing]
-    Type(TypeRef),
+    /// The symbol is a type
+    Type,
 }
 
 #[derive(Debug, Eq, PartialEq, Hash)]
@@ -43,7 +41,7 @@ impl Display for SymbolInfo {
         match self {
             SymbolInfo::Variable => write!(f, "variable"),
             SymbolInfo::Function => write!(f, "function"),
-            SymbolInfo::Type(_) => write!(f, "type"),
+            SymbolInfo::Type => write!(f, "type"),
         }
     }
 }
@@ -60,7 +58,7 @@ impl SymbolRegistry {
     /// returns true if the given symbol info is part of this registry
     pub(crate) fn accepts(&self, kind: SymbolInfo) -> bool {
         match self {
-            SymbolRegistry::Types => matches!(kind, SymbolInfo::Type(_)),
+            SymbolRegistry::Types => matches!(kind, SymbolInfo::Type),
             SymbolRegistry::Objects => matches!(kind, SymbolInfo::Variable | SymbolInfo::Function),
         }
     }

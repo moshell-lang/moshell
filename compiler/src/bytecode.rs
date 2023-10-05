@@ -1,12 +1,13 @@
 use std::mem::size_of;
 
-use analyzer::relations::{LocalId, ResolvedSymbol};
 use num_enum::TryFromPrimitive;
-
-use analyzer::types::hir::Var;
 
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
+use analyzer::relations::{LocalId, ResolvedSymbol};
+use analyzer::types;
+use analyzer::types::hir::Var;
+use analyzer::types::ty::TypeRef;
 
 #[derive(Debug, Clone)]
 pub struct Placeholder {
@@ -122,6 +123,14 @@ impl<'a> Instructions<'a> {
             ValueStackSize::QWord => Opcode::PopQWord,
         };
         self.emit_code(pop_opcode);
+    }
+
+    pub fn emit_box_if_primitive(&mut self, ty: TypeRef) {
+        match ty {
+            types::EXITCODE | types::BOOL => self.emit_code(Opcode::BoxByte),
+            types::INT | types::FLOAT => self.emit_code(Opcode::BoxQWord),
+            _ => { /* Objects are already on the heap */ }
+        }
     }
 
     /// bind a source code byte position to current instruction
@@ -323,7 +332,8 @@ pub enum Opcode {
     PushStringRef,
     PushLocalRef,
 
-    BoxInt,
+    BoxQWord,
+    BoxByte,
     Unbox,
 
     GetLocalByte,

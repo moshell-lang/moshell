@@ -32,7 +32,6 @@ impl Default for Runner<'_> {
 
         compile(
             &analyzer.engine,
-            &analyzer.typing,
             &analyzer.resolution.relations,
             &analyzer.resolution.engine,
             &externals,
@@ -104,7 +103,6 @@ impl<'a> Runner<'a> {
 
         compile(
             &self.analyzer.engine,
-            &self.analyzer.typing,
             &self.analyzer.resolution.relations,
             &self.analyzer.resolution.engine,
             &self.externals,

@@ -1,9 +1,10 @@
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
+use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::exploration::{Exploration, Links};
 use crate::steps::typing::function::{
     find_exact_method, find_operand_implementation, list_operator_defined_for, BinaryMethodMatch,
 };
-use crate::steps::typing::{ascribe_types, TypingState};
+use crate::steps::typing::{ascribe_types, ExpressionValue, TypingState};
 use crate::types::hir::{ExprKind, MethodCall, TypedExpr};
 use ast::range::Subscript;
 use ast::variable::Assign;
@@ -28,7 +29,8 @@ pub(super) fn create_subscript(
         .get_methods(target.ty, "[]")
         .map(|methods| methods.as_slice())
         .unwrap_or(&[]);
-    let method = find_operand_implementation(exploration, target.ty.reef, methods, target, index);
+
+    let method = find_operand_implementation(exploration, target_ty.reef, methods, target, index);
     match method {
         Ok(method) => Ok(method),
         Err(target) => {
@@ -37,7 +39,7 @@ pub(super) fn create_subscript(
                     DiagnosticID::UnknownMethod,
                     format!(
                         "Cannot index into a value of type `{}`",
-                        exploration.get_type(target_ty)
+                        exploration.new_type_view(target_ty, &TypesBounds::inactive())
                     ),
                 )
                 .with_observation(Observation::here(
@@ -46,8 +48,8 @@ pub(super) fn create_subscript(
                     sub.index.segment(),
                     format!(
                         "`{}` indices are of type {}",
-                        exploration.get_type(target_ty),
-                        list_operator_defined_for(exploration, methods),
+                        exploration.new_type_view(target_ty, &TypesBounds::inactive()),
+                        list_operator_defined_for(exploration, methods, &TypesBounds::inactive()),
                     ),
                 ))
             } else {
@@ -55,8 +57,8 @@ pub(super) fn create_subscript(
                     DiagnosticID::UnknownMethod,
                     format!(
                         "The type `{}` cannot be indexed by `{}`",
-                        exploration.get_type(target_ty),
-                        exploration.get_type(index_ty)
+                        exploration.new_type_view(target_ty, &TypesBounds::inactive()),
+                        exploration.new_type_view(index_ty, &TypesBounds::inactive())
                     ),
                 )
                 .with_observation(Observation::here(
@@ -65,7 +67,7 @@ pub(super) fn create_subscript(
                     sub.index.segment(),
                     format!(
                         "Indexing with `{}` is invalid",
-                        exploration.get_type(index_ty)
+                        exploration.new_type_view(index_ty, &TypesBounds::inactive())
                     ),
                 ))
             });
@@ -93,7 +95,7 @@ pub(super) fn ascribe_assign_subscript(
         exploration,
         links,
         diagnostics,
-        state.with_local_type(),
+        state.with_local_value(ExpressionValue::Unspecified),
     )
     else {
         return rhs.poison();
@@ -106,9 +108,9 @@ pub(super) fn ascribe_assign_subscript(
         .map(|methods| methods.as_slice())
         .unwrap_or(&[]);
     let mut args = vec![index, rhs];
-    let method = find_exact_method(exploration, target.ty, methods, args.as_slice());
-    if let Some(method) = method {
-        let return_type = exploration.concretize(method.return_type, target.ty).id;
+    let method = find_exact_method(exploration, target.ty, methods, args.as_slice(), &[]);
+    if let Some((method, _)) = method {
+        let return_type = exploration.concretize(method.return_type, target.ty);
         return TypedExpr {
             kind: ExprKind::MethodCall(MethodCall {
                 callee: Box::new(target),
@@ -124,14 +126,17 @@ pub(super) fn ascribe_assign_subscript(
             DiagnosticID::TypeMismatch,
             format!(
                 "Invalid assignment to `{}`",
-                exploration.get_type(target.ty)
+                exploration.new_type_view(target.ty, &TypesBounds::inactive())
             ),
         )
         .with_observation(Observation::here(
             links.source,
             exploration.externals.current,
             rhs_segment,
-            format!("Found `{}`", exploration.get_type(rhs_ty)),
+            format!(
+                "Found `{}`",
+                exploration.new_type_view(rhs_ty, &TypesBounds::inactive())
+            ),
         ))
         .with_observation(Observation::context(
             links.source,

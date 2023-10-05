@@ -449,6 +449,10 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                     )),
                 }
 
+                for ty in &call.type_parameters {
+                    self.collect_type(state.module, ty);
+                }
+
                 for arg in &call.arguments {
                     self.tree_walk(state, arg, to_visit);
                 }
@@ -622,7 +626,17 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                 let func_env = self.current_env().fork(state.module, func.name);
 
                 self.stack.push(func_id);
-                self.engine().attach(func_id, func_env);
+
+                let func_env = self.engine().attach(func_id, func_env);
+
+                for type_param in &func.type_parameters {
+                    func_env
+                        .symbols
+                        .declare_local(type_param.name.to_string(), SymbolInfo::Type);
+                    if !type_param.params.is_empty() {
+                        unimplemented!("Parametrized type parameters are not yet supported");
+                    }
+                }
 
                 for param in &func.parameters {
                     let param_name = match param {

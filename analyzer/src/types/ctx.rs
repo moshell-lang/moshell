@@ -21,17 +21,18 @@ impl TypeContext {
         symbol: SymbolRef,
     ) -> Option<TypedVariable> {
         match symbol {
-            SymbolRef::Local(index) => self.locals.get(&source).unwrap().get(index.0).copied(),
+            SymbolRef::Local(local) => self.get_local(source, local),
 
             SymbolRef::External(index) => {
                 let resolved = relations[index].state.expect_resolved("Unresolved symbol");
-                self.locals
-                    .get(&resolved.source)
-                    .unwrap()
-                    .get(resolved.object_id.0)
-                    .copied()
+                // assume that the resolved symbol's reef points to this context's reef
+                self.get_local(resolved.source, resolved.object_id)
             }
         }
+    }
+
+    pub(crate) fn get_local(&self, source: SourceId, id: LocalId) -> Option<TypedVariable> {
+        self.locals.get(&source).unwrap().get(id.0).copied()
     }
 
     /// Defines the type of a currently explored symbol.
@@ -64,7 +65,7 @@ impl TypeContext {
 ///
 /// The main purpose of this struct is to hold the type of a variable,
 /// but it also holds if the variable can be reassigned.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct TypedVariable {
     pub(crate) type_ref: TypeRef,
     pub(crate) can_reassign: bool,
