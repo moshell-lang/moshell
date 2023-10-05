@@ -61,7 +61,7 @@ pub(super) fn convert_description(
     if let (Type::Instantiated(base_left, params_lhs), Type::Instantiated(base_right, params_rhs)) =
         (lhs, rhs)
     {
-        if base_left == base_right {
+        if is_compatible(exploration, *base_left, *base_right) {
             // simply test if parameters of rvalue can fit to assigned target
             // when generic parameters will have bounds, we'll probably want to
             // assign a new type that's the result of the union of rvalue and assigned.

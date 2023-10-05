@@ -160,11 +160,11 @@ impl<'a> Exploration<'a> {
         })
     }
 
-    pub(super) fn get_external_env<'b>(
-        &'b self,
-        from_env: &'b Environment,
+    pub(super) fn get_external_env(
+        &'a self,
+        from_env: &'a Environment,
         to_symbol: ResolvedSymbol,
-    ) -> Option<&'b Environment> {
+    ) -> Option<&'a Environment> {
         if to_symbol.reef == self.externals.current {
             Some(from_env)
         } else {

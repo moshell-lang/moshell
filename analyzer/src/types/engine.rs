@@ -142,8 +142,7 @@ impl TypedEngine {
     }
 
     pub fn take_user(&mut self, id: SourceId) -> Option<Chunk> {
-        self.entries.push(None);
-        self.entries.swap_remove(id.0)
+        self.entries.get_mut(id.0)?.take()
     }
 
     /// Inserts a chunk into the engine.

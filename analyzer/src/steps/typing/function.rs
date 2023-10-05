@@ -15,11 +15,11 @@ use crate::steps::typing::coercion::{
     convert_description, convert_expression, convert_many, resolve_type_annotation,
 };
 use crate::steps::typing::exploration::{Exploration, Links};
-use crate::steps::typing::{ascribe_types, TypingState};
-use crate::types::engine::CodeEntry;
+use crate::steps::typing::{ascribe_types, ExpressionValue, TypingState};
+use crate::types::engine::{Chunk, CodeEntry};
 use crate::types::hir::{ExprKind, TypedExpr};
 use crate::types::ty::{FunctionType, MethodType, Parameter, Type, TypeRef};
-use crate::types::{ERROR, STRING};
+use crate::types::{ERROR, STRING, UNIT};
 
 /// An identified return during the exploration.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -284,6 +284,68 @@ fn check_for_leaked_type_parameters(
     }
 }
 
+/// create a basic chunk from a function declaration
+/// type its parameters, type parameters and return type
+pub(super) fn type_function_signature(
+    func: &FunctionDeclaration,
+    exploration: &mut Exploration,
+    function_links: Links,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Chunk {
+    let mut type_params = Vec::new();
+    let mut params = Vec::new();
+
+    let func_source = function_links.source;
+
+    for type_param in &func.type_parameters {
+        let param_type_id = exploration
+            .typing
+            .add_type(Type::Polytype, Some(type_param.name.to_string()));
+        let param_type_ref = TypeRef::new(exploration.externals.current, param_type_id);
+        type_params.push(param_type_ref);
+        exploration
+            .ctx
+            .push_local_typed(func_source, param_type_ref);
+        exploration
+            .ctx
+            .bind_name(type_param.name.to_string(), param_type_id);
+    }
+
+    let tparam_count = func.type_parameters.len();
+    for (param_offset, param) in func.parameters.iter().enumerate() {
+        let param = type_parameter(
+            LocalId(tparam_count + param_offset),
+            exploration,
+            param,
+            function_links,
+            diagnostics,
+        );
+        exploration.ctx.push_local_typed(func_source, param.ty);
+        params.push(param);
+    }
+
+    let return_type = func.return_type.as_ref().map_or(UNIT, |ty| {
+        resolve_type_annotation(exploration, function_links, ty, diagnostics)
+    });
+
+    let type_id = exploration.typing.add_type(
+        Type::Function(Definition::User(func_source)),
+        Some(func.name.to_string()),
+    );
+    let type_ref = TypeRef::new(exploration.externals.current, type_id);
+
+    Chunk {
+        expression: Some(TypedExpr {
+            kind: ExprKind::Noop,
+            ty: type_ref,
+            segment: func.segment(),
+        }),
+        type_parameters: type_params,
+        parameters: params,
+        return_type,
+    }
+}
+
 /// Checks the type of a call expression.
 pub(super) fn type_call(
     call: &ProgrammaticCall,
@@ -351,11 +413,17 @@ pub(super) fn type_call(
             } else {
                 let type_arguments = entry.type_parameters().to_vec();
 
+                let expected_type = if let ExpressionValue::Expected(t) = state.local_value {
+                    Some(t)
+                } else {
+                    None
+                };
+
                 let mut bounds = build_bounds(
                     &call.type_parameters,
                     fun_reef,
                     definition,
-                    state.expected_type,
+                    expected_type,
                     exploration,
                     links,
                     diagnostics,
@@ -370,7 +438,7 @@ pub(super) fn type_call(
                         links,
                         diagnostics,
                         arg,
-                        state.with_expected_type(Some(param_bound)),
+                        state.with_local_value(ExpressionValue::Expected(param_bound)),
                     );
 
                     let casted_argument = convert_expression(

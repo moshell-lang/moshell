@@ -123,7 +123,7 @@ impl<'a> Instructions<'a> {
         match ty {
             types::EXITCODE | types::BOOL => self.emit_code(Opcode::BoxByte),
             types::INT | types::FLOAT => self.emit_code(Opcode::BoxQWord),
-            _ => panic!("Can only box int, float, exitcode and boolean primitives"),
+            _ => { /* Objects are already on the heap */ }
         }
     }
 

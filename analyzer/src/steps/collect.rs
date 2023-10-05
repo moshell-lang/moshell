@@ -630,7 +630,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                         .symbols
                         .declare_local(type_param.name.to_string(), SymbolInfo::Type);
                     if !type_param.params.is_empty() {
-                        panic!("cannot support parametrized generic parameters")
+                        unimplemented!("Parametrized type parameters are not yet supported");
                     }
                 }
 

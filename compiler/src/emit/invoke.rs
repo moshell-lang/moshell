@@ -151,8 +151,7 @@ pub fn emit_function_invocation(
         .zip(&function_definition.parameters)
     {
         emit(arg, instructions, ctx, cp, locals, state);
-        // the parameter is an object but argument is not : may be an argument passed to a generic parameter
-        // that needs to be boxed
+        // The parameter is an object but the argument isn't: may be an argument passed to a generic parameter
         if parameter.ty.is_obj() && !arg.ty.is_obj() {
             instructions.emit_box(arg.ty)
         }
@@ -205,7 +204,7 @@ pub fn emit_function_invocation(
         // the stack if the value isn't used later in the code
         instructions.emit_pop(return_type_size);
     } else if return_type.is_obj() && !call_return_type.is_obj() {
-        // the function's declared return type is an object but call return type is not : its a boxed return value
+        // The function's declared return type is an object but the call return type is not: it's a boxed return value
         instructions.emit_code(Opcode::Unbox);
     }
 }

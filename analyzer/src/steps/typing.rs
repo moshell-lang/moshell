@@ -14,7 +14,7 @@ use crate::dependency::topological_sort;
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::reef::{Externals, ReefId};
-use crate::relations::{Definition, LocalId, Relations, SourceId, SymbolRef};
+use crate::relations::{Definition, Relations, SourceId, SymbolRef};
 use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::coercion::{
     check_type_annotation, coerce_condition, convert_description, convert_expression, convert_many,
@@ -22,7 +22,8 @@ use crate::steps::typing::coercion::{
 };
 use crate::steps::typing::exploration::{Exploration, Links};
 use crate::steps::typing::function::{
-    find_operand_implementation, infer_return, type_call, type_method, type_parameter, Return,
+    find_operand_implementation, infer_return, type_call, type_function_signature, type_method,
+    Return,
 };
 use crate::steps::typing::lower::convert_into_string;
 use crate::types::ctx::{TypeContext, TypedVariable};
@@ -66,16 +67,25 @@ pub fn apply_types(
     (exploration.type_engine, exploration.ctx, exploration.typing)
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Default)]
+enum ExpressionValue {
+    /// The value of the expression is not used
+    #[default]
+    Unused,
+    /// The value of the expression is used but its type is not specified
+    Unspecified,
+    /// Thevalue oftheexpression is used and is of expected type
+    Expected(TypeRef),
+}
+
 /// A state holder, used to informs the type checker about what should be
 /// checked.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Default)]
 struct TypingState {
-    local_type: bool,
-
     // if not in loop, `continue` and `break` will raise a diagnostic
     in_loop: bool,
 
-    expected_type: Option<TypeRef>,
+    local_value: ExpressionValue,
 }
 
 impl TypingState {
@@ -84,18 +94,10 @@ impl TypingState {
         Self::default()
     }
 
-    /// Returns a new state that should track local returns.
-    fn with_local_type(self) -> Self {
+    /// Returns a new state with given expression value.
+    fn with_local_value(self, v: ExpressionValue) -> Self {
         Self {
-            local_type: true,
-            ..self
-        }
-    }
-
-    /// Returns a new state that indicates to not track local returns.
-    fn without_local_type(self) -> Self {
-        Self {
-            local_type: false,
+            local_value: v,
             ..self
         }
     }
@@ -104,14 +106,6 @@ impl TypingState {
     fn with_in_loop(self) -> Self {
         Self {
             in_loop: true,
-            ..self
-        }
-    }
-
-    /// return a state with the expected type of the next expression.
-    fn with_expected_type(self, ty: Option<TypeRef>) -> Self {
-        Self {
-            expected_type: ty,
             ..self
         }
     }
@@ -162,19 +156,13 @@ fn apply_types_to_source(
     exploration.prepare();
     match expr {
         Expr::FunctionDeclaration(func) => {
-            // is some if this chunk was forward declared
+            // Take any previous forward declaration if present.
             let forward_declaration = exploration.type_engine.take_user(source_id);
 
             let base_chunk = forward_declaration
                 .unwrap_or_else(|| type_function_signature(func, exploration, links, diagnostics));
 
-            let expected_return_type =
-                if let Some(return_type_annotation) = func.return_type.as_ref() {
-                    // An explicit return type is present, check it against all the return types.
-                    resolve_type_annotation(exploration, links, return_type_annotation, diagnostics)
-                } else {
-                    UNIT
-                };
+            let expected_return_type = base_chunk.return_type;
 
             let typed_body = func.body.as_ref().map(|body| {
                 ascribe_types(
@@ -183,8 +171,7 @@ fn apply_types_to_source(
                     diagnostics,
                     body,
                     TypingState::default()
-                        .with_local_type()
-                        .with_expected_type(Some(expected_return_type)),
+                        .with_local_value(ExpressionValue::Expected(expected_return_type)),
                 )
             });
 
@@ -220,68 +207,6 @@ fn apply_types_to_source(
             expr,
             TypingState::new(),
         )),
-    }
-}
-
-/// create a basic chunk from a function declaration
-/// type its parameters, type parameters and return type
-fn type_function_signature(
-    func: &FunctionDeclaration,
-    exploration: &mut Exploration,
-    function_links: Links,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> Chunk {
-    let mut type_params = Vec::new();
-    let mut params = Vec::new();
-
-    let func_source = function_links.source;
-
-    for type_param in &func.type_parameters {
-        let param_type_id = exploration
-            .typing
-            .add_type(Type::Polytype, Some(type_param.name.to_string()));
-        let param_type_ref = TypeRef::new(exploration.externals.current, param_type_id);
-        type_params.push(param_type_ref);
-        exploration
-            .ctx
-            .push_local_typed(func_source, param_type_ref);
-        exploration
-            .ctx
-            .bind_name(type_param.name.to_string(), param_type_id);
-    }
-
-    let tparam_count = func.type_parameters.len();
-    for (param_offset, param) in func.parameters.iter().enumerate() {
-        let param = type_parameter(
-            LocalId(tparam_count + param_offset),
-            exploration,
-            param,
-            function_links,
-            diagnostics,
-        );
-        exploration.ctx.push_local_typed(func_source, param.ty);
-        params.push(param);
-    }
-
-    let return_type = func.return_type.as_ref().map_or(UNIT, |ty| {
-        resolve_type_annotation(exploration, function_links, ty, diagnostics)
-    });
-
-    let type_id = exploration.typing.add_type(
-        Type::Function(Definition::User(func_source)),
-        Some(func.name.to_string()),
-    );
-    let type_ref = TypeRef::new(exploration.externals.current, type_id);
-
-    Chunk {
-        expression: Some(TypedExpr {
-            kind: ExprKind::Noop,
-            ty: type_ref,
-            segment: func.segment(),
-        }),
-        type_parameters: type_params,
-        parameters: params,
-        return_type,
     }
 }
 
@@ -332,7 +257,7 @@ fn ascribe_template_string(
             links,
             diagnostics,
             part,
-            state.without_local_type(),
+            state.with_local_value(ExpressionValue::Unused),
         );
         convert_into_string(typed_part, exploration, diagnostics, links.source)
     });
@@ -358,35 +283,44 @@ fn ascribe_assign(
     diagnostics: &mut Vec<Diagnostic>,
     state: TypingState,
 ) -> TypedExpr {
-    macro_rules! ascribe_rhs {
-        ($expected_type:expr) => {
-            match assign.operator {
-                AssignOperator::Assign => ascribe_types(
-                    exploration,
-                    links,
-                    diagnostics,
-                    &assign.value,
-                    state.with_local_type().with_expected_type($expected_type),
-                ),
-                operator => {
-                    let binary = Expr::Binary(BinaryOperation {
-                        left: assign.left.clone(),
-                        op: BinaryOperator::try_from(operator).expect("Invalid assign operator"),
-                        right: assign.value.clone(),
-                    });
-                    ascribe_types(
-                        exploration,
-                        links,
-                        diagnostics,
-                        &binary,
-                        state.with_local_type(),
-                    )
-                }
-            }
-        };
-    }
+    let symbol = links.env().get_raw_symbol(assign.left.segment());
 
-    let Some(symbol) = links.env().get_raw_symbol(assign.left.segment()) else {
+    let actual_type_ref = symbol.map(|symbol| {
+        exploration
+            .ctx
+            .get(links.relations, links.source, symbol)
+            .unwrap()
+            .type_ref
+    });
+
+    let rhs = match assign.operator {
+        AssignOperator::Assign => ascribe_types(
+            exploration,
+            links,
+            diagnostics,
+            &assign.value,
+            state.with_local_value(
+                actual_type_ref.map_or(ExpressionValue::Unspecified, ExpressionValue::Expected),
+            ),
+        ),
+        operator => {
+            let binary = Expr::Binary(BinaryOperation {
+                left: assign.left.clone(),
+                op: BinaryOperator::try_from(operator).expect("Invalid assign operator"),
+                right: assign.value.clone(),
+            });
+            ascribe_types(
+                exploration,
+                links,
+                diagnostics,
+                &binary,
+                state.with_local_value(ExpressionValue::Unspecified),
+            )
+        }
+    };
+
+    // actual_type_ref is some if symbol is some
+    let Some((actual_type_ref, symbol)) = actual_type_ref.map(|r| (r, symbol.unwrap())) else {
         diagnostics.push(
             Diagnostic::new(
                 DiagnosticID::InvalidAssignment,
@@ -399,15 +333,8 @@ fn ascribe_assign(
                 "Cannot assign to this expression",
             )),
         );
-        return ascribe_rhs!(None);
+        return rhs;
     };
-    let actual_type_ref = exploration
-        .ctx
-        .get(links.relations, links.source, symbol)
-        .unwrap()
-        .type_ref;
-
-    let rhs = ascribe_rhs!(Some(actual_type_ref));
 
     let actual_type = exploration.get_type(actual_type_ref).unwrap();
     if actual_type.is_named() {
@@ -528,7 +455,9 @@ fn ascribe_var_declaration(
                 links,
                 diagnostics,
                 expr,
-                state.with_local_type().with_expected_type(type_hint),
+                state.with_local_value(
+                    type_hint.map_or(ExpressionValue::Unspecified, ExpressionValue::Expected),
+                ),
             )
         })
         .expect("Variables without initializers are not supported yet");
@@ -620,7 +549,7 @@ fn ascribe_block(
             diagnostics,
             expr,
             if it.peek().is_some() {
-                state.without_local_type()
+                state.with_local_value(ExpressionValue::Unused)
             } else {
                 state
             },
@@ -899,7 +828,7 @@ fn ascribe_unary(
         links,
         diagnostics,
         &unary.expr,
-        state.with_local_type(),
+        state.with_local_value(ExpressionValue::Unspecified),
     );
     if expr.ty.is_err() {
         return expr;
@@ -1013,7 +942,7 @@ fn ascribe_if(
         .as_ref()
         .map(|expr| ascribe_types(exploration, links, diagnostics, expr, state));
 
-    let ty = if state.local_type {
+    let ty = if state.local_value != ExpressionValue::Unused {
         match convert_many(
             exploration,
             &mut TypesBounds::inactive(),
@@ -1180,7 +1109,7 @@ fn ascribe_loop(
                 links,
                 diagnostics,
                 &w.condition,
-                state.with_local_type(),
+                state.with_local_value(ExpressionValue::Unspecified),
             );
             (
                 Some(coerce_condition(
@@ -1200,7 +1129,9 @@ fn ascribe_loop(
         links,
         diagnostics,
         body,
-        state.without_local_type().with_in_loop(),
+        state
+            .with_in_loop()
+            .with_local_value(ExpressionValue::Unused),
     );
 
     TypedExpr {
