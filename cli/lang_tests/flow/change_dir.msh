@@ -1,0 +1,10 @@
+// Run:
+//   status: success
+//   stdout:
+//    content
+
+mkdir foo-bar-baz
+cd foo-bar-baz
+echo 'content' > foo.txt
+cd ..
+cat foo-bar-baz/foo.txt

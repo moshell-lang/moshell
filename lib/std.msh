@@ -44,3 +44,8 @@ fun some[A](v: A) -> Option[A];
 /// Instantiate a None option
 // TODO make Option's generic parameter (`A`) covariant to return an Option[Nothing]
 fun none[A]() -> Option[A];
+
+/// Changes the current working directory to a relative or an absolute path.
+///
+/// @panics if the operation fails.
+fun cd(path: String);

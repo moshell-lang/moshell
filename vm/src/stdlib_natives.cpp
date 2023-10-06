@@ -3,6 +3,8 @@
 #include "memory/heap.h"
 #include <charconv>
 #include <cmath>
+#include <cstring>
+#include <unistd.h>
 #include <iostream>
 
 static void int_to_string(OperandStack &caller_stack, runtime_memory &mem) {
@@ -79,6 +81,13 @@ static void some(OperandStack &, runtime_memory &) {
 
 static void none(OperandStack &caller_stack, runtime_memory &) {
     caller_stack.push(nullptr);
+}
+
+static void cd(OperandStack &caller_stack, runtime_memory &) {
+    const std::string &path = caller_stack.pop_reference().get<const std::string>();
+    if (chdir(path.c_str()) == -1) {
+        throw RuntimeException("Failed to change directory to " + path + ": " + strerror(errno) + ".");
+    }
 }
 
 static void floor(OperandStack &caller_stack, runtime_memory &) {
@@ -252,6 +261,7 @@ natives_functions_t load_natives() {
         {"std::new_vec", new_vec},
         {"std::some", some},
         {"std::none", none},
+        {"std::cd", cd},
 
         {"std::memory::gc", gc},
         {"std::memory::empty_operands", is_operands_empty},

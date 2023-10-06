@@ -810,6 +810,21 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                 }
                 true
             }
+            "cd" => {
+                let name = Name::from(vec!["std".to_owned(), command.to_owned()]);
+                let symbol = self.identify_symbol(
+                    *self.stack.last().unwrap(),
+                    env_id,
+                    SymbolLocation {
+                        name,
+                        is_current_reef_explicit: false,
+                    },
+                    call.arguments[0].segment().clone(),
+                    SymbolRegistry::Objects,
+                );
+                self.current_env().annotate(call, symbol);
+                true
+            }
             _ => false,
         }
     }

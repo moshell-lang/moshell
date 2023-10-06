@@ -6,6 +6,7 @@ use ast::function::FunctionDeclaration;
 use ast::group::Block;
 use ast::operation::{BinaryOperation, BinaryOperator, UnaryOperation, UnaryOperator};
 use ast::r#type::CastedExpr;
+use ast::r#use::InclusionPathItem;
 use ast::range::Subscript;
 use ast::substitution::Substitution;
 use ast::value::{Literal, LiteralValue, TemplateString};
@@ -1165,6 +1166,22 @@ fn ascribe_call(
     diagnostics: &mut Vec<Diagnostic>,
     state: TypingState,
 ) -> TypedExpr {
+    if let [Expr::Literal(Literal {
+        parsed: LiteralValue::String(cmd),
+        segment,
+    }), ..] = call.arguments.as_slice()
+    {
+        if cmd.as_str() == "cd" {
+            let pfc = ProgrammaticCall {
+                path: vec![InclusionPathItem::Symbol(cmd, segment.clone())],
+                segment: call.segment(),
+                arguments: call.arguments[1..].to_vec(),
+                type_parameters: vec![],
+            };
+            return ascribe_pfc(&pfc, exploration, links, diagnostics, state);
+        }
+    }
+
     let args = call
         .arguments
         .iter()
