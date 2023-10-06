@@ -141,17 +141,17 @@ fn tolerance_in_multiple_groups() {
                     ty: Some(Type::Parametrized(ParametrizedType {
                         path: vec![InclusionPathItem::Symbol(
                             "T",
-                            find_in_nth(&source.source, "T", 1)
+                            find_in_nth(source.source, "T", 1)
                         )],
                         params: vec![],
-                        segment: find_in_nth(&source.source, "T", 1)
+                        segment: find_in_nth(source.source, "T", 1)
                     })),
-                    segment: find_in(&source.source, "x: T")
+                    segment: find_in(source.source, "x: T")
                 })],
                 return_type: None,
                 body: Some(Box::new(Expr::VarReference(VarReference {
                     name: "x",
-                    segment: find_in(&source.source, "$x")
+                    segment: find_in(source.source, "$x")
                 }))),
                 segment: source.segment()
             })],

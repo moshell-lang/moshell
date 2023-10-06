@@ -99,7 +99,7 @@ fn operators() {
     let mut runner = Runner::default();
     runner.eval("use std::assert::*");
     runner.eval(
-        r#"\
+        "
         assert(1 + 1 == 2)
         assert(1 - 1 == 0)
         assert(1 > 1 == false)
@@ -121,7 +121,7 @@ fn operators() {
         assert(5.0 / 2.0 == 2.5)
         assert(5 % 2 == 1)
         assert(10 * (0 - 8) == 0 - 80)
-    "#,
+    ",
     );
 }
 

@@ -274,7 +274,7 @@ mod tests {
             Err(ParseError {
                 message: "import all statement needs a symbol prefix.".to_string(),
                 kind: ParseErrorKind::Expected("module path".to_string()),
-                position: source.source.find("*").map(|i| i..i + 1).unwrap(),
+                position: source.source.find('*').map(|i| i..i + 1).unwrap(),
             })
         )
     }

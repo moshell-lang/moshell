@@ -807,7 +807,7 @@ mod tests {
             &mut imports,
             &Externals::default(),
             &mut to_visit,
-            &mut visited,
+            &visited,
         );
         assert_eq!(diagnostics, vec![]);
 
@@ -886,7 +886,7 @@ mod tests {
             &mut imports,
             &Externals::default(),
             &mut to_visit,
-            &mut visited,
+            &visited,
         );
         assert_eq!(diagnostics, vec![]);
         to_visit.sort();
@@ -916,7 +916,7 @@ mod tests {
             &mut imports,
             &Externals::default(),
             &mut to_visit,
-            &mut visited,
+            &visited,
         );
         assert_eq!(diagnostics, vec![]);
         assert_eq!(to_visit, vec![]);
@@ -1132,7 +1132,7 @@ mod tests {
             &mut imports,
             &Externals::default(),
             &mut to_visit,
-            &mut visited,
+            &visited,
         );
         to_visit.dedup();
         assert_eq!(to_visit, vec![]);
@@ -1212,7 +1212,7 @@ mod tests {
             &mut imports,
             &Externals::default(),
             &mut to_visit,
-            &mut visited,
+            &visited,
         );
 
         assert_eq!(
@@ -1269,7 +1269,7 @@ mod tests {
             &mut imports,
             &Externals::default(),
             &mut to_visit,
-            &mut visited,
+            &visited,
         );
 
         assert_eq!(
@@ -1320,7 +1320,7 @@ mod tests {
             &mut imports,
             &Externals::default(),
             &mut to_visit,
-            &mut visited,
+            &visited,
         );
 
         assert_eq!(diagnostics, vec![]);

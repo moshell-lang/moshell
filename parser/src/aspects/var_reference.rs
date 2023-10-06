@@ -120,19 +120,19 @@ mod tests {
             vec![
                 Expr::VarReference(VarReference {
                     name: "@",
-                    segment: find_in(&source.source, "$@"),
+                    segment: find_in(source.source, "$@"),
                 }),
                 Expr::VarReference(VarReference {
                     name: "^",
-                    segment: find_in(&source.source, "$^"),
+                    segment: find_in(source.source, "$^"),
                 }),
                 Expr::VarReference(VarReference {
                     name: "!",
-                    segment: find_in(&source.source, "$!"),
+                    segment: find_in(source.source, "$!"),
                 }),
                 Expr::VarReference(VarReference {
                     name: "$",
-                    segment: find_in(&source.source, "$$"),
+                    segment: find_in(source.source, "$$"),
                 }),
             ]
         )

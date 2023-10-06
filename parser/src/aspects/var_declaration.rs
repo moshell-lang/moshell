@@ -109,7 +109,7 @@ mod tests {
                 var: TypedVariable {
                     name: "variable",
                     ty: None,
-                    segment: find_in(&source.source, "variable")
+                    segment: find_in(source.source, "variable")
                 },
                 initializer: None,
                 segment: source.segment(),
@@ -133,9 +133,9 @@ mod tests {
                             find_in(source.source, "Int")
                         )],
                         params: Vec::new(),
-                        segment: find_in(&source.source, "Int"),
+                        segment: find_in(source.source, "Int"),
                     })),
-                    segment: find_in(&source.source, "variable: Int")
+                    segment: find_in(source.source, "variable: Int")
                 },
                 initializer: None,
                 segment: source.segment(),
@@ -225,22 +225,22 @@ mod tests {
                 var: TypedVariable {
                     name: "x",
                     ty: None,
-                    segment: find_in(&source.source, "x")
+                    segment: find_in(source.source, "x")
                 },
                 initializer: Some(Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
                         arguments: vec![
                             Expr::Literal(Literal {
                                 parsed: "echo".into(),
-                                segment: find_in(&source.source, "echo")
+                                segment: find_in(source.source, "echo")
                             }),
                             Expr::Literal(Literal {
                                 parsed: "a".into(),
-                                segment: find_in_nth(&source.source, "a", 1),
+                                segment: find_in_nth(source.source, "a", 1),
                             }),
                         ],
                     })],
-                    segment: find_in(&source.source, "{echo a}")
+                    segment: find_in(source.source, "{echo a}")
                 }))),
                 segment: source.segment(),
             })],

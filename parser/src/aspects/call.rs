@@ -405,7 +405,7 @@ mod tests {
         let source = Source::unknown("Foo()");
         let source2 = Source::unknown("Foo( )");
         let expr = parse(source).expect("Failed to parse");
-        let expr2 = parse(source2.clone()).expect("Failed to parse");
+        let expr2 = parse(source2).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {

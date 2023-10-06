@@ -44,7 +44,7 @@ fn string_literal_unterminated_due_to_comment() {
     assert_eq!(
         unmatched,
         vec![UnmatchedDelimiter {
-            opening: Some(input.find("(").unwrap()),
+            opening: Some(input.find('(').unwrap()),
             candidate: None,
             closing: None
         }]

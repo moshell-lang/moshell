@@ -349,7 +349,7 @@ mod tests {
             errs,
             vec![ParseError {
                 message: "expected '='".to_string(),
-                position: src.find("{").map(|i| i..i + 1).unwrap(),
+                position: src.find('{').map(|i| i..i + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected,
             }]
         );

@@ -35,3 +35,7 @@ jobs:
     - name: Rustfmt Check
       uses: actions-rust-lang/rustfmt@v1
       continue-on-error: true
+
+    - name: Clippy Check
+      run: cargo clippy --tests
+      continue-on-error: true

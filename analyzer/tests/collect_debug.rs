@@ -61,12 +61,12 @@ fn collect_sample() {
     assert_eq!(diagnostics, vec![]);
 
     let diagnostics = SymbolResolver::resolve_symbols(
-        &mut engine,
+        &engine,
         &mut relations,
         &mut imports,
         &externals,
         &mut to_visit,
-        &mut visited,
+        &visited,
     );
     assert_eq!(diagnostics, vec![]);
 

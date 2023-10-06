@@ -908,9 +908,9 @@ mod tests {
 
     use super::*;
 
-    fn tree_walk<'a, 'e>(
+    fn tree_walk<'e>(
         expr: &'e Expr<'e>,
-        engine: &'a mut Engine<'e>,
+        engine: &mut Engine<'e>,
         relations: &mut Relations,
     ) -> (Vec<Diagnostic>, Environment) {
         let env = Environment::script(Name::new("test"));
@@ -920,7 +920,7 @@ mod tests {
         let mut collector = SymbolCollector::new(engine, relations, &mut imports, &externals);
         collector.engine.attach(SourceId(0), env);
         collector.stack.push(SourceId(0));
-        collector.tree_walk(&mut state, &expr, &mut vec![]);
+        collector.tree_walk(&mut state, expr, &mut vec![]);
         let env = collector.engine.get_environment(SourceId(0)).unwrap();
         collector.stack.pop();
         (collector.diagnostics, env.clone())
