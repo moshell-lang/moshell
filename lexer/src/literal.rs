@@ -13,6 +13,7 @@ pub(crate) fn is_not_identifier_part(c: char) -> bool {
             | '@'
             | '\''
             | '"'
+            | '`'
             | '/'
             | '\\'
             | '+'
@@ -60,7 +61,6 @@ impl<'a> Lexer<'a> {
             "reef" => TokenType::Reef,
             "return" => TokenType::Return,
             "self" => TokenType::Slf,
-            "shell" => TokenType::Shell,
             "struct" => TokenType::Struct,
             "true" => TokenType::True,
             "use" => TokenType::Use,
