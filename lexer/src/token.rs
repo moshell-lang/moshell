@@ -35,6 +35,8 @@ pub enum TokenType {
     #[assoc(str = "val")]
     Val,
 
+    #[assoc(str = "`")]
+    Backtick,
     StringStart,
     StringEnd,
     StringContent,
@@ -78,8 +80,6 @@ pub enum TokenType {
     Match,
     #[assoc(str = "as")]
     As,
-    #[assoc(str = "shell")]
-    Shell,
 
     #[assoc(str = "self")]
     Slf,

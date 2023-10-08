@@ -46,16 +46,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
     }
 
     fn programmatic_call(&mut self) -> ParseResult<Expr<'a>> {
-        let mut path = self.parse_inclusion_path()?;
-        let name = self.cursor.force_with(
-            of_type(TokenType::Identifier),
-            "Expected function name.",
-            ParseErrorKind::Expected("identifier".to_owned()),
-        )?;
-
-        let name_segment = self.cursor.relative_pos(name.value);
-        path.push(InclusionPathItem::Symbol(name.value, name_segment.clone()));
-
+        let path = self.parse_inclusion_path()?;
         let (type_parameters, _) = self.parse_optional_list(
             TokenType::SquaredLeftBracket,
             TokenType::SquaredRightBracket,
@@ -72,7 +63,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         let start = path
             .first()
             .map(InclusionPathItem::segment)
-            .unwrap_or_else(|| name_segment);
+            .expect("Path should not be empty");
 
         let segment = start.start..args_segment.end;
 
@@ -285,21 +276,6 @@ mod tests {
                     literal(source.source, "y"),
                 ],
             }))
-        );
-    }
-
-    #[test]
-    fn echo_reef() {
-        let source = Source::unknown("echo reef()");
-        assert_eq!(
-            Parser::new(source)
-                .parse_next()
-                .expect_err("successful parse"),
-            ParseError {
-                message: "Expected function name.".to_string(),
-                position: find_in(source.source, "reef"),
-                kind: ParseErrorKind::Expected("identifier".to_string())
-            }
         );
     }
 

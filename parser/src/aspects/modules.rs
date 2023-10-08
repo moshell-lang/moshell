@@ -2,13 +2,13 @@ use ast::r#use::{Import, ImportList, ImportedSymbol, InclusionPathItem, Use};
 use ast::Expr;
 use context::source::SourceSegmentHolder;
 use lexer::token::TokenType::{
-    As, At, ColonColon, CurlyLeftBracket, CurlyRightBracket, Identifier, Reef, Star,
+    As, At, Colon, ColonColon, CurlyLeftBracket, CurlyRightBracket, Dot, Identifier, Reef, Star,
 };
 use lexer::token::{Token, TokenType};
 
 use crate::aspects::expr_list::ExpressionListAspect;
 use crate::err::ParseErrorKind;
-use crate::moves::{any, blanks, of_type, of_types, spaces, MoveOperations};
+use crate::moves::{blanks, of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 /// Parser aspect to parse all expressions in relation with modules.
@@ -27,7 +27,7 @@ impl<'a> ModulesAspect<'a> for Parser<'a> {
         let start = self
             .cursor
             .force(of_type(TokenType::Use), "expected 'use'")?;
-
+        self.cursor.advance(blanks());
         let import = self.parse_import()?;
 
         let import_seg_end = import.segment().end;
@@ -39,27 +39,25 @@ impl<'a> ModulesAspect<'a> for Parser<'a> {
 
     fn parse_inclusion_path(&mut self) -> ParseResult<Vec<InclusionPathItem<'a>>> {
         let mut items = vec![];
-
-        while let Some(identifier) = self
-            .cursor
-            .lookahead(spaces().then(of_types(&[Reef, Identifier])))
-        {
-            if self
-                .cursor
-                .advance(any().then(spaces().then(of_type(ColonColon))))
-                .is_none()
-            {
-                break;
-            }
-            let segment = self.cursor.relative_pos_ctx(identifier.value);
-            let item = match identifier.token_type {
-                Identifier => InclusionPathItem::Symbol(identifier.value, segment),
+        while let Some(item) = self.cursor.advance(of_types(&[Identifier, Reef])) {
+            let segment = self.cursor.relative_pos_ctx(item.value);
+            items.push(match item.token_type {
+                Identifier => InclusionPathItem::Symbol(item.value, segment),
                 Reef => InclusionPathItem::Reef(segment),
                 _ => unreachable!(),
-            };
-            items.push(item);
+            });
+            if let Some(delim) = self.cursor.advance(of_types(&[Colon, ColonColon, Dot])) {
+                if delim.token_type != ColonColon {
+                    self.report_error(self.mk_parse_error(
+                        "Expected `::`.",
+                        delim,
+                        ParseErrorKind::Unexpected,
+                    ));
+                }
+            } else {
+                break;
+            }
         }
-
         Ok(items)
     }
 }
@@ -138,7 +136,7 @@ impl<'a> Parser<'a> {
     fn parse_import_with_path(&mut self) -> ParseResult<Import<'a>> {
         let start = self.cursor.peek();
 
-        let mut symbol_path = self.parse_inclusion_path()?;
+        let symbol_path = self.parse_inclusion_path()?;
         self.cursor.advance(spaces()); //consume spaces
         let token = self.cursor.peek();
 
@@ -154,16 +152,6 @@ impl<'a> Parser<'a> {
             return self.parse_import_list(start, symbol_path).map(Import::List);
         }
 
-        let name = if token.token_type == Identifier {
-            self.cursor.next()?;
-            token.value
-        } else {
-            return self.expected(
-                "identifier expected",
-                ParseErrorKind::Expected("<identifier>".to_string()),
-            );
-        };
-
         let alias = self.cursor.advance(
             spaces()
                 .then(of_type(As))
@@ -171,17 +159,23 @@ impl<'a> Parser<'a> {
                 .then(of_type(Identifier)),
         );
 
-        let end = alias.clone().unwrap_or(token);
-
-        symbol_path.push(InclusionPathItem::Symbol(
-            name,
-            self.cursor.relative_pos_ctx(name),
-        ));
+        let end = alias
+            .as_ref()
+            .map(|t| self.cursor.relative_pos(t.value).end)
+            .unwrap_or(if let Some(val) = symbol_path.last() {
+                val.segment().end
+            } else {
+                self.expected_with(
+                    "identifier expected",
+                    start.clone()..self.cursor.peek(),
+                    ParseErrorKind::Expected("<identifier>".to_owned()),
+                )?
+            });
 
         Ok(Import::Symbol(ImportedSymbol {
             path: symbol_path,
             alias: alias.map(|t| t.value),
-            segment: self.cursor.relative_pos_ctx(start..end),
+            segment: self.cursor.relative_pos_ctx(start).start..end,
         }))
     }
 }

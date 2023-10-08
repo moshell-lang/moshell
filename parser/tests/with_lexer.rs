@@ -62,7 +62,7 @@ fn with_lexer_var_reference_one() {
 
 #[test]
 fn with_lexer_var_reference_two() {
-    let source = Source::unknown("shell \"fake$cmd\" do $arg2");
+    let source = Source::unknown("`fake$cmd` do $arg2");
     let parsed = parse(source).expect("Failed to parse");
 
     assert_eq!(
@@ -77,7 +77,7 @@ fn with_lexer_var_reference_two() {
                             segment: find_in(source.source, "$cmd"),
                         }),
                     ],
-                    segment: find_in(source.source, "\"fake$cmd\""),
+                    segment: find_in(source.source, "`fake$cmd`"),
                 }),
                 literal(source.source, "do"),
                 Expr::VarReference(VarReference {
@@ -362,7 +362,7 @@ fn pipe_expressions() {
 
 #[test]
 fn pipe_to_command() {
-    let source = Source::unknown("shell { echo '1\n2' } | cat");
+    let source = Source::unknown("{ echo '1\n2' } | cat");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,

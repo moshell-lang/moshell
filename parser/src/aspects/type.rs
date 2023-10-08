@@ -1,5 +1,4 @@
 use ast::r#type::{ByName, CallableType, ParametrizedType, Type, TypeParameter};
-use ast::r#use::InclusionPathItem;
 use context::display::fmt_comma_separated;
 use context::source::{SourceSegment, SourceSegmentHolder};
 use lexer::token::TokenType;
@@ -103,7 +102,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             }
 
             _ => self.expected_with(
-                format!("'{}' is not a valid generic type identifier.", name.value),
+                format!("`{}` is not a valid generic type identifier.", name.value),
                 name,
                 Unexpected,
             ),
@@ -188,50 +187,33 @@ impl<'a> Parser<'a> {
 
     fn parse_parametrized(&mut self) -> ParseResult<ParametrizedType<'a>> {
         self.cursor.advance(spaces());
-        let start = self.cursor.peek();
-        let mut path = self.parse_inclusion_path()?;
-        self.cursor.advance(spaces());
-        let name_token = self.cursor.peek();
-        let mut segment = self.cursor.relative_pos_ctx(start..name_token.clone());
-
-        return match name_token.token_type {
-            TokenType::Identifier => {
-                self.cursor.next_opt();
-                let (params, params_segment) = self.parse_optional_list(
-                    TokenType::SquaredLeftBracket,
-                    TokenType::SquaredRightBracket,
-                    "Expected type.",
-                    Self::parse_type,
-                )?;
-                if let Some(params_segment) = params_segment {
-                    segment.end = params_segment.end;
-                }
-
-                path.push(InclusionPathItem::Symbol(
-                    name_token.value,
-                    self.cursor.relative_pos(name_token),
-                ));
-                Ok(ParametrizedType {
-                    path,
-                    params,
-                    segment,
-                })
-            }
-
-            TokenType::NewLine => {
-                self.expected_with("expected type", name_token, Expected("<type>".to_string()))
-            }
-
-            x if x.is_closing_ponctuation() => {
-                self.expected_with("expected type", name_token, Expected("<type>".to_string()))
-            }
-
-            _ => self.expected_with(
-                format!("'{}' is not a valid type identifier.", name_token.value),
-                name_token.value,
+        let path = self.parse_inclusion_path()?;
+        let mut segment = if let Some((first, last)) = path.first().zip(path.last()) {
+            first.segment().start..last.segment().end
+        } else {
+            return self.expected(
+                format!(
+                    "`{}` is not a valid type identifier.",
+                    self.cursor.peek().value
+                ),
                 Unexpected,
-            ),
+            );
         };
+
+        let (params, params_segment) = self.parse_optional_list(
+            TokenType::SquaredLeftBracket,
+            TokenType::SquaredRightBracket,
+            "Expected type.",
+            Self::parse_type,
+        )?;
+        if let Some(params_segment) = params_segment {
+            segment.end = params_segment.end;
+        }
+        Ok(ParametrizedType {
+            path,
+            params,
+            segment,
+        })
     }
 }
 
@@ -388,9 +370,9 @@ mod tests {
         assert_eq!(
             res,
             Err(ParseError {
-                message: "'@' is not a valid type identifier.".to_string(),
-                kind: Unexpected,
+                message: "`@` is not a valid type identifier.".to_string(),
                 position: content.find('@').map(|i| i..i + 1).unwrap(),
+                kind: Unexpected,
             })
         );
     }

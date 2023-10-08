@@ -293,14 +293,9 @@ impl<'a> Parser<'a> {
                 self.call()
             }
             Dot => self.call(),
-            Shell => {
-                self.cursor.next_opt();
-                self.cursor.advance(spaces());
-                if self.cursor.peek().token_type == CurlyLeftBracket {
-                    self.block().map(Expr::Block)
-                } else {
-                    self.call()
-                }
+            Backtick => {
+                let callee = self.back_string_literal();
+                self.call_arguments(callee.map(Expr::TemplateString)?)
             }
             Not if self
                 .cursor

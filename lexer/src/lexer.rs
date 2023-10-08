@@ -86,6 +86,19 @@ impl<'a> Lexer<'a> {
                 ));
                 TokenType::StringStart
             }
+            '`' => {
+                if let Some(Token {
+                    token_type: TokenType::Backtick,
+                    ..
+                }) = self.open_delimiters.last()
+                {
+                    self.open_delimiters.pop();
+                } else {
+                    self.open_delimiters
+                        .push(Token::new(TokenType::Backtick, &self.input[pos..pos + 1]));
+                }
+                TokenType::Backtick
+            }
             '/' => {
                 if self.matches_next('/', &mut size) {
                     return self.skip_line();

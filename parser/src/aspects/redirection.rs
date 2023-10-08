@@ -41,8 +41,9 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
 
     fn redirection(&mut self) -> ParseResult<Redir<'a>> {
         self.cursor.advance(spaces());
-        let start = self.cursor.next()?;
-        let mut token = start.clone();
+        let backtick = self.cursor.advance(of_type(TokenType::Backtick));
+        let mut token = self.cursor.next()?;
+        let start = backtick.as_ref().unwrap_or(&token).clone();
         // Parse if present the redirected file descriptor
         let fd = match token.token_type {
             TokenType::Ampersand => {
@@ -80,8 +81,9 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
                 None => RedirOp::Write,
                 Some(_) => RedirOp::Append,
             },
-            _ => self.expected(
+            _ => self.expected_with(
                 "Expected redirection operator.",
+                token,
                 ParseErrorKind::Expected("< >".to_string()),
             )?,
         };
@@ -96,6 +98,9 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
                     ParseErrorKind::Expected("< or >".to_string()),
                 )?,
             };
+        }
+        if backtick.is_some() {
+            self.cursor.advance(of_type(TokenType::Backtick));
         }
 
         let operand = self.call_argument()?;
@@ -114,7 +119,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
 
         while self.cursor.lookahead(eox()).is_none() {
             match self.cursor.peek().token_type {
-                TokenType::Less | TokenType::Greater => {
+                TokenType::Less | TokenType::Greater | TokenType::Backtick => {
                     redirections.push(self.redirection()?);
                 }
                 // Detect redirections with a specific file descriptor, or with a wildcard file descriptor
@@ -172,7 +177,7 @@ mod test {
 
     #[test]
     fn expr_redirection() {
-        let content = "shell {ls; cd;} > /tmp/out";
+        let content = "{ls; cd;} `>` /tmp/out";
         let source = Source::unknown(content);
         let parsed = parse(source).expect("Failed to parse");
         assert_eq!(
@@ -193,7 +198,7 @@ mod test {
                     operator: RedirOp::Write,
                     fd: RedirFd::Default,
                     operand: literal(source.source, "/tmp/out"),
-                    segment: find_in(content, "> /tmp/out"),
+                    segment: find_in(content, "`>` /tmp/out"),
                 }],
             }),]
         );

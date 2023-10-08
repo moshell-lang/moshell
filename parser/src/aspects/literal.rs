@@ -47,6 +47,9 @@ pub(crate) trait LiteralAspect<'a> {
     /// This method is only used for double quoted strings, which may contain variable references for instance.
     fn templated_string_literal(&mut self) -> ParseResult<TemplateString<'a>>;
 
+    /// Parses a shell string with backticks.
+    fn back_string_literal(&mut self) -> ParseResult<TemplateString<'a>>;
+
     /// Parse a raw argument.
     ///
     /// Arguments are not quoted and are separated by spaces.
@@ -155,6 +158,40 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                         "Unexpected token in string template literal.",
                         ParseErrorKind::Unexpected,
                     )
+                }
+            }
+        };
+        Ok(TemplateString {
+            parts,
+            segment: self.cursor.relative_pos_ctx(start..end),
+        })
+    }
+
+    fn back_string_literal(&mut self) -> ParseResult<TemplateString<'a>> {
+        let start = self.cursor.force(of_type(Backtick), "Expected backtick.")?;
+        let mut parts = Vec::new();
+        let end = loop {
+            let token = self.cursor.peek();
+            match token.token_type {
+                Backtick => {
+                    self.cursor.next_opt();
+                    break token;
+                }
+                Dollar => {
+                    parts.push(self.substitution()?);
+                }
+                EndOfFile => {
+                    return self.expected(
+                        "Unterminated string template literal.",
+                        ParseErrorKind::Unpaired(self.cursor.relative_pos_ctx(start)),
+                    )
+                }
+                _ => {
+                    self.cursor.next_opt();
+                    parts.push(Expr::Literal(Literal {
+                        parsed: LiteralValue::String(unescape(token.value)),
+                        segment: self.cursor.relative_pos(token.value),
+                    }));
                 }
             }
         };
@@ -488,6 +525,21 @@ mod tests {
             parsed,
             Err(ParseError {
                 message: "Unterminated string literal.".to_string(),
+                position: content.len()..content.len(),
+                kind: ParseErrorKind::Unpaired(0..1),
+            })
+        );
+    }
+
+    #[test]
+    fn missing_backtick() {
+        let content = "`foo";
+        let source = Source::unknown(content);
+        let parsed: ParseResult<_> = parse(source).into();
+        assert_eq!(
+            parsed,
+            Err(ParseError {
+                message: "Unterminated string template literal.".to_string(),
                 position: content.len()..content.len(),
                 kind: ParseErrorKind::Unpaired(0..1),
             })
