@@ -18,7 +18,7 @@ use context::source::{SourceSegment, SourceSegmentHolder};
 use crate::dependency::topological_sort;
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
-use crate::environment::symbols::{MagicSymbolKind, SymbolRegistry};
+use crate::environment::symbols::MagicSymbolKind;
 use crate::is_magic_variable_name;
 use crate::name::Name;
 use crate::reef::{Externals, ReefId};
@@ -155,7 +155,7 @@ fn prepend_implicits(body: TypedExpr, exploration: &Exploration, links: Links) -
     if let Some(id) = links
         .env()
         .symbols
-        .find_exported("", SymbolRegistry::Magic(MagicSymbolKind::ProgramArguments))
+        .find_magic(MagicSymbolKind::ProgramArguments)
     {
         let (std_reef, get_args_function) = exploration
             .externals

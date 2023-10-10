@@ -171,9 +171,18 @@ pub struct Symbols {
 }
 
 impl Symbols {
-    /// Creates a new local variable.
+    /// Creates a new named local variable.
     pub fn declare_local(&mut self, name: String, ty: SymbolInfo) -> LocalId {
         self.locals.declare(name, ty)
+    }
+
+    /// Creates a new magic variable
+    pub fn declare_magic(&mut self, ty: MagicSymbolKind) -> LocalId {
+        self.locals.declare_magic(ty)
+    }
+
+    pub fn find_magic(&self, ty: MagicSymbolKind) -> Option<LocalId> {
+        self.locals.find_magic(ty)
     }
 
     /// Returns the local variable associated with the id
@@ -290,6 +299,23 @@ impl Locals {
             ty,
         });
         LocalId(id)
+    }
+
+    fn declare_magic(&mut self, ty: MagicSymbolKind) -> LocalId {
+        let id = self.vars.len();
+        self.vars.push(Symbol {
+            name: String::default(),
+            depth: -1, //exported
+            ty: SymbolInfo::Magic(ty),
+        });
+        LocalId(id)
+    }
+
+    pub(crate) fn find_magic(&self, ty: MagicSymbolKind) -> Option<LocalId> {
+        self.vars
+            .iter()
+            .position(|var| var.ty == SymbolInfo::Magic(ty))
+            .map(LocalId)
     }
 
     /// Moves into a new scope.

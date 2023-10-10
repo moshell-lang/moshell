@@ -144,20 +144,12 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
     engine.add_method(
         STRING.type_id,
         "split",
-        MethodType::new(
-            vec![],
-            vec![STRING],
-            TypeRef::new(LANG_REEF, TypeId(10)), //Vec[String] instance
-        ),
+        MethodType::new(vec![], vec![STRING], STRING_VEC),
     );
     engine.add_method(
         STRING.type_id,
         "bytes",
-        MethodType::new(
-            vec![],
-            vec![],
-            TypeRef::new(LANG_REEF, TypeId(11)), // Vec[Int] instance
-        ),
+        MethodType::new(vec![], vec![], INT_VEC),
     );
 
     for operand in [BOOL, EXITCODE] {
@@ -208,6 +200,12 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
         EXITCODE.type_id,
         "to_int",
         MethodType::new(vec![], vec![], INT),
+    );
+
+    engine.add_method(
+        GENERIC_VECTOR.type_id,
+        "shift",
+        MethodType::new(vec![], vec![], TypeRef::new(LANG_REEF, opt_type)),
     );
 }
 

@@ -521,10 +521,9 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                             )
                             .is_none()
                         {
-                            script_env.symbols.declare_local(
-                                String::default(),
-                                SymbolInfo::Magic(MagicSymbolKind::ProgramArguments),
-                            );
+                            script_env
+                                .symbols
+                                .declare_magic(MagicSymbolKind::ProgramArguments);
                         }
                     }
 

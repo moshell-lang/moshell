@@ -178,6 +178,13 @@ static void vec_pop(OperandStack &caller_stack, runtime_memory &) {
     caller_stack.push_reference(last_element);
 }
 
+static void vec_pop_head(OperandStack &caller_stack, runtime_memory &) {
+    msh::obj_vector &vec = caller_stack.pop_reference().get<msh::obj_vector>();
+    msh::obj *first_element = *vec.begin();
+    vec.erase(vec.begin());
+    caller_stack.push_reference(*first_element);
+}
+
 static void vec_push(OperandStack &caller_stack, runtime_memory &) {
     msh::obj &ref = caller_stack.pop_reference();
     msh::obj_vector &vec = caller_stack.pop_reference().get<msh::obj_vector>();
@@ -255,6 +262,7 @@ natives_functions_t load_natives() {
         {"lang::String::bytes", str_bytes},
 
         {"lang::Vec::pop", vec_pop},
+        {"lang::Vec::pop_head", vec_pop_head},
         {"lang::Vec::len", vec_len},
         {"lang::Vec::push", vec_push},
         {"lang::Vec::[]", vec_index},

@@ -283,7 +283,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
 
                     let declared_pargs = script_env
                         .symbols
-                        .find_exported("", SymbolRegistry::Magic(MagicSymbolKind::ProgramArguments))
+                        .find_magic(MagicSymbolKind::ProgramArguments)
                         .expect("collect phase did not implicitly declared pargs magic variable");
 
                     let resolved =
