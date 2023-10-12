@@ -76,6 +76,7 @@ moshell_array moshell_object_get_as_array(moshell_object o) {
 }
 
 struct vm_state {
+    std::vector<std::string> program_args;
     msh::loader loader;
     msh::pager pager;
     msh::heap heap;
@@ -86,16 +87,23 @@ struct vm_state {
 };
 
 int moshell_exec(const char *bytes, size_t byte_count) {
-    moshell_vm vm = moshell_vm_init();
+    moshell_vm vm = moshell_vm_init(nullptr, 0, nullptr);
     moshell_vm_register(vm, bytes, byte_count);
     int exit = moshell_vm_run(vm);
     moshell_vm_free(vm);
     return exit;
 }
 
-moshell_vm moshell_vm_init() {
+moshell_vm moshell_vm_init(const char **pargs, size_t arg_count, const size_t *lens) {
     vm_state *state = new vm_state();
     state->natives = load_natives();
+
+    for (size_t arg_idx = 0; arg_idx < arg_count; arg_idx++) {
+        std::string arg(*pargs, lens[arg_idx]);
+        state->program_args.push_back(arg);
+        pargs++;
+    }
+
     return {state};
 }
 
@@ -125,7 +133,8 @@ int moshell_vm_run(moshell_vm vm) {
         state.next_page = state.pager.size();
         for (auto it = state.pager.cbegin(); it != last; ++it) {
             const msh::memory_page &page = *it;
-            if (!run_unit(state.thread_stack, state.loader, state.pager, page, {state.heap, state.gc}, state.natives)) {
+            runtime_memory mem{state.heap, state.program_args, state.gc};
+            if (!run_unit(state.thread_stack, state.loader, state.pager, page, mem, state.natives)) {
                 return 1;
             }
         }

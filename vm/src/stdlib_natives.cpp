@@ -221,34 +221,12 @@ static void is_operands_empty(OperandStack &os, runtime_memory &) {
 }
 
 static void program_arguments(OperandStack &os, runtime_memory &mem) {
-    std::ifstream process_cmdline;
-    process_cmdline.open("/proc/" + std::to_string(getpid()) + "/cmdline");
-    if (!process_cmdline.is_open()) {
-        throw RuntimeException("Could not get process's arguments");
+    std::vector<std::string> &pargs = mem.program_arguments();
+    msh::obj_vector vec;
+    for (const std::string &arg : pargs) {
+        vec.push_back(&mem.emplace(arg));
     }
-    int cmdline_cap = 512;
-    char *cmdline = (char *)malloc(cmdline_cap);
-
-    while (true) {
-        process_cmdline.read(cmdline, cmdline_cap);
-        if (process_cmdline.eof()) {
-            break;
-        }
-        cmdline_cap += 512;
-        cmdline = (char *)realloc(cmdline, cmdline_cap);
-    }
-
-    msh::obj &vec_obj = mem.emplace(msh::obj_vector());
-    os.push_reference(vec_obj);
-    msh::obj_vector &vec = vec_obj.get<msh::obj_vector>();
-
-    int current_pos = strlen(cmdline) + 1; // skip process's name
-    while (current_pos < process_cmdline.gcount()) {
-        int arg_len = strlen(cmdline + current_pos);
-        vec.push_back(&mem.emplace(std::string(cmdline + current_pos, arg_len)));
-        current_pos += arg_len + 1;
-    }
-    free(cmdline);
+    os.push_reference(mem.emplace(vec));
 }
 
 natives_functions_t load_natives() {

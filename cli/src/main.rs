@@ -57,7 +57,14 @@ fn main() -> Result<PipelineStatus, miette::Error> {
 
     let mut externals = Externals::default();
     let mut sources = SourcesCache::default();
-    let mut vm = VM::new();
+    let mut vm = VM::new(
+        cli.source
+            .iter()
+            .flat_map(|p| p.to_str())
+            .map(ToOwned::to_owned)
+            .chain(cli.program_arguments.clone())
+            .collect(),
+    );
 
     build_std(&mut externals, &mut vm, &mut sources, &cli);
 
