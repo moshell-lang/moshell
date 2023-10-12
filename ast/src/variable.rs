@@ -1,7 +1,9 @@
-use context::source::{SourceSegment, SourceSegmentHolder};
-use dbg_pls::DebugPls;
-use lexer::token::TokenType;
+use std::fmt::{Display, Formatter};
 
+use dbg_pls::DebugPls;
+
+use context::source::{SourceSegment, SourceSegmentHolder};
+use lexer::token::TokenType;
 use src_macros::segment_holder;
 
 use crate::r#type::Type;
@@ -35,12 +37,27 @@ pub enum VarKind {
     Val,
 }
 
+#[derive(Debug, Clone, PartialEq, DebugPls)]
+pub enum VarName<'a> {
+    User(&'a str),
+    Slf,
+}
+
+impl Display for VarName<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VarName::User(n) => write!(f, "{n}"),
+            VarName::Slf => write!(f, "self"),
+        }
+    }
+}
+
 /// A variable reference, prefixed with `$`.
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct VarReference<'a> {
     /// The name of the variable.
-    pub name: &'a str,
+    pub name: VarName<'a>,
 }
 
 /// A variable assignation.
@@ -95,10 +112,10 @@ impl SourceSegmentHolder for Assign<'_> {
 }
 
 impl Assign<'_> {
-    pub fn name(&self) -> Option<&str> {
+    pub fn name(&self) -> Option<String> {
         match self.left.as_ref() {
-            Expr::Identifier(Identifier { name, .. }) => Some(name),
-            Expr::VarReference(VarReference { name, .. }) => Some(name),
+            Expr::Identifier(Identifier { name, .. }) => Some(name.to_string()),
+            Expr::VarReference(VarReference { name, .. }) => Some(name.to_string()),
             _ => None,
         }
     }

@@ -79,7 +79,7 @@ mod tests {
     use ast::operation::{BinaryOperation, BinaryOperator, UnaryOperation, UnaryOperator};
     use ast::test::Test;
     use ast::value::{Literal, LiteralValue};
-    use ast::variable::VarReference;
+    use ast::variable::{VarName, VarReference};
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::{find_between, find_in};
@@ -179,12 +179,12 @@ mod tests {
                         expression: Box::new(Expr::Parenthesis(Parenthesis {
                             expression: Box::new(Expr::Binary(BinaryOperation {
                                 left: Box::new(Expr::VarReference(VarReference {
-                                    name: "a",
+                                    name: VarName::User("a"),
                                     segment: find_in(content, "$a")
                                 })),
                                 op: BinaryOperator::EqualEqual,
                                 right: Box::new(Expr::VarReference(VarReference {
-                                    name: "b",
+                                    name: VarName::User("b"),
                                     segment: find_in(content, "$b")
                                 })),
                             })),
@@ -201,7 +201,7 @@ mod tests {
                             segment: find_in(content, "[[")
                         }),
                         Expr::VarReference(VarReference {
-                            name: "1",
+                            name: VarName::User("1"),
                             segment: find_in(content, "$1"),
                         }),
                     ],
@@ -287,12 +287,12 @@ mod tests {
                     expr: Box::new(Expr::Subshell(Subshell {
                         expressions: vec![Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::VarReference(VarReference {
-                                name: "a",
+                                name: VarName::User("a"),
                                 segment: find_in(source.source, "$a"),
                             })),
                             op: BinaryOperator::And,
                             right: Box::new(Expr::VarReference(VarReference {
-                                name: "b",
+                                name: VarName::User("b"),
                                 segment: find_in(source.source, "$b"),
                             })),
                         })],
@@ -305,7 +305,7 @@ mod tests {
                     left: Box::new(Expr::Unary(UnaryOperation {
                         op: UnaryOperator::Not,
                         expr: Box::new(Expr::VarReference(VarReference {
-                            name: "2",
+                            name: VarName::User("2"),
                             segment: find_in(source.source, "$2"),
                         })),
                         segment: find_in(source.source, "! $2"),

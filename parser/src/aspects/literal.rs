@@ -406,7 +406,7 @@ impl<'a> Parser<'a> {
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use ast::variable::VarReference;
+    use ast::variable::{VarName, VarReference};
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::find_in;
 
@@ -574,7 +574,7 @@ mod tests {
                 parts: vec![
                     literal(source.source, "http://localhost:"),
                     Expr::VarReference(VarReference {
-                        name: "NGINX_PORT",
+                        name: VarName::User("NGINX_PORT"),
                         segment: find_in(source.source, "$NGINX_PORT")
                     }),
                 ],

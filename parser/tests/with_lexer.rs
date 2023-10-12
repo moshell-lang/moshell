@@ -12,7 +12,8 @@ use ast::range::{Iterable, Subscript};
 use ast::substitution::{Substitution, SubstitutionKind};
 use ast::value::{Literal, TemplateString};
 use ast::variable::{
-    Assign, AssignOperator, Identifier, TypedVariable, VarDeclaration, VarKind, VarReference,
+    Assign, AssignOperator, Identifier, TypedVariable, VarDeclaration, VarKind, VarName,
+    VarReference,
 };
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
@@ -52,7 +53,7 @@ fn with_lexer_var_reference_one() {
                 literal(source.source, "echo"),
                 literal(source.source, "'$var5'"),
                 Expr::VarReference(VarReference {
-                    name: "var5",
+                    name: VarName::User("var5"),
                     segment: find_in_nth(source.source, "$var5", 1),
                 }),
             ],
@@ -73,7 +74,7 @@ fn with_lexer_var_reference_two() {
                     parts: vec![
                         literal(source.source, "fake"),
                         Expr::VarReference(VarReference {
-                            name: "cmd",
+                            name: VarName::User("cmd"),
                             segment: find_in(source.source, "$cmd"),
                         }),
                     ],
@@ -81,7 +82,7 @@ fn with_lexer_var_reference_two() {
                 }),
                 literal(source.source, "do"),
                 Expr::VarReference(VarReference {
-                    name: "arg2",
+                    name: VarName::User("arg2"),
                     segment: find_in(source.source, "$arg2"),
                 }),
             ],
@@ -110,16 +111,16 @@ fn with_lexer_var_reference_three() {
                     parts: vec![
                         literal(source.source, "hello "),
                         Expr::VarReference(VarReference {
-                            name: "world",
+                            name: VarName::User("world"),
                             segment: find_in(source.source, "$world"),
                         }),
                         literal(source.source, " everyone "),
                         Expr::VarReference(VarReference {
-                            name: "verb",
+                            name: VarName::User("verb"),
                             segment: find_in(source.source, "$verb"),
                         }),
                         Expr::VarReference(VarReference {
-                            name: "ready",
+                            name: VarName::User("ready"),
                             segment: find_in(source.source, "${ready}"),
                         }),
                         literal(source.source, "!"),
@@ -346,7 +347,7 @@ fn pipe_expressions() {
                             arguments: vec![
                                 literal(source.source, "echo"),
                                 Expr::VarReference(VarReference {
-                                    name: "filename",
+                                    name: VarName::User("filename"),
                                     segment: find_in(source.source, "$filename"),
                                 }),
                             ],
@@ -416,7 +417,7 @@ fn loop_assign() {
         vec![Expr::Loop(Loop {
             body: Box::new(Expr::Assign(Assign {
                 left: Box::new(Expr::VarReference(VarReference {
-                    name: "a",
+                    name: VarName::User("a"),
                     segment: find_in(source.source, "$a"),
                 })),
                 operator: AssignOperator::Assign,
@@ -462,7 +463,7 @@ fn here_string_pipeline() {
                         fd: RedirFd::Default,
                         operator: RedirOp::String,
                         operand: Expr::VarReference(VarReference {
-                            name: "dict",
+                            name: VarName::User("dict"),
                             segment: find_in(source.source, "$dict"),
                         }),
                         segment: find_in(source.source, "<<< $dict"),
@@ -504,7 +505,7 @@ fn divide_in_statement() {
         parsed,
         vec![Expr::Binary(BinaryOperation {
             left: Box::new(Expr::VarReference(VarReference {
-                name: "n",
+                name: VarName::User("n"),
                 segment: find_in(source.source, "$n"),
             })),
             op: BinaryOperator::Divide,
@@ -531,17 +532,17 @@ fn inner_var_ref() {
             value: Box::new(Expr::TemplateString(TemplateString {
                 parts: vec![
                     Expr::VarReference(VarReference {
-                        name: "DEST",
+                        name: VarName::User("DEST"),
                         segment: find_in(source.source, "$DEST"),
                     }),
                     literal(source.source, "/shard_"),
                     Expr::VarReference(VarReference {
-                        name: "SHARD_NUMBER",
+                        name: VarName::User("SHARD_NUMBER"),
                         segment: find_in(source.source, "$SHARD_NUMBER"),
                     }),
                     literal_nth(source.source, "/", 1),
                     Expr::VarReference(VarReference {
-                        name: "L",
+                        name: VarName::User("L"),
                         segment: find_in(source.source, "$L"),
                     }),
                 ],
@@ -569,7 +570,7 @@ fn variable_without_initializer() {
                 segment: find_in(source.source, "var bar"),
             }),
             Expr::VarReference(VarReference {
-                name: "bar",
+                name: VarName::User("bar"),
                 segment: find_in(source.source, "$bar"),
             })
         ]
@@ -584,7 +585,7 @@ fn short_variable_increment() {
         parsed,
         vec![Expr::Assign(Assign {
             left: Box::new(Expr::VarReference(VarReference {
-                name: "test",
+                name: VarName::User("test"),
                 segment: find_in(source.source, "$test"),
             })),
             operator: AssignOperator::Increment,
@@ -610,7 +611,7 @@ fn subscript_call() {
             target: Box::new(Expr::MethodCall(MethodCall {
                 source: Box::new(Expr::Subscript(Subscript {
                     target: Box::new(Expr::VarReference(VarReference {
-                        name: "foo",
+                        name: VarName::User("foo"),
                         segment: find_in(source.source, "$foo"),
                     })),
                     index: Box::new(Expr::Literal(Literal {

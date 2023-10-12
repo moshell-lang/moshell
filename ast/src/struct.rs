@@ -1,5 +1,6 @@
 use dbg_pls::DebugPls;
 
+use crate::Expr;
 use src_macros::segment_holder;
 
 use crate::function::FunctionDeclaration;
@@ -26,4 +27,11 @@ pub struct StructImpl<'a> {
     pub type_parameters: Vec<TypeParameter<'a>>,
     pub impl_type: Type<'a>,
     pub functions: Vec<FunctionDeclaration<'a>>,
+}
+
+#[segment_holder]
+#[derive(Debug, Clone, PartialEq, DebugPls)]
+pub struct FieldAccess<'a> {
+    pub expr: Box<Expr<'a>>,
+    pub field: &'a str,
 }

@@ -237,7 +237,8 @@ mod tests {
     use ast::range::{FilePattern, Iterable, NumericRange};
     use ast::value::Literal;
     use ast::variable::{
-        Assign, AssignOperator, Identifier, TypedVariable, VarDeclaration, VarKind, VarReference,
+        Assign, AssignOperator, Identifier, TypedVariable, VarDeclaration, VarKind, VarName,
+        VarReference,
     };
     use ast::Expr;
     use ast::Expr::{Break, Continue};
@@ -341,7 +342,7 @@ mod tests {
             res,
             vec![Expr::While(While {
                 condition: Box::new(Expr::VarReference(VarReference {
-                    name: "1",
+                    name: VarName::User("1"),
                     segment: find_in(source.source, "$1"),
                 })),
                 body: Box::new(Expr::Block(Block {
@@ -389,7 +390,7 @@ mod tests {
                                 segment: find_in(source.source, "echo")
                             }),
                             Expr::VarReference(VarReference {
-                                name: "i",
+                                name: VarName::User("i"),
                                 segment: find_in(source.source, "$i")
                             }),
                         ],
@@ -412,11 +413,11 @@ mod tests {
                     receiver: "n",
                     iterable: Expr::Range(Iterable::Range(NumericRange {
                         start: Box::new(Expr::VarReference(VarReference {
-                            name: "a",
+                            name: VarName::User("a"),
                             segment: find_in(source.source, "$a")
                         })),
                         end: Box::new(Expr::VarReference(VarReference {
-                            name: "b",
+                            name: VarName::User("b"),
                             segment: find_in(source.source, "$b")
                         })),
                         step: None,
@@ -502,7 +503,7 @@ mod tests {
                                 segment: find_in(source.source, "file")
                             }),
                             Expr::VarReference(VarReference {
-                                name: "f",
+                                name: VarName::User("f"),
                                 segment: find_in(source.source, "$f")
                             }),
                         ],
@@ -537,7 +538,7 @@ mod tests {
                     }),
                     condition: Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::VarReference(VarReference {
-                            name: "i",
+                            name: VarName::User("i"),
                             segment: find_in(source.source, "$i")
                         })),
                         op: BinaryOperator::Less,
@@ -554,7 +555,7 @@ mod tests {
                         operator: AssignOperator::Assign,
                         value: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::VarReference(VarReference {
-                                name: "i",
+                                name: VarName::User("i"),
                                 segment: find_in_nth(source.source, "$i", 1)
                             })),
                             op: BinaryOperator::Plus,
@@ -570,7 +571,7 @@ mod tests {
                     arguments: vec![
                         literal(source.source, "echo"),
                         Expr::VarReference(VarReference {
-                            name: "i",
+                            name: VarName::User("i"),
                             segment: find_in_nth(source.source, "$i", 2)
                         }),
                     ],

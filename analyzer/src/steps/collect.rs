@@ -8,6 +8,7 @@ use ast::r#type::Type;
 use ast::r#use::{Import as ImportExpr, InclusionPathItem};
 use ast::range;
 use ast::value::LiteralValue;
+use ast::variable::VarName;
 use ast::Expr;
 use context::source::{ContentId, SourceSegment, SourceSegmentHolder};
 use range::Iterable;
@@ -391,14 +392,16 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                     for pattern in &arm.patterns {
                         match pattern {
                             MatchPattern::VarRef(reference) => {
-                                let symbol = self.identify_symbol(
-                                    *self.stack.last().unwrap(),
-                                    state.module,
-                                    SymbolLocation::unspecified(Name::new(reference.name)),
-                                    reference.segment(),
-                                    SymbolRegistry::Objects,
-                                );
-                                self.current_env().annotate(reference, symbol);
+                                if let VarName::User(name) = reference.name {
+                                    let symbol = self.identify_symbol(
+                                        *self.stack.last().unwrap(),
+                                        state.module,
+                                        SymbolLocation::unspecified(Name::new(name)),
+                                        reference.segment(),
+                                        SymbolRegistry::Objects,
+                                    );
+                                    self.current_env().annotate(reference, symbol);
+                                }
                             }
                             MatchPattern::Template(template) => {
                                 for part in &template.parts {
@@ -504,14 +507,16 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                 env.annotate(var, symbol);
             }
             Expr::VarReference(var) => {
-                let symbol = self.identify_symbol(
-                    *self.stack.last().unwrap(),
-                    state.module,
-                    SymbolLocation::unspecified(Name::new(var.name)),
-                    var.segment(),
-                    SymbolRegistry::Objects,
-                );
-                self.current_env().annotate(var, symbol);
+                if let VarName::User(name) = var.name {
+                    let symbol = self.identify_symbol(
+                        *self.stack.last().unwrap(),
+                        state.module,
+                        SymbolLocation::unspecified(Name::new(name)),
+                        var.segment(),
+                        SymbolRegistry::Objects,
+                    );
+                    self.current_env().annotate(var, symbol);
+                }
             }
             Expr::Range(range) => match range {
                 Iterable::Range(range) => {
@@ -709,6 +714,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                 self.stack.pop();
             }
             Expr::Literal(_) | Expr::Continue(_) | Expr::Break(_) => {}
+            Expr::FieldAccess(_) => todo!(),
             Expr::StructDeclaration(_) => todo!(),
             Expr::Impl(_) => todo!(),
         }

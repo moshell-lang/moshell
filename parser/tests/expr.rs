@@ -13,7 +13,8 @@ use ast::r#use::InclusionPathItem;
 use ast::range::{Iterable, NumericRange};
 use ast::value::{Literal, LiteralValue, TemplateString};
 use ast::variable::{
-    Assign, AssignOperator, Identifier, TypedVariable, VarDeclaration, VarKind, VarReference,
+    Assign, AssignOperator, Identifier, TypedVariable, VarDeclaration, VarKind, VarName,
+    VarReference,
 };
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
@@ -138,12 +139,12 @@ fn lambda_in_val() {
                 },],
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::VarReference(VarReference {
-                        name: "a",
+                        name: VarName::User("a"),
                         segment: find_in(source.source, "$a")
                     })),
                     op: BinaryOperator::Plus,
                     right: Box::new(Expr::VarReference(VarReference {
-                        name: "b",
+                        name: VarName::User("b"),
                         segment: find_in(source.source, "$b")
                     })),
                 })),
@@ -164,12 +165,12 @@ fn lambda_empty_params() {
             args: vec![],
             body: Box::new(Expr::Binary(BinaryOperation {
                 left: Box::new(Expr::VarReference(VarReference {
-                    name: "a",
+                    name: VarName::User("a"),
                     segment: find_in(source.source, "$a")
                 })),
                 op: BinaryOperator::Plus,
                 right: Box::new(Expr::VarReference(VarReference {
-                    name: "b",
+                    name: VarName::User("b"),
                     segment: find_in(source.source, "$b")
                 })),
             })),
@@ -190,12 +191,12 @@ fn lambda_in_classic_call() {
                 literal(source.source, "a"),
                 literal(source.source, "=>"),
                 Expr::VarReference(VarReference {
-                    name: "a",
+                    name: VarName::User("a"),
                     segment: find_in(source.source, "$a")
                 }),
                 literal(source.source, "+"),
                 Expr::VarReference(VarReference {
-                    name: "b",
+                    name: VarName::User("b"),
                     segment: find_in(source.source, "$b")
                 }),
             ]
@@ -222,12 +223,12 @@ fn lambda_one_arg() {
                 }],
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::VarReference(VarReference {
-                        name: "n",
+                        name: VarName::User("n"),
                         segment: find_in(source.source, "$n")
                     })),
                     op: BinaryOperator::Times,
                     right: Box::new(Expr::VarReference(VarReference {
-                        name: "n",
+                        name: VarName::User("n"),
                         segment: find_in_nth(source.source, "$n", 1)
                     })),
                 })),
@@ -254,12 +255,12 @@ fn lambda_in_pfc() {
                 args: vec![],
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::VarReference(VarReference {
-                        name: "a",
+                        name: VarName::User("a"),
                         segment: find_in(source.source, "$a")
                     })),
                     op: BinaryOperator::Plus,
                     right: Box::new(Expr::VarReference(VarReference {
-                        name: "b",
+                        name: VarName::User("b"),
                         segment: find_in(source.source, "$b")
                     })),
                 })),
@@ -284,7 +285,7 @@ fn identity_lambda() {
                 segment: 0..1,
             }],
             body: Box::new(Expr::VarReference(VarReference {
-                name: "a",
+                name: VarName::User("a"),
                 segment: find_in(source.source, "$a")
             })),
             segment: source.segment(),
@@ -627,7 +628,7 @@ fn block_method_call() {
         vec![Expr::MethodCall(MethodCall {
             source: Box::new(Expr::Block(Block {
                 expressions: vec![Expr::VarReference(VarReference {
-                    name: "x",
+                    name: VarName::User("x"),
                     segment: find_in(source.source, "$x")
                 })],
                 segment: find_between(source.source, "{", "}")
@@ -649,12 +650,12 @@ fn method_call_with_type_params_and_ref() {
         vec![
             Expr::MethodCall(MethodCall {
                 source: Box::new(Expr::VarReference(VarReference {
-                    name: "a",
+                    name: VarName::User("a"),
                     segment: find_in(source.source, "$a")
                 })),
                 name: Some("foo"),
                 arguments: vec![Expr::VarReference(VarReference {
-                    name: "d",
+                    name: VarName::User("d"),
                     segment: find_in(source.source, "$d")
                 })],
                 type_parameters: Vec::new(),
@@ -666,7 +667,7 @@ fn method_call_with_type_params_and_ref() {
                     Expr::TemplateString(TemplateString {
                         parts: vec![Expr::MethodCall(MethodCall {
                             source: Box::new(Expr::VarReference(VarReference {
-                                name: "c",
+                                name: VarName::User("c"),
                                 segment: find_in(source.source, "${c")
                             })),
                             name: Some("bar"),
@@ -735,7 +736,7 @@ fn classic_call_no_regression() {
                             segment: find_in(source.source, "true")
                         }),
                         Expr::VarReference(VarReference {
-                            name: "a",
+                            name: VarName::User("a"),
                             segment: find_in(source.source, "$a")
                         })
                     ],
@@ -776,7 +777,7 @@ fn if_branch_string() {
         parsed,
         vec![Expr::If(If {
             condition: Box::new(Expr::VarReference(VarReference {
-                name: "result",
+                name: VarName::User("result"),
                 segment: find_in(source.source, "$result")
             })),
             success_branch: Box::new(literal(source.source, "'true'")),
@@ -799,7 +800,7 @@ fn precedence() {
             op: UnaryOperator::Negate,
             expr: Box::new(Expr::MethodCall(MethodCall {
                 source: Box::new(Expr::VarReference(VarReference {
-                    name: "n",
+                    name: VarName::User("n"),
                     segment: find_in(source.source, "$n")
                 })),
                 name: Some("convert"),

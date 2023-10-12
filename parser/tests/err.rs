@@ -6,7 +6,7 @@ use ast::group::Block;
 use ast::r#type::{ParametrizedType, Type, TypeParameter};
 use ast::r#use::InclusionPathItem;
 use ast::value::Literal;
-use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
+use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarName, VarReference};
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
 use context::str_find::{find_in, find_in_nth};
@@ -150,7 +150,7 @@ fn tolerance_in_multiple_groups() {
                 })],
                 return_type: None,
                 body: Some(Box::new(Expr::VarReference(VarReference {
-                    name: "x",
+                    name: VarName::User("x"),
                     segment: find_in(source.source, "$x")
                 }))),
                 segment: source.segment()

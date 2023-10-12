@@ -76,7 +76,7 @@ mod tests {
     use ast::operation::{BinaryOperation, BinaryOperator};
     use ast::substitution::{Substitution, SubstitutionKind};
     use ast::value::Literal;
-    use ast::variable::VarReference;
+    use ast::variable::{VarName, VarReference};
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::find_in;
@@ -188,7 +188,7 @@ mod tests {
             Expr::Parenthesis(Parenthesis {
                 expression: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::VarReference(VarReference {
-                        name: "a",
+                        name: VarName::User("a"),
                         segment: find_in(source.source, "$a")
                     })),
                     op: BinaryOperator::Plus,

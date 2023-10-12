@@ -1,4 +1,4 @@
-use ast::variable::VarReference;
+use ast::variable::{VarName, VarReference};
 use ast::Expr;
 use lexer::token::TokenType;
 use lexer::token::TokenType::*;
@@ -34,20 +34,26 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
                     self.repos_to_top_delimiter();
                 }
                 err
-            })?
-            .value;
+            })?;
 
-        let mut segment = self.cursor.relative_pos_ctx(start.value..name);
+        let mut segment = self.cursor.relative_pos_ctx(start.value..name.value);
         segment.start -= 1;
 
-        let mut expr = self
-            .expand_call_chain(Expr::VarReference(VarReference { name, segment }))
-            .map_err(|err| {
-                if bracket.is_some() {
-                    self.repos_delimiter_due_to(&err);
-                }
-                err
-            })?;
+        let expr = Expr::VarReference(VarReference {
+            name: if name.token_type == TokenType::Slf {
+                VarName::Slf
+            } else {
+                VarName::User(name.value)
+            },
+            segment,
+        });
+
+        let mut expr = self.expand_member_chain(expr).map_err(|err| {
+            if bracket.is_some() {
+                self.repos_delimiter_due_to(&err);
+            }
+            err
+        })?;
 
         if let Some(bracket) = bracket {
             if self.cursor.peek().token_type.is_closing_ponctuation() {
@@ -74,7 +80,7 @@ mod tests {
 
     use ast::call::MethodCall;
     use ast::value::{Literal, TemplateString};
-    use ast::variable::VarReference;
+    use ast::variable::{VarName, VarReference};
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::find_in;
@@ -92,7 +98,7 @@ mod tests {
         assert_eq!(
             ast,
             Expr::VarReference(VarReference {
-                name: "VARIABLE",
+                name: VarName::User("VARIABLE"),
                 segment: source.segment()
             })
         );
@@ -119,19 +125,19 @@ mod tests {
             ast,
             vec![
                 Expr::VarReference(VarReference {
-                    name: "@",
+                    name: VarName::User("@"),
                     segment: find_in(source.source, "$@"),
                 }),
                 Expr::VarReference(VarReference {
-                    name: "^",
+                    name: VarName::User("^"),
                     segment: find_in(source.source, "$^"),
                 }),
                 Expr::VarReference(VarReference {
-                    name: "!",
+                    name: VarName::User("!"),
                     segment: find_in(source.source, "$!"),
                 }),
                 Expr::VarReference(VarReference {
-                    name: "$",
+                    name: VarName::User("$"),
                     segment: find_in(source.source, "$$"),
                 }),
             ]
@@ -149,7 +155,7 @@ mod tests {
             Expr::TemplateString(TemplateString {
                 parts: vec![
                     Expr::VarReference(VarReference {
-                        name: "VAR",
+                        name: VarName::User("VAR"),
                         segment: find_in(source.source, "${VAR}")
                     }),
                     Expr::Literal(Literal {
@@ -188,16 +194,16 @@ mod tests {
             Expr::TemplateString(TemplateString {
                 parts: vec![
                     Expr::VarReference(VarReference {
-                        name: "VAR",
+                        name: VarName::User("VAR"),
                         segment: find_in(source.source, "${VAR}")
                     }),
                     literal(source.source, "IABLE"),
                     Expr::VarReference(VarReference {
-                        name: "LONG",
+                        name: VarName::User("LONG"),
                         segment: find_in(source.source, "${LONG}")
                     }),
                     Expr::VarReference(VarReference {
-                        name: "VERY_LONG",
+                        name: VarName::User("VERY_LONG"),
                         segment: find_in(source.source, "${VERY_LONG}")
                     }),
                 ],
@@ -214,7 +220,7 @@ mod tests {
             ast,
             vec![Expr::MethodCall(MethodCall {
                 source: Box::new(Expr::VarReference(VarReference {
-                    name: "callable",
+                    name: VarName::User("callable"),
                     segment: find_in(source.source, "$callable")
                 })),
                 name: None,

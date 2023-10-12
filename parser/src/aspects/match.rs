@@ -213,7 +213,7 @@ mod tests {
     use ast::r#match::{Match, MatchArm, MatchPattern};
     use ast::test::Test;
     use ast::value::{Literal, TemplateString};
-    use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
+    use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarName, VarReference};
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::{find_between, find_in, find_in_nth};
@@ -245,7 +245,7 @@ mod tests {
                 },
                 initializer: Some(Box::new(Expr::Match(Match {
                     operand: Box::new(Expr::VarReference(VarReference {
-                        name: "1",
+                        name: VarName::User("1"),
                         segment: find_in(source.source, "$1"),
                     })),
                     arms: vec![
@@ -269,7 +269,7 @@ mod tests {
                                     parts: vec![
                                         literal(source.source, "test "),
                                         Expr::VarReference(VarReference {
-                                            name: "2",
+                                            name: VarName::User("2"),
                                             segment: find_in(source.source, "$2"),
                                         }),
                                     ],
@@ -280,7 +280,7 @@ mod tests {
                                     segment: find_in_nth(source.source, "2", 1),
                                 }),
                                 MatchPattern::VarRef(VarReference {
-                                    name: "USER",
+                                    name: VarName::User("USER"),
                                     segment: find_in(source.source, "$USER"),
                                 }),
                                 MatchPattern::Literal(Literal {
@@ -327,7 +327,7 @@ mod tests {
             ast,
             vec![Expr::Match(Match {
                 operand: Box::new(Expr::VarReference(VarReference {
-                    name: "1",
+                    name: VarName::User("1"),
                     segment: find_in(content, "$1"),
                 })),
                 arms: vec![
@@ -348,7 +348,7 @@ mod tests {
                                 parts: vec![
                                     literal(content, "test "),
                                     Expr::VarReference(VarReference {
-                                        name: "2",
+                                        name: VarName::User("2"),
                                         segment: find_in(content, "$2"),
                                     }),
                                 ],
@@ -359,7 +359,7 @@ mod tests {
                                 segment: find_in_nth(content, "2", 1),
                             }),
                             MatchPattern::VarRef(VarReference {
-                                name: "USER",
+                                name: VarName::User("USER"),
                                 segment: find_in(content, "$USER"),
                             }),
                             MatchPattern::Literal(Literal {
@@ -380,7 +380,7 @@ mod tests {
                         guard: Some(Expr::Test(Test {
                             expression: Box::new(Expr::Binary(BinaryOperation {
                                 left: Box::new(Expr::VarReference(VarReference {
-                                    name: "a",
+                                    name: VarName::User("a"),
                                     segment: find_in(content, "$a"),
                                 })),
                                 op: BinaryOperator::EqualEqual,
@@ -405,7 +405,7 @@ mod tests {
                             arguments: vec![
                                 literal(content, "echo"),
                                 Expr::VarReference(VarReference {
-                                    name: "it",
+                                    name: VarName::User("it"),
                                     segment: find_in(content, "$it"),
                                 }),
                             ],
@@ -443,7 +443,7 @@ mod tests {
                         arguments: vec![
                             literal(source.source, "echo"),
                             Expr::VarReference(VarReference {
-                                name: "it",
+                                name: VarName::User("it"),
                                 segment: find_in(source.source, "$it"),
                             }),
                         ],
@@ -472,7 +472,7 @@ mod tests {
             ast,
             vec![Expr::Match(Match {
                 operand: Box::new(Expr::VarReference(VarReference {
-                    name: "1",
+                    name: VarName::User("1"),
                     segment: find_in(content, "$1"),
                 })),
                 arms: vec![
@@ -495,7 +495,7 @@ mod tests {
                             MatchPattern::Template(TemplateString {
                                 parts: vec![
                                     literal(content, "test "),
-                                    Expr::VarReference(VarReference { name: "2", segment: find_in(content, "$2") }),
+                                    Expr::VarReference(VarReference { name: VarName::User("2"), segment: find_in(content, "$2") }),
                                 ],
                                 segment: find_in(content, "\"test $2\""),
                             }),
@@ -504,7 +504,7 @@ mod tests {
                                 segment: find_in_nth(content, "2", 1),
                             }),
                             MatchPattern::VarRef(VarReference {
-                                name: "USER",
+                                name: VarName::User("USER"),
                                 segment: find_in(content, "$USER"),
                             }),
                             MatchPattern::Literal(Literal {
@@ -525,7 +525,7 @@ mod tests {
                         guard: Some(Expr::Test(Test {
                             expression: Box::new(Expr::Binary(BinaryOperation {
                                 left: Box::new(Expr::VarReference(VarReference {
-                                    name: "a",
+                                    name: VarName::User("a"),
                                     segment: find_in(content, "$a"),
                                 })),
                                 op: BinaryOperator::EqualEqual,
@@ -550,7 +550,7 @@ mod tests {
                             arguments: vec![
                                 literal(content, "echo"),
                                 Expr::VarReference(VarReference {
-                                    name: "it",
+                                    name: VarName::User("it"),
                                     segment: find_in(content, "$it"),
                                 }),
                             ],
