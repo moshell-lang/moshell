@@ -1,10 +1,11 @@
+use context::source::ContentId;
+
 use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::relations::{Definition, SourceId};
 use crate::types::hir::TypedExpr;
 use crate::types::ty::{FunctionType, MethodType, Parameter, TypeDescription, TypeId, TypeRef};
 use crate::types::UNIT;
-use context::source::ContentId;
 
 /// A typed [`Engine`].
 ///
@@ -22,8 +23,25 @@ pub struct TypedEngine {
 
     /// Native code that powers the language.
     ///
-    /// It powers primitives types, and is indexed by [`NativeObjectId`]s.
-    natives: Vec<FunctionType>,
+    /// It powers primitives types, and is indexed by [`NativeId`]s.
+    natives: Vec<MethodLocation>,
+}
+
+#[derive(Debug, Clone)]
+struct MethodLocation {
+    tpe: TypeId,
+    name: String,
+    index: usize,
+}
+
+impl Default for MethodLocation {
+    fn default() -> Self {
+        Self {
+            tpe: TypeId(usize::MAX),
+            name: String::default(),
+            index: 0,
+        }
+    }
 }
 
 pub enum CodeEntry<'a> {
@@ -129,7 +147,9 @@ impl TypedEngine {
     pub fn get(&self, def: Definition) -> Option<CodeEntry> {
         match def {
             Definition::User(id) => self.get_user(id).map(CodeEntry::User),
-            Definition::Native(id) => self.natives.get(id.0).map(CodeEntry::Native),
+            Definition::Native(id) => self.natives.get(id.0).map(|loc| {
+                CodeEntry::Native(&self.descriptions[loc.tpe.0].methods[&loc.name][loc.index])
+            }),
         }
     }
 
@@ -188,11 +208,27 @@ impl TypedEngine {
             self.descriptions
                 .resize_with(type_id.0 + 1, Default::default);
         }
-        self.descriptions[type_id.0]
+
+        let type_methods = self.descriptions[type_id.0]
             .methods
             .entry(name.to_owned())
-            .or_default()
-            .push(method);
+            .or_default();
+
+        let method_idx = type_methods.len();
+
+        if let Definition::Native(id) = method.definition {
+            // resize if needed
+            if id.0 >= self.natives.len() {
+                self.natives.resize_with(id.0 + 1, Default::default);
+            }
+            self.natives[id.0] = MethodLocation {
+                tpe: type_id,
+                name: name.to_owned(),
+                index: method_idx,
+            }
+        }
+
+        type_methods.push(method);
     }
 
     /// Adds a new generic type parameter to a type.

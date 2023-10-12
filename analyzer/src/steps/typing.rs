@@ -1091,6 +1091,13 @@ fn ascribe_method_call(
         .iter()
         .map(|expr| ascribe_types(exploration, links, diagnostics, expr, state))
         .collect::<Vec<_>>();
+
+    let return_hint = if let ExpressionValue::Expected(ty) = state.local_value {
+        Some(ty)
+    } else {
+        None
+    };
+
     match type_method(
         method,
         &callee,
@@ -1099,6 +1106,7 @@ fn ascribe_method_call(
         diagnostics,
         exploration,
         links.source,
+        return_hint,
     ) {
         Some(fun) => TypedExpr {
             kind: ExprKind::MethodCall(MethodCall {

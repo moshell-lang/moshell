@@ -108,7 +108,21 @@ pub(super) fn ascribe_assign_subscript(
         .map(|methods| methods.as_slice())
         .unwrap_or(&[]);
     let mut args = vec![index, rhs];
-    let method = find_exact_method(exploration, target.ty, methods, args.as_slice(), &[]);
+
+    let return_hint = if let ExpressionValue::Expected(ty) = state.local_value {
+        Some(ty)
+    } else {
+        None
+    };
+
+    let method = find_exact_method(
+        target.ty,
+        methods,
+        args.as_slice(),
+        &[],
+        return_hint,
+        exploration,
+    );
     if let Some((method, _)) = method {
         let return_type = exploration.concretize(method.return_type, target.ty);
         return TypedExpr {

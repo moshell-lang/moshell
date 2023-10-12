@@ -11,5 +11,5 @@ fun mutate() -> Int = {
     $n
 }
 
-echo Process: mutate() $b.pop()
-echo After: $n $b.pop()
+echo Process: mutate() $b.pop().unwrap()
+echo After: $n $b.pop().unwrap()

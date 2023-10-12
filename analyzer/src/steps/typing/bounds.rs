@@ -5,7 +5,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
 /// Binds a polytype to largest possible monotype
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct TypesBounds {
     bounds: HashMap<TypeRef, TypeRef>,
 }

@@ -421,9 +421,10 @@ pub(super) fn type_call(
                     None
                 };
 
-                let mut bounds = build_bounds(
+                let mut bounds = resolve_bounds(
                     &call.type_parameters,
                     fun_reef,
+                    None,
                     definition,
                     expected_type,
                     exploration,
@@ -582,25 +583,27 @@ fn type_depends_of(tpe: TypeRef, polytypes: &Vec<TypeRef>, exploration: &Explora
 
 /// build type parameters bounds of a user-defined function.
 /// The return hint is only applied if the function's return type does not depend on function's parameters.
+/// Set `obj` to Some type if the function is a method that applies to the object
 fn build_bounds(
-    user_bounds: &[ast::r#type::Type],
+    user_bounds: &[TypeRef],
+    obj: Option<TypeRef>,
     fun_reef: ReefId,
     definition: Definition,
     return_hint: Option<TypeRef>,
-    exploration: &mut Exploration,
-    links: Links,
-    diagnostics: &mut Vec<Diagnostic>,
+    exploration: &Exploration,
 ) -> TypesBounds {
-    let user_bounds_types: Vec<_> = user_bounds
-        .iter()
-        .map(|ty| resolve_type_annotation(exploration, links, ty, diagnostics))
-        .collect();
-
     let entry = exploration.get_entry(fun_reef, definition).unwrap();
 
-    let entry_type_parameters = entry.type_parameters();
-
     let mut bounds = HashMap::new();
+
+    // add in bounds the object's type instance parameters bounds
+    if let Some(ty) = obj {
+        let base = exploration.get_type(ty).unwrap();
+        if let Type::Instantiated(base, tparams) = base {
+            let base_tparams = &exploration.get_description(*base).unwrap().generics;
+            bounds.extend(base_tparams.iter().zip(tparams))
+        }
+    }
 
     // collect the functions' type parameters used in the parameters.
     let parameters_polytypes = entry
@@ -616,8 +619,8 @@ fn build_bounds(
         }
     }
 
-    for (idx, type_param) in entry_type_parameters.iter().enumerate() {
-        let user_bound = user_bounds_types.get(idx).cloned();
+    for (idx, type_param) in parameters_polytypes.iter().enumerate() {
+        let user_bound = user_bounds.get(idx).cloned();
 
         // user has explicitly set a type bound
         if let Some(user_bound) = user_bound {
@@ -632,31 +635,72 @@ fn build_bounds(
         }
     }
 
-    if !user_bounds.is_empty() && user_bounds.len() != entry_type_parameters.len() {
-        let first = user_bounds.first().unwrap();
-        let last = user_bounds.last().unwrap();
+    TypesBounds::new(bounds)
+}
 
-        let segment = first.segment().start..last.segment().end;
+#[allow(clippy::too_many_arguments)]
+fn resolve_bounds(
+    user_bounds: &[ast::r#type::Type],
+    declaration_reef: ReefId,
+    obj: Option<TypeRef>,
+    definition: Definition,
+    return_hint: Option<TypeRef>,
+    exploration: &mut Exploration,
+    links: Links,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> TypesBounds {
+    let bounds_types = user_bounds
+        .iter()
+        .map(|ty| resolve_type_annotation(exploration, links, ty, diagnostics))
+        .collect::<Vec<_>>();
+    let bounds = build_bounds(
+        &bounds_types,
+        obj,
+        declaration_reef,
+        definition,
+        return_hint,
+        exploration,
+    );
+    let entry = exploration.get_entry(declaration_reef, definition).unwrap();
 
-        diagnostics.push(
-            Diagnostic::new(
-                DiagnosticID::InvalidTypeArguments,
-                "Wrong type argument count",
-            )
-            .with_observation(Observation::here(
-                links.source,
-                exploration.externals.current,
-                segment,
-                format!(
-                    "`{}` type parameter specified, expected `{}`.",
-                    user_bounds.len(),
-                    entry_type_parameters.len()
-                ),
-            )),
-        )
+    let expected_tparams_count = entry.type_parameters().len();
+    if !user_bounds.is_empty() && user_bounds.len() != expected_tparams_count {
+        diagnostics.push(diagnose_wrong_tparams_count(
+            user_bounds,
+            expected_tparams_count,
+            links,
+            exploration.externals.current,
+        ));
     }
 
-    TypesBounds::new(bounds)
+    bounds
+}
+
+fn diagnose_wrong_tparams_count(
+    user_tparams: &[ast::r#type::Type],
+    expected_count: usize,
+    links: Links,
+    reef: ReefId,
+) -> Diagnostic {
+    let first = user_tparams.first().unwrap();
+    let last = user_tparams.last().unwrap();
+
+    let segment = first.segment().start..last.segment().end;
+
+    Diagnostic::new(
+        DiagnosticID::InvalidTypeArguments,
+        "Wrong type argument count",
+    )
+    .with_observation(Observation::here(
+        links.source,
+        reef,
+        segment,
+        format!(
+            "`{}` type parameter specified, expected `{}`.",
+            user_tparams.len(),
+            expected_count
+        ),
+    ))
 }
 
 /// A specialized [`crate::types::hir::MethodCall`] between two expressions.
@@ -723,6 +767,7 @@ pub(super) fn list_operator_defined_for<'a>(
 }
 
 /// Checks the type of a method expression.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn type_method(
     method_call: &MethodCall,
     callee: &TypedExpr,
@@ -731,6 +776,7 @@ pub(super) fn type_method(
     diagnostics: &mut Vec<Diagnostic>,
     exploration: &mut Exploration,
     source: SourceId,
+    return_hint: Option<TypeRef>,
 ) -> Option<FunctionMatch> {
     if callee.ty.is_err() {
         return None;
@@ -770,7 +816,14 @@ pub(super) fn type_method(
 
     let methods = type_methods.unwrap(); // We just checked for None
 
-    let result = find_exact_method(exploration, callee.ty, methods, &arguments, &type_args);
+    let result = find_exact_method(
+        callee.ty,
+        methods,
+        &arguments,
+        &type_args,
+        return_hint,
+        exploration,
+    );
     if let Some((method, bounds)) = result {
         let type_parameters = method.type_parameters.clone();
         let definition = method.definition;
@@ -829,15 +882,23 @@ pub(super) fn type_method(
                 )),
             );
         } else {
-            // cannot use `build_bounds` as it would imply to retrieve a native chunk from its definition in TypedEngine, which is
-            // completely broken currently
-            let mut bounds = TypesBounds::new(
-                method
-                    .type_parameters
-                    .iter()
-                    .map(|p| (*p, exploration.concretize(*p, callee.ty)))
-                    .collect(),
+            let method_declaration_reef = exploration.get_base_type(callee.ty).0.reef;
+            let mut bounds = resolve_bounds(
+                &method_call.type_parameters,
+                method_declaration_reef,
+                Some(callee.ty),
+                method.definition,
+                return_hint,
+                exploration,
+                links,
+                diagnostics,
             );
+
+            // mutable borrow of `exploration` in  `resolve_bounds` call
+            // forces us to retrieve the method once again to drop previous
+            // immutable borrow of `exploration`, that lives through the `method` var.
+            let methods = exploration.get_methods(callee.ty, method_name).unwrap();
+            let method = methods.first().unwrap();
 
             for (param, arg) in method.parameters.iter().zip(arguments.iter()) {
                 let param_bound = bounds.get_bound(param.ty);
@@ -929,20 +990,28 @@ fn diagnose_arg_mismatch(
 
 /// Finds a matching method for the given arguments.
 pub(super) fn find_exact_method<'a>(
-    exploration: &Exploration,
     obj: TypeRef,
     methods: &'a [MethodType],
     args: &[TypedExpr],
     type_args: &[TypeRef],
+    return_hint: Option<TypeRef>,
+    exploration: &Exploration,
 ) -> Option<(&'a MethodType, TypesBounds)> {
-    let bounds_base: HashMap<TypeRef, TypeRef> = type_args.iter().map(|p| (*p, *p)).collect();
+    let obj_type_reef = exploration.get_base_type(obj).0.reef;
 
     'methods: for method in methods {
         if method.parameters.len() != args.len() {
             continue;
         }
 
-        let mut bounds = TypesBounds::new(bounds_base.clone());
+        let mut bounds = build_bounds(
+            type_args,
+            Some(obj),
+            obj_type_reef,
+            method.definition,
+            return_hint,
+            exploration,
+        );
 
         for (param, arg) in method.parameters.iter().zip(args.iter()) {
             let param_ty = exploration.concretize(param.ty, obj);

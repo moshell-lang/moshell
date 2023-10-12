@@ -167,6 +167,10 @@ static void vec_len(OperandStack &caller_stack, runtime_memory &) {
 
 static void vec_pop(OperandStack &caller_stack, runtime_memory &) {
     msh::obj_vector &vec = caller_stack.pop_reference().get<msh::obj_vector>();
+    if (vec.empty()) {
+        caller_stack.push(nullptr);
+        return;
+    }
     msh::obj &last_element = *vec.back();
     vec.pop_back();
     caller_stack.push_reference(last_element);

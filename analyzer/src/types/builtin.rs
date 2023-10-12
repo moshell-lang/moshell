@@ -3,6 +3,7 @@ use ast::operation::BinaryOperator;
 use crate::engine::Engine;
 use crate::reef::{Reef, LANG_REEF};
 use crate::relations::{NativeId, Relations, SourceId};
+use crate::types;
 use crate::types::ctx::TypeContext;
 use crate::types::engine::TypedEngine;
 use crate::types::operator::name_operator_method;
@@ -48,10 +49,16 @@ impl VariableGenerator {
 fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
     let mut gen = VariableGenerator::default();
 
-    // declare one generic parameter type, functions will reuse it
+    // declare one generic parameter type, methods will reuse it
     let generic_param1 = TypeRef::new(
         LANG_REEF,
         typing.add_type(Type::Polytype, Some("A".to_string())),
+    );
+
+    // option containing generic parameter
+    let opt_type = typing.add_type(
+        Type::Instantiated(types::GENERIC_OPTION, vec![generic_param1]),
+        None,
     );
 
     engine.add_method(
@@ -129,18 +136,24 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
     engine.add_method(
         GENERIC_VECTOR.type_id,
         "[]",
-        MethodType::native(vec![generic_param1], vec![INT], generic_param1, gen.next()),
+        MethodType::native(vec![], vec![INT], generic_param1, gen.next()),
     );
 
     engine.add_method(
         GENERIC_VECTOR.type_id,
         "push",
-        MethodType::native(vec![generic_param1], vec![generic_param1], UNIT, gen.next()),
+        MethodType::native(vec![], vec![generic_param1], UNIT, gen.next()),
     );
+
     engine.add_method(
         GENERIC_VECTOR.type_id,
         "pop",
-        MethodType::native(vec![], vec![], generic_param1, gen.next()),
+        MethodType::native(
+            vec![],
+            vec![],
+            TypeRef::new(LANG_REEF, opt_type),
+            gen.next(),
+        ),
     );
     engine.add_method(
         GENERIC_VECTOR.type_id,
@@ -205,12 +218,7 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
     engine.add_method(
         GENERIC_VECTOR.type_id,
         "[]",
-        MethodType::native(
-            vec![generic_param1],
-            vec![INT, generic_param1],
-            UNIT,
-            gen.next(),
-        ),
+        MethodType::native(vec![], vec![INT, generic_param1], UNIT, gen.next()),
     );
 
     engine.add_method(
