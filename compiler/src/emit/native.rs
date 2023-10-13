@@ -1,4 +1,4 @@
-use analyzer::relations::NativeId;
+use analyzer::types::engine::FunctionId;
 use analyzer::types::hir::MethodCall;
 use analyzer::types::ty::TypeRef;
 
@@ -23,7 +23,7 @@ const STRING_BYTES: &str = "lang::String::bytes";
 /// Emits a primitive sequence of instructions.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit_natives(
-    native: NativeId,
+    native: FunctionId,
     MethodCall {
         callee,
         arguments: args,

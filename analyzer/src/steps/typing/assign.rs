@@ -26,15 +26,22 @@ pub(super) fn create_subscript(
     let index_ty = index.ty;
     let target_ty = target.ty;
     let methods = exploration
-        .get_methods(target.ty, "[]")
+        .get_methods(target_ty, "[]")
         .map(|methods| methods.as_slice())
         .unwrap_or(&[]);
 
-    let method = find_operand_implementation(exploration, target_ty.reef, methods, target, index);
+    let target_ty_base_reef = exploration.get_base_type(target_ty).reef;
+    let method =
+        find_operand_implementation(exploration, target_ty_base_reef, methods, target, index);
     match method {
         Ok(method) => Ok(method),
         Err(target) => {
             diagnostics.push(if !methods.is_empty() {
+                let methods: Vec<_> = methods
+                    .iter()
+                    .flat_map(|method_id| exploration.get_function(target_ty_base_reef, *method_id))
+                    .collect();
+
                 Diagnostic::new(
                     DiagnosticID::UnknownMethod,
                     format!(
@@ -49,7 +56,7 @@ pub(super) fn create_subscript(
                     format!(
                         "`{}` indices are of type {}",
                         exploration.new_type_view(target_ty, &TypesBounds::inactive()),
-                        list_operator_defined_for(exploration, methods, &TypesBounds::inactive()),
+                        list_operator_defined_for(exploration, &methods, &TypesBounds::inactive()),
                     ),
                 ))
             } else {
@@ -123,13 +130,18 @@ pub(super) fn ascribe_assign_subscript(
         return_hint,
         exploration,
     );
-    if let Some((method, _)) = method {
+
+    let base_method_reef = exploration.get_base_type(target.ty).reef;
+    if let Some((method_id, _)) = method {
+        let method = exploration
+            .get_function(base_method_reef, method_id)
+            .unwrap();
         let return_type = exploration.concretize(method.return_type, target.ty);
         return TypedExpr {
             kind: ExprKind::MethodCall(MethodCall {
                 callee: Box::new(target),
                 arguments: args,
-                definition: method.definition,
+                function_id: method_id,
             }),
             ty: return_type,
             segment: assign.segment(),

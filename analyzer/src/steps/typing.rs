@@ -15,7 +15,7 @@ use crate::dependency::topological_sort;
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::reef::{Externals, ReefId};
-use crate::relations::{Definition, Relations, SourceId, SymbolRef};
+use crate::relations::{Relations, SourceId, SymbolRef};
 use crate::steps::typing::assign::{ascribe_assign_subscript, create_subscript};
 use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::coercion::{
@@ -29,13 +29,13 @@ use crate::steps::typing::function::{
 };
 use crate::steps::typing::lower::convert_into_string;
 use crate::types::ctx::{TypeContext, TypedVariable};
-use crate::types::engine::{Chunk, TypedEngine};
+use crate::types::engine::{Chunk, ChunkType, TypedEngine};
 use crate::types::hir::{
     Assignment, Conditional, Convert, Declaration, ExprKind, FunctionCall, Loop, MethodCall, Redir,
     Redirect, TypedExpr, Var,
 };
 use crate::types::operator::name_operator_method;
-use crate::types::ty::{Type, TypeRef};
+use crate::types::ty::{FunctionType, Type, TypeRef};
 use crate::types::{Typing, BOOL, ERROR, EXITCODE, FLOAT, INT, NOTHING, STRING, UNIT};
 
 mod assign;
@@ -165,7 +165,11 @@ fn apply_types_to_source(
             let base_chunk = forward_declaration
                 .unwrap_or_else(|| type_function_signature(func, exploration, links, diagnostics));
 
-            let expected_return_type = base_chunk.return_type;
+            let ChunkType::Function(function_id) = base_chunk.kind else {
+                panic!("function chunk is not a of type function.")
+            };
+            let chunk_function = exploration.type_engine.get_function(function_id).unwrap();
+            let expected_return_type = chunk_function.return_type;
 
             let typed_body = func.body.as_ref().map(|body| {
                 ascribe_types(
@@ -187,29 +191,33 @@ fn apply_types_to_source(
                 exploration,
             );
 
-            if let Some(body) = typed_body {
-                Chunk::function(
-                    base_chunk.type_parameters,
-                    body,
-                    base_chunk.parameters,
-                    return_type,
-                )
-            } else {
+            if typed_body.is_none() {
                 verify_free_function(func, exploration.externals, source_id, diagnostics);
-                Chunk::native(
-                    base_chunk.type_parameters,
-                    base_chunk.parameters,
-                    return_type,
-                )
+            }
+
+            // update function's return type.
+            let function_mut = exploration
+                .type_engine
+                .get_function_mut(function_id)
+                .unwrap();
+            function_mut.return_type = return_type;
+
+            Chunk {
+                expression: typed_body,
+                kind: base_chunk.kind,
             }
         }
-        expr => Chunk::script(ascribe_types(
-            exploration,
-            links,
-            diagnostics,
-            expr,
-            TypingState::new(),
-        )),
+        expr => {
+            let expression =
+                ascribe_types(exploration, links, diagnostics, expr, TypingState::new());
+
+            let function_id = exploration.type_engine.add_function(FunctionType::script());
+
+            Chunk {
+                expression: Some(expression),
+                kind: ChunkType::Script(function_id),
+            }
+        }
     }
 }
 
@@ -243,7 +251,7 @@ fn ascribe_template_string(
     }
 
     let lang = exploration.externals.lang();
-    let plus_method = lang
+    let (_, plus_method_id) = lang
         .typed_engine
         .get_method_exact(
             STRING.type_id,
@@ -251,8 +259,7 @@ fn ascribe_template_string(
             &[STRING],
             STRING,
         )
-        .expect("string type should have a concatenation method")
-        .definition;
+        .expect("string type should have a concatenation method");
 
     let mut it = tpl.parts.iter().map(|part| {
         let typed_part = ascribe_types(
@@ -271,7 +278,7 @@ fn ascribe_template_string(
             kind: ExprKind::MethodCall(MethodCall {
                 callee: Box::new(acc),
                 arguments: vec![current],
-                definition: plus_method,
+                function_id: plus_method_id,
             }),
             ty: STRING,
             segment,
@@ -693,22 +700,27 @@ fn ascribe_function_declaration(
     links: Links,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> TypedExpr {
-    let declaration = links.env().get_raw_env(fun.segment()).unwrap();
+    let function_source = links.env().get_raw_env(fun.segment()).unwrap();
 
     // check if the function declaration is already known
-    if exploration.type_engine.get_user(declaration).is_none() {
+    if exploration.type_engine.get_user(function_source).is_none() {
         // if not, forward declare it by typing its declared signature
-        let declaration_link = links.with_source(declaration);
+        let declaration_link = links.with_source(function_source);
         let forward_declared_chunk =
             type_function_signature(fun, exploration, declaration_link, diagnostics);
 
         exploration
             .type_engine
-            .insert(declaration, forward_declared_chunk);
+            .insert(function_source, forward_declared_chunk);
     }
 
+    let function_chunk = exploration.type_engine.get_user(function_source).unwrap();
+    let ChunkType::Function(function_id) = function_chunk.kind else {
+        panic!("chunk's function is not a function")
+    };
+
     let type_id = exploration.typing.add_type(
-        Type::Function(Definition::User(declaration)),
+        Type::Function(Some(function_source), function_id),
         Some(fun.name.to_string()),
     );
     let type_ref = TypeRef::new(exploration.externals.current, type_id);
@@ -783,7 +795,7 @@ fn ascribe_subscript(
             kind: ExprKind::MethodCall(MethodCall {
                 callee: Box::new(method.left),
                 arguments: vec![method.right],
-                definition: method.definition,
+                function_id: method.function_id,
             }),
             ty: method.return_type,
             segment: sub.segment(),
@@ -861,11 +873,11 @@ fn ascribe_unary(
             let method = exploration.get_method_exact(expr.ty, "neg", &[], expr.ty);
 
             match method {
-                Some(method) => TypedExpr {
+                Some((method, method_id)) => TypedExpr {
                     kind: ExprKind::MethodCall(MethodCall {
                         callee: Box::new(expr),
                         arguments: vec![],
-                        definition: method.definition,
+                        function_id: method_id,
                     }),
                     ty: method.return_type,
                     segment: unary.segment(),
@@ -898,7 +910,7 @@ fn ascribe_not(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> TypedExpr {
     let lang = exploration.externals.lang();
-    let not_method = lang
+    let (not_method, not_method_id) = lang
         .typed_engine
         .get_method_exact(BOOL.type_id, "not", &[], BOOL)
         .expect("A Bool should be invertible");
@@ -914,7 +926,7 @@ fn ascribe_not(
             kind: ExprKind::MethodCall(MethodCall {
                 callee: Box::new(expr),
                 arguments: vec![],
-                definition: not_method.definition,
+                function_id: not_method_id,
             }),
             ty: not_method.return_type,
             segment,
@@ -1070,7 +1082,8 @@ fn ascribe_pfc(
     TypedExpr {
         kind: ExprKind::FunctionCall(FunctionCall {
             arguments: function_match.arguments,
-            definition: function_match.definition,
+            function_id: function_match.function_id,
+            source_id: function_match.function_source,
             reef: function_match.reef,
         }),
         ty: function_match.return_type,
@@ -1112,7 +1125,7 @@ fn ascribe_method_call(
             kind: ExprKind::MethodCall(MethodCall {
                 callee: Box::new(callee),
                 arguments: fun.arguments,
-                definition: fun.definition,
+                function_id: fun.function_id,
             }),
             ty: fun.return_type,
             segment: method.segment.clone(),
@@ -1276,7 +1289,8 @@ mod tests {
     use crate::importer::StaticImporter;
     use crate::name::Name;
     use crate::reef::{Reef, ReefId};
-    use crate::relations::{LocalId, NativeId};
+    use crate::relations::LocalId;
+    use crate::types::engine::FunctionId;
     use crate::types::hir::{Convert, MethodCall};
     use crate::types::ty::{Type, TypeId};
     use crate::types::{EXITCODE, UNIT};
@@ -1856,7 +1870,7 @@ mod tests {
                                     ty: INT,
                                     segment: find_in(content, "1"),
                                 }],
-                                definition: Definition::Native(NativeId(1)),
+                                function_id: FunctionId(1),
                             }),
                             ty: INT,
                             segment: find_in(content, "75 + 1"),
@@ -1899,7 +1913,7 @@ mod tests {
                                     segment: find_in_nth(content, "$n", 1),
                                 }),
                                 arguments: vec![],
-                                definition: Definition::Native(NativeId(29)),
+                                function_id: FunctionId(29),
                             }),
                             ty: STRING,
                             segment: find_in_nth(content, "$n", 1),
@@ -1912,7 +1926,7 @@ mod tests {
                                     segment: find_in(content, "4.2"),
                                 }),
                                 arguments: vec![],
-                                definition: Definition::Native(NativeId(30)),
+                                function_id: FunctionId(30),
                             }),
                             ty: STRING,
                             segment: find_in(content, "4.2"),

@@ -37,10 +37,6 @@ pub struct SourceId(pub ObjectId);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct LocalId(pub ObjectId);
 
-/// A native object identifier, that points to a native function in the [`Engine`].
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct NativeId(pub ObjectId);
-
 /// An indication where an object is located.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum SymbolRef {
@@ -49,26 +45,6 @@ pub enum SymbolRef {
 
     /// An external symbol, where the relation is contained in the [`Resolver`].
     External(RelationId),
-}
-
-/// An identifier in an engine.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Definition {
-    /// A block of code, defined by the user.
-    User(SourceId),
-
-    /// A native function, that is defined in the VM.
-    ///
-    /// It can also have a special treatment in the compiler, but it is abstracted away
-    /// during the analysis.
-    Native(NativeId),
-}
-
-impl Definition {
-    /// Builds an erroneous definition that is used for error propagation.
-    pub fn error() -> Self {
-        Self::Native(NativeId(ObjectId::MAX))
-    }
 }
 
 impl From<RelationId> for SymbolRef {

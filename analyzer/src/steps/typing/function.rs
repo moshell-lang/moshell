@@ -9,7 +9,7 @@ use context::source::{SourceSegment, SourceSegmentHolder};
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation, SourceLocation};
 use crate::reef::ReefId;
-use crate::relations::{Definition, LocalId, SourceId, SymbolRef};
+use crate::relations::{LocalId, ObjectId, SourceId, SymbolRef};
 use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::coercion::{
     convert_description, convert_expression, convert_many, resolve_type_annotation,
@@ -17,8 +17,7 @@ use crate::steps::typing::coercion::{
 use crate::steps::typing::exploration::{Exploration, Links};
 use crate::steps::typing::view::TypeInstanceVec;
 use crate::steps::typing::{ascribe_types, ExpressionValue, TypingState};
-use crate::types::engine::{Chunk, CodeEntry};
-
+use crate::types::engine::{Chunk, ChunkType, FunctionId};
 use crate::types::hir::{ExprKind, TypedExpr};
 use crate::types::ty::{FunctionType, MethodType, Parameter, Type, TypeRef};
 use crate::types::{ERROR, STRING, UNIT};
@@ -43,7 +42,9 @@ pub(super) struct FunctionMatch {
     pub(super) arguments: Vec<TypedExpr>,
 
     /// The function identifier to call.
-    pub(super) definition: Definition,
+    pub(super) function_id: FunctionId,
+    /// Optional chunk identifier if this function has an associated source.
+    pub(super) function_source: Option<SourceId>,
 
     /// The function return type.
     pub(super) return_type: TypeRef,
@@ -330,8 +331,14 @@ pub(super) fn type_function_signature(
         resolve_type_annotation(exploration, function_links, ty, diagnostics)
     });
 
+    let function_id = exploration.type_engine.add_function(FunctionType {
+        type_parameters: type_params,
+        parameters: params,
+        return_type,
+    });
+
     let type_id = exploration.typing.add_type(
-        Type::Function(Definition::User(func_source)),
+        Type::Function(Some(func_source), function_id),
         Some(func.name.to_string()),
     );
     let type_ref = TypeRef::new(exploration.externals.current, type_id);
@@ -342,9 +349,7 @@ pub(super) fn type_function_signature(
             ty: type_ref,
             segment: func.segment(),
         }),
-        type_parameters: type_params,
-        parameters: params,
-        return_type,
+        kind: ChunkType::Function(function_id),
     }
 }
 
@@ -360,7 +365,7 @@ pub(super) fn type_call(
 
     let call_symbol_ref = links.env().get_raw_symbol(call.segment()).unwrap();
 
-    let (fun_reef, fun_source) = match call_symbol_ref {
+    let (fun_reef, fun_origin) = match call_symbol_ref {
         SymbolRef::Local(_) => (exploration.externals.current, links.source),
         SymbolRef::External(r) => {
             let call_symbol = links.relations[r].state.expect_resolved("unresolved");
@@ -369,15 +374,16 @@ pub(super) fn type_call(
     };
 
     let function_type_ref = exploration
-        .get_var(fun_source, call_symbol_ref, links.relations)
+        .get_var(fun_origin, call_symbol_ref, links.relations)
         .unwrap()
         .type_ref;
 
     match exploration.get_type(function_type_ref).unwrap() {
-        &Type::Function(definition) => {
-            let entry: CodeEntry = exploration.get_entry(fun_reef, definition).unwrap();
-            let parameters = entry.parameters().to_owned(); // TODO: avoid clone
-            let return_type = entry.return_type();
+        &Type::Function(function_source, function_id) => {
+            let function = exploration.get_function(fun_reef, function_id).unwrap();
+            let parameters = function.parameters.clone(); // TODO: avoid clone
+            let return_type = function.return_type;
+
             if parameters.len() != arguments.len() {
                 diagnostics.push(
                     Diagnostic::new(
@@ -398,7 +404,7 @@ pub(super) fn type_call(
                     )),
                 );
 
-                let type_arguments = entry.type_parameters().to_vec();
+                let type_arguments = function.type_parameters.clone();
 
                 let arguments = arguments
                     .iter()
@@ -408,12 +414,13 @@ pub(super) fn type_call(
                 FunctionMatch {
                     type_arguments,
                     arguments,
-                    definition: Definition::error(),
+                    function_id,
+                    function_source,
                     return_type: ERROR,
                     reef: fun_reef,
                 }
             } else {
-                let type_arguments = entry.type_parameters().to_vec();
+                let type_arguments = function.type_parameters.clone();
 
                 let expected_type = if let ExpressionValue::Expected(t) = state.local_value {
                     Some(t)
@@ -425,7 +432,7 @@ pub(super) fn type_call(
                     &call.type_parameters,
                     fun_reef,
                     None,
-                    definition,
+                    function_id,
                     expected_type,
                     exploration,
                     links,
@@ -489,7 +496,8 @@ pub(super) fn type_call(
                 FunctionMatch {
                     type_arguments,
                     arguments: casted_arguments,
-                    definition,
+                    function_id,
+                    function_source,
                     return_type,
                     reef: fun_reef,
                 }
@@ -520,7 +528,8 @@ pub(super) fn type_call(
             FunctionMatch {
                 type_arguments: Vec::new(),
                 arguments,
-                definition: Definition::error(),
+                function_id: FunctionId(ObjectId::MAX),
+                function_source: None,
                 return_type: ERROR,
                 reef: fun_reef,
             }
@@ -588,11 +597,11 @@ fn build_bounds(
     user_bounds: &[TypeRef],
     obj: Option<TypeRef>,
     fun_reef: ReefId,
-    definition: Definition,
+    function_id: FunctionId,
     return_hint: Option<TypeRef>,
     exploration: &Exploration,
 ) -> TypesBounds {
-    let entry = exploration.get_entry(fun_reef, definition).unwrap();
+    let function = exploration.get_function(fun_reef, function_id).unwrap();
 
     let mut bounds = HashMap::new();
 
@@ -606,16 +615,16 @@ fn build_bounds(
     }
 
     // collect the functions' type parameters used in the parameters.
-    let parameters_polytypes = entry
-        .parameters()
+    let parameters_polytypes = function
+        .parameters
         .iter()
         .flat_map(|p| extract_polytypes(p.ty, exploration))
         .collect();
 
     // Use the return type hint only if it does not contains a polytype bound with the parameters
-    if !type_depends_of(entry.return_type(), &parameters_polytypes, exploration) {
+    if !type_depends_of(function.return_type, &parameters_polytypes, exploration) {
         if let Some(hint) = return_hint {
-            infer_return_from_hint(exploration, entry.return_type(), hint, &mut bounds);
+            infer_return_from_hint(exploration, function.return_type, hint, &mut bounds);
         }
     }
 
@@ -643,7 +652,7 @@ fn resolve_bounds(
     user_bounds: &[ast::r#type::Type],
     declaration_reef: ReefId,
     obj: Option<TypeRef>,
-    definition: Definition,
+    function_id: FunctionId,
     return_hint: Option<TypeRef>,
     exploration: &mut Exploration,
     links: Links,
@@ -657,13 +666,15 @@ fn resolve_bounds(
         &bounds_types,
         obj,
         declaration_reef,
-        definition,
+        function_id,
         return_hint,
         exploration,
     );
-    let entry = exploration.get_entry(declaration_reef, definition).unwrap();
+    let entry = exploration
+        .get_function(declaration_reef, function_id)
+        .unwrap();
 
-    let expected_tparams_count = entry.type_parameters().len();
+    let expected_tparams_count = entry.type_parameters.len();
     if !user_bounds.is_empty() && user_bounds.len() != expected_tparams_count {
         diagnostics.push(diagnose_wrong_tparams_count(
             user_bounds,
@@ -708,7 +719,7 @@ pub(super) struct BinaryMethodMatch {
     pub(crate) left: TypedExpr,
     pub(crate) right: TypedExpr,
     pub(crate) return_type: TypeRef,
-    pub(crate) definition: Definition,
+    pub(crate) function_id: FunctionId,
     pub(crate) reef: ReefId,
 }
 
@@ -717,7 +728,7 @@ impl From<BinaryMethodMatch> for crate::types::hir::MethodCall {
         Self {
             callee: Box::new(binary.left),
             arguments: vec![binary.right],
-            definition: binary.definition,
+            function_id: binary.function_id,
         }
     }
 }
@@ -726,18 +737,19 @@ impl From<BinaryMethodMatch> for crate::types::hir::MethodCall {
 pub(super) fn find_operand_implementation(
     exploration: &Exploration,
     reef: ReefId,
-    methods: &[MethodType],
+    methods: &[FunctionId],
     left: TypedExpr,
     right: TypedExpr,
 ) -> Result<BinaryMethodMatch, TypedExpr> {
-    for method in methods {
+    for method_id in methods {
+        let method = exploration.get_function(reef, *method_id).unwrap();
         if let [param] = &method.parameters.as_slice() {
             if param.ty == right.ty {
                 let return_type = exploration.concretize(method.return_type, left.ty);
                 return Ok(BinaryMethodMatch {
                     left,
                     right,
-                    definition: method.definition,
+                    function_id: *method_id,
                     return_type,
                     reef,
                 });
@@ -750,13 +762,13 @@ pub(super) fn find_operand_implementation(
 /// Creates a list of the type parameters of methods.
 pub(super) fn list_operator_defined_for<'a>(
     exploration: &'a Exploration,
-    methods: &[MethodType],
+    methods: &[&MethodType],
     bounds: &'a TypesBounds,
 ) -> TypeInstanceVec<'a> {
     let types = methods
         .iter()
         .flat_map(|method| {
-            if let [param] = &method.parameters.as_slice() {
+            if let [param] = method.parameters.as_slice() {
                 Some(param.ty)
             } else {
                 None
@@ -824,9 +836,14 @@ pub(super) fn type_method(
         return_hint,
         exploration,
     );
-    if let Some((method, bounds)) = result {
+
+    let method_base_reef = exploration.get_base_type(callee.ty).reef;
+
+    if let Some((method_id, bounds)) = result {
+        let method = exploration
+            .get_function(method_base_reef, method_id)
+            .unwrap();
         let type_parameters = method.type_parameters.clone();
-        let definition = method.definition;
 
         let return_type = exploration.concretize(method.return_type, callee.ty);
         let return_type = apply_bounds(exploration, return_type, &bounds);
@@ -846,7 +863,8 @@ pub(super) fn type_method(
                 .map(|k| bounds.get_bound(*k))
                 .collect(),
             arguments,
-            definition,
+            function_id: method_id,
+            function_source: None,
             return_type,
             reef: callee.ty.reef,
         });
@@ -855,7 +873,10 @@ pub(super) fn type_method(
     if methods.len() == 1 {
         // If there is only one method, we can give a more specific error by adding
         // an observation for each invalid type
-        let method = methods.first().unwrap();
+        let method_id = *methods.first().unwrap();
+        let method = exploration
+            .get_function(method_base_reef, method_id)
+            .unwrap();
 
         if method.parameters.len() != arguments.len() {
             diagnostics.push(
@@ -882,12 +903,11 @@ pub(super) fn type_method(
                 )),
             );
         } else {
-            let method_declaration_reef = exploration.get_base_type(callee.ty).0.reef;
             let mut bounds = resolve_bounds(
                 &method_call.type_parameters,
-                method_declaration_reef,
+                method_base_reef,
                 Some(callee.ty),
-                method.definition,
+                method_id,
                 return_hint,
                 exploration,
                 links,
@@ -898,7 +918,10 @@ pub(super) fn type_method(
             // forces us to retrieve the method once again to drop previous
             // immutable borrow of `exploration`, that lives through the `method` var.
             let methods = exploration.get_methods(callee.ty, method_name).unwrap();
-            let method = methods.first().unwrap();
+            let method_id = *methods.first().unwrap();
+            let method = exploration
+                .get_function(method_base_reef, method_id)
+                .unwrap();
 
             for (param, arg) in method.parameters.iter().zip(arguments.iter()) {
                 let param_bound = bounds.get_bound(param.ty);
@@ -989,17 +1012,18 @@ fn diagnose_arg_mismatch(
 }
 
 /// Finds a matching method for the given arguments.
-pub(super) fn find_exact_method<'a>(
+pub(super) fn find_exact_method(
     obj: TypeRef,
-    methods: &'a [MethodType],
+    methods: &[FunctionId],
     args: &[TypedExpr],
     type_args: &[TypeRef],
     return_hint: Option<TypeRef>,
     exploration: &Exploration,
-) -> Option<(&'a MethodType, TypesBounds)> {
-    let obj_type_reef = exploration.get_base_type(obj).0.reef;
+) -> Option<(FunctionId, TypesBounds)> {
+    let obj_type_reef = exploration.get_base_type(obj).reef;
 
-    'methods: for method in methods {
+    'methods: for method_id in methods {
+        let method = exploration.get_function(obj_type_reef, *method_id).unwrap();
         if method.parameters.len() != args.len() {
             continue;
         }
@@ -1008,7 +1032,7 @@ pub(super) fn find_exact_method<'a>(
             type_args,
             Some(obj),
             obj_type_reef,
-            method.definition,
+            *method_id,
             return_hint,
             exploration,
         );
@@ -1026,7 +1050,7 @@ pub(super) fn find_exact_method<'a>(
                 Err(_) => continue 'methods,
             }
         }
-        return Some((method, bounds));
+        return Some((*method_id, bounds));
     }
     None
 }

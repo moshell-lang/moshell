@@ -1,10 +1,10 @@
 use analyzer::engine::Engine;
 use analyzer::environment::Environment;
 use analyzer::reef::{Externals, ReefId};
-use analyzer::relations::{Definition, SourceId};
-use analyzer::types::engine::{Chunk, TypedEngine};
+use analyzer::relations::SourceId;
+use analyzer::types::engine::{FunctionId, TypedEngine};
 use analyzer::types::hir::{Declaration, ExprKind, TypedExpr, Var};
-use analyzer::types::ty::TypeRef;
+use analyzer::types::ty::{FunctionType, TypeRef};
 use ast::value::LiteralValue;
 
 use crate::bytecode::{Instructions, Opcode, Placeholder};
@@ -65,15 +65,15 @@ impl<'a, 'e> EmitterContext<'a, 'e> {
         }
     }
 
-    pub fn get_function(&self, reef: ReefId, id: SourceId) -> Option<&Chunk> {
+    pub fn get_function(&self, reef: ReefId, id: FunctionId) -> Option<&FunctionType> {
         if reef == self.current_reef {
-            self.typed_engine.get_user(id)
+            self.typed_engine.get_function(id)
         } else {
             self.externals
                 .get_reef(reef)
                 .unwrap()
                 .typed_engine
-                .get_user(id)
+                .get_function(id)
         }
     }
 
@@ -310,12 +310,16 @@ pub fn emit(
         ExprKind::ProcessCall(args) => {
             emit_process_call(args, instructions, ctx, cp, locals, state)
         }
-        ExprKind::MethodCall(method) => match method.definition {
-            Definition::Native(id) => {
-                emit_natives(id, method, expr.ty, instructions, ctx, cp, locals, state);
-            }
-            Definition::User(_) => todo!("invocation of user defined methods"),
-        },
+        ExprKind::MethodCall(method) => emit_natives(
+            method.function_id,
+            method,
+            expr.ty,
+            instructions,
+            ctx,
+            cp,
+            locals,
+            state,
+        ),
         ExprKind::Redirect(redirect) => {
             emit_redirect(redirect, instructions, ctx, cp, locals, state)
         }

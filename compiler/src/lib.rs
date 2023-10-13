@@ -7,7 +7,7 @@ use analyzer::environment::symbols::SymbolInfo;
 use analyzer::name::Name;
 use analyzer::reef::{Externals, ReefId};
 use analyzer::relations::{Relations, ResolvedSymbol, SourceId};
-use analyzer::types::engine::{Chunk, TypedEngine};
+use analyzer::types::engine::{Chunk, ChunkType, TypedEngine};
 use analyzer::types::hir::ExprKind;
 use context::source::ContentId;
 
@@ -293,9 +293,16 @@ fn compile_chunk_code(
         .as_ref()
         .expect("unresolved capture after resolution");
 
+    let function_id = match chunk.kind {
+        ChunkType::Script(id) => id,
+        ChunkType::Function(id) => id,
+    };
+
+    let function = ctx.get_function(ctx.current_reef, function_id).unwrap();
+
     // compute the chunk's parameters bytes length
     let parameters_bytes_count: u32 = {
-        let explicit_params_count: u32 = chunk
+        let explicit_params_count: u32 = function
             .parameters
             .iter()
             .map(|p| Into::<u8>::into(get_type_stack_size(p.ty)) as u32)
@@ -307,7 +314,7 @@ fn compile_chunk_code(
 
     bytecode.emit_u32(parameters_bytes_count);
     // emit the function's return bytes count
-    let return_bytes_count: u8 = get_type_stack_size(chunk.return_type).into();
+    let return_bytes_count: u8 = get_type_stack_size(function.return_type).into();
     bytecode.emit_byte(return_bytes_count);
 
     let use_value = return_bytes_count != 0 || options.last_page_storage_var.is_some();
@@ -320,7 +327,7 @@ fn compile_chunk_code(
     let mut locals = LocalsLayout::new(var_count);
 
     // set space for explicit parameters
-    for param in chunk.parameters.iter() {
+    for param in function.parameters.iter() {
         locals.set_value_space(param.local_id, param.ty)
     }
 

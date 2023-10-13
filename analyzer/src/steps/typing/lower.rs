@@ -74,13 +74,14 @@ pub(super) fn call_convert_on(
     };
 
     // Else, we try to find the expected conversion method on the expression's type
-    if let Some(method) = exploration.get_method_exact(expr.ty, method_name, &[], into) {
+    if let Some((method, method_id)) = exploration.get_method_exact(expr.ty, method_name, &[], into)
+    {
         let segment = expr.segment.clone();
         return TypedExpr {
             kind: ExprKind::MethodCall(MethodCall {
                 callee: Box::new(expr),
                 arguments: vec![],
-                definition: method.definition,
+                function_id: method_id,
             }),
             ty: method.return_type,
             segment,
