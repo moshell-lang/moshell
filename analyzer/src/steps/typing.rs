@@ -41,7 +41,6 @@ use crate::types::hir::{
     Redirect, Subprocess, TypedExpr, Var,
 };
 use crate::types::operator::name_operator_method;
-
 use crate::types::ty::{FunctionType, Type, TypeRef};
 use crate::types::{
     builtin, Typing, BOOL, ERROR, EXITCODE, FLOAT, GLOB, INT, NOTHING, PID, STRING, UNIT,
