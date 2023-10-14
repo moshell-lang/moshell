@@ -167,34 +167,6 @@ impl TypedEngine {
         }
     }
 }
-//
-// pub enum CodeEntry<'a> {
-//     User(&'a Chunk),
-//     Native(&'a FunctionType),
-// }
-//
-// impl CodeEntry<'_> {
-//     pub fn parameters(&self) -> &[Parameter] {
-//         match self {
-//             CodeEntry::User(chunk) => chunk.parameters.as_slice(),
-//             CodeEntry::Native(native) => native.parameters.as_slice(),
-//         }
-//     }
-//
-//     pub fn type_parameters(&self) -> &[TypeRef] {
-//         match self {
-//             CodeEntry::User(chunk) => &chunk.type_parameters,
-//             CodeEntry::Native(native) => &native.type_parameters,
-//         }
-//     }
-//
-//     pub fn return_type(&self) -> TypeRef {
-//         match self {
-//             CodeEntry::User(chunk) => chunk.return_type,
-//             CodeEntry::Native(native) => native.return_type,
-//         }
-//     }
-// }
 
 /// A chunk of typed code.
 #[derive(Debug)]
