@@ -1,6 +1,8 @@
 use ast::value::{Literal, LiteralValue};
 use ast::Expr;
 use context::source::Source;
+use lexer::token::Token;
+use lexer::token::TokenType;
 use parser::parse;
 use reedline::{Completer, Span, Suggestion};
 use std::env;
@@ -11,7 +13,7 @@ pub(crate) struct MoshellCompleter;
 
 impl Completer for MoshellCompleter {
     fn complete(&mut self, line: &str, pos: usize) -> Vec<Suggestion> {
-        let (_, unmatched) = lexer::lex(&line[..pos]);
+        let (tokens, unmatched) = lexer::lex(&line[..pos]);
         let mut fixed = String::from(&line[..pos]);
         for unmatched in unmatched {
             if unmatched.candidate.is_some() {
@@ -29,14 +31,21 @@ impl Completer for MoshellCompleter {
             }
         }
 
-        match get_last_word(&fixed) {
+        let ends_with_whitespace = matches!(
+            tokens.last(),
+            Some(Token {
+                token_type: TokenType::Space,
+                ..
+            })
+        );
+        match get_last_word(&fixed, ends_with_whitespace) {
             Some(CompletionCursor::Command(word)) => {
                 if word.starts_with('.') {
                     get_files(&word, pos, |path| is_executable::is_executable(path))
                 } else {
                     get_executables(&word, pos)
                 }
-            },
+            }
             Some(CompletionCursor::Argument(word)) => get_files(&word, pos, |_| true),
             None => Vec::new(),
         }
@@ -54,7 +63,7 @@ enum CompletionCursor {
 }
 
 /// Get the last shell word in the given text.
-fn get_last_word(text: &str) -> Option<CompletionCursor> {
+fn get_last_word(text: &str, next: bool) -> Option<CompletionCursor> {
     let mut report = parse(Source::unknown(text));
     let mut expr = report.expr.pop()?;
     let mut is_arg = false;
@@ -75,6 +84,9 @@ fn get_last_word(text: &str) -> Option<CompletionCursor> {
             Expr::Call(mut call) => {
                 expr = call.arguments.pop()?;
                 is_arg = !call.arguments.is_empty();
+                if next {
+                    return Some(CompletionCursor::Argument("".to_owned()));
+                }
             }
             Expr::TemplateString(mut template) => {
                 expr = template.parts.pop()?;
@@ -124,12 +136,12 @@ fn get_executables(word: &str, pos: usize) -> Vec<Suggestion> {
 }
 
 /// Lists all files in the current path.
-fn get_files(word: &str, pos: usize, predicate: fn (&Path) -> bool) -> Vec<Suggestion> {
+fn get_files(word: &str, pos: usize, predicate: fn(&Path) -> bool) -> Vec<Suggestion> {
     let mut suggestions = Vec::new();
     let mut path = Path::new(word);
     if !word.ends_with(MAIN_SEPARATOR) {
         // Complete the last path component, so remove it from the path.
-        path = path.parent().unwrap();
+        path = path.parent().unwrap_or(Path::new("."));
     }
 
     if let Ok(dir) = path.read_dir() {
