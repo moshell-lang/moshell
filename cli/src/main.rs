@@ -14,6 +14,7 @@ use miette::{Context, IntoDiagnostic, MietteHandlerOpts};
 use vm::VM;
 
 mod cli;
+mod complete;
 mod disassemble;
 mod pipeline;
 mod repl;

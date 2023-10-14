@@ -1,7 +1,8 @@
 use miette::{Context, IntoDiagnostic};
 use reedline::{
-    FileBackedHistory, PromptEditMode, PromptHistorySearch, PromptHistorySearchStatus, Reedline,
-    Signal, ValidationResult,
+    default_emacs_keybindings, ColumnarMenu, Emacs, FileBackedHistory, KeyCode, KeyModifiers,
+    PromptEditMode, PromptHistorySearch, PromptHistorySearchStatus, Reedline, ReedlineEvent,
+    ReedlineMenu, Signal, ValidationResult,
 };
 use std::borrow::Cow;
 use std::path::PathBuf;
@@ -17,6 +18,7 @@ use lexer::is_unterminated;
 use vm::VM;
 
 use crate::cli::{use_pipeline, Cli};
+use crate::complete::MoshellCompleter;
 use crate::pipeline::{ErrorReporter, PipelineStatus, SourcesCache};
 
 /// Indefinitely prompts a new expression from stdin and executes it.
@@ -126,6 +128,22 @@ fn editor() -> miette::Result<Reedline> {
         );
         editor = editor.with_history(history);
     }
+    let completion_menu = Box::new(ColumnarMenu::default().with_name("completion_menu"));
+    let mut keybindings = default_emacs_keybindings();
+    keybindings.add_binding(
+        KeyModifiers::NONE,
+        KeyCode::Tab,
+        ReedlineEvent::UntilFound(vec![
+            ReedlineEvent::Menu("completion_menu".to_owned()),
+            ReedlineEvent::MenuNext,
+        ]),
+    );
+    let edit_mode = Box::new(Emacs::new(keybindings));
+    editor = editor
+        .with_menu(ReedlineMenu::EngineCompleter(completion_menu))
+        .with_edit_mode(edit_mode)
+        .with_quick_completions(true)
+        .with_completer(Box::new(MoshellCompleter));
     Ok(editor)
 }
 
@@ -153,8 +171,8 @@ impl reedline::Prompt for Prompt {
         history_search: PromptHistorySearch,
     ) -> Cow<str> {
         match history_search.status {
-            PromptHistorySearchStatus::Passing => Cow::Borrowed("(reverse-i-search)`"),
-            PromptHistorySearchStatus::Failing => Cow::Borrowed("(failed reverse-i-search)`"),
+            PromptHistorySearchStatus::Passing => Cow::Borrowed("(reverse-search): "),
+            PromptHistorySearchStatus::Failing => Cow::Borrowed("(failed reverse-search): "),
         }
     }
 }
