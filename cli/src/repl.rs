@@ -5,6 +5,7 @@ use reedline::{
     ReedlineMenu, Signal, ValidationResult,
 };
 use std::borrow::Cow;
+use std::io::{self, BufRead, IsTerminal, Lines, StdinLock};
 use std::path::PathBuf;
 
 use analyzer::importer::ImportResult;
@@ -32,7 +33,11 @@ pub(crate) fn repl(
     let mut analyzer = Analyzer::new();
     sources.register(dir);
 
-    let mut editor = editor().context("Could not start REPL")?;
+    let mut editor = if io::stdin().is_terminal() {
+        Editor::LineEditor(Box::new(editor().context("Could not start REPL")?))
+    } else {
+        Editor::NoEditor(io::stdin().lock().lines())
+    };
 
     let mut status = PipelineStatus::Success;
 
@@ -111,6 +116,27 @@ pub(crate) fn repl(
                 eprintln!("Error: {err:?}");
                 break Ok(status);
             }
+        }
+    }
+}
+
+/// The REPL editor.
+enum Editor<'a> {
+    /// An interactive line editor.
+    LineEditor(Box<Reedline>),
+
+    /// A simple stdin reader for a non interactive mode.
+    NoEditor(Lines<StdinLock<'a>>),
+}
+
+impl Editor<'_> {
+    fn read_line(&mut self, prompt: &Prompt) -> io::Result<Signal> {
+        match self {
+            Editor::LineEditor(editor) => editor.read_line(prompt),
+            Editor::NoEditor(stdin) => match stdin.next() {
+                Some(line) => line.map(Signal::Success),
+                None => Ok(Signal::CtrlD),
+            },
         }
     }
 }
