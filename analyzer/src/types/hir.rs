@@ -3,7 +3,8 @@ use ast::call::{RedirFd, RedirOp};
 use ast::value::LiteralValue;
 use context::source::{SourceSegment, SourceSegmentHolder};
 
-use crate::relations::{Definition, LocalId, ResolvedSymbol};
+use crate::relations::{LocalId, ResolvedSymbol, SourceId};
+use crate::types::engine::FunctionId;
 use crate::types::ty::TypeRef;
 use crate::types::ERROR;
 
@@ -61,15 +62,16 @@ pub struct Loop {
 #[derive(Clone, Debug, PartialEq)]
 pub struct FunctionCall {
     pub arguments: Vec<TypedExpr>,
-    pub definition: Definition,
     pub reef: ReefId,
+    pub function_id: FunctionId,
+    pub source_id: Option<SourceId>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct MethodCall {
     pub callee: Box<TypedExpr>,
     pub arguments: Vec<TypedExpr>,
-    pub definition: Definition,
+    pub function_id: FunctionId,
 }
 
 #[derive(Clone, Debug, PartialEq)]

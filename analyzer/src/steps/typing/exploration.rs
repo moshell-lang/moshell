@@ -1,14 +1,14 @@
 use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::reef::{Externals, Reef, ReefId};
-use crate::relations::{Definition, Relations, ResolvedSymbol, SourceId, SymbolRef};
+use crate::relations::{Relations, ResolvedSymbol, SourceId, SymbolRef};
 use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::function::Return;
 use crate::steps::typing::view::TypeView;
 use crate::types::ctx::{TypeContext, TypedVariable};
-use crate::types::engine::{CodeEntry, TypedEngine};
-use crate::types::ty::{MethodType, Type, TypeDescription, TypeRef};
-use crate::types::{DefinitionId, Typing};
+use crate::types::engine::{FunctionId, TypedEngine};
+use crate::types::ty::{FunctionType, MethodType, Type, TypeDescription, TypeRef};
+use crate::types::Typing;
 
 /// The support for type analysis.
 pub(super) struct Exploration<'a> {
@@ -91,16 +91,16 @@ impl<'a> Exploration<'a> {
         name: &str,
         params: &[TypeRef],
         return_ty: TypeRef,
-    ) -> Option<&MethodType> {
+    ) -> Option<(&MethodType, FunctionId)> {
         let definition = self.get_base_type(id);
         let current = self.externals.current;
-        if definition.0.reef == current || id.reef == current {
+        if definition.reef == current || id.reef == current {
             self.type_engine
-                .get_method_exact(definition.0.type_id, name, params, return_ty)
+                .get_method_exact(definition.type_id, name, params, return_ty)
         } else {
             let reef = self.get_external_type_reef(id.reef);
             reef.typed_engine
-                .get_method_exact(definition.0.type_id, name, params, return_ty)
+                .get_method_exact(definition.type_id, name, params, return_ty)
         }
     }
 
@@ -131,33 +131,33 @@ impl<'a> Exploration<'a> {
         ctx.get(relations, source, symbol)
     }
 
-    pub(super) fn get_methods(&self, id: TypeRef, name: &str) -> Option<&Vec<MethodType>> {
+    pub(super) fn get_methods(&self, id: TypeRef, name: &str) -> Option<&Vec<FunctionId>> {
         let definition = self.get_base_type(id);
-        if definition.0.reef == self.externals.current {
-            self.type_engine.get_methods(definition.0.type_id, name)
+        if definition.reef == self.externals.current {
+            self.type_engine.get_methods(definition.type_id, name)
         } else {
-            let reef = self.get_external_type_reef(definition.0.reef);
-            reef.typed_engine.get_methods(definition.0.type_id, name)
+            let reef = self.get_external_type_reef(definition.reef);
+            reef.typed_engine.get_methods(definition.type_id, name)
         }
     }
 
     pub(super) fn get_description(&self, id: TypeRef) -> Option<&TypeDescription> {
         let definition = self.get_base_type(id);
         let current = self.externals.current;
-        if definition.0.reef == current || id.reef == current {
-            self.type_engine.get_description(definition.0.type_id)
+        if definition.reef == current || id.reef == current {
+            self.type_engine.get_description(definition.type_id)
         } else {
             let reef = self.get_external_type_reef(id.reef);
-            reef.typed_engine.get_description(definition.0.type_id)
+            reef.typed_engine.get_description(definition.type_id)
         }
     }
 
     /// Gets the base type of a type identifier.
-    pub(crate) fn get_base_type(&self, type_id: TypeRef) -> DefinitionId {
-        DefinitionId(match self.get_type(type_id).unwrap_or(&Type::Error) {
+    pub(crate) fn get_base_type(&self, type_id: TypeRef) -> TypeRef {
+        match self.get_type(type_id).unwrap_or(&Type::Error) {
             Type::Instantiated(def, _) => *def,
             _ => type_id,
-        })
+        }
     }
 
     pub(super) fn get_external_env(
@@ -184,13 +184,17 @@ impl<'a> Exploration<'a> {
         }
     }
 
-    pub(super) fn get_entry(&self, reef: ReefId, definition: Definition) -> Option<CodeEntry> {
+    pub(super) fn get_function(
+        &self,
+        reef: ReefId,
+        function_id: FunctionId,
+    ) -> Option<&FunctionType> {
         if reef == self.externals.current {
-            self.type_engine.get(definition)
+            self.type_engine.get_function(function_id)
         } else {
             self.get_external_type_reef(reef)
                 .typed_engine
-                .get(definition)
+                .get_function(function_id)
         }
     }
 

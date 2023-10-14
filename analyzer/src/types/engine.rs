@@ -1,10 +1,10 @@
+use context::source::ContentId;
+
 use crate::engine::Engine;
 use crate::environment::Environment;
-use crate::relations::{Definition, SourceId};
+use crate::relations::{ObjectId, SourceId};
 use crate::types::hir::TypedExpr;
-use crate::types::ty::{FunctionType, MethodType, Parameter, TypeDescription, TypeId, TypeRef};
-use crate::types::UNIT;
-use context::source::ContentId;
+use crate::types::ty::{FunctionType, MethodType, TypeDescription, TypeId, TypeRef};
 
 /// A typed [`Engine`].
 ///
@@ -20,95 +20,13 @@ pub struct TypedEngine {
     /// Descriptions of types.
     descriptions: Vec<TypeDescription>,
 
-    /// Native code that powers the language.
-    ///
-    /// It powers primitives types, and is indexed by [`NativeObjectId`]s.
-    natives: Vec<FunctionType>,
+    /// All functions definitions. Indexed by a [`FunctionId`] identifier
+    functions: Vec<FunctionType>,
 }
 
-pub enum CodeEntry<'a> {
-    User(&'a Chunk),
-    Native(&'a FunctionType),
-}
-
-impl CodeEntry<'_> {
-    pub fn parameters(&self) -> &[Parameter] {
-        match self {
-            CodeEntry::User(chunk) => chunk.parameters.as_slice(),
-            CodeEntry::Native(native) => native.parameters.as_slice(),
-        }
-    }
-
-    pub fn type_parameters(&self) -> &[TypeRef] {
-        match self {
-            CodeEntry::User(chunk) => &chunk.type_parameters,
-            CodeEntry::Native(native) => &native.type_parameters,
-        }
-    }
-
-    pub fn return_type(&self) -> TypeRef {
-        match self {
-            CodeEntry::User(chunk) => chunk.return_type,
-            CodeEntry::Native(native) => native.return_type,
-        }
-    }
-}
-
-/// A chunk of typed code.
-#[derive(Debug)]
-pub struct Chunk {
-    /// The expression that is evaluated when the chunk is called.
-    /// if this expression is set to None, the chunk is associated to a native function declaration
-    pub expression: Option<TypedExpr>,
-
-    /// List of type parameters declared in chunk's reef typing
-    pub type_parameters: Vec<TypeRef>,
-
-    /// The input parameters of the chunk.
-    ///
-    /// If the chunk is a script, there are no parameters.
-    pub parameters: Vec<Parameter>,
-
-    /// The return type of the chunk.
-    pub return_type: TypeRef,
-}
-
-impl Chunk {
-    /// Creates a new script chunk.
-    pub fn script(expression: TypedExpr) -> Self {
-        Self {
-            expression: Some(expression),
-            type_parameters: Vec::new(),
-            parameters: Vec::new(),
-            return_type: UNIT,
-        }
-    }
-
-    /// Creates a new function that is natively defined.
-    pub fn native(tparams: Vec<TypeRef>, parameters: Vec<Parameter>, return_type: TypeRef) -> Self {
-        Self {
-            expression: None,
-            type_parameters: tparams,
-            parameters,
-            return_type,
-        }
-    }
-
-    /// Creates a new function chunk.
-    pub fn function(
-        tparams: Vec<TypeRef>,
-        expression: TypedExpr,
-        parameters: Vec<Parameter>,
-        return_type: TypeRef,
-    ) -> Self {
-        Self {
-            expression: Some(expression),
-            type_parameters: tparams,
-            parameters,
-            return_type,
-        }
-    }
-}
+/// A function identifier, that points to a [`TypedEngine`]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct FunctionId(pub ObjectId);
 
 impl TypedEngine {
     /// Initializes a new typed engine with the given capacity.
@@ -119,18 +37,18 @@ impl TypedEngine {
         let mut engine = Self {
             entries: Vec::new(),
             descriptions: Vec::new(),
-            natives: Vec::new(),
+            functions: Vec::new(),
         };
         engine.entries.resize_with(capacity, || None);
         engine
     }
 
-    /// Returns the chunk with the given id.
-    pub fn get(&self, def: Definition) -> Option<CodeEntry> {
-        match def {
-            Definition::User(id) => self.get_user(id).map(CodeEntry::User),
-            Definition::Native(id) => self.natives.get(id.0).map(CodeEntry::Native),
-        }
+    pub fn get_function(&self, id: FunctionId) -> Option<&FunctionType> {
+        self.functions.get(id.0)
+    }
+
+    pub(crate) fn get_function_mut(&mut self, id: FunctionId) -> Option<&mut FunctionType> {
+        self.functions.get_mut(id.0)
     }
 
     /// Returns the chunk with the given source id.
@@ -154,7 +72,7 @@ impl TypedEngine {
     ///
     /// If the type is unknown or doesn't have any methods with the given name,
     /// [`None`] is returned.
-    pub fn get_methods(&self, type_id: TypeId, name: &str) -> Option<&Vec<MethodType>> {
+    pub fn get_methods(&self, type_id: TypeId, name: &str) -> Option<&Vec<FunctionId>> {
         self.descriptions.get(type_id.0)?.methods.get(name)
     }
 
@@ -170,29 +88,44 @@ impl TypedEngine {
         name: &str,
         args: &[TypeRef],
         return_type: TypeRef,
-    ) -> Option<&MethodType> {
+    ) -> Option<(&MethodType, FunctionId)> {
         self.get_methods(type_id, name).and_then(|methods| {
-            methods.iter().find(|method| {
-                method.parameters.iter().map(|p| &p.ty).eq(args)
-                    && method.return_type == return_type
-            })
+            methods
+                .iter()
+                .find(|function_id| {
+                    let method = &self.functions[function_id.0];
+                    method.return_type == return_type
+                        && method.parameters.iter().map(|p| &p.ty).eq(args)
+                })
+                .map(|function_id| (&self.functions[function_id.0], *function_id))
         })
     }
 
     /// Adds a new method to a type.
     ///
     /// The method may not conflict with any existing methods.
-    pub fn add_method(&mut self, type_id: TypeId, name: &str, method: MethodType) {
+    pub fn add_method(&mut self, type_id: TypeId, name: &str, method: MethodType) -> FunctionId {
         // Extend the vector of type descriptions if necessary.
         if type_id.0 >= self.descriptions.len() {
             self.descriptions
                 .resize_with(type_id.0 + 1, Default::default);
         }
+
+        let function_id = self.add_function(method);
+
         self.descriptions[type_id.0]
             .methods
             .entry(name.to_owned())
             .or_default()
-            .push(method);
+            .push(function_id);
+
+        function_id
+    }
+
+    pub fn add_function(&mut self, function: FunctionType) -> FunctionId {
+        let function_id = FunctionId(self.functions.len());
+        self.functions.push(function);
+        function_id
     }
 
     /// Adds a new generic type parameter to a type.
@@ -233,6 +166,24 @@ impl TypedEngine {
             next: starting_page,
         }
     }
+}
+
+/// A chunk of typed code.
+#[derive(Debug)]
+pub struct Chunk {
+    /// The expression that is evaluated when the chunk is called.
+    /// if this expression is set to None, the chunk is associated to a native function declaration
+    pub expression: Option<TypedExpr>,
+
+    /// Associated chunk function, if any
+    pub kind: ChunkType,
+}
+
+#[derive(Debug, Copy, Clone)]
+//will add `impl`, `struct` chunks later.
+pub enum ChunkType {
+    Script(FunctionId),
+    Function(FunctionId),
 }
 
 /// A group of chunks that were defined in the same content.

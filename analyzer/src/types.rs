@@ -10,9 +10,6 @@ pub mod hir;
 pub mod operator;
 pub mod ty;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct DefinitionId(pub(crate) TypeRef);
-
 /// Holds all the known types.
 #[derive(Default, Debug, Clone)]
 pub struct Typing {

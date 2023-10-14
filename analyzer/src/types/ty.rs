@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use crate::diagnostic::SourceLocation;
 use crate::reef::ReefId;
-use crate::relations::{Definition, LocalId, NativeId, ObjectId};
+use crate::relations::{LocalId, ObjectId, SourceId};
+use crate::types::engine::FunctionId;
 use crate::types::{BOOL, ERROR, EXITCODE, FLOAT, INT, NOTHING, UNIT};
 
 /// A type identifier in a [`Typing`] instance.
@@ -76,7 +77,8 @@ pub enum Type {
     String,
 
     /// A callable type, that have a separate definition.
-    Function(Definition),
+    /// with a bound source, if any
+    Function(Option<SourceId>, FunctionId),
 
     /// A vector type, that contains a list of elements of the same type.
     Vector,
@@ -96,7 +98,7 @@ impl Type {
     ///
     /// Named types convey a non-positional definition, such as a function.
     pub fn is_named(&self) -> bool {
-        matches!(self, Self::Function(_))
+        matches!(self, Self::Function(_, _))
     }
 }
 
@@ -106,35 +108,26 @@ pub struct FunctionType {
     /// Type parameters of the function
     pub(crate) type_parameters: Vec<TypeRef>,
     /// The exact parameters that are expected by the function.
-    pub(crate) parameters: Vec<Parameter>,
+    pub parameters: Vec<Parameter>,
 
     /// The return type of the function.
-    pub(crate) return_type: TypeRef,
-
-    /// The environment of the function, or the native function ID.
-    pub(crate) definition: Definition,
+    pub return_type: TypeRef,
 }
-
-/// A function parameter.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Parameter {
-    pub(crate) location: Option<SourceLocation>,
-    pub ty: TypeRef,
-    pub local_id: LocalId,
-}
-
 impl FunctionType {
-    /// Creates a new native function.
-    ///
-    /// Natives functions cannot be defined by the user, since it is a
-    /// chicken-and-egg problem. They are defined by the language host,
-    /// usually in a Rust or C++ VM. They are identified by a dedicated
-    /// [`NativeId`], so that the compiler can quickly identify them.
-    pub fn native(
+    /// Create the main function of a script
+    pub(crate) fn script() -> Self {
+        Self {
+            type_parameters: vec![],
+            parameters: vec![],
+            return_type: UNIT,
+        }
+    }
+
+    /// Creates a new function.
+    pub fn new(
         type_parameters: Vec<TypeRef>,
         parameters: Vec<TypeRef>,
         return_type: TypeRef,
-        id: NativeId,
     ) -> Self {
         Self {
             type_parameters,
@@ -148,9 +141,16 @@ impl FunctionType {
                 })
                 .collect(),
             return_type,
-            definition: Definition::Native(id),
         }
     }
+}
+
+/// A function parameter.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Parameter {
+    pub(crate) location: Option<SourceLocation>,
+    pub ty: TypeRef,
+    pub local_id: LocalId,
 }
 
 /// The attributes and methods of a class.
@@ -161,7 +161,7 @@ impl FunctionType {
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct TypeDescription {
     pub(crate) generics: Vec<TypeRef>,
-    pub(crate) methods: HashMap<String, Vec<MethodType>>,
+    pub(crate) methods: HashMap<String, Vec<FunctionId>>,
 }
 
 /// A method is a function that only exists on a given type.

@@ -1,6 +1,6 @@
 use libc::{O_APPEND, O_CREAT, O_RDONLY, O_RDWR, O_WRONLY};
 
-use analyzer::relations::{Definition, ResolvedSymbol};
+use analyzer::relations::ResolvedSymbol;
 use analyzer::types::hir::{ExprKind, FunctionCall, Redir, Redirect, TypedExpr, Var};
 use analyzer::types::ty::TypeRef;
 use ast::call::{RedirFd, RedirOp};
@@ -139,17 +139,11 @@ pub fn emit_function_invocation(
 ) {
     let last_used = state.use_values(true);
 
-    let Definition::User(func_source) = function_call.definition else {
-        panic!("unsupported native function call")
-    };
+    let function = ctx
+        .get_function(function_call.reef, function_call.function_id)
+        .unwrap();
 
-    let function_definition = ctx.get_function(function_call.reef, func_source).unwrap();
-
-    for (arg, parameter) in function_call
-        .arguments
-        .iter()
-        .zip(&function_definition.parameters)
-    {
+    for (arg, parameter) in function_call.arguments.iter().zip(&function.parameters) {
         emit(arg, instructions, ctx, cp, locals, state);
         // The parameter is an object but the argument isn't: may be an argument passed to a generic parameter
         if parameter.ty.is_obj() && !arg.ty.is_obj() {
@@ -159,25 +153,23 @@ pub fn emit_function_invocation(
 
     state.use_values(last_used);
 
-    let (env, captures) = match function_call.definition {
-        Definition::User(id) => {
-            let captures: &[ResolvedSymbol] = if function_call.reef != ctx.current_reef {
-                &[]
-            } else {
-                ctx.captures[id.0]
-                    .as_ref()
-                    .expect("undefined captures when the function is emitted")
-            };
-            let env = ctx
-                .get_engine(function_call.reef)
-                .unwrap()
-                .get_environment(id)
-                .unwrap();
-            (env, captures)
-        }
-        Definition::Native(_) => {
-            todo!("native call to functions are not supported")
-        }
+    let (env, captures) = {
+        let fun_source = function_call
+            .source_id
+            .expect("cannot invoke functions with no environment");
+        let captures: &[ResolvedSymbol] = if function_call.reef != ctx.current_reef {
+            &[]
+        } else {
+            ctx.captures[fun_source.0]
+                .as_ref()
+                .expect("undefined captures when the function is emitted")
+        };
+        let env = ctx
+            .get_engine(function_call.reef)
+            .unwrap()
+            .get_environment(fun_source)
+            .unwrap();
+        (env, captures)
     };
 
     for capture in captures {
@@ -192,7 +184,7 @@ pub fn emit_function_invocation(
         }
     }
 
-    let return_type = function_definition.return_type;
+    let return_type = function.return_type;
     let return_type_size = return_type.into();
 
     let signature_idx = cp.insert_string(&env.fqn);
