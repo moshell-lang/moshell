@@ -11,7 +11,7 @@ use crate::group::{Block, Parenthesis, Subshell};
 use crate::lambda::LambdaDef;
 use crate::operation::{BinaryOperation, UnaryOperation};
 use crate::r#match::Match;
-use crate::r#struct::{StructDeclaration, StructImpl};
+use crate::r#struct::{FieldAccess, StructDeclaration, StructImpl};
 use crate::r#type::CastedExpr;
 use crate::r#use::Use;
 use crate::range::{Iterable, Subscript};
@@ -82,6 +82,7 @@ pub enum Expr<'a> {
     VarDeclaration(VarDeclaration<'a>),
     Range(Iterable<'a>),
     Subscript(Subscript<'a>),
+    FieldAccess(FieldAccess<'a>),
 
     FunctionDeclaration(FunctionDeclaration<'a>),
 
@@ -97,6 +98,7 @@ pub enum Expr<'a> {
 impl SourceSegmentHolder for Expr<'_> {
     fn segment(&self) -> SourceSegment {
         match self {
+            Expr::FieldAccess(fa) => fa.segment(),
             Expr::StructDeclaration(d) => d.segment(),
             Expr::Impl(i) => i.segment(),
             Expr::Assign(assign) => assign.segment(),
@@ -124,7 +126,7 @@ impl SourceSegmentHolder for Expr<'_> {
             Expr::Break(source) => source.clone(),
             Expr::Return(return_) => return_.segment.clone(),
             Expr::Identifier(identifier) => identifier.segment.clone(),
-            Expr::VarReference(var_reference) => var_reference.segment.clone(),
+            Expr::VarReference(var_reference) => var_reference.segment(),
             Expr::VarDeclaration(var_declaration) => var_declaration.segment.clone(),
             Expr::Range(range) => range.segment(),
             Expr::Subscript(subscript) => subscript.segment(),

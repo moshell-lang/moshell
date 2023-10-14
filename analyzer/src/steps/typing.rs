@@ -7,7 +7,9 @@ use ast::r#type::CastedExpr;
 use ast::range::Subscript;
 use ast::substitution::Substitution;
 use ast::value::{Literal, LiteralValue, TemplateString};
-use ast::variable::{Assign, AssignOperator, Identifier, VarDeclaration, VarKind, VarReference};
+use ast::variable::{
+    Assign, AssignOperator, Identifier, VarDeclaration, VarKind, VarName, VarReference,
+};
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
 
@@ -535,7 +537,7 @@ fn ascribe_var_reference(
 fn ascribe_identifier(ident: &Identifier, links: Links, exploration: &Exploration) -> TypedExpr {
     ascribe_var_reference(
         &VarReference {
-            name: ident.name,
+            name: VarName::User(ident.name),
             segment: ident.segment.clone(),
         },
         links,

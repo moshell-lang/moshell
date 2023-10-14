@@ -1,4 +1,5 @@
 use ast::call::{Call, MethodCall, ProgrammaticCall};
+use ast::r#struct::FieldAccess;
 use ast::r#use::InclusionPathItem;
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
@@ -30,7 +31,7 @@ pub trait CallAspect<'a> {
     fn method_call_on(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
 
     /// Parse any function call or method call after an expression.
-    fn expand_call_chain(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
+    fn expand_member_chain(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
 
     /// Continues to parse a call expression from a known command name expression
     fn call_arguments(&mut self, command: Expr<'a>) -> ParseResult<Expr<'a>>;
@@ -113,21 +114,49 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         }))
     }
 
-    fn expand_call_chain(&mut self, mut expr: Expr<'a>) -> ParseResult<Expr<'a>> {
-        while self
-            .cursor
-            .lookahead(
-                of_types(&[TokenType::RoundedLeftBracket, TokenType::SquaredLeftBracket])
-                    .or(blanks().then(of_type(TokenType::Dot).and_then(identifier_parenthesis()))),
-            )
-            .is_some()
-        {
-            self.cursor.advance(blanks());
-            if self.cursor.peek().token_type == TokenType::SquaredLeftBracket {
-                expr = self.parse_subscript(expr).map(Expr::Subscript)?;
-            } else {
-                expr = self.method_call_on(expr)?;
-            }
+    fn expand_member_chain(&mut self, mut expr: Expr<'a>) -> ParseResult<Expr<'a>> {
+        loop {
+            let pivot = self
+                .cursor
+                .lookahead(blanks().then(any()))
+                .unwrap()
+                .token_type;
+
+            expr = match pivot {
+                TokenType::SquaredLeftBracket => {
+                    self.cursor.advance(blanks());
+                    self.parse_subscript(expr).map(Expr::Subscript)?
+                }
+                _ if self
+                    .cursor
+                    .lookahead(
+                        blanks()
+                            .then(of_type(TokenType::Dot).and_then(identifier_parenthesis()))
+                            .or(of_types(&[
+                                TokenType::RoundedLeftBracket,
+                                TokenType::SquaredLeftBracket,
+                            ])),
+                    )
+                    .is_some() =>
+                {
+                    self.cursor.advance(blanks());
+                    self.method_call_on(expr)?
+                }
+                TokenType::Dot => {
+                    self.cursor.advance(blanks());
+                    let dot_token = self.cursor.next()?;
+                    let field_token = self.cursor.force(
+                        of_type(TokenType::Identifier),
+                        "identifier expected when acessing attribute",
+                    )?;
+                    Expr::FieldAccess(FieldAccess {
+                        expr: Box::new(expr),
+                        field: field_token.value,
+                        segment: self.cursor.relative_pos_ctx(dot_token..field_token),
+                    })
+                }
+                _ => break,
+            };
         }
         Ok(expr)
     }
@@ -173,7 +202,7 @@ impl<'a> Parser<'a> {
             TokenType::CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
             TokenType::Identifier | TokenType::Reef if self.may_be_at_programmatic_call_start() => {
                 let call = self.programmatic_call()?;
-                self.expand_call_chain(call)
+                self.expand_member_chain(call)
             }
             _ => self.literal(LiteralLeniency::Lenient),
         }
@@ -237,10 +266,13 @@ impl<'a> Parser<'a> {
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use ast::call::{Call, ProgrammaticCall};
+    use ast::call::{Call, MethodCall, ProgrammaticCall};
+    use ast::group::Block;
+    use ast::r#struct::FieldAccess;
     use ast::r#type::{ParametrizedType, Type};
     use ast::r#use::InclusionPathItem;
     use ast::value::Literal;
+    use ast::variable::{VarName, VarReference};
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::{find_between, find_in, find_in_nth};
@@ -662,6 +694,41 @@ mod tests {
                 position: content.len() - 1..content.len(),
                 kind: ParseErrorKind::Unpaired(content.find('(').map(|p| p..p + 1).unwrap())
             })
+        )
+    }
+
+    #[test]
+    fn field_access() {
+        let content = "{$self.b.method().field}.other_field";
+        let source = Source::unknown(content);
+        let expr: ParseResult<_> = parse(source).into();
+        assert_eq!(
+            expr,
+            Ok(vec![Expr::FieldAccess(FieldAccess {
+                expr: Box::new(Expr::Block(Block {
+                    expressions: vec![Expr::FieldAccess(FieldAccess {
+                        expr: Box::new(Expr::MethodCall(MethodCall {
+                            source: Box::new(Expr::FieldAccess(FieldAccess {
+                                expr: Box::new(Expr::VarReference(VarReference {
+                                    name: VarName::Slf,
+                                    segment: find_in(content, "$self"),
+                                })),
+                                field: "b",
+                                segment: find_in(content, ".b"),
+                            })),
+                            name: Some("method"),
+                            arguments: vec![],
+                            type_parameters: vec![],
+                            segment: find_in(content, ".method()"),
+                        })),
+                        field: "field",
+                        segment: find_in(content, ".field"),
+                    })],
+                    segment: find_in(content, "{$self.b.method().field}"),
+                })),
+                field: "other_field",
+                segment: find_in(content, ".other_field"),
+            })])
         )
     }
 }

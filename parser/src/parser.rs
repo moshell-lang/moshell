@@ -316,7 +316,7 @@ impl<'a> Parser<'a> {
 
             _ => self.expression(),
         }?;
-        self.expand_call_chain(expr)
+        self.expand_member_chain(expr)
     }
 
     /// Parses the left-hand side of the next value.
@@ -365,7 +365,7 @@ impl<'a> Parser<'a> {
         let mut lhs = self.lhs()?;
 
         // Parse postfix operators
-        lhs = self.expand_call_chain(lhs)?;
+        lhs = self.expand_member_chain(lhs)?;
 
         // Parse infix operators
         loop {

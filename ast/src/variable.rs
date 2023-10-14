@@ -1,7 +1,7 @@
-use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
-use lexer::token::TokenType;
 
+use context::source::{SourceSegment, SourceSegmentHolder};
+use lexer::token::TokenType;
 use src_macros::segment_holder;
 
 use crate::r#type::Type;
@@ -35,12 +35,30 @@ pub enum VarKind {
     Val,
 }
 
+#[derive(Debug, Clone, PartialEq, DebugPls)]
+pub enum VarName<'a> {
+    /// An used defined variable name.
+    User(&'a str),
+
+    /// The `self` keyword to refer to the current object.
+    Slf,
+}
+
+impl VarName<'_> {
+    pub fn name(&self) -> &str {
+        match self {
+            VarName::User(name) => name,
+            VarName::Slf => "self",
+        }
+    }
+}
+
 /// A variable reference, prefixed with `$`.
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct VarReference<'a> {
     /// The name of the variable.
-    pub name: &'a str,
+    pub name: VarName<'a>,
 }
 
 /// A variable assignation.
@@ -98,7 +116,7 @@ impl Assign<'_> {
     pub fn name(&self) -> Option<&str> {
         match self.left.as_ref() {
             Expr::Identifier(Identifier { name, .. }) => Some(name),
-            Expr::VarReference(VarReference { name, .. }) => Some(name),
+            Expr::VarReference(VarReference { name, .. }) => Some(name.name()),
             _ => None,
         }
     }

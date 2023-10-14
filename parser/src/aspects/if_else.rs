@@ -68,7 +68,7 @@ mod tests {
     use ast::operation::{BinaryOperation, BinaryOperator};
     use ast::test::Test;
     use ast::value::{Literal, TemplateString};
-    use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarReference};
+    use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarName, VarReference};
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::{find_between, find_in, rfind_between};
@@ -88,7 +88,7 @@ mod tests {
             vec![Expr::If(If {
                 condition: Box::new(Expr::Test(Test {
                     expression: Box::new(Expr::VarReference(VarReference {
-                        name: "1",
+                        name: VarName::User("1"),
                         segment: find_in(content, "$1")
                     })),
                     segment: find_between(content, "[", "]"),
@@ -136,20 +136,20 @@ mod tests {
                 fail_branch: Some(Box::new(Expr::If(If {
                     condition: Box::new(Expr::Test(Test {
                         expression: Box::new(Expr::VarReference(VarReference {
-                            name: "a",
+                            name: VarName::User("a"),
                             segment: find_in(content, "$a")
                         })),
                         segment: rfind_between(content, "[", "]"),
                     })),
                     success_branch: Box::new(Expr::Block(Block {
                         expressions: vec![Expr::VarReference(VarReference {
-                            name: "7",
+                            name: VarName::User("7"),
                             segment: find_in(content, "$7")
                         })],
                         segment: rfind_between(content, "{", "}"),
                     })),
                     fail_branch: Some(Box::new(Expr::VarReference(VarReference {
-                        name: "5",
+                        name: VarName::User("5"),
                         segment: find_in(content, "$5")
                     }))),
                     segment: find_between(content, "if [ $a ]", "$5"),
@@ -169,7 +169,7 @@ mod tests {
             vec![Expr::If(If {
                 condition: Box::new(Expr::Test(Test {
                     expression: Box::new(Expr::VarReference(VarReference {
-                        name: "1",
+                        name: VarName::User("1"),
                         segment: find_in(content, "$1")
                     })),
                     segment: find_between(content, "[", "]"),
@@ -180,17 +180,17 @@ mod tests {
                 fail_branch: Some(Box::new(Expr::If(If {
                     condition: Box::new(Expr::Test(Test {
                         expression: Box::new(Expr::VarReference(VarReference {
-                            name: "a",
+                            name: VarName::User("a"),
                             segment: find_in(content, "$a")
                         })),
                         segment: rfind_between(content, "[", "]")
                     })),
                     success_branch: Box::new(Expr::VarReference(VarReference {
-                        name: "7",
+                        name: VarName::User("7"),
                         segment: find_in(content, "$7")
                     })),
                     fail_branch: Some(Box::new(Expr::VarReference(VarReference {
-                        name: "5",
+                        name: VarName::User("5"),
                         segment: find_in(content, "$5")
                     }))),
                     segment: find_between(content, "if [ $a ]", "$5")
@@ -208,7 +208,7 @@ mod tests {
             ast,
             vec![Expr::If(If {
                 condition: Box::new(Expr::VarReference(VarReference {
-                    name: "x",
+                    name: VarName::User("x"),
                     segment: find_in(source.source, "$x")
                 })),
                 success_branch: Box::new(Expr::Block(Block {

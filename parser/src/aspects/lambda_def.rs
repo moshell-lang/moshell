@@ -47,7 +47,7 @@ mod tests {
     use ast::operation::{BinaryOperation, BinaryOperator};
     use ast::r#type::{ParametrizedType, Type};
     use ast::r#use::InclusionPathItem;
-    use ast::variable::{TypedVariable, VarReference};
+    use ast::variable::{TypedVariable, VarName, VarReference};
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::{find_between, find_in};
@@ -88,12 +88,12 @@ mod tests {
                 ],
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::VarReference(VarReference {
-                        name: "a",
+                        name: VarName::User("a"),
                         segment: find_in(source.source, "$a"),
                     })),
                     op: BinaryOperator::Plus,
                     right: Box::new(Expr::VarReference(VarReference {
-                        name: "b",
+                        name: VarName::User("b"),
                         segment: find_in(source.source, "$b")
                     })),
                 })),
@@ -118,12 +118,12 @@ mod tests {
                 },],
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::VarReference(VarReference {
-                        name: "a",
+                        name: VarName::User("a"),
                         segment: find_in(source.source, "$a")
                     })),
                     op: BinaryOperator::Plus,
                     right: Box::new(Expr::VarReference(VarReference {
-                        name: "b",
+                        name: VarName::User("b"),
                         segment: find_in(source.source, "$b")
                     })),
                 })),
@@ -156,12 +156,12 @@ mod tests {
                 },],
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::VarReference(VarReference {
-                        name: "a",
+                        name: VarName::User("a"),
                         segment: find_in(src, "$a")
                     })),
                     op: BinaryOperator::Plus,
                     right: Box::new(Expr::VarReference(VarReference {
-                        name: "b",
+                        name: VarName::User("b"),
                         segment: find_in(src, "$b")
                     })),
                 })),
