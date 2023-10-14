@@ -115,40 +115,48 @@ impl<'a> CallAspect<'a> for Parser<'a> {
     }
 
     fn expand_member_chain(&mut self, mut expr: Expr<'a>) -> ParseResult<Expr<'a>> {
-        while self
-            .cursor
-            .lookahead(
-                of_types(&[TokenType::RoundedLeftBracket, TokenType::SquaredLeftBracket])
-                    .or(blanks()
-                        .then(of_type(TokenType::Dot).and_then(of_type(TokenType::Identifier)))),
-            )
-            .is_some()
-        {
-            self.cursor.advance(blanks());
-            if self.cursor.peek().token_type == TokenType::SquaredLeftBracket {
-                expr = self.parse_subscript(expr).map(Expr::Subscript)?;
-            } else if self
+        loop {
+            let pivot = self
                 .cursor
-                .lookahead(
-                    of_type(TokenType::Dot)
-                        .and_then(identifier_parenthesis())
-                        .or(of_types(&[
-                            TokenType::RoundedLeftBracket,
-                            TokenType::SquaredLeftBracket,
-                        ])),
-                )
-                .is_some()
-            {
-                expr = self.method_call_on(expr)?;
-            } else {
-                let dot_token = self.cursor.next()?;
-                let field_token = self.cursor.next()?;
-                expr = Expr::FieldAccess(FieldAccess {
-                    expr: Box::new(expr),
-                    field: field_token.value,
-                    segment: self.cursor.relative_pos_ctx(dot_token..field_token),
-                })
-            }
+                .lookahead(blanks().then(any()))
+                .unwrap()
+                .token_type;
+
+            expr = match pivot {
+                TokenType::SquaredLeftBracket => {
+                    self.cursor.advance(blanks());
+                    self.parse_subscript(expr).map(Expr::Subscript)?
+                }
+                _ if self
+                    .cursor
+                    .lookahead(
+                        blanks()
+                            .then(of_type(TokenType::Dot).and_then(identifier_parenthesis()))
+                            .or(of_types(&[
+                                TokenType::RoundedLeftBracket,
+                                TokenType::SquaredLeftBracket,
+                            ])),
+                    )
+                    .is_some() =>
+                {
+                    self.cursor.advance(blanks());
+                    self.method_call_on(expr)?
+                }
+                TokenType::Dot => {
+                    self.cursor.advance(blanks());
+                    let dot_token = self.cursor.next()?;
+                    let field_token = self.cursor.force(
+                        of_type(TokenType::Identifier),
+                        "identifier expected when acessing attribute",
+                    )?;
+                    Expr::FieldAccess(FieldAccess {
+                        expr: Box::new(expr),
+                        field: field_token.value,
+                        segment: self.cursor.relative_pos_ctx(dot_token..field_token),
+                    })
+                }
+                _ => break,
+            };
         }
         Ok(expr)
     }

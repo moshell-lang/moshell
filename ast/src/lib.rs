@@ -98,6 +98,7 @@ pub enum Expr<'a> {
 impl SourceSegmentHolder for Expr<'_> {
     fn segment(&self) -> SourceSegment {
         match self {
+            Expr::FieldAccess(fa) => fa.segment(),
             Expr::StructDeclaration(d) => d.segment(),
             Expr::Impl(i) => i.segment(),
             Expr::Assign(assign) => assign.segment(),
@@ -133,7 +134,6 @@ impl SourceSegmentHolder for Expr<'_> {
             Expr::Parenthesis(parenthesis) => parenthesis.segment.clone(),
             Expr::Subshell(subshell) => subshell.segment.clone(),
             Expr::Block(block) => block.segment.clone(),
-            Expr::FieldAccess(fa) => fa.segment(),
         }
     }
 }

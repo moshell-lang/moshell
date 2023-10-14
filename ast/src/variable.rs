@@ -1,5 +1,3 @@
-use std::fmt::{Display, Formatter};
-
 use dbg_pls::DebugPls;
 
 use context::source::{SourceSegment, SourceSegmentHolder};
@@ -39,15 +37,18 @@ pub enum VarKind {
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub enum VarName<'a> {
+    /// An used defined variable name.
     User(&'a str),
+
+    /// The `self` keyword to refer to the current object.
     Slf,
 }
 
-impl Display for VarName<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl VarName<'_> {
+    pub fn name(&self) -> &str {
         match self {
-            VarName::User(n) => write!(f, "{n}"),
-            VarName::Slf => write!(f, "self"),
+            VarName::User(name) => name,
+            VarName::Slf => "self",
         }
     }
 }
@@ -112,10 +113,10 @@ impl SourceSegmentHolder for Assign<'_> {
 }
 
 impl Assign<'_> {
-    pub fn name(&self) -> Option<String> {
+    pub fn name(&self) -> Option<&str> {
         match self.left.as_ref() {
-            Expr::Identifier(Identifier { name, .. }) => Some(name.to_string()),
-            Expr::VarReference(VarReference { name, .. }) => Some(name.to_string()),
+            Expr::Identifier(Identifier { name, .. }) => Some(name),
+            Expr::VarReference(VarReference { name, .. }) => Some(name.name()),
             _ => None,
         }
     }
