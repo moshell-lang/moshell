@@ -44,6 +44,8 @@ int moshell_exec(const char *bytes, size_t byte_count);
 
 /**
  * Creates a new virtual machine, with given program arguments.
+ * Arguments are copied and hosted by the VM thus the given arguments can be freed after this
+ * function call.
  *
  * @return A new Moshell VM.
  */
