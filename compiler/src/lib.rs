@@ -2,25 +2,33 @@ use std::collections::HashSet;
 use std::io;
 use std::io::Write;
 
+use ::context::source::ContentId;
 use analyzer::engine::Engine;
 use analyzer::environment::symbols::SymbolInfo;
 use analyzer::name::Name;
 use analyzer::reef::{Externals, ReefId};
 use analyzer::relations::{Relations, ResolvedSymbol, SourceId};
-use analyzer::types::engine::{Chunk, ChunkType, TypedEngine};
+use analyzer::types::engine::{Chunk, TypedEngine};
 use analyzer::types::hir::ExprKind;
-use context::source::ContentId;
+use analyzer::types::ty::Type;
+use analyzer::types::Typing;
 
 use crate::bytecode::{Bytecode, InstructionPos, Instructions};
 use crate::constant_pool::ConstantPool;
-use crate::emit::{emit, EmissionState, EmitterContext};
+use crate::context::EmitterContext;
+use crate::emit::{emit, EmissionState};
+use crate::externals::{CompiledReef, CompilerExternals};
 use crate::locals::LocalsLayout;
 use crate::r#type::{get_type_stack_size, ValueStackSize};
+use crate::structure::StructureLayout;
 
 pub mod bytecode;
 mod constant_pool;
+mod context;
 mod emit;
+pub mod externals;
 mod locals;
+mod structure;
 mod r#type;
 
 pub(crate) type Captures = Vec<Option<Vec<ResolvedSymbol>>>;
@@ -38,17 +46,29 @@ pub struct CompilerOptions<'a> {
 
 const MAPPINGS_ATTRIBUTE: u8 = 1;
 
+pub fn compile_layouts(typed_engine: &TypedEngine) -> Vec<StructureLayout> {
+    let mut layouts = Vec::new();
+    for structure in typed_engine.iter_structures() {
+        layouts.push(StructureLayout::from(structure))
+    }
+
+    layouts
+}
+
 #[allow(clippy::too_many_arguments)]
-pub fn compile(
+pub fn compile_reef(
     typed_engine: &TypedEngine,
     relations: &Relations,
+    typing: &Typing,
     link_engine: &Engine,
     externals: &Externals,
+    compiler_externals: &CompilerExternals,
     reef_id: ReefId,
     starting_page: SourceId,
     writer: &mut impl Write,
     options: CompilerOptions,
-) -> Result<(), io::Error> {
+) -> Result<CompiledReef, io::Error> {
+    let layouts = compile_layouts(typed_engine);
     let captures = resolve_captures(link_engine, relations, reef_id);
 
     let mut bytecode = Bytecode::default();
@@ -56,17 +76,21 @@ pub fn compile(
 
     let mut it = typed_engine.group_by_content(link_engine, starting_page);
     while let Some(content) = it.next() {
+        // emitting page's main function (usually a script's root code)
         let (chunk_id, main_env, main_chunk) = content.main_chunk(&it);
-        let ctx = EmitterContext::new(
-            reef_id,
-            link_engine,
+        let ctx = EmitterContext {
+            current_reef: reef_id,
+            engine: link_engine,
+            typing,
             typed_engine,
             externals,
-            main_env,
-            &captures,
+            compiler_externals,
+            environment: main_env,
+            captures: &captures,
             chunk_id,
-        );
-        let page_size = compile_chunk(
+            layouts: &layouts,
+        };
+        let page_size = compile_function_chunk(
             &main_env.fqn,
             main_chunk,
             chunk_id,
@@ -78,23 +102,64 @@ pub fn compile(
         .unwrap();
         write_exported(&mut cp, page_size, &mut bytecode)?;
 
-        // filter out native functions
-        let defined_functions: Vec<_> = content.defined_chunks(&it).collect();
+        // compile structures
+        let structures: Vec<_> = content
+            .structures(|type_id| typing.get_type(type_id).unwrap(), &it)
+            .collect();
+
+        bytecode.emit_u32(structures.len() as u32);
+
+        for (_, structure_env, structure_chunk) in &structures {
+            let Type::Structure(_, structure_id) = typing.get_type(structure_chunk.tpe).unwrap()
+            else {
+                unreachable!()
+            };
+
+            let structure = typed_engine.get_structure(*structure_id).unwrap();
+            bytecode.emit_constant_ref(cp.insert_string(structure_env.fqn.to_string()));
+            let fields = structure.get_fields();
+
+            // set structure bytes length and objects indexes
+            let mut structure_bytes_count = 0;
+            let mut structure_object_indexes_len = 0;
+            let structure_bytes_count_ph = bytecode.emit_u32_placeholder();
+            let structure_object_indexes_len_ph = bytecode.emit_u32_placeholder();
+            for field in fields {
+                if field.ty.is_obj() {
+                    structure_object_indexes_len += 1;
+                    bytecode.emit_u32(structure_bytes_count);
+                }
+                structure_bytes_count += u8::from(ValueStackSize::from(field.ty)) as u32;
+            }
+            bytecode.patch_u32_placeholder(structure_bytes_count_ph, structure_bytes_count);
+            bytecode.patch_u32_placeholder(
+                structure_object_indexes_len_ph,
+                structure_object_indexes_len,
+            );
+        }
+
+        // compile functions (filter out unimplemented functions)
+        let defined_functions: Vec<_> = content
+            .defined_functions(|type_id| typing.get_type(type_id).unwrap(), &it)
+            .collect();
 
         bytecode.emit_u32(defined_functions.len() as u32);
 
         for (chunk_id, env, chunk) in defined_functions {
-            let ctx = EmitterContext::new(
-                reef_id,
-                link_engine,
+            let ctx = EmitterContext {
+                current_reef: reef_id,
+                engine: link_engine,
+                typing,
                 typed_engine,
                 externals,
-                env,
-                &captures,
+                compiler_externals,
+                environment: env,
+                captures: &captures,
                 chunk_id,
-            );
+                layouts: &layouts,
+            };
 
-            compile_chunk(
+            compile_function_chunk(
                 &env.fqn,
                 chunk,
                 chunk_id,
@@ -109,10 +174,12 @@ pub fn compile(
         }
     }
 
-    write(writer, &bytecode, &cp)
+    write(writer, &bytecode, &cp)?;
+
+    Ok(CompiledReef { layouts })
 }
 
-fn compile_chunk(
+fn compile_function_chunk(
     name: &Name,
     chunk: &Chunk,
     id: SourceId,
@@ -293,9 +360,9 @@ fn compile_chunk_code(
         .as_ref()
         .expect("unresolved capture after resolution");
 
-    let function_id = match chunk.kind {
-        ChunkType::Script(id) => id,
-        ChunkType::Function(id) => id,
+    let function_id = match ctx.typing.get_type(chunk.tpe).unwrap() {
+        Type::Function(_, id) => *id,
+        _ => panic!("attempted to compile a non-function chunk."),
     };
 
     let function = ctx.get_function(ctx.current_reef, function_id).unwrap();

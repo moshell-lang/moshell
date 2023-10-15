@@ -4,7 +4,7 @@ use ast::value::LiteralValue;
 use context::source::{SourceSegment, SourceSegmentHolder};
 
 use crate::relations::{LocalId, ResolvedSymbol, SourceId};
-use crate::types::engine::FunctionId;
+use crate::types::engine::{FunctionId, StructureId};
 use crate::types::ty::TypeRef;
 use crate::types::ERROR;
 
@@ -29,7 +29,24 @@ impl SourceSegmentHolder for TypedExpr {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Assignment {
+pub struct FieldAccess {
+    pub object: Box<TypedExpr>,
+    pub structure: StructureId,
+    pub structure_reef: ReefId,
+    pub field: LocalId,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct FieldAssign {
+    pub object: Box<TypedExpr>,
+    pub structure: StructureId,
+    pub structure_reef: ReefId,
+    pub field: LocalId,
+    pub new_value: Box<TypedExpr>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct LocalAssignment {
     pub identifier: Var,
     pub rhs: Box<TypedExpr>,
 }
@@ -97,9 +114,11 @@ pub struct Redir {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExprKind {
     Literal(LiteralValue),
-    Assign(Assignment),
+    LocalAssign(LocalAssignment),
+    FieldAssign(FieldAssign),
     Declare(Declaration),
     Reference(Var),
+    FieldAccess(FieldAccess),
     Block(Vec<TypedExpr>),
     Redirect(Redirect),
     Conditional(Conditional),

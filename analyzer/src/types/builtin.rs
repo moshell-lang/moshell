@@ -5,7 +5,7 @@ use crate::engine::Engine;
 use crate::reef::{Reef, LANG_REEF};
 use crate::relations::{LocalId, Relations, SourceId};
 use crate::types::ctx::TypeContext;
-use crate::types::engine::TypedEngine;
+use crate::types::engine::{StructureId, TypedEngine};
 use crate::types::operator::name_operator_method;
 use crate::types::ty::{MethodType, Type, TypeId, TypeRef};
 use crate::types::{
@@ -39,6 +39,23 @@ pub const INT_VEC: TypeRef = TypeRef::new(LANG_REEF, TypeId(13));
 /// generic parameters used by the lang reef.
 /// The lang reef is a special reef that reuses the same generic parameters for each functions.
 pub const GENERIC_PARAMETER_1: TypeRef = TypeRef::new(LANG_REEF, TypeId(14));
+pub const UNIT_STRUCT: StructureId = StructureId(0);
+pub const BOOL_STRUCT: StructureId = StructureId(1);
+pub const EXITCODE_STRUCT: StructureId = StructureId(2);
+pub const INT_STRUCT: StructureId = StructureId(3);
+pub const FLOAT_STRUCT: StructureId = StructureId(4);
+pub const STRING_STRUCT: StructureId = StructureId(5);
+pub const VEC_STRUCT: StructureId = StructureId(6);
+pub const OPTION_STRUCT: StructureId = StructureId(7);
+pub const GLOB_STRUCT: StructureId = StructureId(8);
+pub const PID_STRUCT: StructureId = StructureId(9);
+
+fn get_lang_struct_id(typing: &mut Typing, ty: TypeRef) -> StructureId {
+    let Type::Structure(_, structure_id) = typing.get_type(ty.type_id).unwrap() else {
+        panic!("given type is not a structured type")
+    };
+    *structure_id
+}
 
 /// Adds the native methods to the engine.
 fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
@@ -55,190 +72,195 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
     );
 
     engine.add_method(
-        EXITCODE.type_id,
+        EXITCODE_STRUCT,
         "to_bool",
-        MethodType::new(vec![], vec![], BOOL),
+        MethodType::function(vec![], vec![], BOOL),
     );
 
     for op in ARITHMETIC_OPERATORS {
         engine.add_method(
-            INT.type_id,
+            INT_STRUCT,
             name_operator_method(*op),
-            MethodType::new(vec![], vec![INT], INT),
+            MethodType::function(vec![], vec![INT], INT),
         );
         engine.add_method(
-            FLOAT.type_id,
+            FLOAT_STRUCT,
             name_operator_method(*op),
-            MethodType::new(vec![], vec![FLOAT], FLOAT),
+            MethodType::function(vec![], vec![FLOAT], FLOAT),
         );
     }
     engine.add_method(
-        INT.type_id,
+        INT_STRUCT,
         name_operator_method(BinaryOperator::Modulo),
-        MethodType::new(vec![], vec![INT], INT),
+        MethodType::function(vec![], vec![INT], INT),
     );
-    engine.add_method(BOOL.type_id, "not", MethodType::new(vec![], vec![], BOOL));
+    engine.add_method(
+        BOOL_STRUCT,
+        "not",
+        MethodType::function(vec![], vec![], BOOL),
+    );
     for ty in [BOOL, STRING] {
+        let ty_structure = get_lang_struct_id(typing, ty);
         for op in EQUALITY_OPERATORS {
             engine.add_method(
-                ty.type_id,
+                ty_structure,
                 name_operator_method(*op),
-                MethodType::new(vec![], vec![ty], BOOL),
+                MethodType::function(vec![], vec![ty], BOOL),
             );
         }
     }
     for ty in [INT, FLOAT] {
+        let ty_structure = get_lang_struct_id(typing, ty);
         for op in COMPARISON_OPERATORS {
             engine.add_method(
-                ty.type_id,
+                ty_structure,
                 name_operator_method(*op),
-                MethodType::new(vec![], vec![ty], BOOL),
+                MethodType::function(vec![], vec![ty], BOOL),
             );
         }
     }
-    for stringify in [BOOL, EXITCODE, INT, FLOAT] {
+    for struct_id in [BOOL_STRUCT, EXITCODE_STRUCT, INT_STRUCT, FLOAT_STRUCT] {
         engine.add_method(
-            stringify.type_id,
+            struct_id,
             "to_string",
-            MethodType::new(vec![], vec![], STRING),
+            MethodType::function(vec![], vec![], STRING),
         );
     }
     engine.add_method(
-        INT.type_id,
+        INT_STRUCT,
         "to_float",
-        MethodType::new(vec![], vec![], FLOAT),
-    );
-
-    engine.add_method(STRING.type_id, "len", MethodType::new(vec![], vec![], INT));
-    engine.add_method(
-        STRING.type_id,
-        name_operator_method(BinaryOperator::Plus),
-        MethodType::new(vec![], vec![STRING], STRING),
-    );
-
-    engine.add_generic(GENERIC_VECTOR.type_id, generic_param1);
-
-    engine.add_method(
-        GENERIC_VECTOR.type_id,
-        "[]",
-        MethodType::new(vec![], vec![INT], generic_param1),
+        MethodType::function(vec![], vec![], FLOAT),
     );
 
     engine.add_method(
-        GENERIC_VECTOR.type_id,
-        "push",
-        MethodType::new(vec![], vec![generic_param1], UNIT),
-    );
-
-    engine.add_method(
-        GENERIC_VECTOR.type_id,
-        "pop",
-        MethodType::new(vec![], vec![], TypeRef::new(LANG_REEF, opt_type)),
-    );
-    engine.add_method(
-        GENERIC_VECTOR.type_id,
+        STRING_STRUCT,
         "len",
-        MethodType::new(vec![], vec![], INT),
+        MethodType::function(vec![], vec![], INT),
+    );
+    engine.add_method(
+        STRING_STRUCT,
+        name_operator_method(BinaryOperator::Plus),
+        MethodType::function(vec![], vec![STRING], STRING),
+    );
+
+    engine.add_generic(VEC_STRUCT, generic_param1.type_id);
+
+    engine.add_method(
+        VEC_STRUCT,
+        "[]",
+        MethodType::function(vec![], vec![INT], generic_param1),
     );
 
     engine.add_method(
-        STRING.type_id,
+        VEC_STRUCT,
+        "push",
+        MethodType::function(vec![], vec![generic_param1], UNIT),
+    );
+
+    engine.add_method(
+        VEC_STRUCT,
+        "pop",
+        MethodType::function(vec![], vec![], TypeRef::new(LANG_REEF, opt_type)),
+    );
+    engine.add_method(VEC_STRUCT, "len", MethodType::function(vec![], vec![], INT));
+
+    engine.add_method(
+        STRING_STRUCT,
         "split",
-        MethodType::new(vec![], vec![STRING], STRING_VEC),
+        MethodType::function(vec![], vec![STRING], STRING_VEC),
     );
     engine.add_method(
-        STRING.type_id,
+        STRING_STRUCT,
         "bytes",
-        MethodType::new(vec![], vec![], INT_VEC),
+        MethodType::function(vec![], vec![], INT_VEC),
     );
 
     for operand in [BOOL, EXITCODE] {
+        let operand_struct = get_lang_struct_id(typing, operand);
         for op in LOGICAL_OPERATORS {
             engine.add_method(
-                operand.type_id,
+                operand_struct,
                 name_operator_method(*op),
-                MethodType::new(vec![], vec![operand], operand),
+                MethodType::function(vec![], vec![operand], operand),
             );
         }
     }
     for operand in [INT, FLOAT] {
+        let operand_struct = get_lang_struct_id(typing, operand);
         engine.add_method(
-            operand.type_id,
+            operand_struct,
             "neg",
-            MethodType::new(vec![], vec![], operand),
+            MethodType::function(vec![], vec![], operand),
         );
     }
 
-    engine.add_generic(GENERIC_OPTION.type_id, generic_param1);
+    engine.add_generic(OPTION_STRUCT, generic_param1.type_id);
     engine.add_method(
-        GENERIC_OPTION.type_id,
+        OPTION_STRUCT,
         "is_none",
-        MethodType::new(vec![], vec![], BOOL),
+        MethodType::function(vec![], vec![], BOOL),
     );
     engine.add_method(
-        GENERIC_OPTION.type_id,
+        OPTION_STRUCT,
         "is_some",
-        MethodType::new(vec![], vec![], BOOL),
+        MethodType::function(vec![], vec![], BOOL),
     );
     engine.add_method(
-        GENERIC_OPTION.type_id,
+        OPTION_STRUCT,
         "unwrap",
-        MethodType::new(vec![], vec![], generic_param1),
+        MethodType::function(vec![], vec![], generic_param1),
     );
     engine.add_method(
-        GENERIC_VECTOR.type_id,
+        VEC_STRUCT,
         "[]",
-        MethodType::new(vec![], vec![INT, generic_param1], UNIT),
+        MethodType::function(vec![], vec![INT, generic_param1], UNIT),
     );
 
     engine.add_method(
-        INT.type_id,
+        INT_STRUCT,
         "to_exitcode",
-        MethodType::new(vec![], vec![], EXITCODE),
+        MethodType::function(vec![], vec![], EXITCODE),
     );
     engine.add_method(
-        EXITCODE.type_id,
+        EXITCODE_STRUCT,
         "to_int",
-        MethodType::new(vec![], vec![], INT),
+        MethodType::function(vec![], vec![], INT),
     );
 
     engine.add_method(
-        GENERIC_VECTOR.type_id,
+        VEC_STRUCT,
         "pop_head",
-        MethodType::new(vec![], vec![], TypeRef::new(LANG_REEF, opt_type)),
+        MethodType::function(vec![], vec![], generic_param1),
     );
 
     engine.add_method(
-        GLOB.type_id,
+        GLOB_STRUCT,
         "spread",
-        MethodType::new(vec![], vec![], STRING_VEC),
+        MethodType::function(vec![], vec![], STRING_VEC),
     );
     engine.add_method(
-        PID.type_id,
+        PID_STRUCT,
         "to_string",
-        MethodType::new(vec![], vec![], STRING),
+        MethodType::function(vec![], vec![], STRING),
     );
 }
 
-fn fill_lang_types(typing: &mut Typing) {
-    for (primitive, name) in [
-        (Type::Error, Some("Error")),
-        (Type::Nothing, Some("Nothing")),
-        (Type::Unit, Some("Unit")),
-        (Type::Bool, Some("Bool")),
-        (Type::ExitCode, Some("Exitcode")),
-        (Type::Int, Some("Int")),
-        (Type::Float, Some("Float")),
-        (Type::String, Some("String")),
-        (Type::Vector, Some("Vec")),
-        (Type::Option, Some("Option")),
-        (Type::Glob, Some("Glob")),
-        (Type::Pid, Some("Pid")),
-        (Type::Instantiated(GENERIC_VECTOR, vec![STRING]), None),
-        (Type::Instantiated(GENERIC_VECTOR, vec![INT]), None),
+fn fill_lang_types(typing: &mut Typing, engine: &mut TypedEngine) {
+    typing.add_type(Type::Error, Some("Error".to_string()));
+    typing.add_type(Type::Nothing, Some("Nothing".to_string()));
+    for primitive_name in [
+        "Unit", "Bool", "Exitcode", "Int", "Float", "String", "Vec", "Option", "Glob", "Pid",
     ] {
-        typing.add_type(primitive, name.map(ToString::to_string));
+        let structure_id = engine.init_empty_structure();
+        typing.add_type(
+            Type::Structure(None, structure_id),
+            Some(primitive_name.to_string()),
+        );
     }
+    //init int vectors and string vectors (will be used by methods)
+    typing.add_type(Type::Instantiated(GENERIC_VECTOR, vec![STRING]), None);
+    typing.add_type(Type::Instantiated(GENERIC_VECTOR, vec![INT]), None);
+
     typing.set_implicit_conversion(EXITCODE.type_id, BOOL);
     typing.set_implicit_conversion(INT.type_id, FLOAT);
 }
@@ -288,7 +310,7 @@ pub fn lang_reef() -> Reef<'static> {
         type_context: TypeContext::default(),
     };
 
-    fill_lang_types(&mut reef.typing);
+    fill_lang_types(&mut reef.typing, &mut reef.typed_engine);
     fill_lang_bindings(&mut reef.type_context);
     fill_lang_typed_engine(&mut reef.typed_engine, &mut reef.typing);
 

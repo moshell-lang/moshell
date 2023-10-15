@@ -35,7 +35,13 @@ impl Display for TypeView<'_> {
         let tpe = self.exploration.get_type(ty).unwrap_or(&Type::Error);
 
         if let Type::Instantiated(def, parameters) = tpe {
-            write!(f, "{}[", Self::new(*def, self.exploration, self.bounds))?;
+            write!(f, "{}", Self::new(*def, self.exploration, self.bounds))?;
+
+            if parameters.is_empty() {
+                return Ok(());
+            }
+
+            write!(f, "[")?;
             for (i, parameter) in parameters.iter().enumerate() {
                 if i > 0 {
                     write!(f, ", ")?;

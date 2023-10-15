@@ -4,6 +4,7 @@ use num_enum::TryFromPrimitive;
 
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
+use crate::structure::StructureLayout;
 use analyzer::relations::{LocalId, ResolvedSymbol};
 use analyzer::types;
 use analyzer::types::hir::Var;
@@ -112,8 +113,20 @@ impl<'a> Instructions<'a> {
         }
     }
 
+    /// emits instructions to instanciate a new structure,
+    /// where the given u32 is the constant pool index of the fqn string identifier of the structure to instance
+    pub fn emit_new(&mut self, structure_fqn: u32) {
+        self.emit_code(Opcode::NewStruct);
+        self.bytecode.emit_constant_ref(structure_fqn);
+    }
+
     pub fn emit_code(&mut self, code: Opcode) {
         self.bytecode.emit_byte(code as u8)
+    }
+
+    pub fn emit_copy_operands(&mut self, count: u32) {
+        self.emit_code(Opcode::StructCopyOperands);
+        self.bytecode.emit_u32(count);
     }
 
     pub fn emit_pop(&mut self, size: ValueStackSize) {
@@ -242,6 +255,26 @@ impl<'a> Instructions<'a> {
         self.bytecode.emit_constant_ref(symbol_id);
     }
 
+    pub fn emit_get_field(&mut self, field_id: LocalId, layout: &StructureLayout) {
+        let (field_index, size) = layout.get_emplacement(field_id);
+        self.emit_code(match size {
+            ValueStackSize::Byte => Opcode::GetStructByte,
+            ValueStackSize::QWord => Opcode::GetStructQWord,
+            ValueStackSize::Zero => panic!("get for value whose type is zero-sized"),
+        });
+        self.bytecode.emit_u32(field_index);
+    }
+
+    pub fn emit_set_field(&mut self, field_id: LocalId, layout: &StructureLayout) {
+        let (field_index, size) = layout.get_emplacement(field_id);
+        self.emit_code(match size {
+            ValueStackSize::Byte => Opcode::SetStructByte,
+            ValueStackSize::QWord => Opcode::SetStructQWord,
+            ValueStackSize::Zero => panic!("set for value whose type is zero-sized"),
+        });
+        self.bytecode.emit_u32(field_index);
+    }
+
     /// emits instructions to push an integer in the operand stack
     pub fn emit_push_int(&mut self, constant: i64) {
         self.emit_code(Opcode::PushInt);
@@ -334,15 +367,24 @@ pub enum Opcode {
     SetLocalByte,
     GetLocalQWord,
     SetLocalQWord,
+
     GetRefByte,
     SetRefByte,
     GetRefQWord,
     SetRefQWord,
 
+    GetStructByte,
+    SetStructByte,
+    GetStructQWord,
+    SetStructQWord,
+
     FetchByte,
     FetchQWord,
     StoreByte,
     StoreQWord,
+
+    NewStruct,
+    StructCopyOperands,
 
     Invoke,
     Fork,

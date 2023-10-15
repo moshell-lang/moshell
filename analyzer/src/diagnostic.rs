@@ -87,6 +87,10 @@ pub enum DiagnosticID {
     /// An assignment operator was used on a non-place expression.
     #[assoc(code = 18)]
     InvalidAssignment,
+
+    /// A field access was done on a value that is not a structure
+    #[assoc(code = 19)]
+    InvalidFieldAccess,
 }
 
 /// Observations are labels in a code snippet that are used to explain a [`Diagnostic`].

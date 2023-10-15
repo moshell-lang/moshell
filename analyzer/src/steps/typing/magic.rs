@@ -1,8 +1,8 @@
 use crate::environment::symbols::MagicSymbolKind;
 use crate::name::Name;
 use crate::steps::typing::exploration::{Exploration, Links};
-use crate::types::engine::ChunkType;
 use crate::types::hir::{Declaration, ExprKind, FunctionCall, TypedExpr};
+use crate::types::ty::Type;
 use crate::types::{builtin, UNIT};
 use context::source::{SourceSegment, SourceSegmentHolder};
 use std::str::FromStr;
@@ -35,7 +35,9 @@ pub(super) fn prepend_implicits(
             .expect("could not find `std::memory::program_arguments` function");
 
         let get_args_chunk = exploration.get_chunk(std_reef, get_args_function).unwrap();
-        let ChunkType::Function(get_args_function_id) = get_args_chunk.kind else {
+        let Type::Function(_, get_args_function_id) =
+            exploration.typing.get_type(get_args_chunk.tpe).unwrap()
+        else {
             unreachable!()
         };
 
@@ -46,7 +48,7 @@ pub(super) fn prepend_implicits(
                     kind: ExprKind::FunctionCall(FunctionCall {
                         arguments: vec![],
                         reef: std_reef,
-                        function_id: get_args_function_id,
+                        function_id: *get_args_function_id,
                         source_id: Some(get_args_function),
                     }),
                     ty: builtin::STRING_VEC,

@@ -15,6 +15,7 @@ use analyzer::reef::Externals;
 use analyzer::relations::SourceId;
 use analyzer::{Analyzer, Inject};
 use cli::project_dir;
+use compiler::externals::CompilerExternals;
 use context::source::OwnedSource;
 use lexer::is_unterminated;
 use vm::VM;
@@ -29,6 +30,7 @@ pub(crate) fn repl(
     config: &Cli,
     mut sources: SourcesCache,
     externals: Externals,
+    compiler_externals: CompilerExternals,
     mut vm: VM,
 ) -> miette::Result<PipelineStatus> {
     let mut analyzer = Analyzer::new();
@@ -73,18 +75,22 @@ pub(crate) fn repl(
                     let is_ready = diagnostics.is_empty();
 
                     let errors = importer.take_errors();
-
-                    status = status.compose(use_pipeline(
-                        &name,
-                        analysis.attributed_id(),
-                        analysis.analyzer(),
-                        &externals,
-                        &mut vm,
-                        diagnostics,
-                        errors,
-                        &sources,
-                        config,
-                    ));
+                    status = status.compose(
+                        use_pipeline(
+                            &name,
+                            analysis.attributed_id(),
+                            analysis.analyzer(),
+                            &externals,
+                            &compiler_externals,
+                            &mut vm,
+                            diagnostics,
+                            errors,
+                            &sources,
+                            config,
+                        )
+                        .err()
+                        .unwrap_or(PipelineStatus::Success),
+                    );
 
                     // Remember the successfully injected source, or revert the analysis.
                     if is_ready {
@@ -98,17 +104,22 @@ pub(crate) fn repl(
                     // in the pipeline, but we consume them anyway to reuse the same
                     // end-of-pipeline logic.
                     let diagnostics = analyzer.take_diagnostics();
-                    status = status.compose(use_pipeline(
-                        &name,
-                        SourceId(0), // this value has no importance
-                        &analyzer,
-                        &externals,
-                        &mut vm,
-                        diagnostics,
-                        importer.take_errors(),
-                        &sources,
-                        config,
-                    ));
+                    status = status.compose(
+                        use_pipeline(
+                            &name,
+                            SourceId(0), // this value has no importance
+                            &analyzer,
+                            &externals,
+                            &compiler_externals,
+                            &mut vm,
+                            diagnostics,
+                            importer.take_errors(),
+                            &sources,
+                            config,
+                        )
+                        .err()
+                        .unwrap_or(PipelineStatus::Success),
+                    );
                 }
             }
             Ok(Signal::CtrlC) => eprintln!("^C"),

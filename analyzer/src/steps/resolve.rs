@@ -201,7 +201,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                 // Follow the parent chain until we get a decisive result
                 let mut current = Some((origin, origin_env));
                 while let Some((env_id, env)) = current {
-                    if env_id != origin {
+                    if env_id != origin && !env.has_strict_declaration_order() {
                         // Locals symbols are always treated first, before imports.
                         // The current environment might already owns the resolution result as a global symbol.
                         // This happens only if it used it, so we ignore that fact here to always solve external

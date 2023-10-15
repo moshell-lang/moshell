@@ -2,7 +2,7 @@ use libc::{O_APPEND, O_CREAT, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
 
 use analyzer::relations::ResolvedSymbol;
 use analyzer::types::hir::{ExprKind, FunctionCall, Redir, Redirect, Subprocess, TypedExpr, Var};
-use analyzer::types::ty::TypeRef;
+use analyzer::types::ty::{FunctionKind, Type, TypeRef};
 use analyzer::types::{GENERIC_VECTOR, STRING};
 use ast::call::{RedirFd, RedirOp};
 
@@ -167,42 +167,78 @@ pub fn emit_function_invocation(
 
     state.use_values(last_used);
 
-    let (env, captures) = {
-        let fun_source = function_call
-            .source_id
-            .expect("cannot invoke functions with no environment");
-        let captures: &[ResolvedSymbol] = if function_call.reef != ctx.current_reef {
-            &[]
-        } else {
-            ctx.captures[fun_source.0]
-                .as_ref()
-                .expect("undefined captures when the function is emitted")
-        };
-        let env = ctx
-            .get_engine(function_call.reef)
-            .unwrap()
-            .get_environment(fun_source)
-            .unwrap();
-        (env, captures)
-    };
+    if function.kind == FunctionKind::Constructor {
+        // current constructors implementation only supports a default, non user-defined constructor
+        // which is a structure that contains the given parameters.
 
-    for capture in captures {
-        if capture.source == ctx.chunk_id {
-            // if its a local value hosted by the caller frame, create a reference
-            // to the value
-            instructions.emit_push_stack_ref(Var::Local(capture.object_id), locals);
-        } else {
-            // if its a captured variable, get the reference's value from locals
-            instructions.emit_push_stack_ref(Var::External(*capture), locals);
-            instructions.emit_code(Opcode::GetRefQWord);
+        let constructed_structure_id = match ctx.get_type(function.return_type) {
+            Type::Instantiated(constructed_structure_type, _) => {
+                let Type::Structure(_, constructed_structure_id) =
+                    ctx.get_type(*constructed_structure_type)
+                else {
+                    panic!("constructor does not returns a structure type instance")
+                };
+                *constructed_structure_id
+            }
+            Type::Structure(_, structure_id) => *structure_id,
+            _ => panic!("constructor does not returns a structure type or structure type instance"),
+        };
+
+        let struct_reef = function.return_type.reef;
+
+        // get constructor's structure fully-qualified name
+        let struct_engine = ctx.get_engine(struct_reef).unwrap();
+        let struct_env_id = function_call
+            .source_id
+            .expect("cannot call intrinsics functions as regular calls");
+        let struct_env = struct_engine.get_environment(struct_env_id).unwrap();
+        let struct_fqn = struct_env.fqn.to_string();
+
+        let layout = ctx.get_layout(struct_reef, constructed_structure_id);
+
+        // initialize a new structure
+        instructions.emit_new(cp.insert_string(struct_fqn));
+        // Default constructor inputs structure's fields in order,
+        // thus we can init it from all the pushed constructor's parameters in the operands
+        instructions.emit_copy_operands(layout.total_size);
+    } else {
+        let (env, captures) = {
+            let fun_source = function_call
+                .source_id
+                .expect("cannot invoke functions with no environment");
+            let captures: &[ResolvedSymbol] = if function_call.reef != ctx.current_reef {
+                &[]
+            } else {
+                ctx.captures[fun_source.0]
+                    .as_ref()
+                    .expect("undefined captures when the function is emitted")
+            };
+            let env = ctx
+                .get_engine(function_call.reef)
+                .unwrap()
+                .get_environment(fun_source)
+                .unwrap();
+            (env, captures)
+        };
+
+        for capture in captures {
+            if capture.source == ctx.chunk_id {
+                // if its a local value hosted by the caller frame, create a reference
+                // to the value
+                instructions.emit_push_stack_ref(Var::Local(capture.object_id), locals);
+            } else {
+                // if its a captured variable, get the reference's value from locals
+                instructions.emit_push_stack_ref(Var::External(*capture), locals);
+                instructions.emit_code(Opcode::GetRefQWord);
+            }
         }
+
+        let signature_idx = cp.insert_string(&env.fqn);
+        instructions.emit_invoke(signature_idx);
     }
 
     let return_type = function.return_type;
     let return_type_size = return_type.into();
-
-    let signature_idx = cp.insert_string(&env.fqn);
-    instructions.emit_invoke(signature_idx);
 
     // The Invoke operation will push the return value onto the stack
     if !state.use_values {

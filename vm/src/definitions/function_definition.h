@@ -6,7 +6,7 @@
 #include <vector>
 
 /**
- * Contains the information needed for the execution of a function
+ * Contains all the information about a function
  */
 struct function_definition {
     /**

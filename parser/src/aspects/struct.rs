@@ -28,10 +28,9 @@ impl<'a> StructAspect<'a> for Parser<'a> {
 
         self.cursor.advance(blanks());
 
-        let (parameters, _) = self.parse_explicit_list(
+        let (parameters, _) = self.parse_optional_list(
             TokenType::SquaredLeftBracket,
             TokenType::SquaredRightBracket,
-            "Expected start of type parameters expression.",
             "Expected type parameter.",
             Parser::parse_type_parameter,
         )?;

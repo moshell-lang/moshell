@@ -49,8 +49,9 @@ void debug_obj_freed(msh::obj &obj) {
         } else if constexpr (std::is_same_v<T, int8_t>) {
             debug_file << "boxed byte " << std::to_string(data);
         } else if constexpr (std::is_same_v<T, obj_vector>) {
-            obj_vector &vec = static_cast<obj_vector &>(data);
-            debug_file << "vector len:" << vec.size();
+            debug_file << "vector len:" << data.size();
+        } else if constexpr (std::is_same_v<T, obj_struct>) {
+            debug_file << "structure " << data.definition->identifier;
         } else {
             // unreachable
             static_assert(sizeof(T) != sizeof(T), "non-exhaustive object visitor ");
@@ -137,7 +138,9 @@ void gc::walk_objects(std::vector<const msh::obj *> to_visit) {
     while (!to_visit.empty()) {
         const msh::obj *obj = to_visit.back();
         to_visit.pop_back();
-        if (obj->gc_cycle == cycle)
+
+        // object is already marked as present in this cycle
+        if (!obj || obj->gc_cycle == cycle)
             continue;
 
         obj->gc_cycle = cycle;
@@ -146,6 +149,12 @@ void gc::walk_objects(std::vector<const msh::obj *> to_visit) {
             if constexpr (std::is_same_v<T, msh::obj_vector>) {
                 for (msh::obj *item : obj) {
                     to_visit.push_back(item);
+                }
+            } else if constexpr (std::is_same_v<T, msh::obj_struct>) {
+                const struct_definition *def = obj.definition;
+                for (size_t obj_offset : def->obj_ref_offsets) {
+                    const msh::obj *attribute_obj = *(const msh::obj **)(obj.bytes.data() + obj_offset);
+                    to_visit.push_back(attribute_obj);
                 }
             }
         },

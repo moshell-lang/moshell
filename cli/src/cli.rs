@@ -11,7 +11,8 @@ use analyzer::name::Name;
 use analyzer::reef::Externals;
 use analyzer::relations::SourceId;
 use analyzer::Analyzer;
-use compiler::{compile, CompilerOptions, SourceLineProvider};
+use compiler::externals::{CompiledReef, CompilerExternals};
+use compiler::{compile_reef, CompilerOptions, SourceLineProvider};
 use context::source::ContentId;
 use vm::{VmError, VM};
 
@@ -93,15 +94,16 @@ pub fn use_pipeline(
     starting_page: SourceId,
     analyzer: &Analyzer<'_>,
     externals: &Externals,
+    compiler_externals: &CompilerExternals,
     vm: &mut VM,
     diagnostics: Vec<Diagnostic>,
     errors: Vec<FileImportError>,
     sources: &SourcesCache,
     config: &Cli,
-) -> PipelineStatus {
+) -> Result<CompiledReef, PipelineStatus> {
     if errors.is_empty() && analyzer.resolution.engine.is_empty() {
         eprintln!("No module found for entry point {entry_point}");
-        return PipelineStatus::IoError;
+        return Err(PipelineStatus::IoError);
     }
 
     let reef = externals.current;
@@ -131,7 +133,7 @@ pub fn use_pipeline(
         }
     }
     if import_status != PipelineStatus::Success {
-        return import_status;
+        return Err(import_status);
     }
 
     let engine = &analyzer.resolution.engine;
@@ -160,7 +162,7 @@ pub fn use_pipeline(
     }
 
     if had_errors {
-        return PipelineStatus::AnalysisError;
+        return Err(PipelineStatus::AnalysisError);
     }
     let mut bytes = Vec::new();
 
@@ -168,11 +170,13 @@ pub fn use_pipeline(
     let contents = importer.list_content_ids();
     let lines = CachedSourceLocationLineProvider::compute(&contents, importer);
 
-    compile(
+    let compiled_reef = compile_reef(
         &analyzer.engine,
         &analyzer.resolution.relations,
+        &analyzer.typing,
         &analyzer.resolution.engine,
         externals,
+        compiler_externals,
         externals.current,
         starting_page,
         &mut bytes,
@@ -187,16 +191,15 @@ pub fn use_pipeline(
         display_bytecode(&bytes);
     }
 
-    let mut run_status = PipelineStatus::Success;
     if !config.no_execute {
         vm.register(&bytes)
             .expect("compilation created invalid bytecode");
         drop(bytes);
         match unsafe { vm.run() } {
             Ok(()) => {}
-            Err(VmError::Panic) => run_status = PipelineStatus::ExecutionFailure,
+            Err(VmError::Panic) => return Err(PipelineStatus::ExecutionFailure),
             Err(VmError::Internal) => panic!("VM internal error"),
         }
     }
-    run_status
+    Ok(compiled_reef)
 }

@@ -2,9 +2,12 @@
 
 #include <cstdint>
 #include <forward_list>
+#include <memory>
 #include <string>
 #include <variant>
 #include <vector>
+
+struct struct_definition;
 
 namespace msh {
     // Create a recursive variant type by forward declaring the vector type.
@@ -20,7 +23,12 @@ namespace msh {
         using std::vector<obj *>::vector;
     };
 
-    using obj_data = std::variant<int64_t, int8_t, double, const std::string, obj_vector>;
+    struct obj_struct {
+        const struct_definition *definition;
+        std::vector<char> bytes;
+    };
+
+    using obj_data = std::variant<int64_t, int8_t, double, const std::string, obj_vector, obj_struct>;
 
     class gc;
 

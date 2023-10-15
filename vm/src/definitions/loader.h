@@ -6,6 +6,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "definitions/function_definition.h"
+#include "definitions/struct_definition.h"
 #include "memory/constant_pool.h"
 #include "memory/heap.h"
 
@@ -42,12 +44,18 @@ namespace msh {
 
     class loader {
         using function_map = std::unordered_map<std::string, function_definition>;
+        using structure_map = std::unordered_map<std::string, struct_definition>;
         using exported_variable_map = std::unordered_map<std::string, exported_variable>;
 
         /**
          * The functions that have been loaded.
          */
         function_map functions;
+
+        /**
+         * The structures that have been loaded.
+         */
+        structure_map structures;
 
         /**
          * The effective locations in the loaded pages for each named symbol.
@@ -65,6 +73,7 @@ namespace msh {
         std::stack<unresolved_variable> unresolved;
 
         std::pair<const std::string &, const function_definition &> load_function(ByteReader &reader, const ConstantPool &pool, size_t pool_index);
+        std::pair<const std::string &, const struct_definition &> load_structure(ByteReader &reader, const ConstantPool &pool);
 
     public:
         /**
@@ -84,6 +93,10 @@ namespace msh {
          * @return The function definition.
          */
         const function_definition &get_function(const std::string &name) const;
+
+        structure_map::const_iterator structures_cend() const;
+
+        structure_map::const_iterator find_structure(const std::string &name) const;
 
         /**
          * Finds the function definition for the given name.

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::diagnostic::SourceLocation;
 use crate::reef::ReefId;
 use crate::relations::{LocalId, ObjectId, SourceId};
-use crate::types::engine::FunctionId;
+use crate::types::engine::{FunctionId, StructureId};
 use crate::types::{BOOL, ERROR, EXITCODE, FLOAT, INT, NOTHING, UNIT};
 
 /// A type identifier in a [`Typing`] instance.
@@ -58,45 +58,19 @@ pub enum Type {
     /// A type for nothingness, attributed to expressions that never returns
     Nothing,
 
-    /// A void type, that contains no value.
-    Unit,
-
-    /// A boolean type, either `true` or `false`.
-    Bool,
-
-    /// An exit code type, on a single byte.
-    ExitCode,
-
-    /// A numeric process identifier type.
-    Pid,
-
-    /// An integer type, that contains a 32-bit signed integer.
-    Int,
-
-    /// A floating point type, that contains a 32-bit floating point number.
-    Float,
-
-    /// A string type, that contains a UTF-8 string.
-    String,
+    /// A generic type, that can be instantiated with concrete type parameters.
+    Polytype,
 
     /// A callable type, that have a separate definition.
     /// with a bound source, if any
     Function(Option<SourceId>, FunctionId),
 
-    /// A vector type, that contains a list of elements of the same type.
-    Vector,
-
-    /// A nullable type, that can be either `null` or a value of a given type.
-    Option,
-
-    /// An expandable pattern.
-    Glob,
-
-    /// A generic type, that can be instantiated with concrete type parameters.
-    Polytype,
-
     /// An instance of a generic type with concrete type parameters.
     Instantiated(TypeRef, Vec<TypeRef>),
+
+    /// A named structured type, with its separate definition
+    /// with a bound source, if any
+    Structure(Option<SourceId>, StructureId),
 }
 
 impl Type {
@@ -108,32 +82,98 @@ impl Type {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct Field {
+    pub ty: TypeRef,
+    pub local_id: LocalId,
+}
+
+/// A Structured type
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct StructureDesc {
+    /// Type parameters of the structure
+    pub type_parameters: Vec<TypeId>,
+
+    /// Fields of the structure.
+    pub fields: HashMap<String, Field>,
+
+    /// methods of the structure
+    pub methods: HashMap<String, Vec<FunctionId>>,
+}
+
+impl StructureDesc {
+    pub fn get_fields(&self) -> Vec<&Field> {
+        let mut field_refs: Vec<_> = self.fields.values().collect();
+        field_refs.sort_by_key(|f| f.local_id.0);
+        field_refs
+    }
+}
+
 /// A callable function signature.
 #[derive(Clone, Debug, PartialEq)]
-pub struct FunctionType {
+pub struct FunctionDesc {
     /// Type parameters of the function
-    pub(crate) type_parameters: Vec<TypeRef>,
+    pub type_parameters: Vec<TypeId>,
+
     /// The exact parameters that are expected by the function.
     pub parameters: Vec<Parameter>,
 
     /// The return type of the function.
     pub return_type: TypeRef,
+
+    /// Kind of function
+    pub kind: FunctionKind,
 }
-impl FunctionType {
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum FunctionKind {
+    Function,
+    Constructor,
+}
+
+impl FunctionDesc {
     /// Create the main function of a script
     pub(crate) fn script() -> Self {
         Self {
             type_parameters: vec![],
             parameters: vec![],
             return_type: UNIT,
+            kind: FunctionKind::Function,
         }
     }
 
-    /// Creates a new function.
-    pub fn new(
-        type_parameters: Vec<TypeRef>,
+    pub fn constructor(
+        type_parameters: Vec<TypeId>,
         parameters: Vec<TypeRef>,
         return_type: TypeRef,
+    ) -> Self {
+        Self::new(
+            type_parameters,
+            parameters,
+            return_type,
+            FunctionKind::Constructor,
+        )
+    }
+
+    /// Creates a new function.
+    pub fn function(
+        type_parameters: Vec<TypeId>,
+        parameters: Vec<TypeRef>,
+        return_type: TypeRef,
+    ) -> Self {
+        Self::new(
+            type_parameters,
+            parameters,
+            return_type,
+            FunctionKind::Function,
+        )
+    }
+
+    fn new(
+        type_parameters: Vec<TypeId>,
+        parameters: Vec<TypeRef>,
+        return_type: TypeRef,
+        kind: FunctionKind,
     ) -> Self {
         Self {
             type_parameters,
@@ -147,6 +187,7 @@ impl FunctionType {
                 })
                 .collect(),
             return_type,
+            kind,
         }
     }
 }
@@ -159,16 +200,5 @@ pub struct Parameter {
     pub local_id: LocalId,
 }
 
-/// The attributes and methods of a class.
-///
-/// This describes how a class behaves, while the [`Type`] describes the
-/// instantiation of a type description. If a description is generic, it can
-/// be instantiated multiple times with different [`Type`] parameters.
-#[derive(Clone, Debug, PartialEq, Default)]
-pub struct TypeDescription {
-    pub(crate) generics: Vec<TypeRef>,
-    pub(crate) methods: HashMap<String, Vec<FunctionId>>,
-}
-
 /// A method is a function that only exists on a given type.
-pub type MethodType = FunctionType;
+pub type MethodType = FunctionDesc;

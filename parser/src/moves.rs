@@ -369,7 +369,7 @@ pub(crate) fn identifier_parenthesis() -> AndThenMove<
     PredicateMove<impl Fn(Token) -> bool + Copy + Sized>,
     PredicateMove<impl Fn(Token) -> bool + Copy + Sized>,
 > {
-    of_type(Identifier).and_then(of_types(&[RoundedLeftBracket, SquaredLeftBracket]))
+    of_type(Identifier).and_then(of_types(&[SquaredLeftBracket, RoundedLeftBracket]))
 }
 
 #[cfg(test)]

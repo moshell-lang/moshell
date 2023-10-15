@@ -27,9 +27,6 @@ pub fn resolve_symbol_from_locals(
     current_reef: ReefId,
     registry: SymbolRegistry,
 ) -> SymbolResolutionResult {
-    if env.has_strict_declaration_order() {
-        return SymbolResolutionResult::NotFound;
-    }
     if let Some(var_id) = env.symbols.find_exported(symbol_name.root(), registry) {
         let symbol = ResolvedSymbol {
             reef: current_reef,
@@ -39,6 +36,24 @@ pub fn resolve_symbol_from_locals(
         if symbol_name.is_qualified() {
             return SymbolResolutionResult::Invalid(symbol);
         }
+        return SymbolResolutionResult::Resolved(symbol);
+    }
+    if registry != SymbolRegistry::Objects {
+        return SymbolResolutionResult::NotFound;
+    }
+
+    // If the symbol is an object, but it exists a type symbol, return it :
+    // if the symbol should not be a type, the analyzer will report it.
+    // It exists a case where a type can be used as a function call: when calling a type constructor.
+    if let Some(var_id) = env
+        .symbols
+        .find_exported(symbol_name.root(), SymbolRegistry::Types)
+    {
+        let symbol = ResolvedSymbol {
+            reef: current_reef,
+            source: env_id,
+            object_id: var_id,
+        };
         return SymbolResolutionResult::Resolved(symbol);
     }
 
@@ -57,12 +72,13 @@ pub fn resolve_absolute_symbol(
     let env_result = engine.find_environment_by_name(&env_name);
 
     if let Some((env_id, env)) = env_result {
-        let resolved_pos = env.symbols.find_exported(name.simple_name(), registry);
-
-        if let Some(symbol_pos) = resolved_pos {
-            let symbol = ResolvedSymbol::new(reef, env_id, symbol_pos);
-            return SymbolResolutionResult::Resolved(symbol);
-        }
+        return resolve_symbol_from_locals(
+            env_id,
+            env,
+            &Name::new(name.simple_name()),
+            reef,
+            registry,
+        );
     }
     SymbolResolutionResult::NotFound
 }
@@ -93,15 +109,13 @@ pub fn resolve_symbol_from_imports(
                 .get_environment(*resolved_module)
                 .expect("resolved import points to an unknown environment");
 
-            let resolved_pos = env.symbols.find_exported(name.simple_name(), registry);
-
-            if let Some(symbol_pos) = resolved_pos {
-                return SymbolResolutionResult::Resolved(ResolvedSymbol::new(
-                    reef,
-                    *resolved_module,
-                    symbol_pos,
-                ));
-            }
+            return resolve_symbol_from_locals(
+                *resolved_module,
+                env,
+                &Name::new(name.simple_name()),
+                reef,
+                registry,
+            );
         }
         Some(ResolvedImport::Dead) => return SymbolResolutionResult::DeadImport,
         None => {} //simply fallback to NotFound

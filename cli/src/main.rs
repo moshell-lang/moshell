@@ -10,6 +10,7 @@ use analyzer::reef::Externals;
 use analyzer::relations::SourceId;
 use analyzer::Analyzer;
 use clap::{CommandFactory, Parser};
+use compiler::externals::CompilerExternals;
 use miette::{Context, IntoDiagnostic, MietteHandlerOpts};
 use vm::VM;
 
@@ -56,6 +57,7 @@ fn main() -> Result<PipelineStatus, miette::Error> {
     .expect("miette options setup");
 
     let mut externals = Externals::default();
+    let mut compiler_externals = CompilerExternals::default();
     let mut sources = SourcesCache::default();
     let mut vm = VM::new(
         cli.source
@@ -66,16 +68,29 @@ fn main() -> Result<PipelineStatus, miette::Error> {
             .collect(),
     );
 
-    build_std(&mut externals, &mut vm, &mut sources, &cli);
+    build_std(
+        &mut externals,
+        &mut compiler_externals,
+        &mut vm,
+        &mut sources,
+        &cli,
+    );
 
     if let Some(source) = &cli.source {
-        return run(source, &cli, sources, externals, vm);
+        return run(source, &cli, sources, externals, compiler_externals, vm);
     }
     let current_dir = ::std::env::current_dir()
         .into_diagnostic()
         .context("Could not locate working directory")?;
 
-    repl(current_dir, &cli, sources, externals, vm)
+    repl(
+        current_dir,
+        &cli,
+        sources,
+        externals,
+        compiler_externals,
+        vm,
+    )
 }
 
 fn run(
@@ -83,6 +98,7 @@ fn run(
     cli: &Cli,
     mut sources: SourcesCache,
     externals: Externals,
+    compiler_externals: CompilerExternals,
     mut vm: VM,
 ) -> Result<PipelineStatus, miette::Error> {
     let name = Name::new(
@@ -113,10 +129,13 @@ fn run(
         SourceId(0),
         &analyzer,
         &externals,
+        &compiler_externals,
         &mut vm,
         diagnostics,
         errors,
         &sources,
         cli,
-    ))
+    )
+    .err()
+    .unwrap_or(PipelineStatus::Success))
 }

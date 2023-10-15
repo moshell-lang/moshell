@@ -538,6 +538,9 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                     self.current_env().annotate(var, symbol);
                 }
             }
+            Expr::FieldAccess(access) => {
+                self.tree_walk(state, &access.expr, to_visit);
+            }
             Expr::Range(range) => match range {
                 Iterable::Range(range) => {
                     self.tree_walk(state, &range.start, to_visit);
@@ -757,9 +760,37 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                 );
                 self.stack.pop();
             }
+            Expr::StructDeclaration(decl) => {
+                let struct_env_id = self.engine().track(state.content, expr);
+
+                let struct_env = self.current_env().fork(state.module, decl.name);
+
+                let local_id = self
+                    .current_env()
+                    .symbols
+                    .declare_local(decl.name.to_string(), SymbolInfo::Type);
+
+                let struct_env = self.engine().attach(struct_env_id, struct_env);
+
+                for tparam in &decl.parameters {
+                    struct_env
+                        .symbols
+                        .declare_local(tparam.name.to_string(), SymbolInfo::Type);
+                }
+
+                for attribute in &decl.fields {
+                    let struct_env = self.engine().get_environment_mut(struct_env_id).unwrap();
+                    struct_env
+                        .symbols
+                        .declare_local(attribute.name.to_string(), SymbolInfo::Variable);
+                    self.collect_type(struct_env_id, &attribute.tpe);
+                }
+
+                self.current_env().bind_source(decl, struct_env_id);
+                self.current_env()
+                    .annotate(decl, SymbolRef::Local(local_id));
+            }
             Expr::Literal(_) | Expr::Continue(_) | Expr::Break(_) => {}
-            Expr::FieldAccess(_) => todo!(),
-            Expr::StructDeclaration(_) => todo!(),
             Expr::Impl(_) => todo!(),
         }
         state.accept_imports = false;
@@ -879,7 +910,17 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
             return SymbolRef::External(track_global!());
         }
 
-        match symbols.find_reachable(location.name.root(), registry) {
+        let local_symbol = symbols.find_reachable(location.name.root(), registry);
+
+        // If the requested registry is Object, and the symbol wasn't found, then try to search it in the types registry.
+        let local_symbol = if registry == SymbolRegistry::Objects {
+            local_symbol
+                .or_else(|| symbols.find_reachable(location.name.root(), SymbolRegistry::Types))
+        } else {
+            local_symbol
+        };
+
+        match local_symbol {
             None => SymbolRef::External(track_global!()),
             Some(id) if location.name.is_qualified() => {
                 let var = symbols.get(id).unwrap();
