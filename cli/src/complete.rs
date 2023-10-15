@@ -156,7 +156,7 @@ fn get_files(word: &str, pos: usize, predicate: fn(&Path) -> bool) -> Vec<Sugges
                 continue;
             }
             let mut entry_name = entry.file_name().to_string_lossy().into_owned();
-            if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            if entry.file_type().map_or(false, |t| t.is_dir()) {
                 entry_name.push(MAIN_SEPARATOR);
             }
             if entry_name.starts_with(partial) {

@@ -1,8 +1,9 @@
 use miette::{Context, IntoDiagnostic};
+use nu_ansi_term::Color;
 use reedline::{
-    default_emacs_keybindings, ColumnarMenu, Emacs, FileBackedHistory, KeyCode, KeyModifiers,
-    PromptEditMode, PromptHistorySearch, PromptHistorySearchStatus, Reedline, ReedlineEvent,
-    ReedlineMenu, Signal, ValidationResult,
+    default_emacs_keybindings, ColumnarMenu, Emacs, ExampleHighlighter, FileBackedHistory, KeyCode,
+    KeyModifiers, PromptEditMode, PromptHistorySearch, PromptHistorySearchStatus, Reedline,
+    ReedlineEvent, ReedlineMenu, Signal, ValidationResult,
 };
 use std::borrow::Cow;
 use std::io::{self, BufRead, IsTerminal, Lines, StdinLock};
@@ -142,7 +143,11 @@ impl Editor<'_> {
 }
 
 fn editor() -> miette::Result<Reedline> {
-    let mut editor = Reedline::create().with_validator(Box::new(TerminatedValidator));
+    let mut highlighter = ExampleHighlighter::default();
+    highlighter.change_colors(Color::Default, Color::Default, Color::Default);
+    let mut editor = Reedline::create()
+        .with_validator(Box::new(TerminatedValidator))
+        .with_highlighter(Box::new(highlighter));
     if let Some(project_dir) = project_dir() {
         let history_path = project_dir.data_dir().join("history.txt");
         let history = Box::new(
@@ -154,7 +159,12 @@ fn editor() -> miette::Result<Reedline> {
         );
         editor = editor.with_history(history);
     }
-    let completion_menu = Box::new(ColumnarMenu::default().with_name("completion_menu"));
+    let completion_menu = Box::new(
+        ColumnarMenu::default()
+            .with_text_style(Color::Default.normal())
+            .with_selected_text_style(Color::Default.bold().on(Color::Green))
+            .with_name("completion_menu"),
+    );
     let mut keybindings = default_emacs_keybindings();
     keybindings.add_binding(
         KeyModifiers::NONE,
