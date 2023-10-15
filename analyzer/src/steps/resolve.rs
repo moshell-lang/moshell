@@ -6,7 +6,6 @@ use crate::engine::Engine;
 use crate::environment::symbols::{resolve_loc, MagicSymbolKind, SymbolRegistry};
 use crate::environment::Environment;
 use crate::imports::Imports;
-use crate::is_magic_variable_name;
 use crate::name::Name;
 use crate::reef::{Externals, ReefId};
 use crate::relations::{
@@ -18,6 +17,7 @@ use crate::steps::resolve::symbol::{
     SymbolResolutionResult,
 };
 use crate::steps::shared_diagnostics::diagnose_invalid_symbol;
+use crate::steps::typing::magic::is_magic_variable_name;
 
 mod diagnostics;
 mod import;
@@ -382,7 +382,7 @@ mod tests {
     use crate::types::INT;
     use crate::{resolve_all, ResolutionResult};
 
-    //use pretty_assertions::assert_eq;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_reefs_external_symbols_resolution() {

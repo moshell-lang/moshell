@@ -18,9 +18,6 @@ use context::source::{SourceSegment, SourceSegmentHolder};
 use crate::dependency::topological_sort;
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
-use crate::environment::symbols::MagicSymbolKind;
-use crate::is_magic_variable_name;
-use crate::name::Name;
 use crate::reef::{Externals, ReefId};
 use crate::relations::{Relations, SourceId, SymbolRef};
 use crate::steps::typing::assign::{ascribe_assign_subscript, create_subscript};
@@ -35,6 +32,7 @@ use crate::steps::typing::function::{
     Return,
 };
 use crate::steps::typing::lower::convert_into_string;
+use crate::steps::typing::magic::{is_magic_variable_name, prepend_implicits};
 use crate::types::ctx::{TypeContext, TypedVariable};
 use crate::types::engine::{Chunk, ChunkType, TypedEngine};
 use crate::types::hir::{
@@ -53,6 +51,8 @@ mod exploration;
 mod function;
 mod lower;
 mod view;
+
+pub mod magic;
 
 pub fn apply_types(
     engine: &Engine,
@@ -149,56 +149,6 @@ fn verify_free_function(
             "provide a definition for this function",
         )),
     );
-}
-
-fn prepend_implicits(body: TypedExpr, exploration: &Exploration, links: Links) -> TypedExpr {
-    if let Some(id) = links
-        .env()
-        .symbols
-        .find_magic(MagicSymbolKind::ProgramArguments)
-    {
-        let (std_reef, get_args_function) = exploration
-            .externals
-            .get_reef_by_name("std")
-            .and_then(|(r, reef_id)| {
-                r.engine
-                    .find_environment_by_name(&Name::new("std::memory::program_arguments"))
-                    .zip(Some(reef_id))
-            })
-            .map(|((id, _), reef_id)| (reef_id, id))
-            .expect("could not find `std::memory::program_arguments` function");
-
-        let get_args_chunk = exploration.get_chunk(std_reef, get_args_function).unwrap();
-        let ChunkType::Function(get_args_function_id) = get_args_chunk.kind else {
-            unreachable!()
-        };
-
-        let generated_pargs_expr = TypedExpr {
-            kind: ExprKind::Declare(Declaration {
-                identifier: id,
-                value: Some(Box::new(TypedExpr {
-                    kind: ExprKind::FunctionCall(FunctionCall {
-                        arguments: vec![],
-                        reef: std_reef,
-                        function_id: get_args_function_id,
-                        source_id: Some(get_args_function),
-                    }),
-                    ty: builtin::STRING_VEC,
-                    segment: Default::default(),
-                })),
-            }),
-            ty: UNIT,
-            segment: SourceSegment::default(),
-        };
-
-        TypedExpr {
-            ty: body.ty,
-            segment: body.segment(),
-            kind: ExprKind::Block(vec![generated_pargs_expr, body]),
-        }
-    } else {
-        body
-    }
 }
 
 fn apply_types_to_source(

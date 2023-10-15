@@ -99,9 +99,8 @@ moshell_vm moshell_vm_init(const char **pargs, size_t arg_count, const size_t *l
     state->natives = load_natives();
 
     for (size_t arg_idx = 0; arg_idx < arg_count; arg_idx++) {
-        std::string arg(*pargs, lens[arg_idx]);
-        state->program_args.push_back(arg);
-        pargs++;
+        std::string arg(pargs[arg_idx], lens[arg_idx]);
+        state->program_args.push_back(std::move(arg));
     }
 
     return {state};

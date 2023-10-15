@@ -24,7 +24,8 @@ use crate::reef::{Externals, ReefId};
 use crate::relations::{RelationState, Relations, SourceId, SymbolRef};
 use crate::steps::resolve::SymbolResolver;
 use crate::steps::shared_diagnostics::diagnose_invalid_symbol;
-use crate::{is_magic_variable_name, Inject};
+use crate::steps::typing::magic::is_magic_variable_name;
+use crate::Inject;
 
 /// Defines the current state of the tree exploration.
 #[derive(Debug, Clone, Copy)]

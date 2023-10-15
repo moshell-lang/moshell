@@ -16,9 +16,6 @@
 
 #![allow(dead_code)]
 
-use std::collections::HashSet;
-use std::str::FromStr;
-
 use crate::diagnostic::Diagnostic;
 use crate::engine::Engine;
 use crate::importer::{ASTImporter, Imported};
@@ -32,6 +29,7 @@ use crate::steps::typing::apply_types;
 use crate::types::ctx::TypeContext;
 use crate::types::engine::TypedEngine;
 use crate::types::Typing;
+use std::collections::HashSet;
 
 pub mod diagnostic;
 pub mod engine;
@@ -256,8 +254,4 @@ pub struct ResolutionResult<'e> {
     pub relations: Relations,
     imports: Imports,
     visited: HashSet<Name>,
-}
-
-pub fn is_magic_variable_name(name: &str) -> bool {
-    u32::from_str(name).is_ok() || matches!(name, "*" | "@" | "#")
 }

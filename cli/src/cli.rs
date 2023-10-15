@@ -42,7 +42,7 @@ pub struct Cli {
     #[arg(long = "completions")]
     pub(crate) completions: Option<Shell>,
 
-    #[arg(num_args = 0.., last = true)]
+    #[arg(last = true)]
     pub(crate) program_arguments: Vec<String>,
 }
 

@@ -17,20 +17,16 @@ int main(int argc, const char *argv[]) {
     std::vector<char> bytes_vec(std::istreambuf_iterator<char>(input), {});
     const char *bytes = bytes_vec.data();
 
-    size_t *lens = new size_t[argc];
-
-    const char **aux = argv;
+    std::vector<size_t> lens;
+    lens.resize(argc);
     for (int i = 0; i < argc; i++) {
-        lens[i] = strlen(*aux);
-        aux++;
+        lens[i] = strlen(argv[i]);
     }
+    moshell_vm vm = moshell_vm_init(argv, argc, lens.data());
 
-    moshell_vm vm = moshell_vm_init(argv, argc, lens);
     moshell_vm_register(vm, bytes, bytes_vec.size());
     int exit = moshell_vm_run(vm);
     moshell_vm_free(vm);
-
-    delete[] lens;
 
     return exit;
 }

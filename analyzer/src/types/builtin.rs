@@ -204,7 +204,7 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
 
     engine.add_method(
         GENERIC_VECTOR.type_id,
-        "shift",
+        "pop_head",
         MethodType::new(vec![], vec![], TypeRef::new(LANG_REEF, opt_type)),
     );
 }
