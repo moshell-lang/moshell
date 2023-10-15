@@ -9,7 +9,7 @@ edition = "2021"
 analyzer = { path = "../analyzer" }
 ast = { path = "../ast" }
 indexmap = "2.0.0"
-num_enum = "0.6.1"
+num_enum = "0.7.0"
 libc = "0.2.147"
 context = { path = "../context" }
 

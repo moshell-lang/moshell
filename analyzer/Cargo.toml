@@ -9,7 +9,7 @@ edition = "2021"
 ast = { path = "../ast" }
 context = { path = "../context" }
 enum-assoc = "1.0.0"
-indexmap = "1.9.3"
+indexmap = "2.0.2"
 
 [dev-dependencies]
 parser = { path = "../parser" }
