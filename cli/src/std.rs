@@ -4,7 +4,7 @@ use analyzer::analyze;
 use analyzer::name::Name;
 use analyzer::reef::{Externals, Reef};
 use analyzer::relations::SourceId;
-use directories::ProjectDirs;
+use cli::project_dir;
 use std::path::{Path, PathBuf};
 use vm::VM;
 
@@ -50,7 +50,7 @@ fn find_std() -> PathBuf {
         return dir;
     }
 
-    if let Some(proj_dirs) = ProjectDirs::from("", "", "moshell") {
+    if let Some(proj_dirs) = project_dir() {
         let lib = proj_dirs.data_dir().join("lib");
         if lib.exists() {
             return lib;

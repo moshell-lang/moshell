@@ -14,6 +14,7 @@ use miette::{Context, IntoDiagnostic, MietteHandlerOpts};
 use vm::VM;
 
 mod cli;
+mod complete;
 mod disassemble;
 mod pipeline;
 mod repl;
@@ -67,7 +68,7 @@ fn main() -> Result<PipelineStatus, miette::Error> {
         .into_diagnostic()
         .context("Could not locate working directory")?;
 
-    Ok(repl(current_dir, &cli, sources, externals, vm))
+    repl(current_dir, &cli, sources, externals, vm)
 }
 
 fn run(
