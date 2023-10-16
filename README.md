@@ -134,9 +134,9 @@ Moshell is a project in its early stages.
   - [x] Built-in primitive type operations
   - [ ] Detailed error reports *(in progress)*
   - [x] Reefs (library support)
-  - [ ] Generic types
+  - [x] Generic types
   - [ ] Standard types (`Option[T]`, `Result[A, E]`, `Iterable[T]`...)
-  - [ ] User defined structures
+  - [ ] User defined structures *(in progress)*
 - [x] Bytecode compiler and interpreter
   - [x] Spawn processes and use typed variables
   - [x] Control flow
@@ -150,4 +150,4 @@ Moshell is a project in its early stages.
   - [x] Visualize Bytecode
   - [ ] Display diagnostics *(partial)*
   - [x] Symbol reuse
-  - [ ] Shell-like prompt
+  - [ ] Shell-like prompt *(partial)*
