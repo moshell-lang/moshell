@@ -17,7 +17,7 @@ namespace msh {
         for (uint32_t i = 0; i < dynsym_len; ++i) {
             constant_index id_idx = reader.read<constant_index>();
             const std::string &identifier = pool.get_string(id_idx);
-            unresolved.emplace(pool_index, i, identifier);
+            unresolved.push({pool_index, i, identifier});
         }
 
         while (reader.position() < size) {
