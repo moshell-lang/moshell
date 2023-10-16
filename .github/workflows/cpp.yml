@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - 'vm/**'
+    branches:
+      - master
   pull_request:
     paths-ignore:
       - 'vm/**'
@@ -11,14 +13,16 @@ on:
 
 jobs:
   build:
-    if: github.event_name != 'pull_request' || github.repository != github.event.pull_request.head.repo.full_name
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        gcc-version: [10, 12]
+        compiler:
+          - { c: gcc-10, cpp: g++-10 }
+          - { c: gcc-12, cpp: g++-12 }
+          - { c: clang-14, cpp: clang++-14 }
     env:
-      CC: gcc-${{ matrix.gcc-version }}
-      CXX: g++-${{ matrix.gcc-version }}
+      CC: ${{ matrix.compiler.c }}
+      CXX: ${{ matrix.compiler.cpp }}
     steps:
       - uses: actions/checkout@v4
 
