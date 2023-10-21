@@ -1,6 +1,19 @@
+#!/bin/sh
+# shellcheck shell=dash
+
 set -eu
 
-NIGHTLY_URL=https://moshell.dev/releases/nightly
+if ! [ "$(uname -m)" = "x86_64" ]; then
+  echo "Unsupported $(uname -m) architecture" >&2
+  exit 1
+fi
+case "$(uname -s)" in
+  Linux) target=x86_64-linux-gnu;;
+  Darwin) target=x86_64-apple-darwin;;
+  *) echo "Unsupported $(uname -s) OS" >&2; exit 1;;
+esac
+
+NIGHTLY_URL=https://moshell.dev/releases/nightly/$target
 
 BIN_PATH=~/.local/bin
 LIBS_PATH=~/.local/share/moshell
