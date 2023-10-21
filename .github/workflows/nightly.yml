@@ -56,12 +56,12 @@ jobs:
           mv target/release/moshell build-output/moshell
           date +"%D" > build-output/nightly-version
 
-      - name: upload artifact
-        uses: burnett01/rsync-deployments@6.0.0
-        with:
-          switches: -avzr --delete
-          path: build-output/
-          remote_path: /srv/moshell/releases/nightly/x86_64-apple-darwin
-          remote_host: moshell.dev
-          remote_user: maxime
-          remote_key: ${{ secrets.SSH_SERVER }}
+      - name: Upload artifact
+        run: |
+          brew install rsync
+          mkdir -m 700 -p ~/.ssh
+          echo "$REMOTE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          rsync -e 'ssh -o StrictHostKeyChecking=no' -avzr --delete build-output/ maxime@moshell.dev:/srv/moshell/releases/nightly/x86_64-apple-darwin
+        env:
+         REMOTE_KEY: ${{ secrets.SSH_SERVER }}
