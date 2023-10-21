@@ -3,8 +3,6 @@
 #include "memory/heap.h"
 #include <charconv>
 #include <cmath>
-#include <cstring>
-#include <fstream>
 #include <iostream>
 
 static void int_to_string(OperandStack &caller_stack, runtime_memory &mem) {
