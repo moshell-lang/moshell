@@ -157,10 +157,10 @@ call_stack_iterator &call_stack_iterator::operator++() {
     return *this;
 }
 
-bool call_stack_iterator::operator==(const call_stack_iterator &other) {
+bool call_stack_iterator::operator==(const call_stack_iterator &other) const {
     return other.call_stack == this->call_stack && other.pos == this->pos && other.frame_ord == this->frame_ord;
 }
 
-bool call_stack_iterator::operator!=(const call_stack_iterator &other) {
-    return other.call_stack != this->call_stack || other.pos != this->pos || other.frame_ord != this->frame_ord;
+bool call_stack_iterator::operator!=(const call_stack_iterator &other) const {
+    return !(*this == other);
 }

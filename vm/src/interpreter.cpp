@@ -344,7 +344,7 @@ inline bool handle_function_invocation(const std::string &callee_identifier,
  * Will run a frame until it returns or pushes a new method inside the call_stack
  * @return the frame status
  */
-frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, const char *instructions, size_t instruction_count, runtime_memory &mem) {
+frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call_stack, const std::byte *instructions, size_t instruction_count, runtime_memory &mem) {
     size_t pool_index = frame.function.constant_pool_index;
     const ConstantPool &pool = state.pager.get_pool(pool_index);
 
@@ -354,14 +354,14 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
     Locals &locals = frame.locals;
 
     auto implement_fetch = [&]<typename T>() mutable {
-        uint32_t dynsym_index = ntohl(*(uint32_t *)(instructions + ip));
+        uint32_t dynsym_index = msh::read_big_endian<uint32_t>(instructions + ip);
         ip += 4;
         T value = state.pager.get<T>(pool_index, dynsym_index);
         operands.push<T>(value);
     };
 
     auto implement_store = [&]<typename T>() mutable {
-        uint32_t dynsym_index = ntohl(*(uint32_t *)(instructions + ip));
+        uint32_t dynsym_index = msh::read_big_endian<uint32_t>(instructions + ip);
         ip += 4;
         T value = operands.pop<T>();
         state.pager.set<T>(pool_index, dynsym_index, value);
@@ -373,21 +373,21 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
         switch (opcode) {
         case OP_PUSH_INT: {
             // Read the 8 byte int value
-            int64_t value = ntohl(*(int64_t *)(instructions + ip));
+            int64_t value = msh::read_big_endian<int64_t>(instructions + ip);
             ip += 8;
             // Push the value onto the stack
             operands.push_int(value);
             break;
         }
         case OP_PUSH_BYTE: {
-            char value = *(instructions + ip);
+            std::byte value = *(instructions + ip);
             ip++;
-            operands.push_byte(value);
+            operands.push_byte(static_cast<int8_t>(value));
             break;
         }
         case OP_PUSH_FLOAT: {
             // Read the 8 byte float value
-            int64_t value = ntohl(*(int64_t *)(instructions + ip));
+            int64_t value = msh::read_big_endian<int64_t>(instructions + ip);
             ip += 8;
             // Push the value onto the stack
             operands.push_double(reinterpret_cast<double &>(value));
@@ -395,7 +395,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
         }
         case OP_PUSH_STRING_REF: {
             // Read the string reference
-            constant_index index = ntohl(*(constant_index *)(instructions + ip));
+            constant_index index = msh::read_big_endian<constant_index>(instructions + ip);
             ip += sizeof(constant_index);
 
             // Push the string index onto the stack
@@ -405,7 +405,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
         }
         case OP_PUSH_LOCAL_REF: {
             // Read the locals address
-            int32_t local_index = ntohl(*(int32_t *)(instructions + ip));
+            int32_t local_index = msh::read_big_endian<int32_t>(instructions + ip);
             ip += sizeof(int32_t);
 
             uint8_t *ref = &locals.reference(local_index);
@@ -451,7 +451,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             break;
         }
         case OP_INVOKE: {
-            constant_index identifier_idx = ntohl(*(constant_index *)(instructions + ip));
+            constant_index identifier_idx = msh::read_big_endian<constant_index>(instructions + ip);
             ip += sizeof(constant_index);
 
             const std::string &function_identifier = pool.get_string(identifier_idx);
@@ -464,7 +464,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             break;
         }
         case OP_FORK: {
-            uint32_t parent_jump = ntohl(*(uint32_t *)(instructions + ip));
+            uint32_t parent_jump = msh::read_big_endian<uint32_t>(instructions + ip);
             ip += sizeof(uint32_t);
             pid_t pid = fork();
             switch (pid) {
@@ -488,7 +488,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
         }
         case OP_EXEC: {
             // Read the 1 byte stack size
-            char frame_size = instructions[ip];
+            int frame_size = static_cast<int>(instructions[ip]);
             ip++;
 
             // Create argv of the given frame_size, and create a new string for each arg with a null byte after each string
@@ -536,7 +536,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             const std::string &path = operands.pop_reference().get<const std::string>();
 
             // Read the flags
-            int flags = ntohl(*(int *)(instructions + ip));
+            int flags = static_cast<int>(msh::read_big_endian<int32_t>(instructions + ip));
 
             // Open the file
             int fd = open(path.c_str(), flags, S_IRUSR | S_IWUSR);
@@ -671,26 +671,26 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             break;
         }
         case OP_LOCAL_GET_BYTE: {
-            int32_t local_index = ntohl(*(int32_t *)(instructions + ip));
+            int32_t local_index = msh::read_big_endian<int32_t>(instructions + ip);
             ip += sizeof(int32_t);
             operands.push_byte(locals.get_byte(local_index));
             break;
         }
         case OP_LOCAL_SET_BYTE: {
-            int32_t local_index = ntohl(*(int32_t *)(instructions + ip));
+            int32_t local_index = msh::read_big_endian<int32_t>(instructions + ip);
             ip += sizeof(int32_t);
             locals.set_byte(operands.pop_byte(), local_index);
             break;
         }
         case OP_LOCAL_GET_Q_WORD: {
-            int32_t local_index = ntohl(*(int32_t *)(instructions + ip));
+            int32_t local_index = msh::read_big_endian<int32_t>(instructions + ip);
             ip += sizeof(int32_t);
             int64_t value = locals.get_q_word(local_index);
             operands.push_int(value);
             break;
         }
         case OP_LOCAL_SET_Q_WORD: {
-            int32_t local_index = ntohl(*(int32_t *)(instructions + ip));
+            int32_t local_index = msh::read_big_endian<int32_t>(instructions + ip);
             ip += sizeof(int32_t);
             locals.set_q_word(operands.pop_int(), local_index);
             break;
@@ -724,7 +724,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
         case OP_IF_NOT_JUMP:
         case OP_IF_JUMP: {
             char value = operands.pop_byte();
-            uint32_t then_branch = ntohl(*(uint32_t *)(instructions + ip));
+            uint32_t then_branch = msh::read_big_endian<uint32_t>(instructions + ip);
             // test below means "test is true if value is 1 and we are in a if-jump,
             //                    or if value is not 1 and we are in a if-not-jump operation"
             if (value == (opcode == OP_IF_JUMP)) {
@@ -736,7 +736,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             break;
         }
         case OP_JUMP: {
-            uint32_t destination = ntohl(*(uint32_t *)(instructions + ip));
+            uint32_t destination = msh::read_big_endian<uint32_t>(instructions + ip);
             ip = destination;
             break;
         }
@@ -860,7 +860,7 @@ bool run_unit(CallStack &call_stack, const msh::loader &loader, msh::pager &page
             stack_frame current_frame = call_stack.peek_frame();
             const function_definition &current_def = current_frame.function;
 
-            const char *instructions = loader.get_instructions(current_def.instructions_start);
+            const std::byte *instructions = loader.get_instructions(current_def.instructions_start);
             frame_status status = run_frame(state, current_frame, call_stack, instructions, current_def.instruction_count, mem);
 
             switch (status) {

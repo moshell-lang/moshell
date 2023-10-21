@@ -102,7 +102,7 @@ moshell_vm moshell_vm_init() {
 int moshell_vm_register(moshell_vm vm, const char *bytes, size_t byte_count) {
     vm_state &state = *static_cast<vm_state *>(vm.vm);
     try {
-        state.loader.load_raw_bytes(bytes, byte_count, state.pager, state.heap);
+        state.loader.load_raw_bytes(reinterpret_cast<const std::byte *>(bytes), byte_count, state.pager, state.heap);
         return 0;
     } catch (const std::exception &e) {
         std::cerr << e.what() << std::endl;

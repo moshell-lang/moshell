@@ -39,3 +39,18 @@ jobs:
     - name: Clippy Check
       run: cargo clippy --tests
       continue-on-error: true
+
+  build-macos:
+    if: github.event_name != 'pull_request' || github.repository != github.event.pull_request.head.repo.full_name
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup toolchain and cache
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+
+    - name: Remove C++ concepts
+      run: find vm/src \( -name '*.cpp' -o -name '*.h' \) -exec sed -i -e '/\s*requires/d' {} +
+
+    - name: Build
+      run: cargo build
