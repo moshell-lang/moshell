@@ -57,7 +57,7 @@ namespace msh {
         /**
          * The instructions bytes that have been loaded and concatenated.
          */
-        std::vector<char> concatened_instructions;
+        std::vector<std::byte> concatened_instructions;
 
         /**
          * The unresolved symbols that have been found and need to be resolved.
@@ -75,7 +75,7 @@ namespace msh {
          * @param pager The pager where to initialize the memory.
          * @param heap The heap heap where to store the constant strings.
          */
-        void load_raw_bytes(const char *bytes, size_t size, pager &pager, msh::heap &heap);
+        void load_raw_bytes(const std::byte *bytes, size_t size, pager &pager, msh::heap &heap);
 
         /**
          * Gets the function definition for the given name.
@@ -117,7 +117,7 @@ namespace msh {
          * @param index The index of the instructions.
          * @return The instructions bytes.
          */
-        const char *get_instructions(size_t index) const;
+        const std::byte *get_instructions(size_t index) const;
 
         /**
          * Resolves all the unresolved symbols.

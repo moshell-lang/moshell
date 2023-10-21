@@ -14,7 +14,7 @@ class ByteReader {
     size_t pos;
 
 public:
-    ByteReader(const char *bytes, size_t byte_count);
+    ByteReader(const std::byte *bytes, size_t byte_count);
 
     ByteReader(const ByteReader &other) = delete;
     ByteReader &operator=(const ByteReader &other) = delete;

@@ -7,7 +7,7 @@
 #define MAPPINGS_ATTRIBUTE 1
 
 namespace msh {
-    void loader::load_raw_bytes(const char *bytes, size_t size, pager &pager, msh::heap &heap) {
+    void loader::load_raw_bytes(const std::byte *bytes, size_t size, pager &pager, msh::heap &heap) {
         ByteReader reader(bytes, size);
 
         ConstantPool tmp_pool = load_constant_pool(reader, heap);
@@ -72,7 +72,7 @@ namespace msh {
         return exported.at(name);
     }
 
-    const char *loader::get_instructions(size_t index) const {
+    const std::byte *loader::get_instructions(size_t index) const {
         return concatened_instructions.data() + index;
     }
 
@@ -85,7 +85,7 @@ namespace msh {
         uint8_t return_byte_count = reader.read<uint8_t>();
         uint32_t instruction_count = reader.read<uint32_t>();
 
-        const char *instructions = reader.read_n<char>(instruction_count);
+        const std::byte *instructions = reader.read_n<std::byte>(instruction_count);
         size_t effective_address = concatened_instructions.size();
         std::copy(instructions, instructions + instruction_count, std::back_inserter(concatened_instructions));
 
