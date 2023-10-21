@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  distribute:
+  distribute-x86_64-linux-gnu:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +32,36 @@ jobs:
         with:
           switches: -avzr --delete
           path: build-output/
-          remote_path: /srv/moshell/releases/nightly/
+          remote_path: /srv/moshell/releases/nightly/x86_64-linux-gnu
+          remote_host: moshell.dev
+          remote_user: maxime
+          remote_key: ${{ secrets.SSH_SERVER }}
+
+  distribute-x86_64-apple-darwin:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup toolchain and cache
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Remove C++ concepts
+        run: find vm/src \( -name '*.cpp' -o -name '*.h' \) -exec sed -i -e '/\s*requires/d' {} +
+
+      - name: build
+        run: |
+          cargo build --release
+          mkdir build-output
+          zip -r build-output/lib.zip lib
+          mv target/release/moshell build-output/moshell
+          date +"%D" > build-output/nightly-version
+
+      - name: upload artifact
+        uses: burnett01/rsync-deployments@6.0.0
+        with:
+          switches: -avzr --delete
+          path: build-output/
+          remote_path: /srv/moshell/releases/nightly/x86_64-apple-darwin
           remote_host: moshell.dev
           remote_user: maxime
           remote_key: ${{ secrets.SSH_SERVER }}
