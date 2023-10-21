@@ -113,7 +113,7 @@ public:
 
     call_stack_iterator(CallStack *call_stack, size_t pos, size_t frame_ord);
     call_stack_iterator &operator++();
-    bool operator==(const call_stack_iterator &other);
-    bool operator!=(const call_stack_iterator &other);
+    bool operator==(const call_stack_iterator &other) const;
+    bool operator!=(const call_stack_iterator &other) const;
     stack_frame operator*();
 };
