@@ -8,15 +8,22 @@ if ! [ "$(uname -m)" = "x86_64" ]; then
   exit 1
 fi
 case "$(uname -s)" in
-  Linux) target=x86_64-linux-gnu;;
-  Darwin) target=x86_64-apple-darwin;;
-  *) echo "Unsupported $(uname -s) OS" >&2; exit 1;;
+  Linux)
+    TARGET=x86_64-linux-gnu
+    LIBS_PATH=~/.local/share/moshell
+    ;;
+  Darwin)
+    TARGET=x86_64-apple-darwin
+    LIBS_PATH=~/Library/Application\ Support/moshell
+    ;;
+  *)
+    echo "Unsupported $(uname -s) OS" >&2
+    exit 1
+    ;;
 esac
 
-NIGHTLY_URL=https://moshell.dev/releases/nightly/$target
-
+NIGHTLY_URL=https://moshell.dev/releases/nightly/$TARGET
 BIN_PATH=~/.local/bin
-LIBS_PATH=~/.local/share/moshell
 
 NIGHTLY_VERSION=$(wget -qO- $NIGHTLY_URL/nightly-version)
 
@@ -26,28 +33,28 @@ if [ -e $BIN_PATH/moshell ] && [ "$(date -r $BIN_PATH/moshell +"%D")" = "$NIGHTL
   exit 0
 fi
 
-mkdir -p $BIN_PATH $LIBS_PATH
+mkdir -p "$BIN_PATH" "$LIBS_PATH"
 
 # setup binaries
 echo Setting up Moshell nightly version of "$NIGHTLY_VERSION"
 echo Downloading $NIGHTLY_URL/bin ...
-wget -qc $NIGHTLY_URL/moshell -P $BIN_PATH
-chmod +x $BIN_PATH/moshell
-[ -e $BIN_PATH/msh ] || ln -s $BIN_PATH/moshell $BIN_PATH/msh
+wget -qc $NIGHTLY_URL/moshell -P "$BIN_PATH"
+chmod +x "$BIN_PATH/moshell"
+[ -e "$BIN_PATH/msh" ] || ln -s "$BIN_PATH/moshell" "$BIN_PATH/msh"
 
 # setup standard library
 echo Downloading $NIGHTLY_URL/lib.zip ...
-wget -qc $NIGHTLY_URL/lib.zip -P $LIBS_PATH
+wget -qc $NIGHTLY_URL/lib.zip -P "$LIBS_PATH"
 echo Unzipping library
 rm -rf "$LIBS_PATH/lib"
-unzip -q $LIBS_PATH/lib.zip -d $LIBS_PATH && rm $LIBS_PATH/lib.zip
+unzip -q "$LIBS_PATH/lib.zip" -d "$LIBS_PATH" && rm "$LIBS_PATH/lib.zip"
 
 
 echo Moshell Nightly version "$NIGHTLY_VERSION" Successfully installed!
 echo "Binary : $BIN_PATH/moshell"
 echo "Stdlib : $LIBS_PATH/lib"
 
-if ! echo "$PATH" | grep -q $BIN_PATH; then
+if ! echo "$PATH" | grep -q "$BIN_PATH"; then
   echo
   echo $BIN_PATH not found in '$PATH' variable
   echo Do you want to add $BIN_PATH in your '$PATH' ? [Y/n]
