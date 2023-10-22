@@ -4,7 +4,7 @@
 #include <iostream>
 #include <vector>
 
-int main(int argc, char *argv[]) {
+int main(int argc, const char *argv[]) {
     if (argc != 2) {
         std::cerr << "Usage: " << argv[0] << " <filename>\n";
         return 1;
@@ -16,6 +16,17 @@ int main(int argc, char *argv[]) {
     }
     std::vector<char> bytes_vec(std::istreambuf_iterator<char>(input), {});
     const char *bytes = bytes_vec.data();
-    moshell_exec(bytes, bytes_vec.size());
-    return 0;
+
+    std::vector<size_t> lens;
+    lens.resize(argc);
+    for (int i = 0; i < argc; i++) {
+        lens[i] = strlen(argv[i]);
+    }
+    moshell_vm vm = moshell_vm_init(argv, argc, lens.data());
+
+    moshell_vm_register(vm, bytes, bytes_vec.size());
+    int exit = moshell_vm_run(vm);
+    moshell_vm_free(vm);
+
+    return exit;
 }

@@ -193,7 +193,7 @@ impl TokenType {
     pub fn is_valid_var_ref_name(self) -> bool {
         matches!(
             self,
-            Identifier | Ampersand | At | Not | IntLiteral | Dollar | Slf
+            Identifier | Ampersand | At | Not | IntLiteral | Dollar | Star | Slf
         )
     }
 

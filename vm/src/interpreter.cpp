@@ -135,12 +135,16 @@ RuntimeException::RuntimeException(std::string msg)
 // run GC every n objects allocated
 #define GC_HEAP_CYCLE 5
 
-runtime_memory::runtime_memory(msh::heap &heap, msh::gc &gc)
-    : heap{heap}, gc{gc}, last_gc_heap_size{heap.size()} {}
+runtime_memory::runtime_memory(msh::heap &heap, std::vector<std::string> &program_arguments, msh::gc &gc)
+    : heap{heap}, gc{gc}, pargs{program_arguments}, last_gc_heap_size{heap.size()} {}
 
 void runtime_memory::run_gc() {
     gc.run();
     last_gc_heap_size = heap.size();
+}
+
+std::vector<std::string> &runtime_memory::program_arguments() {
+    return pargs;
 }
 
 msh::obj &runtime_memory::emplace(msh::obj_data &&data) {

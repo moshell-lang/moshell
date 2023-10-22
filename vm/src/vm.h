@@ -43,11 +43,13 @@ typedef struct {
 int moshell_exec(const char *bytes, size_t byte_count);
 
 /**
- * Creates a new virtual machine.
+ * Creates a new virtual machine, with given program arguments.
+ * Arguments are copied and hosted by the VM thus the given arguments can be freed after this
+ * function call.
  *
  * @return A new Moshell VM.
  */
-moshell_vm moshell_vm_init();
+moshell_vm moshell_vm_init(const char **pargs, size_t arg_count, const size_t *lens);
 
 /**
  * Appends the given bytecode to the VM.

@@ -176,6 +176,13 @@ static void vec_pop(OperandStack &caller_stack, runtime_memory &) {
     caller_stack.push_reference(last_element);
 }
 
+static void vec_pop_head(OperandStack &caller_stack, runtime_memory &) {
+    msh::obj_vector &vec = caller_stack.pop_reference().get<msh::obj_vector>();
+    msh::obj *first_element = *vec.begin();
+    vec.erase(vec.begin());
+    caller_stack.push_reference(*first_element);
+}
+
 static void vec_push(OperandStack &caller_stack, runtime_memory &) {
     msh::obj &ref = caller_stack.pop_reference();
     msh::obj_vector &vec = caller_stack.pop_reference().get<msh::obj_vector>();
@@ -211,6 +218,15 @@ static void is_operands_empty(OperandStack &os, runtime_memory &) {
     os.push(os.size() == 0);
 }
 
+static void program_arguments(OperandStack &os, runtime_memory &mem) {
+    std::vector<std::string> &pargs = mem.program_arguments();
+    msh::obj_vector vec;
+    for (const std::string &arg : pargs) {
+        vec.push_back(&mem.emplace(arg));
+    }
+    os.push_reference(mem.emplace(vec));
+}
+
 natives_functions_t load_natives() {
     return natives_functions_t{
         {"lang::Int::to_string", int_to_string},
@@ -222,6 +238,7 @@ natives_functions_t load_natives() {
         {"lang::String::bytes", str_bytes},
 
         {"lang::Vec::pop", vec_pop},
+        {"lang::Vec::pop_head", vec_pop_head},
         {"lang::Vec::len", vec_len},
         {"lang::Vec::push", vec_push},
         {"lang::Vec::[]", vec_index},
@@ -238,6 +255,7 @@ natives_functions_t load_natives() {
 
         {"std::memory::gc", gc},
         {"std::memory::empty_operands", is_operands_empty},
+        {"std::memory::program_arguments", program_arguments},
 
         {"std::convert::ceil", ceil},
         {"std::convert::floor", floor},

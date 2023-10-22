@@ -42,6 +42,10 @@ pub struct Cli {
     /// Generate tab-completion scripts for your shell
     #[arg(long = "completions")]
     pub(crate) completions: Option<Shell>,
+
+    /// The arguments to pass to the script
+    #[arg(index = 2)]
+    pub(crate) program_arguments: Vec<String>,
 }
 
 pub struct CachedSourceLocationLineProvider {

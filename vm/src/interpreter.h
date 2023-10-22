@@ -14,13 +14,16 @@ namespace msh {
 class runtime_memory {
     msh::heap &heap;
     msh::gc &gc;
+    std::vector<std::string> &pargs;
 
     size_t last_gc_heap_size;
 
 public:
-    runtime_memory(msh::heap &heap, msh::gc &gc);
+    runtime_memory(msh::heap &heap, std::vector<std::string> &program_arguments, msh::gc &gc);
 
     void run_gc();
+
+    std::vector<std::string> &program_arguments();
 
     msh::obj &emplace(msh::obj_data &&data);
 };

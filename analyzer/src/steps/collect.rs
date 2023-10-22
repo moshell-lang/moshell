@@ -15,7 +15,7 @@ use range::Iterable;
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
-use crate::environment::symbols::{SymbolInfo, SymbolLocation, SymbolRegistry};
+use crate::environment::symbols::{MagicSymbolKind, SymbolInfo, SymbolLocation, SymbolRegistry};
 use crate::environment::Environment;
 use crate::importer::{ASTImporter, ImportResult, Imported};
 use crate::imports::{Imports, UnresolvedImport};
@@ -24,6 +24,7 @@ use crate::reef::{Externals, ReefId};
 use crate::relations::{RelationState, Relations, SourceId, SymbolRef};
 use crate::steps::resolve::SymbolResolver;
 use crate::steps::shared_diagnostics::diagnose_invalid_symbol;
+use crate::steps::typing::magic::is_magic_variable_name;
 use crate::Inject;
 
 /// Defines the current state of the tree exploration.
@@ -504,10 +505,29 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                 let symbol = env
                     .symbols
                     .declare_local(var.var.name.to_owned(), SymbolInfo::Variable);
-                env.annotate(var, symbol);
+                env.annotate(var, SymbolRef::Local(symbol));
             }
             Expr::VarReference(var) => {
                 if let VarName::User(name) = var.name {
+                    if is_magic_variable_name(name) {
+                        let script_env = self
+                            .engine
+                            .get_environment_mut(*self.stack.first().unwrap())
+                            .unwrap();
+                        if script_env
+                            .symbols
+                            .find_reachable(
+                                "",
+                                SymbolRegistry::Magic(MagicSymbolKind::ProgramArguments),
+                            )
+                            .is_none()
+                        {
+                            script_env
+                                .symbols
+                                .declare_magic(MagicSymbolKind::ProgramArguments);
+                        }
+                    }
+
                     let symbol = self.identify_symbol(
                         *self.stack.last().unwrap(),
                         state.module,
@@ -602,7 +622,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                         let symbol = env
                             .symbols
                             .declare_local(range.receiver.to_owned(), SymbolInfo::Variable);
-                        env.annotate(range, symbol);
+                        env.annotate(range, SymbolRef::Local(symbol));
                         self.tree_walk(state, &range.iterable, to_visit);
                     }
                     ForKind::Conditional(cond) => {
@@ -624,7 +644,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                     .current_env()
                     .symbols
                     .declare_local(func.name.to_owned(), SymbolInfo::Function);
-                self.current_env().annotate(func, symbol);
+                self.current_env().annotate(func, SymbolRef::Local(symbol));
 
                 let func_id = self.engine().track(state.content, expr);
                 self.current_env().bind_source(func, func_id);
@@ -662,7 +682,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
 
                     // Only named parameters can be annotated for now
                     if let FunctionParameter::Named(named) = param {
-                        func_env.annotate(named, symbol);
+                        func_env.annotate(named, SymbolRef::Local(symbol));
                     }
                 }
                 if let Some(ty) = &func.return_type {
@@ -697,7 +717,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                     let symbol = func_env
                         .symbols
                         .declare_local(param.name.to_owned(), SymbolInfo::Variable);
-                    func_env.annotate(param, symbol);
+                    func_env.annotate(param, SymbolRef::Local(symbol));
 
                     if let Some(ty) = &param.ty {
                         self.collect_type(func_id, ty)
@@ -786,7 +806,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                     let symbol = env
                         .symbols
                         .declare_local(var.to_owned(), SymbolInfo::Variable);
-                    env.annotate(&call.arguments[1], symbol);
+                    env.annotate(&call.arguments[1], SymbolRef::Local(symbol));
                 }
                 true
             }

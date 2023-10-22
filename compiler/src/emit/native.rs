@@ -17,6 +17,7 @@ const VEC_INDEX_EQ: &str = "lang::Vec::[]=";
 const VEC_POP: &str = "lang::Vec::pop";
 const VEC_PUSH: &str = "lang::Vec::push";
 const VEC_LEN: &str = "lang::Vec::len";
+const VEC_POP_HEAD: &str = "lang::Vec::pop_head";
 const STRING_SPLIT: &str = "lang::String::split";
 const STRING_BYTES: &str = "lang::String::bytes";
 
@@ -298,6 +299,10 @@ pub(crate) fn emit_natives(
         51 => {
             // Exitcode -> Int
             instructions.emit_code(Opcode::ConvertByteToInt);
+        }
+        52 => {
+            // Vec[A]::pop_head() -> Option[A]
+            instructions.emit_invoke(cp.insert_string(VEC_POP_HEAD));
         }
         id => todo!("Native function with id {id}"),
     };

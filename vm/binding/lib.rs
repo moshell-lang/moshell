@@ -43,9 +43,13 @@ pub enum VmError {
 #[allow(dead_code)]
 impl VM {
     /// Creates a new virtual machine.
-    pub fn new() -> Self {
+    pub fn new(args: Vec<String>) -> Self {
         let ffi = if cfg!(not(miri)) {
-            unsafe { moshell_vm_init() }
+            unsafe {
+                let lens: Vec<_> = args.iter().map(|s| s.len()).collect();
+                let args: Vec<_> = args.iter().map(|s| s.as_ptr()).collect();
+                moshell_vm_init(args.as_ptr().cast(), lens.len(), lens.as_ptr())
+            }
         } else {
             VmFFI(std::ptr::null_mut())
         };
@@ -96,7 +100,7 @@ impl VM {
 
 impl Default for VM {
     fn default() -> Self {
-        Self::new()
+        Self::new(vec![])
     }
 }
 
@@ -215,7 +219,11 @@ extern "C" {
 
     fn moshell_exec(bytes: *const u8, byte_count: usize) -> ffi::c_int;
 
-    fn moshell_vm_init() -> VmFFI;
+    fn moshell_vm_init(
+        args: *const *const ffi::c_char,
+        arg_count: usize,
+        lens: *const usize,
+    ) -> VmFFI;
 
     fn moshell_vm_register(vm: VmFFI, bytes: *const u8, bytes_count: usize) -> ffi::c_int;
 

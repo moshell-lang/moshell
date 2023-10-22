@@ -16,8 +16,6 @@
 
 #![allow(dead_code)]
 
-use std::collections::HashSet;
-
 use crate::diagnostic::Diagnostic;
 use crate::engine::Engine;
 use crate::importer::{ASTImporter, Imported};
@@ -31,6 +29,7 @@ use crate::steps::typing::apply_types;
 use crate::types::ctx::TypeContext;
 use crate::types::engine::TypedEngine;
 use crate::types::Typing;
+use std::collections::HashSet;
 
 pub mod diagnostic;
 pub mod engine;

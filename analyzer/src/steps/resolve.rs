@@ -3,7 +3,7 @@ use std::iter::once;
 
 use crate::diagnostic::Diagnostic;
 use crate::engine::Engine;
-use crate::environment::symbols::{resolve_loc, SymbolRegistry};
+use crate::environment::symbols::{resolve_loc, MagicSymbolKind, SymbolRegistry};
 use crate::environment::Environment;
 use crate::imports::Imports;
 use crate::name::Name;
@@ -12,8 +12,12 @@ use crate::relations::{
     LocalId, RelationId, RelationState, Relations, ResolvedSymbol, SourceId, SymbolRef,
 };
 use crate::steps::resolve::diagnostics::*;
-use crate::steps::resolve::symbol::SymbolResolutionResult;
+use crate::steps::resolve::symbol::{
+    resolve_absolute_symbol, resolve_symbol_from_imports, resolve_symbol_from_locals,
+    SymbolResolutionResult,
+};
 use crate::steps::shared_diagnostics::diagnose_invalid_symbol;
+use crate::steps::typing::magic::is_magic_variable_name;
 
 mod diagnostics;
 mod import;
@@ -165,11 +169,11 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
     /// This resolution should happen after all imports have been resolved in their respective environments,
     /// to allow child environments to use imports from their parents.
     fn resolve_trees(&mut self, to_visit: &mut Vec<Name>, visited: &HashSet<Name>) {
-        for (relation_id, object) in self.relations.iter_mut() {
-            if object.state != RelationState::Unresolved {
+        for (relation_id, relation) in self.relations.iter_mut() {
+            if relation.state != RelationState::Unresolved {
                 continue;
             }
-            let (origin, registry) = { (object.origin, object.registry) };
+            let (origin, registry) = { (relation.origin, relation.registry) };
 
             // Get the local naming of the object
             let origin_env = self
@@ -187,7 +191,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
 
             // if it explicitly targets the current reef, then do a simple search of the corresponding name
             if symbol_loc.is_current_reef_explicit {
-                result = Self::resolve_absolute_symbol(
+                result = resolve_absolute_symbol(
                     self.engine,
                     symbol_name,
                     self.externals.current,
@@ -205,7 +209,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                         //
                         // We omit this resolution for origin environments as the resolution of their own locals
                         // is done by the collection phase
-                        result = Self::resolve_symbol_from_locals(
+                        result = resolve_symbol_from_locals(
                             env_id,
                             env,
                             symbol_name,
@@ -217,7 +221,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                     if result == SymbolResolutionResult::NotFound {
                         if let Some(imports) = &self.imports.get_imports(env_id) {
                             // If the symbol wasn't found from the environment locals, try to resolve using its imports
-                            result = Self::resolve_symbol_from_imports(
+                            result = resolve_symbol_from_imports(
                                 self.engine,
                                 imports,
                                 symbol_name,
@@ -242,7 +246,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                         //cannot reference to self content if location does not explicitly references current reef
                         .filter(|(_, id)| *id != self.externals.current)
                         .map(|(engine, id)| {
-                            Self::resolve_absolute_symbol(engine, symbol_name, id, registry)
+                            resolve_absolute_symbol(engine, symbol_name, id, registry)
                         })
                         .unwrap_or(SymbolResolutionResult::NotFound)
                 }
@@ -263,11 +267,34 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                         ));
                     }
                 }
+
+                // if the symbol is an object, and not qualified, try to treat it as a magic variable.
+                if registry == SymbolRegistry::Objects
+                    && !symbol_name.is_qualified()
+                    && is_magic_variable_name(symbol_name.root())
+                {
+                    let mut script_env = self.engine.get_environment(origin).unwrap();
+                    let mut script_id = origin;
+
+                    while let Some(parent) = script_env.parent {
+                        script_env = self.engine.get_environment(parent).unwrap();
+                        script_id = parent;
+                    }
+
+                    let declared_pargs = script_env
+                        .symbols
+                        .find_magic(MagicSymbolKind::ProgramArguments)
+                        .expect("collect phase did not implicitly declared pargs magic variable");
+
+                    let resolved =
+                        ResolvedSymbol::new(self.externals.current, script_id, declared_pargs);
+                    result = SymbolResolutionResult::Resolved(resolved)
+                }
             }
 
             match result {
                 SymbolResolutionResult::Resolved(symbol) => {
-                    object.state = RelationState::Resolved(symbol);
+                    relation.state = RelationState::Resolved(symbol);
                 }
                 SymbolResolutionResult::DeadImport => {
                     self.diagnostics
@@ -279,7 +306,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                             relation_id,
                             symbol_name,
                         ));
-                    object.state = RelationState::Dead;
+                    relation.state = RelationState::Dead;
                 }
                 SymbolResolutionResult::Invalid(symbol) => {
                     let env_var = self
@@ -301,7 +328,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                         symbol_name,
                         &occurrences,
                     ));
-                    object.state = RelationState::Dead;
+                    relation.state = RelationState::Dead;
                 }
                 // All attempts failed to resolve the symbol
                 SymbolResolutionResult::NotFound => {
@@ -322,7 +349,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                         origin_env,
                         symbol_name,
                     ));
-                    object.state = RelationState::Dead
+                    relation.state = RelationState::Dead
                 }
             }
         }
@@ -334,7 +361,6 @@ mod tests {
     use std::collections::{HashMap, HashSet};
 
     use indexmap::IndexMap;
-    //use pretty_assertions::assert_eq;
 
     use context::source::Source;
     use context::str_find::{find_in, find_in_nth};
@@ -355,6 +381,8 @@ mod tests {
     use crate::steps::resolve_sources;
     use crate::types::INT;
     use crate::{resolve_all, ResolutionResult};
+
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_reefs_external_symbols_resolution() {
