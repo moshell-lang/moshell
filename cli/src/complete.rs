@@ -1,4 +1,6 @@
-use ast::value::{Literal, LiteralValue};
+mod bash;
+
+use ast::value::Literal;
 use ast::Expr;
 use context::source::Source;
 use lexer::token::Token;
@@ -46,7 +48,34 @@ impl Completer for MoshellCompleter {
                     get_executables(&word, pos)
                 }
             }
-            Some(CompletionCursor::Argument(word)) => get_files(&word, pos, |_| true),
+            Some(CompletionCursor::Argument(arguments)) => {
+                let Some(word) = arguments.last().unwrap() else {
+                    return Vec::new();
+                };
+                if arguments.first().unwrap().is_none() {
+                    return get_files(word, pos, |_| true);
+                }
+                let word_len = word.len();
+                let Ok(bash) = bash::BashComplete::new() else {
+                    return get_files(word, pos, |_| true);
+                };
+                let rendered = arguments
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<String>>()
+                    .join(" ");
+                bash.complete(&rendered)
+                    .unwrap()
+                    .into_iter()
+                    .map(|value| Suggestion {
+                        value,
+                        description: None,
+                        extra: None,
+                        span: Span::new(pos - word_len, pos),
+                        append_whitespace: true,
+                    })
+                    .collect::<Vec<Suggestion>>()
+            }
             None => Vec::new(),
         }
     }
@@ -59,14 +88,13 @@ enum CompletionCursor {
     Command(String),
 
     /// A file path argument.
-    Argument(String),
+    Argument(Vec<Option<String>>),
 }
 
 /// Get the last shell word in the given text.
 fn get_last_word(text: &str, next: bool) -> Option<CompletionCursor> {
     let mut report = parse(Source::unknown(text));
     let mut expr = report.expr.pop()?;
-    let mut is_arg = false;
     loop {
         match expr {
             Expr::Unary(unary) => {
@@ -81,32 +109,40 @@ fn get_last_word(text: &str, next: bool) -> Option<CompletionCursor> {
             Expr::FunctionDeclaration(function) => {
                 expr = *function.body?;
             }
-            Expr::Call(mut call) => {
-                expr = call.arguments.pop()?;
-                is_arg = !call.arguments.is_empty();
+            Expr::Call(call) => {
+                let mut arguments = call
+                    .arguments
+                    .iter()
+                    .map(get_value)
+                    .collect::<Vec<Option<String>>>();
                 if next {
-                    return Some(CompletionCursor::Argument("".to_owned()));
+                    arguments.push(Some("".to_owned()));
                 }
+                return Some(match arguments.as_slice() {
+                    [command] => CompletionCursor::Command(command.clone()?),
+                    _ => CompletionCursor::Argument(arguments),
+                });
             }
             Expr::TemplateString(mut template) => {
                 expr = template.parts.pop()?;
             }
-            Expr::Literal(Literal {
-                parsed: LiteralValue::String(str),
-                segment,
-                ..
-            }) => {
-                if text.as_bytes()[segment.start] == b'\'' {
-                    return None;
-                }
-                return Some(if is_arg {
-                    CompletionCursor::Argument(str)
-                } else {
-                    CompletionCursor::Command(str)
-                });
-            }
             _ => break None,
         }
+    }
+}
+
+/// Get the value of the given expression.
+fn get_value(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Literal(Literal { parsed, .. }) => Some(parsed.to_string()),
+        Expr::TemplateString(template) => {
+            let mut value = String::new();
+            for part in &template.parts {
+                value.push_str(&get_value(part)?);
+            }
+            Some(value)
+        }
+        _ => None,
     }
 }
 

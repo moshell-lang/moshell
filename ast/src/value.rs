@@ -1,4 +1,5 @@
 use dbg_pls::DebugPls;
+use std::fmt::{self, Formatter};
 
 use src_macros::segment_holder;
 
@@ -48,5 +49,16 @@ impl From<f64> for LiteralValue {
 impl From<bool> for LiteralValue {
     fn from(s: bool) -> Self {
         Self::Bool(s)
+    }
+}
+
+impl fmt::Display for LiteralValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::String(str) => write!(f, "{str}"),
+            Self::Int(int) => write!(f, "{int}"),
+            Self::Float(float) => write!(f, "{float}"),
+            Self::Bool(bool) => write!(f, "{bool}"),
+        }
     }
 }
