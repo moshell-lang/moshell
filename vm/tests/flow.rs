@@ -157,3 +157,14 @@ fn str_split() {
         Some("this is a string, hello strings ! ! ! babibel".into())
     )
 }
+
+#[test]
+fn working_directory_via_tilde() {
+    let mut runner = Runner::default();
+    runner.eval(
+        "use std::working_dir
+        use std::assert::assert
+        val wd = $(echo ~+)
+        assert(working_dir() == $wd)",
+    );
+}

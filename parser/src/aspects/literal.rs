@@ -2,6 +2,7 @@ use std::num::IntErrorKind;
 
 use ast::range::{FilePattern, Iterable};
 use ast::value::{Literal, LiteralValue, TemplateString};
+use ast::variable::{Tilde, TildeExpansion};
 use ast::*;
 use context::source::{try_join_str, SourceSegmentHolder};
 use lexer::token::Token;
@@ -10,7 +11,7 @@ use lexer::unescape;
 
 use crate::aspects::substitution::SubstitutionAspect;
 use crate::err::ParseErrorKind;
-use crate::moves::{next, of_type, of_types, MoveOperations};
+use crate::moves::{eox, next, of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 /// Describes if a literal should be parsed strictly or leniently.
@@ -212,6 +213,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         let mut builder = String::new();
         let mut lexeme = current.value;
         let mut non_string: Option<Token> = None;
+        let mut is_tilde = false;
 
         //pushes current token then advance
         macro_rules! append_current {
@@ -241,10 +243,33 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             }
             BackSlash => {
                 //never retain first backslash
-                self.cursor.next()?;
+                self.cursor.next_opt();
                 //advance so we are not pointing to token after '\'
                 //will append the escaped value (token after the backslash)
                 append_current!();
+            }
+            Tilde => {
+                self.cursor.next_opt();
+                if let Some(plus) = self.cursor.advance(of_type(Plus)) {
+                    parts.push(Expr::Tilde(TildeExpansion {
+                        structure: Tilde::WorkingDir,
+                        segment: self.cursor.relative_pos_ctx(lexeme..plus.value),
+                    }));
+                    end = parts.last().unwrap().segment().end;
+                } else if self
+                    .cursor
+                    .lookahead(eox().or(spaces()).or(of_type(Slash)))
+                    .is_some()
+                {
+                    parts.push(Expr::Tilde(TildeExpansion {
+                        structure: Tilde::HomeDir(None),
+                        segment: self.cursor.relative_pos(current.value),
+                    }));
+                    end = parts.last().unwrap().segment().end;
+                } else {
+                    is_tilde = true;
+                }
+                lexeme = "";
             }
             _ => {
                 append_current!();
@@ -256,6 +281,23 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             let pivot = token.token_type;
             match pivot {
                 Space | NewLine => break,
+                Slash if is_tilde => {
+                    let value = self.literal_or_wildcard(
+                        std::mem::take(&mut builder),
+                        lexeme,
+                        non_string.take(),
+                    )?;
+                    let segment =
+                        self.cursor.relative_pos_ctx(current.value).start..value.segment().end;
+                    parts.push(Expr::Tilde(TildeExpansion {
+                        structure: Tilde::HomeDir(Some(Box::new(value))),
+                        segment,
+                    }));
+                    self.cursor.next()?;
+                    lexeme = token.value;
+                    builder.push_str(token.value);
+                    is_tilde = false;
+                }
 
                 BackSlash => {
                     //never retain first backslash
@@ -312,7 +354,16 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         }
 
         if !builder.is_empty() {
-            parts.push(self.literal_or_wildcard(builder.clone(), lexeme, non_string)?);
+            let value =
+                self.literal_or_wildcard(std::mem::take(&mut builder), lexeme, non_string.take())?;
+            parts.push(if is_tilde {
+                Expr::Tilde(TildeExpansion {
+                    structure: Tilde::HomeDir(Some(Box::new(value))),
+                    segment: self.cursor.relative_pos_ctx(current.value..lexeme),
+                })
+            } else {
+                value
+            });
         }
         if parts.len() == 1 {
             return Ok(parts.pop().unwrap());
@@ -578,6 +629,21 @@ mod tests {
                         segment: find_in(source.source, "$NGINX_PORT")
                     }),
                 ],
+                segment: source.segment()
+            })
+        );
+    }
+
+    #[test]
+    fn user_home() {
+        let source = Source::unknown("~test");
+        let parsed = Parser::new(source)
+            .literal(LiteralLeniency::Lenient)
+            .expect("Failed to parse.");
+        assert_eq!(
+            parsed,
+            Expr::Tilde(TildeExpansion {
+                structure: Tilde::HomeDir(Some(Box::new(literal(source.source, "test")))),
                 segment: source.segment()
             })
         );

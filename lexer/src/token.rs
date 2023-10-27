@@ -104,6 +104,8 @@ pub enum TokenType {
     SemiColon,
     #[assoc(str = "=")]
     Equal,
+    #[assoc(str = "~")]
+    Tilde,
     #[assoc(str = "$")]
     Dollar,
     #[assoc(str = "&")]

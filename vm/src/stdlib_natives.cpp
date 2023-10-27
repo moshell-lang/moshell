@@ -4,8 +4,10 @@
 #include <charconv>
 #include <cmath>
 #include <cstring>
-#include <unistd.h>
+#include <filesystem>
 #include <iostream>
+#include <pwd.h>
+#include <unistd.h>
 
 static void int_to_string(OperandStack &caller_stack, runtime_memory &mem) {
     int64_t value = caller_stack.pop_int();
@@ -88,6 +90,36 @@ static void cd(OperandStack &caller_stack, runtime_memory &) {
     if (chdir(path.c_str()) == -1) {
         throw RuntimeException("Failed to change directory to " + path + ": " + strerror(errno) + ".");
     }
+}
+
+static void working_dir(OperandStack &caller_stack, runtime_memory &mem) {
+    std::filesystem::path path = std::filesystem::current_path();
+    msh::obj &obj = mem.emplace(path.string());
+    caller_stack.push_reference(obj);
+}
+
+static void home_dir(OperandStack &caller_stack, runtime_memory &mem) {
+    const std::string &username = caller_stack.pop_reference().get<const std::string>();
+    struct passwd *pass = getpwnam(username.c_str());
+    if (pass == nullptr) {
+        caller_stack.push(nullptr);
+    } else {
+        msh::obj &obj = mem.emplace(pass->pw_dir);
+        caller_stack.push_reference(obj);
+    }
+}
+
+static void current_home_dir(OperandStack &caller_stack, runtime_memory &mem) {
+    const char *homedir;
+    if ((homedir = getenv("HOME")) == nullptr) {
+        struct passwd *pass = getpwuid(getuid());
+        if (pass == nullptr) {
+            throw RuntimeException("Failed to get the current user's home directory: " + std::string(strerror(errno)) + ".");
+        }
+        homedir = pass->pw_dir;
+    }
+    msh::obj &obj = mem.emplace(homedir);
+    caller_stack.push_reference(obj);
 }
 
 static void floor(OperandStack &caller_stack, runtime_memory &) {
@@ -262,6 +294,9 @@ natives_functions_t load_natives() {
         {"std::some", some},
         {"std::none", none},
         {"std::cd", cd},
+        {"std::working_dir", working_dir},
+        {"std::home_dir", home_dir},
+        {"std::current_home_dir", current_home_dir},
 
         {"std::memory::gc", gc},
         {"std::memory::empty_operands", is_operands_empty},

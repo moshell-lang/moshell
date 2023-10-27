@@ -11,7 +11,7 @@ use ast::range::Subscript;
 use ast::substitution::Substitution;
 use ast::value::{Literal, LiteralValue, TemplateString};
 use ast::variable::{
-    Assign, AssignOperator, Identifier, VarDeclaration, VarKind, VarName, VarReference,
+    Assign, AssignOperator, Identifier, Tilde, VarDeclaration, VarKind, VarName, VarReference,
 };
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
@@ -32,7 +32,7 @@ use crate::steps::typing::function::{
     find_operand_implementation, infer_return, type_call, type_function_signature, type_method,
     Return,
 };
-use crate::steps::typing::lower::convert_into_string;
+use crate::steps::typing::lower::{convert_into_string, generate_unwrap};
 use crate::steps::typing::magic::{is_magic_variable_name, prepend_implicits};
 use crate::types::ctx::{TypeContext, TypedVariable};
 use crate::types::engine::{Chunk, ChunkType, TypedEngine};
@@ -915,6 +915,26 @@ fn ascribe_subscript(
     }
 }
 
+fn ascribe_tilde(
+    tilde: &ast::variable::TildeExpansion,
+    exploration: &mut Exploration,
+    links: Links,
+    diagnostics: &mut Vec<Diagnostic>,
+    state: TypingState,
+) -> TypedExpr {
+    let pfc = ProgrammaticCall {
+        path: vec![InclusionPathItem::Symbol("~", tilde.segment())],
+        segment: tilde.segment(),
+        arguments: match &tilde.structure {
+            Tilde::HomeDir(Some(username)) => vec![username.as_ref().clone()],
+            Tilde::HomeDir(None) | Tilde::WorkingDir => Vec::new(),
+        },
+        type_parameters: vec![],
+    };
+    let typed = ascribe_pfc(&pfc, exploration, links, diagnostics, state);
+    generate_unwrap(typed, exploration)
+}
+
 fn ascribe_casted(
     casted: &CastedExpr,
     exploration: &mut Exploration,
@@ -1388,6 +1408,7 @@ fn ascribe_types(
         Expr::Unary(unary) => ascribe_unary(unary, exploration, links, diagnostics, state),
         Expr::Binary(bo) => ascribe_binary(bo, exploration, links, diagnostics, state),
         Expr::Subscript(sub) => ascribe_subscript(sub, exploration, links, diagnostics, state),
+        Expr::Tilde(tilde) => ascribe_tilde(tilde, exploration, links, diagnostics, state),
         Expr::Casted(casted) => ascribe_casted(casted, exploration, links, diagnostics, state),
         Expr::Test(test) => ascribe_types(exploration, links, diagnostics, &test.expression, state),
         e @ (Expr::While(_) | Expr::Loop(_)) => {

@@ -292,7 +292,7 @@ impl<'a> Parser<'a> {
             {
                 self.call()
             }
-            Dot => self.call(),
+            Dot | Tilde => self.call(),
             Backtick => {
                 let callee = self.back_string_literal();
                 self.call_arguments(callee.map(Expr::TemplateString)?)

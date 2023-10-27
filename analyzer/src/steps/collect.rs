@@ -8,7 +8,7 @@ use ast::r#type::Type;
 use ast::r#use::{Import as ImportExpr, InclusionPathItem};
 use ast::range;
 use ast::value::LiteralValue;
-use ast::variable::VarName;
+use ast::variable::{Tilde, VarName};
 use ast::Expr;
 use context::source::{ContentId, SourceSegment, SourceSegmentHolder};
 use range::Iterable;
@@ -548,6 +548,28 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
             Expr::Subscript(sub) => {
                 self.tree_walk(state, &sub.target, to_visit);
                 self.tree_walk(state, &sub.index, to_visit);
+            }
+            Expr::Tilde(tilde) => {
+                let function_name = match &tilde.structure {
+                    Tilde::HomeDir(Some(expr)) => {
+                        self.tree_walk(state, expr, to_visit);
+                        "home_dir"
+                    }
+                    Tilde::HomeDir(None) => "current_home_dir",
+                    Tilde::WorkingDir => "working_dir",
+                };
+                let name = Name::from(vec!["std".to_owned(), function_name.to_owned()]);
+                let symbol = self.identify_symbol(
+                    *self.stack.last().unwrap(),
+                    state.module,
+                    SymbolLocation {
+                        name,
+                        is_current_reef_explicit: false,
+                    },
+                    tilde.segment(),
+                    SymbolRegistry::Objects,
+                );
+                self.current_env().annotate(tilde, symbol);
             }
             Expr::Substitution(sub) => {
                 self.current_env().begin_scope();

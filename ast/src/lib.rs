@@ -18,7 +18,7 @@ use crate::range::{Iterable, Subscript};
 use crate::substitution::Substitution;
 use crate::test::Test;
 use crate::value::{Literal, TemplateString};
-use crate::variable::{Assign, Identifier, VarDeclaration, VarReference};
+use crate::variable::{Assign, Identifier, TildeExpansion, VarDeclaration, VarReference};
 
 pub mod call;
 pub mod control_flow;
@@ -83,6 +83,7 @@ pub enum Expr<'a> {
     Range(Iterable<'a>),
     Subscript(Subscript<'a>),
     FieldAccess(FieldAccess<'a>),
+    Tilde(TildeExpansion<'a>),
 
     FunctionDeclaration(FunctionDeclaration<'a>),
 
@@ -130,6 +131,7 @@ impl SourceSegmentHolder for Expr<'_> {
             Expr::VarDeclaration(var_declaration) => var_declaration.segment.clone(),
             Expr::Range(range) => range.segment(),
             Expr::Subscript(subscript) => subscript.segment(),
+            Expr::Tilde(tilde) => tilde.segment(),
             Expr::FunctionDeclaration(function_declaration) => function_declaration.segment.clone(),
             Expr::Parenthesis(parenthesis) => parenthesis.segment.clone(),
             Expr::Subshell(subshell) => subshell.segment.clone(),
