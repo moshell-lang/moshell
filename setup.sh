@@ -60,21 +60,21 @@ if ! echo "$PATH" | grep -q "$BIN_PATH"; then
   echo Do you want to add $BIN_PATH in your '$PATH' ? [Y/n]
   read CHOICE
 
-  case $(basename -- "$SHELL") in
-      "bash")
-      SHELLRC=~/.bashrc
-    ;;
-      "zsh")
-      SHELLRC=~/.zshrc
-    ;;
-      "nu")
-      SHELLRC=~/.config/nushell/env.nu
-    ;;
-      *)
-        exit 0
-  esac
-
   if echo "$CHOICE" | grep -qE "^\s*$" || [ "$CHOICE" = "Y" ] || [ "$CHOICE" = "y" ]; then
+      case $(basename -- "$SHELL") in
+          "bash")
+          SHELLRC=~/.bashrc
+        ;;
+          "zsh")
+          SHELLRC=~/.zshrc
+        ;;
+          "nu")
+          SHELLRC=~/.config/nushell/env.nu
+        ;;
+          *)
+            exit 0
+      esac
+
       echo export PATH="$PATH:$BIN_PATH" >> $SHELLRC
       echo your '$PATH' variable has been updated.
       echo you can use \'source $SHELLRC\' to apply the changes
