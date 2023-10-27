@@ -1,4 +1,4 @@
-use libc::{O_APPEND, O_CREAT, O_RDONLY, O_RDWR, O_WRONLY};
+use libc::{O_APPEND, O_CREAT, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
 
 use analyzer::relations::ResolvedSymbol;
 use analyzer::types::hir::{ExprKind, FunctionCall, Redir, Redirect, TypedExpr, Var};
@@ -267,7 +267,7 @@ fn emit_redir_self(
             instructions.emit_open(O_CREAT | O_RDWR);
         }
         RedirOp::Write => {
-            instructions.emit_open(O_CREAT | O_WRONLY);
+            instructions.emit_open(O_CREAT | O_WRONLY | O_TRUNC);
         }
         RedirOp::Append => {
             instructions.emit_open(O_CREAT | O_WRONLY | O_APPEND);

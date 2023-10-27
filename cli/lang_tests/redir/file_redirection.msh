@@ -7,6 +7,7 @@
 //    1	test-dir
 //   stderr:
 //    error
+//    o
 
 echo before
 echo test-dir > working-dir
@@ -15,3 +16,5 @@ ls /error-dont-exist &>&1
 echo after
 
 cat -n < working-dir
+echo o > working-dir
+cat < working-dir >&2
