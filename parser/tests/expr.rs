@@ -731,10 +731,7 @@ fn classic_call_no_regression() {
                 literal(source.source, "1..=9"),
                 Expr::TemplateString(TemplateString {
                     parts: vec![
-                        Expr::Literal(Literal {
-                            parsed: true.into(),
-                            segment: find_in(source.source, "true")
-                        }),
+                        literal(source.source, "true"),
                         Expr::VarReference(VarReference {
                             name: VarName::User("a"),
                             segment: find_in(source.source, "$a")

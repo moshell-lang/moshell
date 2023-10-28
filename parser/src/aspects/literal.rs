@@ -4,14 +4,14 @@ use ast::range::{FilePattern, Iterable};
 use ast::value::{Literal, LiteralValue, TemplateString};
 use ast::variable::{Tilde, TildeExpansion};
 use ast::*;
-use context::source::{try_join_str, SourceSegmentHolder};
+use context::source::SourceSegmentHolder;
 use lexer::token::Token;
 use lexer::token::TokenType::*;
 use lexer::unescape;
 
 use crate::aspects::substitution::SubstitutionAspect;
 use crate::err::ParseErrorKind;
-use crate::moves::{eox, next, of_type, of_types, spaces, MoveOperations};
+use crate::moves::{next, of_type, of_types, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 /// Describes if a literal should be parsed strictly or leniently.
@@ -54,7 +54,7 @@ pub(crate) trait LiteralAspect<'a> {
     /// Parse a raw argument.
     ///
     /// Arguments are not quoted and are separated by spaces.
-    fn argument(&mut self, leniency: LiteralLeniency) -> ParseResult<Expr<'a>>;
+    fn argument(&mut self) -> ParseResult<Expr<'a>>;
 }
 
 impl<'a> LiteralAspect<'a> for Parser<'a> {
@@ -80,7 +80,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 )
             }
 
-            _ if leniency == LiteralLeniency::Lenient => self.argument(leniency),
+            _ if leniency == LiteralLeniency::Lenient => self.argument(),
             IntLiteral | FloatLiteral => self.number_literal().map(Expr::Literal),
             Dollar => self.substitution(),
             Identifier
@@ -206,172 +206,133 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
     ///
     /// An argument is usually a single identifier, but can also be
     /// composed of multiple tokens if not separated with a space.
-    fn argument(&mut self, leniency: LiteralLeniency) -> ParseResult<Expr<'a>> {
-        let current = self.cursor.peek();
-        let mut end = self.cursor.relative_pos(current.value).end;
-        let mut parts = Vec::new();
-        let mut builder = String::new();
-        let mut lexeme = current.value;
-        let mut non_string: Option<Token> = None;
-        let mut is_tilde = false;
+    fn argument(&mut self) -> ParseResult<Expr<'a>> {
+        let start = self.cursor.peek();
+        let mut parts = Vec::<Expr>::new();
+        let mut wildcards = Vec::<usize>::new();
+        let mut end_segment = self.cursor.relative_pos(start.value);
 
-        //pushes current token then advance
-        macro_rules! append_current {
-            () => {
-                let token = self.cursor.next()?;
-                let value = token.value;
-                if matches!(token.token_type, IntLiteral | FloatLiteral | True | False) {
-                    non_string = Some(token);
-                }
-                builder.push_str(value);
-                if lexeme.is_empty() {
-                    lexeme = value;
-                } else if let Some(joined) = try_join_str(self.source.source, lexeme, value) {
-                    lexeme = joined;
-                } else {
-                    lexeme = value;
-                }
-                end = self.cursor.relative_pos(value).end;
-                ()
-            };
+        if self.cursor.advance(of_type(Tilde)).is_some() {
+            // Create the start of the tilde expansion, that may be completed later.
+            if let Some(plus) = self.cursor.advance(of_type(Plus)) {
+                parts.push(Expr::Tilde(TildeExpansion {
+                    structure: Tilde::WorkingDir,
+                    segment: end_segment.start..self.cursor.relative_pos_ctx(plus.value).end,
+                }));
+                end_segment = self.cursor.relative_pos(plus.value);
+            } else {
+                parts.push(Expr::Tilde(TildeExpansion {
+                    structure: Tilde::HomeDir(None),
+                    segment: end_segment.clone(),
+                }));
+            }
         }
 
-        match current.token_type {
-            Dollar => {
-                parts.push(self.substitution()?);
-                lexeme = "";
-            }
-            BackSlash => {
-                //never retain first backslash
-                self.cursor.next_opt();
-                //advance so we are not pointing to token after '\'
-                //will append the escaped value (token after the backslash)
-                append_current!();
-            }
-            Tilde => {
-                self.cursor.next_opt();
-                if let Some(plus) = self.cursor.advance(of_type(Plus)) {
-                    parts.push(Expr::Tilde(TildeExpansion {
-                        structure: Tilde::WorkingDir,
-                        segment: self.cursor.relative_pos_ctx(lexeme..plus.value),
-                    }));
-                    end = parts.last().unwrap().segment().end;
-                } else if self
-                    .cursor
-                    .lookahead(eox().or(spaces()).or(of_type(Slash)))
-                    .is_some()
-                {
-                    parts.push(Expr::Tilde(TildeExpansion {
-                        structure: Tilde::HomeDir(None),
-                        segment: self.cursor.relative_pos(current.value),
-                    }));
-                    end = parts.last().unwrap().segment().end;
-                } else {
-                    is_tilde = true;
-                }
-                lexeme = "";
-            }
-            _ => {
-                append_current!();
-            }
-        };
-
-        while !self.cursor.is_at_end() {
+        loop {
             let token = self.cursor.peek();
-            let pivot = token.token_type;
-            match pivot {
-                Space | NewLine => break,
-                Slash if is_tilde => {
-                    let value = self.literal_or_wildcard(
-                        std::mem::take(&mut builder),
-                        lexeme,
-                        non_string.take(),
-                    )?;
-                    let segment =
-                        self.cursor.relative_pos_ctx(current.value).start..value.segment().end;
-                    parts.push(Expr::Tilde(TildeExpansion {
-                        structure: Tilde::HomeDir(Some(Box::new(value))),
-                        segment,
-                    }));
-                    self.cursor.next()?;
-                    lexeme = token.value;
-                    builder.push_str(token.value);
-                    is_tilde = false;
-                }
-
-                BackSlash => {
-                    //never retain first backslash
-                    self.cursor.next()?;
-                }
-
+            match token.token_type {
+                Space | NewLine | EndOfFile => break,
                 Dollar => {
-                    if !builder.is_empty() {
-                        parts.push(self.literal_or_wildcard(
-                            builder.clone(),
-                            lexeme,
-                            non_string.take(),
-                        )?);
-                        builder.clear();
-                    }
                     let substitution = self.substitution()?;
-                    end = substitution.segment().end;
+                    end_segment = substitution.segment();
                     parts.push(substitution);
                 }
-                StringLiteral => {
-                    if !builder.is_empty() {
-                        parts.push(self.literal_or_wildcard(
-                            builder.clone(),
-                            lexeme,
-                            non_string.take(),
-                        )?);
-                        builder.clear();
-                    }
-                    let literal = self.string_literal()?;
-                    end = literal.segment.end;
-                    parts.push(Expr::Literal(literal));
-                }
                 StringStart => {
-                    if !builder.is_empty() {
-                        parts.push(self.literal_or_wildcard(
-                            builder.clone(),
-                            lexeme,
-                            non_string.take(),
-                        )?);
-                        builder.clear();
-                    }
                     let template = self.templated_string_literal()?;
-                    end = template.segment.end;
+                    end_segment = template.segment();
                     parts.extend(template.parts);
                 }
-                _ if leniency == LiteralLeniency::Strict && pivot.is_extended_ponctuation() => {
-                    break
+                StringLiteral => {
+                    let literal = self.string_literal()?;
+                    end_segment = literal.segment();
+                    parts.push(Expr::Literal(literal));
                 }
-                _ if pivot.is_ponctuation() | pivot.is_identifier_bound() => break,
                 _ => {
-                    append_current!();
+                    if token.token_type.is_ponctuation() {
+                        break;
+                    }
+                    self.cursor.next_opt();
+                    end_segment = self.cursor.relative_pos(token.value);
+
+                    // Either append to the last literal, or create a new one.
+                    // The third case is when a tilde expansion is present and can be completed.
+                    match parts.last_mut() {
+                        Some(Expr::Literal(Literal {
+                            parsed: LiteralValue::String(ref mut s),
+                            segment,
+                        })) => {
+                            s.push_str(token.value);
+                            segment.end = end_segment.end;
+                        }
+                        Some(Expr::Tilde(TildeExpansion {
+                            structure: Tilde::HomeDir(ref mut user @ None),
+                            segment,
+                        })) if token.token_type != Slash => {
+                            *user = Some(Box::new(Expr::Literal(Literal {
+                                parsed: LiteralValue::String(token.value.to_owned()),
+                                segment: end_segment.clone(),
+                            })));
+                            segment.end = end_segment.end;
+                        }
+                        _ => {
+                            parts.push(Expr::Literal(Literal {
+                                parsed: LiteralValue::String(token.value.to_owned()),
+                                segment: end_segment.clone(),
+                            }));
+                        }
+                    }
+
+                    // Preserve the position of wildcards.
+                    if token.token_type == Star {
+                        match wildcards.last().copied() {
+                            Some(len) if len == parts.len() - 1 => {}
+                            _ => wildcards.push(parts.len() - 1),
+                        }
+                    }
                 }
             }
         }
 
-        if !builder.is_empty() {
-            let value =
-                self.literal_or_wildcard(std::mem::take(&mut builder), lexeme, non_string.take())?;
-            parts.push(if is_tilde {
-                Expr::Tilde(TildeExpansion {
-                    structure: Tilde::HomeDir(Some(Box::new(value))),
-                    segment: self.cursor.relative_pos_ctx(current.value..lexeme),
-                })
-            } else {
-                value
-            });
-        }
-        if parts.len() == 1 {
-            return Ok(parts.pop().unwrap());
+        // Replace wildcards with the appropriate expression.
+        for wildcard in wildcards {
+            let expr = parts.get_mut(wildcard).unwrap();
+            if let Expr::Literal(Literal {
+                parsed: LiteralValue::String(pattern),
+                segment,
+            }) = expr
+            {
+                *expr = Expr::Range(Iterable::Files(FilePattern {
+                    pattern: std::mem::take(pattern),
+                    segment: segment.clone(),
+                }));
+            }
         }
 
-        let start = self.cursor.relative_pos_ctx(current).start;
-        let segment = start..end;
-        Ok(Expr::TemplateString(TemplateString { parts, segment }))
+        let start_segment = self.cursor.relative_pos(start.value);
+        Ok(if parts.len() == 1 {
+            // Reduce nesting if there is only one part.
+            if start_segment == end_segment {
+                // If the argument is a single token, it may be a numeric or a boolean literal.
+                Expr::Literal(Literal {
+                    parsed: match start.token_type {
+                        True => LiteralValue::Bool(true),
+                        False => LiteralValue::Bool(false),
+                        IntLiteral | FloatLiteral => self.parse_number_value(start)?,
+                        _ => {
+                            return Ok(parts.pop().unwrap());
+                        }
+                    },
+                    segment: start_segment,
+                })
+            } else {
+                parts.pop().unwrap()
+            }
+        } else {
+            Expr::TemplateString(TemplateString {
+                parts,
+                segment: start_segment.start..end_segment.end,
+            })
+        })
     }
 }
 
@@ -418,38 +379,6 @@ impl<'a> Parser<'a> {
             )?)),
             _ => self.expected("Expected a literal.", ParseErrorKind::Unexpected),
         }
-    }
-
-    fn literal_or_wildcard(
-        &self,
-        read: String,
-        lexeme: &'a str,
-        numeric: Option<Token>,
-    ) -> ParseResult<Expr<'a>> {
-        let segment = self.cursor.relative_pos(lexeme);
-        if let Some(token) = numeric {
-            if token.value == read {
-                return Ok(Expr::Literal(Literal {
-                    parsed: match token.token_type {
-                        True => LiteralValue::Bool(true),
-                        False => LiteralValue::Bool(false),
-                        _ => self.parse_number_value(token)?,
-                    },
-                    segment,
-                }));
-            }
-        }
-        Ok(if read.contains('*') {
-            Expr::Range(Iterable::Files(FilePattern {
-                pattern: read,
-                segment,
-            }))
-        } else {
-            Expr::Literal(Literal {
-                parsed: LiteralValue::String(read),
-                segment,
-            })
-        })
     }
 }
 
@@ -646,6 +575,21 @@ mod tests {
                 structure: Tilde::HomeDir(Some(Box::new(literal(source.source, "test")))),
                 segment: source.segment()
             })
+        );
+    }
+
+    #[test]
+    fn argument_wildcard() {
+        let source = Source::unknown("foo*");
+        let parsed = Parser::new(source)
+            .literal(LiteralLeniency::Lenient)
+            .expect("Failed to parse.");
+        assert_eq!(
+            parsed,
+            Expr::Range(Iterable::Files(FilePattern {
+                pattern: "foo*".into(),
+                segment: source.segment()
+            }))
         );
     }
 }
