@@ -273,18 +273,20 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                     && !symbol_name.is_qualified()
                     && is_magic_variable_name(symbol_name.root())
                 {
-                    let mut script_env = self.engine.get_environment(origin).unwrap();
                     let mut script_id = origin;
+                    let declared_pargs = loop {
+                        let script_env = self.engine.get_environment(script_id).unwrap();
+                        if let Some(declared_pargs) = script_env
+                            .symbols
+                            .find_magic(MagicSymbolKind::ProgramArguments)
+                        {
+                            break declared_pargs;
+                        }
 
-                    while let Some(parent) = script_env.parent {
-                        script_env = self.engine.get_environment(parent).unwrap();
-                        script_id = parent;
-                    }
-
-                    let declared_pargs = script_env
-                        .symbols
-                        .find_magic(MagicSymbolKind::ProgramArguments)
-                        .expect("collect phase did not implicitly declared pargs magic variable");
+                        script_id = script_env
+                            .parent
+                            .expect("No implicit program arguments has been declared");
+                    };
 
                     let resolved =
                         ResolvedSymbol::new(self.externals.current, script_id, declared_pargs);
