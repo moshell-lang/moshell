@@ -235,7 +235,16 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 Dollar => {
                     let substitution = self.substitution()?;
                     end_segment = substitution.segment();
-                    parts.push(substitution);
+                    match parts.last_mut() {
+                        Some(Expr::Tilde(TildeExpansion {
+                            structure: Tilde::HomeDir(ref mut user @ None),
+                            segment,
+                        })) => {
+                            *user = Some(Box::new(substitution));
+                            segment.end = end_segment.end;
+                        }
+                        _ => parts.push(substitution),
+                    }
                 }
                 StringStart => {
                     let template = self.templated_string_literal()?;
@@ -573,6 +582,32 @@ mod tests {
             parsed,
             Expr::Tilde(TildeExpansion {
                 structure: Tilde::HomeDir(Some(Box::new(literal(source.source, "test")))),
+                segment: source.segment()
+            })
+        );
+    }
+
+    #[test]
+    fn user_home_variable() {
+        let source = Source::unknown("~${foo}bar");
+        let parsed = Parser::new(source)
+            .literal(LiteralLeniency::Lenient)
+            .expect("Failed to parse.");
+        assert_eq!(
+            parsed,
+            Expr::TemplateString(TemplateString {
+                parts: vec![
+                    Expr::Tilde(TildeExpansion {
+                        structure: Tilde::HomeDir(Some(Box::new(Expr::VarReference(
+                            VarReference {
+                                name: VarName::User("foo"),
+                                segment: find_in(source.source, "${foo}")
+                            }
+                        )))),
+                        segment: find_in(source.source, "~${foo}")
+                    }),
+                    literal(source.source, "bar")
+                ],
                 segment: source.segment()
             })
         );
