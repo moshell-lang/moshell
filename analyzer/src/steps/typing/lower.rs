@@ -5,9 +5,10 @@ use crate::relations::SourceId;
 use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::exploration::Exploration;
 use crate::steps::typing::view::TypeView;
+use crate::types::builtin::GENERIC_PARAMETER_1;
 use crate::types::hir::{ExprKind, MethodCall, TypedExpr};
-use crate::types::ty::TypeRef;
-use crate::types::{BOOL, FLOAT, STRING};
+use crate::types::ty::{Type, TypeRef};
+use crate::types::{BOOL, FLOAT, GENERIC_OPTION, STRING};
 
 pub fn get_converter(ty: TypeRef) -> Option<&'static str> {
     Some(match ty {
@@ -104,4 +105,28 @@ pub(super) fn call_convert_on(
         )),
     );
     expr
+}
+
+/// Generates a conversion method call if needed.
+pub(super) fn generate_unwrap(typed: TypedExpr, exploration: &Exploration) -> TypedExpr {
+    let Some(Type::Instantiated(instantiated, parameters)) = exploration.get_type(typed.ty) else {
+        return typed;
+    };
+    if *instantiated != GENERIC_OPTION {
+        return typed;
+    }
+    let return_type = *parameters.first().unwrap();
+    let segment = typed.segment.clone();
+    TypedExpr {
+        kind: ExprKind::MethodCall(MethodCall {
+            callee: Box::new(typed),
+            arguments: vec![],
+            function_id: exploration
+                .get_method_exact(*instantiated, "unwrap", &[], GENERIC_PARAMETER_1)
+                .expect("Option should have an `unwrap` method.")
+                .1,
+        }),
+        ty: return_type,
+        segment,
+    }
 }

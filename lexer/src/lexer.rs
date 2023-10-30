@@ -140,6 +140,7 @@ impl<'a> Lexer<'a> {
                 TokenType::CurlyRightBracket
             }
             '@' => TokenType::At,
+            '~' => TokenType::Tilde,
             '$' => {
                 self.state = LexerState::Variable;
                 TokenType::Dollar

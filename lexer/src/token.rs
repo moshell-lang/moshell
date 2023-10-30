@@ -104,6 +104,8 @@ pub enum TokenType {
     SemiColon,
     #[assoc(str = "=")]
     Equal,
+    #[assoc(str = "~")]
+    Tilde,
     #[assoc(str = "$")]
     Dollar,
     #[assoc(str = "&")]
@@ -221,11 +223,6 @@ impl TokenType {
     /// Tests if this token is a prefix operator.
     pub fn is_prefix_operator(self) -> bool {
         matches!(self, Not | Minus)
-    }
-
-    ///is this lexeme a lexeme that cannot fusion with other glued tokens
-    pub fn is_identifier_bound(self) -> bool {
-        matches!(self, NewLine | SemiColon | Less | Bar | Greater | And | Or)
     }
 
     /// Tests if this token marks the end of a call statement's arguments.

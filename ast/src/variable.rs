@@ -121,3 +121,16 @@ impl Assign<'_> {
         }
     }
 }
+
+/// An expansion of an expression related to directories.
+#[segment_holder]
+#[derive(Debug, Clone, PartialEq, DebugPls)]
+pub struct TildeExpansion<'a> {
+    pub structure: Tilde<'a>,
+}
+
+#[derive(Debug, Clone, PartialEq, DebugPls)]
+pub enum Tilde<'a> {
+    HomeDir(Option<Box<Expr<'a>>>),
+    WorkingDir,
+}

@@ -44,3 +44,21 @@ fun some[A](v: A) -> Option[A];
 /// Instantiate a None option
 // TODO make Option's generic parameter (`A`) covariant to return an Option[Nothing]
 fun none[A]() -> Option[A];
+
+/// Changes the current working directory to a relative or an absolute path.
+///
+/// @panics if the path is not accessible or is not a directory.
+fun cd(path: String);
+
+/// Gets the current working directory.
+///
+/// @panics if the current working directory does not exist.
+fun working_dir() -> String;
+
+/// Gets the home directory of the user.
+fun home_dir(username: String) -> Option[String];
+
+/// Gets the home directory of the current user.
+///
+/// @panics if the current user does not have a home directory specified.
+fun current_home_dir() -> String;

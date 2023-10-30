@@ -12,8 +12,8 @@ use ast::range::{Iterable, Subscript};
 use ast::substitution::{Substitution, SubstitutionKind};
 use ast::value::{Literal, TemplateString};
 use ast::variable::{
-    Assign, AssignOperator, Identifier, TypedVariable, VarDeclaration, VarKind, VarName,
-    VarReference,
+    Assign, AssignOperator, Identifier, Tilde, TildeExpansion, TypedVariable, VarDeclaration,
+    VarKind, VarName, VarReference,
 };
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
@@ -381,6 +381,55 @@ fn pipe_to_command() {
                 Expr::Call(Call {
                     arguments: vec![literal(source.source, "cat")],
                 }),
+            ],
+        })]
+    );
+}
+
+#[test]
+fn tilde_executable() {
+    let source = Source::unknown("~/.local/bin/ls ~+/~ ~user/bar");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(
+        parsed,
+        vec![Expr::Call(Call {
+            arguments: vec![
+                Expr::TemplateString(TemplateString {
+                    parts: vec![
+                        Expr::Tilde(TildeExpansion {
+                            structure: Tilde::HomeDir(None),
+                            segment: find_in(source.source, "~"),
+                        }),
+                        Expr::Literal(Literal {
+                            parsed: "/.local/bin/ls".into(),
+                            segment: find_in(source.source, "/.local/bin/ls"),
+                        }),
+                    ],
+                    segment: find_in(source.source, "~/.local/bin/ls"),
+                }),
+                Expr::TemplateString(TemplateString {
+                    parts: vec![
+                        Expr::Tilde(TildeExpansion {
+                            structure: Tilde::WorkingDir,
+                            segment: find_in(source.source, "~+"),
+                        }),
+                        literal(source.source, "/~"),
+                    ],
+                    segment: find_in(source.source, "~+/~"),
+                }),
+                Expr::TemplateString(TemplateString {
+                    parts: vec![
+                        Expr::Tilde(TildeExpansion {
+                            structure: Tilde::HomeDir(Some(Box::new(literal(
+                                source.source,
+                                "user"
+                            )))),
+                            segment: find_in(source.source, "~user"),
+                        }),
+                        literal(source.source, "/bar"),
+                    ],
+                    segment: find_in(source.source, "~user/bar"),
+                })
             ],
         })]
     );
