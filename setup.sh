@@ -3,21 +3,35 @@
 
 set -eu
 
-if ! [ "$(uname -m)" = "x86_64" ]; then
-  echo "Unsupported $(uname -m) architecture" >&2
-  exit 1
-fi
 case "$(uname -s)" in
   Linux)
-    TARGET=x86_64-linux-gnu
+    OS=linux-gnu
     LIBS_PATH=~/.local/share/moshell
     ;;
   Darwin)
-    TARGET=x86_64-apple-darwin
+    OS=apple-darwin
     LIBS_PATH=~/Library/Application\ Support/moshell
     ;;
   *)
     echo "Unsupported $(uname -s) OS" >&2
+    exit 1
+    ;;
+esac
+
+case "$(uname -m)" in
+  x86_64)
+    TARGET="x86_64-$OS"
+    ;;
+  arm64)
+    if [ "$OS" = "apple-darwin" ]; then
+      TARGET=aarch64-apple-darwin
+    else
+      echo "Unsupported $(uname -m) architecture" >&2
+      exit 1
+    fi
+    ;;
+  *)
+    echo "Unsupported $(uname -m) architecture" >&2
     exit 1
     ;;
 esac
