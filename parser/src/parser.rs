@@ -316,7 +316,7 @@ impl<'a> Parser<'a> {
 
             _ => self.expression(),
         }?;
-        self.expand_member_chain(expr)
+        Ok(expr)
     }
 
     /// Parses the left-hand side of the next value.

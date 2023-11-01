@@ -539,3 +539,17 @@ fn quotes_are_delimiters() {
         }]
     );
 }
+
+#[test]
+fn call_number() {
+    let source = Source::unknown("echo 7()");
+    let report = parse(source);
+    assert_eq!(
+        report.errors,
+        vec![ParseError {
+            message: "expected end of expression or file".to_owned(),
+            position: source.source.find('(').map(|p| p..p + 1).unwrap(),
+            kind: ParseErrorKind::Unexpected,
+        }]
+    );
+}
