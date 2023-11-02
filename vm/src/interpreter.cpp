@@ -745,9 +745,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             break;
         }
         case OP_DUP: {
-            int64_t value = operands.pop_int();
-            operands.push_int(value);
-            operands.push_int(value);
+            operands.dup_qword();
             break;
         }
         case OP_DUP_BYTE: {
@@ -757,20 +755,11 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             break;
         }
         case OP_SWAP: {
-            int64_t a = operands.pop_int();
-            int64_t b = operands.pop_int();
-            operands.push_int(a);
-            operands.push_int(b);
+            operands.swap_upper_qwords();
             break;
         }
         case OP_SWAP_2: {
-            int64_t a = operands.pop_int();
-            int64_t b = operands.pop_int();
-            int64_t c = operands.pop_int();
-
-            operands.push_int(b);
-            operands.push_int(a);
-            operands.push_int(c);
+            operands.swap_upper_three_qwords();
             break;
         }
         case OP_POP_BYTE: {

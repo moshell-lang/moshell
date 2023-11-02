@@ -166,8 +166,9 @@ static void parse_int_radix(OperandStack &caller_stack, runtime_memory &mem) {
 }
 
 static void str_split(OperandStack &caller_stack, runtime_memory &mem) {
-    const std::string &delim = caller_stack.pop_reference().get<const std::string>();
-    const std::string &str = caller_stack.pop_reference().get<const std::string>();
+    msh::native_procedure<msh::obj *> procedure(caller_stack);
+    const std::string &delim = procedure.pop_reference().get<const std::string>();
+    const std::string &str = procedure.pop_reference().get<const std::string>();
 
     msh::obj &res_obj = mem.emplace(msh::obj_vector());
     caller_stack.push_reference(res_obj);
@@ -188,7 +189,8 @@ static void str_split(OperandStack &caller_stack, runtime_memory &mem) {
 }
 
 static void str_bytes(OperandStack &caller_stack, runtime_memory &mem) {
-    const std::string &str = caller_stack.pop_reference().get<const std::string>();
+    msh::native_procedure<msh::obj *> procedure(caller_stack);
+    const std::string &str = procedure.pop_reference().get<const std::string>();
     msh::obj_vector res;
     res.reserve(str.length());
 
