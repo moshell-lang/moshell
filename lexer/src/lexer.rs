@@ -235,7 +235,7 @@ impl<'a> Lexer<'a> {
         if let Some((_, c)) = self.iter.next() {
             start_pos += 1;
             match c {
-                c if c.is_whitespace() => self.next_space(start_pos, c),
+                '\r' | '\n' => self.next_space(start_pos, c),
                 _ => Token::new(
                     TokenType::Identifier,
                     &self.input[start_pos..start_pos + c.len_utf8()],

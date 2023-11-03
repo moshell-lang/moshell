@@ -38,7 +38,7 @@ pub fn unescape(input: &str) -> String {
                 '\\' => output.push('\\'),
                 '"' => output.push('"'),
                 '\'' => output.push('\''),
-                _ => output.push(c),
+                c => output.push(c),
             }
         } else {
             output.push(c);

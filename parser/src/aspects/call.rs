@@ -328,6 +328,26 @@ mod tests {
     }
 
     #[test]
+    fn call_space() {
+        let source = Source::unknown(r"a\ b c\ d");
+        assert_eq!(
+            Parser::new(source).parse_next(),
+            Ok(Expr::Call(Call {
+                arguments: vec![
+                    Expr::Literal(Literal {
+                        parsed: "a b".into(),
+                        segment: find_in(source.source, "a\\ b")
+                    }),
+                    Expr::Literal(Literal {
+                        parsed: "c d".into(),
+                        segment: find_in(source.source, "c\\ d")
+                    })
+                ],
+            }))
+        );
+    }
+
+    #[test]
     fn not_in_call_is_literal() {
         let content = "echo how ! how are you !";
         let result = parse(Source::unknown(content)).expect("Failed to parse");

@@ -313,6 +313,7 @@ impl TokenType {
                 | StringLiteral
                 | StringContent
                 | StringEnd
+                | Identifier
                 | NewLine
                 | SemiColon
                 | Dollar

@@ -554,6 +554,19 @@ mod tests {
     }
 
     #[test]
+    fn non_standard_escape() {
+        let source = Source::unknown(r"'a\ b'");
+        let parsed = Parser::new(source).expression().expect("Failed to parse.");
+        assert_eq!(
+            parsed,
+            Expr::Literal(Literal {
+                parsed: "a b".into(),
+                segment: source.segment()
+            })
+        );
+    }
+
+    #[test]
     fn url_placeholder() {
         let source = Source::unknown("\"http://localhost:$NGINX_PORT\"");
         let parsed = Parser::new(source).expression().expect("Failed to parse.");
