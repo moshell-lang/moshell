@@ -52,9 +52,6 @@ jobs:
         with:
           target: ${{ matrix.target }}
 
-      - name: Remove C++ concepts
-        run: find vm/src \( -name '*.cpp' -o -name '*.h' \) -exec sed -i -e '/\s*requires/d' {} +
-
       - name: Build
         run: |
           SDKROOT=$(xcrun -sdk macosx --show-sdk-path) MACOSX_DEPLOYMENT_TARGET=$(xcrun -sdk macosx --show-sdk-platform-version) cargo build --release --target ${{ matrix.target }}
