@@ -22,7 +22,7 @@ public:
 
 class OperandStack {
 private:
-    char *const bytes;
+    std::byte *bytes;
     size_t &current_pos;
     const size_t stack_capacity;
     std::vector<bool> &operands_refs;
@@ -30,7 +30,7 @@ private:
     friend msh::gc;
 
 public:
-    explicit OperandStack(char *const buff, size_t &initial_pos, size_t stack_capacity, std::vector<bool> &operands_refs);
+    OperandStack(char *buff, size_t &initial_pos, size_t stack_capacity, std::vector<bool> &operands_refs);
 
     /**
      * @return the size in bytes of the operand stack
@@ -92,7 +92,7 @@ public:
      * pops `n` bytes
      * @throws OperandStackUnderflowError if the operand stack does not have enough bytes to pop
      */
-    const char *pop_bytes(size_t n);
+    const std::byte *pop_bytes(size_t n);
 
     /**
      * transfer to this operand stack the n first bytes of the given caller stack.
@@ -103,7 +103,29 @@ public:
      * */
     void transfer(OperandStack &callee_stack, size_t n);
 
-    void push(const char *bytes, size_t size);
+    /**
+     * Copies `size` bytes from the `src` position to the `dest` position.
+     *
+     * @param dest destination position to copy to
+     * @param src source position to start the copy from
+     * @param size amount of bytes to copy
+     */
+    void memmove(size_t dest, size_t src, size_t size);
+
+    /**
+     * Duplicates the quad-word on the top of the stack.
+     */
+    void dup_qword();
+
+    /**
+     * Swaps the two quad-words on the top of the stack.
+     */
+    void swap_upper_qwords();
+
+    /**
+     * Swaps the three quad-words on the top of the stack.
+     */
+    void swap_upper_three_qwords();
 
     template <typename T>
     void push(T t) {
@@ -126,4 +148,40 @@ public:
     T pop() {
         return *(T *)pop_bytes(sizeof(T));
     }
+
+    template <typename T>
+    T peek(size_t offset = 0) {
+        return *(T *)(bytes + current_pos - offset);
+    }
 };
+
+namespace msh {
+    /**
+     * RAII class to safely peek multiple values from the operand stack without compromising the reachability of the popped values.
+     *
+     * @tparam T the return type of the native procedure
+     */
+    template <typename T>
+        requires std::is_same_v<T, std::byte> || std::is_same_v<T, int64_t> || std::is_same_v<T, double> || std::is_same_v<T, msh::obj *>
+    class native_procedure {
+        OperandStack &caller_stack;
+        size_t offset{};
+
+    public:
+        explicit native_procedure(OperandStack &caller_stack)
+            : caller_stack{caller_stack} {}
+
+        msh::obj &pop_reference() {
+            offset += sizeof(uint64_t);
+            return *caller_stack.peek<msh::obj *>(offset);
+        }
+
+        ~native_procedure() {
+            size_t size = sizeof(T);
+            if constexpr (std::is_reference_v<T> || std::is_pointer_v<T>) {
+                size = sizeof(uint64_t);
+            }
+            caller_stack.memmove(caller_stack.size() - offset, caller_stack.size() - size, size);
+        }
+    };
+}
