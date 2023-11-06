@@ -53,6 +53,7 @@ pub const FLOAT: TypeRef = TypeRef::new(LANG_REEF, TypeId(6));
 pub const STRING: TypeRef = TypeRef::new(LANG_REEF, TypeId(7));
 pub const GENERIC_VECTOR: TypeRef = TypeRef::new(LANG_REEF, TypeId(8));
 pub const GENERIC_OPTION: TypeRef = TypeRef::new(LANG_REEF, TypeId(9));
+pub const GLOB: TypeRef = TypeRef::new(LANG_REEF, TypeId(10));
 
 /// An error that occurs when two types are not compatible.
 #[derive(Debug, PartialEq)]

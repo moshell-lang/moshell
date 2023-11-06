@@ -9,8 +9,8 @@ use crate::types::engine::TypedEngine;
 use crate::types::operator::name_operator_method;
 use crate::types::ty::{MethodType, Type, TypeId, TypeRef};
 use crate::types::{
-    Typing, BOOL, ERROR, EXITCODE, FLOAT, GENERIC_OPTION, GENERIC_VECTOR, INT, NOTHING, STRING,
-    UNIT,
+    Typing, BOOL, ERROR, EXITCODE, FLOAT, GENERIC_OPTION, GENERIC_VECTOR, GLOB, INT, NOTHING,
+    STRING, UNIT,
 };
 
 const ARITHMETIC_OPERATORS: &[BinaryOperator] = &[
@@ -33,12 +33,12 @@ const EQUALITY_OPERATORS: &[BinaryOperator] =
 const LOGICAL_OPERATORS: &[BinaryOperator] = &[BinaryOperator::And, BinaryOperator::Or];
 
 /// Some common types.
-pub const STRING_VEC: TypeRef = TypeRef::new(LANG_REEF, TypeId(10));
-pub const INT_VEC: TypeRef = TypeRef::new(LANG_REEF, TypeId(11));
+pub const STRING_VEC: TypeRef = TypeRef::new(LANG_REEF, TypeId(11));
+pub const INT_VEC: TypeRef = TypeRef::new(LANG_REEF, TypeId(12));
 
 /// generic parameters used by the lang reef.
 /// The lang reef is a special reef that reuses the same generic parameters for each functions.
-pub const GENERIC_PARAMETER_1: TypeRef = TypeRef::new(LANG_REEF, TypeId(12));
+pub const GENERIC_PARAMETER_1: TypeRef = TypeRef::new(LANG_REEF, TypeId(13));
 
 /// Adds the native methods to the engine.
 fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
@@ -207,6 +207,12 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
         "pop_head",
         MethodType::new(vec![], vec![], TypeRef::new(LANG_REEF, opt_type)),
     );
+
+    engine.add_method(
+        GLOB.type_id,
+        "spread",
+        MethodType::new(vec![], vec![], STRING_VEC),
+    );
 }
 
 fn fill_lang_types(typing: &mut Typing) {
@@ -221,6 +227,7 @@ fn fill_lang_types(typing: &mut Typing) {
         (Type::String, Some("String")),
         (Type::Vector, Some("Vec")),
         (Type::Option, Some("Option")),
+        (Type::Glob, Some("Glob")),
         (Type::Instantiated(GENERIC_VECTOR, vec![STRING]), None),
         (Type::Instantiated(GENERIC_VECTOR, vec![INT]), None),
     ] {

@@ -86,6 +86,9 @@ pub enum Type {
     /// A nullable type, that can be either `null` or a value of a given type.
     Option,
 
+    /// An expandable pattern.
+    Glob,
+
     /// A generic type, that can be instantiated with concrete type parameters.
     Polytype,
 

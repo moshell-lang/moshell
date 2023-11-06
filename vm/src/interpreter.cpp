@@ -48,7 +48,7 @@ enum Opcode {
 
     OP_INVOKE,         // with 4 byte function ref string in constant pool, pops parameters from operands then pushes invoked function return in operand stack (if non-void)
     OP_FORK,           // forks a new process, pushes the pid onto the operand stack of the parent and jumps to the given address in the parent
-    OP_EXEC,           // with 1 byte for the number of arguments, pops the arguments and replaces the current program
+    OP_EXEC,           // pops the arguments array and replaces the current program
     OP_WAIT,           // pops a pid from the operand stack and waits for it to finish
     OP_OPEN,           // opens a file with the name popped from the stack, pushes the file descriptor onto the operand stack
     OP_CLOSE,          // pops a file descriptor from the operand stack and closes the file
@@ -492,24 +492,17 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
         }
         case OP_EXEC: {
             // Read the 1 byte stack size
-            int frame_size = static_cast<int>(instructions[ip]);
-            ip++;
+            const msh::obj_vector &args = operands.pop_reference().get<msh::obj_vector>();
 
             // Create argv of the given frame_size, and create a new string for each arg with a null byte after each string
-            std::vector<std::unique_ptr<char[]>> argv(frame_size + 1);
-            for (int i = frame_size - 1; i >= 0; i--) {
-                // Pop the string reference
-                const std::string &arg = operands.pop_reference().get<const std::string>();
-                size_t arg_length = arg.length() + 1; // add 1 for the trailing '\0' char
-                // Allocate the string
-                argv[i] = std::make_unique<char[]>(arg_length);
-                // copy the string data
-                memcpy(argv[i].get(), arg.c_str(), arg_length);
-            }
+            std::vector<const char *> argv(args.size() + 1);
+            std::transform(args.begin(), args.end(), argv.begin(), [](const msh::obj *arg) {
+                return arg->get<const std::string>().c_str();
+            });
 
             // Replace the current process with a new process image
-            if (execvp(argv[0].get(), reinterpret_cast<char *const *>(argv.data())) == -1) {
-                std::string command = argv[0].get();
+            if (execvp(argv[0], const_cast<char *const *>(argv.data())) == -1) {
+                std::string command = argv[0];
                 panic("Unable to execute command \"" + command + "\": " + std::string(strerror(errno)), call_stack);
                 return frame_status::ABORT;
             }
