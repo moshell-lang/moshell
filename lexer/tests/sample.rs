@@ -238,7 +238,7 @@ fn numbers() {
 
 #[test]
 fn multiline_comments() {
-    let tokens = lex("ls/*\n * This is a comment\n*/exit");
+    let tokens = lex("ls//*\n * This is a comment\n*/exit");
     assert_eq!(
         tokens,
         vec![

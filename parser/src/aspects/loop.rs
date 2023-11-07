@@ -1,5 +1,4 @@
 use ast::control_flow::{ConditionalFor, For, ForKind, Loop, RangeFor, While};
-use ast::range::FilePattern;
 use context::source::SourceSegmentHolder;
 use lexer::token::{Token, TokenType};
 
@@ -209,19 +208,6 @@ impl<'a> Parser<'a> {
                 ParseErrorKind::Unpaired(segment),
             )
         }
-    }
-
-    /// Parse a file pattern.
-    ///
-    /// For now, this is just a single wildcard star.
-    fn parse_files_pattern(&mut self) -> ParseResult<FilePattern> {
-        let lexme = self
-            .cursor
-            .force(of_type(TokenType::Star), "expected '*'")?;
-        Ok(FilePattern {
-            pattern: lexme.value.to_owned(),
-            segment: self.cursor.relative_pos_ctx(lexme),
-        })
     }
 }
 
@@ -490,7 +476,7 @@ mod tests {
                 kind: Box::new(ForKind::Range(RangeFor {
                     receiver: "f",
                     iterable: Expr::Range(Iterable::Files(FilePattern {
-                        pattern: "*".to_owned(),
+                        pattern: Box::new(literal(source.source, "'*'")),
                         segment: find_in(source.source, "p'*'")
                     })),
                     segment: find_in(source.source, "f in p'*'"),

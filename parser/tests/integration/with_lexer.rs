@@ -8,7 +8,7 @@ use ast::function::Return;
 use ast::group::{Block, Subshell};
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::r#use::InclusionPathItem;
-use ast::range::{Iterable, Subscript};
+use ast::range::{FilePattern, Iterable, Subscript};
 use ast::substitution::{Substitution, SubstitutionKind};
 use ast::value::{Literal, TemplateString};
 use ast::variable::{
@@ -726,6 +726,33 @@ fn call_subscript() {
                 parsed: 2.into(),
                 segment: find_in(source.source, "2"),
             })),
+        })]
+    );
+}
+
+#[test]
+fn argument_dir_wildcard() {
+    let source = Source::unknown("ls /tmp/$foo*");
+    assert_eq!(
+        parse(source).expect("Failed to parse"),
+        vec![Expr::Call(Call {
+            arguments: vec![
+                literal(source.source, "ls"),
+                Expr::Range(Iterable::Files(FilePattern {
+                    pattern: Box::new(Expr::TemplateString(TemplateString {
+                        parts: vec![
+                            literal(source.source, "/tmp/"),
+                            Expr::VarReference(VarReference {
+                                name: VarName::User("foo"),
+                                segment: find_in(source.source, "$foo"),
+                            }),
+                            literal(source.source, "*"),
+                        ],
+                        segment: find_in(source.source, "/tmp/$foo*"),
+                    })),
+                    segment: find_in(source.source, "/tmp/$foo*"),
+                })),
+            ],
         })]
     );
 }

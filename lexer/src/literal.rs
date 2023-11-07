@@ -31,6 +31,7 @@ pub(crate) fn is_not_identifier_part(c: char) -> bool {
             | ','
             | '.'
             | '='
+            | '?'
             | '!'
     ) || c.is_whitespace()
 }

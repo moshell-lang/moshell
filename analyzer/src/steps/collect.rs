@@ -543,7 +543,9 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                     self.tree_walk(state, &range.start, to_visit);
                     self.tree_walk(state, &range.end, to_visit);
                 }
-                Iterable::Files(_) => {}
+                Iterable::Files(pattern) => {
+                    self.tree_walk(state, &pattern.pattern, to_visit);
+                }
             },
             Expr::Subscript(sub) => {
                 self.tree_walk(state, &sub.target, to_visit);

@@ -917,13 +917,29 @@ fn ascribe_subscript(
     }
 }
 
-fn ascribe_range(range: &Iterable) -> TypedExpr {
+fn ascribe_range(
+    range: &Iterable,
+    exploration: &mut Exploration,
+    links: Links,
+    diagnostics: &mut Vec<Diagnostic>,
+    state: TypingState,
+) -> TypedExpr {
     match range {
-        Iterable::Files(files) => TypedExpr {
-            kind: ExprKind::Literal(LiteralValue::String(files.pattern.to_owned())),
-            ty: GLOB,
-            segment: range.segment(),
-        },
+        Iterable::Files(files) => {
+            let mut pattern = ascribe_types(
+                exploration,
+                links,
+                diagnostics,
+                &files.pattern,
+                state.with_local_value(ExpressionValue::Expected(STRING)),
+            );
+            if pattern.ty == STRING {
+                pattern.ty = GLOB;
+            } else if pattern.ty.is_ok() {
+                panic!("pattern should be of type String");
+            }
+            pattern
+        }
         r => todo!("ascribe range {r:?}"),
     }
 }
@@ -1437,7 +1453,7 @@ fn ascribe_types(
         Expr::Unary(unary) => ascribe_unary(unary, exploration, links, diagnostics, state),
         Expr::Binary(bo) => ascribe_binary(bo, exploration, links, diagnostics, state),
         Expr::Subscript(sub) => ascribe_subscript(sub, exploration, links, diagnostics, state),
-        Expr::Range(range) => ascribe_range(range),
+        Expr::Range(range) => ascribe_range(range, exploration, links, diagnostics, state),
         Expr::Tilde(tilde) => ascribe_tilde(tilde, exploration, links, diagnostics, state),
         Expr::Casted(casted) => ascribe_casted(casted, exploration, links, diagnostics, state),
         Expr::Test(test) => ascribe_types(exploration, links, diagnostics, &test.expression, state),
@@ -2722,5 +2738,12 @@ mod tests {
                     )),
             ]
         )
+    }
+
+    #[test]
+    fn string_glob() {
+        let content = "val files = p'systemd-*'; echo $files";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(res, Ok(Type::ExitCode));
     }
 }

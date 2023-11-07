@@ -80,7 +80,7 @@ pub fn emit_process_end(last: Option<&TypedExpr>, instructions: &mut Instruction
 }
 
 pub fn emit_process_call(
-    arguments: &Vec<TypedExpr>,
+    arguments: &[TypedExpr],
     instructions: &mut Instructions,
     ctx: &EmitterContext,
     cp: &mut ConstantPool,
@@ -107,7 +107,7 @@ pub fn emit_process_call(
 }
 
 fn emit_process_call_self(
-    arguments: &Vec<TypedExpr>,
+    arguments: &[TypedExpr],
     instructions: &mut Instructions,
     ctx: &EmitterContext,
     cp: &mut ConstantPool,
