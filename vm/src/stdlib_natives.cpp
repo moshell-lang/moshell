@@ -265,13 +265,15 @@ static void is_operands_empty(OperandStack &os, runtime_memory &) {
     os.push(os.size() == 0);
 }
 
-static void program_arguments(OperandStack &os, runtime_memory &mem) {
-    std::vector<std::string> &pargs = mem.program_arguments();
-    msh::obj_vector vec;
+static void program_arguments(OperandStack &caller_stack, runtime_memory &mem) {
+    const std::vector<std::string> &pargs = mem.program_arguments();
+    msh::obj &obj = mem.emplace(msh::obj_vector());
+    caller_stack.push_reference(obj);
+    msh::obj_vector &vec = obj.get<msh::obj_vector>();
+    vec.reserve(pargs.size());
     for (const std::string &arg : pargs) {
         vec.push_back(&mem.emplace(arg));
     }
-    os.push_reference(mem.emplace(vec));
 }
 
 natives_functions_t load_natives() {
