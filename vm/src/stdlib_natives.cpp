@@ -221,6 +221,10 @@ static void vec_pop(OperandStack &caller_stack, runtime_memory &) {
 
 static void vec_pop_head(OperandStack &caller_stack, runtime_memory &) {
     msh::obj_vector &vec = caller_stack.pop_reference().get<msh::obj_vector>();
+    if (vec.empty()) {
+        caller_stack.push(nullptr);
+        return;
+    }
     msh::obj *first_element = *vec.begin();
     vec.erase(vec.begin());
     caller_stack.push_reference(*first_element);
