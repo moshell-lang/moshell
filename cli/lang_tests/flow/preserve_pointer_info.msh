@@ -2,6 +2,7 @@
 //   status: success
 //   stdout:
 //     This-is-a-very-long-phrase-that-is-captured-by-the-shell-
+//     a
 
 val res = $(echo "This is a very long phrase that is captured by the shell").split(' ')
 var i = 0
@@ -9,3 +10,6 @@ while $i < $res.len() {
     echo -n "${res[$i]}-"
     $i += 1
 }
+
+val msg = 'a b'
+echo "\n${msg.split(' ')[0]}"

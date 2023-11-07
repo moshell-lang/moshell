@@ -181,7 +181,7 @@ namespace msh {
             if constexpr (std::is_reference_v<T> || std::is_pointer_v<T>) {
                 size = sizeof(uint64_t);
             }
-            caller_stack.memmove(caller_stack.size() - offset, caller_stack.size() - size, size);
+            caller_stack.memmove(caller_stack.size() - offset - size, caller_stack.size() - size, size);
         }
     };
 }
