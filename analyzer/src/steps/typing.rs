@@ -2545,6 +2545,31 @@ mod tests {
     }
 
     #[test]
+    fn incorrect_type_parameter_assign() {
+        let content = "fun id[T]() -> T; val j: Int = id[String]()";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                "Type mismatch",
+            )
+            .with_observation(Observation::here(
+                SourceId(0),
+                ReefId(1),
+                find_in(content, "Int"),
+                "Expected `Int`"
+            ))
+            .with_observation(Observation::here(
+                SourceId(0),
+                ReefId(1),
+                find_in(content, "id[String]()"),
+                "Found `String`"
+            ))])
+        );
+    }
+
+    #[test]
     fn fun_with_generic_args() {
         let content = "\
             fun push_into[A, B](v: A, vec: Vec[A], b: B) -> B = {

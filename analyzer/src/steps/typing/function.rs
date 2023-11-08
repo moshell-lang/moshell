@@ -645,6 +645,16 @@ fn build_bounds(
         }
     }
 
+    // Apply the user bound to the return type if it is a type parameter
+    if let Some(user_return) = function
+        .type_parameters
+        .iter()
+        .position(|t| *t == function.return_type)
+        .and_then(|idx| user_bounds.get(idx))
+    {
+        bounds.insert(function.return_type, *user_return);
+    }
+
     TypesBounds::new(bounds)
 }
 
