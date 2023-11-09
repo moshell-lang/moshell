@@ -2570,6 +2570,13 @@ mod tests {
     }
 
     #[test]
+    fn explicit_repeated_type_parameter() {
+        let source = Source::unknown("fun i[T, U](a: T, b: T) -> U; i[Int, String](4, 5)");
+        let res = extract_type(source);
+        assert_eq!(res, Ok(Type::String));
+    }
+
+    #[test]
     fn fun_with_generic_args() {
         let content = "\
             fun push_into[A, B](v: A, vec: Vec[A], b: B) -> B = {

@@ -629,8 +629,8 @@ fn build_bounds(
         }
     }
 
-    for (idx, type_param) in parameters_polytypes.iter().enumerate() {
-        let user_bound = user_bounds.get(idx).cloned();
+    for (idx, type_param) in function.type_parameters.iter().enumerate() {
+        let user_bound = user_bounds.get(idx).copied();
 
         // user has explicitly set a type bound
         if let Some(user_bound) = user_bound {
@@ -643,16 +643,6 @@ fn build_bounds(
                 bounds.insert(*type_param, *type_param);
             }
         }
-    }
-
-    // Apply the user bound to the return type if it is a type parameter
-    if let Some(user_return) = function
-        .type_parameters
-        .iter()
-        .position(|t| *t == function.return_type)
-        .and_then(|idx| user_bounds.get(idx))
-    {
-        bounds.insert(function.return_type, *user_return);
     }
 
     TypesBounds::new(bounds)
