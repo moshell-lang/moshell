@@ -152,8 +152,6 @@ pub enum TokenType {
     Star,
     #[assoc(str = "/")]
     Slash,
-    #[assoc(str = "\\")]
-    BackSlash,
     #[assoc(str = "%")]
     Percent,
 
@@ -331,7 +329,6 @@ impl TokenType {
                 | Minus
                 | Star
                 | Slash
-                | BackSlash
                 | Percent
                 | SquaredRightBracket
                 | RoundedRightBracket

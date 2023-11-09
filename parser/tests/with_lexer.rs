@@ -22,6 +22,13 @@ use parser::parse;
 use parser::source::{literal, literal_nth};
 
 #[test]
+fn backslash() {
+    let source = Source::unknown(r"\");
+    let parsed = parse(source).expect("Failed to parse");
+    assert_eq!(parsed, Vec::new());
+}
+
+#[test]
 fn with_lexer_variable() {
     let source = Source::unknown("var a = 'hello world!'");
     let parsed = parse(source).expect("Failed to parse");

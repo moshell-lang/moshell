@@ -18,7 +18,7 @@ pub fn lex(input: &str) -> (Vec<Token>, Vec<UnmatchedDelimiter>) {
 pub fn is_unterminated(input: &str) -> bool {
     let mut stream = TokenStream::new(input);
     for _ in stream.by_ref() {}
-    !stream.lexer.mismatches.is_empty()
+    (!stream.lexer.mismatches.is_empty() || input.ends_with('\\'))
         && stream
             .lexer
             .mismatches

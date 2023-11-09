@@ -242,7 +242,7 @@ impl<'a> Lexer<'a> {
                 ),
             }
         } else {
-            Token::new(TokenType::BackSlash, &self.input[start_pos..start_pos + 1])
+            Token::new(TokenType::EndOfFile, &self.input[start_pos..start_pos + 1])
         }
     }
 
