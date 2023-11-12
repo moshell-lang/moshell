@@ -75,7 +75,7 @@ moshell_array moshell_object_get_as_array(moshell_object o) {
     };
 }
 
-struct vm_state {
+struct moshell_vm_state {
     std::vector<std::string> program_args;
     msh::loader loader;
     msh::pager pager;
@@ -95,21 +95,20 @@ int moshell_exec(const char *bytes, size_t byte_count) {
 }
 
 moshell_vm moshell_vm_init(const char **pargs, size_t arg_count, const size_t *lens) {
-    vm_state *state = new vm_state();
-    state->natives = load_natives();
+    moshell_vm vm = new moshell_vm_state();
+    vm->natives = load_natives();
 
     for (size_t arg_idx = 0; arg_idx < arg_count; arg_idx++) {
         std::string arg(pargs[arg_idx], lens[arg_idx]);
-        state->program_args.push_back(std::move(arg));
+        vm->program_args.push_back(std::move(arg));
     }
 
-    return {state};
+    return vm;
 }
 
 int moshell_vm_register(moshell_vm vm, const char *bytes, size_t byte_count) {
-    vm_state &state = *static_cast<vm_state *>(vm.vm);
     try {
-        state.loader.load_raw_bytes(reinterpret_cast<const std::byte *>(bytes), byte_count, state.pager, state.heap);
+        vm->loader.load_raw_bytes(reinterpret_cast<const std::byte *>(bytes), byte_count, vm->pager, vm->heap);
         return 0;
     } catch (const std::exception &e) {
         std::cerr << e.what() << std::endl;
@@ -118,22 +117,20 @@ int moshell_vm_register(moshell_vm vm, const char *bytes, size_t byte_count) {
 }
 
 moshell_value moshell_vm_get_exported(moshell_vm vm, const char *name, size_t len) {
-    vm_state &state = *static_cast<vm_state *>(vm.vm);
-    msh::exported_variable var = state.loader.get_exported(std::string(name, len));
-    const void *obj = *state.pager.get_exported_value<const void *>(var);
+    msh::exported_variable var = vm->loader.get_exported(std::string(name, len));
+    const void *obj = *vm->pager.get_exported_value<const void *>(var);
     return {.ptr = obj};
 }
 
 int moshell_vm_run(moshell_vm vm) {
-    vm_state &state = *static_cast<vm_state *>(vm.vm);
     try {
-        state.loader.resolve_all(state.pager);
-        const auto last = state.pager.cbegin() + (state.pager.size() - state.next_page);
-        state.next_page = state.pager.size();
-        for (auto it = state.pager.cbegin(); it != last; ++it) {
+        vm->loader.resolve_all(vm->pager);
+        const auto last = vm->pager.cbegin() + (vm->pager.size() - vm->next_page);
+        vm->next_page = vm->pager.size();
+        for (auto it = vm->pager.cbegin(); it != last; ++it) {
             const msh::memory_page &page = *it;
-            runtime_memory mem{state.heap, state.program_args, state.gc};
-            if (!run_unit(state.thread_stack, state.loader, state.pager, page, mem, state.natives)) {
+            runtime_memory mem{vm->heap, vm->program_args, vm->gc};
+            if (!run_unit(vm->thread_stack, vm->loader, vm->pager, page, mem, vm->natives)) {
                 return 1;
             }
         }
@@ -147,18 +144,15 @@ int moshell_vm_run(moshell_vm vm) {
 }
 
 size_t moshell_vm_next_page(moshell_vm vm) {
-    vm_state &state = *static_cast<vm_state *>(vm.vm);
-    return state.next_page;
+    return vm->next_page;
 }
 
 void moshell_vm_free(moshell_vm vm) {
-    delete static_cast<vm_state *>(vm.vm);
+    delete vm;
 }
 
 gc_collection_result moshell_vm_gc_collect(moshell_vm vm) {
-    vm_state &state = *static_cast<vm_state *>(vm.vm);
-
-    std::vector<const msh::obj *> gc_collect = state.gc.collect();
+    std::vector<const msh::obj *> gc_collect = vm->gc.collect();
     moshell_object *collected_objects = static_cast<moshell_object *>(malloc(sizeof(moshell_object) * gc_collect.size()));
     for (size_t i = 0; i < gc_collect.size(); i++) {
         const msh::obj *obj = gc_collect[i];
@@ -171,8 +165,7 @@ gc_collection_result moshell_vm_gc_collect(moshell_vm vm) {
 }
 
 void moshell_vm_gc_run(moshell_vm vm) {
-    vm_state &state = *static_cast<vm_state *>(vm.vm);
-    state.gc.run();
+    vm->gc.run();
 }
 
 void gc_collection_result_free(gc_collection_result res) {

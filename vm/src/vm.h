@@ -18,9 +18,7 @@ extern "C" {
 /**
  * An opaque handle to a Moshell VM.
  */
-typedef struct {
-    void *const vm;
-} moshell_vm;
+typedef struct moshell_vm_state *moshell_vm;
 
 /**
  * Executes the given Moshell bytecode.
