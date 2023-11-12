@@ -1,7 +1,8 @@
+use ast::Expr;
 use std::collections::HashSet;
 use std::iter::once;
 
-use crate::diagnostic::Diagnostic;
+use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::environment::symbols::{resolve_loc, MagicSymbolKind, SymbolRegistry};
 use crate::environment::Environment;
@@ -188,15 +189,11 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
             let symbol_name = &symbol_loc.name;
 
             let mut result = SymbolResolutionResult::NotFound;
+            let current_reef = self.externals.current;
 
             // if it explicitly targets the current reef, then do a simple search of the corresponding name
             if symbol_loc.is_current_reef_explicit {
-                result = resolve_absolute_symbol(
-                    self.engine,
-                    symbol_name,
-                    self.externals.current,
-                    registry,
-                );
+                result = resolve_absolute_symbol(self.engine, symbol_name, current_reef, registry);
             } else {
                 // Follow the parent chain until we get a decisive result
                 let mut current = Some((origin, origin_env));
@@ -213,7 +210,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                             env_id,
                             env,
                             symbol_name,
-                            self.externals.current,
+                            current_reef,
                             registry,
                         );
                     }
@@ -225,7 +222,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                                 self.engine,
                                 imports,
                                 symbol_name,
-                                self.externals.current,
+                                current_reef,
                                 registry,
                             )
                         }
@@ -244,7 +241,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                 if result == SymbolResolutionResult::NotFound {
                     result = resolve_loc(symbol_loc, self.engine, self.externals)
                         //cannot reference to self content if location does not explicitly references current reef
-                        .filter(|(_, id)| *id != self.externals.current)
+                        .filter(|(_, id)| *id != current_reef)
                         .map(|(engine, id)| {
                             resolve_absolute_symbol(engine, symbol_name, id, registry)
                         })
@@ -288,14 +285,35 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                             .expect("No implicit program arguments has been declared");
                     };
 
-                    let resolved =
-                        ResolvedSymbol::new(self.externals.current, script_id, declared_pargs);
+                    let resolved = ResolvedSymbol::new(current_reef, script_id, declared_pargs);
                     result = SymbolResolutionResult::Resolved(resolved)
                 }
             }
 
             match result {
                 SymbolResolutionResult::Resolved(symbol) => {
+                    if symbol.reef == current_reef {
+                        if let Some(Expr::StructDeclaration(_)) = self.engine.get_expression(origin)
+                        {
+                            let origin_parent = origin_env.parent.unwrap();
+                            let mut observations: Vec<_> =
+                                origin_env.find_references(SymbolRef::External(relation_id))
+                                    .into_iter()
+                                    .map(|seg| Observation::context(
+                                        origin_parent,
+                                        current_reef,
+                                        seg,
+                                        "This structure contains fields with types that are defined within this structure's reef",
+                                    ))
+                                    .collect();
+                            observations.sort_by_key(|s| s.location.segment.start);
+
+                            self.diagnostics.push(Diagnostic::new(
+                                DiagnosticID::UnsupportedFeature,
+                                "Referencing types from current reef in structures is not supported"
+                            ).with_observations(observations))
+                        }
+                    }
                     relation.state = RelationState::Resolved(symbol);
                 }
                 SymbolResolutionResult::DeadImport => {
@@ -303,7 +321,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                         .push(diagnose_invalid_symbol_from_dead_import(
                             self.engine,
                             origin,
-                            self.externals.current,
+                            current_reef,
                             self.imports.get_imports(origin).unwrap(),
                             relation_id,
                             symbol_name,
@@ -326,7 +344,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                     self.diagnostics.push(diagnose_invalid_symbol(
                         var.ty,
                         origin,
-                        self.externals.current,
+                        current_reef,
                         symbol_name,
                         &occurrences,
                     ));
@@ -347,7 +365,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                     self.diagnostics.push(diagnose_unresolved_external_symbols(
                         relation_id,
                         origin,
-                        self.externals.current,
+                        current_reef,
                         origin_env,
                         symbol_name,
                     ));
