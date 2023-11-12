@@ -230,9 +230,8 @@ impl From<Vec<&str>> for GarbageCollection {
 mod test {
     use pretty_assertions::assert_eq;
 
+    use crate::runner::Runner;
     use vm::value::VmValue;
-
-    use crate::Runner;
 
     #[test]
     fn test_runner_eval() {

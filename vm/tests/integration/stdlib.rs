@@ -3,8 +3,6 @@ use pretty_assertions::assert_eq;
 use vm::value::VmValue;
 use vm::VmError;
 
-mod runner;
-
 #[test]
 fn test_option_parse() {
     let mut runner = Runner::default();
