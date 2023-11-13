@@ -1566,7 +1566,7 @@ mod tests {
     use crate::name::Name;
     use crate::reef::{Reef, ReefId};
     use crate::relations::LocalId;
-    use crate::types::engine::FunctionId;
+    use crate::types::engine::{FunctionId, StructureId};
     use crate::types::hir::{Convert, MethodCall};
     use crate::types::ty::{Type, TypeId};
     use crate::types::{EXITCODE, UNIT};
@@ -2874,5 +2874,98 @@ mod tests {
         let source = Source::unknown("(foo)");
         let res = extract_type(source);
         assert_eq!(res, Ok(EXITCODE));
+    }
+
+    #[test]
+    fn locals_types() {
+        let content = "\
+            struct Simple {}
+            val a: Simple = Simple()
+            val b = Simple()
+
+            val c: Int = 7
+            val d = 7
+        ";
+        let src = Source::unknown(content);
+        let externals = extract(src).expect("typing errors");
+        let reef = externals.get_reef(ReefId(1)).unwrap();
+        let typing = &reef.typing;
+        let ctx = &reef.type_context;
+        let relations = &reef.relations;
+
+        let assert_local_type = |local_id, type_ref| {
+            assert_eq!(
+                Some(TypedVariable::immutable(type_ref)),
+                ctx.get(relations, SourceId(0), SymbolRef::Local(LocalId(local_id)))
+            )
+        };
+
+        assert_local_type(0, TypeRef::new(ReefId(1), TypeId(0))); //struct Simple
+
+        assert_local_type(1, TypeRef::new(ReefId(1), TypeId(0))); //val a
+        assert_local_type(2, TypeRef::new(ReefId(1), TypeId(0))); //val b (inferred)
+
+        assert_local_type(3, INT); //val c
+        assert_local_type(4, INT); //val d (inferred)
+
+        // struct Simple
+        assert_eq!(
+            Some(&Type::Structure(Some(SourceId(1)), StructureId(0))),
+            typing.get_type(TypeId(0))
+        );
+    }
+
+    #[test]
+    fn locals_complex_types() {
+        let content = "\
+            struct Complex[A] {}
+            val a: Complex[Int] = Complex()
+            val b = Complex[Int]()
+        ";
+        let src = Source::unknown(content);
+        let externals = extract(src).expect("typing errors");
+        let reef = externals.get_reef(ReefId(1)).unwrap();
+        let typing = &reef.typing;
+        let ctx = &reef.type_context;
+        let relations = &reef.relations;
+
+        let assert_local_type = |local_id, type_ref| {
+            assert_eq!(
+                Some(TypedVariable::immutable(type_ref)),
+                ctx.get(relations, SourceId(0), SymbolRef::Local(LocalId(local_id)))
+            )
+        };
+
+        //struct Complex[A]
+        assert_local_type(0, TypeRef::new(ReefId(1), TypeId(0)));
+
+        //val a, references instance of Complex[A] (Complex[Int])
+        assert_local_type(1, TypeRef::new(ReefId(1), TypeId(5)));
+        //val b (inferred), references equivalent instance of a (Complex[Int])
+        assert_local_type(2, TypeRef::new(ReefId(1), TypeId(6)));
+
+        // struct Complex[A]
+        assert_eq!(
+            Some(&Type::Structure(Some(SourceId(1)), StructureId(0))),
+            typing.get_type(TypeId(0))
+        );
+
+        // instance 1 Complex[Int]
+        assert_eq!(
+            Some(&Type::Instantiated(
+                TypeRef::new(ReefId(1), TypeId(0)),
+                vec![INT]
+            )),
+            typing.get_type(TypeId(5))
+        );
+
+        // instance 2 Complex[Int]
+        assert_eq!(
+            Some(&Type::Instantiated(
+                TypeRef::new(ReefId(1), TypeId(0)),
+                vec![INT]
+            )),
+            typing.get_type(TypeId(6))
+        );
     }
 }
