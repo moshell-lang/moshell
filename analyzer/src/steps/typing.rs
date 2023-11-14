@@ -7,7 +7,7 @@ use ast::group::Block;
 use ast::operation::{BinaryOperation, BinaryOperator, UnaryOperation, UnaryOperator};
 use ast::r#type::CastedExpr;
 use ast::r#use::InclusionPathItem;
-use ast::range::Subscript;
+use ast::range::{Iterable, Subscript};
 use ast::substitution::Substitution;
 use ast::value::{Literal, LiteralValue, TemplateString};
 use ast::variable::{
@@ -43,7 +43,9 @@ use crate::types::hir::{
 use crate::types::operator::name_operator_method;
 
 use crate::types::ty::{FunctionType, Type, TypeRef};
-use crate::types::{builtin, Typing, BOOL, ERROR, EXITCODE, FLOAT, INT, NOTHING, STRING, UNIT};
+use crate::types::{
+    builtin, Typing, BOOL, ERROR, EXITCODE, FLOAT, GLOB, INT, NOTHING, STRING, UNIT,
+};
 
 mod assign;
 mod bounds;
@@ -915,6 +917,33 @@ fn ascribe_subscript(
     }
 }
 
+fn ascribe_range(
+    range: &Iterable,
+    exploration: &mut Exploration,
+    links: Links,
+    diagnostics: &mut Vec<Diagnostic>,
+    state: TypingState,
+) -> TypedExpr {
+    match range {
+        Iterable::Files(files) => {
+            let mut pattern = ascribe_types(
+                exploration,
+                links,
+                diagnostics,
+                &files.pattern,
+                state.with_local_value(ExpressionValue::Expected(STRING)),
+            );
+            if pattern.ty == STRING {
+                pattern.ty = GLOB;
+            } else if pattern.ty.is_ok() {
+                panic!("pattern should be of type String");
+            }
+            pattern
+        }
+        r => todo!("ascribe range {r:?}"),
+    }
+}
+
 fn ascribe_tilde(
     tilde: &ast::variable::TildeExpansion,
     exploration: &mut Exploration,
@@ -1207,7 +1236,23 @@ fn ascribe_call(
         .iter()
         .map(|expr| {
             let expr = ascribe_types(exploration, links, diagnostics, expr, state);
-            convert_into_string(expr, exploration, diagnostics, links.source)
+            if expr.ty == GLOB {
+                let glob = exploration
+                    .get_method_exact(expr.ty, "spread", &[], builtin::STRING_VEC)
+                    .expect("glob method not found");
+                let segment = expr.segment.clone();
+                TypedExpr {
+                    kind: ExprKind::MethodCall(MethodCall {
+                        callee: Box::new(expr),
+                        arguments: vec![],
+                        function_id: glob.1,
+                    }),
+                    ty: glob.0.return_type,
+                    segment,
+                }
+            } else {
+                convert_into_string(expr, exploration, diagnostics, links.source)
+            }
         })
         .collect::<Vec<_>>();
 
@@ -1408,6 +1453,7 @@ fn ascribe_types(
         Expr::Unary(unary) => ascribe_unary(unary, exploration, links, diagnostics, state),
         Expr::Binary(bo) => ascribe_binary(bo, exploration, links, diagnostics, state),
         Expr::Subscript(sub) => ascribe_subscript(sub, exploration, links, diagnostics, state),
+        Expr::Range(range) => ascribe_range(range, exploration, links, diagnostics, state),
         Expr::Tilde(tilde) => ascribe_tilde(tilde, exploration, links, diagnostics, state),
         Expr::Casted(casted) => ascribe_casted(casted, exploration, links, diagnostics, state),
         Expr::Test(test) => ascribe_types(exploration, links, diagnostics, &test.expression, state),
@@ -2692,5 +2738,12 @@ mod tests {
                     )),
             ]
         )
+    }
+
+    #[test]
+    fn string_glob() {
+        let content = "val files = p'systemd-*'; echo $files";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(res, Ok(Type::ExitCode));
     }
 }

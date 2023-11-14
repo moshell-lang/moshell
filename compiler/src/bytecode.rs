@@ -286,12 +286,6 @@ impl<'a> Instructions<'a> {
         self.bytecode.emit_u32_placeholder()
     }
 
-    /// Emits an exec instruction, with the given argument count.
-    pub fn emit_exec(&mut self, arg_count: u8) {
-        self.emit_code(Opcode::Exec);
-        self.bytecode.emit_byte(arg_count);
-    }
-
     pub fn emit_open(&mut self, unix_flags: i32) {
         self.emit_code(Opcode::Open);
         self.bytecode.emit_i32(unix_flags);

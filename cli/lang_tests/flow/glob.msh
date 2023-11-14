@@ -1,0 +1,19 @@
+// Run:
+//   status: success
+//   stdout:
+//    glob-test-dir/file1 glob-test-dir/file12 glob-test-dir/file2 glob-test-dir/not-a-file
+//    glob-test-dir/file1 glob-test-dir/file12 glob-test-dir/file2
+//    glob-test-dir/file1 glob-test-dir/file12 glob-test-dir/file2 glob-test-dir/not-a-file
+//    glob-test-dir/file1 glob-test-dir/file2
+
+mkdir glob-test-dir
+touch glob-test-dir/file1
+touch glob-test-dir/file2
+touch glob-test-dir/file12
+mkdir glob-test-dir/not-a-file
+
+val v = 'file'
+echo glob-test-dir/*
+echo glob-test-dir/file*
+echo glob-test-dir/*file*
+echo glob-test-dir/$v?

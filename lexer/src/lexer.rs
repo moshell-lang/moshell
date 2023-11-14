@@ -101,10 +101,12 @@ impl<'a> Lexer<'a> {
             }
             '/' => {
                 if self.matches_next('/', &mut size) {
-                    return self.skip_line();
-                } else if self.matches_next('*', &mut size) {
-                    self.skip_multiline_comment();
-                    return self.next_token();
+                    return if self.matches_next('*', &mut size) {
+                        self.skip_multiline_comment();
+                        self.next_token()
+                    } else {
+                        self.skip_line()
+                    };
                 } else {
                     TokenType::Slash
                 }

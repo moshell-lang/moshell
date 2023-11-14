@@ -3,14 +3,18 @@ use libc::{O_APPEND, O_CREAT, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
 use analyzer::relations::ResolvedSymbol;
 use analyzer::types::hir::{ExprKind, FunctionCall, Redir, Redirect, TypedExpr, Var};
 use analyzer::types::ty::TypeRef;
+use analyzer::types::{GENERIC_VECTOR, STRING};
 use ast::call::{RedirFd, RedirOp};
 
 use crate::bytecode::{Instructions, Opcode};
 use crate::constant_pool::ConstantPool;
 use crate::emit;
+use crate::emit::native::{VEC_EXTEND, VEC_PUSH};
 use crate::emit::{EmissionState, EmitterContext};
 use crate::locals::LocalsLayout;
-use crate::r#type::{get_type_stack_size, ValueStackSize};
+use crate::r#type::ValueStackSize;
+
+const NEW_VEC: &str = "std::new_vec";
 
 /// Emit any expression, knowing that we are already in a forked process.
 ///
@@ -76,31 +80,23 @@ pub fn emit_process_end(last: Option<&TypedExpr>, instructions: &mut Instruction
 }
 
 pub fn emit_process_call(
-    arguments: &Vec<TypedExpr>,
+    arguments: &[TypedExpr],
     instructions: &mut Instructions,
     ctx: &EmitterContext,
     cp: &mut ConstantPool,
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
 ) {
-    let last_use = state.use_values(true);
-    for arg in arguments {
-        emit(arg, instructions, ctx, cp, locals, state);
-    }
-    state.use_values(last_use);
+    emit_arguments(arguments, instructions, ctx, cp, locals, state);
 
     let jump_to_parent = instructions.emit_jump(Opcode::Fork);
-    instructions
-        .emit_exec(u8::try_from(arguments.len()).expect("too many arguments in process call"));
+    instructions.emit_code(Opcode::Exec);
     instructions.patch_jump(jump_to_parent);
 
-    // Remove the arguments from the stack, as they were only needed for the child process
-    for arg in arguments.iter().rev() {
-        instructions.emit_code(Opcode::Swap);
-        instructions.emit_pop(get_type_stack_size(arg.ty));
-    }
-
     instructions.emit_code(Opcode::Wait);
+
+    // Remove the arguments from the stack, as they were only needed for the child process
+    instructions.emit_pop(GENERIC_VECTOR.into());
 
     if !state.use_values {
         // The Spawn operation will push the process's exitcode onto the stack
@@ -111,7 +107,20 @@ pub fn emit_process_call(
 }
 
 fn emit_process_call_self(
-    arguments: &Vec<TypedExpr>,
+    arguments: &[TypedExpr],
+    instructions: &mut Instructions,
+    ctx: &EmitterContext,
+    cp: &mut ConstantPool,
+    locals: &mut LocalsLayout,
+    state: &mut EmissionState,
+) {
+    emit_arguments(arguments, instructions, ctx, cp, locals, state);
+    instructions.emit_code(Opcode::Exec);
+}
+
+/// Emits each arguments and creates a vector containing them.
+fn emit_arguments(
+    arguments: &[TypedExpr],
     instructions: &mut Instructions,
     ctx: &EmitterContext,
     cp: &mut ConstantPool,
@@ -119,13 +128,17 @@ fn emit_process_call_self(
     state: &mut EmissionState,
 ) {
     let last_use = state.use_values(true);
+    instructions.emit_invoke(cp.insert_string(NEW_VEC));
     for arg in arguments {
+        instructions.emit_code(Opcode::Dup);
         emit(arg, instructions, ctx, cp, locals, state);
+        if arg.ty == STRING {
+            instructions.emit_invoke(cp.insert_string(VEC_PUSH));
+        } else {
+            instructions.emit_invoke(cp.insert_string(VEC_EXTEND));
+        }
     }
     state.use_values(last_use);
-
-    instructions
-        .emit_exec(u8::try_from(arguments.len()).expect("too many arguments in process call"));
 }
 
 pub fn emit_function_invocation(

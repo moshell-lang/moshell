@@ -9,7 +9,7 @@ use crate::Expr;
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub enum Iterable<'a> {
     Range(NumericRange<'a>),
-    Files(FilePattern),
+    Files(FilePattern<'a>),
 }
 
 impl SourceSegmentHolder for Iterable<'_> {
@@ -51,11 +51,9 @@ impl SourceSegmentHolder for NumericRange<'_> {
 /// A pattern that can be used to match files.
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
-pub struct FilePattern {
+pub struct FilePattern<'a> {
     /// The glob pattern that will be used to match files.
-    ///
-    /// For now, this is just a string that is passed to the libc.
-    pub pattern: String,
+    pub pattern: Box<Expr<'a>>,
 }
 
 #[segment_holder]

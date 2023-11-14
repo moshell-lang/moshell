@@ -15,11 +15,13 @@ const FLOAT_TO_STRING: &str = "lang::Float::to_string";
 const VEC_INDEX: &str = "lang::Vec::[]";
 const VEC_INDEX_EQ: &str = "lang::Vec::[]=";
 const VEC_POP: &str = "lang::Vec::pop";
-const VEC_PUSH: &str = "lang::Vec::push";
+pub(super) const VEC_PUSH: &str = "lang::Vec::push";
+pub(super) const VEC_EXTEND: &str = "lang::Vec::extend";
 const VEC_LEN: &str = "lang::Vec::len";
 const VEC_POP_HEAD: &str = "lang::Vec::pop_head";
 const STRING_SPLIT: &str = "lang::String::split";
 const STRING_BYTES: &str = "lang::String::bytes";
+const GLOB_EXPAND: &str = "lang::glob::expand";
 
 /// Emits a primitive sequence of instructions.
 #[allow(clippy::too_many_arguments)]
@@ -303,6 +305,10 @@ pub(crate) fn emit_natives(
         52 => {
             // Vec[A]::pop_head() -> Option[A]
             instructions.emit_invoke(cp.insert_string(VEC_POP_HEAD));
+        }
+        53 => {
+            // Glob::spread() -> Vec[String]
+            instructions.emit_invoke(cp.insert_string(GLOB_EXPAND));
         }
         id => todo!("Native function with id {id}"),
     };

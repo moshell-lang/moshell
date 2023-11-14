@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstring>
 #include <filesystem>
+#include <glob.h>
 #include <iostream>
 #include <pwd.h>
 #include <unistd.h>
@@ -236,6 +237,12 @@ static void vec_push(OperandStack &caller_stack, runtime_memory &) {
     vec.push_back(&ref);
 }
 
+static void vec_extend(OperandStack &caller_stack, runtime_memory &) {
+    msh::obj_vector &right = caller_stack.pop_reference().get<msh::obj_vector>();
+    msh::obj_vector &left = caller_stack.pop_reference().get<msh::obj_vector>();
+    left.insert(left.end(), right.begin(), right.end());
+}
+
 static void vec_index(OperandStack &caller_stack, runtime_memory &) {
     int64_t n = caller_stack.pop_int();
     size_t index = static_cast<size_t>(n);
@@ -255,6 +262,33 @@ static void vec_index_set(OperandStack &caller_stack, runtime_memory &) {
         throw RuntimeException("Index " + std::to_string(n) + " is out of range, the length is " + std::to_string(vec.size()) + ".");
     }
     vec[index] = &ref;
+}
+
+static void expand_glob(OperandStack &caller_stack, runtime_memory &mem) {
+    glob_t glob_result;
+    memset(&glob_result, 0, sizeof(glob_result));
+    const std::string &pattern = caller_stack.pop_reference().get<const std::string>();
+    int ret = glob(pattern.c_str(), GLOB_TILDE, nullptr, &glob_result);
+    if (ret != 0 && ret != GLOB_NOMATCH) {
+        globfree(&glob_result);
+        switch (ret) {
+        case GLOB_NOSPACE:
+            throw RuntimeException("Failed to glob files: out of memory.");
+        case GLOB_ABORTED:
+            throw RuntimeException("Failed to glob files: read error.");
+        default:
+            throw RuntimeException("Failed to glob files: unknown error.");
+        }
+    }
+    msh::obj_vector res;
+    res.reserve(glob_result.gl_pathc);
+    msh::obj &heap_obj = mem.emplace(std::move(res));
+    caller_stack.push_reference(heap_obj);
+    msh::obj_vector &vec = heap_obj.get<msh::obj_vector>();
+    for (size_t i = 0; i < glob_result.gl_pathc; ++i) {
+        vec.push_back(&mem.emplace(glob_result.gl_pathv[i]));
+    }
+    globfree(&glob_result);
 }
 
 static void gc(OperandStack &, runtime_memory &mem) {
@@ -290,8 +324,11 @@ natives_functions_t load_natives() {
         {"lang::Vec::pop_head", vec_pop_head},
         {"lang::Vec::len", vec_len},
         {"lang::Vec::push", vec_push},
+        {"lang::Vec::extend", vec_extend},
         {"lang::Vec::[]", vec_index},
         {"lang::Vec::[]=", vec_index_set},
+
+        {"lang::glob::expand", expand_glob},
 
         {"std::panic", panic},
         {"std::exit", exit},

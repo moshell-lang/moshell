@@ -94,10 +94,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                     let literal = self.string_literal()?;
                     let segment = self.cursor.relative_pos(token).start..literal.segment.end;
                     Ok(Expr::Range(Iterable::Files(FilePattern {
-                        pattern: match literal.parsed {
-                            LiteralValue::String(s) => s,
-                            _ => unreachable!(),
-                        },
+                        pattern: Box::new(Expr::Literal(literal)),
                         segment,
                     })))
                 } else {
@@ -209,7 +206,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
     fn argument(&mut self) -> ParseResult<Expr<'a>> {
         let start = self.cursor.peek();
         let mut parts = Vec::<Expr>::new();
-        let mut wildcards = Vec::<usize>::new();
+        let mut has_wildcard = false;
         let mut end_segment = self.cursor.relative_pos(start.value);
 
         if self.cursor.advance(of_type(Tilde)).is_some() {
@@ -292,32 +289,34 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                     }
 
                     // Preserve the position of wildcards.
-                    if token.token_type == Star {
-                        match wildcards.last().copied() {
-                            Some(len) if len == parts.len() - 1 => {}
-                            _ => wildcards.push(parts.len() - 1),
-                        }
+                    if token.token_type == Star || token.value.contains('?') {
+                        has_wildcard = true;
                     }
                 }
             }
         }
 
+        let start_segment = self.cursor.relative_pos(start.value);
+
         // Replace wildcards with the appropriate expression.
-        for wildcard in wildcards {
-            let expr = parts.get_mut(wildcard).unwrap();
-            if let Expr::Literal(Literal {
-                parsed: LiteralValue::String(pattern),
-                segment,
-            }) = expr
-            {
-                *expr = Expr::Range(Iterable::Files(FilePattern {
-                    pattern: std::mem::take(pattern),
-                    segment: segment.clone(),
+        if has_wildcard {
+            if let [item] = parts.as_mut_slice() {
+                *item = Expr::Range(Iterable::Files(FilePattern {
+                    pattern: Box::new(item.clone()),
+                    segment: item.segment(),
                 }));
+            } else {
+                let range = Expr::Range(Iterable::Files(FilePattern {
+                    pattern: Box::new(Expr::TemplateString(TemplateString {
+                        parts,
+                        segment: start_segment.start..end_segment.end,
+                    })),
+                    segment: start_segment.start..end_segment.end,
+                }));
+                parts = vec![range];
             }
         }
 
-        let start_segment = self.cursor.relative_pos(start.value);
         Ok(if parts.len() == 1 {
             // Reduce nesting if there is only one part.
             if start_segment == end_segment {
@@ -635,7 +634,7 @@ mod tests {
         assert_eq!(
             parsed,
             Expr::Range(Iterable::Files(FilePattern {
-                pattern: "foo*".into(),
+                pattern: Box::new(literal(source.source, "foo*")),
                 segment: source.segment()
             }))
         );
