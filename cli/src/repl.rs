@@ -3,10 +3,10 @@ use nu_ansi_term::Color;
 use reedline::{
     default_emacs_keybindings, ColumnarMenu, Emacs, ExampleHighlighter, FileBackedHistory, KeyCode,
     KeyModifiers, PromptEditMode, PromptHistorySearch, PromptHistorySearchStatus, Reedline,
-    ReedlineEvent, ReedlineMenu, Signal, ValidationResult,
+    ReedlineEvent, ReedlineMenu, Signal, ValidationResult, Validator,
 };
 use std::borrow::Cow;
-use std::io::{self, BufRead, IsTerminal, Lines, StdinLock};
+use std::io::{self, BufRead, IsTerminal, StdinLock};
 use std::path::PathBuf;
 
 use analyzer::importer::ImportResult;
@@ -37,7 +37,7 @@ pub(crate) fn repl(
     let mut editor = if io::stdin().is_terminal() {
         Editor::LineEditor(Box::new(editor().context("Could not start REPL")?))
     } else {
-        Editor::NoEditor(io::stdin().lock().lines())
+        Editor::NoEditor(MultilineInput::new(io::stdin().lock()))
     };
 
     let mut status = PipelineStatus::Success;
@@ -127,17 +127,14 @@ enum Editor<'a> {
     LineEditor(Box<Reedline>),
 
     /// A simple stdin reader for a non interactive mode.
-    NoEditor(Lines<StdinLock<'a>>),
+    NoEditor(MultilineInput<'a>),
 }
 
 impl Editor<'_> {
     fn read_line(&mut self, prompt: &Prompt) -> io::Result<Signal> {
         match self {
             Editor::LineEditor(editor) => editor.read_line(prompt),
-            Editor::NoEditor(stdin) => match stdin.next() {
-                Some(line) => line.map(Signal::Success),
-                None => Ok(Signal::CtrlD),
-            },
+            Editor::NoEditor(stdin) => stdin.read_line(),
         }
     }
 }
@@ -215,11 +212,44 @@ impl reedline::Prompt for Prompt {
 
 struct TerminatedValidator;
 
-impl reedline::Validator for TerminatedValidator {
+impl Validator for TerminatedValidator {
     fn validate(&self, line: &str) -> ValidationResult {
         match is_unterminated(line) {
             true => ValidationResult::Incomplete,
             false => ValidationResult::Complete,
+        }
+    }
+}
+
+struct MultilineInput<'a> {
+    buf: StdinLock<'a>,
+    validator: TerminatedValidator,
+}
+
+impl<'a> MultilineInput<'a> {
+    fn new(buf: StdinLock<'a>) -> Self {
+        Self {
+            buf,
+            validator: TerminatedValidator,
+        }
+    }
+
+    fn read_line(&mut self) -> io::Result<Signal> {
+        let mut line = String::new();
+        loop {
+            // Read a terminated expression from stdin.
+            match self.buf.read_line(&mut line)? {
+                0 => return Ok(Signal::CtrlD),
+                _ => {
+                    match self.validator.validate(&line) {
+                        ValidationResult::Complete => return Ok(Signal::Success(line)),
+                        ValidationResult::Incomplete => {}
+                    }
+                    if !line.ends_with('\n') {
+                        line.push('\n');
+                    }
+                }
+            }
         }
     }
 }
