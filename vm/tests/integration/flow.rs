@@ -157,6 +157,24 @@ fn str_split() {
 }
 
 #[test]
+fn truthy() {
+    let mut runner = Runner::default();
+    runner.eval(
+        "use std::assert::assert
+        if /bin/true { } else { assert(1 == 2) }",
+    );
+}
+
+#[test]
+fn falsy() {
+    let mut runner = Runner::default();
+    runner.eval(
+        "use std::assert::assert
+        if /bin/false { assert(1 == 2) } else { }",
+    );
+}
+
+#[test]
 fn working_directory_via_tilde() {
     let mut runner = Runner::default();
     runner.eval(

@@ -93,10 +93,11 @@ pub fn emit_process_call(
     instructions.emit_code(Opcode::Exec);
     instructions.patch_jump(jump_to_parent);
 
-    instructions.emit_code(Opcode::Wait);
-
     // Remove the arguments from the stack, as they were only needed for the child process
+    instructions.emit_code(Opcode::Swap);
     instructions.emit_pop(GENERIC_VECTOR.into());
+
+    instructions.emit_code(Opcode::Wait);
 
     if !state.use_values {
         // The Spawn operation will push the process's exitcode onto the stack
