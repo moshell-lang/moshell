@@ -74,9 +74,10 @@ impl<'a> Parser<'a> {
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use ast::call::Call;
+    use ast::call::{Call, ProgrammaticCall};
     use ast::group::{Parenthesis, Subshell};
     use ast::operation::{BinaryOperation, BinaryOperator, UnaryOperation, UnaryOperator};
+    use ast::r#use::InclusionPathItem;
     use ast::test::Test;
     use ast::value::{Literal, LiteralValue};
     use ast::variable::{VarName, VarReference};
@@ -314,6 +315,55 @@ mod tests {
                     right: Box::new(Expr::Literal(Literal {
                         parsed: 78.into(),
                         segment: find_in(source.source, "78"),
+                    })),
+                })),
+            })]
+        )
+    }
+
+    #[test]
+    fn not_exe() {
+        let source = Source::unknown("! ./test.sh || ! foo && !bar() + 1");
+        let result = parse(source).expect("parse error");
+        assert_eq!(
+            result,
+            vec![Expr::Binary(BinaryOperation {
+                left: Box::new(Expr::Unary(UnaryOperation {
+                    op: UnaryOperator::Not,
+                    expr: Box::new(Expr::Call(Call {
+                        arguments: vec![literal(source.source, "./test.sh")],
+                    })),
+                    segment: find_in(source.source, "! ./test.sh"),
+                })),
+                op: BinaryOperator::Or,
+                right: Box::new(Expr::Binary(BinaryOperation {
+                    left: Box::new(Expr::Unary(UnaryOperation {
+                        op: UnaryOperator::Not,
+                        expr: Box::new(Expr::Call(Call {
+                            arguments: vec![literal(source.source, "foo")],
+                        })),
+                        segment: find_in(source.source, "! foo"),
+                    })),
+                    op: BinaryOperator::And,
+                    right: Box::new(Expr::Binary(BinaryOperation {
+                        left: Box::new(Expr::Unary(UnaryOperation {
+                            op: UnaryOperator::Not,
+                            expr: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
+                                path: vec![InclusionPathItem::Symbol(
+                                    "bar",
+                                    find_in(source.source, "bar")
+                                )],
+                                arguments: vec![],
+                                type_parameters: vec![],
+                                segment: find_in(source.source, "bar()"),
+                            })),
+                            segment: find_in(source.source, "!bar()"),
+                        })),
+                        op: BinaryOperator::Plus,
+                        right: Box::new(Expr::Literal(Literal {
+                            parsed: 1.into(),
+                            segment: find_in(source.source, "1"),
+                        })),
                     })),
                 })),
             })]

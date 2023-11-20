@@ -157,20 +157,13 @@ fn str_split() {
 }
 
 #[test]
-fn truthy() {
+fn exitcode_to_bool() {
     let mut runner = Runner::default();
     runner.eval(
         "use std::assert::assert
-        if /bin/true { } else { assert(1 == 2) }",
-    );
-}
-
-#[test]
-fn falsy() {
-    let mut runner = Runner::default();
-    runner.eval(
-        "use std::assert::assert
-        if /bin/false { assert(1 == 2) } else { }",
+        assert({ /bin/true })
+        assert(!{ /bin/false })
+        assert({ ! /bin/false })",
     );
 }
 

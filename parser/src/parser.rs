@@ -297,10 +297,23 @@ impl<'a> Parser<'a> {
                 let callee = self.back_string_literal();
                 self.call_arguments(callee.map(Expr::TemplateString)?)
             }
-            Not if self
-                .cursor
-                .lookahead(next().then(spaces().then(of_types(&[RoundedLeftBracket, Identifier]))))
-                .is_some() =>
+            Not
+                if self
+                    .cursor
+                    .lookahead(
+                        // Keep in sync with the shell context detection.
+                        next().then(
+                            spaces().then(
+                                of_types(&[RoundedLeftBracket, Dot, Tilde, Not])
+                                    .or(like(|token| {
+                                        token.is_infix_operator() && !token.is_prefix_operator()
+                                    }))
+                                    .or(of_type(Identifier)
+                                        .and_then(like(TokenType::belongs_to_shell))),
+                            ),
+                        ),
+                    )
+                    .is_some() =>
             {
                 let token = self.cursor.next()?;
                 let expr = self.next_statement()?;
