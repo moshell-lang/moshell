@@ -8,6 +8,7 @@
 #include <glob.h>
 #include <iostream>
 #include <pwd.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 static void int_to_string(OperandStack &caller_stack, runtime_memory &mem) {
@@ -310,6 +311,20 @@ static void program_arguments(OperandStack &caller_stack, runtime_memory &mem) {
     }
 }
 
+static void process_wait(OperandStack &caller_stack, runtime_memory &) {
+    pid_t pid = static_cast<pid_t>(caller_stack.pop_int());
+    int status;
+    if (waitpid(pid, &status, 0) == -1) {
+        throw RuntimeException("Failed to wait for process " + std::to_string(pid) + ": " + strerror(errno) + ".");
+    }
+}
+
+static void process_wait_all(OperandStack &, runtime_memory &) {
+    int status;
+    while (wait(&status) > 0)
+        ;
+}
+
 natives_functions_t load_natives() {
     return natives_functions_t{
         {"lang::Int::to_string", int_to_string},
@@ -351,5 +366,8 @@ natives_functions_t load_natives() {
         {"std::convert::floor", floor},
         {"std::convert::round", round},
         {"std::convert::parse_int_radix", parse_int_radix},
+
+        {"std::process::wait", process_wait},
+        {"std::process::wait_all", process_wait_all},
     };
 }

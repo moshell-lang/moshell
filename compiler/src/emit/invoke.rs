@@ -1,7 +1,7 @@
 use libc::{O_APPEND, O_CREAT, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
 
 use analyzer::relations::ResolvedSymbol;
-use analyzer::types::hir::{ExprKind, FunctionCall, Redir, Redirect, TypedExpr, Var};
+use analyzer::types::hir::{ExprKind, FunctionCall, Redir, Redirect, Subprocess, TypedExpr, Var};
 use analyzer::types::ty::TypeRef;
 use analyzer::types::{GENERIC_VECTOR, STRING};
 use ast::call::{RedirFd, RedirOp};
@@ -476,6 +476,28 @@ pub fn emit_capture(
     instructions.emit_code(Opcode::PopByte);
 
     if !state.use_values {
+        instructions.emit_code(Opcode::PopQWord);
+    }
+}
+
+pub fn emit_subprocess(
+    subprocess: &Subprocess,
+    instructions: &mut Instructions,
+    ctx: &EmitterContext,
+    cp: &mut ConstantPool,
+    locals: &mut LocalsLayout,
+    state: &mut EmissionState,
+) {
+    let jump_to_parent = instructions.emit_jump(Opcode::Fork);
+    emit_already_forked(&subprocess.inner, instructions, ctx, cp, locals, state);
+    emit_process_end(Some(&subprocess.inner), instructions);
+    instructions.patch_jump(jump_to_parent);
+    if subprocess.awaited {
+        instructions.emit_code(Opcode::Wait);
+        if !state.use_values {
+            instructions.emit_code(Opcode::PopByte);
+        }
+    } else if !state.use_values {
         instructions.emit_code(Opcode::PopQWord);
     }
 }

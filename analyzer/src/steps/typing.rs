@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
-use ast::call::{Call, Pipeline, ProgrammaticCall, RedirOp, Redirected};
+use ast::call::{Call, Detached, Pipeline, ProgrammaticCall, RedirOp, Redirected};
 use ast::control_flow::If;
 use ast::function::FunctionDeclaration;
-use ast::group::Block;
+use ast::group::{Block, Subshell};
 use ast::operation::{BinaryOperation, BinaryOperator, UnaryOperation, UnaryOperator};
 use ast::r#type::CastedExpr;
 use ast::r#use::InclusionPathItem;
@@ -38,7 +38,7 @@ use crate::types::ctx::{TypeContext, TypedVariable};
 use crate::types::engine::{Chunk, ChunkType, TypedEngine};
 use crate::types::hir::{
     Assignment, Conditional, Convert, Declaration, ExprKind, FunctionCall, Loop, MethodCall, Redir,
-    Redirect, TypedExpr, Var,
+    Redirect, Subprocess, TypedExpr, Var,
 };
 use crate::types::operator::name_operator_method;
 
@@ -777,6 +777,64 @@ fn ascribe_substitution(
     }
 }
 
+fn ascribe_detached(
+    detached: &Detached,
+    exploration: &mut Exploration,
+    links: Links,
+    diagnostics: &mut Vec<Diagnostic>,
+    state: TypingState,
+) -> TypedExpr {
+    let expr = ascribe_types(
+        exploration,
+        links,
+        diagnostics,
+        &detached.underlying,
+        state.with_local_value(ExpressionValue::Expected(INT)),
+    );
+    TypedExpr {
+        kind: ExprKind::Subprocess(Subprocess {
+            inner: Box::new(expr),
+            awaited: false,
+        }),
+        ty: INT,
+        segment: detached.segment(),
+    }
+}
+
+fn ascribe_subshell(
+    subshell: &Subshell,
+    exploration: &mut Exploration,
+    links: Links,
+    diagnostics: &mut Vec<Diagnostic>,
+    state: TypingState,
+) -> TypedExpr {
+    let block = subshell
+        .expressions
+        .iter()
+        .map(|expr| {
+            ascribe_types(
+                exploration,
+                links,
+                diagnostics,
+                expr,
+                state.with_local_value(ExpressionValue::Unused),
+            )
+        })
+        .collect::<Vec<_>>();
+    TypedExpr {
+        kind: ExprKind::Subprocess(Subprocess {
+            inner: Box::new(TypedExpr {
+                kind: ExprKind::Block(block),
+                ty: UNIT,
+                segment: subshell.segment.clone(),
+            }),
+            awaited: true,
+        }),
+        ty: EXITCODE,
+        segment: subshell.segment(),
+    }
+}
+
 fn ascribe_return(
     ret: &ast::function::Return,
     exploration: &mut Exploration,
@@ -1445,6 +1503,12 @@ fn ascribe_types(
         }
         Expr::Substitution(subst) => {
             ascribe_substitution(subst, exploration, links, diagnostics, state)
+        }
+        Expr::Detached(detached) => {
+            ascribe_detached(detached, exploration, links, diagnostics, state)
+        }
+        Expr::Subshell(subshell) => {
+            ascribe_subshell(subshell, exploration, links, diagnostics, state)
         }
         Expr::Return(r) => ascribe_return(r, exploration, links, diagnostics, state),
         Expr::Parenthesis(paren) => {
@@ -2744,6 +2808,20 @@ mod tests {
     fn string_glob() {
         let content = "val files = p'systemd-*'; echo $files";
         let res = extract_type(Source::unknown(content));
+        assert_eq!(res, Ok(Type::ExitCode));
+    }
+
+    #[test]
+    fn background_process() {
+        let source = Source::unknown("foo &");
+        let res = extract_type(source);
+        assert_eq!(res, Ok(Type::Int));
+    }
+
+    #[test]
+    fn subprocess() {
+        let source = Source::unknown("(foo)");
+        let res = extract_type(source);
         assert_eq!(res, Ok(Type::ExitCode));
     }
 }

@@ -75,6 +75,12 @@ pub struct MethodCall {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct Subprocess {
+    pub inner: Box<TypedExpr>,
+    pub awaited: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct Redirect {
     pub expression: Box<TypedExpr>,
     pub redirections: Vec<Redir>,
@@ -105,6 +111,7 @@ pub enum ExprKind {
     Return(Option<Box<TypedExpr>>),
     Pipeline(Vec<TypedExpr>),
     Capture(Vec<TypedExpr>),
+    Subprocess(Subprocess),
 
     Continue,
     Break,
