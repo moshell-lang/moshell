@@ -789,7 +789,7 @@ fn ascribe_detached(
         links,
         diagnostics,
         &detached.underlying,
-        state.with_local_value(ExpressionValue::Expected(INT)),
+        state.with_local_value(ExpressionValue::Unused),
     );
     TypedExpr {
         kind: ExprKind::Subprocess(Subprocess {
