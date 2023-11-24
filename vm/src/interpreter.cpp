@@ -536,7 +536,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             int flags = static_cast<int>(msh::read_big_endian<int32_t>(instructions + ip));
 
             // Open the file
-            int fd = open(path.c_str(), flags, S_IRUSR | S_IWUSR);
+            int fd = open(path.c_str(), flags, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
             if (fd == -1) {
                 panic("Cannot open file \"" + path + "\": " + std::string(strerror(errno)), call_stack);
                 return frame_status::ABORT;
