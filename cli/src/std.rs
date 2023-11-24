@@ -46,7 +46,9 @@ fn find_std() -> PathBuf {
 
     let mut dir = std::env::current_dir().expect("Could not get current directory");
     dir.push("lib");
+    dir.push("std.msh");
     if dir.exists() {
+        dir.pop();
         return dir;
     }
 

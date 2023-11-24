@@ -1,4 +1,4 @@
-FROM rust:1.72.1-slim AS builder
+FROM rust:1.74-slim AS builder
 
 WORKDIR /usr/src/moshell
 
@@ -12,10 +12,8 @@ RUN cargo build --release --bin moshell && strip target/release/moshell
 
 FROM alpine:3.18 AS runtime
 
-ENV MOSHELL_STD=/usr/share/moshell
-
 RUN apk add --no-cache libgcc libstdc++ gcompat
 COPY --from=builder /usr/src/moshell/target/release/moshell /bin/moshell
-COPY lib /usr/share/moshell
+COPY lib /usr/share/moshell/lib
 
 ENTRYPOINT ["/bin/moshell"]
