@@ -60,21 +60,24 @@ impl Completer for MoshellCompleter {
                     return get_files(word, pos, |_| true);
                 };
                 let rendered = arguments
-                    .into_iter()
-                    .flatten()
+                    .iter()
+                    .filter_map(Option::clone)
                     .collect::<Vec<String>>()
                     .join(" ");
-                bash.complete(&rendered)
-                    .unwrap()
-                    .into_iter()
-                    .map(|value| Suggestion {
-                        value,
-                        description: None,
-                        extra: None,
-                        span: Span::new(pos - word_len, pos),
-                        append_whitespace: true,
-                    })
-                    .collect::<Vec<Suggestion>>()
+                match bash.complete(&rendered) {
+                    Ok(Some(suggestions)) => suggestions
+                        .into_iter()
+                        .map(|value| Suggestion {
+                            value,
+                            description: None,
+                            extra: None,
+                            span: Span::new(pos - word_len, pos),
+                            append_whitespace: true,
+                        })
+                        .collect::<Vec<Suggestion>>(),
+                    Ok(None) => get_files(word, pos, |_| true),
+                    Err(_) => Vec::new(),
+                }
             }
             None => Vec::new(),
         }

@@ -19,20 +19,26 @@ impl BashComplete {
     }
 
     /// Completes the given line.
-    pub(crate) fn complete(mut self, line: &str) -> io::Result<Vec<String>> {
+    pub(crate) fn complete(mut self, line: &str) -> io::Result<Option<Vec<String>>> {
         let stdin = self.process.stdin.as_mut().unwrap();
         stdin.write_all(format!("get_completions '{}'\n", line).as_bytes())?;
         let output = self.process.wait_with_output()?;
-        Ok(String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .filter_map(|suggestion| {
-                let suggestion = suggestion.trim_end();
-                if suggestion.is_empty() {
-                    None
-                } else {
-                    Some(suggestion.to_owned())
-                }
-            })
-            .collect::<Vec<String>>())
+        Ok(if output.status.success() {
+            Some(
+                String::from_utf8_lossy(&output.stdout)
+                    .lines()
+                    .filter_map(|suggestion| {
+                        let suggestion = suggestion.trim_end();
+                        if suggestion.is_empty() {
+                            None
+                        } else {
+                            Some(suggestion.to_owned())
+                        }
+                    })
+                    .collect::<Vec<String>>(),
+            )
+        } else {
+            None
+        })
     }
 }
