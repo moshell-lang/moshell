@@ -98,7 +98,7 @@ fn run(
     cli: &Cli,
     mut sources: SourcesCache,
     externals: Externals,
-    compiler_externals: CompilerExternals,
+    mut compiler_externals: CompilerExternals,
     mut vm: VM,
 ) -> Result<PipelineStatus, miette::Error> {
     let name = Name::new(
@@ -129,13 +129,11 @@ fn run(
         SourceId(0),
         &analyzer,
         &externals,
-        &compiler_externals,
+        &mut compiler_externals,
         &mut vm,
         diagnostics,
         errors,
         &sources,
         cli,
-    )
-    .err()
-    .unwrap_or(PipelineStatus::Success))
+    ))
 }

@@ -5,10 +5,9 @@ use std::io::Write;
 use ::context::source::ContentId;
 use analyzer::engine::Engine;
 use analyzer::environment::symbols::SymbolInfo;
-use analyzer::name::Name;
 use analyzer::reef::{Externals, ReefId};
 use analyzer::relations::{Relations, ResolvedSymbol, SourceId};
-use analyzer::types::engine::{Chunk, TypedEngine};
+use analyzer::types::engine::{Chunk, ChunkKind, StructureId, TypedEngine};
 use analyzer::types::hir::ExprKind;
 use analyzer::types::ty::Type;
 use analyzer::types::Typing;
@@ -90,32 +89,20 @@ pub fn compile_reef(
             chunk_id,
             layouts: &layouts,
         };
-        let page_size = compile_function_chunk(
-            &main_env.fqn,
-            main_chunk,
-            chunk_id,
-            &ctx,
-            &mut bytecode,
-            &mut cp,
-            &options,
-        )
-        .unwrap();
+
+        let page_size =
+            compile_function_chunk(main_chunk, chunk_id, &ctx, &mut bytecode, &mut cp, &options)
+                .unwrap();
         write_exported(&mut cp, page_size, &mut bytecode)?;
 
         // compile structures
-        let structures: Vec<_> = content
-            .structures(|type_id| typing.get_type(type_id).unwrap(), &it)
-            .collect();
+        let structures: Vec<_> = iter_structs(typing).collect();
 
         bytecode.emit_u32(structures.len() as u32);
 
-        for (_, structure_env, structure_chunk) in &structures {
-            let Type::Structure(_, structure_id) = typing.get_type(structure_chunk.tpe).unwrap()
-            else {
-                unreachable!()
-            };
-
-            let structure = typed_engine.get_structure(*structure_id).unwrap();
+        for (structure_env_id, structure_id) in structures {
+            let structure_env = link_engine.get_environment(structure_env_id).unwrap();
+            let structure = typed_engine.get_structure(structure_id).unwrap();
             bytecode.emit_constant_ref(cp.insert_string(structure_env.fqn.to_string()));
             let fields = structure.get_fields();
 
@@ -139,13 +126,11 @@ pub fn compile_reef(
         }
 
         // compile functions (filter out unimplemented functions)
-        let defined_functions: Vec<_> = content
-            .defined_functions(|type_id| typing.get_type(type_id).unwrap(), &it)
-            .collect();
+        let chunk_functions: Vec<_> = content.defined_functions(&it).collect();
 
-        bytecode.emit_u32(defined_functions.len() as u32);
+        bytecode.emit_u32(chunk_functions.len() as u32);
 
-        for (chunk_id, env, chunk) in defined_functions {
+        for (chunk_id, env, chunk) in chunk_functions {
             let ctx = EmitterContext {
                 current_reef: reef_id,
                 engine: link_engine,
@@ -160,7 +145,6 @@ pub fn compile_reef(
             };
 
             compile_function_chunk(
-                &env.fqn,
                 chunk,
                 chunk_id,
                 &ctx,
@@ -179,8 +163,14 @@ pub fn compile_reef(
     Ok(CompiledReef { layouts })
 }
 
+fn iter_structs(typing: &Typing) -> impl Iterator<Item = (SourceId, StructureId)> + '_ {
+    typing.iter().filter_map(|(_, tpe)| match tpe {
+        &Type::Structure(Some(env), structure_id) => Some((env, structure_id)),
+        _ => None,
+    })
+}
+
 fn compile_function_chunk(
-    name: &Name,
     chunk: &Chunk,
     id: SourceId,
     ctx: &EmitterContext,
@@ -189,11 +179,11 @@ fn compile_function_chunk(
     options: &CompilerOptions,
 ) -> Option<u32> {
     // emit the function's name
-    let signature_idx = cp.insert_string(name);
+    let signature_idx = cp.insert_string(ctx.environment.fqn.clone());
     bytecode.emit_constant_ref(signature_idx);
 
     // emits chunk's code attribute
-    let (page_size, segments) = compile_chunk_code(chunk, id, bytecode, ctx, cp, options);
+    let (page_size, segments) = compile_code(chunk, id, bytecode, ctx, cp, options);
 
     let line_provider = options.line_provider;
     let attribute_count = line_provider.map_or(0, |_| 1);
@@ -341,7 +331,7 @@ fn resolve_captures(engine: &Engine, relations: &Relations, compiled_reef: ReefI
 /// locals specifications
 ///
 /// returns the page length (if chunk is a script) and the hir's segments associated with their first instruction.
-fn compile_chunk_code(
+fn compile_code(
     chunk: &Chunk,
     chunk_id: SourceId,
     bytecode: &mut Bytecode,
@@ -349,18 +339,13 @@ fn compile_chunk_code(
     cp: &mut ConstantPool,
     options: &CompilerOptions,
 ) -> (Option<u32>, Vec<InstructionPos>) {
-    let chunk_expression = chunk
-        .expression
-        .as_ref()
-        .expect("Unable to compile a function without a definition");
-
     let locals_byte_count = bytecode.emit_u32_placeholder();
 
     let chunk_captures = ctx.captures[chunk_id.0]
         .as_ref()
         .expect("unresolved capture after resolution");
 
-    let function_id = match ctx.typing.get_type(chunk.tpe).unwrap() {
+    let function_id = match ctx.typing.get_type(chunk.function_type).unwrap() {
         Type::Function(_, id) => *id,
         _ => panic!("attempted to compile a non-function chunk."),
     };
@@ -407,37 +392,34 @@ fn compile_chunk_code(
         use_values: use_value,
         ..EmissionState::default()
     };
-
-    emit(
-        chunk_expression,
-        &mut instructions,
-        ctx,
-        cp,
-        &mut locals,
-        &mut state,
-    );
-
     let chunk_is_script = ctx.environment.is_script;
 
-    if let Some(storage_exported_val) = &options.last_page_storage_var {
-        assert!(
-            chunk_is_script,
-            "only script chunks can store their last expression value in a storage export"
-        );
-        let last_expr = if let ExprKind::Block(b) = &chunk_expression.kind {
-            b.last().unwrap_or(chunk_expression)
-        } else {
-            chunk_expression
-        };
+    if let ChunkKind::DefinedFunction(code) = &chunk.kind {
+        let code = code
+            .as_ref()
+            .expect("defined function should have its body typed");
+        emit(code, &mut instructions, ctx, cp, &mut locals, &mut state);
 
-        let page_offset = cp.exported.last().map_or(0, |exp| {
-            exp.page_offset + u8::from(ValueStackSize::QWord) as u32
-        });
-        cp.insert_exported(storage_exported_val, page_offset, last_expr.ty.is_obj());
-        instructions.emit_set_external(
-            cp.get_external(storage_exported_val).unwrap(),
-            last_expr.ty.into(),
-        )
+        if let Some(storage_exported_val) = &options.last_page_storage_var {
+            assert!(
+                chunk_is_script,
+                "only script chunks can store their last expression value in a storage export"
+            );
+            let last_expr = if let ExprKind::Block(b) = &code.kind {
+                b.last().unwrap_or(code)
+            } else {
+                code
+            };
+
+            let page_offset = cp.exported.last().map_or(0, |exp| {
+                exp.page_offset + u8::from(ValueStackSize::QWord) as u32
+            });
+            cp.insert_exported(storage_exported_val, page_offset, last_expr.ty.is_obj());
+            instructions.emit_set_external(
+                cp.get_external(storage_exported_val).unwrap(),
+                last_expr.ty.into(),
+            )
+        }
     }
 
     // patch instruction count placeholder

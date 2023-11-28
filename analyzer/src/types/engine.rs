@@ -4,7 +4,7 @@ use crate::engine::Engine;
 use crate::environment::Environment;
 use crate::relations::{ObjectId, SourceId};
 use crate::types::hir::TypedExpr;
-use crate::types::ty::{Field, FunctionDesc, MethodType, StructureDesc, Type, TypeId, TypeRef};
+use crate::types::ty::{Field, FunctionDesc, MethodType, StructureDesc, TypeId, TypeRef};
 
 /// A typed [`Engine`].
 ///
@@ -196,12 +196,18 @@ impl TypedEngine {
 /// A chunk of typed code.
 #[derive(Debug)]
 pub struct Chunk {
-    /// The expression that is evaluated when the chunk is called.
-    /// if this expression is set to None, the chunk is associated to a native function declaration
-    pub expression: Option<TypedExpr>,
+    pub function_id: FunctionId,
+    pub function_type: TypeId,
+    pub kind: ChunkKind,
+}
 
-    /// Associated chunk type
-    pub tpe: TypeId,
+#[derive(Debug)]
+pub enum ChunkKind {
+    /// A function with a defined body.
+    /// The body is set to None if it has been declared inside the analyzer but not yet typed
+    DefinedFunction(Option<TypedExpr>),
+    /// A function only declared (has no defined body)
+    DeclaredFunction,
 }
 
 /// A group of chunks that were defined in the same content.
@@ -270,50 +276,29 @@ impl EncodableContent {
         (self.start_inclusive, environment, chunk)
     }
 
-    pub fn defined_functions<'a, 'b, F>(
+    pub fn defined_functions<'a>(
         self,
-        type_supplier: F,
         it: &'a ContentIterator<'a>,
-    ) -> impl Iterator<Item = (SourceId, &'a Environment, &'a Chunk)>
-    where
-        F: Fn(TypeId) -> &'b Type + 'a,
-    {
-        self.function_chunks(it).filter(move |(_, _, chunk)| {
-            let chunk_type = type_supplier(chunk.tpe);
-            matches!(chunk_type, Type::Function(_, _)) && chunk.expression.is_some()
-        })
+    ) -> impl Iterator<Item = (SourceId, &'a Environment, &'a Chunk)> {
+        self.chunks(it)
+            .filter(move |(_, _, chunk)| matches!(chunk.kind, ChunkKind::DefinedFunction(_)))
     }
 
-    pub fn structures<'a, 'b, F>(
-        self,
-        type_supplier: F,
-        it: &'a ContentIterator<'a>,
-    ) -> impl Iterator<Item = (SourceId, &'a Environment, &'a Chunk)>
-    where
-        F: Fn(TypeId) -> &'b Type + 'a,
-    {
-        self.function_chunks(it).filter(move |(_, _, chunk)| {
-            let chunk_type = type_supplier(chunk.tpe);
-            matches!(chunk_type, Type::Structure(_, _))
-        })
-    }
-
-    pub fn function_chunks<'a>(
+    pub fn chunks<'a>(
         self,
         it: &'a ContentIterator<'a>,
     ) -> impl Iterator<Item = (SourceId, &'a Environment, &'a Chunk)> {
         let start = self.start_inclusive.0 + 1;
         let end = self.end_exclusive.0;
-        let chunks = it.typed.entries[start..end]
+        it.engine.origins[start..end]
             .iter()
-            .map(|chunk| chunk.as_ref().expect("Typed engine not properly filled"));
-        let environments = it.engine.origins[start..end]
-            .iter()
-            .map(|(_, _, env)| env.as_ref().expect("Engine not properly filled"));
-        environments
-            .zip(chunks)
             .enumerate()
-            .map(move |(i, (env, chunk))| (SourceId(start + i), env, chunk))
+            .filter_map(move |(idx, (_, _, env))| {
+                let env = env.as_ref().expect("engine not properly filled");
+                it.typed.entries[start + idx]
+                    .as_ref()
+                    .map(|c| (SourceId(start + idx), env, c))
+            })
     }
 
     pub fn function_count(&self) -> usize {

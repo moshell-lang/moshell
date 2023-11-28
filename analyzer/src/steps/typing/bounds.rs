@@ -40,9 +40,6 @@ impl TypesBounds {
         new_bounds: TypeRef,
         exploration: &Exploration,
     ) {
-        if new_bounds == base {
-            return;
-        }
         match self.bounds.entry(base) {
             Entry::Occupied(mut o) => {
                 // As there is no real hierarchy for now, only the Nothing type can be more specific than any other type

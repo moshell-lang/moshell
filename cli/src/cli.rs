@@ -11,7 +11,7 @@ use analyzer::name::Name;
 use analyzer::reef::Externals;
 use analyzer::relations::SourceId;
 use analyzer::Analyzer;
-use compiler::externals::{CompiledReef, CompilerExternals};
+use compiler::externals::CompilerExternals;
 use compiler::{compile_reef, CompilerOptions, SourceLineProvider};
 use context::source::ContentId;
 use vm::{VmError, VM};
@@ -94,19 +94,19 @@ pub fn use_pipeline(
     starting_page: SourceId,
     analyzer: &Analyzer<'_>,
     externals: &Externals,
-    compiler_externals: &CompilerExternals,
+    compiler_externals: &mut CompilerExternals,
     vm: &mut VM,
     diagnostics: Vec<Diagnostic>,
     errors: Vec<FileImportError>,
     sources: &SourcesCache,
     config: &Cli,
-) -> Result<CompiledReef, PipelineStatus> {
+) -> PipelineStatus {
     if errors.is_empty() && analyzer.resolution.engine.is_empty() {
         eprintln!("No module found for entry point {entry_point}");
-        return Err(PipelineStatus::IoError);
+        return PipelineStatus::IoError;
     }
 
-    let reef = externals.current;
+    let reef_id = externals.current;
 
     let mut import_status = PipelineStatus::Success;
     for error in errors {
@@ -118,7 +118,7 @@ pub fn use_pipeline(
             FileImportError::Parse(report) => {
                 for error in report.errors {
                     let source = sources
-                        .get(reef)
+                        .get(reef_id)
                         .and_then(|importer| importer.get_source(report.source))
                         .unwrap();
                     display_parse_error(source, error, &mut stderr())
@@ -133,7 +133,7 @@ pub fn use_pipeline(
         }
     }
     if import_status != PipelineStatus::Success {
-        return Err(import_status);
+        return import_status;
     }
 
     let engine = &analyzer.resolution.engine;
@@ -162,11 +162,11 @@ pub fn use_pipeline(
     }
 
     if had_errors {
-        return Err(PipelineStatus::AnalysisError);
+        return PipelineStatus::AnalysisError;
     }
     let mut bytes = Vec::new();
 
-    let importer = sources.get(reef).expect("unknown reef");
+    let importer = sources.get(reef_id).expect("unknown reef");
     let contents = importer.list_content_ids();
     let lines = CachedSourceLocationLineProvider::compute(&contents, importer);
 
@@ -187,6 +187,8 @@ pub fn use_pipeline(
     )
     .expect("write failed");
 
+    compiler_externals.set(reef_id, compiled_reef);
+
     if config.disassemble {
         display_bytecode(&bytes);
     }
@@ -197,9 +199,9 @@ pub fn use_pipeline(
         drop(bytes);
         match unsafe { vm.run() } {
             Ok(()) => {}
-            Err(VmError::Panic) => return Err(PipelineStatus::ExecutionFailure),
+            Err(VmError::Panic) => return PipelineStatus::ExecutionFailure,
             Err(VmError::Internal) => panic!("VM internal error"),
         }
     }
-    Ok(compiled_reef)
+    PipelineStatus::Success
 }

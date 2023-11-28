@@ -13,7 +13,9 @@ pub fn emit_field_access(
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
 ) {
+    let uses = state.use_values(true);
     emit(&access.object, instructions, ctx, cp, locals, state);
+    state.use_values(uses);
     let layout = ctx.get_layout(access.structure_reef, access.structure);
     instructions.emit_get_field(access.field, layout);
 }

@@ -12,49 +12,28 @@ use crate::steps::typing::bounds::{apply_bounds, TypesBounds};
 use crate::steps::typing::coercion::resolve_type_annotation;
 use crate::steps::typing::exploration::{Exploration, Links};
 use crate::steps::typing::{ascribe_types, ExpressionValue, TypingState};
-use crate::types::engine::{Chunk, StructureId};
+use crate::types::engine::StructureId;
 use crate::types::hir::{ExprKind, TypedExpr};
-use crate::types::ty::{Field, FunctionDesc, Type, TypeRef};
+use crate::types::ty::{Field, FunctionDesc, Type, TypeId, TypeRef};
 use crate::types::{hir, ERROR, UNIT};
 
 pub(super) fn declare_structure(
     decl: &StructDeclaration,
     exploration: &mut Exploration,
-    parent_links: Links,
+    links: Links,
     diagnostics: &mut Vec<Diagnostic>,
     structure_id: StructureId,
-) -> Chunk {
+    type_id: TypeId,
+) {
     let current_reef = exploration.externals.current;
 
-    let parent_env = parent_links.env();
-    let structure_env_id = parent_env.get_raw_env(decl.segment()).unwrap();
-    let SymbolRef::Local(structure_local_id) = parent_env.get_raw_symbol(decl.segment()).unwrap()
-    else {
-        unreachable!()
-    };
-
-    let type_id = exploration.typing.add_type(
-        Type::Structure(Some(structure_env_id), structure_id),
-        Some(decl.name.to_string()),
-    );
-
-    exploration.ctx.set_local_typed(
-        parent_links.source,
-        structure_local_id,
-        TypeRef::new(current_reef, type_id),
-    );
+    let structure_env_id = links.source;
 
     let mut type_parameters = Vec::new();
 
-    let struct_links = Links {
-        source: structure_env_id,
-        engine: parent_links.engine,
-        relations: parent_links.relations,
-    };
-
     exploration
         .ctx
-        .init_locals(structure_env_id, struct_links.env().symbols.len());
+        .init_locals(structure_env_id, links.env().symbols.len());
 
     for (tparam_id, tparam) in decl.parameters.iter().enumerate() {
         let param_type_id = exploration
@@ -82,12 +61,8 @@ pub(super) fn declare_structure(
     let mut field_types = Vec::new();
 
     for (field_offset, field_declaration) in decl.fields.iter().enumerate() {
-        let field_type = resolve_type_annotation(
-            exploration,
-            struct_links,
-            &field_declaration.tpe,
-            diagnostics,
-        );
+        let field_type =
+            resolve_type_annotation(exploration, links, &field_declaration.tpe, diagnostics);
 
         let local_id = LocalId(field_offset + type_parameters.len());
         exploration
@@ -137,15 +112,11 @@ pub(super) fn declare_structure(
     let constructor_fn_id = exploration
         .type_engine
         .add_method(structure_id, "<init>", constructor);
+
     exploration.typing.add_type(
-        Type::Function(Some(parent_links.source), constructor_fn_id),
+        Type::Function(Some(structure_env_id), constructor_fn_id),
         Some("<init>".to_string()),
     );
-
-    Chunk {
-        expression: None,
-        tpe: type_id,
-    }
 }
 
 pub(super) fn ascribe_struct_declaration(
@@ -155,13 +126,26 @@ pub(super) fn ascribe_struct_declaration(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> TypedExpr {
     let structure_env_id = parent_links.env().get_raw_env(decl.segment()).unwrap();
+    let structure_id = exploration.type_engine.init_empty_structure();
 
-    // if the struct was not already known, declare it now
-    if exploration.type_engine.get_user(structure_env_id).is_none() {
-        let structure_id = exploration.type_engine.init_empty_structure();
-        let chunk = declare_structure(decl, exploration, parent_links, diagnostics, structure_id);
-        exploration.type_engine.insert(structure_env_id, chunk);
-    }
+    let type_id = exploration.typing.add_type(
+        Type::Structure(Some(structure_env_id), structure_id),
+        Some(decl.name.to_string()),
+    );
+
+    let links = parent_links.with_source(structure_env_id);
+    declare_structure(decl, exploration, links, diagnostics, structure_id, type_id);
+
+    let type_ref = TypeRef::new(exploration.externals.current, type_id);
+
+    let SymbolRef::Local(structure_local_id) =
+        parent_links.env().get_raw_symbol(decl.segment()).unwrap()
+    else {
+        unreachable!()
+    };
+    exploration
+        .ctx
+        .set_local_typed(parent_links.source, structure_local_id, type_ref);
 
     TypedExpr {
         kind: ExprKind::Noop,
@@ -354,13 +338,14 @@ pub(super) fn ascribe_field_access(
 
 #[cfg(test)]
 mod test {
-    use crate::steps::typing::tests::extract_type;
+    use pretty_assertions::assert_eq;
+
     use context::source::Source;
 
     use crate::reef::ReefId;
+    use crate::steps::typing::tests::extract_type;
     use crate::types::ty::{TypeId, TypeRef};
     use crate::types::{STRING, UNIT};
-    use pretty_assertions::assert_eq;
 
     #[test]
     fn constructor() {

@@ -1,13 +1,15 @@
-use crate::cli::{use_pipeline, Cli};
-use crate::pipeline::{ErrorReporter, PipelineStatus, SourcesCache};
+use std::path::{Path, PathBuf};
+
 use analyzer::analyze;
 use analyzer::name::Name;
 use analyzer::reef::{Externals, Reef};
 use analyzer::relations::SourceId;
 use cli::project_dir;
 use compiler::externals::CompilerExternals;
-use std::path::{Path, PathBuf};
 use vm::VM;
+
+use crate::cli::{use_pipeline, Cli};
+use crate::pipeline::{ErrorReporter, PipelineStatus, SourcesCache};
 
 pub fn build_std(
     externals: &mut Externals,
@@ -38,11 +40,10 @@ pub fn build_std(
     );
 
     match status {
-        Ok(compiler_reef) => {
+        PipelineStatus::Success => {
             externals.register(Reef::new("std".to_string(), analyzer));
-            compiler_externals.register(compiler_reef)
         }
-        Err(PipelineStatus::IoError) => panic!(
+        PipelineStatus::IoError => panic!(
             "Unable to find the standard library, check the MOSHELL_STD environment variable"
         ),
         _ => panic!("std build did not succeed"),

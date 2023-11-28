@@ -41,6 +41,13 @@ impl Typing {
             .get(type_id.0)
             .and_then(|(_, name)| name.as_ref())
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = (TypeId, &Type)> {
+        self.types
+            .iter()
+            .enumerate()
+            .map(|(idx, (tpe, _))| (TypeId(idx), tpe))
+    }
 }
 
 pub const ERROR: TypeRef = TypeRef::new(LANG_REEF, TypeId(0));

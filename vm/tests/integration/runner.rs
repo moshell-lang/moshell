@@ -4,6 +4,7 @@ use analyzer::importer::{ASTImporter, ImportResult, StaticImporter};
 use analyzer::name::Name;
 use analyzer::reef::{Externals, Reef};
 use analyzer::relations::SourceId;
+use analyzer::types::engine::ChunkKind;
 use analyzer::types::ty::{Type, TypeRef};
 use analyzer::{analyze, types, Analyzer, Inject};
 use cli::pipeline::FileImporter;
@@ -102,9 +103,11 @@ impl<'a> Runner<'a> {
         let mut bytes = Vec::new();
 
         let chunk = self.analyzer.engine.get_user(page).unwrap();
-        let chunk_expr = &chunk.expression.as_ref().unwrap();
+        let ChunkKind::DefinedFunction(Some(eval_expression)) = &chunk.kind else {
+            unreachable!()
+        };
 
-        let evaluated_expr_type = chunk_expr.ty;
+        let evaluated_expr_type = eval_expression.ty;
 
         let expr_value_is_void =
             evaluated_expr_type == types::UNIT || evaluated_expr_type == types::NOTHING;

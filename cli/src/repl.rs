@@ -30,7 +30,7 @@ pub(crate) fn repl(
     config: &Cli,
     mut sources: SourcesCache,
     externals: Externals,
-    compiler_externals: CompilerExternals,
+    mut compiler_externals: CompilerExternals,
     mut vm: VM,
 ) -> miette::Result<PipelineStatus> {
     let mut analyzer = Analyzer::new();
@@ -75,22 +75,18 @@ pub(crate) fn repl(
                     let is_ready = diagnostics.is_empty();
 
                     let errors = importer.take_errors();
-                    status = status.compose(
-                        use_pipeline(
-                            &name,
-                            analysis.attributed_id(),
-                            analysis.analyzer(),
-                            &externals,
-                            &compiler_externals,
-                            &mut vm,
-                            diagnostics,
-                            errors,
-                            &sources,
-                            config,
-                        )
-                        .err()
-                        .unwrap_or(PipelineStatus::Success),
-                    );
+                    status = status.compose(use_pipeline(
+                        &name,
+                        analysis.attributed_id(),
+                        analysis.analyzer(),
+                        &externals,
+                        &mut compiler_externals,
+                        &mut vm,
+                        diagnostics,
+                        errors,
+                        &sources,
+                        config,
+                    ));
 
                     // Remember the successfully injected source, or revert the analysis.
                     if is_ready {
@@ -104,22 +100,18 @@ pub(crate) fn repl(
                     // in the pipeline, but we consume them anyway to reuse the same
                     // end-of-pipeline logic.
                     let diagnostics = analyzer.take_diagnostics();
-                    status = status.compose(
-                        use_pipeline(
-                            &name,
-                            SourceId(0), // this value has no importance
-                            &analyzer,
-                            &externals,
-                            &compiler_externals,
-                            &mut vm,
-                            diagnostics,
-                            importer.take_errors(),
-                            &sources,
-                            config,
-                        )
-                        .err()
-                        .unwrap_or(PipelineStatus::Success),
-                    );
+                    status = status.compose(use_pipeline(
+                        &name,
+                        SourceId(0), // this value has no importance
+                        &analyzer,
+                        &externals,
+                        &mut compiler_externals,
+                        &mut vm,
+                        diagnostics,
+                        importer.take_errors(),
+                        &sources,
+                        config,
+                    ));
                 }
             }
             Ok(Signal::CtrlC) => eprintln!("^C"),

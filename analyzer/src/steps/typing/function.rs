@@ -17,7 +17,7 @@ use crate::steps::typing::coercion::{
 use crate::steps::typing::exploration::{Exploration, Links};
 use crate::steps::typing::view::TypeInstanceVec;
 use crate::steps::typing::{ascribe_types, ExpressionValue, TypingState};
-use crate::types::engine::{Chunk, FunctionId};
+use crate::types::engine::{Chunk, ChunkKind, FunctionId};
 use crate::types::hir::{ExprKind, TypedExpr};
 use crate::types::ty::{FunctionDesc, FunctionKind, MethodType, Parameter, Type, TypeRef};
 use crate::types::{ERROR, STRING, UNIT};
@@ -316,18 +316,18 @@ pub(super) fn declare_function(
         kind: FunctionKind::Function,
     });
 
-    let type_id = exploration.typing.add_type(
+    let function_type = exploration.typing.add_type(
         Type::Function(Some(func_source), function_id),
         Some(func.name.to_string()),
     );
 
+    // The function body will be typed on next iteration
     Chunk {
-        expression: Some(TypedExpr {
-            kind: ExprKind::Noop,
-            ty: UNIT,
-            segment: func.segment(),
+        function_type,
+        function_id,
+        kind: func.body.as_ref().map_or(ChunkKind::DeclaredFunction, |_| {
+            ChunkKind::DefinedFunction(None)
         }),
-        tpe: type_id,
     }
 }
 

@@ -297,7 +297,7 @@ static void gc(OperandStack &, runtime_memory &mem) {
 }
 
 static void is_operands_empty(OperandStack &os, runtime_memory &) {
-    os.push(os.size() == 0);
+    os.push<bool>(os.size() == 0);
 }
 
 static void program_arguments(OperandStack &caller_stack, runtime_memory &mem) {

@@ -292,27 +292,28 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
 
             match result {
                 SymbolResolutionResult::Resolved(symbol) => {
-                    if symbol.reef == current_reef {
-                        if let Some(Expr::StructDeclaration(_)) = self.engine.get_expression(origin)
-                        {
-                            let origin_parent = origin_env.parent.unwrap();
-                            let mut observations: Vec<_> =
-                                origin_env.find_references(SymbolRef::External(relation_id))
-                                    .into_iter()
-                                    .map(|seg| Observation::context(
-                                        origin_parent,
-                                        current_reef,
-                                        seg,
-                                        "This structure contains fields with types that are defined within this structure's reef",
-                                    ))
-                                    .collect();
-                            observations.sort_by_key(|s| s.location.segment.start);
-
-                            self.diagnostics.push(Diagnostic::new(
-                                DiagnosticID::UnsupportedFeature,
-                                "Referencing types from current reef in structures is not supported"
-                            ).with_observations(observations))
-                        }
+                    if symbol.reef == current_reef
+                        && matches!(
+                            self.engine.get_expression(origin),
+                            Some(Expr::StructDeclaration(_))
+                        )
+                    {
+                        let origin_parent = origin_env.parent.unwrap();
+                        let mut observations: Vec<_> =
+                            origin_env.find_references(SymbolRef::External(relation_id))
+                                .into_iter()
+                                .map(|seg| Observation::context(
+                                    origin_parent,
+                                    current_reef,
+                                    seg,
+                                    "This structure contains fields whose types are defined in the structure's reef",
+                                ))
+                                .collect();
+                        observations.sort_by_key(|s| s.location.segment.start);
+                        self.diagnostics.push(Diagnostic::new(
+                            DiagnosticID::UnsupportedFeature,
+                            "Referencing user-defined types from within a structure is not supported yet",
+                        ).with_observations(observations))
                     }
                     relation.state = RelationState::Resolved(symbol);
                 }

@@ -141,7 +141,7 @@ RuntimeException::RuntimeException(std::string msg)
     : std::runtime_error(msg) {}
 
 // run GC every n objects allocated
-#define GC_HEAP_CYCLE 2000
+#define GC_HEAP_CYCLE 5
 
 runtime_memory::runtime_memory(msh::heap &heap, std::vector<std::string> &program_arguments, msh::gc &gc)
     : heap{heap}, gc{gc}, pargs{program_arguments}, last_gc_heap_size{heap.size()} {}
@@ -509,7 +509,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             auto struct_def_it = state.loader.find_structure(identifier);
 
             if (struct_def_it == state.loader.structures_cend()) {
-                panic("unknown structure " + identifier, call_stack);
+                throw InvalidBytecodeError("Unknown structure `" + identifier + "`");
                 return frame_status::ABORT;
             }
 

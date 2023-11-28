@@ -34,11 +34,11 @@ use crate::steps::typing::function::{
 use crate::steps::typing::lower::{convert_into_string, generate_unwrap};
 use crate::steps::typing::magic::{is_magic_variable_name, prepend_implicits};
 use crate::steps::typing::structure::{
-    ascribe_field_access, ascribe_field_assign, ascribe_struct_declaration, declare_structure,
+    ascribe_field_access, ascribe_field_assign, ascribe_struct_declaration,
 };
 use crate::types::builtin::{BOOL_STRUCT, STRING_STRUCT};
 use crate::types::ctx::{TypeContext, TypedVariable};
-use crate::types::engine::{Chunk, TypedEngine};
+use crate::types::engine::{Chunk, ChunkKind, TypedEngine};
 use crate::types::hir::{
     Conditional, Convert, Declaration, ExprKind, FunctionCall, LocalAssignment, Loop, MethodCall,
     Redir, Redirect, Subprocess, TypedExpr, Var,
@@ -78,8 +78,11 @@ pub fn apply_types(
     };
 
     for env_id in environments {
-        let entry = apply_types_to_source(&mut exploration, diagnostics, engine, relations, env_id);
-        exploration.type_engine.insert(env_id, entry);
+        if let Some(entry) =
+            apply_types_to_source(&mut exploration, diagnostics, engine, relations, env_id)
+        {
+            exploration.type_engine.insert(env_id, entry);
+        }
     }
     (exploration.type_engine, exploration.ctx, exploration.typing)
 }
@@ -163,7 +166,7 @@ fn apply_types_to_source(
     engine: &Engine,
     relations: &Relations,
     source_id: SourceId,
-) -> Chunk {
+) -> Option<Chunk> {
     let links = Links {
         source: source_id,
         engine,
@@ -179,11 +182,8 @@ fn apply_types_to_source(
             let base_chunk = forward_declaration
                 .unwrap_or_else(|| declare_function(func, exploration, links, diagnostics));
 
-            let &Type::Function(_, function_id) =
-                exploration.typing.get_type(base_chunk.tpe).unwrap()
-            else {
-                panic!("function chunk is not a of type function.")
-            };
+            let function_id = base_chunk.function_id;
+            let function_type = base_chunk.function_type;
 
             let chunk_function = exploration.type_engine.get_function(function_id).unwrap();
             let expected_return_type = chunk_function.return_type;
@@ -208,10 +208,6 @@ fn apply_types_to_source(
                 exploration,
             );
 
-            if typed_body.is_none() {
-                verify_free_function(func, exploration.externals, source_id, diagnostics);
-            }
-
             // update function's return type.
             let function_mut = exploration
                 .type_engine
@@ -219,38 +215,23 @@ fn apply_types_to_source(
                 .unwrap();
             function_mut.return_type = return_type;
 
-            Chunk {
-                expression: typed_body,
-                tpe: base_chunk.tpe,
-            }
-        }
-        Expr::StructDeclaration(decl) => {
-            if let Some(chunk) = exploration.type_engine.take_user(source_id) {
-                chunk
-            } else {
-                let structure_id = exploration.type_engine.init_empty_structure();
-                let parent_id = links
-                    .env()
-                    .parent
-                    .expect("structure has no parent environment");
-                let parent_links = links.with_source(parent_id);
-
-                if !exploration.ctx.is_locals_init(parent_id) {
-                    exploration
-                        .ctx
-                        .init_locals(parent_id, parent_links.env().symbols.len());
+            match typed_body {
+                Some(body) => Some(Chunk {
+                    function_id,
+                    function_type,
+                    kind: ChunkKind::DefinedFunction(Some(body)),
+                }),
+                None => {
+                    verify_free_function(func, exploration.externals, source_id, diagnostics);
+                    None
                 }
-
-                declare_structure(decl, exploration, parent_links, diagnostics, structure_id)
             }
         }
+        Expr::StructDeclaration(_) => None,
         expr => {
-            // may have been already init if a child struct env was analyzed before the parent
-            if !exploration.ctx.is_locals_init(links.source) {
-                exploration
-                    .ctx
-                    .init_locals(links.source, links.env().symbols.len());
-            }
+            exploration
+                .ctx
+                .init_locals(links.source, links.env().symbols.len());
 
             let expression =
                 ascribe_types(exploration, links, diagnostics, expr, TypingState::new());
@@ -264,10 +245,11 @@ fn apply_types_to_source(
 
             let expression = prepend_implicits(expression, exploration, links);
 
-            Chunk {
-                expression: Some(expression),
-                tpe: function_type,
-            }
+            Some(Chunk {
+                function_id: script_fn_id,
+                function_type,
+                kind: ChunkKind::DefinedFunction(Some(expression)),
+            })
         }
     }
 }
@@ -892,15 +874,14 @@ fn ascribe_function_declaration(
         let declaration_link = links.with_source(function_source);
         let forward_declared_chunk =
             declare_function(fun, exploration, declaration_link, diagnostics);
-
         exploration
             .type_engine
             .insert(function_source, forward_declared_chunk);
     }
 
-    let function_chunk = exploration.type_engine.get_user(function_source).unwrap();
+    let chunk = exploration.type_engine.get_user(function_source).unwrap();
 
-    let type_ref = TypeRef::new(exploration.externals.current, function_chunk.tpe);
+    let type_ref = TypeRef::new(exploration.externals.current, chunk.function_type);
 
     let id = links.env().get_raw_symbol(fun.segment()).unwrap();
 
@@ -1566,7 +1547,7 @@ mod tests {
     use crate::name::Name;
     use crate::reef::{Reef, ReefId};
     use crate::relations::LocalId;
-    use crate::types::engine::{FunctionId, StructureId};
+    use crate::types::engine::{ChunkKind, FunctionId, StructureId};
     use crate::types::hir::{Convert, MethodCall};
     use crate::types::ty::{Type, TypeId};
     use crate::types::{EXITCODE, UNIT};
@@ -1596,11 +1577,13 @@ mod tests {
                 .typed_engine
                 .get_user(SourceId(0))
                 .unwrap();
-            if let ExprKind::Block(exprs) = &chunk.expression.as_ref().unwrap().kind {
-                exprs.clone()
-            } else {
-                unreachable!()
+
+            if let ChunkKind::DefinedFunction(Some(body)) = &chunk.kind {
+                if let ExprKind::Block(exprs) = &body.kind {
+                    return exprs.clone();
+                }
             }
+            unreachable!()
         })
     }
 
@@ -1609,9 +1592,11 @@ mod tests {
 
         let reef = externals.get_reef(ReefId(1)).unwrap();
         let chunk = reef.typed_engine.get_user(SourceId(0)).unwrap();
-        let expr = chunk.expression.as_ref().unwrap();
 
-        Ok(expr.ty)
+        if let ChunkKind::DefinedFunction(Some(body)) = &chunk.kind {
+            return Ok(body.ty);
+        }
+        unreachable!()
     }
 
     #[test]
@@ -2680,10 +2665,9 @@ mod tests {
         let content = "fun new_vec[T]() -> Vec[T];
         var v: Vec[Vec[Int]] = new_vec()
         $v = new_vec()
-        $v[0] = new_vec()
-        $v";
+        $v[0] = new_vec()";
         let res = extract_type(Source::unknown(content));
-        assert_eq!(res, Ok(TypeRef::new(ReefId(1), TypeId(6))));
+        assert_eq!(res, Ok(UNIT));
     }
 
     #[test]

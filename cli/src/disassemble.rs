@@ -203,7 +203,7 @@ fn display_structure(cursor: &mut Cursor<&[u8]>, constants: &[String]) -> io::Re
     println!("\theap size: {structure_byte_count}");
 
     let structure_object_indexes_count = read!(cursor, u32);
-    print!("\tcontains {structure_object_indexes_count} object references");
+    println!("\tcontains {structure_object_indexes_count} object references");
 
     if structure_object_indexes_count > 0 {
         println!(":")
@@ -237,15 +237,14 @@ fn display_unit(
     }
 
     println!("Structures: ");
-    let structures_len = read!(cursor, u32);
-    for _ in 0..structures_len {
+    let structures_count = read!(cursor, u32);
+    for _ in 0..structures_count {
         display_structure(cursor, constants)?;
     }
 
     println!("Functions: ");
-
-    let functions_len = read!(cursor, u32);
-    for _ in 0..functions_len {
+    let functions_count = read!(cursor, u32);
+    for _ in 0..functions_count {
         display_function(cursor, constants, dynamic_symbols)?;
     }
     Ok(())

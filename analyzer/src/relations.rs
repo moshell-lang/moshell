@@ -5,8 +5,7 @@ use context::source::SourceSegment;
 
 use crate::dependency::Dependencies;
 use crate::engine::Engine;
-use crate::environment::symbols::{SymbolInfo, SymbolRegistry};
-use crate::name::Name;
+use crate::environment::symbols::SymbolRegistry;
 use crate::reef::{ReefId, LANG_REEF};
 
 /// The object identifier base.
@@ -214,36 +213,14 @@ impl Relations {
     /// only symbols that are inside of the engine's reef are placed in the graph.
     pub fn as_dependencies(&self, engine_reef: ReefId, engine: &Engine) -> Dependencies<SourceId> {
         let mut dependencies = Dependencies::default();
-        for (env_id, env) in engine.environments() {
-            dependencies.add_node(env_id);
+        for (id, _) in engine.environments() {
+            dependencies.add_node(id);
+        }
 
-            for (seg, symbol) in env.definitions.iter() {
-                //TODO avoid annotating declarations to remove this check
-                if env.declarations.contains_key(seg) {
-                    continue; //a declaration is not a dependency
-                }
-
-                match symbol {
-                    SymbolRef::Local(lid) => {
-                        let symbol = env.symbols.get(*lid).unwrap();
-                        if symbol.ty == SymbolInfo::Type {
-                            let symbol_fqn =
-                                env.fqn.appended(Name::from(vec![symbol.name.to_string()]));
-                            if let Some((dependency_env_id, _)) =
-                                engine.find_environment_by_name(&symbol_fqn)
-                            {
-                                dependencies.add_dependency(env_id, dependency_env_id);
-                            }
-                        }
-                    }
-                    SymbolRef::External(e) => {
-                        let object = &self[*e];
-                        if let RelationState::Resolved(resolved) = object.state {
-                            if resolved.reef == engine_reef {
-                                dependencies.add_dependency(env_id, resolved.source);
-                            }
-                        }
-                    }
+        for object in self.relations.iter() {
+            if let RelationState::Resolved(resolved) = object.state {
+                if resolved.reef == engine_reef {
+                    dependencies.add_dependency(object.origin, resolved.source);
                 }
             }
         }
