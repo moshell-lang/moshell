@@ -1,5 +1,7 @@
 # Moshell
 
+Try it on [moshell.dev](https://moshell.dev) !
+
 Moshell is a modern shell scripting language with a static type system.
 This repository hosts the source code from the parser to the interpreter and its standard library.
 
