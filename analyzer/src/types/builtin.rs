@@ -8,7 +8,10 @@ use crate::types::ctx::TypeContext;
 use crate::types::engine::TypedEngine;
 use crate::types::operator::name_operator_method;
 use crate::types::ty::{MethodType, Type, TypeId, TypeRef};
-use crate::types::{Typing, BOOL, ERROR, EXITCODE, FLOAT, GENERIC_OPTION, GENERIC_VECTOR, GLOB, INT, NOTHING, STRING, UNIT, PID};
+use crate::types::{
+    Typing, BOOL, ERROR, EXITCODE, FLOAT, GENERIC_OPTION, GENERIC_VECTOR, GLOB, INT, NOTHING, PID,
+    STRING, UNIT,
+};
 
 const ARITHMETIC_OPERATORS: &[BinaryOperator] = &[
     BinaryOperator::Plus,
