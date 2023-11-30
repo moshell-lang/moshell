@@ -1,7 +1,7 @@
 /// Waits for a child process to finish.
 ///
 /// @panic If the PID is not a child process.
-fun wait(pid: Int);
+fun wait(pid: Pid);
 
 /// Waits for all child processes to finish.
 fun wait_all();

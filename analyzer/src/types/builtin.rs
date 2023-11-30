@@ -267,6 +267,8 @@ fn fill_lang_bindings(ctx: &mut TypeContext) {
         STRING,
         GENERIC_VECTOR,
         GENERIC_OPTION,
+        GLOB,
+        PID,
     ];
 
     ctx.init_locals(SourceId(0), locals.len());
