@@ -9,7 +9,7 @@ use crate::types::engine::TypedEngine;
 use crate::types::operator::name_operator_method;
 use crate::types::ty::{MethodType, Type, TypeId, TypeRef};
 use crate::types::{
-    Typing, BOOL, ERROR, EXITCODE, FLOAT, GENERIC_OPTION, GENERIC_VECTOR, GLOB, INT, NOTHING,
+    Typing, BOOL, ERROR, EXITCODE, FLOAT, GENERIC_OPTION, GENERIC_VECTOR, GLOB, INT, NOTHING, PID,
     STRING, UNIT,
 };
 
@@ -33,12 +33,12 @@ const EQUALITY_OPERATORS: &[BinaryOperator] =
 const LOGICAL_OPERATORS: &[BinaryOperator] = &[BinaryOperator::And, BinaryOperator::Or];
 
 /// Some common types.
-pub const STRING_VEC: TypeRef = TypeRef::new(LANG_REEF, TypeId(11));
-pub const INT_VEC: TypeRef = TypeRef::new(LANG_REEF, TypeId(12));
+pub const STRING_VEC: TypeRef = TypeRef::new(LANG_REEF, TypeId(12));
+pub const INT_VEC: TypeRef = TypeRef::new(LANG_REEF, TypeId(13));
 
 /// generic parameters used by the lang reef.
 /// The lang reef is a special reef that reuses the same generic parameters for each functions.
-pub const GENERIC_PARAMETER_1: TypeRef = TypeRef::new(LANG_REEF, TypeId(13));
+pub const GENERIC_PARAMETER_1: TypeRef = TypeRef::new(LANG_REEF, TypeId(14));
 
 /// Adds the native methods to the engine.
 fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
@@ -213,6 +213,11 @@ fn fill_lang_typed_engine(engine: &mut TypedEngine, typing: &mut Typing) {
         "spread",
         MethodType::new(vec![], vec![], STRING_VEC),
     );
+    engine.add_method(
+        PID.type_id,
+        "to_string",
+        MethodType::new(vec![], vec![], STRING),
+    );
 }
 
 fn fill_lang_types(typing: &mut Typing) {
@@ -228,6 +233,7 @@ fn fill_lang_types(typing: &mut Typing) {
         (Type::Vector, Some("Vec")),
         (Type::Option, Some("Option")),
         (Type::Glob, Some("Glob")),
+        (Type::Pid, Some("Pid")),
         (Type::Instantiated(GENERIC_VECTOR, vec![STRING]), None),
         (Type::Instantiated(GENERIC_VECTOR, vec![INT]), None),
     ] {
@@ -247,6 +253,8 @@ fn fill_lang_bindings(ctx: &mut TypeContext) {
     ctx.bind_name("String".to_string(), STRING.type_id);
     ctx.bind_name("Vec".to_string(), GENERIC_VECTOR.type_id);
     ctx.bind_name("Option".to_string(), GENERIC_OPTION.type_id);
+    ctx.bind_name("Glob".to_string(), GLOB.type_id);
+    ctx.bind_name("Pid".to_string(), PID.type_id);
 
     let locals = [
         ERROR,

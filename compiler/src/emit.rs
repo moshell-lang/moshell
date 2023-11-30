@@ -12,6 +12,7 @@ use crate::constant_pool::ConstantPool;
 use crate::emit::identifier::{expose_variable, Identifier};
 use crate::emit::invoke::{
     emit_capture, emit_function_invocation, emit_pipeline, emit_process_call, emit_redirect,
+    emit_subprocess,
 };
 use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
 use crate::emit::native::emit_natives;
@@ -329,8 +330,11 @@ pub fn emit(
         ExprKind::Capture(capture) => {
             emit_capture(capture, instructions, ctx, cp, locals, state);
         }
+        ExprKind::Subprocess(subprocess) => {
+            emit_subprocess(subprocess, instructions, ctx, cp, locals, state)
+        }
         ExprKind::Noop => {}
-        _ => unimplemented!(),
+        ExprKind::Convert(_) => unimplemented!(),
     }
     instructions.push_position(expr.segment.start)
 }

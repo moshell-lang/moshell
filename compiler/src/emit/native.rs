@@ -149,7 +149,7 @@ pub(crate) fn emit_natives(
             instructions.emit_code(Opcode::ConvertByteToInt);
             instructions.emit_invoke(cp.insert_string(INT_TO_STRING));
         }
-        29 => {
+        29 | 54 => {
             // Int -> String
             instructions.emit_invoke(cp.insert_string(INT_TO_STRING));
         }

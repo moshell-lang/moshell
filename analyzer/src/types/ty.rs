@@ -67,6 +67,9 @@ pub enum Type {
     /// An exit code type, on a single byte.
     ExitCode,
 
+    /// A numeric process identifier type.
+    Pid,
+
     /// An integer type, that contains a 32-bit signed integer.
     Int,
 

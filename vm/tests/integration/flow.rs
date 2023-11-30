@@ -177,3 +177,13 @@ fn working_directory_via_tilde() {
         assert(working_dir() == $wd)",
     );
 }
+
+#[test]
+fn subprocess() {
+    let mut runner = Runner::default();
+    runner.eval(
+        "use std::assert::assert
+        val code: Int = {(/bin/false)}.to_int()
+        assert($code == 1)",
+    );
+}
