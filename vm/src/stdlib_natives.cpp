@@ -321,8 +321,8 @@ static void process_wait(OperandStack &caller_stack, runtime_memory &) {
 
 static void process_wait_all(OperandStack &, runtime_memory &) {
     int status;
-    while (wait(&status) > 0)
-        ;
+    while (wait(&status) > 0) {
+    }
 }
 
 natives_functions_t load_natives() {

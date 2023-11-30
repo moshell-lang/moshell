@@ -44,7 +44,7 @@ use crate::types::operator::name_operator_method;
 
 use crate::types::ty::{FunctionType, Type, TypeRef};
 use crate::types::{
-    builtin, Typing, BOOL, ERROR, EXITCODE, FLOAT, GLOB, INT, NOTHING, STRING, UNIT,
+    builtin, Typing, BOOL, ERROR, EXITCODE, FLOAT, GLOB, INT, NOTHING, STRING, UNIT, PID
 };
 
 mod assign;
@@ -796,7 +796,7 @@ fn ascribe_detached(
             inner: Box::new(expr),
             awaited: false,
         }),
-        ty: INT,
+        ty: PID,
         segment: detached.segment(),
     }
 }
@@ -2815,7 +2815,7 @@ mod tests {
     fn background_process() {
         let source = Source::unknown("foo &");
         let res = extract_type(source);
-        assert_eq!(res, Ok(Type::Int));
+        assert_eq!(res, Ok(Type::Pid));
     }
 
     #[test]
