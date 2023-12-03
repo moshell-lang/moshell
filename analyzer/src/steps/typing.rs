@@ -10,9 +10,7 @@ use ast::r#use::InclusionPathItem;
 use ast::range::{Iterable, Subscript};
 use ast::substitution::Substitution;
 use ast::value::{Literal, LiteralValue, TemplateString};
-use ast::variable::{
-    Assign, AssignOperator, Identifier, Tilde, VarDeclaration, VarKind, VarName, VarReference,
-};
+use ast::variable::{Assign, Identifier, Tilde, VarDeclaration, VarKind, VarName, VarReference};
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
 
@@ -21,7 +19,9 @@ use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::engine::Engine;
 use crate::reef::{Externals, ReefId};
 use crate::relations::{Relations, SourceId, SymbolRef};
-use crate::steps::typing::assign::{ascribe_assign_subscript, create_subscript};
+use crate::steps::typing::assign::{
+    ascribe_assign_rhs, ascribe_assign_subscript, create_subscript,
+};
 use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::coercion::{
     check_type_annotation, coerce_condition, convert_description, convert_expression, convert_many,
@@ -320,35 +320,19 @@ fn ascribe_assign(
             .type_ref
     });
 
-    let rhs = match assign.operator {
-        AssignOperator::Assign => ascribe_types(
-            exploration,
-            links,
-            diagnostics,
-            &assign.value,
-            state.with_local_value(
-                actual_type_ref.map_or(ExpressionValue::Unspecified, ExpressionValue::Expected),
-            ),
-        ),
-        operator => {
-            let binary = Expr::Binary(BinaryOperation {
-                left: assign.left.clone(),
-                op: BinaryOperator::try_from(operator).expect("Invalid assign operator"),
-                right: assign.value.clone(),
-            });
-            ascribe_types(
-                exploration,
-                links,
-                diagnostics,
-                &binary,
-                state.with_local_value(ExpressionValue::Unspecified),
-            )
-        }
-    };
-
     if let Expr::Subscript(sub) = assign.left.as_ref() {
-        return ascribe_assign_subscript(assign, sub, rhs, exploration, links, diagnostics, state);
+        return ascribe_assign_subscript(assign, sub, exploration, links, diagnostics, state);
     }
+
+    let rhs = ascribe_assign_rhs(
+        assign,
+        exploration,
+        links,
+        diagnostics,
+        state.with_local_value(
+            actual_type_ref.map_or(ExpressionValue::Unspecified, ExpressionValue::Expected),
+        ),
+    );
 
     // actual_type_ref is some if symbol is some
     let Some((symbol, actual_type_ref)) = symbol.map(|s| (s, actual_type_ref.unwrap())) else {
@@ -1551,7 +1535,7 @@ mod tests {
     use crate::types::engine::FunctionId;
     use crate::types::hir::{Convert, MethodCall};
     use crate::types::ty::{Type, TypeId};
-    use crate::types::{EXITCODE, UNIT};
+    use crate::types::{EXITCODE, GENERIC_VECTOR, UNIT};
 
     use super::*;
 
@@ -2568,7 +2552,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                "Invalid assignment to `Vec[Int]`",
+                "Invalid assignment to `Int`",
             )
             .with_observation(Observation::here(
                 SourceId(0),
@@ -2632,6 +2616,23 @@ mod tests {
                 find_in(content, "$lines"),
                 "Found `Vec[String]`"
             ))])
+        );
+    }
+
+    #[test]
+    fn vec_in_vec() {
+        let content = "fun new_vec[T]() -> Vec[T];
+        var v: Vec[Vec[Int]] = new_vec()
+        $v = new_vec()
+        $v[0] = new_vec()
+        $v";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Ok(Type::Instantiated(
+                GENERIC_VECTOR,
+                vec![TypeRef::new(ReefId(1), TypeId(6))]
+            ))
         );
     }
 

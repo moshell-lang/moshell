@@ -119,6 +119,16 @@ pub enum ExprKind {
 }
 
 impl TypedExpr {
+    /// Creates a no-op expression that describes an error.
+    pub(crate) fn error(segment: SourceSegment) -> Self {
+        Self {
+            kind: ExprKind::Noop,
+            ty: ERROR,
+            segment,
+        }
+    }
+
+    /// Sets the type of the expression to [`crate::types::ty::Type::Error`].
     pub(crate) fn poison(mut self) -> Self {
         self.ty = ERROR;
         self

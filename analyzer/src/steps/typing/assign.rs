@@ -1,14 +1,50 @@
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
 use crate::steps::typing::bounds::TypesBounds;
+use crate::steps::typing::coercion::{convert_expression, is_compatible};
 use crate::steps::typing::exploration::{Exploration, Links};
 use crate::steps::typing::function::{
-    find_exact_method, find_operand_implementation, list_operator_defined_for, BinaryMethodMatch,
+    find_operand_implementation, list_operator_defined_for, BinaryMethodMatch,
 };
 use crate::steps::typing::{ascribe_types, ExpressionValue, TypingState};
 use crate::types::hir::{ExprKind, MethodCall, TypedExpr};
+use crate::types::ty::Parameter;
+use crate::types::UNIT;
+use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::range::Subscript;
-use ast::variable::Assign;
+use ast::variable::{Assign, AssignOperator};
+use ast::Expr;
 use context::source::SourceSegmentHolder;
+
+/// Creates the right hand side of an assignment.
+///
+/// The state should contain the [`ExpressionValue::Expected`] value of the left hand side.
+pub(crate) fn ascribe_assign_rhs(
+    assign: &Assign,
+    exploration: &mut Exploration,
+    links: Links,
+    diagnostics: &mut Vec<Diagnostic>,
+    state: TypingState,
+) -> TypedExpr {
+    match assign.operator {
+        AssignOperator::Assign => {
+            ascribe_types(exploration, links, diagnostics, &assign.value, state)
+        }
+        operator => {
+            let binary = Expr::Binary(BinaryOperation {
+                left: assign.left.clone(),
+                op: BinaryOperator::try_from(operator).expect("Invalid assign operator"),
+                right: assign.value.clone(),
+            });
+            ascribe_types(
+                exploration,
+                links,
+                diagnostics,
+                &binary,
+                state.with_local_value(ExpressionValue::Unspecified),
+            )
+        }
+    }
+}
 
 pub(super) fn create_subscript(
     sub: &Subscript,
@@ -86,7 +122,6 @@ pub(super) fn create_subscript(
 pub(super) fn ascribe_assign_subscript(
     assign: &Assign,
     sub: &Subscript,
-    rhs: TypedExpr,
     exploration: &mut Exploration,
     links: Links,
     diagnostics: &mut Vec<Diagnostic>,
@@ -105,45 +140,71 @@ pub(super) fn ascribe_assign_subscript(
         state.with_local_value(ExpressionValue::Unspecified),
     )
     else {
-        return rhs.poison();
+        return TypedExpr::error(assign.segment());
     };
 
-    let rhs_segment = rhs.segment();
-    let rhs_ty = rhs.ty;
-    let methods = exploration
+    let target_type_reef = exploration.get_base_type(target.ty).reef;
+    let Some((function_id, value_ty)) = exploration
         .get_methods(target.ty, "[]")
         .map(|methods| methods.as_slice())
-        .unwrap_or(&[]);
-    let mut args = vec![index, rhs];
-
-    let return_hint = if let ExpressionValue::Expected(ty) = state.local_value {
-        Some(ty)
-    } else {
-        None
+        .unwrap_or(&[])
+        .iter()
+        .find_map(|method_id| {
+            // Look for the method without worrying about potential overloads for the second parameter
+            let method = exploration
+                .get_function(target_type_reef, *method_id)
+                .unwrap();
+            if let [Parameter { ty: index_ty, .. }, value] = method.parameters.as_slice() {
+                if !is_compatible(exploration, *index_ty, index.ty) || method.return_type != UNIT {
+                    return None;
+                }
+                Some((*method_id, exploration.concretize(value.ty, target.ty)))
+            } else {
+                None
+            }
+        })
+    else {
+        diagnostics.push(
+            Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                format!(
+                    "Type `{}` is indexable but is not assignable",
+                    exploration.new_type_view(target.ty, &TypesBounds::inactive())
+                ),
+            )
+            .with_observation(Observation::here(
+                links.source,
+                exploration.externals.current,
+                sub.segment(),
+                format!(
+                    "Indexing with `{}` does not allow assignment",
+                    exploration.new_type_view(index.ty, &TypesBounds::inactive())
+                ),
+            )),
+        );
+        return TypedExpr::error(assign.segment());
     };
 
-    let method = find_exact_method(
-        target.ty,
-        methods,
-        args.as_slice(),
-        &[],
-        return_hint,
-        exploration,
-    );
+    let rhs_state = state.with_local_value(ExpressionValue::Expected(value_ty));
+    let rhs = ascribe_assign_rhs(assign, exploration, links, diagnostics, rhs_state);
+    let rhs_segment = rhs.segment();
+    let rhs_ty = rhs.ty;
 
-    let base_method_reef = exploration.get_base_type(target.ty).reef;
-    if let Some((method_id, _)) = method {
-        let method = exploration
-            .get_function(base_method_reef, method_id)
-            .unwrap();
-        let return_type = exploration.concretize(method.return_type, target.ty);
+    if let Ok(converted) = convert_expression(
+        rhs,
+        value_ty,
+        &mut TypesBounds::inactive(),
+        exploration,
+        links.source,
+        diagnostics,
+    ) {
         return TypedExpr {
             kind: ExprKind::MethodCall(MethodCall {
                 callee: Box::new(target),
-                arguments: args,
-                function_id: method_id,
+                arguments: vec![index, converted],
+                function_id,
             }),
-            ty: return_type,
+            ty: UNIT,
             segment: assign.segment(),
         };
     }
@@ -152,7 +213,7 @@ pub(super) fn ascribe_assign_subscript(
             DiagnosticID::TypeMismatch,
             format!(
                 "Invalid assignment to `{}`",
-                exploration.new_type_view(target.ty, &TypesBounds::inactive())
+                exploration.new_type_view(value_ty, &TypesBounds::inactive())
             ),
         )
         .with_observation(Observation::here(
@@ -171,5 +232,5 @@ pub(super) fn ascribe_assign_subscript(
             "Expected due to the type of this binding",
         )),
     );
-    args.pop().unwrap().poison()
+    TypedExpr::error(assign.segment())
 }
