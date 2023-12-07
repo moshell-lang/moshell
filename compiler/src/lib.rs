@@ -45,7 +45,7 @@ pub struct CompilerOptions<'a> {
 
 const MAPPINGS_ATTRIBUTE: u8 = 1;
 
-pub fn compile_layouts(typed_engine: &TypedEngine) -> Vec<StructureLayout> {
+fn compile_layouts(typed_engine: &TypedEngine) -> Vec<StructureLayout> {
     let mut layouts = Vec::new();
     for structure in typed_engine.iter_structures() {
         layouts.push(StructureLayout::from(structure))
@@ -190,7 +190,7 @@ fn compile_function_chunk(
     bytecode.emit_byte(attribute_count);
 
     if let Some(line_provider) = line_provider {
-        let content = ctx.engine().get_original_content(id);
+        let content = ctx.engine.get_original_content(id);
 
         let Some(content_id) = content else {
             return page_size;

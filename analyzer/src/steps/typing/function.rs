@@ -274,11 +274,9 @@ pub(super) fn declare_function(
 
     let func_source = function_links.source;
     // may have been already init if a child struct env was analyzed before the parent
-    if !exploration.ctx.is_locals_init(func_source) {
-        exploration
-            .ctx
-            .init_locals(func_source, function_links.env().symbols.len());
-    }
+    exploration
+        .ctx
+        .init_locals(func_source, function_links.env().symbols.len());
 
     for (local_id, type_param) in func.type_parameters.iter().enumerate() {
         let param_type_id = exploration
@@ -360,16 +358,16 @@ pub(super) fn type_call(
         Type::Function(function_source, function_id) => (function_source, function_id),
         // We are (maybe) invoking a type's constructor.
         Type::Structure(structure_source, _)
-        // check if the symbol kind is SymbolInfo::Type, elsewere, we are trying to call a function over a variable reference
+        // check if the symbol kind is SymbolInfo::Type, otherwise, we are trying to call a function over a variable reference
         // that returns a structure, which is not something callable
         if exploration.get_symbol(fun_reef, fun_origin, fun_local_id, links).unwrap().ty == SymbolInfo::Type
         => {
 
             // there is only one constructor function for now (the default one)
-            let constuctor_id = exploration
+            let constructor_id = exploration
                 .get_methods(function_type_ref, "<init>")
                 .unwrap()[0];
-            (structure_source, constuctor_id)
+            (structure_source, constructor_id)
         }
         _ => {
             diagnostics.push(

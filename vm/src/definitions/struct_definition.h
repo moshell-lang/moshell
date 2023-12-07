@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 
+namespace msh {
+
 /**
  * Contains all the information about a structure
  */
@@ -20,3 +22,5 @@ struct struct_definition {
      */
     std::vector<size_t> obj_ref_offsets;
 };
+
+}

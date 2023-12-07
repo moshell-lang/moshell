@@ -7,9 +7,11 @@
 #include <variant>
 #include <vector>
 
-struct struct_definition;
 
 namespace msh {
+
+    struct struct_definition;
+
     // Create a recursive variant type by forward declaring the vector type.
     // Since C++17, `std::vector` doesn't require the type to be complete with
     // an appropriate allocator, and only a pointer is used here.

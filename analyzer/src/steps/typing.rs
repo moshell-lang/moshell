@@ -223,7 +223,11 @@ fn apply_types_to_source(
                 }),
                 None => {
                     verify_free_function(func, exploration.externals, source_id, diagnostics);
-                    None
+                    Some(Chunk {
+                        function_id,
+                        function_type,
+                        kind: ChunkKind::DeclaredFunction,
+                    })
                 }
             }
         }

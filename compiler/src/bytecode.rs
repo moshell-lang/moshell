@@ -113,7 +113,7 @@ impl<'a> Instructions<'a> {
         }
     }
 
-    /// emits instructions to instanciate a new structure,
+    /// Emits instructions to instantiate a new structure,
     /// where the given u32 is the constant pool index of the fqn string identifier of the structure to instance
     pub fn emit_new(&mut self, structure_fqn: u32) {
         self.emit_code(Opcode::NewStruct);

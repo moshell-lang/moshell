@@ -513,7 +513,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
                 return frame_status::ABORT;
             }
 
-            const struct_definition &struct_def = struct_def_it->second;
+            const msh::struct_definition &struct_def = struct_def_it->second;
 
             msh::obj &obj = mem.emplace(msh::obj_struct{
                 &struct_def,

@@ -203,11 +203,10 @@ fn display_structure(cursor: &mut Cursor<&[u8]>, constants: &[String]) -> io::Re
     println!("\theap size: {structure_byte_count}");
 
     let structure_object_indexes_count = read!(cursor, u32);
-    println!("\tcontains {structure_object_indexes_count} object references");
-
     if structure_object_indexes_count > 0 {
-        println!(":")
+        println!("\tcontains {structure_object_indexes_count} object references:");
     }
+
     for _ in 0..structure_object_indexes_count {
         println!("\t\t- at @{}", read!(cursor, u32));
     }

@@ -72,10 +72,6 @@ impl<'a, 'e> EmitterContext<'a, 'e> {
         }
     }
 
-    pub fn engine(&self) -> &'a Engine<'e> {
-        self.engine
-    }
-
     pub fn get_engine(&self, reef: ReefId) -> Option<&'a Engine<'e>> {
         if self.current_reef == reef {
             Some(self.engine)

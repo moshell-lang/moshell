@@ -151,7 +151,7 @@ void gc::walk_objects(std::vector<const msh::obj *> to_visit) {
                     to_visit.push_back(item);
                 }
             } else if constexpr (std::is_same_v<T, msh::obj_struct>) {
-                const struct_definition *def = obj.definition;
+                const msh::struct_definition *def = obj.definition;
                 for (size_t obj_offset : def->obj_ref_offsets) {
                     const msh::obj *attribute_obj = *(const msh::obj **)(obj.bytes.data() + obj_offset);
                     to_visit.push_back(attribute_obj);

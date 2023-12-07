@@ -40,10 +40,6 @@ impl TypeContext {
             .and_then(Option::clone)
     }
 
-    pub(crate) fn is_locals_init(&self, source: SourceId) -> bool {
-        self.locals.contains_key(&source)
-    }
-
     /// init a source locals area of the given len
     pub(crate) fn init_locals(&mut self, source: SourceId, len: usize) {
         match self.locals.entry(source) {

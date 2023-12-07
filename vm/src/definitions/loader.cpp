@@ -89,7 +89,7 @@ namespace msh {
         return concatened_instructions.data() + index;
     }
 
-    std::pair<const std::string &, const struct_definition &> loader::load_structure(ByteReader &reader, const ConstantPool &pool) {
+    std::pair<const std::string &, const msh::struct_definition &> loader::load_structure(ByteReader &reader, const ConstantPool &pool) {
         constant_index id_idx = reader.read<constant_index>();
         const std::string &identifier = pool.get_string(id_idx);
 
