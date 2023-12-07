@@ -646,8 +646,8 @@ fn ascribe_var_reference(
 fn ascribe_identifier(ident: &Identifier, links: Links, exploration: &Exploration) -> TypedExpr {
     ascribe_var_reference(
         &VarReference {
-            name: VarName::User(ident.name),
-            segment: ident.segment.clone(),
+            name: VarName::User(ident.path.last().unwrap().name()),
+            segment: ident.segment(),
         },
         links,
         exploration,
@@ -2720,7 +2720,7 @@ mod tests {
 
     #[test]
     fn explicit_repeated_type_parameter() {
-        let source = Source::unknown("fun i[T, U](a: T, b: T) -> U; i[Int, String](4, 5)");
+        let source = Source::unknown("fun i[T, U](a: T, b: T) -> U; i::[Int, String](4, 5)");
         let res = extract_type(source);
         assert_eq!(res, Ok(STRING));
     }

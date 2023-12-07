@@ -17,6 +17,15 @@ pub enum InclusionPathItem<'a> {
     Reef(SourceSegment),
 }
 
+impl InclusionPathItem<'_> {
+    pub fn name(&self) -> &str {
+        match self {
+            InclusionPathItem::Symbol(str, _) => str,
+            InclusionPathItem::Reef(_) => "reef",
+        }
+    }
+}
+
 impl SourceSegmentHolder for InclusionPathItem<'_> {
     fn segment(&self) -> SourceSegment {
         match self {

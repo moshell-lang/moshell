@@ -1,6 +1,7 @@
 use ast::lambda::LambdaDef;
 use ast::operation::{BinaryOperation, BinaryOperator, UnaryOperation, UnaryOperator};
 use ast::r#type::CastedExpr;
+use ast::r#use::InclusionPathItem;
 use ast::range::Iterable;
 use ast::variable::{Assign, AssignOperator, TypedVariable};
 use ast::Expr;
@@ -13,6 +14,7 @@ use std::num::NonZeroU8;
 use crate::aspects::binary_operation::{infix_precedence, shell_infix_precedence};
 use crate::aspects::call::CallAspect;
 use crate::aspects::detached::DetachedAspect;
+use crate::aspects::expr_list::ExpressionListAspect;
 use crate::aspects::function_declaration::FunctionDeclarationAspect;
 use crate::aspects::group::GroupAspect;
 use crate::aspects::if_else::IfElseAspect;
@@ -275,8 +277,10 @@ impl<'a> Parser<'a> {
                 }
                 Ok(Expr::Assign(Assign {
                     left: Box::new(Expr::Identifier(ast::variable::Identifier {
-                        name,
-                        segment: self.cursor.relative_pos(name),
+                        path: vec![InclusionPathItem::Symbol(
+                            name,
+                            self.cursor.relative_pos(name),
+                        )],
                     })),
                     operator,
                     value: Box::new(self.value()?),
@@ -358,8 +362,21 @@ impl<'a> Parser<'a> {
             }
             If => self.parse_if().map(Expr::If),
             Match => self.parse_match().map(Expr::Match),
-            Identifier | Reef if self.may_be_at_programmatic_call_start() => {
-                self.programmatic_call()
+            Identifier | Reef if self.is_path() => {
+                let path = self.parse_path()?;
+                let path = if self.cursor.peek().token_type == SquaredLeftBracket {
+                    let (type_arguments, _) = self.parse_explicit_list(
+                        TokenType::SquaredLeftBracket,
+                        TokenType::SquaredRightBracket,
+                        "",
+                        "Expected type argument.",
+                        Parser::parse_type,
+                    )?;
+                    self.programmatic_call(path, type_arguments)?
+                } else {
+                    Expr::Identifier(path)
+                };
+                self.expand_member_chain(path)
             }
             Identifier
                 if self

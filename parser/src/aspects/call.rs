@@ -1,6 +1,7 @@
 use ast::call::{Call, MethodCall, ProgrammaticCall};
 use ast::r#struct::FieldAccess;
-use ast::r#use::InclusionPathItem;
+use ast::r#type::Type;
+use ast::variable::Identifier;
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
 use lexer::token::{Token, TokenType};
@@ -14,7 +15,7 @@ use crate::aspects::range::RangeAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{
-    any, blanks, eog, identifier_parenthesis, like, line_end, lookahead, of_type, of_types, spaces,
+    any, blanks, eog, identifier_parenthesis, like, line_end, lookahead, of_type, spaces,
     MoveOperations,
 };
 use crate::parser::{ParseResult, Parser};
@@ -25,7 +26,11 @@ pub trait CallAspect<'a> {
     fn call(&mut self) -> ParseResult<Expr<'a>>;
 
     /// Parses a programmatic call.
-    fn programmatic_call(&mut self) -> ParseResult<Expr<'a>>;
+    fn programmatic_call(
+        &mut self,
+        path: Identifier<'a>,
+        type_parameters: Vec<Type<'a>>,
+    ) -> ParseResult<Expr<'a>>;
 
     /// Parses a method call.
     fn method_call_on(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
@@ -35,9 +40,6 @@ pub trait CallAspect<'a> {
 
     /// Continues to parse a call expression from a known command name expression
     fn call_arguments(&mut self, command: Expr<'a>) -> ParseResult<Expr<'a>>;
-
-    /// Checks if the cursor is at the start of a programmatic call.
-    fn may_be_at_programmatic_call_start(&self) -> bool;
 }
 
 impl<'a> CallAspect<'a> for Parser<'a> {
@@ -46,14 +48,11 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         self.call_arguments(callee)
     }
 
-    fn programmatic_call(&mut self) -> ParseResult<Expr<'a>> {
-        let path = self.parse_inclusion_path()?;
-        let (type_parameters, _) = self.parse_optional_list(
-            TokenType::SquaredLeftBracket,
-            TokenType::SquaredRightBracket,
-            "Expected type argument.",
-            Parser::parse_type,
-        )?;
+    fn programmatic_call(
+        &mut self,
+        path: Identifier<'a>,
+        type_parameters: Vec<Type<'a>>,
+    ) -> ParseResult<Expr<'a>> {
         let open_parenthesis = self.cursor.force(
             of_type(TokenType::RoundedLeftBracket),
             "Expected opening parenthesis.",
@@ -61,15 +60,12 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
         let (arguments, args_segment) = self.parse_comma_separated_arguments(open_parenthesis)?;
 
-        let start = path
-            .first()
-            .map(InclusionPathItem::segment)
-            .expect("Path should not be empty");
+        let start = path.segment();
 
         let segment = start.start..args_segment.end;
 
         Ok(Expr::ProgrammaticCall(ProgrammaticCall {
-            path,
+            path: path.path,
             arguments,
             type_parameters,
             segment,
@@ -77,18 +73,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
     }
 
     fn method_call_on(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
-        let dot = self.cursor.advance(of_type(TokenType::Dot));
-        let name = dot
-            .is_some()
-            .then(|| {
-                self.cursor.force_with(
-                    of_type(TokenType::Identifier),
-                    "Expected function name.",
-                    ParseErrorKind::Expected("identifier".to_owned()),
-                )
-            })
-            .transpose()?;
-
+        self.cursor.advance(of_type(TokenType::ColonColon));
         let (type_arguments, _) = self.parse_optional_list(
             TokenType::SquaredLeftBracket,
             TokenType::SquaredRightBracket,
@@ -101,24 +86,30 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             "Expected opening parenthesis.",
         )?;
         let (arguments, segment) = self.parse_comma_separated_arguments(open_parenthesis)?;
-        let segment = dot
-            .map(|d| self.cursor.relative_pos(d.value))
-            .unwrap_or(expr.segment())
-            .start..segment.end;
-        Ok(Expr::MethodCall(MethodCall {
-            source: Box::new(expr),
-            name: name.map(|n| n.value),
-            arguments,
-            type_parameters: type_arguments,
-            segment,
-        }))
+        let segment = expr.segment().start..segment.end;
+        Ok(match expr {
+            Expr::FieldAccess(FieldAccess { expr, field, .. }) => Expr::MethodCall(MethodCall {
+                source: expr,
+                name: Some(field),
+                arguments,
+                type_parameters: type_arguments,
+                segment,
+            }),
+            expr => Expr::MethodCall(MethodCall {
+                source: Box::new(expr),
+                name: None,
+                arguments,
+                type_parameters: type_arguments,
+                segment,
+            }),
+        })
     }
 
     fn expand_member_chain(&mut self, mut expr: Expr<'a>) -> ParseResult<Expr<'a>> {
         loop {
             let pivot = self
                 .cursor
-                .lookahead(blanks().then(any()))
+                .lookahead(spaces().then(any()))
                 .unwrap()
                 .token_type;
 
@@ -127,27 +118,22 @@ impl<'a> CallAspect<'a> for Parser<'a> {
                     self.cursor.advance(blanks());
                     self.parse_subscript(expr).map(Expr::Subscript)?
                 }
+                TokenType::ColonColon | TokenType::RoundedLeftBracket => match expr {
+                    Expr::Identifier(ident) => self.programmatic_call(ident, Vec::new())?,
+                    expr => self.method_call_on(expr)?,
+                },
                 _ if self
                     .cursor
-                    .lookahead(
-                        blanks()
-                            .then(of_type(TokenType::Dot).and_then(identifier_parenthesis()))
-                            .or(of_types(&[
-                                TokenType::RoundedLeftBracket,
-                                TokenType::SquaredLeftBracket,
-                            ])),
-                    )
+                    .lookahead(of_type(TokenType::Dot).or(
+                        blanks().then(of_type(TokenType::Dot).and_then(identifier_parenthesis())),
+                    ))
                     .is_some() =>
                 {
-                    self.cursor.advance(blanks());
-                    self.method_call_on(expr)?
-                }
-                TokenType::Dot => {
                     self.cursor.advance(blanks());
                     let dot_token = self.cursor.next()?;
                     let field_token = self.cursor.force(
                         of_type(TokenType::Identifier),
-                        "identifier expected when acessing attribute",
+                        "identifier expected when accessing attribute",
                     )?;
                     Expr::FieldAccess(FieldAccess {
                         expr: Box::new(expr),
@@ -179,16 +165,6 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
         Ok(Expr::Call(Call { arguments }))
     }
-
-    fn may_be_at_programmatic_call_start(&self) -> bool {
-        self.cursor
-            .lookahead(any().then(of_types(&[
-                TokenType::ColonColon,
-                TokenType::RoundedLeftBracket,
-                TokenType::SquaredLeftBracket,
-            ])))
-            .is_some()
-    }
 }
 
 impl<'a> Parser<'a> {
@@ -200,9 +176,9 @@ impl<'a> Parser<'a> {
         match pivot {
             TokenType::RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
             TokenType::CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
-            TokenType::Identifier | TokenType::Reef if self.may_be_at_programmatic_call_start() => {
-                let call = self.programmatic_call()?;
-                self.expand_member_chain(call)
+            TokenType::Identifier | TokenType::Reef if self.is_path() => {
+                let path = self.parse_path()?;
+                self.expand_member_chain(Expr::Identifier(path))
             }
             _ => self.literal(LiteralLeniency::Lenient),
         }

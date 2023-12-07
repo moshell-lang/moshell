@@ -414,8 +414,10 @@ fn assign_iterable() {
         parsed,
         vec![Expr::Assign(Assign {
             left: Box::new(Expr::Identifier(Identifier {
-                name: "it",
-                segment: find_in(source.source, "it")
+                path: vec![InclusionPathItem::Symbol(
+                    "it",
+                    find_in(source.source, "it")
+                )],
             })),
             operator: AssignOperator::Assign,
             value: Box::new(Expr::Range(Iterable::Range(NumericRange {
@@ -493,8 +495,7 @@ fn constructor_assign() {
         parsed,
         vec![Expr::Assign(Assign {
             left: Box::new(Expr::Identifier(Identifier {
-                name: "a",
-                segment: find_in(source.source, "a")
+                path: vec![InclusionPathItem::Symbol("a", find_in(source.source, "a"))],
             })),
             operator: AssignOperator::Assign,
             value: Box::new(Expr::Unary(UnaryOperation {
@@ -643,7 +644,7 @@ fn block_method_call() {
 
 #[test]
 fn method_call_with_type_params_and_ref() {
-    let source = Source::unknown("$a.foo($d);echo \"${c.bar[T]()}\"");
+    let source = Source::unknown("$a.foo($d);echo \"${c.bar::[T]()}\"");
     let parsed = parse(source).expect("Failed to parse");
     assert_eq!(
         parsed,
@@ -680,7 +681,7 @@ fn method_call_with_type_params_and_ref() {
                                 params: Vec::new(),
                                 segment: find_in(source.source, "T")
                             })],
-                            segment: find_in(source.source, ".bar[T]()")
+                            segment: find_in(source.source, ".bar::[T]()")
                         })],
                         segment: find_between(source.source, "\"", "\"")
                     }),
