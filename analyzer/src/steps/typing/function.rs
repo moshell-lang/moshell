@@ -273,7 +273,6 @@ pub(super) fn declare_function(
     let mut params = Vec::new();
 
     let func_source = function_links.source;
-    // may have been already init if a child struct env was analyzed before the parent
     exploration
         .ctx
         .init_locals(func_source, function_links.env().symbols.len());

@@ -23,10 +23,10 @@ fn break_loop() {
 #[test]
 fn test_assertion() {
     let mut runner = Runner::default();
-    // assert_eq!(
-    //     runner.try_eval(r#"std::assert::assert(true)"#),
-    //     Ok(Some(VmValue::Void))
-    // );
+    assert_eq!(
+        runner.try_eval("std::assert::assert(true)"),
+        Ok(Some(VmValue::Void))
+    );
     assert_eq!(
         runner.try_eval(r#"std::assert::assert(false)"#),
         Err(VmError::Panic)
