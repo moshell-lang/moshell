@@ -29,20 +29,22 @@ use crate::steps::typing::coercion::{
 };
 use crate::steps::typing::exploration::{Exploration, Links};
 use crate::steps::typing::function::{
-    find_operand_implementation, infer_return, type_call, type_function_signature, type_method,
-    Return,
+    declare_function, find_operand_implementation, infer_return, type_call, type_method, Return,
 };
 use crate::steps::typing::lower::{convert_into_string, generate_unwrap};
 use crate::steps::typing::magic::{is_magic_variable_name, prepend_implicits};
+use crate::steps::typing::structure::{
+    ascribe_field_access, ascribe_field_assign, ascribe_struct_declaration,
+};
+use crate::types::builtin::{BOOL_STRUCT, STRING_STRUCT};
 use crate::types::ctx::{TypeContext, TypedVariable};
-use crate::types::engine::{Chunk, ChunkType, TypedEngine};
+use crate::types::engine::{Chunk, ChunkKind, TypedEngine};
 use crate::types::hir::{
-    Assignment, Conditional, Convert, Declaration, ExprKind, FunctionCall, Loop, MethodCall, Redir,
-    Redirect, Subprocess, TypedExpr, Var,
+    Conditional, Convert, Declaration, ExprKind, FunctionCall, LocalAssignment, Loop, MethodCall,
+    Redir, Redirect, Subprocess, TypedExpr, Var,
 };
 use crate::types::operator::name_operator_method;
-
-use crate::types::ty::{FunctionType, Type, TypeRef};
+use crate::types::ty::{FunctionDesc, Type, TypeRef};
 use crate::types::{
     builtin, Typing, BOOL, ERROR, EXITCODE, FLOAT, GLOB, INT, NOTHING, PID, STRING, UNIT,
 };
@@ -53,6 +55,7 @@ mod coercion;
 mod exploration;
 mod function;
 mod lower;
+mod structure;
 mod view;
 
 pub mod magic;
@@ -75,8 +78,11 @@ pub fn apply_types(
     };
 
     for env_id in environments {
-        let entry = apply_types_to_source(&mut exploration, diagnostics, engine, relations, env_id);
-        exploration.type_engine.insert(env_id, entry);
+        if let Some(entry) =
+            apply_types_to_source(&mut exploration, diagnostics, engine, relations, env_id)
+        {
+            exploration.type_engine.insert(env_id, entry);
+        }
     }
     (exploration.type_engine, exploration.ctx, exploration.typing)
 }
@@ -160,7 +166,7 @@ fn apply_types_to_source(
     engine: &Engine,
     relations: &Relations,
     source_id: SourceId,
-) -> Chunk {
+) -> Option<Chunk> {
     let links = Links {
         source: source_id,
         engine,
@@ -174,11 +180,11 @@ fn apply_types_to_source(
             let forward_declaration = exploration.type_engine.take_user(source_id);
 
             let base_chunk = forward_declaration
-                .unwrap_or_else(|| type_function_signature(func, exploration, links, diagnostics));
+                .unwrap_or_else(|| declare_function(func, exploration, links, diagnostics));
 
-            let ChunkType::Function(function_id) = base_chunk.kind else {
-                panic!("function chunk is not a of type function.")
-            };
+            let function_id = base_chunk.function_id;
+            let function_type = base_chunk.function_type;
+
             let chunk_function = exploration.type_engine.get_function(function_id).unwrap();
             let expected_return_type = chunk_function.return_type;
 
@@ -202,10 +208,6 @@ fn apply_types_to_source(
                 exploration,
             );
 
-            if typed_body.is_none() {
-                verify_free_function(func, exploration.externals, source_id, diagnostics);
-            }
-
             // update function's return type.
             let function_mut = exploration
                 .type_engine
@@ -213,11 +215,23 @@ fn apply_types_to_source(
                 .unwrap();
             function_mut.return_type = return_type;
 
-            Chunk {
-                expression: typed_body,
-                kind: base_chunk.kind,
+            match typed_body {
+                Some(body) => Some(Chunk {
+                    function_id,
+                    function_type,
+                    kind: ChunkKind::DefinedFunction(Some(body)),
+                }),
+                None => {
+                    verify_free_function(func, exploration.externals, source_id, diagnostics);
+                    Some(Chunk {
+                        function_id,
+                        function_type,
+                        kind: ChunkKind::DeclaredFunction,
+                    })
+                }
             }
         }
+        Expr::StructDeclaration(_) => None,
         expr => {
             exploration
                 .ctx
@@ -226,14 +240,20 @@ fn apply_types_to_source(
             let expression =
                 ascribe_types(exploration, links, diagnostics, expr, TypingState::new());
 
+            let script_fn_id = exploration.type_engine.add_function(FunctionDesc::script());
+            let script_fn_name = links.env().fqn.to_string();
+            let function_type = exploration.typing.add_type(
+                Type::Function(Some(links.source), script_fn_id),
+                Some(script_fn_name),
+            );
+
             let expression = prepend_implicits(expression, exploration, links);
 
-            let function_id = exploration.type_engine.add_function(FunctionType::script());
-
-            Chunk {
-                expression: Some(expression),
-                kind: ChunkType::Script(function_id),
-            }
+            Some(Chunk {
+                function_id: script_fn_id,
+                function_type,
+                kind: ChunkKind::DefinedFunction(Some(expression)),
+            })
         }
     }
 }
@@ -271,7 +291,7 @@ fn ascribe_template_string(
     let (_, plus_method_id) = lang
         .typed_engine
         .get_method_exact(
-            STRING.type_id,
+            STRING_STRUCT,
             name_operator_method(BinaryOperator::Plus),
             &[STRING],
             STRING,
@@ -322,6 +342,9 @@ fn ascribe_assign(
 
     if let Expr::Subscript(sub) = assign.left.as_ref() {
         return ascribe_assign_subscript(assign, sub, exploration, links, diagnostics, state);
+    }
+    if let Expr::FieldAccess(field) = assign.left.as_ref() {
+        return ascribe_field_assign(assign, field, exploration, links, diagnostics, state);
     }
 
     let rhs = ascribe_assign_rhs(
@@ -441,7 +464,7 @@ fn ascribe_assign(
     };
 
     TypedExpr {
-        kind: ExprKind::Assign(Assignment {
+        kind: ExprKind::LocalAssign(LocalAssignment {
             identifier,
             rhs: Box::new(rhs),
         }),
@@ -854,23 +877,15 @@ fn ascribe_function_declaration(
         // if not, forward declare it by typing its declared signature
         let declaration_link = links.with_source(function_source);
         let forward_declared_chunk =
-            type_function_signature(fun, exploration, declaration_link, diagnostics);
-
+            declare_function(fun, exploration, declaration_link, diagnostics);
         exploration
             .type_engine
             .insert(function_source, forward_declared_chunk);
     }
 
-    let function_chunk = exploration.type_engine.get_user(function_source).unwrap();
-    let ChunkType::Function(function_id) = function_chunk.kind else {
-        panic!("chunk's function is not a function")
-    };
+    let chunk = exploration.type_engine.get_user(function_source).unwrap();
 
-    let type_id = exploration.typing.add_type(
-        Type::Function(Some(function_source), function_id),
-        Some(fun.name.to_string()),
-    );
-    let type_ref = TypeRef::new(exploration.externals.current, type_id);
+    let type_ref = TypeRef::new(exploration.externals.current, chunk.function_type);
 
     let id = links.env().get_raw_symbol(fun.segment()).unwrap();
 
@@ -1114,7 +1129,7 @@ fn ascribe_not(
     let lang = exploration.externals.lang();
     let (not_method, not_method_id) = lang
         .typed_engine
-        .get_method_exact(BOOL.type_id, "not", &[], BOOL)
+        .get_method_exact(BOOL_STRUCT, "not", &[], BOOL)
         .expect("A Bool should be invertible");
     match convert_expression(
         not,
@@ -1462,6 +1477,9 @@ fn ascribe_types(
         Expr::FunctionDeclaration(fd) => {
             ascribe_function_declaration(fd, exploration, links, diagnostics)
         }
+        Expr::StructDeclaration(decl) => {
+            ascribe_struct_declaration(decl, exploration, links, diagnostics)
+        }
         Expr::Literal(lit) => ascribe_literal(lit),
         Expr::TemplateString(tpl) => {
             ascribe_template_string(tpl, exploration, links, diagnostics, state)
@@ -1471,6 +1489,7 @@ fn ascribe_types(
             ascribe_var_declaration(decl, exploration, links, diagnostics, state)
         }
         Expr::VarReference(var) => ascribe_var_reference(var, links, exploration),
+        Expr::FieldAccess(fa) => ascribe_field_access(fa, links, exploration, diagnostics, state),
         Expr::Identifier(ident) => ascribe_identifier(ident, links, exploration),
         Expr::If(block) => ascribe_if(block, exploration, links, diagnostics, state),
         Expr::Call(call) => ascribe_call(call, exploration, links, diagnostics, state),
@@ -1532,14 +1551,14 @@ mod tests {
     use crate::name::Name;
     use crate::reef::{Reef, ReefId};
     use crate::relations::LocalId;
-    use crate::types::engine::FunctionId;
+    use crate::types::engine::{ChunkKind, FunctionId, StructureId};
     use crate::types::hir::{Convert, MethodCall};
     use crate::types::ty::{Type, TypeId};
-    use crate::types::{EXITCODE, GENERIC_VECTOR, UNIT};
+    use crate::types::{EXITCODE, UNIT};
 
     use super::*;
 
-    fn extract(source: Source) -> Result<Externals, Vec<Diagnostic>> {
+    pub(crate) fn extract(source: Source) -> Result<Externals, Vec<Diagnostic>> {
         let name = Name::new(source.name);
         let mut externals = Externals::default();
         let mut importer = StaticImporter::new([(name.clone(), source)], parse_trusted);
@@ -1562,41 +1581,66 @@ mod tests {
                 .typed_engine
                 .get_user(SourceId(0))
                 .unwrap();
-            if let ExprKind::Block(exprs) = &chunk.expression.as_ref().unwrap().kind {
-                exprs.clone()
-            } else {
-                unreachable!()
+
+            if let ChunkKind::DefinedFunction(Some(body)) = &chunk.kind {
+                if let ExprKind::Block(exprs) = &body.kind {
+                    return exprs.clone();
+                }
             }
+            unreachable!()
         })
     }
 
-    pub(crate) fn extract_type(source: Source) -> Result<Type, Vec<Diagnostic>> {
+    pub(crate) fn extract_type(source: Source) -> Result<TypeRef, Vec<Diagnostic>> {
         let externals = extract(source)?;
 
         let reef = externals.get_reef(ReefId(1)).unwrap();
         let chunk = reef.typed_engine.get_user(SourceId(0)).unwrap();
-        let expr = chunk.expression.as_ref().unwrap();
-        let typing = &externals.get_reef(expr.ty.reef).unwrap().typing;
 
-        Ok(typing.get_type(expr.ty.type_id).unwrap().clone())
+        if let ChunkKind::DefinedFunction(Some(body)) = &chunk.kind {
+            return Ok(body.ty);
+        }
+        unreachable!()
     }
 
     #[test]
     fn single_literal() {
         let res = extract_type(Source::unknown("1"));
-        assert_eq!(res, Ok(Type::Int));
+        assert_eq!(res, Ok(INT));
     }
 
     #[test]
     fn correct_type_annotation() {
-        let res = extract_type(Source::unknown("val a: Int = 1"));
-        assert_eq!(res, Ok(Type::Unit));
+        let externals = extract(Source::unknown("val a: Int = 1")).expect("got errors");
+        let test_reef = externals.get_reef(ReefId(1)).unwrap();
+
+        let type_var = test_reef
+            .type_context
+            .get(
+                &test_reef.relations,
+                SourceId(0),
+                SymbolRef::Local(LocalId(0)),
+            )
+            .unwrap();
+
+        assert_eq!(type_var.type_ref, INT);
     }
 
     #[test]
     fn coerce_type_annotation() {
-        let res = extract_type(Source::unknown("val a: Float = 4"));
-        assert_eq!(res, Ok(Type::Unit));
+        let externals = extract(Source::unknown("val a: Float = 1")).expect("got errors");
+        let test_reef = externals.get_reef(ReefId(1)).unwrap();
+
+        let type_var = test_reef
+            .type_context
+            .get(
+                &test_reef.relations,
+                SourceId(0),
+                SymbolRef::Local(LocalId(0)),
+            )
+            .unwrap();
+
+        assert_eq!(type_var.type_ref, FLOAT);
     }
 
     #[test]
@@ -1627,13 +1671,13 @@ mod tests {
     #[test]
     fn var_assign_of_same_type() {
         let res = extract_type(Source::unknown("var l = 1; l = 2"));
-        assert_eq!(res, Ok(Type::Unit));
+        assert_eq!(res, Ok(UNIT));
     }
 
     #[test]
     fn var_assign_increment() {
         let res = extract_type(Source::unknown("var n = 'Hello, '; n += 'world!'"));
-        assert_eq!(res, Ok(Type::Unit));
+        assert_eq!(res, Ok(UNIT));
     }
 
     #[test]
@@ -1734,13 +1778,13 @@ mod tests {
     #[test]
     fn condition_same_type() {
         let res = extract_type(Source::unknown("if true; 1; else 2"));
-        assert_eq!(res, Ok(Type::Unit));
+        assert_eq!(res, Ok(UNIT));
     }
 
     #[test]
     fn condition_different_type() {
         let res = extract_type(Source::unknown("if false; 4.7; else {}"));
-        assert_eq!(res, Ok(Type::Unit));
+        assert_eq!(res, Ok(UNIT));
     }
 
     #[test]
@@ -1790,20 +1834,20 @@ mod tests {
     #[test]
     fn string_template() {
         let res = extract_type(Source::unknown("val m = 5; val test = \"m = $m\"; $test"));
-        assert_eq!(res, Ok(Type::String));
+        assert_eq!(res, Ok(STRING));
     }
 
     #[test]
     fn function_return_type() {
         let res = extract_type(Source::unknown("fun one() -> Int = 1\none()"));
-        assert_eq!(res, Ok(Type::Int));
+        assert_eq!(res, Ok(INT));
     }
 
     #[test]
     fn local_type_only_at_end_of_block() {
         let content = "fun test() -> Int = {if false; 5; else {}; 4}; test()";
         let res = extract_type(Source::unknown(content));
-        assert_eq!(res, Ok(Type::Int));
+        assert_eq!(res, Ok(INT));
     }
 
     #[test]
@@ -1899,7 +1943,7 @@ mod tests {
         let res = extract_type(Source::unknown(
             "fun a() -> Int = b()\nfun b() -> Int = 1\na()",
         ));
-        assert_eq!(res, Ok(Type::Int));
+        assert_eq!(res, Ok(INT));
     }
 
     #[test]
@@ -1907,7 +1951,7 @@ mod tests {
         let res = extract_type(Source::unknown(
             "val PI = 3.14\nfun circle(r: Float) -> Float = $(( $PI * $r * $r ))\ncircle(1)",
         ));
-        assert_eq!(res, Ok(Type::Float));
+        assert_eq!(res, Ok(FLOAT));
     }
 
     #[test]
@@ -1924,7 +1968,7 @@ mod tests {
                 SourceId(1),
                 ReefId(1),
                 find_in(content, "0"),
-                "Found `Int`"
+                "Found `Int`",
             ))
             .with_observation(Observation::context(
                 SourceId(1),
@@ -1939,14 +1983,14 @@ mod tests {
     fn explicit_valid_return() {
         let content = "fun some() -> Int = return 20";
         let res = extract_type(Source::unknown(content));
-        assert_eq!(res, Ok(Type::Unit));
+        assert_eq!(res, Ok(UNIT));
     }
 
     #[test]
     fn continue_and_break_inside_loops() {
         let content = "loop { continue }; loop { break }";
         let res = extract_type(Source::unknown(content));
-        assert_eq!(res, Ok(Type::Unit));
+        assert_eq!(res, Ok(UNIT));
     }
 
     #[test]
@@ -1958,14 +2002,14 @@ mod tests {
             Err(vec![
                 Diagnostic::new(
                     DiagnosticID::InvalidBreakOrContinue,
-                    "`continue` must be declared inside a loop"
+                    "`continue` must be declared inside a loop",
                 )
                 .with_observation((SourceId(0), ReefId(1), find_in(content, "continue")).into()),
                 Diagnostic::new(
                     DiagnosticID::InvalidBreakOrContinue,
-                    "`break` must be declared inside a loop"
+                    "`break` must be declared inside a loop",
                 )
-                .with_observation((SourceId(0), ReefId(1), find_in(content, "break")).into())
+                .with_observation((SourceId(0), ReefId(1), find_in(content, "break")).into()),
             ])
         );
     }
@@ -1974,7 +2018,7 @@ mod tests {
     fn explicit_valid_return_mixed() {
         let content = "fun some() -> Int = {\nif true; return 5; 9\n}";
         let res = extract_type(Source::unknown(content));
-        assert_eq!(res, Ok(Type::Unit));
+        assert_eq!(res, Ok(UNIT));
     }
 
     #[test]
@@ -1985,7 +2029,7 @@ mod tests {
             res,
             Err(vec![Diagnostic::new(
                 DiagnosticID::TypeMismatch,
-                "Type mismatch"
+                "Type mismatch",
             )
             .with_observation(Observation::here(
                 SourceId(1),
@@ -1997,7 +2041,7 @@ mod tests {
                 SourceId(1),
                 ReefId(1),
                 find_in(content, "9"),
-                "Found `Int`"
+                "Found `Int`",
             ))
             .with_observation(Observation::context(
                 SourceId(1),
@@ -2172,11 +2216,11 @@ mod tests {
                             }),
                             ty: STRING,
                             segment: find_in(content, "4.2"),
-                        }
+                        },
                     ]),
                     ty: EXITCODE,
                     segment: find_in(content, "grep $n 4.2"),
-                }
+                },
             ])
         );
     }
@@ -2195,7 +2239,7 @@ mod tests {
                 SourceId(0),
                 ReefId(1),
                 find_in(content, "4 / 'a'"),
-                "No operator `div` between type `Int` and `String`"
+                "No operator `div` between type `Int` and `String`",
             ))]),
         );
     }
@@ -2214,7 +2258,7 @@ mod tests {
                 SourceId(0),
                 ReefId(1),
                 find_in(content, "'operator' - 2.4"),
-                "No operator `sub` between type `String` and `Float`"
+                "No operator `sub` between type `String` and `Float`",
             ))]),
         );
     }
@@ -2223,14 +2267,14 @@ mod tests {
     fn valid_operator() {
         let content = "val c = 7.3 - 2.4; $c";
         let res = extract_type(Source::unknown(content));
-        assert_eq!(res, Ok(Type::Float));
+        assert_eq!(res, Ok(FLOAT));
     }
 
     #[test]
     fn valid_operator_explicit_method() {
         let content = "val j = 7.3; val c = $j.sub(2.4); $c";
         let res = extract_type(Source::unknown(content));
-        assert_eq!(res, Ok(Type::Float));
+        assert_eq!(res, Ok(FLOAT));
     }
 
     #[test]
@@ -2247,7 +2291,7 @@ mod tests {
                 SourceId(0),
                 ReefId(1),
                 find_in(content, ".len(5)"),
-                "Method is called here"
+                "Method is called here",
             ))
             .with_help("The method signature is `String::len() -> Int`")])
         );
@@ -2267,13 +2311,13 @@ mod tests {
                 SourceId(0),
                 ReefId(1),
                 find_in(content, "'a'"),
-                "Expected `Float`, found `String`"
+                "Expected `Float`, found `String`",
             ))
             .with_observation(Observation::context(
                 SourceId(0),
                 ReefId(1),
                 find_in(content, ".sub('a')"),
-                "Arguments to this method are incorrect"
+                "Arguments to this method are incorrect",
             ))])
         );
     }
@@ -2292,7 +2336,7 @@ mod tests {
                 SourceId(0),
                 ReefId(1),
                 find_in(content, "$v"),
-                "No method `to_string` on type `Unit`"
+                "No method `to_string` on type `Unit`",
             ))])
         );
     }
@@ -2311,7 +2355,7 @@ mod tests {
                 SourceId(0),
                 ReefId(1),
                 find_in(content, "9.9"),
-                "Type `Float` cannot be used as a condition"
+                "Type `Float` cannot be used as a condition",
             ))])
         );
     }
@@ -2330,7 +2374,7 @@ mod tests {
                 SourceId(0),
                 ReefId(1),
                 find_in(content, "9.9 % 3.3"),
-                "No operator `mod` between type `Float` and `Float`"
+                "No operator `mod` between type `Float` and `Float`",
             ))])
         );
     }
@@ -2339,19 +2383,19 @@ mod tests {
     fn operation_and_test() {
         let content = "val m = 101; val is_even = $m % 2 == 0; $is_even";
         let res = extract_type(Source::unknown(content));
-        assert_eq!(res, Ok(Type::Bool));
+        assert_eq!(res, Ok(BOOL));
     }
 
     #[test]
     fn condition_command() {
         let res = extract_type(Source::unknown("if nginx -t { echo 'ok' }"));
-        assert_eq!(res, Ok(Type::Unit));
+        assert_eq!(res, Ok(UNIT));
     }
 
     #[test]
     fn condition_invert_command() {
         let res = extract_type(Source::unknown("if ! nginx -t { echo 'invalid config' }"));
-        assert_eq!(res, Ok(Type::Unit));
+        assert_eq!(res, Ok(UNIT));
     }
 
     #[test]
@@ -2368,7 +2412,7 @@ mod tests {
                 SourceId(0),
                 ReefId(1),
                 find_in(content, "!$s"),
-                "Cannot invert non-boolean type `String`"
+                "Cannot invert non-boolean type `String`",
             ))])
         );
     }
@@ -2387,7 +2431,7 @@ mod tests {
                 SourceId(0),
                 ReefId(1),
                 find_in(content, "-{}"),
-                "`Unit` does not implement the `neg` method"
+                "`Unit` does not implement the `neg` method",
             ))])
         );
     }
@@ -2406,7 +2450,7 @@ mod tests {
                 SourceId(0),
                 ReefId(1),
                 find_in(content, "'text' % 9"),
-                "No operator `mod` between type `String` and `Int`"
+                "No operator `mod` between type `String` and `Int`",
             ))])
         );
     }
@@ -2415,7 +2459,7 @@ mod tests {
     fn redirect_to_string() {
         let content = "val file = '/tmp/file'; cat /etc/passwd > $file 2>&1";
         let res = extract_type(Source::unknown(content));
-        assert_eq!(res, Ok(Type::ExitCode));
+        assert_eq!(res, Ok(EXITCODE));
     }
 
     #[test]
@@ -2432,7 +2476,7 @@ mod tests {
                 SourceId(0),
                 ReefId(1),
                 find_in(content, "$file"),
-                "No method `to_string` on type `Unit`"
+                "No method `to_string` on type `Unit`",
             ))])
         );
     }
@@ -2451,7 +2495,7 @@ mod tests {
                 SourceId(0),
                 ReefId(1),
                 find_in(content, ">&matches"),
-                "Redirection happens here"
+                "Redirection happens here",
             ))])
         );
     }
@@ -2461,7 +2505,7 @@ mod tests {
         let res = extract_type(Source::unknown(
             "if echo hello | grep -q test | val m = $(cat test) {}",
         ));
-        assert_eq!(res, Ok(Type::Unit));
+        assert_eq!(res, Ok(UNIT));
     }
 
     #[test]
@@ -2469,13 +2513,13 @@ mod tests {
         let res = extract_type(Source::unknown(
             "fun foo() = { fun bar() = { return }; bar() }",
         ));
-        assert_eq!(res, Ok(Type::Unit));
+        assert_eq!(res, Ok(UNIT));
     }
 
     #[test]
     fn correct_concretized_type() {
         let res = extract_type(Source::unknown("'Hello, world'.split(' ').push('!')"));
-        assert_eq!(res, Ok(Type::Unit));
+        assert_eq!(res, Ok(UNIT));
     }
 
     #[test]
@@ -2483,7 +2527,7 @@ mod tests {
         let res = extract_type(Source::unknown(
             "fun len(bytes: Vec[Int]) -> Int = $bytes.len()",
         ));
-        assert_eq!(res, Ok(Type::Unit));
+        assert_eq!(res, Ok(UNIT));
     }
 
     #[test]
@@ -2500,13 +2544,13 @@ mod tests {
                 SourceId(0),
                 ReefId(1),
                 find_in(content, "{}"),
-                "Expected `String`, found `Unit`"
+                "Expected `String`, found `Unit`",
             ))
             .with_observation(Observation::here(
                 SourceId(0),
                 ReefId(1),
                 find_in(content, ".push({})"),
-                "Arguments to this method are incorrect"
+                "Arguments to this method are incorrect",
             ))])
         );
     }
@@ -2525,7 +2569,7 @@ mod tests {
                 SourceId(0),
                 ReefId(1),
                 find_in(content, "'a'"),
-                "`Vec[Int]` indices are of type `Int`"
+                "`Vec[Int]` indices are of type `Int`",
             ))])
         );
     }
@@ -2541,7 +2585,7 @@ mod tests {
                 }
             }",
         ));
-        assert_eq!(res, Ok(Type::Unit));
+        assert_eq!(res, Ok(UNIT));
     }
 
     #[test]
@@ -2558,13 +2602,13 @@ mod tests {
                 SourceId(0),
                 ReefId(1),
                 find_in(content, "'a'"),
-                "Found `String`"
+                "Found `String`",
             ))
             .with_observation(Observation::context(
                 SourceId(0),
                 ReefId(1),
                 find_in(content, "$v[0]"),
-                "Expected due to the type of this binding"
+                "Expected due to the type of this binding",
             ))])
         );
     }
@@ -2584,16 +2628,17 @@ mod tests {
                 SourceId(0),
                 ReefId(1),
                 find_in(content, "Int"),
-                "Expected `Int`"
+                "Expected `Int`",
             ))
             .with_observation(Observation::here(
                 SourceId(0),
                 ReefId(1),
                 find_in(content, "$lines[0]"),
-                "Found `String`"
+                "Found `String`",
             ))])
         );
     }
+
     #[test]
     fn different_concrete_type() {
         let content = "val lines = 'Hello, world'.split('\\n'); val types: Vec[Float] = $lines";
@@ -2608,13 +2653,13 @@ mod tests {
                 SourceId(0),
                 ReefId(1),
                 find_in(content, "Vec[Float]"),
-                "Expected `Vec[Float]`"
+                "Expected `Vec[Float]`",
             ))
             .with_observation(Observation::here(
                 SourceId(0),
                 ReefId(1),
                 find_in(content, "$lines"),
-                "Found `Vec[String]`"
+                "Found `Vec[String]`",
             ))])
         );
     }
@@ -2624,16 +2669,9 @@ mod tests {
         let content = "fun new_vec[T]() -> Vec[T];
         var v: Vec[Vec[Int]] = new_vec()
         $v = new_vec()
-        $v[0] = new_vec()
-        $v";
+        $v[0] = new_vec()";
         let res = extract_type(Source::unknown(content));
-        assert_eq!(
-            res,
-            Ok(Type::Instantiated(
-                GENERIC_VECTOR,
-                vec![TypeRef::new(ReefId(1), TypeId(6))]
-            ))
-        );
+        assert_eq!(res, Ok(UNIT));
     }
 
     #[test]
@@ -2650,7 +2688,7 @@ mod tests {
                 SourceId(1),
                 ReefId(1),
                 find_in(content, "Int[Int]"),
-                "Expected 0 generic arguments"
+                "Expected 0 generic arguments",
             ))])
         );
     }
@@ -2684,7 +2722,7 @@ mod tests {
     fn explicit_repeated_type_parameter() {
         let source = Source::unknown("fun i[T, U](a: T, b: T) -> U; i[Int, String](4, 5)");
         let res = extract_type(source);
-        assert_eq!(res, Ok(Type::String));
+        assert_eq!(res, Ok(STRING));
     }
 
     #[test]
@@ -2767,39 +2805,39 @@ mod tests {
                         SourceId(0),
                         ReefId(1),
                         find_in(content, "$vec"),
-                        "Expected `Vec[String]`, found `Vec[Int]`"
+                        "Expected `Vec[String]`, found `Vec[Int]`",
                     ))
                     .with_observation(Observation::here(
                         SourceId(1),
                         ReefId(1),
                         find_in(content, "vec: Vec[A]"),
-                        "Parameter is declared here"
+                        "Parameter is declared here",
                     )),
                 Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
                     .with_observation(Observation::here(
                         SourceId(0),
                         ReefId(1),
                         find_in_nth(content, "$vec", 1),
-                        "Expected `String`, found `Vec[Int]`"
+                        "Expected `String`, found `Vec[Int]`",
                     ))
                     .with_observation(Observation::here(
                         SourceId(1),
                         ReefId(1),
                         find_in(content, "c: B"),
-                        "Parameter is declared here"
+                        "Parameter is declared here",
                     )),
                 Diagnostic::new(DiagnosticID::TypeMismatch, "Type mismatch")
                     .with_observation(Observation::here(
                         SourceId(0),
                         ReefId(1),
                         find_in(content, "Option[Float]"),
-                        "Expected `Option[Float]`"
+                        "Expected `Option[Float]`",
                     ))
                     .with_observation(Observation::here(
                         SourceId(0),
                         ReefId(1),
                         find_in(content, "foo('str_in_int_argument', $vec, '7', $vec)"),
-                        "Found `String`"
+                        "Found `String`",
                     )),
             ]
         )
@@ -2809,20 +2847,113 @@ mod tests {
     fn string_glob() {
         let content = "val files = p'systemd-*'; echo $files";
         let res = extract_type(Source::unknown(content));
-        assert_eq!(res, Ok(Type::ExitCode));
+        assert_eq!(res, Ok(EXITCODE));
     }
 
     #[test]
     fn background_process() {
         let source = Source::unknown("foo &");
         let res = extract_type(source);
-        assert_eq!(res, Ok(Type::Pid));
+        assert_eq!(res, Ok(PID));
     }
 
     #[test]
     fn subprocess() {
         let source = Source::unknown("(foo)");
         let res = extract_type(source);
-        assert_eq!(res, Ok(Type::ExitCode));
+        assert_eq!(res, Ok(EXITCODE));
+    }
+
+    #[test]
+    fn locals_types() {
+        let content = "\
+            struct Simple {}
+            val a: Simple = Simple()
+            val b = Simple()
+
+            val c: Int = 7
+            val d = 7
+        ";
+        let src = Source::unknown(content);
+        let externals = extract(src).expect("typing errors");
+        let reef = externals.get_reef(ReefId(1)).unwrap();
+        let typing = &reef.typing;
+        let ctx = &reef.type_context;
+        let relations = &reef.relations;
+
+        let assert_local_type = |local_id, type_ref| {
+            assert_eq!(
+                Some(TypedVariable::immutable(type_ref)),
+                ctx.get(relations, SourceId(0), SymbolRef::Local(LocalId(local_id)))
+            )
+        };
+
+        assert_local_type(0, TypeRef::new(ReefId(1), TypeId(0))); //struct Simple
+
+        assert_local_type(1, TypeRef::new(ReefId(1), TypeId(0))); //val a
+        assert_local_type(2, TypeRef::new(ReefId(1), TypeId(0))); //val b (inferred)
+
+        assert_local_type(3, INT); //val c
+        assert_local_type(4, INT); //val d (inferred)
+
+        // struct Simple
+        assert_eq!(
+            Some(&Type::Structure(Some(SourceId(1)), StructureId(0))),
+            typing.get_type(TypeId(0))
+        );
+    }
+
+    #[test]
+    fn locals_complex_types() {
+        let content = "\
+            struct Complex[A] {}
+            val a: Complex[Int] = Complex()
+            val b = Complex[Int]()
+        ";
+        let src = Source::unknown(content);
+        let externals = extract(src).expect("typing errors");
+        let reef = externals.get_reef(ReefId(1)).unwrap();
+        let typing = &reef.typing;
+        let ctx = &reef.type_context;
+        let relations = &reef.relations;
+
+        let assert_local_type = |local_id, type_ref| {
+            assert_eq!(
+                Some(TypedVariable::immutable(type_ref)),
+                ctx.get(relations, SourceId(0), SymbolRef::Local(LocalId(local_id)))
+            )
+        };
+
+        //struct Complex[A]
+        assert_local_type(0, TypeRef::new(ReefId(1), TypeId(0)));
+
+        //val a, references instance of Complex[A] (Complex[Int])
+        assert_local_type(1, TypeRef::new(ReefId(1), TypeId(5)));
+        //val b (inferred), references equivalent instance of a (Complex[Int])
+        assert_local_type(2, TypeRef::new(ReefId(1), TypeId(6)));
+
+        // struct Complex[A]
+        assert_eq!(
+            Some(&Type::Structure(Some(SourceId(1)), StructureId(0))),
+            typing.get_type(TypeId(0))
+        );
+
+        // instance 1 Complex[Int]
+        assert_eq!(
+            Some(&Type::Instantiated(
+                TypeRef::new(ReefId(1), TypeId(0)),
+                vec![INT]
+            )),
+            typing.get_type(TypeId(5))
+        );
+
+        // instance 2 Complex[Int]
+        assert_eq!(
+            Some(&Type::Instantiated(
+                TypeRef::new(ReefId(1), TypeId(0)),
+                vec![INT]
+            )),
+            typing.get_type(TypeId(6))
+        );
     }
 }

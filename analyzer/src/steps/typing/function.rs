@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::fmt;
-use std::iter::once;
 
 use ast::call::{MethodCall, ProgrammaticCall};
 use ast::function::{FunctionDeclaration, FunctionParameter};
@@ -8,18 +7,19 @@ use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation, SourceLocation};
+use crate::environment::symbols::SymbolInfo;
 use crate::reef::ReefId;
 use crate::relations::{LocalId, ObjectId, SourceId, SymbolRef};
-use crate::steps::typing::bounds::TypesBounds;
+use crate::steps::typing::bounds::{apply_bounds, build_bounds, TypesBounds};
 use crate::steps::typing::coercion::{
     convert_description, convert_expression, convert_many, resolve_type_annotation,
 };
 use crate::steps::typing::exploration::{Exploration, Links};
 use crate::steps::typing::view::TypeInstanceVec;
 use crate::steps::typing::{ascribe_types, ExpressionValue, TypingState};
-use crate::types::engine::{Chunk, ChunkType, FunctionId};
+use crate::types::engine::{Chunk, ChunkKind, FunctionId};
 use crate::types::hir::{ExprKind, TypedExpr};
-use crate::types::ty::{FunctionType, MethodType, Parameter, Type, TypeRef};
+use crate::types::ty::{FunctionDesc, FunctionKind, MethodType, Parameter, Type, TypeRef};
 use crate::types::{ERROR, STRING, UNIT};
 
 /// An identified return during the exploration.
@@ -35,7 +35,6 @@ pub(super) struct Return {
 /// Identifies a function that correspond to a call.
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct FunctionMatch {
-    pub(super) type_arguments: Vec<TypeRef>,
     /// The converted arguments to pass to the function.
     ///
     /// If any conversion is required, it will be done here.
@@ -197,30 +196,10 @@ pub(super) fn infer_return(
     ERROR
 }
 
-fn apply_bounds(exploration: &mut Exploration, ty: TypeRef, bounds: &TypesBounds) -> TypeRef {
-    let ty_ref = bounds.get_bound(ty);
-    let ty = exploration.get_type(ty_ref).unwrap();
-    if let Type::Instantiated(base, params) = ty {
-        let base = bounds.get_bound(*base);
-        let params: Vec<_> = params
-            .clone()
-            .into_iter()
-            .map(|ty| apply_bounds(exploration, ty, bounds))
-            .collect();
-
-        let type_id = exploration
-            .typing
-            .add_type(Type::Instantiated(base, params), None);
-        return TypeRef::new(exploration.externals.current, type_id);
-    }
-
-    ty_ref
-}
-
 /// Ensures that the return type does not contains any reference to given type parameters of function.
 fn check_for_leaked_type_parameters(
     exploration: &Exploration,
-    types_parameters: &[TypeRef],
+    not_to_leak: &[TypeRef],
     return_type: TypeRef,
     source: SourceId,
     call_segment: SourceSegment,
@@ -246,12 +225,7 @@ fn check_for_leaked_type_parameters(
         }
     }
 
-    collect_leaked_types(
-        exploration,
-        types_parameters,
-        return_type,
-        &mut leaked_types,
-    );
+    collect_leaked_types(exploration, not_to_leak, return_type, &mut leaked_types);
 
     if let Some((first, tail)) = leaked_types.split_first() {
         let leaked_types_str = {
@@ -289,7 +263,7 @@ fn check_for_leaked_type_parameters(
 
 /// create a basic chunk from a function declaration
 /// type its parameters, type parameters and return type
-pub(super) fn type_function_signature(
+pub(super) fn declare_function(
     func: &FunctionDeclaration,
     exploration: &mut Exploration,
     function_links: Links,
@@ -299,7 +273,6 @@ pub(super) fn type_function_signature(
     let mut params = Vec::new();
 
     let func_source = function_links.source;
-
     exploration
         .ctx
         .init_locals(func_source, function_links.env().symbols.len());
@@ -308,8 +281,9 @@ pub(super) fn type_function_signature(
         let param_type_id = exploration
             .typing
             .add_type(Type::Polytype, Some(type_param.name.to_string()));
+        type_params.push(param_type_id);
+
         let param_type_ref = TypeRef::new(exploration.externals.current, param_type_id);
-        type_params.push(param_type_ref);
         exploration
             .ctx
             .set_local_typed(func_source, LocalId(local_id), param_type_ref);
@@ -332,25 +306,25 @@ pub(super) fn type_function_signature(
         resolve_type_annotation(exploration, function_links, ty, diagnostics)
     });
 
-    let function_id = exploration.type_engine.add_function(FunctionType {
+    let function_id = exploration.type_engine.add_function(FunctionDesc {
         type_parameters: type_params,
         parameters: params,
         return_type,
+        kind: FunctionKind::Function,
     });
 
-    let type_id = exploration.typing.add_type(
+    let function_type = exploration.typing.add_type(
         Type::Function(Some(func_source), function_id),
         Some(func.name.to_string()),
     );
-    let type_ref = TypeRef::new(exploration.externals.current, type_id);
 
+    // The function body will be typed on next iteration
     Chunk {
-        expression: Some(TypedExpr {
-            kind: ExprKind::Noop,
-            ty: type_ref,
-            segment: func.segment(),
+        function_type,
+        function_id,
+        kind: func.body.as_ref().map_or(ChunkKind::DeclaredFunction, |_| {
+            ChunkKind::DefinedFunction(None)
         }),
-        kind: ChunkType::Function(function_id),
     }
 }
 
@@ -366,11 +340,11 @@ pub(super) fn type_call(
 
     let call_symbol_ref = links.env().get_raw_symbol(call.segment()).unwrap();
 
-    let (fun_reef, fun_origin) = match call_symbol_ref {
-        SymbolRef::Local(_) => (exploration.externals.current, links.source),
+    let (fun_reef, fun_origin, fun_local_id) = match call_symbol_ref {
+        SymbolRef::Local(lid) => (exploration.externals.current, links.source, lid),
         SymbolRef::External(r) => {
             let call_symbol = links.relations[r].state.expect_resolved("unresolved");
-            (call_symbol.reef, call_symbol.source)
+            (call_symbol.reef, call_symbol.source, call_symbol.object_id)
         }
     };
 
@@ -379,130 +353,20 @@ pub(super) fn type_call(
         .unwrap()
         .type_ref;
 
-    match exploration.get_type(function_type_ref).unwrap() {
-        &Type::Function(function_source, function_id) => {
-            let function = exploration.get_function(fun_reef, function_id).unwrap();
-            let parameters = function.parameters.clone(); // TODO: avoid clone
-            let return_type = function.return_type;
+    let (function_source, function_id) = match *exploration.get_type(function_type_ref).unwrap() {
+        Type::Function(function_source, function_id) => (function_source, function_id),
+        // We are (maybe) invoking a type's constructor.
+        Type::Structure(structure_source, _)
+        // check if the symbol kind is SymbolInfo::Type, otherwise, we are trying to call a function over a variable reference
+        // that returns a structure, which is not something callable
+        if exploration.get_symbol(fun_reef, fun_origin, fun_local_id, links).unwrap().ty == SymbolInfo::Type
+        => {
 
-            if parameters.len() != arguments.len() {
-                diagnostics.push(
-                    Diagnostic::new(
-                        DiagnosticID::TypeMismatch,
-                        format!(
-                            "This function takes {} {} but {} {} supplied",
-                            parameters.len(),
-                            pluralize(parameters.len(), "argument", "arguments"),
-                            arguments.len(),
-                            pluralize(arguments.len(), "was", "were"),
-                        ),
-                    )
-                    .with_observation(Observation::here(
-                        links.source,
-                        exploration.externals.current,
-                        call.segment.clone(),
-                        "Function is called here",
-                    )),
-                );
-
-                let type_arguments = function.type_parameters.clone();
-
-                let arguments = arguments
-                    .iter()
-                    .map(|expr| ascribe_types(exploration, links, diagnostics, expr, state))
-                    .collect::<Vec<_>>();
-
-                FunctionMatch {
-                    type_arguments,
-                    arguments,
-                    function_id,
-                    function_source,
-                    return_type: ERROR,
-                    reef: fun_reef,
-                }
-            } else {
-                let type_arguments = function.type_parameters.clone();
-
-                let expected_type = if let ExpressionValue::Expected(t) = state.local_value {
-                    Some(t)
-                } else {
-                    None
-                };
-
-                let mut bounds = resolve_bounds(
-                    &call.type_parameters,
-                    fun_reef,
-                    None,
-                    function_id,
-                    expected_type,
-                    exploration,
-                    links,
-                    diagnostics,
-                );
-
-                let mut casted_arguments = Vec::with_capacity(parameters.len());
-                for (param, arg) in parameters.iter().cloned().zip(arguments) {
-                    let param_bound = bounds.get_bound(param.ty);
-
-                    let arg = ascribe_types(
-                        exploration,
-                        links,
-                        diagnostics,
-                        arg,
-                        state.with_local_value(ExpressionValue::Expected(param_bound)),
-                    );
-
-                    let casted_argument = convert_expression(
-                        arg,
-                        param_bound,
-                        &mut bounds,
-                        exploration,
-                        links.source,
-                        diagnostics,
-                    );
-
-                    let casted_argument = match casted_argument {
-                        Ok(arg) => {
-                            bounds.update_bounds(param.ty, arg.ty, exploration);
-                            arg
-                        }
-                        Err(arg) => {
-                            diagnostics.push(diagnose_arg_mismatch(
-                                exploration,
-                                links.source,
-                                exploration.externals.current,
-                                fun_reef,
-                                &param,
-                                &arg,
-                                &bounds,
-                            ));
-                            arg
-                        }
-                    };
-
-                    casted_arguments.push(casted_argument);
-                }
-
-                let return_type = apply_bounds(exploration, return_type, &bounds);
-
-                let return_type = check_for_leaked_type_parameters(
-                    exploration,
-                    &type_arguments,
-                    return_type,
-                    links.source,
-                    call.segment(),
-                    diagnostics,
-                );
-
-                FunctionMatch {
-                    type_arguments,
-                    arguments: casted_arguments,
-                    function_id,
-                    function_source,
-                    return_type,
-                    reef: fun_reef,
-                }
-            }
+            // there is only one constructor function for now (the default one)
+            let constructor_id = exploration
+                .get_methods(function_type_ref, "<init>")
+                .unwrap()[0];
+            (structure_source, constructor_id)
         }
         _ => {
             diagnostics.push(
@@ -510,15 +374,15 @@ pub(super) fn type_call(
                     DiagnosticID::TypeMismatch,
                     "Cannot invoke non function type",
                 )
-                .with_observation(Observation::here(
-                    links.source,
-                    exploration.externals.current,
-                    call.segment(),
-                    format!(
-                        "Call expression requires function, found `{}`",
-                        exploration.new_type_view(function_type_ref, &TypesBounds::inactive())
-                    ),
-                )),
+                    .with_observation(Observation::here(
+                        links.source,
+                        exploration.externals.current,
+                        call.segment(),
+                        format!(
+                            "Call expression requires function, found `{}`",
+                            exploration.new_type_view(function_type_ref, &TypesBounds::inactive())
+                        ),
+                    )),
             );
 
             let arguments = arguments
@@ -526,20 +390,142 @@ pub(super) fn type_call(
                 .map(|expr| ascribe_types(exploration, links, diagnostics, expr, state))
                 .collect::<Vec<_>>();
 
-            FunctionMatch {
-                type_arguments: Vec::new(),
+            return FunctionMatch {
                 arguments,
                 function_id: FunctionId(ObjectId::MAX),
                 function_source: None,
                 return_type: ERROR,
                 reef: fun_reef,
-            }
+            };
+        }
+    };
+
+    let function = exploration.get_function(fun_reef, function_id).unwrap();
+    let parameters = function.parameters.clone(); // TODO: avoid clone
+    let return_type = function.return_type;
+
+    if parameters.len() != arguments.len() {
+        diagnostics.push(
+            Diagnostic::new(
+                DiagnosticID::TypeMismatch,
+                format!(
+                    "This function takes {} {} but {} {} supplied",
+                    parameters.len(),
+                    pluralize(parameters.len(), "argument", "arguments"),
+                    arguments.len(),
+                    pluralize(arguments.len(), "was", "were"),
+                ),
+            )
+            .with_observation(Observation::here(
+                links.source,
+                exploration.externals.current,
+                call.segment.clone(),
+                "Function is called here",
+            )),
+        );
+
+        let arguments = arguments
+            .iter()
+            .map(|expr| ascribe_types(exploration, links, diagnostics, expr, state))
+            .collect::<Vec<_>>();
+
+        FunctionMatch {
+            arguments,
+            function_id,
+            function_source,
+            return_type: ERROR,
+            reef: fun_reef,
+        }
+    } else {
+        let types_parameters: Vec<_> = function
+            .type_parameters
+            .iter()
+            .map(|type_id| TypeRef::new(fun_reef, *type_id))
+            .collect();
+
+        let expected_type = if let ExpressionValue::Expected(t) = state.local_value {
+            Some(t)
+        } else {
+            None
+        };
+
+        let mut bounds = resolve_bounds(
+            &call.type_parameters,
+            fun_reef,
+            None,
+            function_id,
+            expected_type,
+            exploration,
+            links,
+            diagnostics,
+        );
+
+        let mut casted_arguments = Vec::with_capacity(parameters.len());
+        for (param, arg) in parameters.iter().cloned().zip(arguments) {
+            let param_bound = bounds.get_bound(param.ty);
+
+            let arg = ascribe_types(
+                exploration,
+                links,
+                diagnostics,
+                arg,
+                state.with_local_value(ExpressionValue::Expected(param_bound)),
+            );
+
+            let casted_argument = convert_expression(
+                arg,
+                param_bound,
+                &mut bounds,
+                exploration,
+                links.source,
+                diagnostics,
+            );
+
+            let casted_argument = match casted_argument {
+                Ok(arg) => {
+                    bounds.update_bounds(param.ty, arg.ty, exploration);
+                    arg
+                }
+                Err(arg) => {
+                    diagnostics.push(diagnose_arg_mismatch(
+                        exploration,
+                        links.source,
+                        exploration.externals.current,
+                        fun_reef,
+                        &param,
+                        &arg,
+                        &bounds,
+                    ));
+                    arg
+                }
+            };
+
+            casted_arguments.push(casted_argument);
+        }
+
+        let return_type = apply_bounds(exploration, return_type, &bounds);
+
+        let return_type = check_for_leaked_type_parameters(
+            exploration,
+            &types_parameters,
+            return_type,
+            links.source,
+            call.segment(),
+            diagnostics,
+        );
+
+        FunctionMatch {
+            arguments: casted_arguments,
+            function_id,
+            function_source,
+            return_type,
+            reef: fun_reef,
         }
     }
 }
 
 /// update given bounds to update type parameters bounds of the function's return type from the given hint
-fn infer_return_from_hint(
+pub(super) fn infer_return_from_hint(
     exploration: &Exploration,
     return_type: TypeRef,
     return_type_hint: TypeRef,
@@ -558,94 +544,6 @@ fn infer_return_from_hint(
         }
         _ => {}
     }
-}
-
-fn extract_polytypes(tpe_ref: TypeRef, exploration: &Exploration) -> Vec<TypeRef> {
-    let tpe = exploration.get_type(tpe_ref).unwrap();
-    match tpe {
-        Type::Polytype => once(tpe_ref).collect(),
-        Type::Instantiated(base, params) => extract_polytypes(*base, exploration)
-            .into_iter()
-            .chain(
-                params
-                    .iter()
-                    .flat_map(|ty| extract_polytypes(*ty, exploration)),
-            )
-            .collect(),
-        _ => Vec::new(),
-    }
-}
-
-/// search if given type is contained in given polytypes or has any type parameter contained in this list.
-fn type_depends_of(tpe: TypeRef, polytypes: &Vec<TypeRef>, exploration: &Exploration) -> bool {
-    if polytypes.contains(&tpe) {
-        return true;
-    }
-
-    if let Type::Instantiated(base, params) = exploration.get_type(tpe).unwrap() {
-        return type_depends_of(*base, polytypes, exploration)
-            || params
-                .iter()
-                .any(|ty| type_depends_of(*ty, polytypes, exploration));
-    }
-    false
-}
-
-/// build type parameters bounds of a user-defined function.
-/// The return hint is only applied if the function's return type does not depend on function's parameters.
-/// Set `obj` to Some type if the function is a method that applies to the object
-fn build_bounds(
-    user_bounds: &[TypeRef],
-    obj: Option<TypeRef>,
-    fun_reef: ReefId,
-    function_id: FunctionId,
-    return_hint: Option<TypeRef>,
-    exploration: &Exploration,
-) -> TypesBounds {
-    let function = exploration.get_function(fun_reef, function_id).unwrap();
-
-    let mut bounds = HashMap::new();
-
-    // add in bounds the object's type instance parameters bounds
-    if let Some(ty) = obj {
-        let base = exploration.get_type(ty).unwrap();
-        if let Type::Instantiated(base, tparams) = base {
-            let base_tparams = &exploration.get_description(*base).unwrap().generics;
-            bounds.extend(base_tparams.iter().zip(tparams))
-        }
-    }
-
-    // collect the functions' type parameters used in the parameters.
-    let parameters_polytypes = function
-        .parameters
-        .iter()
-        .flat_map(|p| extract_polytypes(p.ty, exploration))
-        .collect();
-
-    // Use the return type hint only if it does not contains a polytype bound with the parameters
-    if !type_depends_of(function.return_type, &parameters_polytypes, exploration) {
-        if let Some(hint) = return_hint {
-            infer_return_from_hint(exploration, function.return_type, hint, &mut bounds);
-        }
-    }
-
-    for (idx, type_param) in function.type_parameters.iter().enumerate() {
-        let user_bound = user_bounds.get(idx).copied();
-
-        // user has explicitly set a type bound
-        if let Some(user_bound) = user_bound {
-            bounds.insert(*type_param, user_bound);
-        } else {
-            // user expects an inference
-            // if bounds is already know thanks to the given return type hint correlation with function types parameters
-            // let it as is, else, bound the type param with itself
-            if !bounds.contains_key(type_param) {
-                bounds.insert(*type_param, *type_param);
-            }
-        }
-    }
-
-    TypesBounds::new(bounds)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -844,13 +742,18 @@ pub(super) fn type_method(
         let method = exploration
             .get_function(method_base_reef, method_id)
             .unwrap();
-        let type_parameters = method.type_parameters.clone();
+
+        let types_parameters: Vec<_> = method
+            .type_parameters
+            .iter()
+            .map(|type_id| TypeRef::new(method_base_reef, *type_id))
+            .collect();
 
         let return_type = exploration.concretize(method.return_type, callee.ty);
         let return_type = apply_bounds(exploration, return_type, &bounds);
         let return_type = check_for_leaked_type_parameters(
             exploration,
-            &type_parameters,
+            &types_parameters,
             return_type,
             links.source,
             method_call.segment(),
@@ -859,10 +762,6 @@ pub(super) fn type_method(
 
         // We have an exact match
         return Some(FunctionMatch {
-            type_arguments: type_parameters
-                .iter()
-                .map(|k| bounds.get_bound(*k))
-                .collect(),
             arguments,
             function_id: method_id,
             function_source: None,
@@ -1103,12 +1002,12 @@ fn pluralize<'a>(count: usize, singular: &'a str, plural: &'a str) -> &'a str {
 struct Signature<'a> {
     exploration: &'a Exploration<'a>,
     name: &'a str,
-    function: &'a FunctionType,
+    function: &'a FunctionDesc,
 }
 
 impl<'a> Signature<'a> {
     /// Creates a new signature.
-    fn new(exploration: &'a Exploration<'a>, name: &'a str, function: &'a FunctionType) -> Self {
+    fn new(exploration: &'a Exploration<'a>, name: &'a str, function: &'a FunctionDesc) -> Self {
         Self {
             exploration,
             name,

@@ -2,11 +2,16 @@
 
 #include <cstdint>
 #include <forward_list>
+#include <memory>
 #include <string>
 #include <variant>
 #include <vector>
 
+
 namespace msh {
+
+    struct struct_definition;
+
     // Create a recursive variant type by forward declaring the vector type.
     // Since C++17, `std::vector` doesn't require the type to be complete with
     // an appropriate allocator, and only a pointer is used here.
@@ -20,7 +25,12 @@ namespace msh {
         using std::vector<obj *>::vector;
     };
 
-    using obj_data = std::variant<int64_t, int8_t, double, const std::string, obj_vector>;
+    struct obj_struct {
+        const struct_definition *definition;
+        std::vector<char> bytes;
+    };
+
+    using obj_data = std::variant<int64_t, int8_t, double, const std::string, obj_vector, obj_struct>;
 
     class gc;
 

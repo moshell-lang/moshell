@@ -1,14 +1,23 @@
-use crate::cli::{use_pipeline, Cli};
-use crate::pipeline::{ErrorReporter, PipelineStatus, SourcesCache};
+use std::path::{Path, PathBuf};
+
 use analyzer::analyze;
 use analyzer::name::Name;
 use analyzer::reef::{Externals, Reef};
 use analyzer::relations::SourceId;
 use cli::project_dir;
-use std::path::{Path, PathBuf};
+use compiler::externals::CompilerExternals;
 use vm::VM;
 
-pub fn build_std(externals: &mut Externals, vm: &mut VM, sources: &mut SourcesCache, config: &Cli) {
+use crate::cli::{use_pipeline, Cli};
+use crate::pipeline::{ErrorReporter, PipelineStatus, SourcesCache};
+
+pub fn build_std(
+    externals: &mut Externals,
+    compiler_externals: &mut CompilerExternals,
+    vm: &mut VM,
+    sources: &mut SourcesCache,
+    config: &Cli,
+) {
     let std_file = find_std();
     sources.register(std_file);
     let importer = sources.last_mut();
@@ -22,16 +31,18 @@ pub fn build_std(externals: &mut Externals, vm: &mut VM, sources: &mut SourcesCa
         SourceId(0),
         &analyzer,
         externals,
+        compiler_externals,
         vm,
         diagnostics,
         importer.take_errors(),
         sources,
         config,
     );
-    externals.register(Reef::new("std".to_string(), analyzer));
 
     match status {
-        PipelineStatus::Success => {}
+        PipelineStatus::Success => {
+            externals.register(Reef::new("std".to_string(), analyzer));
+        }
         PipelineStatus::IoError => panic!(
             "Unable to find the standard library, check the MOSHELL_STD environment variable"
         ),

@@ -1,6 +1,7 @@
-use compiler::bytecode::Opcode;
 use std::io;
 use std::io::{Cursor, Read};
+
+use compiler::bytecode::Opcode;
 
 macro_rules! read {
     ($read:expr, $tpe:ty) => {{
@@ -133,6 +134,25 @@ fn display_code(
             | Opcode::SetLocalByte
             | Opcode::SetLocalQWord => print!("<local @{}>", read!(cursor, u32)),
 
+            Opcode::SetStructQWord
+            | Opcode::GetStructQWord
+            | Opcode::SetStructByte
+            | Opcode::GetStructByte => print!("<struct index @{}>", read!(cursor, u32)),
+
+            Opcode::NewStruct => {
+                let constant_idx = read!(cursor, u32) as usize;
+                let str = &constants[constant_idx];
+                let padding = (digits(constants.len() as u64) - digits(constant_idx as u64)) + 10;
+                print!(
+                    "<constant #{constant_idx}> {:padding$} // <structure> {str}",
+                    ""
+                )
+            }
+            Opcode::StructCopyOperands => {
+                let count = read!(cursor, u32);
+                print!("<count @{count}>")
+            }
+
             Opcode::Invoke => {
                 let constant_idx = read!(cursor, u32) as usize;
                 let str = &constants[constant_idx];
@@ -174,7 +194,27 @@ fn display_code(
     Ok(())
 }
 
-fn display_functions(
+fn display_structure(cursor: &mut Cursor<&[u8]>, constants: &[String]) -> io::Result<()> {
+    let structure_identifier = &constants[read!(cursor, u32) as usize];
+    println!("struct {structure_identifier}:");
+
+    let structure_byte_count = read!(cursor, u32);
+
+    println!("\theap size: {structure_byte_count}");
+
+    let structure_object_indexes_count = read!(cursor, u32);
+    if structure_object_indexes_count > 0 {
+        println!("\tcontains {structure_object_indexes_count} object references:");
+    }
+
+    for _ in 0..structure_object_indexes_count {
+        println!("\t\t- at @{}", read!(cursor, u32));
+    }
+
+    Ok(())
+}
+
+fn display_unit(
     cursor: &mut Cursor<&[u8]>,
     constants: &[String],
     dynamic_symbols: &[usize],
@@ -195,10 +235,15 @@ fn display_functions(
         println!()
     }
 
-    println!("Functions: ");
+    println!("Structures: ");
+    let structures_count = read!(cursor, u32);
+    for _ in 0..structures_count {
+        display_structure(cursor, constants)?;
+    }
 
-    let functions_len = read!(cursor, u32);
-    for _ in 0..functions_len {
+    println!("Functions: ");
+    let functions_count = read!(cursor, u32);
+    for _ in 0..functions_count {
         display_function(cursor, constants, dynamic_symbols)?;
     }
     Ok(())
@@ -211,7 +256,7 @@ pub fn display_bytecode(bytecode: &[u8]) {
         .expect("Read slice error when displaying constant pool");
     display_constants(&constants);
     while cursor.position() < bytecode.len() as u64 {
-        display_functions(&mut cursor, &constants, &dynamic_symbols)
+        display_unit(&mut cursor, &constants, &dynamic_symbols)
             .expect("Read slice error when displaying function content");
     }
 }
@@ -234,10 +279,16 @@ fn get_opcode_mnemonic(opcode: Opcode) -> &'static str {
         Opcode::SetRefByte => "rbset",
         Opcode::GetRefQWord => "rqwget",
         Opcode::SetRefQWord => "rqwset",
+        Opcode::GetStructByte => "sbget",
+        Opcode::SetStructByte => "sbset",
+        Opcode::GetStructQWord => "sqwget",
+        Opcode::SetStructQWord => "sqwset",
         Opcode::FetchByte => "bfetch",
         Opcode::FetchQWord => "qwfetch",
         Opcode::StoreByte => "bstore",
         Opcode::StoreQWord => "qwstore",
+        Opcode::NewStruct => "new",
+        Opcode::StructCopyOperands => "copy",
         Opcode::Invoke => "invoke",
         Opcode::Fork => "fork",
         Opcode::Exec => "exec",

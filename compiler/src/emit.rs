@@ -1,14 +1,10 @@
-use analyzer::engine::Engine;
-use analyzer::environment::Environment;
-use analyzer::reef::{Externals, ReefId};
-use analyzer::relations::SourceId;
-use analyzer::types::engine::{FunctionId, TypedEngine};
 use analyzer::types::hir::{Declaration, ExprKind, TypedExpr, Var};
-use analyzer::types::ty::{FunctionType, TypeRef};
+use analyzer::types::ty::TypeRef;
 use ast::value::LiteralValue;
 
 use crate::bytecode::{Instructions, Opcode, Placeholder};
 use crate::constant_pool::ConstantPool;
+use crate::context::EmitterContext;
 use crate::emit::identifier::{expose_variable, Identifier};
 use crate::emit::invoke::{
     emit_capture, emit_function_invocation, emit_pipeline, emit_process_call, emit_redirect,
@@ -16,80 +12,14 @@ use crate::emit::invoke::{
 };
 use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
 use crate::emit::native::emit_natives;
+use crate::emit::structure::{emit_field_access, emit_field_assign};
 use crate::locals::LocalsLayout;
-use crate::Captures;
 
 mod identifier;
 mod invoke;
 mod jump;
 mod native;
-
-#[derive(Clone)]
-pub struct EmitterContext<'a, 'e> {
-    pub(crate) current_reef: ReefId,
-    engine: &'a Engine<'e>,
-    typed_engine: &'a TypedEngine,
-    externals: &'a Externals<'e>,
-
-    /// The currently emitted environment.
-    ///
-    /// It may be used to get the name of the current environment or to get the
-    /// current environment's variables.
-    pub(crate) environment: &'a Environment,
-
-    /// The captures variables.
-    pub(crate) captures: &'a Captures,
-
-    /// The current chunk id.
-    pub(crate) chunk_id: SourceId,
-}
-
-impl<'a, 'e> EmitterContext<'a, 'e> {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        current_reef: ReefId,
-        engine: &'a Engine<'e>,
-        typed_engine: &'a TypedEngine,
-        externals: &'a Externals<'e>,
-        env: &'a Environment,
-        captures: &'a Captures,
-        chunk_id: SourceId,
-    ) -> Self {
-        Self {
-            current_reef,
-            typed_engine,
-            engine,
-            externals,
-            environment: env,
-            captures,
-            chunk_id,
-        }
-    }
-
-    pub fn get_function(&self, reef: ReefId, id: FunctionId) -> Option<&FunctionType> {
-        if reef == self.current_reef {
-            self.typed_engine.get_function(id)
-        } else {
-            self.externals
-                .get_reef(reef)
-                .unwrap()
-                .typed_engine
-                .get_function(id)
-        }
-    }
-
-    pub fn engine(&self) -> &'a Engine<'e> {
-        self.engine
-    }
-
-    pub fn get_engine(&self, reef: ReefId) -> Option<&'a Engine<'e>> {
-        if self.current_reef == reef {
-            Some(self.engine)
-        } else {
-            self.externals.get_reef(reef).map(|r| &r.engine)
-        }
-    }
-}
+mod structure;
 
 #[derive(Debug, Clone, Default)]
 pub struct EmissionState {
@@ -286,7 +216,7 @@ pub fn emit(
         ExprKind::Continue => emit_continue(instructions, state),
         ExprKind::Break => emit_break(instructions, state),
         ExprKind::Return(val) => emit_return(val, instructions, ctx, cp, locals, state),
-        ExprKind::Assign(ass) => emit_assignment(
+        ExprKind::LocalAssign(ass) => emit_assignment(
             &ass.rhs,
             ass.identifier,
             instructions,
@@ -295,6 +225,12 @@ pub fn emit(
             locals,
             state,
         ),
+        ExprKind::FieldAccess(access) => {
+            emit_field_access(access, instructions, ctx, cp, locals, state)
+        }
+        ExprKind::FieldAssign(assign) => {
+            emit_field_assign(assign, instructions, ctx, cp, locals, state)
+        }
         ExprKind::Reference(symbol) => {
             if state.use_values {
                 emit_ref(*symbol, ctx, expr.ty, instructions, cp, locals);

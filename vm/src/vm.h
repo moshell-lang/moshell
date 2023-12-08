@@ -102,7 +102,8 @@ typedef enum {
     OBJ_INT,
     OBJ_BYTE,
     OBJ_DOUBLE,
-    OBJ_VEC
+    OBJ_VEC,
+    OBJ_STRUCT
 } moshell_object_type;
 
 /**
@@ -120,6 +121,14 @@ typedef struct {
     size_t size;
     const moshell_value *data;
 } moshell_array;
+
+/**
+ * A structure data
+ * */
+typedef struct {
+    size_t size;
+    const char *data;
+} moshell_struct;
 
 /**
  * Return an exported value from its name identifier
@@ -154,10 +163,16 @@ moshell_value moshell_object_unbox(moshell_object obj);
  * */
 const char *moshell_object_get_as_string(moshell_object obj);
 /**
- * Get this object as a string object and return its c string value.
+ * Get this object as an array object.
  * If the type of the object isn't OBJ_VEC, this function throws a cpp error
  * */
 moshell_array moshell_object_get_as_array(moshell_object obj);
+
+/**
+ * Get this object as a struct object and return its data bytes as an array value.
+ * If the type of the object isn't OBJ_STRUCT, this function throws a cpp error
+ * */
+moshell_struct moshell_object_get_as_struct(moshell_object obj);
 
 /**
  * Run a new Garbage Collection cycle

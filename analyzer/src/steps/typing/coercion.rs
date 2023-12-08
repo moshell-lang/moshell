@@ -2,7 +2,7 @@ use ast::r#type::ParametrizedType;
 use context::source::{SourceSegment, SourceSegmentHolder};
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
-use crate::relations::{SourceId, SymbolRef};
+use crate::relations::SourceId;
 use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::exploration::{Exploration, Links};
 use crate::steps::typing::lower::call_convert_on;
@@ -71,13 +71,16 @@ pub(super) fn convert_description(
                     .zip(params_rhs)
                     .all(|(param_lhs, param_rhs)| {
                         let bound = bounds.get_bound(*param_lhs);
-                        let ty = convert_description(exploration, bound, *param_rhs, bounds, false)
-                            .is_ok();
+                        let is_compatible =
+                            convert_description(exploration, bound, *param_rhs, bounds, false)
+                                .is_ok();
 
                         // restrict bound even more
-                        bounds.update_bounds(*param_lhs, bound, exploration);
+                        if is_compatible {
+                            bounds.update_bounds(*param_lhs, bound, exploration);
+                        }
 
-                        ty
+                        is_compatible
                     });
             if are_parameters_compatible {
                 return Ok(assign_to);
@@ -128,32 +131,26 @@ pub(super) fn resolve_type_annotation(
         ast::r#type::Type::Parametrized(ParametrizedType { params, .. }) => {
             let env = links.env();
             let type_symbol_ref = env.get_raw_symbol(type_annotation.segment()).unwrap();
-            let type_variable = match type_symbol_ref {
-                SymbolRef::Local(local) => exploration.ctx.get_local(links.source, local).unwrap(),
-                SymbolRef::External(r) => {
-                    let resolved_symbol = links.relations[r]
-                        .state
-                        .expect_resolved("unresolved type symbol during typechecking");
-
-                    let ctx = if resolved_symbol.reef == exploration.externals.current {
-                        &exploration.ctx
-                    } else {
-                        &exploration
-                            .externals
-                            .get_reef(resolved_symbol.reef)
-                            .unwrap()
-                            .type_context
-                    };
-                    ctx.get_local(resolved_symbol.source, resolved_symbol.object_id)
-                        .unwrap()
-                }
-            };
+            let type_variable = exploration
+                .get_var(links.source, type_symbol_ref, links.relations)
+                .unwrap();
             let main_type = type_variable.type_ref;
 
-            let generics = &exploration
-                .get_description(main_type)
-                .map(|d| d.generics.as_slice())
-                .unwrap_or(&[]);
+            let main_base_ty = exploration.get_base_type(main_type);
+            let main_base_type = exploration.get_type(main_base_ty).unwrap();
+
+            let generics = match main_base_type {
+                Type::Function(_, function_id) => exploration
+                    .get_function(main_base_ty.reef, *function_id)
+                    .map(|s| s.type_parameters.as_slice())
+                    .unwrap_or(&[]),
+                Type::Structure(_, structure_id) => exploration
+                    .get_structure(main_base_ty.reef, *structure_id)
+                    .map(|s| s.type_parameters.as_slice())
+                    .unwrap_or(&[]),
+                _ => &[],
+            };
+
             if params.len() != generics.len() {
                 diagnostics.push(
                     Diagnostic::new(

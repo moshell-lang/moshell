@@ -41,10 +41,18 @@ enum Opcode {
     OP_REF_GET_Q_WORD, // pops last reference and pushes its qword value onto the operands
     OP_REF_SET_Q_WORD, // pops last reference, pops a qword value then sets the reference's value with qword value
 
+    OP_STRUCT_GET_BYTE,   // pops last reference and pushes byte value at given index onto the operands
+    OP_STRUCT_SET_BYTE,   // pops last reference, pops new byte value and set byte value at given index in the struct
+    OP_STRUCT_GET_Q_WORD, // pops last reference and pushes qword value at given index onto the operands
+    OP_STRUCT_SET_Q_WORD, // pops last reference, pops new qword value and set sword value at given index in the struct
+
     OP_FETCH_BYTE,   // with 4 byte external index in constant pool, pushes given external value onto the operand stack
     OP_FETCH_Q_WORD, // with 4 byte external index in constant pool, pushes given external value onto the operand stack
     OP_STORE_BYTE,   // with 4 byte external index in constant pool, set given external value from value popped from the operand stack
     OP_STORE_Q_WORD, // with 4 byte external index in constant pool, set given external value from value popped from the operand stack
+
+    OP_STRUCT_NEW,    // with 4 byte external index in constant pool, instantiates on the heap the given structure
+    OP_STRUCT_COPY_N, // with 4 byte uint32 pops structure ref, and pop given amount of bytes from the operands to copy them on the given structure, starting at index 0
 
     OP_INVOKE,         // with 4 byte function ref string in constant pool, pops parameters from operands then pushes invoked function return in operand stack (if non-void)
     OP_FORK,           // forks a new process, pushes the pid onto the operand stack of the parent and jumps to the given address in the parent
@@ -418,6 +426,45 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             operands.push_unchecked_reference(ref);
             break;
         }
+        case OP_STRUCT_GET_BYTE: {
+            int32_t struct_index = msh::read_big_endian<int32_t>(instructions + ip);
+            ip += sizeof(int32_t);
+
+            msh::obj_struct &structure = operands.pop_reference().get<msh::obj_struct>();
+            int8_t byte = structure.bytes[struct_index];
+            operands.push_byte(byte);
+            break;
+        }
+        case OP_STRUCT_SET_BYTE: {
+            int32_t struct_index = msh::read_big_endian<int32_t>(instructions + ip);
+            ip += sizeof(int32_t);
+
+            int8_t byte = operands.pop_byte();
+            msh::obj &obj = operands.pop_reference();
+            msh::obj_struct &structure = obj.get<msh::obj_struct>();
+            structure.bytes[struct_index] = byte;
+            break;
+        }
+        case OP_STRUCT_GET_Q_WORD: {
+            int32_t struct_index = msh::read_big_endian<int32_t>(instructions + ip);
+            ip += sizeof(int32_t);
+
+            msh::obj &obj = operands.pop_reference();
+            msh::obj_struct &structure = obj.get<msh::obj_struct>();
+            uint64_t qword = *(uint64_t *)(structure.bytes.data() + struct_index);
+            operands.push_int(qword);
+            break;
+        }
+        case OP_STRUCT_SET_Q_WORD: {
+            int32_t struct_index = msh::read_big_endian<int32_t>(instructions + ip);
+            ip += sizeof(int32_t);
+
+            int64_t qword = operands.pop_int();
+            msh::obj &obj = operands.pop_reference();
+            msh::obj_struct &structure = obj.get<msh::obj_struct>();
+            *(int64_t *)(structure.bytes.data() + struct_index) = qword;
+            break;
+        }
         case OP_BOX_Q_WORD: {
             // Pop the value
             int64_t value = operands.pop_int();
@@ -452,6 +499,38 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
                 }
             },
                        ref.get_data());
+            break;
+        }
+        case OP_STRUCT_NEW: {
+            constant_index identifier_idx = msh::read_big_endian<constant_index>(instructions + ip);
+            ip += sizeof(constant_index);
+            const std::string &identifier = pool.get_string(identifier_idx);
+
+            auto struct_def_it = state.loader.find_structure(identifier);
+
+            if (struct_def_it == state.loader.structures_cend()) {
+                throw InvalidBytecodeError("Unknown structure `" + identifier + "`");
+                return frame_status::ABORT;
+            }
+
+            const msh::struct_definition &struct_def = struct_def_it->second;
+
+            msh::obj &obj = mem.emplace(msh::obj_struct{
+                &struct_def,
+                std::vector<char>(struct_def.heap_size)});
+
+            operands.push_reference(obj);
+            break;
+        }
+        case OP_STRUCT_COPY_N: {
+            uint32_t count = msh::read_big_endian<uint32_t>(instructions + ip);
+            ip += sizeof(uint32_t);
+
+            msh::obj &obj = operands.pop_reference();
+            msh::obj_struct &structure = obj.get<msh::obj_struct>();
+            const std::byte *bytes = operands.pop_bytes(count);
+            memcpy(structure.bytes.data(), bytes, count);
+            operands.push_reference(obj);
             break;
         }
         case OP_INVOKE: {

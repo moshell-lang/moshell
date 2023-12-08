@@ -18,7 +18,7 @@ use context::source::SourceSegmentHolder;
 /// Creates the right hand side of an assignment.
 ///
 /// The state should contain the [`ExpressionValue::Expected`] value of the left hand side.
-pub(crate) fn ascribe_assign_rhs(
+pub(super) fn ascribe_assign_rhs(
     assign: &Assign,
     exploration: &mut Exploration,
     links: Links,

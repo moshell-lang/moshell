@@ -1,11 +1,12 @@
+use std::str::FromStr;
+
+use context::source::{SourceSegment, SourceSegmentHolder};
+
 use crate::environment::symbols::MagicSymbolKind;
 use crate::name::Name;
 use crate::steps::typing::exploration::{Exploration, Links};
-use crate::types::engine::ChunkType;
 use crate::types::hir::{Declaration, ExprKind, FunctionCall, TypedExpr};
 use crate::types::{builtin, UNIT};
-use context::source::{SourceSegment, SourceSegmentHolder};
-use std::str::FromStr;
 
 /// Checks if the given name is reserved for an external variable that is not
 /// defined in the source.
@@ -35,9 +36,6 @@ pub(super) fn prepend_implicits(
             .expect("could not find `std::memory::program_arguments` function");
 
         let get_args_chunk = exploration.get_chunk(std_reef, get_args_function).unwrap();
-        let ChunkType::Function(get_args_function_id) = get_args_chunk.kind else {
-            unreachable!()
-        };
 
         let generated_pargs_expr = TypedExpr {
             kind: ExprKind::Declare(Declaration {
@@ -46,7 +44,7 @@ pub(super) fn prepend_implicits(
                     kind: ExprKind::FunctionCall(FunctionCall {
                         arguments: vec![],
                         reef: std_reef,
-                        function_id: get_args_function_id,
+                        function_id: get_args_chunk.function_id,
                         source_id: Some(get_args_function),
                     }),
                     ty: builtin::STRING_VEC,

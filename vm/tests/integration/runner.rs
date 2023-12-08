@@ -4,10 +4,12 @@ use analyzer::importer::{ASTImporter, ImportResult, StaticImporter};
 use analyzer::name::Name;
 use analyzer::reef::{Externals, Reef};
 use analyzer::relations::SourceId;
+use analyzer::types::engine::ChunkKind;
 use analyzer::types::ty::{Type, TypeRef};
 use analyzer::{analyze, types, Analyzer, Inject};
 use cli::pipeline::FileImporter;
-use compiler::{compile, CompilerOptions};
+use compiler::externals::{CompiledReef, CompilerExternals};
+use compiler::{compile_reef, CompilerOptions};
 use context::source::Source;
 use parser::parse_trusted;
 use vm::value::VmValue;
@@ -15,6 +17,8 @@ use vm::{VmError, VmValueFFI, VM};
 
 pub struct Runner<'a> {
     externals: Externals<'a>,
+    compiler_externals: CompilerExternals,
+    current_compiled_reef: CompiledReef,
     vm: VM,
     analyzer: Analyzer<'a>,
     current_page: Option<SourceId>,
@@ -23,6 +27,7 @@ pub struct Runner<'a> {
 impl Default for Runner<'_> {
     fn default() -> Self {
         let mut externals = Externals::default();
+        let compiler_externals = CompilerExternals::default();
         let mut std_importer = FileImporter::new(PathBuf::from("../lib"));
         let mut vm = VM::default();
 
@@ -30,11 +35,13 @@ impl Default for Runner<'_> {
         let analyzer = analyze(std_name.clone(), &mut std_importer, &externals);
         let mut buff = Vec::new();
 
-        compile(
+        compile_reef(
             &analyzer.engine,
             &analyzer.resolution.relations,
+            &analyzer.typing,
             &analyzer.resolution.engine,
             &externals,
+            &compiler_externals,
             externals.current,
             SourceId(0),
             &mut buff,
@@ -52,6 +59,8 @@ impl Default for Runner<'_> {
         Self {
             externals,
             vm,
+            compiler_externals,
+            current_compiled_reef: CompiledReef::default(),
             analyzer: Analyzer::default(),
             current_page: None,
         }
@@ -89,23 +98,27 @@ impl<'a> Runner<'a> {
         let reef = self.externals.current;
 
         if !diagnostics.is_empty() {
-            panic!("input had analysis errors")
+            panic!("input had analysis errors: \n{diagnostics:?}")
         }
         let mut bytes = Vec::new();
 
         let chunk = self.analyzer.engine.get_user(page).unwrap();
-        let chunk_expr = &chunk.expression.as_ref().unwrap();
+        let ChunkKind::DefinedFunction(Some(eval_expression)) = &chunk.kind else {
+            unreachable!()
+        };
 
-        let evaluated_expr_type = chunk_expr.ty;
+        let evaluated_expr_type = eval_expression.ty;
 
         let expr_value_is_void =
             evaluated_expr_type == types::UNIT || evaluated_expr_type == types::NOTHING;
 
-        compile(
+        self.current_compiled_reef = compile_reef(
             &self.analyzer.engine,
             &self.analyzer.resolution.relations,
+            &self.analyzer.typing,
             &self.analyzer.resolution.engine,
             &self.externals,
+            &self.compiler_externals,
             reef,
             page,
             &mut bytes,
@@ -147,39 +160,60 @@ impl<'a> Runner<'a> {
 
     fn extract_value(&self, value: VmValueFFI, value_type: TypeRef) -> Option<VmValue> {
         unsafe {
-            match self.get_type(value_type) {
-                Type::Bool | Type::ExitCode => Some(VmValue::Byte(value.get_as_u8())),
-                Type::Float => Some(VmValue::Double(value.get_as_double())),
-                Type::Int => Some(VmValue::Int(value.get_as_i64())),
-                Type::String => Some(VmValue::String(value.get_as_obj().get_as_string())),
-                Type::Unit | Type::Nothing => Some(VmValue::Void),
-                Type::Instantiated(types::GENERIC_OPTION, param) => {
-                    if value.is_ptr_null() {
-                        return None;
+            match value_type {
+                types::BOOL | types::EXITCODE => Some(VmValue::Byte(value.get_as_u8())),
+                types::FLOAT => Some(VmValue::Double(value.get_as_double())),
+                types::INT => Some(VmValue::Int(value.get_as_i64())),
+                types::STRING => Some(VmValue::String(value.get_as_obj().get_as_string())),
+                types::UNIT | types::NOTHING => Some(VmValue::Void),
+                _ => match self.get_type(value_type) {
+                    Type::Instantiated(types::GENERIC_OPTION, param) => {
+                        if value.is_ptr_null() {
+                            return None;
+                        }
+                        let content_type =
+                            *param.first().expect("option instance without content type");
+
+                        // option can only wrap an object value
+                        let value = if content_type.is_obj() {
+                            value
+                        } else {
+                            // unbox it if it was a primitive optional
+                            value.get_as_obj().unbox()
+                        };
+
+                        self.extract_value(value, content_type)
                     }
-                    let content_type =
-                        *param.first().expect("option instance without content type");
+                    Type::Instantiated(types::GENERIC_VECTOR, _) => {
+                        let vec = value
+                            .get_as_obj()
+                            .get_as_vec()
+                            .into_iter()
+                            .map(|v| Some(VmValue::deduce(v)))
+                            .collect();
+                        Some(VmValue::Vec(vec))
+                    }
+                    Type::Structure(_, structure_id) => {
+                        let structure = self.analyzer.engine.get_structure(*structure_id).unwrap();
+                        let structure_fields = structure.get_fields();
+                        let structure_layout = &self.current_compiled_reef.layouts[structure_id.0];
 
-                    // option can only wrap an object value
-                    let value = if content_type.is_obj() {
-                        value
-                    } else {
-                        // unbox it if it was a primitive optional
-                        value.get_as_obj().unbox()
-                    };
+                        let structure_data = value.get_as_obj().get_as_struct();
+                        let structure_values = structure_fields
+                            .into_iter()
+                            .map(|field| {
+                                let (pos, _) = structure_layout.get_emplacement(field.local_id);
+                                let field_value = VmValueFFI::ptr(
+                                    *structure_data.as_ptr().add(pos as usize).cast(),
+                                );
+                                self.extract_value(field_value, field.ty)
+                            })
+                            .collect();
 
-                    self.extract_value(value, content_type)
-                }
-                Type::Instantiated(types::GENERIC_VECTOR, _) => {
-                    let vec = value
-                        .get_as_obj()
-                        .get_as_vec()
-                        .into_iter()
-                        .map(VmValue::from)
-                        .collect();
-                    Some(VmValue::Vec(vec))
-                }
-                _ => panic!("unknown object"),
+                        Some(VmValue::Struct(structure_values))
+                    }
+                    _ => panic!("unknown object"),
+                },
             }
         }
     }
@@ -214,14 +248,22 @@ impl GarbageCollection {
 }
 
 impl From<Vec<&str>> for GarbageCollection {
-    fn from(value: Vec<&str>) -> Self {
-        let vec = value
+    fn from(values: Vec<&str>) -> Self {
+        let vec = values
             .into_iter()
             .map(|s| VmValue::String(s.to_string()))
             .collect();
 
         GarbageCollection {
             collected_objects: vec,
+        }
+    }
+}
+
+impl From<Vec<VmValue>> for GarbageCollection {
+    fn from(values: Vec<VmValue>) -> Self {
+        GarbageCollection {
+            collected_objects: values,
         }
     }
 }

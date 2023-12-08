@@ -15,6 +15,7 @@ use analyzer::reef::Externals;
 use analyzer::relations::SourceId;
 use analyzer::{Analyzer, Inject};
 use cli::project_dir;
+use compiler::externals::CompilerExternals;
 use context::source::OwnedSource;
 use lexer::is_unterminated;
 use vm::VM;
@@ -29,6 +30,7 @@ pub(crate) fn repl(
     config: &Cli,
     mut sources: SourcesCache,
     externals: Externals,
+    mut compiler_externals: CompilerExternals,
     mut vm: VM,
 ) -> miette::Result<PipelineStatus> {
     let mut analyzer = Analyzer::new();
@@ -73,12 +75,12 @@ pub(crate) fn repl(
                     let is_ready = diagnostics.is_empty();
 
                     let errors = importer.take_errors();
-
                     status = status.compose(use_pipeline(
                         &name,
                         analysis.attributed_id(),
                         analysis.analyzer(),
                         &externals,
+                        &mut compiler_externals,
                         &mut vm,
                         diagnostics,
                         errors,
@@ -103,6 +105,7 @@ pub(crate) fn repl(
                         SourceId(0), // this value has no importance
                         &analyzer,
                         &externals,
+                        &mut compiler_externals,
                         &mut vm,
                         diagnostics,
                         importer.take_errors(),

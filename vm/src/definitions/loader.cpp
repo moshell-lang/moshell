@@ -42,6 +42,11 @@ namespace msh {
                 std::vector<uint32_t> obj_refs_offsets;
             }
 
+            uint32_t structures_len = reader.read<uint32_t>();
+            for (uint32_t i = 0; i < structures_len; ++i) {
+                load_structure(reader, pool);
+            }
+
             uint32_t functions_len = reader.read<uint32_t>();
             for (uint32_t i = 0; i < functions_len; ++i) {
                 load_function(reader, pool, pool_index);
@@ -51,6 +56,14 @@ namespace msh {
 
     const function_definition &loader::get_function(const std::string &name) const {
         return functions.at(name);
+    }
+
+    loader::structure_map::const_iterator loader::structures_cend() const {
+        return structures.cend();
+    }
+
+    loader::structure_map::const_iterator loader::find_structure(const std::string &name) const {
+        return structures.find(name);
     }
 
     loader::function_map::const_iterator loader::find_function(const std::string &name) const {
@@ -74,6 +87,26 @@ namespace msh {
 
     const std::byte *loader::get_instructions(size_t index) const {
         return concatened_instructions.data() + index;
+    }
+
+    std::pair<const std::string &, const msh::struct_definition &> loader::load_structure(ByteReader &reader, const ConstantPool &pool) {
+        constant_index id_idx = reader.read<constant_index>();
+        const std::string &identifier = pool.get_string(id_idx);
+
+        size_t structure_heap_size = reader.read<uint32_t>();
+        uint32_t structure_obj_refs_count = reader.read<uint32_t>();
+        std::vector<size_t> obj_refs_offsets;
+        obj_refs_offsets.reserve(structure_obj_refs_count);
+
+        for (uint32_t i = 0; i < structure_obj_refs_count; ++i) {
+            obj_refs_offsets.push_back(reader.read<uint32_t>());
+        }
+
+        struct_definition def{
+            identifier,
+            structure_heap_size,
+            obj_refs_offsets};
+        return *structures.insert_or_assign(identifier, def).first;
     }
 
     std::pair<const std::string &, const function_definition &> loader::load_function(ByteReader &reader, const ConstantPool &pool, size_t pool_index) {

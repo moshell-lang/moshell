@@ -117,11 +117,21 @@ impl Drop for VM {
 struct VmArrayFFI(usize, *mut VmValueFFI);
 #[repr(C)]
 #[derive(Copy, Clone)]
+struct VmStructureFFI(usize, *mut ffi::c_char);
+
+#[repr(C)]
+#[derive(Copy, Clone)]
 pub union VmValueFFI {
     int: i64,
     byte: u8,
     double: f64,
     ptr: *const ffi::c_void,
+}
+
+impl VmValueFFI {
+    pub fn ptr(ptr: *const ffi::c_void) -> Self {
+        Self { ptr }
+    }
 }
 
 #[repr(C)]
@@ -133,6 +143,7 @@ enum VmObjectType {
     Byte,
     Double,
     Vec,
+    Struct,
 }
 
 #[repr(C)]
@@ -192,6 +203,17 @@ impl VmObjectFFI {
         }
         vec
     }
+
+    /// # Safety
+    /// The caller must ensure that the value has the correct type.
+    pub unsafe fn get_as_struct(self) -> Vec<u8> {
+        let msh_struct = moshell_object_get_as_struct(self);
+        let mut vec = Vec::with_capacity(msh_struct.0);
+        for i in 0..msh_struct.0 {
+            vec.push(*msh_struct.1.add(i) as u8)
+        }
+        vec
+    }
 }
 
 #[repr(C)]
@@ -216,6 +238,7 @@ extern "C" {
     fn moshell_object_unbox(val: VmObjectFFI) -> VmValueFFI;
     fn moshell_object_get_as_string(val: VmObjectFFI) -> *const ffi::c_char;
     fn moshell_object_get_as_array(val: VmObjectFFI) -> VmArrayFFI;
+    fn moshell_object_get_as_struct(val: VmObjectFFI) -> VmStructureFFI;
 
     fn moshell_exec(bytes: *const u8, byte_count: usize) -> ffi::c_int;
 

@@ -19,7 +19,7 @@ impl GC {
 
             for i in 0..size {
                 let obj = *(result.collected_objects.wrapping_add(i));
-                vec.push(VmValue::from(obj))
+                vec.push(VmValue::deduce(obj))
             }
             vec
         }

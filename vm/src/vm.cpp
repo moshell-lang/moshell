@@ -34,6 +34,8 @@ moshell_object moshell_value_get_as_object(moshell_value val) {
             type = OBJ_VEC;
         } else if constexpr (std::is_same_v<T, int8_t>) {
             type = OBJ_BYTE;
+        } else if constexpr (std::is_same_v<T, msh::obj_struct>) {
+            type = OBJ_STRUCT;
         } else {
             // unreachable
             static_assert(sizeof(T) != sizeof(T), "missing object variant");
@@ -72,6 +74,15 @@ moshell_array moshell_object_get_as_array(moshell_object o) {
     return moshell_array{
         vec.size(),
         data,
+    };
+}
+
+moshell_struct moshell_object_get_as_struct(moshell_object o) {
+    msh::obj *obj = (msh::obj *)o.val;
+    msh::obj_struct &structure = obj->get<msh::obj_struct>();
+    return moshell_struct{
+            structure.bytes.size(),
+            structure.bytes.data(),
     };
 }
 
