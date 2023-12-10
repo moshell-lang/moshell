@@ -396,7 +396,6 @@ mod test {
     }
 
     #[test]
-    #[ignore] //FIXME see #167
     fn field_access_subscript() {
         let expr = extract_type(Source::unknown(
             r#"\
@@ -413,7 +412,6 @@ mod test {
     }
 
     #[test]
-    #[ignore] //FIXME see #167
     fn field_assign_subscript() {
         let expr = extract_type(Source::unknown(
             r#"\

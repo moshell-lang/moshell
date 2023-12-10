@@ -67,7 +67,6 @@ fn test_structure_assign() {
 }
 
 #[test]
-#[ignore] //FIXME see #167
 fn test_structure_field_subscript() {
     let mut runner = Runner::default();
     let res = runner.try_eval(
@@ -87,7 +86,6 @@ fn test_structure_field_subscript() {
 }
 
 #[test]
-#[ignore] //FIXME see #167
 fn test_structure_field_subscript_assign() {
     let mut runner = Runner::default();
     let res = runner.try_eval(
