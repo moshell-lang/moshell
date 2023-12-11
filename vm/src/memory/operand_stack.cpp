@@ -67,7 +67,7 @@ void OperandStack::transfer(OperandStack &callee_stack, size_t n) {
 #endif
     memcpy(this->bytes + current_pos, callee_stack.bytes + (callee_stack.size() - n), n);
     this->current_pos += n;
-    operands_refs.insert(operands_refs.end(), callee_stack.operands_refs.end() - n, callee_stack.operands_refs.end());
+    // Do not transfer the references here, as most of the stack instances share the same vector
 }
 
 void OperandStack::memmove(size_t dest, size_t src, size_t size) {

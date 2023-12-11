@@ -3,6 +3,10 @@
 //   stdout:
 //     This-is-a-very-long-phrase-that-is-captured-by-the-shell-
 //     a
+//     9999
+
+fun nine() -> Int = 9
+fun bar() -> Int = nine()
 
 val res = $(echo "This is a very long phrase that is captured by the shell").split(' ')
 var i = 0
@@ -13,3 +17,9 @@ while $i < $res.len() {
 
 val msg = 'a b'
 echo "\n${msg.split(' ')[0]}"
+
+var i = 0
+while $i < 4 {
+    echo -n bar()
+    $i += 1
+}
