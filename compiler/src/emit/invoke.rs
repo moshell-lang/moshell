@@ -370,7 +370,7 @@ fn emit_redir_self(
 /// for them to finish, and returns the exit code of the last process, or the
 /// exit code of the first failing process.
 pub fn emit_pipeline(
-    pipeline: &Vec<TypedExpr>,
+    pipeline: &[TypedExpr],
     instructions: &mut Instructions,
     ctx: &EmitterContext,
     cp: &mut ConstantPool,

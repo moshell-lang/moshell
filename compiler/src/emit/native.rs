@@ -24,7 +24,7 @@ const STRING_BYTES: &str = "lang::String::bytes";
 const GLOB_EXPAND: &str = "lang::glob::expand";
 
 /// Emits a primitive sequence of instructions.
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::get_first, clippy::too_many_arguments)]
 pub(crate) fn emit_natives(
     native: FunctionId,
     MethodCall {
