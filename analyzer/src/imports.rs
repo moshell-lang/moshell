@@ -4,6 +4,7 @@ use std::fmt::{Debug, Formatter};
 use indexmap::IndexMap;
 
 use crate::environment::symbols::{SymbolLocation, SymbolRegistry};
+use crate::reef::ReefId;
 use context::source::SourceSegment;
 
 use crate::relations::{ResolvedSymbol, SourceId};
@@ -75,7 +76,12 @@ pub enum ResolvedImport {
     /// A (non empty) hashmap contains the binding, for the bound name, of the symbol according to its registry
     Symbols(HashMap<SymbolRegistry, ResolvedSymbol>),
     /// The import is an environment
-    Env(SourceId),
+    Env {
+        /// The reef where the environment is defined
+        reef: ReefId,
+        /// The source id of the environment
+        source: SourceId,
+    },
     /// The import is unresolvable
     Dead,
 }

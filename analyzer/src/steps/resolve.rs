@@ -222,7 +222,7 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                                 self.engine,
                                 imports,
                                 symbol_name,
-                                current_reef,
+                                self.externals,
                                 registry,
                             )
                         }
@@ -742,7 +742,13 @@ mod tests {
                 HashMap::from([
                     (
                         "io".to_string(),
-                        (ResolvedImport::Env(SourceId(1)), find_in(test_src, "io"))
+                        (
+                            ResolvedImport::Env {
+                                reef: ReefId(1),
+                                source: SourceId(1),
+                            },
+                            find_in(test_src, "io")
+                        )
                     ),
                     (
                         "foo".to_string(),

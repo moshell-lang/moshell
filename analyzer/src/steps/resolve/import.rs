@@ -66,7 +66,10 @@ impl<'a, 'e> SymbolResolver<'a, 'e> {
                                         //it's the environment that is being imported
                                         imports.set_resolved_import(
                                             alias.unwrap_or(symbol_name),
-                                            ResolvedImport::Env(found_env_id),
+                                            ResolvedImport::Env {
+                                                reef: reef_id,
+                                                source: found_env_id,
+                                            },
                                             segment,
                                         );
                                         continue;

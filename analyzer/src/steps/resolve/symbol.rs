@@ -3,7 +3,7 @@ use crate::environment::symbols::SymbolRegistry;
 use crate::environment::Environment;
 use crate::imports::{ResolvedImport, SourceImports};
 use crate::name::Name;
-use crate::reef::ReefId;
+use crate::reef::{Externals, ReefId};
 use crate::relations::{ResolvedSymbol, SourceId};
 
 /// The result of a symbol resolution attempt
@@ -88,7 +88,7 @@ pub fn resolve_symbol_from_imports(
     engine: &Engine,
     imports: &SourceImports,
     name: &Name,
-    reef: ReefId,
+    externals: &Externals,
     registry: SymbolRegistry,
 ) -> SymbolResolutionResult {
     let name_root = name.root();
@@ -104,16 +104,26 @@ pub fn resolve_symbol_from_imports(
                 };
             }
         }
-        Some(ResolvedImport::Env(resolved_module)) => {
-            let env = engine
-                .get_environment(*resolved_module)
-                .expect("resolved import points to an unknown environment");
+        Some(ResolvedImport::Env {
+            reef: resolved_reef,
+            source: resolved_module,
+        }) => {
+            let env = if *resolved_reef == externals.current {
+                engine
+            } else {
+                &externals
+                    .get_reef(*resolved_reef)
+                    .expect("resolved import points to an unknown reef")
+                    .engine
+            }
+            .get_environment(*resolved_module)
+            .expect("resolved import points to an unknown environment");
 
             return resolve_symbol_from_locals(
                 *resolved_module,
                 env,
                 &Name::new(name.simple_name()),
-                reef,
+                *resolved_reef,
                 registry,
             );
         }

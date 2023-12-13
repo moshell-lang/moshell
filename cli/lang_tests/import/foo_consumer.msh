@@ -6,9 +6,11 @@
 //    bar 514
 
 use reef::foo_lib::{foo, bar, baz}
+use std::process
 
 echo foo()
 {
     val local_baz = $baz
-    echo $bar $local_baz
+    val pid = {echo $bar $local_baz &}
+    process::wait($pid)
 }
