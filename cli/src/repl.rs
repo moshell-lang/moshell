@@ -55,64 +55,17 @@ pub(crate) fn repl(
         match line {
             Ok(Signal::Success(source)) => {
                 let source = OwnedSource::new(source, "stdin".to_owned());
-                let importer = sources.last_mut();
-                if let ImportResult::Success(imported) = importer.insert(source) {
-                    let mut analysis = analyzer.inject(
-                        Inject {
-                            name: name.clone(),
-                            imported,
-                            attached: starting_source,
-                        },
-                        importer,
-                        &externals,
-                    );
-
-                    // Reuse the same diagnotics by moving them, requiring to keep track
-                    // if there was any error since they will be consumed before being
-                    // able to cancel the analysis (the errors need the context that is
-                    // dropped when the analysis is reverted).
-                    let diagnostics = analysis.take_diagnostics();
-                    let is_ready = diagnostics.is_empty();
-
-                    let errors = importer.take_errors();
-                    status = status.compose(use_pipeline(
-                        &name,
-                        analysis.attributed_id(),
-                        analysis.analyzer(),
-                        &externals,
-                        &mut compiler_externals,
-                        &mut vm,
-                        diagnostics,
-                        errors,
-                        &sources,
-                        config,
-                    ));
-
-                    // Remember the successfully injected source, or revert the analysis.
-                    if is_ready {
-                        starting_source = Some(analysis.attributed_id());
-                    } else {
-                        analysis.revert();
-                    }
-                } else {
-                    // Probably hit some parse errors, so we skip any further analysis and
-                    // directly display the errors. There should be no actual diagnostics
-                    // in the pipeline, but we consume them anyway to reuse the same
-                    // end-of-pipeline logic.
-                    let diagnostics = analyzer.take_diagnostics();
-                    status = status.compose(use_pipeline(
-                        &name,
-                        SourceId(0), // this value has no importance
-                        &analyzer,
-                        &externals,
-                        &mut compiler_externals,
-                        &mut vm,
-                        diagnostics,
-                        importer.take_errors(),
-                        &sources,
-                        config,
-                    ));
-                }
+                status = status.compose(consume(
+                    &name,
+                    &mut analyzer,
+                    &externals,
+                    &mut compiler_externals,
+                    &mut vm,
+                    &mut sources,
+                    config,
+                    &mut starting_source,
+                    source,
+                ));
             }
             Ok(Signal::CtrlC) => eprintln!("^C"),
             Ok(Signal::CtrlD) => break Ok(status),
@@ -121,6 +74,107 @@ pub(crate) fn repl(
                 break Ok(status);
             }
         }
+    }
+}
+
+/// Analyse and consume a source string.
+pub(crate) fn code(
+    code: String,
+    dir: PathBuf,
+    config: &Cli,
+    mut sources: SourcesCache,
+    externals: Externals,
+    mut compiler_externals: CompilerExternals,
+    mut vm: VM,
+) -> miette::Result<PipelineStatus> {
+    let name = "direct";
+    let source = OwnedSource::new(code, name.to_owned());
+    let mut analyzer = Analyzer::new();
+    sources.register(dir);
+    Ok(consume(
+        &Name::new(name),
+        &mut analyzer,
+        &externals,
+        &mut compiler_externals,
+        &mut vm,
+        &mut sources,
+        config,
+        &mut None,
+        source,
+    ))
+}
+
+/// Processes a source and returns the pipeline status.
+#[allow(clippy::too_many_arguments)]
+fn consume(
+    name: &Name,
+    analyzer: &mut Analyzer<'_>,
+    externals: &Externals,
+    compiler_externals: &mut CompilerExternals,
+    vm: &mut VM,
+    sources: &mut SourcesCache,
+    config: &Cli,
+    starting_source: &mut Option<SourceId>,
+    source: OwnedSource,
+) -> PipelineStatus {
+    let importer = sources.last_mut();
+    if let ImportResult::Success(imported) = importer.insert(source) {
+        let mut analysis = analyzer.inject(
+            Inject {
+                name: name.clone(),
+                imported,
+                attached: *starting_source,
+            },
+            importer,
+            externals,
+        );
+
+        // Reuse the same diagnotics by moving them, requiring to keep track
+        // if there was any error since they will be consumed before being
+        // able to cancel the analysis (the errors need the context that is
+        // dropped when the analysis is reverted).
+        let diagnostics = analysis.take_diagnostics();
+        let is_ready = diagnostics.is_empty();
+
+        let errors = importer.take_errors();
+        let status = use_pipeline(
+            name,
+            analysis.attributed_id(),
+            analysis.analyzer(),
+            externals,
+            compiler_externals,
+            vm,
+            diagnostics,
+            errors,
+            sources,
+            config,
+        );
+
+        // Remember the successfully injected source, or revert the analysis.
+        if is_ready {
+            *starting_source = Some(analysis.attributed_id());
+        } else {
+            analysis.revert();
+        }
+        status
+    } else {
+        // Probably hit some parse errors, so we skip any further analysis and
+        // directly display the errors. There should be no actual diagnostics
+        // in the pipeline, but we consume them anyway to reuse the same
+        // end-of-pipeline logic.
+        let diagnostics = analyzer.take_diagnostics();
+        use_pipeline(
+            name,
+            SourceId(0), // this value has no importance
+            analyzer,
+            externals,
+            compiler_externals,
+            vm,
+            diagnostics,
+            importer.take_errors(),
+            sources,
+            config,
+        )
     }
 }
 

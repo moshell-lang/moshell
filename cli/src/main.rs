@@ -1,6 +1,6 @@
 use crate::cli::{use_pipeline, Cli};
 use crate::pipeline::{ErrorReporter, PipelineStatus, SourcesCache};
-use crate::repl::repl;
+use crate::repl::{code, repl};
 use crate::std::build_std;
 use ::std::ffi::OsStr;
 use ::std::io;
@@ -68,6 +68,10 @@ fn main() -> Result<PipelineStatus, miette::Error> {
             .collect(),
     );
 
+    let current_dir = ::std::env::current_dir()
+        .into_diagnostic()
+        .context("Could not locate working directory")?;
+
     build_std(
         &mut externals,
         &mut compiler_externals,
@@ -79,9 +83,17 @@ fn main() -> Result<PipelineStatus, miette::Error> {
     if let Some(source) = &cli.source {
         return run(source, &cli, sources, externals, compiler_externals, vm);
     }
-    let current_dir = ::std::env::current_dir()
-        .into_diagnostic()
-        .context("Could not locate working directory")?;
+    if let Some(source) = cli.code.clone() {
+        return code(
+            source,
+            current_dir,
+            &cli,
+            sources,
+            externals,
+            compiler_externals,
+            vm,
+        );
+    }
 
     repl(
         current_dir,

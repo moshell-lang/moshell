@@ -24,6 +24,10 @@ use crate::report::{display_diagnostic, display_parse_error};
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 pub struct Cli {
+    /// The inline source code to parse
+    #[arg(short = 'c')]
+    pub(crate) code: Option<String>,
+
     /// Defines the source file to parse
     #[arg(index = 1)]
     pub(crate) source: Option<PathBuf>,
