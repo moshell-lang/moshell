@@ -8,7 +8,7 @@ use lexer::token::{Token, TokenType};
 
 use crate::aspects::expr_list::ExpressionListAspect;
 use crate::err::ParseErrorKind;
-use crate::moves::{blanks, of_type, of_types, spaces, MoveOperations};
+use crate::moves::{any, blanks, of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 /// Parser aspect to parse all expressions in relation with modules.
@@ -19,7 +19,7 @@ pub trait ModulesAspect<'a> {
 
     ///parse identifiers separated between `::` expressions.
     /// This method stops when it founds an expressions that is not an identifier.
-    fn parse_inclusion_path(&mut self) -> ParseResult<Vec<InclusionPathItem<'a>>>;
+    fn parse_path(&mut self) -> ParseResult<ast::variable::Identifier<'a>>;
 }
 
 impl<'a> ModulesAspect<'a> for Parser<'a> {
@@ -37,32 +37,45 @@ impl<'a> ModulesAspect<'a> for Parser<'a> {
         }))
     }
 
-    fn parse_inclusion_path(&mut self) -> ParseResult<Vec<InclusionPathItem<'a>>> {
-        let mut items = vec![];
-        while let Some(item) = self.cursor.advance(of_types(&[Identifier, Reef])) {
-            let segment = self.cursor.relative_pos_ctx(item.value);
-            items.push(match item.token_type {
-                Identifier => InclusionPathItem::Symbol(item.value, segment),
-                Reef => InclusionPathItem::Reef(segment),
-                _ => unreachable!(),
-            });
-            if let Some(delim) = self.cursor.advance(of_types(&[Colon, ColonColon, Dot])) {
-                if delim.token_type != ColonColon {
-                    self.report_error(self.mk_parse_error(
-                        "Expected `::`.",
-                        delim,
-                        ParseErrorKind::Unexpected,
-                    ));
-                }
-            } else {
+    fn parse_path(&mut self) -> ParseResult<ast::variable::Identifier<'a>> {
+        let first = self.parse_path_item()?;
+        let mut path = vec![first];
+        while let Some(delim) = self.cursor.advance(of_types(&[Colon, ColonColon, Dot])) {
+            if delim.token_type != ColonColon {
+                self.report_error(self.mk_parse_error(
+                    "Expected `::`.",
+                    delim,
+                    ParseErrorKind::Unexpected,
+                ));
+            }
+            let next = self.cursor.peek().token_type;
+            if next.is_ponctuation() || matches!(next, At | Star) {
                 break;
             }
+            path.push(self.parse_path_item()?);
         }
-        Ok(items)
+        Ok(ast::variable::Identifier { path })
     }
 }
 
 impl<'a> Parser<'a> {
+    fn parse_path_item(&mut self) -> ParseResult<InclusionPathItem<'a>> {
+        let start = self.cursor.next()?;
+
+        match start.token_type {
+            Identifier => Ok(InclusionPathItem::Symbol(
+                start.value,
+                self.cursor.relative_pos_ctx(start),
+            )),
+            Reef => Ok(InclusionPathItem::Reef(self.cursor.relative_pos_ctx(start))),
+            _ => self.expected_with(
+                "Expected identifier or `reef`.",
+                start,
+                ParseErrorKind::Unexpected,
+            ),
+        }
+    }
+
     fn parse_import(&mut self) -> ParseResult<Import<'a>> {
         self.cursor.advance(blanks()); //consume blanks
 
@@ -121,22 +134,10 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn expect_identifier(&mut self) -> ParseResult<&'a str> {
-        self.cursor.advance(spaces()); //consume spaces
-
-        self.cursor
-            .force_with(
-                of_type(Identifier),
-                "identifier expected, you might want to escape it",
-                ParseErrorKind::UnexpectedInContext(format!("\\{}", self.cursor.peek().value)),
-            )
-            .map(|t| t.value)
-    }
-
     fn parse_import_with_path(&mut self) -> ParseResult<Import<'a>> {
         let start = self.cursor.peek();
 
-        let symbol_path = self.parse_inclusion_path()?;
+        let symbol_path = self.parse_path()?;
         self.cursor.advance(spaces()); //consume spaces
         let token = self.cursor.peek();
 
@@ -145,11 +146,13 @@ impl<'a> Parser<'a> {
                 self.cursor.next()?;
 
                 return Ok(Import::AllIn(
-                    symbol_path,
+                    symbol_path.path,
                     self.cursor.relative_pos_ctx(start..token),
                 ));
             }
-            return self.parse_import_list(start, symbol_path).map(Import::List);
+            return self
+                .parse_import_list(start, symbol_path.path)
+                .map(Import::List);
         }
 
         let alias = self.cursor.advance(
@@ -162,7 +165,7 @@ impl<'a> Parser<'a> {
         let end = alias
             .as_ref()
             .map(|t| self.cursor.relative_pos(t.value).end)
-            .unwrap_or(if let Some(val) = symbol_path.last() {
+            .unwrap_or(if let Some(val) = symbol_path.path.last() {
                 val.segment().end
             } else {
                 self.expected_with(
@@ -173,10 +176,20 @@ impl<'a> Parser<'a> {
             });
 
         Ok(Import::Symbol(ImportedSymbol {
-            path: symbol_path,
+            path: symbol_path.path,
             alias: alias.map(|t| t.value),
             segment: self.cursor.relative_pos_ctx(start).start..end,
         }))
+    }
+
+    pub(crate) fn is_path(&self) -> bool {
+        self.cursor
+            .lookahead(any().then(of_types(&[
+                TokenType::ColonColon,
+                TokenType::RoundedLeftBracket,
+                TokenType::SquaredLeftBracket,
+            ])))
+            .is_some()
     }
 }
 
@@ -187,6 +200,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use ast::r#use::{Import, ImportList, ImportedSymbol, InclusionPathItem, Use};
+    use ast::variable::{Identifier, TypedVariable, VarDeclaration, VarKind};
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::{find_in, find_in_nth};
@@ -363,10 +377,36 @@ mod tests {
         assert_eq!(
             result,
             Err(ParseError {
-                message: "identifier expected".to_string(),
+                message: "Expected identifier or `reef`.".to_owned(),
                 position: content.len()..content.len(),
-                kind: ParseErrorKind::Expected("<identifier>".to_string()),
+                kind: ParseErrorKind::Unexpected,
             })
+        )
+    }
+
+    #[test]
+    fn inline_path_in_var() {
+        let content = "val x = reef::math::tau";
+        let source = Source::unknown(content);
+        let result: ParseResult<_> = parse(source).into();
+        assert_eq!(
+            result,
+            Ok(vec![Expr::VarDeclaration(VarDeclaration {
+                kind: VarKind::Val,
+                var: TypedVariable {
+                    name: "x",
+                    ty: None,
+                    segment: find_in(content, "x"),
+                },
+                initializer: Some(Box::new(Expr::Identifier(Identifier {
+                    path: vec![
+                        InclusionPathItem::Reef(find_in(content, "reef")),
+                        InclusionPathItem::Symbol("math", find_in(content, "math")),
+                        InclusionPathItem::Symbol("tau", find_in(content, "tau")),
+                    ],
+                }))),
+                segment: source.segment(),
+            })])
         )
     }
 }

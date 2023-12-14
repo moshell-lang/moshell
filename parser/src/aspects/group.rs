@@ -307,7 +307,7 @@ mod tests {
             val test = {\
                 val x = 8\n\n\n
                 8
-            }\n\
+            }\n
             (val x = 89; command call; 7)\
         }",
         );

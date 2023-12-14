@@ -1,10 +1,12 @@
 use dbg_pls::DebugPls;
+use std::fmt::Display;
 
 use context::source::{SourceSegment, SourceSegmentHolder};
 use lexer::token::TokenType;
 use src_macros::segment_holder;
 
 use crate::r#type::Type;
+use crate::r#use::InclusionPathItem;
 use crate::Expr;
 
 /// A variable declaration.
@@ -83,11 +85,29 @@ pub enum AssignOperator {
     Remainder,
 }
 
-/// A simple identifier, that do not start with `$`.
-#[segment_holder]
+/// A path identifier, that do not start with `$`.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct Identifier<'a> {
-    pub name: &'a str,
+    pub path: Vec<InclusionPathItem<'a>>,
+}
+
+impl SourceSegmentHolder for Identifier<'_> {
+    fn segment(&self) -> SourceSegment {
+        self.path[0].segment().start..self.path.last().unwrap().segment().end
+    }
+}
+
+impl Display for Identifier<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut iter = self.path.iter();
+        if let Some(first) = iter.next() {
+            write!(f, "{}", first)?;
+            for item in iter {
+                write!(f, "::{}", item)?;
+            }
+        }
+        Ok(())
+    }
 }
 
 impl TryFrom<TokenType> for AssignOperator {
@@ -113,10 +133,10 @@ impl SourceSegmentHolder for Assign<'_> {
 }
 
 impl Assign<'_> {
-    pub fn name(&self) -> Option<&str> {
+    pub fn name(&self) -> Option<String> {
         match self.left.as_ref() {
-            Expr::Identifier(Identifier { name, .. }) => Some(name),
-            Expr::VarReference(VarReference { name, .. }) => Some(name.name()),
+            Expr::Identifier(ident) => Some(ident.to_string()),
+            Expr::VarReference(VarReference { name, .. }) => Some(name.name().to_owned()),
             _ => None,
         }
     }

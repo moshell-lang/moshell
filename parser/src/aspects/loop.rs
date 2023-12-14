@@ -220,6 +220,7 @@ mod tests {
     use ast::group::{Block, Parenthesis};
     use ast::operation::BinaryOperator::And;
     use ast::operation::{BinaryOperation, BinaryOperator};
+    use ast::r#use::InclusionPathItem;
     use ast::range::{FilePattern, Iterable, NumericRange};
     use ast::value::Literal;
     use ast::variable::{
@@ -535,8 +536,10 @@ mod tests {
                     }),
                     increment: Expr::Assign(Assign {
                         left: Box::new(Expr::Identifier(Identifier {
-                            name: "i",
-                            segment: find_in_nth(source.source, "i", 2)
+                            path: vec![InclusionPathItem::Symbol(
+                                "i",
+                                find_in_nth(source.source, "i", 2)
+                            )],
                         })),
                         operator: AssignOperator::Assign,
                         value: Box::new(Expr::Binary(BinaryOperation {

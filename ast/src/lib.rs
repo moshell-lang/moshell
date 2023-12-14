@@ -126,7 +126,7 @@ impl SourceSegmentHolder for Expr<'_> {
             Expr::Continue(source) => source.clone(),
             Expr::Break(source) => source.clone(),
             Expr::Return(return_) => return_.segment.clone(),
-            Expr::Identifier(identifier) => identifier.segment.clone(),
+            Expr::Identifier(identifier) => identifier.segment(),
             Expr::VarReference(var_reference) => var_reference.segment(),
             Expr::VarDeclaration(var_declaration) => var_declaration.segment.clone(),
             Expr::Range(range) => range.segment(),

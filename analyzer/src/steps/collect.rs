@@ -484,16 +484,23 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
             Expr::Detached(detached) => {
                 self.tree_walk(state, &detached.underlying, to_visit);
             }
-            Expr::Identifier(ident) => {
-                let symbol = self.identify_symbol(
-                    *self.stack.last().unwrap(),
+            Expr::Identifier(ident) => match SymbolLocation::compute(&ident.path) {
+                Ok(loc) => {
+                    let symbol = self.identify_symbol(
+                        *self.stack.last().unwrap(),
+                        state.module,
+                        loc,
+                        ident.segment(),
+                        SymbolRegistry::Objects,
+                    );
+                    self.current_env().annotate(ident, symbol);
+                }
+                Err(segments) => self.diagnostics.push(make_invalid_path_diagnostic(
                     state.module,
-                    SymbolLocation::unspecified(Name::new(ident.name)),
-                    ident.segment(),
-                    SymbolRegistry::Objects,
-                );
-                self.current_env().annotate(ident, symbol);
-            }
+                    self.externals.current,
+                    segments,
+                )),
+            },
             Expr::VarDeclaration(var) => {
                 if let Some(initializer) = &var.initializer {
                     self.tree_walk(state, initializer, to_visit);

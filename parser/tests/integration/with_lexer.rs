@@ -581,8 +581,10 @@ fn inner_var_ref() {
         parsed,
         vec![Expr::Assign(Assign {
             left: Box::new(Expr::Identifier(Identifier {
-                name: "dest",
-                segment: find_in(source.source, "dest"),
+                path: vec![InclusionPathItem::Symbol(
+                    "dest",
+                    find_in(source.source, "dest")
+                )],
             })),
             operator: AssignOperator::Assign,
             value: Box::new(Expr::TemplateString(TemplateString {

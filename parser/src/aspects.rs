@@ -1,7 +1,7 @@
 pub(super) mod binary_operation;
 pub(super) mod call;
 pub(super) mod detached;
-mod expr_list;
+pub(crate) mod expr_list;
 pub(super) mod function_declaration;
 pub(super) mod group;
 pub(super) mod if_else;

@@ -8,7 +8,7 @@ use crate::moves::{blanks, eog, lookahead, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 ///An aspect to parse expression lists
-pub(super) trait ExpressionListAspect<'a> {
+pub(crate) trait ExpressionListAspect<'a> {
     ///Implicit lists are whether A, (A), (A, B, ...) or () (if it can be empty)
     /// according that `(` and `)` are the [`start`]/[`end`] of the list expression.
     /// [`if_it_absent_msg`] used when an element is missing

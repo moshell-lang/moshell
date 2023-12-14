@@ -187,10 +187,10 @@ impl<'a> Parser<'a> {
 
     fn parse_parametrized(&mut self) -> ParseResult<ParametrizedType<'a>> {
         self.cursor.advance(spaces());
-        let path = self.parse_inclusion_path()?;
-        let mut segment = if let Some((first, last)) = path.first().zip(path.last()) {
-            first.segment().start..last.segment().end
-        } else {
+        if !matches!(
+            self.cursor.peek().token_type,
+            TokenType::Identifier | TokenType::Reef
+        ) {
             return self.expected(
                 format!(
                     "`{}` is not a valid type identifier.",
@@ -198,7 +198,9 @@ impl<'a> Parser<'a> {
                 ),
                 Unexpected,
             );
-        };
+        }
+        let path = self.parse_path()?;
+        let mut segment = path.segment();
 
         let (params, params_segment) = self.parse_optional_list(
             TokenType::SquaredLeftBracket,
@@ -210,7 +212,7 @@ impl<'a> Parser<'a> {
             segment.end = params_segment.end;
         }
         Ok(ParametrizedType {
-            path,
+            path: path.path,
             params,
             segment,
         })
