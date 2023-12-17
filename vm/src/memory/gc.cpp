@@ -163,11 +163,6 @@ void gc::walk_objects(std::vector<const msh::obj *> to_visit) {
 }
 
 void gc::scan_thread(std::vector<const msh::obj *> &roots) {
-    std::vector<bool> &operands_refs_offsets = thread_call_stack.operands_refs_offsets;
-
-    // the offsets will be scanned backward (following frames stack iteration)
-    size_t operands_bytes_index = operands_refs_offsets.size();
-
     for (stack_frame frame : thread_call_stack) {
         const Locals &locals = frame.locals;
         // add locals roots
@@ -176,16 +171,13 @@ void gc::scan_thread(std::vector<const msh::obj *> &roots) {
             if (obj_ref != nullptr) // might be not yet initialized
                 roots.push_back(obj_ref);
         }
-        // add operands roots
 
+        // add operands roots
         // relative index for this operands stack
         size_t operand_index = 0;
-        size_t operands_bytes_count = frame.operands.size();
-        size_t frame_operands_first_byte = operands_bytes_index - operands_bytes_count;
-        // look for all bytes of current frame's operands
-        while (operand_index < operands_bytes_count) {
+        while (operand_index < frame.operands.current_pos) {
             // this byte is marked as the first byte of an object reference
-            if (operands_refs_offsets[frame_operands_first_byte + operand_index]) {
+            if (frame.operands.operands_refs[operand_index]) {
                 msh::obj *obj_ref = *(msh::obj **)(frame.operands.bytes + operand_index);
                 if (obj_ref != nullptr) { // might be not yet initialized
                     roots.push_back(obj_ref);
@@ -195,7 +187,6 @@ void gc::scan_thread(std::vector<const msh::obj *> &roots) {
                 operand_index++;
             }
         }
-        operands_bytes_index -= operands_bytes_count;
     }
 }
 

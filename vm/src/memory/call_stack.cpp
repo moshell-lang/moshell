@@ -29,6 +29,7 @@ struct frame_headers {
 
 CallStack::CallStack(size_t capacity)
     : block{std::make_unique<char[]>(capacity)},
+      operands_refs_offsets(capacity, false),
       frame_headers_pos{0},
       capacity{capacity},
       frame_count{0} {}
@@ -101,7 +102,7 @@ stack_frame frame_at_byte_pos(char *bytes, size_t byte_pos, size_t stack_capacit
 
     // first byte position of operands
     size_t operands_first_byte = byte_pos + sizeof(frame_headers);
-    OperandStack frame_operands(bytes + operands_first_byte, headers->operands_pos, stack_capacity - operands_first_byte, operands_refs);
+    OperandStack frame_operands(bytes + operands_first_byte, headers->operands_pos, stack_capacity - operands_first_byte, operands_refs.begin() + operands_first_byte);
 
     Locals frame_locals(bytes + (byte_pos - headers->function->locals_size), headers->function->locals_size);
     return stack_frame{*headers->function, &headers->instruction_pointer, frame_operands, frame_locals};

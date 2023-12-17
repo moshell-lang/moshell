@@ -8,6 +8,21 @@
 #include <memory>
 #include <stdexcept>
 
+namespace msh {
+    template <typename T>
+    concept value_t = std::is_same_v<T, std::byte> || std::is_same_v<T, int64_t> || std::is_same_v<T, double> ||
+                      std::is_same_v<T, msh::obj *>;
+
+    template <typename T>
+    constexpr size_t value_sizeof() {
+        size_t size = sizeof(T);
+        if constexpr (std::is_reference_v<T> || std::is_pointer_v<T>) {
+            size = sizeof(uint64_t);
+        }
+        return size;
+    }
+}
+
 /**
  * thrown when the operand stack does not have enough data to pop requested value
  */
@@ -25,12 +40,12 @@ private:
     std::byte *bytes;
     size_t &current_pos;
     const size_t stack_capacity;
-    std::vector<bool> &operands_refs;
+    std::vector<bool>::iterator operands_refs;
 
     friend msh::gc;
 
 public:
-    OperandStack(char *buff, size_t &initial_pos, size_t stack_capacity, std::vector<bool> &operands_refs);
+    OperandStack(char *buff, size_t &initial_pos, size_t stack_capacity, std::vector<bool>::iterator operands_refs);
 
     /**
      * @return the size in bytes of the operand stack
@@ -129,28 +144,34 @@ public:
 
     template <typename T>
     void push(T t) {
-        if (current_pos + sizeof(T) > stack_capacity) {
+        if (current_pos + msh::value_sizeof<T>() > stack_capacity) {
             throw StackOverflowError("exceeded stack capacity via operand stack");
         }
 
-        size_t false_bits_count = sizeof(T);
+        // Because pointers might be misaligned due to a previous smaller type push,
+        // each individual byte of each type must be re-marked. TODO: align types
+        std::fill(operands_refs + current_pos, operands_refs + current_pos + msh::value_sizeof<T>(), false);
         if constexpr (std::is_same_v<msh::obj, std::remove_cvref_t<std::remove_pointer_t<T>>>) {
-            operands_refs.push_back(true);
-            false_bits_count--;
+            operands_refs[current_pos] = true;
         }
-        operands_refs.resize(operands_refs.size() + false_bits_count, false);
 
         *(T *)(bytes + current_pos) = t;
-        current_pos += sizeof(T);
+        current_pos += msh::value_sizeof<T>();
     }
 
     template <typename T>
     T pop() {
-        return *(T *)pop_bytes(sizeof(T));
+        if (current_pos < msh::value_sizeof<T>()) {
+            throw OperandStackUnderflowError("operand stack is empty");
+        }
+        current_pos -= msh::value_sizeof<T>();
+        return *(T *)(bytes + current_pos);
     }
 
     template <typename T>
-    T peek(size_t offset = 0) {
+    T peek(size_t offset = 0)
+        requires msh::value_t<T>
+    {
         return *(T *)(bytes + current_pos - offset);
     }
 };
@@ -162,7 +183,7 @@ namespace msh {
      * @tparam T the return type of the native procedure
      */
     template <typename T>
-        requires std::is_same_v<T, std::byte> || std::is_same_v<T, int64_t> || std::is_same_v<T, double> || std::is_same_v<T, msh::obj *>
+        requires value_t<T>
     class native_procedure {
         OperandStack &caller_stack;
         size_t offset{};
