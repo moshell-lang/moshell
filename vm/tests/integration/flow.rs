@@ -21,6 +21,62 @@ fn break_loop() {
 }
 
 #[test]
+fn factorial() {
+    let mut runner = Runner::default();
+    let res = runner.eval(
+        "
+        var res = 1
+        for ((var i = 1; $i <= 5; $i += 1)) {
+            $res *= $i
+        }
+        $res
+    ",
+    );
+    assert_eq!(res, Some(VmValue::Int(120)))
+}
+
+#[test]
+fn iter_utf8_string() {
+    let mut runner = Runner::default();
+    let res = runner.eval(
+        "
+        val v = std::new_vec::[String]()
+        for c in 'aé🦀 𓀀' {
+            if $c == ' ' {
+                continue
+            }
+            $v.push($c)
+        }
+        $v
+    ",
+    );
+    assert_eq!(res, Some(vec!["a", "é", "🦀", "𓀀"].into()))
+}
+
+#[test]
+fn iter_bool_vec() {
+    let mut runner = Runner::default();
+    let res = runner.eval(
+        "
+        var vec = std::new_vec::[Bool]()
+        $vec.push(true)
+        $vec.push(true)
+        $vec.push(false)
+        var builder = ''
+        for b in $vec {
+            if $b {
+                $builder += 't'
+            } else {
+                $builder += 'f'
+            }
+        }
+        $builder
+    ",
+    );
+    assert_eq!(res, Some("ttf".into()))
+}
+
+#[test]
 fn test_assertion() {
     let mut runner = Runner::default();
     assert_eq!(

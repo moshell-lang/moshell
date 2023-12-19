@@ -76,6 +76,46 @@ pub struct Loop {
     pub body: Box<TypedExpr>,
 }
 
+/// A for loop.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ForLoop {
+    /// The type of the for loop.
+    pub kind: Box<ForKind>,
+    /// The body of the for loop.
+    pub body: Box<TypedExpr>,
+}
+
+/// A for loop can be either a range loop or a conditional loop.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ForKind {
+    Range(RangeFor),
+    Conditional(ConditionalFor),
+}
+
+/// A for in range loop, e.g. `for i in 1..10; ...`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RangeFor {
+    /// The variable name that will be used in the loop to designate the current item.
+    pub receiver: LocalId,
+
+    /// The type of the receiver.
+    pub receiver_type: TypeRef,
+
+    /// The range of values that will be iterated over.
+    pub iterable: TypedExpr,
+}
+
+/// A for in conditional loop, e.g. `for (( i = 0; i < 10; i++ )); ...`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConditionalFor {
+    /// The initialization expression.
+    pub initializer: TypedExpr,
+    /// The condition expression.
+    pub condition: TypedExpr,
+    /// The increment expression.
+    pub increment: TypedExpr,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct FunctionCall {
     pub arguments: Vec<TypedExpr>,
@@ -123,6 +163,7 @@ pub enum ExprKind {
     Redirect(Redirect),
     Conditional(Conditional),
     ConditionalLoop(Loop),
+    ForLoop(ForLoop),
     Convert(Convert),
     ProcessCall(Vec<TypedExpr>),
     FunctionCall(FunctionCall),

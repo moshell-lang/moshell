@@ -31,6 +31,7 @@ use crate::steps::typing::exploration::{Exploration, Links};
 use crate::steps::typing::function::{
     declare_function, find_operand_implementation, infer_return, type_call, type_method, Return,
 };
+use crate::steps::typing::iterable::ascribe_for;
 use crate::steps::typing::lower::{convert_into_string, generate_unwrap};
 use crate::steps::typing::magic::{is_magic_variable_name, prepend_implicits};
 use crate::steps::typing::structure::{
@@ -58,6 +59,7 @@ mod lower;
 mod structure;
 mod view;
 
+mod iterable;
 pub mod magic;
 
 pub fn apply_types(
@@ -1519,14 +1521,15 @@ fn ascribe_types(
         }
         Expr::Unary(unary) => ascribe_unary(unary, exploration, links, diagnostics, state),
         Expr::Binary(bo) => ascribe_binary(bo, exploration, links, diagnostics, state),
-        Expr::Subscript(sub) => ascribe_subscript(sub, exploration, links, diagnostics, state),
         Expr::Range(range) => ascribe_range(range, exploration, links, diagnostics, state),
+        Expr::Subscript(sub) => ascribe_subscript(sub, exploration, links, diagnostics, state),
         Expr::Tilde(tilde) => ascribe_tilde(tilde, exploration, links, diagnostics, state),
         Expr::Casted(casted) => ascribe_casted(casted, exploration, links, diagnostics, state),
         Expr::Test(test) => ascribe_types(exploration, links, diagnostics, &test.expression, state),
         e @ (Expr::While(_) | Expr::Loop(_)) => {
             ascribe_loop(e, exploration, links, diagnostics, state)
         }
+        Expr::For(f) => ascribe_for(f, exploration, links, diagnostics, state),
         e @ (Expr::Continue(_) | Expr::Break(_)) => ascribe_continue_or_break(
             e,
             diagnostics,

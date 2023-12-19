@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::reef::LANG_REEF;
 use crate::types::ty::{Type, TypeId, TypeRef};
 
-pub(crate) mod builtin;
+pub mod builtin;
 pub mod ctx;
 pub mod engine;
 pub mod hir;
@@ -62,6 +62,7 @@ pub const GENERIC_VECTOR: TypeRef = TypeRef::new(LANG_REEF, TypeId(8));
 pub const GENERIC_OPTION: TypeRef = TypeRef::new(LANG_REEF, TypeId(9));
 pub const GLOB: TypeRef = TypeRef::new(LANG_REEF, TypeId(10));
 pub const PID: TypeRef = TypeRef::new(LANG_REEF, TypeId(11));
+pub const GENERIC_RANGE: TypeRef = TypeRef::new(LANG_REEF, TypeId(12));
 
 /// An error that occurs when two types are not compatible.
 #[derive(Debug, PartialEq)]

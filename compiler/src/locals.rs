@@ -40,6 +40,15 @@ impl LocalsLayout {
         self.len += size as u32;
     }
 
+    /// Creates a new local and reserves the space for it.
+    pub fn push_value_space(&mut self, tpe: TypeRef) -> LocalId {
+        let id = LocalId(self.values_indexes.len());
+        let size: u8 = ValueStackSize::from(tpe).into();
+        self.values_indexes.push(Some((self.len, tpe.is_obj())));
+        self.len += size as u32;
+        id
+    }
+
     /// Reserves the space in local's of the external reference, if not already set.
     ///
     /// Different initialization orders will result in different indexes.

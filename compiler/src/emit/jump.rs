@@ -46,7 +46,7 @@ pub fn emit_loop(
 ) {
     // START:
     let loop_start = instructions.current_ip();
-    let mut loop_state = EmissionState::in_loop(loop_start);
+    let mut loop_state = EmissionState::in_loop();
 
     // loops cannot implicitly return something
 
@@ -62,12 +62,13 @@ pub fn emit_loop(
         loop_state.enclosing_loop_end_placeholders.push(jump_to_end);
     }
 
-    loop_state.enclosing_loop_start = loop_start;
-
     // Evaluate the loop body.
     emit(&lp.body, instructions, ctx, cp, locals, &mut loop_state);
     // Go to START.
     instructions.jump_back_to(loop_start);
+    for jump_to_start in loop_state.enclosing_loop_start_placeholders {
+        instructions.patch_jump(jump_to_start);
+    }
 
     // END:
     for jump_to_end in loop_state.enclosing_loop_end_placeholders {
@@ -75,8 +76,10 @@ pub fn emit_loop(
     }
 }
 
-pub fn emit_continue(instructions: &mut Instructions, state: &EmissionState) {
-    instructions.jump_back_to(state.enclosing_loop_start);
+pub fn emit_continue(instructions: &mut Instructions, state: &mut EmissionState) {
+    state
+        .enclosing_loop_start_placeholders
+        .push(instructions.emit_jump(Opcode::Jump));
 }
 
 pub fn emit_break(instructions: &mut Instructions, state: &mut EmissionState) {
