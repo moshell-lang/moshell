@@ -11,22 +11,32 @@ pub enum VmValue {
     Struct(Vec<Option<VmValue>>),
 }
 
-impl From<Vec<&str>> for VmValue {
-    fn from(value: Vec<&str>) -> Self {
-        let vec = value
-            .into_iter()
-            .map(|s| Some(Self::String(s.to_string())))
-            .collect();
+impl<T: Into<VmValue>> From<Vec<T>> for VmValue {
+    fn from(value: Vec<T>) -> Self {
+        let vec = value.into_iter().map(|s| Some(s.into())).collect();
 
         Self::Vec(vec)
     }
 }
 
-impl From<&str> for VmValue {
-    fn from(value: &str) -> Self {
-        Self::String(value.to_string())
+impl From<i64> for VmValue {
+    fn from(value: i64) -> Self {
+        Self::Int(value)
     }
 }
+
+impl From<f64> for VmValue {
+    fn from(value: f64) -> Self {
+        Self::Double(value)
+    }
+}
+
+impl From<&str> for VmValue {
+    fn from(value: &str) -> Self {
+        Self::String(value.to_owned())
+    }
+}
+
 impl VmValue {
     /// retrieve maximum amount of information from a given value
     /// In case of structures, as the layout isn't provided by FFIs, the

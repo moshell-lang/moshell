@@ -552,6 +552,26 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                 Iterable::Range(range) => {
                     self.tree_walk(state, &range.start, to_visit);
                     self.tree_walk(state, &range.end, to_visit);
+                    if let Some(step) = &range.step {
+                        self.tree_walk(state, step, to_visit);
+                    }
+                    let struct_name = if range.upper_inclusive {
+                        "InclusiveRange"
+                    } else {
+                        "Range"
+                    };
+                    let name = Name::from(vec!["std".to_owned(), struct_name.to_owned()]);
+                    let symbol = self.identify_symbol(
+                        *self.stack.last().unwrap(),
+                        state.module,
+                        SymbolLocation {
+                            name,
+                            is_current_reef_explicit: false,
+                        },
+                        range.segment(),
+                        SymbolRegistry::Objects,
+                    );
+                    self.current_env().annotate(range, symbol);
                 }
                 Iterable::Files(pattern) => {
                     self.tree_walk(state, &pattern.pattern, to_visit);

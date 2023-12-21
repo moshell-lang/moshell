@@ -127,11 +127,11 @@ fn collect_sample() {
         usages,
         vec![(
             &SymbolLocation::unspecified(Name::new("LOG_FILE")),
-            RelationId(1)
+            RelationId(2)
         )]
     );
     assert_eq!(
-        relations[RelationId(1)],
+        relations[RelationId(2)],
         Relation {
             origin: SourceId(2),
             state: RelationState::Resolved(ResolvedSymbol {
@@ -155,20 +155,20 @@ fn collect_sample() {
         vec![
             (
                 &SymbolLocation::unspecified(Name::new("count")),
-                RelationId(2)
+                RelationId(3)
             ),
             (
                 &SymbolLocation::unspecified(Name::new("factorial")),
-                RelationId(3)
+                RelationId(4)
             ),
-            (&SymbolLocation::unspecified(Name::new("n")), RelationId(4)),
+            (&SymbolLocation::unspecified(Name::new("n")), RelationId(5)),
         ]
     );
 
     let reef_id = ReefId(2);
 
     assert_eq!(
-        relations[RelationId(2)],
+        relations[RelationId(3)],
         Relation {
             origin: SourceId(4),
             state: RelationState::Resolved(ResolvedSymbol {
@@ -180,7 +180,7 @@ fn collect_sample() {
         }
     );
     assert_eq!(
-        relations[RelationId(3)],
+        relations[RelationId(4)],
         Relation {
             origin: SourceId(4),
             state: RelationState::Resolved(ResolvedSymbol {
@@ -192,7 +192,7 @@ fn collect_sample() {
         }
     );
     assert_eq!(
-        relations[RelationId(4)],
+        relations[RelationId(5)],
         Relation {
             origin: SourceId(4),
             state: RelationState::Resolved(ResolvedSymbol {
@@ -211,6 +211,6 @@ fn collect_sample() {
     let variables = lambda_env.symbols.external_symbols().collect::<Vec<_>>();
     assert_eq!(
         variables,
-        vec![(&SymbolLocation::unspecified(Name::new("n")), RelationId(5))]
+        vec![(&SymbolLocation::unspecified(Name::new("n")), RelationId(6))]
     );
 }

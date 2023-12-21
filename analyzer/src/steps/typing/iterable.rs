@@ -1,13 +1,15 @@
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
+use crate::reef::ReefId;
 use crate::relations::SymbolRef;
 use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::exploration::{Exploration, Links};
 use crate::steps::typing::{ascribe_types, ExpressionValue, TypingState};
 use crate::types::builtin::STRING_STRUCT;
 use crate::types::ctx::TypedVariable;
+use crate::types::engine::StructureId;
 use crate::types::hir::{ConditionalFor, ExprKind, ForLoop, RangeFor, TypedExpr};
 use crate::types::ty::Type;
-use crate::types::{hir, ERROR, GENERIC_VECTOR, UNIT};
+use crate::types::{hir, ERROR, GENERIC_VECTOR, INT, UNIT};
 use ast::control_flow::{For, ForKind};
 use context::source::SourceSegmentHolder;
 
@@ -45,21 +47,16 @@ pub(super) fn ascribe_for(
                         TypedVariable::immutable(iterable.ty),
                     );
                 }
+                Type::Structure(_, StructureId(0 | 1)) if iterable.ty.reef == ReefId(1) => {
+                    exploration.ctx.set_local(
+                        links.source,
+                        receiver_id,
+                        TypedVariable::immutable(INT),
+                    );
+                }
                 _ => {
                     if iterable.ty.is_ok() {
-                        diagnostics.push(
-                            Diagnostic::new(DiagnosticID::TypeMismatch, "Expected iterable type")
-                                .with_observation(Observation::here(
-                                    links.source,
-                                    exploration.externals.current,
-                                    range.iterable.segment(),
-                                    format!(
-                                        "Found `{}`",
-                                        exploration
-                                            .new_type_view(iterable.ty, &TypesBounds::inactive())
-                                    ),
-                                )),
-                        );
+                        diagnose_not_iterable(exploration, links, &iterable, diagnostics);
                     }
                 }
             }
@@ -134,6 +131,27 @@ pub(super) fn ascribe_for(
             }
         }
     }
+}
+
+fn diagnose_not_iterable(
+    exploration: &Exploration,
+    links: Links,
+    iterable: &TypedExpr,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    diagnostics.push(
+        Diagnostic::new(DiagnosticID::TypeMismatch, "Expected iterable type").with_observation(
+            Observation::here(
+                links.source,
+                exploration.externals.current,
+                iterable.segment(),
+                format!(
+                    "Found `{}`",
+                    exploration.new_type_view(iterable.ty, &TypesBounds::inactive())
+                ),
+            ),
+        ),
+    );
 }
 
 #[cfg(test)]

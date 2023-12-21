@@ -63,3 +63,15 @@ fun home_dir(username: String) -> Option[String];
 ///
 /// @panics if the current user does not have a home directory specified.
 fun current_home_dir() -> String;
+
+struct Range {
+    start: Int,
+    end: Int,
+    step: Int,
+}
+
+struct InclusiveRange {
+    start: Int,
+    end: Int,
+    step: Int,
+}

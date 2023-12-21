@@ -77,6 +77,21 @@ fn iter_bool_vec() {
 }
 
 #[test]
+fn iter_range() {
+    let mut runner = Runner::default();
+    let res = runner.eval(
+        "
+        var vec = std::new_vec::[Int]()
+        for i in 1..5 {
+            $vec.push($i)
+        }
+        $vec
+    ",
+    );
+    assert_eq!(res, Some(vec![1, 2, 3, 4].into()))
+}
+
+#[test]
 fn test_assertion() {
     let mut runner = Runner::default();
     assert_eq!(

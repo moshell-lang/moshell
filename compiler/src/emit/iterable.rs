@@ -4,7 +4,10 @@ use crate::context::EmitterContext;
 use crate::emit::native::{STRING_INDEX, STRING_LEN, VEC_INDEX, VEC_LEN};
 use crate::emit::{emit, EmissionState};
 use crate::locals::LocalsLayout;
+use analyzer::reef::ReefId;
+use analyzer::relations::LocalId;
 use analyzer::types::builtin::STRING_STRUCT;
+use analyzer::types::engine::StructureId;
 use analyzer::types::hir::{ForKind, ForLoop, RangeFor, TypedExpr};
 use analyzer::types::ty::Type;
 use analyzer::types::{GENERIC_VECTOR, INT, STRING};
@@ -19,13 +22,17 @@ pub(super) fn emit_for_loop(
 ) {
     match it.kind.as_ref() {
         ForKind::Range(range) => {
-            let iterable_type = ctx.get_type(range.iterable.ty);
+            let type_ref = range.iterable.ty;
+            let iterable_type = ctx.get_type(type_ref);
             match iterable_type {
                 Type::Instantiated(vec, params) if *vec == GENERIC_VECTOR => {
                     let param = params[0];
                     emit_for_iterable(
                         range,
                         &it.body,
+                        |_, instructions, _, _| {
+                            instructions.emit_push_int(0);
+                        },
                         |instructions, cp| {
                             instructions.emit_invoke(cp.insert_string(VEC_INDEX));
                             if !param.is_obj() {
@@ -35,7 +42,8 @@ pub(super) fn emit_for_loop(
                         |instructions, cp| {
                             instructions.emit_invoke(cp.insert_string(VEC_LEN));
                         },
-                        |instructions, _, _| {
+                        Opcode::IntLessThan,
+                        |_, instructions, _, _| {
                             instructions.emit_push_int(1);
                         },
                         instructions,
@@ -49,15 +57,50 @@ pub(super) fn emit_for_loop(
                     emit_for_iterable(
                         range,
                         &it.body,
+                        |_, instructions, _, _| {
+                            instructions.emit_push_int(0);
+                        },
                         |instructions, cp| {
                             instructions.emit_invoke(cp.insert_string(STRING_INDEX));
                         },
                         |instructions, cp| {
                             instructions.emit_invoke(cp.insert_string(STRING_LEN));
                         },
-                        |instructions, cp, locals| {
+                        Opcode::IntLessThan,
+                        |_, instructions, cp, locals| {
                             instructions.emit_get_local(range.receiver, STRING.into(), locals);
                             instructions.emit_invoke(cp.insert_string(STRING_LEN));
+                        },
+                        instructions,
+                        ctx,
+                        cp,
+                        locals,
+                        state,
+                    );
+                }
+                Type::Structure(_, structure_id) => {
+                    // Int range
+                    let layout = ctx.get_layout(ReefId(1), *structure_id);
+                    emit_for_iterable(
+                        range,
+                        &it.body,
+                        |iterator_id, instructions, _, locals| {
+                            // Emit start
+                            instructions.emit_get_local(iterator_id, type_ref.into(), locals);
+                            instructions.emit_get_field(LocalId(0), layout);
+                        },
+                        |_, _| {},
+                        |instructions, _| {
+                            instructions.emit_get_field(LocalId(1), layout);
+                        },
+                        if *structure_id == StructureId(0) {
+                            Opcode::IntLessThan
+                        } else {
+                            Opcode::IntLessOrEqual
+                        },
+                        |iterator_id, instructions, _, locals| {
+                            instructions.emit_get_local(iterator_id, type_ref.into(), locals);
+                            instructions.emit_get_field(LocalId(2), layout);
                         },
                         instructions,
                         ctx,
@@ -104,9 +147,10 @@ pub(super) fn emit_for_loop(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_for_iterable<
+    V: FnOnce(LocalId, &mut Instructions, &mut ConstantPool, &mut LocalsLayout),
     F: FnOnce(&mut Instructions, &mut ConstantPool),
-    S: FnOnce(&mut Instructions, &mut ConstantPool),
-    I: FnOnce(&mut Instructions, &mut ConstantPool, &mut LocalsLayout),
+    L: FnOnce(&mut Instructions, &mut ConstantPool),
+    I: FnOnce(LocalId, &mut Instructions, &mut ConstantPool, &mut LocalsLayout),
 >(
     RangeFor {
         receiver,
@@ -114,8 +158,10 @@ pub(super) fn emit_for_iterable<
         iterable,
     }: &RangeFor,
     body: &TypedExpr,
+    initial_value: V,
     indexer: F,
-    len: S,
+    len: L,
+    comparator: Opcode,
     increment: I,
     instructions: &mut Instructions,
     ctx: &EmitterContext,
@@ -130,7 +176,7 @@ pub(super) fn emit_for_iterable<
     instructions.emit_set_local(iterator_id, iterable.ty.into(), locals);
 
     let index_id = locals.push_value_space(INT);
-    instructions.emit_push_int(0);
+    initial_value(iterator_id, instructions, cp, locals);
     instructions.emit_set_local(index_id, INT.into(), locals);
 
     let loop_start = instructions.current_ip();
@@ -138,7 +184,7 @@ pub(super) fn emit_for_iterable<
     instructions.emit_get_local(index_id, INT.into(), locals);
     instructions.emit_get_local(iterator_id, iterable.ty.into(), locals);
     len(instructions, cp);
-    instructions.emit_code(Opcode::IntLessThan);
+    instructions.emit_code(comparator);
     let jump_to_end = instructions.emit_jump(Opcode::IfNotJump);
     loop_state.enclosing_loop_end_placeholders.push(jump_to_end);
 
@@ -154,7 +200,7 @@ pub(super) fn emit_for_iterable<
         instructions.patch_jump(jump_to_increment);
     }
     instructions.emit_get_local(index_id, INT.into(), locals);
-    increment(instructions, cp, locals);
+    increment(iterator_id, instructions, cp, locals);
     instructions.emit_code(Opcode::IntAdd);
     instructions.emit_set_local(index_id, INT.into(), locals);
 
