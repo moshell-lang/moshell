@@ -69,12 +69,6 @@ public:
         *(T *)(bytes + at) = t;
     }
 
-    /**
-     * copies the given data from `at` to `at + size`
-     * @throws LocalsOutOfBoundError if `at` + size is out of bound
-     */
-    void set_bytes(const uint8_t *data, size_t size, size_t at);
-
 private:
     /**
      * ensures that the given space can fit at given position in this reserved locals space.
@@ -82,5 +76,9 @@ private:
      * @param space_size the space needed
      * @param action kind of action being made
      */
-    void check_capacity(size_t at, size_t space_size, std::string_view action) const;
+    inline void check_capacity(size_t at, size_t space_size, std::string_view action) const {
+        if (at + space_size > capacity) {
+            throw LocalsOutOfBoundError("locals out of bound when " + std::string(action) + " value at index " + std::to_string(at));
+        }
+    }
 };

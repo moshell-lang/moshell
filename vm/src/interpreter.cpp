@@ -905,7 +905,15 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             return frame_status::RETURNED;
 
         default: {
+#ifdef NDEBUG
+#ifdef __GNUC__
+            __builtin_unreachable();
+#else
+            __assume(false);
+#endif
+#else
             throw InvalidBytecodeError("Unknown opcode " + std::to_string(opcode));
+#endif
         }
         }
     }

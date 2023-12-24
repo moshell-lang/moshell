@@ -17,16 +17,6 @@ void Locals::set_q_word(int64_t i, size_t at) {
 void Locals::set_byte(uint8_t b, size_t at) {
     set<char>(b, at);
 }
-void Locals::set_bytes(const uint8_t *data, size_t size, size_t at) {
-    check_capacity(at, size, "updating");
-    memcpy(static_cast<void *>(bytes), data, size);
-}
-
-void Locals::check_capacity(size_t at, size_t space_size, std::string_view action) const {
-    if (at + space_size > capacity) {
-        throw LocalsOutOfBoundError("locals out of bound when " + std::string(action) + " value at index " + std::to_string(at));
-    }
-}
 
 uint8_t &Locals::reference(size_t at) {
     check_capacity(at, 1, "accessing");
