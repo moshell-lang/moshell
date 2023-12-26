@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use analyzer::importer::{ASTImporter, ImportResult, StaticImporter};
 use analyzer::name::Name;
-use analyzer::reef::{Externals, Reef};
+use analyzer::reef::{Externals, Reef, ReefId};
 use analyzer::relations::SourceId;
 use analyzer::types::engine::ChunkKind;
 use analyzer::types::ty::{Type, TypeRef};
@@ -27,7 +27,7 @@ pub struct Runner<'a> {
 impl Default for Runner<'_> {
     fn default() -> Self {
         let mut externals = Externals::default();
-        let compiler_externals = CompilerExternals::default();
+        let mut compiler_externals = CompilerExternals::default();
         let mut std_importer = FileImporter::new(PathBuf::from("../lib"));
         let mut vm = VM::default();
 
@@ -35,7 +35,7 @@ impl Default for Runner<'_> {
         let analyzer = analyze(std_name.clone(), &mut std_importer, &externals);
         let mut buff = Vec::new();
 
-        compile_reef(
+        let compiled = compile_reef(
             &analyzer.engine,
             &analyzer.resolution.relations,
             &analyzer.typing,
@@ -48,6 +48,7 @@ impl Default for Runner<'_> {
             CompilerOptions::default(),
         )
         .expect("std did not compile successfully");
+        compiler_externals.set(ReefId(1), compiled);
 
         vm.register(&buff).expect("VM std register");
         unsafe {

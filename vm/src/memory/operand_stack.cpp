@@ -82,6 +82,7 @@ void OperandStack::dup_qword() {
         throw StackOverflowError("exceeded stack capacity via operand stack");
     }
     memcpy(this->bytes + current_pos, this->bytes + current_pos - sizeof(int64_t), sizeof(int64_t));
+    std::copy(operands_refs + current_pos - sizeof(int64_t), operands_refs + current_pos, operands_refs + current_pos);
     current_pos += sizeof(int64_t);
 }
 

@@ -25,12 +25,13 @@ use crate::steps::typing::assign::{
 use crate::steps::typing::bounds::TypesBounds;
 use crate::steps::typing::coercion::{
     check_type_annotation, coerce_condition, convert_description, convert_expression, convert_many,
-    resolve_type_annotation,
+    is_compatible, resolve_type_annotation,
 };
 use crate::steps::typing::exploration::{Exploration, Links};
 use crate::steps::typing::function::{
     declare_function, find_operand_implementation, infer_return, type_call, type_method, Return,
 };
+use crate::steps::typing::iterable::ascribe_for;
 use crate::steps::typing::lower::{convert_into_string, generate_unwrap};
 use crate::steps::typing::magic::{is_magic_variable_name, prepend_implicits};
 use crate::steps::typing::structure::{
@@ -58,6 +59,7 @@ mod lower;
 mod structure;
 mod view;
 
+mod iterable;
 pub mod magic;
 
 pub fn apply_types(
@@ -997,7 +999,68 @@ fn ascribe_range(
             }
             pattern
         }
-        r => todo!("ascribe range {r:?}"),
+        Iterable::Range(range) => {
+            let state = state.with_local_value(ExpressionValue::Expected(INT));
+            let start = ascribe_types(exploration, links, diagnostics, &range.start, state);
+            let end = ascribe_types(exploration, links, diagnostics, &range.end, state);
+            let step = range
+                .step
+                .as_ref()
+                .map(|step| ascribe_types(exploration, links, diagnostics, step, state))
+                .unwrap_or_else(|| TypedExpr {
+                    kind: ExprKind::Literal(LiteralValue::Int(1)),
+                    ty: INT,
+                    segment: range.segment(),
+                });
+
+            let args = [&start, &end, &step];
+            let not_integers = args
+                .into_iter()
+                .filter(|expr| !is_compatible(exploration, INT, expr.ty))
+                .collect::<Vec<_>>();
+            if !not_integers.is_empty() {
+                let mut diagnostic =
+                    Diagnostic::new(DiagnosticID::TypeMismatch, "Invalid integer range");
+                for &expr in &not_integers {
+                    diagnostic = diagnostic.with_observation(Observation::here(
+                        links.source,
+                        exploration.externals.current,
+                        expr.segment(),
+                        format!(
+                            "Got `{}`",
+                            exploration.new_type_view(expr.ty, &TypesBounds::inactive()),
+                        ),
+                    ));
+                }
+                diagnostics.push(diagnostic);
+                return start.poison();
+            }
+
+            let symbol = links.env().get_raw_symbol(range.segment()).unwrap();
+            let function_type_ref = exploration
+                .get_var(links.source, symbol, links.relations)
+                .unwrap()
+                .type_ref;
+            let Type::Structure(structure_source, _) =
+                exploration.get_type(function_type_ref).unwrap()
+            else {
+                unreachable!()
+            };
+            let constructor_id = exploration
+                .get_methods(function_type_ref, "<init>")
+                .unwrap()[0];
+            let function = exploration.get_function(ReefId(1), constructor_id).unwrap();
+            TypedExpr {
+                kind: ExprKind::FunctionCall(FunctionCall {
+                    function_id: constructor_id,
+                    arguments: vec![start, end, step],
+                    reef: ReefId(1),
+                    source_id: *structure_source,
+                }),
+                ty: function.return_type,
+                segment: range.segment(),
+            }
+        }
     }
 }
 
@@ -1527,6 +1590,7 @@ fn ascribe_types(
         e @ (Expr::While(_) | Expr::Loop(_)) => {
             ascribe_loop(e, exploration, links, diagnostics, state)
         }
+        Expr::For(f) => ascribe_for(f, exploration, links, diagnostics, state),
         e @ (Expr::Continue(_) | Expr::Break(_)) => ascribe_continue_or_break(
             e,
             diagnostics,

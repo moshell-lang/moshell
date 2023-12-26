@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::reef::LANG_REEF;
 use crate::types::ty::{Type, TypeId, TypeRef};
 
-pub(crate) mod builtin;
+pub mod builtin;
 pub mod ctx;
 pub mod engine;
 pub mod hir;

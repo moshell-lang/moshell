@@ -205,6 +205,43 @@ static void str_bytes(OperandStack &caller_stack, runtime_memory &mem) {
     }
 }
 
+static void str_len(OperandStack &caller_stack, runtime_memory &) {
+    const std::string &str = caller_stack.pop_reference().get<const std::string>();
+    caller_stack.push_int(static_cast<int64_t>(str.length()));
+}
+
+static void str_index(OperandStack &caller_stack, runtime_memory &mem) {
+    // Tests if the index is at a UTF-8 char boundary
+    auto is_char_boundary = [](const std::string &s, size_t index) {
+        return index == 0 || index == s.length() || static_cast<signed char>(s[index]) >= -0x40;
+    };
+
+    int64_t n = caller_stack.pop_int();
+    size_t index = static_cast<size_t>(n);
+    const std::string &str = caller_stack.pop_reference().get<const std::string>();
+    if (n < 0 || index >= str.length()) {
+        throw RuntimeException("Index " + std::to_string(n) + " is out of range, the length is " + std::to_string(str.length()) + ".");
+    }
+    if (!is_char_boundary(str, index)) {
+        throw RuntimeException("Index " + std::to_string(n) + " is not a char boundary.");
+    }
+    char c = str[index];
+    int codepoint_len = 1;
+    if ((c & 0xf8) == 0xf0) {
+        codepoint_len = 4;
+    } else if ((c & 0xf0) == 0xe0) {
+        codepoint_len = 3;
+    } else if ((c & 0xe0) == 0xc0) {
+        codepoint_len = 2;
+    }
+    if ((index + codepoint_len) > str.length()) {
+        codepoint_len = 1;
+    }
+    std::string codepoint = str.substr(index, codepoint_len);
+    msh::obj &obj = mem.emplace(codepoint);
+    caller_stack.push_reference(obj);
+}
+
 static void vec_len(OperandStack &caller_stack, runtime_memory &) {
     const msh::obj_vector &vec = caller_stack.pop_reference().get<msh::obj_vector>();
     caller_stack.push_int(static_cast<int64_t>(vec.size()));
@@ -334,6 +371,8 @@ natives_functions_t load_natives() {
         {"lang::String::eq", str_eq},
         {"lang::String::split", str_split},
         {"lang::String::bytes", str_bytes},
+        {"lang::String::len", str_len},
+        {"lang::String::[]", str_index},
 
         {"lang::Vec::pop", vec_pop},
         {"lang::Vec::pop_head", vec_pop_head},

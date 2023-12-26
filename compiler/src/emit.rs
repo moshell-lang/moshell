@@ -17,15 +17,15 @@ use crate::locals::LocalsLayout;
 
 mod identifier;
 mod invoke;
+mod iterable;
 mod jump;
 mod native;
 mod structure;
 
 #[derive(Debug, Clone, Default)]
 pub struct EmissionState {
-    // the start instruction position of the enclosing loop
-    // set to 0 if there is no loop
-    pub enclosing_loop_start: u32,
+    /// All the placeholders waiting for the end of the current iteration.
+    pub enclosing_loop_start_placeholders: Vec<Placeholder>,
 
     // All the placeholders waiting for the end of the loop.
     // When the loop compilation ends, all those placeholder are filled with the
@@ -39,11 +39,8 @@ pub struct EmissionState {
 
 impl EmissionState {
     /// Create a new emission state for a loop.
-    pub fn in_loop(loop_start: u32) -> Self {
-        Self {
-            enclosing_loop_start: loop_start,
-            ..Self::default()
-        }
+    pub fn in_loop() -> Self {
+        Self::default()
     }
 
     /// sets use_values to given value, and return last value
@@ -213,6 +210,7 @@ pub fn emit(
         }
         ExprKind::Conditional(c) => emit_conditional(c, instructions, ctx, cp, locals, state),
         ExprKind::ConditionalLoop(l) => emit_loop(l, instructions, ctx, cp, locals, state),
+        ExprKind::ForLoop(l) => iterable::emit_for_loop(l, instructions, ctx, cp, locals, state),
         ExprKind::Continue => emit_continue(instructions, state),
         ExprKind::Break => emit_break(instructions, state),
         ExprKind::Return(val) => emit_return(val, instructions, ctx, cp, locals, state),

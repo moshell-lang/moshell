@@ -27,10 +27,9 @@ impl CompilerExternals {
     }
 
     pub fn set(&mut self, id: ReefId, reef: CompiledReef) {
-        if self.compiled_reefs.len() <= id.0 {
-            self.compiled_reefs
-                .resize(id.0 + 1, CompiledReef::default())
+        if self.compiled_reefs.len() < id.0 {
+            self.compiled_reefs.resize(id.0, CompiledReef::default())
         }
-        self.compiled_reefs[id.0] = reef
+        self.compiled_reefs[id.0 - 1] = reef
     }
 }
