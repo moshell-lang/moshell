@@ -1582,8 +1582,8 @@ fn ascribe_types(
         }
         Expr::Unary(unary) => ascribe_unary(unary, exploration, links, diagnostics, state),
         Expr::Binary(bo) => ascribe_binary(bo, exploration, links, diagnostics, state),
-        Expr::Range(range) => ascribe_range(range, exploration, links, diagnostics, state),
         Expr::Subscript(sub) => ascribe_subscript(sub, exploration, links, diagnostics, state),
+        Expr::Range(range) => ascribe_range(range, exploration, links, diagnostics, state),
         Expr::Tilde(tilde) => ascribe_tilde(tilde, exploration, links, diagnostics, state),
         Expr::Casted(casted) => ascribe_casted(casted, exploration, links, diagnostics, state),
         Expr::Test(test) => ascribe_types(exploration, links, diagnostics, &test.expression, state),

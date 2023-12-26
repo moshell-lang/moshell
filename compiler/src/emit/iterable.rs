@@ -4,6 +4,7 @@ use crate::context::EmitterContext;
 use crate::emit::native::{STRING_INDEX, STRING_LEN, VEC_INDEX, VEC_LEN};
 use crate::emit::{emit, EmissionState};
 use crate::locals::LocalsLayout;
+use crate::r#type::ValueStackSize;
 use analyzer::reef::ReefId;
 use analyzer::relations::LocalId;
 use analyzer::types::builtin::STRING_STRUCT;
@@ -89,7 +90,10 @@ pub(super) fn emit_for_loop(
                             instructions.emit_get_local(iterator_id, type_ref.into(), locals);
                             instructions.emit_get_field(LocalId(0), layout);
                         },
-                        |_, _| {},
+                        |instructions, _| {
+                            instructions.emit_code(Opcode::Swap);
+                            instructions.emit_pop(ValueStackSize::QWord);
+                        },
                         |instructions, _| {
                             instructions.emit_get_field(LocalId(1), layout);
                         },
