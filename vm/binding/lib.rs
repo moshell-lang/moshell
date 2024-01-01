@@ -40,7 +40,6 @@ pub enum VmError {
     Internal,
 }
 
-#[allow(dead_code)]
 impl VM {
     /// Creates a new virtual machine.
     pub fn new(args: Vec<String>) -> Self {
@@ -86,6 +85,13 @@ impl VM {
             1 => Err(VmError::Panic),
             _ => Err(VmError::Internal),
         }
+    }
+
+    /// Sets the process group ID if running in a terminal.
+    ///
+    /// Forked processes will be attached to this process group.
+    pub fn set_pgid(&mut self, pgid: i32) {
+        unsafe { moshell_set_pgid(self.ffi, pgid) }
     }
 
     /// Gets the next page of bytecode to be executed.
@@ -251,6 +257,8 @@ extern "C" {
     fn moshell_vm_register(vm: VmFFI, bytes: *const u8, bytes_count: usize) -> ffi::c_int;
 
     fn moshell_vm_run(vm: VmFFI) -> ffi::c_int;
+
+    fn moshell_set_pgid(vm: VmFFI, pgid: ffi::c_int);
 
     fn moshell_vm_next_page(vm: VmFFI) -> usize;
 

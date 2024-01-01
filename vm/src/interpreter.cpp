@@ -135,6 +135,13 @@ struct runtime_state {
      * native functions pointers, bound with their string identifier
      */
     const natives_functions_t &native_functions;
+
+    /**
+     * The process group id, owned by the master shell process.
+     *
+     * If zero, the process shouldn't be put in a process group.
+     */
+    pid_t pgid;
 };
 
 RuntimeException::RuntimeException(std::string msg)
@@ -557,6 +564,18 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
             case 0:
                 // Child process
                 is_master = false;
+                if (state.pgid != 0) {
+                    // Put the process into the process group
+                    pid = getpid();
+                    setpgid(pid, state.pgid);
+
+                    // Set the handling for job control signals back to the default
+                    signal(SIGINT, SIG_DFL);
+                    signal(SIGQUIT, SIG_DFL);
+                    signal(SIGTSTP, SIG_DFL);
+                    signal(SIGTTIN, SIG_DFL);
+                    signal(SIGTTOU, SIG_DFL);
+                }
 #ifndef NDEBUG
                 msh::disable_gc_debug();
 #endif
@@ -565,6 +584,10 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
                 // Parent process
                 ip = parent_jump;
                 operands.push_int(static_cast<int>(pid));
+                if (state.pgid != 0) {
+                    // Add the child process to the process group of the terminal
+                    setpgid(pid, state.pgid);
+                }
                 break;
             }
             break;
@@ -920,9 +943,9 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
     return frame_status::RETURNED; // this frame has returned
 }
 
-bool run_unit(CallStack &call_stack, const msh::loader &loader, msh::pager &pager, const msh::memory_page &current_page, runtime_memory mem, const natives_functions_t &natives) {
+bool run_unit(CallStack &call_stack, const msh::loader &loader, msh::pager &pager, const msh::memory_page &current_page, runtime_memory mem, const natives_functions_t &natives, pid_t pgid) {
     fd_table table;
-    runtime_state state{table, loader, pager, natives};
+    runtime_state state{table, loader, pager, natives, pgid};
 
     // prepare the call stack, containing the given root function on top of the stack
     const function_definition &root_def = loader.get_function(current_page.init_function_name);

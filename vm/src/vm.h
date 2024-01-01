@@ -1,6 +1,7 @@
 #pragma once
 #include <stddef.h> // NOLINT(*-deprecated-headers)
 #include <stdint.h> // NOLINT(*-deprecated-headers)
+#include <sys/types.h>
 
 #if UINTPTR_MAX > 0xFFFFFFFFFFFFFFFFu // 64 bits
 #error "VM only supports architectures less than 64 bits architectures"
@@ -67,6 +68,14 @@ int moshell_vm_register(moshell_vm vm, const char *bytes, size_t byte_count);
  * @return 0 if the execution was successful, -1 otherwise.
  */
 int moshell_vm_run(moshell_vm vm);
+
+/**
+ * Sets the process group identifier that may be used when creating new processes.
+ *
+ * @param vm The VM to modify.
+ * @param pgid The process group identifier to set.
+ */
+void moshell_set_pgid(moshell_vm vm, pid_t pgid);
 
 /**
  * Returns the next page identifier to be executed.

@@ -81,8 +81,8 @@ moshell_struct moshell_object_get_as_struct(moshell_object o) {
     msh::obj *obj = (msh::obj *)o.val;
     msh::obj_struct &structure = obj->get<msh::obj_struct>();
     return moshell_struct{
-            structure.bytes.size(),
-            structure.bytes.data(),
+        structure.bytes.size(),
+        structure.bytes.data(),
     };
 }
 
@@ -95,6 +95,7 @@ struct moshell_vm_state {
     msh::gc gc{heap, thread_stack, pager, loader};
     natives_functions_t natives;
     size_t next_page{};
+    pid_t pgid{};
 };
 
 int moshell_exec(const char *bytes, size_t byte_count) {
@@ -141,7 +142,7 @@ int moshell_vm_run(moshell_vm vm) {
         for (auto it = vm->pager.cbegin(); it != last; ++it) {
             const msh::memory_page &page = *it;
             runtime_memory mem{vm->heap, vm->program_args, vm->gc};
-            if (!run_unit(vm->thread_stack, vm->loader, vm->pager, page, mem, vm->natives)) {
+            if (!run_unit(vm->thread_stack, vm->loader, vm->pager, page, mem, vm->natives, vm->pgid)) {
                 return 1;
             }
         }
@@ -152,6 +153,10 @@ int moshell_vm_run(moshell_vm vm) {
         std::cerr << e.what() << std::endl;
     }
     return -1;
+}
+
+void moshell_set_pgid(moshell_vm vm, pid_t pgid) {
+    vm->pgid = pgid;
 }
 
 size_t moshell_vm_next_page(moshell_vm vm) {

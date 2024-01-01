@@ -2,6 +2,7 @@ use crate::cli::{use_pipeline, Cli};
 use crate::pipeline::{ErrorReporter, PipelineStatus, SourcesCache};
 use crate::repl::{code, repl};
 use crate::std::build_std;
+use crate::terminal::signal_hook;
 use ::std::ffi::OsStr;
 use ::std::io;
 use ::std::path::Path;
@@ -12,6 +13,7 @@ use analyzer::Analyzer;
 use clap::{CommandFactory, Parser};
 use compiler::externals::CompilerExternals;
 use miette::{Context, IntoDiagnostic, MietteHandlerOpts};
+use nix::sys::signal;
 use vm::VM;
 
 mod cli;
@@ -21,6 +23,7 @@ mod pipeline;
 mod repl;
 mod report;
 mod std;
+mod terminal;
 
 fn main() -> Result<PipelineStatus, miette::Error> {
     if cfg!(unix) && !cfg!(miri) {
@@ -31,10 +34,7 @@ fn main() -> Result<PipelineStatus, miette::Error> {
         // that the children processes will inherit from the ignored `SIGPIPE` signal,
         // causing repercussions on coreutils commands for instance, that usually
         // expect to be killed if a pipe is closed.
-        unsafe {
-            // SAFETY: It is an Unix environment.
-            libc::signal(libc::SIGPIPE, libc::SIG_DFL);
-        }
+        signal_hook(signal::Signal::SIGPIPE, signal::SigHandler::SigDfl);
     }
 
     let cli = Cli::parse();

@@ -23,6 +23,7 @@ use vm::VM;
 use crate::cli::{use_pipeline, Cli};
 use crate::complete::MoshellCompleter;
 use crate::pipeline::{ErrorReporter, PipelineStatus, SourcesCache};
+use crate::terminal::acquire_terminal;
 
 /// Indefinitely prompts a new expression from stdin and executes it.
 pub(crate) fn repl(
@@ -37,6 +38,8 @@ pub(crate) fn repl(
     sources.register(dir);
 
     let mut editor = if io::stdin().is_terminal() {
+        #[cfg(unix)]
+        vm.set_pgid(acquire_terminal().as_raw());
         Editor::LineEditor(Box::new(editor().context("Could not start REPL")?))
     } else {
         Editor::NoEditor(MultilineInput::new(io::stdin().lock()))

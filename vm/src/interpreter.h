@@ -43,4 +43,4 @@ public:
  * @throws InvalidBytecodeError if an interpreted instruction set contains invalid instructions
  * @return true if the run did not abort
  */
-bool run_unit(CallStack &call_stack, const msh::loader &loader, msh::pager &pager, const msh::memory_page &current_page, runtime_memory mem, const natives_functions_t &natives);
+bool run_unit(CallStack &call_stack, const msh::loader &loader, msh::pager &pager, const msh::memory_page &current_page, runtime_memory mem, const natives_functions_t &natives, pid_t pgid = 0);
