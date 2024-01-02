@@ -68,14 +68,14 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 self.boolean_literal().map(Expr::Literal)
             }
             _ if pivot.is_keyword() => self.expected(
-                format!("Unexpected keyword '{}'", token.value),
+                format!("Unexpected keyword '{}'", token.text(self.source.source)),
                 ParseErrorKind::Unexpected,
             ),
             _ if pivot.is_ponctuation()
                 || (leniency == LiteralLeniency::Strict && pivot.is_extended_ponctuation()) =>
             {
                 self.expected(
-                    format!("Unexpected token '{}'.", token.value),
+                    format!("Unexpected token '{}'.", token.text(self.source.source)),
                     ParseErrorKind::Unexpected,
                 )
             }
@@ -89,10 +89,10 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                     .lookahead(next().then(of_types(&[StringLiteral, StringStart])))
                     .is_some() =>
             {
-                if token.value == "p" {
+                if token.text(self.source.source) == "p" {
                     self.cursor.next_opt();
                     let literal = self.string_literal()?;
-                    let segment = self.cursor.relative_pos(token).start..literal.segment.end;
+                    let segment = token.span.start..literal.segment.end;
                     Ok(Expr::Range(Iterable::Files(FilePattern {
                         pattern: Box::new(Expr::Literal(literal)),
                         segment,
@@ -107,10 +107,9 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
 
     fn number_literal(&mut self) -> ParseResult<Literal> {
         let start = self.cursor.next()?;
-        let value = start.value;
         Ok(Literal {
-            parsed: self.parse_number_value(start)?,
-            segment: self.cursor.relative_pos(value),
+            parsed: self.parse_number_value(start.clone())?,
+            segment: start.span,
         })
     }
 
@@ -118,9 +117,9 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         let literal = self
             .cursor
             .force(of_type(StringLiteral), "Expected string literal.")?;
-        let segment = self.cursor.relative_pos(literal.value);
+        let segment = literal.span.clone();
         Ok(Literal {
-            parsed: LiteralValue::String(unescape(literal.value)),
+            parsed: LiteralValue::String(unescape(literal.text(self.source.source))),
             segment: (segment.start - 1)..(segment.end + 1),
         })
     }
@@ -138,8 +137,8 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 StringContent => {
                     self.cursor.next_opt();
                     parts.push(Expr::Literal(Literal {
-                        parsed: LiteralValue::String(unescape(token.value)),
-                        segment: self.cursor.relative_pos(token.value),
+                        parsed: LiteralValue::String(unescape(token.text(self.source.source))),
+                        segment: token.span,
                     }));
                 }
                 Dollar => {
@@ -148,7 +147,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 EndOfFile => {
                     return self.expected(
                         "Unterminated string template literal.",
-                        ParseErrorKind::Unpaired(self.cursor.relative_pos_ctx(start)),
+                        ParseErrorKind::Unpaired(start.span),
                     )
                 }
                 _ => {
@@ -161,7 +160,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         };
         Ok(TemplateString {
             parts,
-            segment: self.cursor.relative_pos_ctx(start..end),
+            segment: start.span.start..end.span.end,
         })
     }
 
@@ -181,21 +180,21 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 EndOfFile => {
                     return self.expected(
                         "Unterminated string template literal.",
-                        ParseErrorKind::Unpaired(self.cursor.relative_pos_ctx(start)),
+                        ParseErrorKind::Unpaired(start.span),
                     )
                 }
                 _ => {
                     self.cursor.next_opt();
                     parts.push(Expr::Literal(Literal {
-                        parsed: LiteralValue::String(unescape(token.value)),
-                        segment: self.cursor.relative_pos(token.value),
+                        parsed: LiteralValue::String(unescape(token.text(self.source.source))),
+                        segment: token.span,
                     }));
                 }
             }
         };
         Ok(TemplateString {
             parts,
-            segment: self.cursor.relative_pos_ctx(start..end),
+            segment: start.span.start..end.span.end,
         })
     }
 
@@ -207,16 +206,16 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         let start = self.cursor.peek();
         let mut parts = Vec::<Expr>::new();
         let mut has_wildcard = false;
-        let mut end_segment = self.cursor.relative_pos(start.value);
+        let mut end_segment = start.span.clone();
 
         if self.cursor.advance(of_type(Tilde)).is_some() {
             // Create the start of the tilde expansion, that may be completed later.
             if let Some(plus) = self.cursor.advance(of_type(Plus)) {
                 parts.push(Expr::Tilde(TildeExpansion {
                     structure: Tilde::WorkingDir,
-                    segment: end_segment.start..self.cursor.relative_pos_ctx(plus.value).end,
+                    segment: end_segment.start..plus.span.end,
                 }));
-                end_segment = self.cursor.relative_pos(plus.value);
+                end_segment = plus.span;
             } else {
                 parts.push(Expr::Tilde(TildeExpansion {
                     structure: Tilde::HomeDir(None),
@@ -258,7 +257,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                         break;
                     }
                     self.cursor.next_opt();
-                    end_segment = self.cursor.relative_pos(token.value);
+                    end_segment = token.span.clone();
 
                     // Either append to the last literal, or create a new one.
                     // The third case is when a tilde expansion is present and can be completed.
@@ -267,7 +266,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                             parsed: LiteralValue::String(ref mut s),
                             segment,
                         })) => {
-                            s.push_str(token.value);
+                            s.push_str(token.text(self.source.source));
                             segment.end = end_segment.end;
                         }
                         Some(Expr::Tilde(TildeExpansion {
@@ -275,28 +274,32 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                             segment,
                         })) if token.token_type != Slash => {
                             *user = Some(Box::new(Expr::Literal(Literal {
-                                parsed: LiteralValue::String(token.value.to_owned()),
+                                parsed: LiteralValue::String(
+                                    token.text(self.source.source).to_owned(),
+                                ),
                                 segment: end_segment.clone(),
                             })));
                             segment.end = end_segment.end;
                         }
                         _ => {
                             parts.push(Expr::Literal(Literal {
-                                parsed: LiteralValue::String(token.value.to_owned()),
+                                parsed: LiteralValue::String(
+                                    token.text(self.source.source).to_owned(),
+                                ),
                                 segment: end_segment.clone(),
                             }));
                         }
                     }
 
                     // Preserve the position of wildcards.
-                    if token.token_type == Star || token.value.contains('?') {
+                    if token.token_type == Star || token.text(self.source.source).contains('?') {
                         has_wildcard = true;
                     }
                 }
             }
         }
 
-        let start_segment = self.cursor.relative_pos(start.value);
+        let start_segment = start.span.clone();
 
         // Replace wildcards with the appropriate expression.
         if has_wildcard {
@@ -366,25 +369,35 @@ impl<'a> Parser<'a> {
                     return self.expected("Expected a boolean literal.", ParseErrorKind::Unexpected)
                 }
             }),
-            segment: self.cursor.relative_pos_ctx(token),
+            segment: token.span,
         })
     }
 
-    fn parse_number_value(&self, token: Token<'a>) -> ParseResult<LiteralValue> {
+    fn parse_number_value(&self, token: Token) -> ParseResult<LiteralValue> {
         match token.token_type {
-            IntLiteral => Ok(LiteralValue::Int(token.value.parse::<i64>().map_err(
-                |e| match e.kind() {
-                    IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => self.mk_parse_error(
-                        "Integer constant is too large.".to_string(),
-                        token,
-                        ParseErrorKind::InvalidFormat,
-                    ),
-                    _ => self.mk_parse_error(e.to_string(), token, ParseErrorKind::InvalidFormat),
-                },
-            )?)),
-            FloatLiteral => Ok(LiteralValue::Float(token.value.parse::<f64>().map_err(
-                |e| self.mk_parse_error(e.to_string(), token, ParseErrorKind::InvalidFormat),
-            )?)),
+            IntLiteral => Ok(LiteralValue::Int(
+                token
+                    .text(self.source.source)
+                    .parse::<i64>()
+                    .map_err(|e| match e.kind() {
+                        IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => self
+                            .mk_parse_error(
+                                "Integer constant is too large.".to_string(),
+                                token.span,
+                                ParseErrorKind::InvalidFormat,
+                            ),
+                        _ => self.mk_parse_error(
+                            e.to_string(),
+                            token.span,
+                            ParseErrorKind::InvalidFormat,
+                        ),
+                    })?,
+            )),
+            FloatLiteral => Ok(LiteralValue::Float(
+                token.text(self.source.source).parse::<f64>().map_err(|e| {
+                    self.mk_parse_error(e.to_string(), token.span, ParseErrorKind::InvalidFormat)
+                })?,
+            )),
             _ => self.expected("Expected a literal.", ParseErrorKind::Unexpected),
         }
     }

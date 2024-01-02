@@ -29,7 +29,7 @@ impl<'a> TestAspect<'a> for Parser<'a> {
         if let Some(end) = self.cursor.advance(of_type(SquaredRightBracket)) {
             self.expected_with(
                 "native test evaluation cannot be empty.",
-                start.clone()..end,
+                start.span.start..end.span.end,
                 ParseErrorKind::Unexpected,
             )?;
         }
@@ -42,18 +42,18 @@ impl<'a> TestAspect<'a> for Parser<'a> {
             //expect trailing ']'
             spaces().then(of_type(SquaredRightBracket)),
             "missing ']'",
-            ParseErrorKind::Unpaired(self.cursor.relative_pos(&start)),
+            ParseErrorKind::Unpaired(start.span.clone()),
         )?;
         Ok(Expr::Test(Test {
             expression: underlying,
-            segment: self.cursor.relative_pos_ctx(start..end),
+            segment: start.span.start..end.span.end,
         }))
     }
 }
 
 impl<'a> Parser<'a> {
     fn parse_test_call(&mut self, start: Token) -> ParseResult<Expr<'a>> {
-        let segment = self.cursor.relative_pos_ctx(start.clone());
+        let segment = start.span;
         let call = self.call_arguments(Expr::Literal(Literal {
             parsed: "test".into(),
             segment: segment.start..segment.end + 1,
@@ -63,7 +63,7 @@ impl<'a> Parser<'a> {
             //expect trailing ']]'
             spaces().then(times(2, of_type(SquaredRightBracket))),
             "missing ']]'",
-            ParseErrorKind::Unpaired(self.cursor.relative_pos(start)),
+            ParseErrorKind::Unpaired(segment),
         )?;
 
         Ok(call)

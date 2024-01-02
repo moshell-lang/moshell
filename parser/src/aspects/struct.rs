@@ -45,12 +45,12 @@ impl<'a> StructAspect<'a> for Parser<'a> {
             Parser::parse_field,
         )?;
 
-        let segment_start = self.cursor.relative_pos(start).start;
+        let segment_start = start.span.start;
         let segment_end = body_segment.end;
         let segment = segment_start..segment_end;
 
         Ok(StructDeclaration {
-            name: name.value,
+            name: name.text(self.source.source),
             parameters,
             fields,
             segment,
@@ -92,8 +92,8 @@ impl<'a> StructAspect<'a> for Parser<'a> {
                 .advance(blanks().then(of_type(TokenType::CurlyRightBracket)));
         }
 
-        let segment_start = self.cursor.relative_pos(start).start;
-        let segment_end = self.cursor.relative_pos(end_token.unwrap()).end;
+        let segment_start = start.span.start;
+        let segment_end = end_token.unwrap().span.end;
         let segment = segment_start..segment_end;
 
         Ok(StructImpl {
@@ -119,12 +119,12 @@ impl<'a> Parser<'a> {
 
         let tpe = self.parse_type()?;
 
-        let segment_start = self.cursor.relative_pos(name.value).start;
+        let segment_start = name.span.start;
         let segment_end = tpe.segment().end;
         let segment = segment_start..segment_end;
 
         Ok(FieldDeclaration {
-            name: name.value,
+            name: name.text(self.source.source),
             tpe,
             segment,
         })

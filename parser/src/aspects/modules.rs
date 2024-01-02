@@ -33,7 +33,7 @@ impl<'a> ModulesAspect<'a> for Parser<'a> {
         let import_seg_end = import.segment().end;
         Ok(Expr::Use(Use {
             import,
-            segment: self.cursor.relative_pos_ctx(start).start..import_seg_end,
+            segment: start.span.start..import_seg_end,
         }))
     }
 
@@ -44,7 +44,7 @@ impl<'a> ModulesAspect<'a> for Parser<'a> {
             if delim.token_type != ColonColon {
                 self.report_error(self.mk_parse_error(
                     "Expected `::`.",
-                    delim,
+                    delim.span,
                     ParseErrorKind::Unexpected,
                 ));
             }
@@ -64,13 +64,13 @@ impl<'a> Parser<'a> {
 
         match start.token_type {
             Identifier => Ok(InclusionPathItem::Symbol(
-                start.value,
-                self.cursor.relative_pos_ctx(start),
+                start.text(self.source.source),
+                start.span,
             )),
-            Reef => Ok(InclusionPathItem::Reef(self.cursor.relative_pos_ctx(start))),
+            Reef => Ok(InclusionPathItem::Reef(start.span)),
             _ => self.expected_with(
                 "Expected identifier or `reef`.",
-                start,
+                start.span,
                 ParseErrorKind::Unexpected,
             ),
         }
@@ -91,13 +91,13 @@ impl<'a> Parser<'a> {
                     ParseErrorKind::Expected("<identifier>".to_string()),
                 )?;
                 Ok(Import::Environment(
-                    env_variable.value,
-                    self.cursor.relative_pos_ctx(pivot..env_variable),
+                    env_variable.text(self.source.source),
+                    pivot.span.start..env_variable.span.end,
                 ))
             }
             Star => self.expected_with(
                 "import all statement needs a symbol prefix.",
-                pivot,
+                pivot.span,
                 ParseErrorKind::Expected("module path".to_string()),
             ),
             CurlyLeftBracket => self.parse_import_list(pivot, vec![]).map(Import::List),
@@ -108,7 +108,7 @@ impl<'a> Parser<'a> {
 
     fn parse_import_list(
         &mut self,
-        start: Token<'a>,
+        start: Token,
         root: Vec<InclusionPathItem<'a>>,
     ) -> ParseResult<ImportList<'a>> {
         self.parse_explicit_list(
@@ -122,14 +122,14 @@ impl<'a> Parser<'a> {
             if imports.is_empty() {
                 return self.expected_with(
                     "empty brackets",
-                    start..self.cursor.peek(),
+                    start.span.start..self.cursor.peek().span.end,
                     ParseErrorKind::Expected("non-empty brackets".to_string()),
                 );
             }
             Ok(ImportList {
                 root,
                 imports,
-                segment: self.cursor.relative_pos_ctx(start).start..s.end,
+                segment: start.span.start..s.end,
             })
         })
     }
@@ -147,7 +147,7 @@ impl<'a> Parser<'a> {
 
                 return Ok(Import::AllIn(
                     symbol_path.path,
-                    self.cursor.relative_pos_ctx(start..token),
+                    start.span.start..token.span.end,
                 ));
             }
             return self
@@ -162,23 +162,22 @@ impl<'a> Parser<'a> {
                 .then(of_type(Identifier)),
         );
 
-        let end = alias
-            .as_ref()
-            .map(|t| self.cursor.relative_pos(t.value).end)
-            .unwrap_or(if let Some(val) = symbol_path.path.last() {
+        let end = alias.as_ref().map(|t| t.span.end).unwrap_or(
+            if let Some(val) = symbol_path.path.last() {
                 val.segment().end
             } else {
                 self.expected_with(
                     "identifier expected",
-                    start.clone()..self.cursor.peek(),
+                    start.span.start..self.cursor.peek().span.end,
                     ParseErrorKind::Expected("<identifier>".to_owned()),
                 )?
-            });
+            },
+        );
 
         Ok(Import::Symbol(ImportedSymbol {
             path: symbol_path.path,
-            alias: alias.map(|t| t.value),
-            segment: self.cursor.relative_pos_ctx(start).start..end,
+            alias: alias.map(|t| t.text(self.source.source)),
+            segment: start.span.start..end,
         }))
     }
 

@@ -22,12 +22,12 @@ impl<'a> DetachedAspect<'a> for Parser<'a> {
             if let Some(another) = self.cursor.advance(ampersand) {
                 return self.expected_with(
                     "'&' not allowed here",
-                    another,
+                    another.span,
                     ParseErrorKind::Unexpected,
                 );
             }
             let underlying = Box::new(underlying);
-            let segment = underlying.segment().start..self.cursor.relative_pos(first).end;
+            let segment = underlying.segment().start..first.span.end;
             return Ok(Expr::Detached(Detached {
                 underlying,
                 segment,

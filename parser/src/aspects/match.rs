@@ -2,10 +2,10 @@ use ast::r#match::MatchPattern::{Literal, Template, VarRef, Wildcard};
 use ast::r#match::{Match, MatchArm, MatchPattern};
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
-use lexer::token::TokenType;
 use lexer::token::TokenType::{
     At, Bar, CurlyLeftBracket, CurlyRightBracket, FatArrow, Identifier, If,
 };
+use lexer::token::{Token, TokenType};
 
 use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
 use crate::err::ParseErrorKind;
@@ -35,7 +35,7 @@ impl<'a> MatchAspect<'a> for Parser<'a> {
         Ok(Match {
             operand,
             arms,
-            segment: self.cursor.relative_pos(start).start..segment.end,
+            segment: start.span.start..segment.end,
         })
     }
 }
@@ -61,14 +61,10 @@ impl<'a> Parser<'a> {
         let closing_bracket = self.cursor.force_with(
             blanks().then(of_type(CurlyRightBracket)),
             "expected '}'",
-            ParseErrorKind::Unpaired(self.cursor.relative_pos(opening_bracket.clone())),
+            ParseErrorKind::Unpaired(opening_bracket.span.clone()),
         )?;
 
-        Ok((
-            arms,
-            self.cursor
-                .relative_pos_ctx(opening_bracket..closing_bracket),
-        ))
+        Ok((arms, opening_bracket.span.start..closing_bracket.span.end))
     }
 
     fn parse_match_arm(&mut self) -> ParseResult<MatchArm<'a>> {
@@ -81,13 +77,13 @@ impl<'a> Parser<'a> {
 
         let mut segment = body.segment();
         segment.start = match val_name {
-            Some(name) => self.cursor.relative_pos_ctx(name),
+            Some(ref name) => name.span.clone(),
             None => patterns.first().expect("at least one pattern").segment(),
         }
         .start;
 
         Ok(MatchArm {
-            val_name,
+            val_name: val_name.map(|name| name.text(self.source.source)),
             patterns,
             guard,
             body,
@@ -95,7 +91,7 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_extracted_name(&mut self) -> ParseResult<Option<&'a str>> {
+    fn parse_extracted_name(&mut self) -> ParseResult<Option<Token>> {
         if self
             .cursor
             .lookahead(aerated(any()).then(of_type(At)))
@@ -107,7 +103,6 @@ impl<'a> Parser<'a> {
                     of_type(Identifier),
                     "expected identifier for extracted val name",
                 )
-                .map(|t| t.value)
                 .map(Some);
             //consume everything before 'at' included
             self.cursor
@@ -130,7 +125,7 @@ impl<'a> Parser<'a> {
         }
 
         //store start lexeme
-        let start = self.cursor.lookahead(blanks()).unwrap().value; //blanks always succeeds
+        let start = self.cursor.lookahead(blanks()).unwrap().span.start; //blanks always succeeds // TODO check if true
         let first = self.parse_pattern()?;
 
         let mut patterns = vec![first.clone()];
@@ -147,12 +142,11 @@ impl<'a> Parser<'a> {
             return if patterns.len() == 1 {
                 Ok(vec![first])
             } else {
-                let start = self.cursor.relative_pos(start).start;
-                let end = self.cursor.relative_pos(self.cursor.peek()).end;
+                let end = self.cursor.peek().span.end;
                 let selection = start..end;
                 return self.expected_with(
                     "wildcard pattern cannot be followed by other patterns",
-                    &self.source.source[selection],
+                    selection,
                     ParseErrorKind::Unexpected,
                 );
             };
@@ -174,8 +168,7 @@ impl<'a> Parser<'a> {
         match self.cursor.peek().token_type {
             TokenType::Star => {
                 let star = self.cursor.next()?;
-                let segment = self.cursor.relative_pos(star.value);
-                Ok(Wildcard(segment))
+                Ok(Wildcard(star.span))
             }
             _ => match self.literal(LiteralLeniency::Strict)? {
                 Expr::Literal(literal) => Ok(Literal(literal)),

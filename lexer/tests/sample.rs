@@ -1,11 +1,29 @@
 use lexer::delimiter::UnmatchedDelimiter;
-use lexer::token::{Token, TokenType};
+use lexer::token::TokenType;
 use pretty_assertions::assert_eq;
+
+#[derive(Debug, PartialEq, Eq)]
+struct Token<'a> {
+    token_type: TokenType,
+    text: &'a str,
+}
+
+impl Token<'_> {
+    fn new(token_type: TokenType, text: &str) -> Token {
+        Token { token_type, text }
+    }
+}
 
 fn lex(input: &str) -> Vec<Token> {
     let (tokens, unmatched) = lexer::lex(input);
     assert_eq!(unmatched, &[]);
     tokens
+        .iter()
+        .map(|t| Token {
+            token_type: t.token_type,
+            text: t.text(input),
+        })
+        .collect::<Vec<_>>()
 }
 
 #[test]
@@ -50,7 +68,13 @@ fn string_literal_unterminated_due_to_comment() {
         }]
     );
     assert_eq!(
-        tokens,
+        tokens
+            .iter()
+            .map(|t| Token {
+                token_type: t.token_type,
+                text: t.text(input),
+            })
+            .collect::<Vec<_>>(),
         vec![
             Token::new(TokenType::Identifier, "echo"),
             Token::new(TokenType::Space, " "),

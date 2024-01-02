@@ -1,3 +1,4 @@
+use context::source::SourceSegment;
 use std::iter::Peekable;
 use std::str::CharIndices;
 
@@ -13,7 +14,7 @@ pub(crate) struct Lexer<'a> {
     pub(crate) input: &'a str,
 
     /// The stack to keep track of string depths.
-    pub(crate) open_delimiters: Vec<Token<'a>>,
+    pub(crate) open_delimiters: Vec<Token>,
 
     /// The vector of unmatched delimiter errors.
     pub(crate) mismatches: Vec<UnmatchedDelimiter>,
@@ -28,7 +29,7 @@ enum LexerState {
 }
 
 impl<'a> Iterator for Lexer<'a> {
-    type Item = Token<'a>;
+    type Item = Token;
     fn next(&mut self) -> Option<Self::Item> {
         let token = self.next_token();
         if token.token_type == TokenType::EndOfFile {
@@ -51,14 +52,14 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn next_token(&mut self) -> Token<'a> {
+    fn next_token(&mut self) -> Token {
         if let Some((pos, c)) = self.iter.next() {
             if self.is_in_string() {
                 if c == '$' {
                     self.state = LexerState::Variable;
                 } else if c == '"' {
                     self.open_delimiters.pop();
-                    return Token::new(TokenType::StringEnd, &self.input[pos..pos + 1]);
+                    return Token::new(TokenType::StringEnd, pos..pos + 1);
                 }
             }
             if self.is_in_string() && self.state == LexerState::Normal {
@@ -67,12 +68,12 @@ impl<'a> Lexer<'a> {
                 self.next_token_char(pos, c)
             }
         } else {
-            Token::new(TokenType::EndOfFile, "")
+            Token::new(TokenType::EndOfFile, SourceSegment::default())
         }
     }
 
     /// Creates the next token, given that the first character is already known.
-    fn next_token_char(&mut self, pos: usize, ch: char) -> Token<'a> {
+    fn next_token_char(&mut self, pos: usize, ch: char) -> Token {
         self.state = LexerState::Normal;
         let mut size = ch.len_utf8();
         let token_type = match ch {
@@ -80,10 +81,8 @@ impl<'a> Lexer<'a> {
                 return self.next_string(pos);
             }
             '"' => {
-                self.open_delimiters.push(Token::new(
-                    TokenType::StringStart,
-                    &self.input[pos..pos + 1],
-                ));
+                self.open_delimiters
+                    .push(Token::new(TokenType::StringStart, pos..pos + 1));
                 TokenType::StringStart
             }
             '`' => {
@@ -95,7 +94,7 @@ impl<'a> Lexer<'a> {
                     self.open_delimiters.pop();
                 } else {
                     self.open_delimiters
-                        .push(Token::new(TokenType::Backtick, &self.input[pos..pos + 1]));
+                        .push(Token::new(TokenType::Backtick, pos..pos + 1));
                 }
                 TokenType::Backtick
             }
@@ -120,10 +119,8 @@ impl<'a> Lexer<'a> {
             '[' => TokenType::SquaredLeftBracket,
             ']' => TokenType::SquaredRightBracket,
             '(' => {
-                self.open_delimiters.push(Token::new(
-                    TokenType::RoundedLeftBracket,
-                    &self.input[pos..pos + 1],
-                ));
+                self.open_delimiters
+                    .push(Token::new(TokenType::RoundedLeftBracket, pos..pos + 1));
                 TokenType::RoundedLeftBracket
             }
             ')' => {
@@ -131,10 +128,8 @@ impl<'a> Lexer<'a> {
                 TokenType::RoundedRightBracket
             }
             '{' => {
-                self.open_delimiters.push(Token::new(
-                    TokenType::CurlyLeftBracket,
-                    &self.input[pos..pos + 1],
-                ));
+                self.open_delimiters
+                    .push(Token::new(TokenType::CurlyLeftBracket, pos..pos + 1));
                 TokenType::CurlyLeftBracket
             }
             '}' => {
@@ -229,22 +224,19 @@ impl<'a> Lexer<'a> {
                 return self.next_identifier(pos, c);
             }
         };
-        Token::new(token_type, &self.input[pos..pos + size])
+        Token::new(token_type, pos..pos + size)
     }
 
     /// Yields a token for a escape character.
-    fn next_escape(&mut self, mut start_pos: usize) -> Token<'a> {
+    fn next_escape(&mut self, mut start_pos: usize) -> Token {
         if let Some((_, c)) = self.iter.next() {
             start_pos += 1;
             match c {
                 '\r' | '\n' => self.next_space(start_pos, c),
-                _ => Token::new(
-                    TokenType::Identifier,
-                    &self.input[start_pos..start_pos + c.len_utf8()],
-                ),
+                _ => Token::new(TokenType::Identifier, start_pos..start_pos + c.len_utf8()),
             }
         } else {
-            Token::new(TokenType::EndOfFile, &self.input[start_pos..start_pos + 1])
+            Token::new(TokenType::EndOfFile, start_pos..start_pos + 1)
         }
     }
 
@@ -261,13 +253,13 @@ impl<'a> Lexer<'a> {
     }
 
     /// Skip the remaining characters of the current line.
-    fn skip_line(&mut self) -> Token<'a> {
+    fn skip_line(&mut self) -> Token {
         for (pos, c) in self.iter.by_ref() {
             if c == '\n' {
-                return Token::new(TokenType::NewLine, &self.input[pos..pos + 1]);
+                return Token::new(TokenType::NewLine, pos..pos + 1);
             }
         }
-        Token::new(TokenType::EndOfFile, "")
+        Token::new(TokenType::EndOfFile, SourceSegment::default())
     }
 
     /// Skip the remaining characters of the current multiline comment.
@@ -279,7 +271,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn next_string(&mut self, start: usize) -> Token<'a> {
+    fn next_string(&mut self, start: usize) -> Token {
         let mut end = start + 1;
         let mut escape = false;
         for (pos, c) in self.iter.by_ref() {
@@ -293,7 +285,7 @@ impl<'a> Lexer<'a> {
                 continue;
             }
             if c == '\'' {
-                return Token::new(TokenType::StringLiteral, &self.input[start + 1..end]);
+                return Token::new(TokenType::StringLiteral, start + 1..end);
             }
         }
         self.mismatches.push(UnmatchedDelimiter {
@@ -301,10 +293,10 @@ impl<'a> Lexer<'a> {
             candidate: None,
             closing: None,
         });
-        Token::new(TokenType::StringLiteral, &self.input[start + 1..end])
+        Token::new(TokenType::StringLiteral, start + 1..end)
     }
 
-    fn next_content(&mut self, start: usize) -> Token<'a> {
+    fn next_content(&mut self, start: usize) -> Token {
         let mut end = start;
         let mut escape = false;
         while let Some(&(pos, c)) = self.iter.peek() {
@@ -328,7 +320,7 @@ impl<'a> Lexer<'a> {
             }
             self.iter.next();
         }
-        Token::new(TokenType::StringContent, &self.input[start..end])
+        Token::new(TokenType::StringContent, start..end)
     }
 
     fn is_in_string(&self) -> bool {

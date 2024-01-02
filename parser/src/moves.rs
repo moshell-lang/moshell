@@ -12,9 +12,9 @@ pub trait Move {
     /// `None` if the move did not take effect.
     ///* `at` - get token at given position
     ///* `pos` - the position in ParserCursor at beginning of the move
-    fn apply<'a, F>(&self, at: F, pos: usize) -> MoveResult
+    fn apply<F>(&self, at: F, pos: usize) -> MoveResult
     where
-        F: Fn(usize) -> Token<'a>;
+        F: Fn(usize) -> Token;
 }
 
 ///Defines operations over a Move struct.
@@ -81,9 +81,9 @@ impl<P> Move for PredicateMove<P>
 where
     P: Fn(Token) -> bool + Copy,
 {
-    fn apply<'a, F>(&self, mut at: F, pos: usize) -> MoveResult
+    fn apply<F>(&self, mut at: F, pos: usize) -> MoveResult
     where
-        F: FnMut(usize) -> Token<'a>,
+        F: FnMut(usize) -> Token,
     {
         let t: Token = at(pos);
         (self.predicate)(t).then_some(pos + 1).ok_or(pos)
@@ -161,8 +161,8 @@ pub(crate) fn blanks() -> RepeatedMove<PredicateMove<impl Fn(Token) -> bool + Co
 pub(crate) fn aerated<M: Move + Copy>(
     m: M,
 ) -> AndThenMove<
-    ThenMove<RepeatedMove<PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>>, M>,
-    RepeatedMove<PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy>>,
+    ThenMove<RepeatedMove<PredicateMove<impl (Fn(Token) -> bool) + Copy>>, M>,
+    RepeatedMove<PredicateMove<impl (Fn(Token) -> bool) + Copy>>,
 > {
     blanks().then(m).and_then(blanks())
 }
@@ -176,9 +176,9 @@ pub(crate) struct NotMove<M: Move + Copy> {
 }
 
 impl<M: Move + Copy> Move for NotMove<M> {
-    fn apply<'a, F>(&self, at: F, pos: usize) -> MoveResult
+    fn apply<F>(&self, at: F, pos: usize) -> MoveResult
     where
-        F: Fn(usize) -> Token<'a>,
+        F: Fn(usize) -> Token,
     {
         match self.underlying.apply(at, pos) {
             Ok(_) => Err(pos),
@@ -204,9 +204,9 @@ pub(crate) struct RepeatedMove<M: Move + Copy> {
 }
 
 impl<M: Move + Copy> Move for RepeatedMove<M> {
-    fn apply<'a, F>(&self, at: F, pos: usize) -> MoveResult
+    fn apply<F>(&self, at: F, pos: usize) -> MoveResult
     where
-        F: Fn(usize) -> Token<'a>,
+        F: Fn(usize) -> Token,
     {
         let mut repeats = 0;
         let mut current_pos = pos;
@@ -277,9 +277,9 @@ pub(crate) struct AndThenMove<A: Move + Copy, B: Move + Copy> {
 }
 
 impl<A: Move + Copy, B: Move + Copy> Move for AndThenMove<A, B> {
-    fn apply<'a, F>(&self, at: F, pos: usize) -> MoveResult
+    fn apply<F>(&self, at: F, pos: usize) -> MoveResult
     where
-        F: Fn(usize) -> Token<'a>,
+        F: Fn(usize) -> Token,
     {
         self.left
             .apply(&at, pos)
@@ -295,9 +295,9 @@ pub(crate) struct ThenMove<A: Move + Copy, B: Move + Copy> {
 }
 
 impl<A: Move + Copy, B: Move + Copy> Move for ThenMove<A, B> {
-    fn apply<'a, F>(&self, at: F, mut pos: usize) -> MoveResult
+    fn apply<F>(&self, at: F, mut pos: usize) -> MoveResult
     where
-        F: Fn(usize) -> Token<'a>,
+        F: Fn(usize) -> Token,
     {
         if let Ok(new_pos) = self.left.apply(&at, pos) {
             pos = new_pos
@@ -314,9 +314,9 @@ pub(crate) struct OrMove<A: Move + Copy, B: Move + Copy> {
 }
 
 impl<A: Move + Copy, B: Move + Copy> Move for OrMove<A, B> {
-    fn apply<'a, F>(&self, at: F, pos: usize) -> MoveResult
+    fn apply<F>(&self, at: F, pos: usize) -> MoveResult
     where
-        F: Fn(usize) -> Token<'a>,
+        F: Fn(usize) -> Token,
     {
         self.left
             .apply(&at, pos)
@@ -332,9 +332,9 @@ pub(crate) struct LookaheadMove<A: Move + Copy> {
 }
 
 impl<A: Move + Copy> Move for LookaheadMove<A> {
-    fn apply<'a, F>(&self, at: F, pos: usize) -> MoveResult
+    fn apply<F>(&self, at: F, pos: usize) -> MoveResult
     where
-        F: Fn(usize) -> Token<'a>,
+        F: Fn(usize) -> Token,
     {
         self.underlying.apply(&at, pos).map(|_| pos)
     }
@@ -349,19 +349,19 @@ pub(crate) fn lookahead<M: Move + Copy>(m: M) -> LookaheadMove<M> {
 /// Tests if the token ends an expression.
 ///
 /// Use this move in expressions where line endings are important. If not, use [`eog`].
-pub(crate) fn eox() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
+pub(crate) fn eox() -> PredicateMove<impl (Fn(Token) -> bool) + Copy> {
     like(TokenType::ends_expression)
 }
 
 /// Tests if the token ends a group.
 ///
 /// Use this move in expressions where line endings does not matter. If not, use [`eox`].
-pub(crate) fn eog() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
+pub(crate) fn eog() -> PredicateMove<impl (Fn(Token) -> bool) + Copy> {
     like(TokenType::ends_group)
 }
 
 /// Tests if the token acts as a line ending.
-pub(crate) fn line_end() -> PredicateMove<impl (for<'a> Fn(Token<'a>) -> bool) + Copy> {
+pub(crate) fn line_end() -> PredicateMove<impl (Fn(Token) -> bool) + Copy> {
     of_types(&[NewLine, SemiColon, EndOfFile])
 }
 
@@ -374,7 +374,6 @@ pub(crate) fn identifier_parenthesis() -> AndThenMove<
 
 #[cfg(test)]
 mod tests {
-    use lexer::lex;
     use pretty_assertions::assert_eq;
 
     use lexer::token::{Token, TokenType};
@@ -384,9 +383,9 @@ mod tests {
 
     #[test]
     fn eox_move() {
-        let tokens = lex(";").0;
-        let cursor = ParserCursor::new(tokens);
+        let tokens = [Token::new(TokenType::SemiColon, 0..1)];
+        let cursor = ParserCursor::new(tokens.to_vec());
         let result = cursor.lookahead(eox());
-        assert_eq!(result, Some(Token::new(TokenType::SemiColon, ";")));
+        assert_eq!(result, Some(tokens[0].clone()));
     }
 }

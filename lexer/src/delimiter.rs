@@ -26,7 +26,7 @@ pub(crate) struct TokenStream<'a> {
     pub(crate) lexer: Lexer<'a>,
 
     /// The stack to keep track of delimiter pairs.
-    pub(crate) open_delimiters: Vec<Token<'a>>,
+    pub(crate) open_delimiters: Vec<Token>,
 }
 
 impl<'a> TokenStream<'a> {
@@ -37,7 +37,7 @@ impl<'a> TokenStream<'a> {
         }
     }
 
-    fn verify_pair(&mut self, token: Token<'a>) -> Token<'a> {
+    fn verify_pair(&mut self, token: Token) -> Token {
         match token.token_type {
             TokenType::SquaredLeftBracket
             | TokenType::RoundedLeftBracket
@@ -47,14 +47,13 @@ impl<'a> TokenStream<'a> {
             TokenType::SquaredRightBracket
             | TokenType::RoundedRightBracket
             | TokenType::CurlyRightBracket => {
-                let offset = token.value.as_ptr() as usize - self.lexer.input.as_ptr() as usize;
+                let offset = token.span.start;
                 if let Some(open_delimiter) = self.open_delimiters.pop() {
                     let closing_pair = open_delimiter
                         .token_type
                         .closing_pair()
                         .expect("Invalid opening delimiter passed to the stack");
-                    let open_offset =
-                        open_delimiter.value.as_ptr() as usize - self.lexer.input.as_ptr() as usize;
+                    let open_offset = open_delimiter.span.start;
                     if token.token_type == closing_pair {
                         if let Some(last) = self.lexer.mismatches.last_mut() {
                             if last.opening == Some(open_offset) && last.closing.is_none() {
@@ -83,16 +82,15 @@ impl<'a> TokenStream<'a> {
     }
 }
 
-impl<'a> Iterator for TokenStream<'a> {
-    type Item = Token<'a>;
+impl Iterator for TokenStream<'_> {
+    type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.lexer.next() {
             Some(token) => Some(self.verify_pair(token)),
             None => {
                 while let Some(open_delimiter) = self.open_delimiters.pop() {
-                    let offset =
-                        open_delimiter.value.as_ptr() as usize - self.lexer.input.as_ptr() as usize;
+                    let offset = open_delimiter.span.start;
                     self.lexer.mismatches.push(UnmatchedDelimiter {
                         opening: Some(offset),
                         candidate: None,

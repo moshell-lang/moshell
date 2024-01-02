@@ -104,7 +104,7 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
                 self.cursor.advance(blanks());
                 self.report_error(self.mk_parse_error(
                     if_it_absent_msg,
-                    comma,
+                    comma.span,
                     ParseErrorKind::Unexpected,
                 ));
             }
@@ -133,7 +133,7 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
 
         let end = self.expect_delimiter(start.clone(), end)?;
 
-        Ok((elements, self.cursor.relative_pos_ctx(start..end)))
+        Ok((elements, start.span.start..end.span.end))
     }
 
     fn parse_optional_list<E, F>(

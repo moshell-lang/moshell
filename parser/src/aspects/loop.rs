@@ -32,7 +32,7 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
         self.cursor.advance(line_end());
 
         let body = Box::new(self.statement()?);
-        let segment = self.cursor.relative_pos(start).start..body.segment().end;
+        let segment = start.span.start..body.segment().end;
 
         Ok(While {
             condition,
@@ -48,7 +48,7 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
         )?;
         self.cursor.advance(blanks());
         let body = Box::new(self.statement()?);
-        let segment = self.cursor.relative_pos(start).start..body.segment().end;
+        let segment = start.span.start..body.segment().end;
 
         Ok(Loop { body, segment })
     }
@@ -62,7 +62,7 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
         let kind = Box::new(self.parse_for_kind()?);
         self.cursor.advance(line_end());
         let body = Box::new(self.statement()?);
-        let segment = self.cursor.relative_pos(start).start..body.segment().end;
+        let segment = start.span.start..body.segment().end;
 
         Ok(For {
             kind,
@@ -76,7 +76,7 @@ impl<'a> Parser<'a> {
     /// Parses the for kind, either a range for or a conditional for.
     fn parse_for_kind(&mut self) -> ParseResult<ForKind<'a>> {
         let current = self.cursor.peek();
-        let start_pos = self.cursor.relative_pos(&current).start;
+        let start_pos = current.span.start;
         match current.token_type {
             TokenType::Identifier => {
                 let range_for = self.parse_range_for()?;
@@ -92,11 +92,11 @@ impl<'a> Parser<'a> {
             TokenType::Dollar => {
                 self.cursor.next_opt();
                 if self.parse_range_for().is_ok() {
-                    let end_pos = self.cursor.relative_pos(self.cursor.peek()).end;
+                    let end_pos = self.cursor.peek().span.end;
                     let slice = &self.source.source[start_pos + 1..end_pos];
                     return self.expected_with(
                         "Receiver variables do not start with '$'.",
-                        current,
+                        current.span,
                         ParseErrorKind::UnexpectedInContext(format!(
                             "Consider removing the '$' prefix: for {slice}"
                         )),
@@ -125,10 +125,10 @@ impl<'a> Parser<'a> {
         )?;
         self.cursor.advance(blanks());
         let iterable = self.value()?;
-        let segment = self.cursor.relative_pos(&receiver).start..iterable.segment().end;
+        let segment = receiver.span.start..iterable.segment().end;
 
         Ok(RangeFor {
-            receiver: receiver.value,
+            receiver: receiver.text(self.source.source),
             iterable,
             segment,
         })
@@ -146,7 +146,7 @@ impl<'a> Parser<'a> {
             Ok(mut kind) => {
                 let end =
                     self.expect_one_closing_parentheses_in_for(outer_opening_parenthesis.clone())?;
-                kind.segment = self.cursor.relative_pos_ctx(outer_opening_parenthesis..end);
+                kind.segment = outer_opening_parenthesis.span.start..end.span.end;
                 Ok(kind)
             }
             Err(err) => {
@@ -155,7 +155,7 @@ impl<'a> Parser<'a> {
             }
         }
     }
-    fn parse_inner_conditional_for(&mut self, start: Token<'a>) -> ParseResult<ConditionalFor<'a>> {
+    fn parse_inner_conditional_for(&mut self, start: Token) -> ParseResult<ConditionalFor<'a>> {
         self.cursor.force(
             of_type(TokenType::RoundedLeftBracket),
             "expected '((' at start of conditional for",
@@ -196,12 +196,12 @@ impl<'a> Parser<'a> {
 
     fn expect_one_closing_parentheses_in_for(
         &mut self,
-        outer_opening_parenthesis: Token<'a>,
-    ) -> ParseResult<Token<'a>> {
+        outer_opening_parenthesis: Token,
+    ) -> ParseResult<Token> {
         if self.cursor.lookahead(eog()).is_some() {
             self.expect_delimiter(outer_opening_parenthesis, TokenType::RoundedRightBracket)
         } else {
-            let mut segment = self.cursor.relative_pos(outer_opening_parenthesis.value);
+            let mut segment = outer_opening_parenthesis.span;
             segment.end += 1;
             self.expected(
                 "Expected '))' at end of conditional for",

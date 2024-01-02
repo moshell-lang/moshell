@@ -71,13 +71,13 @@ impl<'a> GroupAspect<'a> for Parser<'a> {
 
         Ok(Parenthesis {
             expression: Box::new(expr),
-            segment: self.cursor.relative_pos_ctx(start..end),
+            segment: start.span.start..end.span.end,
         })
     }
 }
 
 impl<'a> Parser<'a> {
-    fn ensure_at_group_start(&mut self, start: TokenType) -> ParseResult<Token<'a>> {
+    fn ensure_at_group_start(&mut self, start: TokenType) -> ParseResult<Token> {
         let token = self.cursor.force_with(
             of_type(start),
             "Unexpected start of group expression",
@@ -100,7 +100,7 @@ impl<'a> Parser<'a> {
         F: FnMut(&mut Self) -> ParseResult<Expr<'a>>,
     {
         let mut statements: Vec<Expr<'a>> = Vec::new();
-        let mut segment = self.cursor.relative_pos(start_token.value);
+        let mut segment = start_token.span.clone();
 
         //consume all heading spaces and end of expressions (\n or ;)
         self.cursor.advance(repeat(of_types(&[
@@ -111,14 +111,14 @@ impl<'a> Parser<'a> {
 
         //if we directly hit end of group, return an empty block.
         if let Some(eog) = self.cursor.advance(of_type(eog)) {
-            return Ok((statements, segment.start..self.cursor.relative_pos(eog).end));
+            return Ok((statements, segment.start..eog.span.end));
         }
 
         loop {
             if self.cursor.is_at_end() {
                 self.expected(
                     "Expected closing bracket.",
-                    ParseErrorKind::Unpaired(self.cursor.relative_pos(&start_token)),
+                    ParseErrorKind::Unpaired(start_token.span.clone()),
                 )?;
             }
             let statement = parser(self);
@@ -139,7 +139,7 @@ impl<'a> Parser<'a> {
 
             //if the group is closed, then we stop looking for other expressions.
             if let Some(closing) = closed {
-                segment = segment.start..self.cursor.relative_pos(closing).end;
+                segment = segment.start..closing.span.end;
                 break;
             }
 
@@ -149,7 +149,7 @@ impl<'a> Parser<'a> {
             }
             let error = self.mk_parse_error(
                 "expected new line or semicolon",
-                self.cursor.peek(),
+                self.cursor.peek().span,
                 ParseErrorKind::Unexpected,
             );
             self.repos_delimiter_due_to(&error);

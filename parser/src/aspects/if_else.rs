@@ -42,7 +42,7 @@ impl<'a> IfElseAspect<'a> for Parser<'a> {
             None
         };
 
-        let segment = self.cursor.relative_pos(start.value).start
+        let segment = start.span.start
             ..fail_branch
                 .as_ref()
                 .map_or(&success_branch, |b| b.as_ref())

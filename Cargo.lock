@@ -718,6 +718,7 @@ dependencies = [
 name = "lexer"
 version = "0.1.0"
 dependencies = [
+ "context",
  "dbg-pls",
  "enum-assoc",
  "pretty_assertions",

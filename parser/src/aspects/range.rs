@@ -50,7 +50,7 @@ impl<'a> RangeAspect<'a> for Parser<'a> {
             of_type(TokenType::SquaredRightBracket),
             "Expected ']' after subscript target",
         )?;
-        let segment = target.segment().start..self.cursor.relative_pos(closing_bracket.value).end;
+        let segment = target.segment().start..closing_bracket.span.end;
         Ok(Subscript {
             target: Box::new(target),
             index: Box::new(value),

@@ -137,8 +137,8 @@ impl<'a> CallAspect<'a> for Parser<'a> {
                     )?;
                     Expr::FieldAccess(FieldAccess {
                         expr: Box::new(expr),
-                        field: field_token.value,
-                        segment: self.cursor.relative_pos_ctx(dot_token..field_token),
+                        field: field_token.text(self.source.source),
+                        segment: dot_token.span.start..field_token.span.end,
                     })
                 }
                 _ => break,
@@ -186,23 +186,23 @@ impl<'a> Parser<'a> {
 
     fn parse_comma_separated_arguments(
         &mut self,
-        open_parenthesis: Token<'a>,
+        open_parenthesis: Token,
     ) -> ParseResult<(Vec<Expr<'a>>, SourceSegment)> {
         // Read the args until a closing delimiter or a new non-escaped line is found.
         let mut args = Vec::new();
-        let mut segment = self.cursor.relative_pos(open_parenthesis.clone());
+        let mut segment = open_parenthesis.span.clone();
         loop {
             self.cursor.advance(spaces());
             if let Some(closing_parenthesis) =
                 self.cursor.advance(of_type(TokenType::RoundedRightBracket))
             {
-                segment.end = self.cursor.relative_pos(closing_parenthesis).end;
+                segment.end = closing_parenthesis.span.end;
                 return Ok((args, segment));
             }
             if let Some(comma) = self.cursor.advance(of_type(TokenType::Comma)) {
                 self.report_error(self.mk_parse_error(
                     "Expected argument.",
-                    comma,
+                    comma.span,
                     ParseErrorKind::Unexpected,
                 ));
                 continue;
@@ -219,18 +219,21 @@ impl<'a> Parser<'a> {
             if self.cursor.lookahead(line_end()).is_some() {
                 self.expected(
                     "Expected closing parenthesis.",
-                    ParseErrorKind::Unpaired(self.cursor.relative_pos(open_parenthesis.clone())),
+                    ParseErrorKind::Unpaired(open_parenthesis.span.clone()),
                 )?;
             }
             if self.cursor.lookahead(eog()).is_some() {
                 let closing_parenthesis =
                     self.expect_delimiter(open_parenthesis, TokenType::RoundedRightBracket)?;
-                segment.end = self.cursor.relative_pos_ctx(closing_parenthesis).end;
+                segment.end = closing_parenthesis.span.end;
                 break;
             }
             self.cursor.force(
                 spaces().then(of_type(TokenType::Comma).or(lookahead(eog()))),
-                &format!("expected ',', found {}", self.cursor.peek().value),
+                &format!(
+                    "expected ',', found {}",
+                    self.cursor.peek().text(self.source.source)
+                ),
             )?;
         }
 

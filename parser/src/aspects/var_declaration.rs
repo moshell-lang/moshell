@@ -32,7 +32,7 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
         };
 
         let var = self.parse_typed_var()?;
-        let mut segment = self.cursor.relative_pos_ctx(start).start..var.segment.end;
+        let mut segment = start.span.start..var.segment.end;
 
         let initializer = match self
             .cursor
@@ -65,12 +65,12 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
             .advance(blanks().then(of_type(TokenType::Colon)))
             .map(|_| self.parse_type())
             .transpose()?;
-        let mut segment = self.cursor.relative_pos_ctx(name.value);
+        let mut segment = name.span.clone();
         if let Some(ty) = ty.as_ref() {
             segment = segment.start..ty.segment().end;
         }
         Ok(TypedVariable {
-            name: name.value,
+            name: name.text(self.source.source),
             ty,
             segment,
         })

@@ -21,7 +21,6 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
         let dollar = self
             .cursor
             .force(of_type(TokenType::Dollar), "Expected '$' sign.")?;
-        let dollar_value = dollar.value;
 
         //if $ is directly followed by a '(' then it's the start of a Capture substitution.
         if self.cursor.lookahead(of_type(RoundedLeftBracket)).is_some() {
@@ -36,7 +35,7 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
                 self.cursor.force_with(
                     of_type(RoundedRightBracket),
                     "Expected a second closing parenthesis.",
-                    ParseErrorKind::Unpaired(self.cursor.relative_pos_ctx(dollar..start)),
+                    ParseErrorKind::Unpaired(dollar.span.start..start.span.end),
                 )?;
                 return Ok(Expr::Parenthesis(parenthesis));
             }
@@ -61,8 +60,8 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
 
         //finally it's a lonely '$' so we return it as a literal
         return Ok(Expr::Literal(Literal {
-            parsed: LiteralValue::String(dollar_value.to_owned()),
-            segment: self.cursor.relative_pos(dollar_value),
+            parsed: LiteralValue::String(dollar.text(self.source.source).to_owned()),
+            segment: dollar.span,
         }));
     }
 }

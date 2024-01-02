@@ -23,15 +23,12 @@ pub trait FunctionDeclarationAspect<'a> {
 
 impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
     fn parse_function_declaration(&mut self) -> ParseResult<FunctionDeclaration<'a>> {
-        let fun = self
-            .cursor
-            .force(
-                of_type(TokenType::Fun),
-                "expected 'fun' keyword at start of function declaration.",
-            )?
-            .value;
+        let fun = self.cursor.force(
+            of_type(TokenType::Fun),
+            "expected 'fun' keyword at start of function declaration.",
+        )?;
 
-        let segment_start = self.cursor.relative_pos(fun).start;
+        let segment_start = fun.span.start;
 
         //consume blanks for each function declaration components
         self.cursor.advance(blanks());
@@ -59,7 +56,7 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
                 parameters: params,
                 return_type: rtype,
                 body: None,
-                segment: segment_start..self.cursor.relative_pos_ctx(token).end,
+                segment: segment_start..token.span.end,
             });
         }
 
@@ -91,11 +88,11 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
         if self.cursor.advance(spaces()).is_none() || self.cursor.lookahead(eox()).is_some() {
             return Ok(Return {
                 expr: None,
-                segment: self.cursor.relative_pos(start),
+                segment: start.span,
             });
         }
         let expr = Box::new(self.value()?);
-        let segment = self.cursor.relative_pos(start).start..expr.segment().end;
+        let segment = start.span.start..expr.segment().end;
         Ok(Return {
             expr: Some(expr),
             segment,
@@ -113,7 +110,7 @@ impl<'a> Parser<'a> {
             if token.token_type != TokenType::Arrow {
                 self.report_error(self.mk_parse_error(
                     "Return types are denoted using `->`.",
-                    token.clone(),
+                    token.span,
                     ParseErrorKind::Expected("`->`".to_owned()),
                 ));
             }
@@ -148,7 +145,7 @@ impl<'a> Parser<'a> {
                 .map(|_| self.parse_type())
                 .transpose()
                 .map(|t| {
-                    let vararg_token_segment = self.cursor.relative_pos(vararg_token);
+                    let vararg_token_segment = vararg_token.span;
                     let segment = if let Some(t) = &t {
                         t.segment().start..vararg_token_segment.end
                     } else {
@@ -164,9 +161,7 @@ impl<'a> Parser<'a> {
         let current_token = self.cursor.peek();
 
         if self.cursor.advance(of_type(TokenType::Slf)).is_some() {
-            return Ok(FunctionParameter::Slf(
-                self.cursor.relative_pos(current_token),
-            ));
+            return Ok(FunctionParameter::Slf(current_token.span));
         }
 
         self.parse_typed_var().map(FunctionParameter::Named)
@@ -202,18 +197,20 @@ impl<'a> Parser<'a> {
                 if wrong_name_slice.is_empty() {
                     self.mk_parse_error(
                         "function name expected",
-                        self.cursor.peek(),
+                        self.cursor.peek().span,
                         ParseErrorKind::Expected("<function name>".to_string()),
                     )
                 } else {
+                    let start = wrong_name_slice.first().unwrap().span.start;
+                    let end = wrong_name_slice.last().unwrap().span.end;
                     self.mk_parse_error(
                         "function name is invalid.",
-                        wrong_name_slice.as_slice(),
+                        start..end,
                         ParseErrorKind::InvalidFormat,
                     )
                 }
             })
-            .map(|t| t.value)
+            .map(|t| t.text(self.source.source))
     }
 }
 

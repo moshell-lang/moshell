@@ -29,21 +29,21 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
                 "Expected variable name.",
             )
             .map_err(|mut err| {
-                err.position = self.cursor.relative_pos(self.cursor.peek().value);
+                err.position = self.cursor.peek().span;
                 if bracket.is_some() {
                     self.repos_to_top_delimiter();
                 }
                 err
             })?;
 
-        let mut segment = self.cursor.relative_pos_ctx(start.value..name.value);
+        let mut segment = start.span.start..name.span.end;
         segment.start -= 1;
 
         let expr = Expr::VarReference(VarReference {
             name: if name.token_type == TokenType::Slf {
                 VarName::Slf
             } else {
-                VarName::User(name.value)
+                VarName::User(name.text(self.source.source))
             },
             segment,
         });
@@ -62,7 +62,7 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
                 self.cursor.force_with(
                     of_type(CurlyRightBracket),
                     "Expected closing curly bracket.",
-                    ParseErrorKind::Unpaired(self.cursor.relative_pos(bracket)),
+                    ParseErrorKind::Unpaired(bracket.span),
                 )?;
             }
 

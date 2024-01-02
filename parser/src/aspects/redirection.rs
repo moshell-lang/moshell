@@ -51,10 +51,10 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
                 RedirFd::Wildcard
             }
             TokenType::IntLiteral => {
-                let redir = RedirFd::Fd(token.value.parse().map_err(|_| {
+                let redir = RedirFd::Fd(token.text(self.source.source).parse().map_err(|_| {
                     self.mk_parse_error(
                         "Invalid file descriptor.",
-                        token,
+                        token.span,
                         ParseErrorKind::InvalidFormat,
                     )
                 })?);
@@ -83,7 +83,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
             },
             _ => self.expected_with(
                 "Expected redirection operator.",
-                token,
+                token.span,
                 ParseErrorKind::Expected("< >".to_string()),
             )?,
         };
@@ -104,7 +104,7 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
         }
 
         let operand = self.call_argument()?;
-        let segment = self.cursor.relative_pos_ctx(start).start..operand.segment().end;
+        let segment = start.span.start..operand.segment().end;
         Ok(Redir {
             fd,
             operator,

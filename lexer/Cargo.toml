@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 dbg-pls = { version = "0.4.1", features = ["derive"] }
 enum-assoc = "1.0.0"
+context = { path = "../context" }
 
 [dev-dependencies]
 pretty_assertions = "1.3.0"

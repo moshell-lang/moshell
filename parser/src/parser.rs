@@ -5,7 +5,7 @@ use ast::r#use::InclusionPathItem;
 use ast::range::Iterable;
 use ast::variable::{Assign, AssignOperator, TypedVariable};
 use ast::Expr;
-use context::source::{Source, SourceSegmentHolder};
+use context::source::{Source, SourceSegment, SourceSegmentHolder};
 use lexer::lex;
 use lexer::token::TokenType::*;
 use lexer::token::{Token, TokenType};
@@ -31,9 +31,7 @@ use crate::aspects::test::TestAspect;
 use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::cursor::ParserCursor;
 use crate::err::ParseErrorKind::Unexpected;
-use crate::err::{
-    determine_skip_sections, ErrorContext, ParseError, ParseErrorKind, ParseReport, SkipSections,
-};
+use crate::err::{determine_skip_sections, ParseError, ParseErrorKind, ParseReport, SkipSections};
 use crate::moves::{
     any, blanks, like, line_end, next, of_type, of_types, repeat, spaces, Move, MoveOperations,
 };
@@ -217,11 +215,11 @@ impl<'a> Parser<'a> {
 
             Continue => {
                 let current = self.cursor.next()?;
-                Ok(Expr::Continue(self.cursor.relative_pos(current.value)))
+                Ok(Expr::Continue(current.span))
             }
             Break => {
                 let current = self.cursor.next()?;
-                Ok(Expr::Break(self.cursor.relative_pos(current.value)))
+                Ok(Expr::Break(current.span))
             }
             Return => self.parse_return().map(Expr::Return),
 
@@ -257,16 +255,16 @@ impl<'a> Parser<'a> {
                     )
                     .is_some() =>
             {
-                let name = self.cursor.next()?.value;
+                let name = self.cursor.next()?;
                 self.cursor.advance(spaces());
                 let Ok(operator) = AssignOperator::try_from(self.cursor.next()?.token_type) else {
                     let body = Box::new(self.value()?);
-                    let segment = self.cursor.relative_pos(name).start..body.segment().end;
+                    let segment = name.span.start..body.segment().end;
                     return Ok(Expr::LambdaDef(LambdaDef {
                         args: vec![TypedVariable {
-                            name,
+                            name: name.text(self.source.source),
                             ty: None,
-                            segment: self.cursor.relative_pos(name),
+                            segment: name.span,
                         }],
                         body,
                         segment,
@@ -278,8 +276,8 @@ impl<'a> Parser<'a> {
                 Ok(Expr::Assign(Assign {
                     left: Box::new(Expr::Identifier(ast::variable::Identifier {
                         path: vec![InclusionPathItem::Symbol(
-                            name,
-                            self.cursor.relative_pos(name),
+                            name.text(self.source.source),
+                            name.span,
                         )],
                     })),
                     operator,
@@ -321,7 +319,7 @@ impl<'a> Parser<'a> {
             {
                 let token = self.cursor.next()?;
                 let expr = self.next_statement()?;
-                let segment = self.cursor.relative_pos(token).start..expr.segment().end;
+                let segment = token.span.start..expr.segment().end;
                 Ok(Expr::Unary(UnaryOperation {
                     op: UnaryOperator::Not,
                     expr: Box::new(expr),
@@ -349,7 +347,7 @@ impl<'a> Parser<'a> {
             ty @ (Minus | Not) => {
                 let op = self.cursor.next()?;
                 let rhs = self.lhs()?;
-                let segment = self.cursor.relative_pos(op).start..rhs.segment().end;
+                let segment = op.span.start..rhs.segment().end;
                 Ok(Expr::Unary(UnaryOperation {
                     op: match ty {
                         Minus => UnaryOperator::Negate,
@@ -538,7 +536,7 @@ impl<'a> Parser<'a> {
         message: impl Into<String>,
         kind: ParseErrorKind,
     ) -> ParseResult<T> {
-        Err(self.mk_parse_error(message, self.cursor.peek(), kind))
+        Err(self.mk_parse_error(message, self.cursor.peek().span, kind))
     }
 
     /// Raise an error with a specific context.
@@ -548,18 +546,14 @@ impl<'a> Parser<'a> {
     pub(crate) fn expected_with<T>(
         &self,
         message: impl Into<String>,
-        context: impl Into<ErrorContext<'a>>,
+        span: SourceSegment,
         kind: ParseErrorKind,
     ) -> ParseResult<T> {
-        Err(self.mk_parse_error(message, context, kind))
+        Err(self.mk_parse_error(message, span, kind))
     }
 
     /// Expect a specific delimiter token type and pop it from the delimiter stack.
-    pub(crate) fn expect_delimiter(
-        &mut self,
-        start: Token<'a>,
-        eog: TokenType,
-    ) -> ParseResult<Token<'a>> {
+    pub(crate) fn expect_delimiter(&mut self, start: Token, eog: TokenType) -> ParseResult<Token> {
         if let Some(token) = self.cursor.advance(of_type(eog)) {
             Ok(token)
         } else {
@@ -568,7 +562,7 @@ impl<'a> Parser<'a> {
                     "Expected '{}' delimiter.",
                     eog.str().unwrap_or("specific token")
                 ),
-                ParseErrorKind::Unpaired(self.cursor.relative_pos(start)),
+                ParseErrorKind::Unpaired(start.span),
             );
             if self.cursor.peek().token_type.is_closing_ponctuation() {
                 self.repos_to_top_delimiter();
@@ -580,10 +574,10 @@ impl<'a> Parser<'a> {
     pub(crate) fn mk_parse_error(
         &self,
         message: impl Into<String>,
-        context: impl Into<ErrorContext<'a>>,
+        span: SourceSegment,
         kind: ParseErrorKind,
     ) -> ParseError {
-        self.cursor.mk_parse_error(message, context, kind)
+        self.cursor.mk_parse_error(message, span, kind)
     }
 
     ///Skips spaces and verify that this parser is not parsing the end of an expression
@@ -607,10 +601,7 @@ impl<'a> Parser<'a> {
             // recover after the delimiter, but just before it.
             while !self.cursor.is_at_end() {
                 let token = self.cursor.peek();
-                if self
-                    .skip
-                    .contains(self.cursor.relative_pos(token.value).start)
-                {
+                if self.skip.contains(token.span.start) {
                     self.cursor.next_opt();
                 } else {
                     break;
@@ -659,10 +650,7 @@ impl<'a> Parser<'a> {
         // before repositioning.
         let mut delimiter_stack = Vec::new();
         while !self.cursor.is_at_end() {
-            if self
-                .skip
-                .contains(self.cursor.relative_pos(self.cursor.peek()).start)
-            {
+            if self.skip.contains(self.cursor.peek().span.start) {
                 self.cursor.next_opt();
                 continue;
             }
@@ -700,11 +688,7 @@ impl<'a> Parser<'a> {
     /// Always prefer using [`Parser::recover_from`] instead.
     pub(crate) fn repos_to_top_delimiter(&mut self) {
         while let Some(token) = self.cursor.next_opt() {
-            if !self
-                .skip
-                .contains(self.cursor.relative_pos(token.value).start)
-                && token.token_type.is_closing_ponctuation()
-            {
+            if !self.skip.contains(token.span.start) && token.token_type.is_closing_ponctuation() {
                 break;
             }
         }

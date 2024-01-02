@@ -1,7 +1,6 @@
 use ast::Expr;
 use context::source::SourceSegment;
 use lexer::delimiter::UnmatchedDelimiter;
-use lexer::token::Token;
 
 use crate::parser::ParseResult;
 
@@ -11,55 +10,6 @@ pub struct ParseError {
     pub message: String,
     pub position: SourceSegment,
     pub kind: ParseErrorKind,
-}
-
-/// A builder to position an error that covers multiple tokens.
-#[derive(Debug, PartialEq)]
-pub(crate) struct ErrorContext<'a> {
-    pub(crate) from: &'a str,
-    pub(crate) to: &'a str,
-}
-
-impl<'a> From<Token<'a>> for ErrorContext<'a> {
-    fn from(token: Token<'a>) -> Self {
-        Self {
-            from: token.value,
-            to: token.value,
-        }
-    }
-}
-
-impl<'a> From<std::ops::Range<Token<'a>>> for ErrorContext<'a> {
-    fn from(range: std::ops::Range<Token<'a>>) -> Self {
-        Self {
-            from: range.start.value,
-            to: range.end.value,
-        }
-    }
-}
-
-impl<'a> From<&[Token<'a>]> for ErrorContext<'a> {
-    fn from(tokens: &[Token<'a>]) -> Self {
-        Self {
-            from: tokens.first().map(|t| t.value).expect("Empty token slice."),
-            to: tokens.last().map(|t| t.value).unwrap(),
-        }
-    }
-}
-
-impl<'a> From<&'a str> for ErrorContext<'a> {
-    fn from(str: &'a str) -> Self {
-        Self { from: str, to: str }
-    }
-}
-
-impl<'a> From<std::ops::Range<&'a str>> for ErrorContext<'a> {
-    fn from(range: std::ops::Range<&'a str>) -> Self {
-        Self {
-            from: range.start,
-            to: range.end,
-        }
-    }
 }
 
 /// The kind of error that occurred.

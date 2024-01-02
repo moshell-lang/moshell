@@ -37,7 +37,7 @@ pub(crate) fn is_not_identifier_part(c: char) -> bool {
 }
 
 impl<'a> Lexer<'a> {
-    pub(crate) fn next_identifier(&mut self, start_pos: usize, start_char: char) -> Token<'a> {
+    pub(crate) fn next_identifier(&mut self, start_pos: usize, start_char: char) -> Token {
         let mut pos = start_pos + start_char.len_utf8();
         while let Some((p, c)) = self.iter.peek() {
             if is_not_identifier_part(*c) {
@@ -71,10 +71,10 @@ impl<'a> Lexer<'a> {
             "while" => TokenType::While,
             _ => TokenType::Identifier,
         };
-        Token::new(token_type, value)
+        Token::new(token_type, start_pos..pos)
     }
 
-    pub(crate) fn next_number(&mut self, start_pos: usize) -> Token<'a> {
+    pub(crate) fn next_number(&mut self, start_pos: usize) -> Token {
         let mut pos = start_pos + 1;
         let mut is_float = false;
         let mut it = self.iter.clone();
@@ -108,11 +108,11 @@ impl<'a> Lexer<'a> {
             } else {
                 TokenType::IntLiteral
             },
-            &self.input[start_pos..pos],
+            start_pos..pos,
         )
     }
 
-    pub(crate) fn next_space(&mut self, start_pos: usize, start_char: char) -> Token<'a> {
+    pub(crate) fn next_space(&mut self, start_pos: usize, start_char: char) -> Token {
         let mut pos = start_pos + start_char.len_utf8();
         while let Some((p, c)) = self.iter.peek().copied() {
             if c == '\\' {
@@ -133,6 +133,6 @@ impl<'a> Lexer<'a> {
                 break;
             }
         }
-        Token::new(TokenType::Space, &self.input[start_pos..pos])
+        Token::new(TokenType::Space, start_pos..pos)
     }
 }

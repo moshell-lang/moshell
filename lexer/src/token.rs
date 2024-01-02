@@ -1,33 +1,26 @@
+use context::source::SourceSegment;
 use dbg_pls::DebugPls;
 use enum_assoc::Assoc;
 
 use crate::token::TokenType::*;
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
-pub struct Token<'a> {
+pub struct Token {
     pub token_type: TokenType,
-    pub value: &'a str,
+    pub span: SourceSegment,
 }
 
-impl<'a> Token<'a> {
-    pub fn new(token_type: TokenType, value: &'a str) -> Self {
-        Self { token_type, value }
+impl Token {
+    pub fn new(token_type: TokenType, span: SourceSegment) -> Self {
+        Self { token_type, span }
+    }
+
+    pub fn text<'a>(&self, source: &'a str) -> &'a str {
+        &source[self.span.clone()]
     }
 }
 
-impl<'a> From<Token<'a>> for &'a str {
-    fn from(token: Token<'a>) -> Self {
-        token.value
-    }
-}
-
-impl<'a> From<&Token<'a>> for &'a str {
-    fn from(token: &Token<'a>) -> Self {
-        token.value
-    }
-}
-
-#[derive(Assoc, Debug, PartialEq, Clone, Copy, DebugPls)]
+#[derive(Assoc, Debug, PartialEq, Eq, Clone, Copy, DebugPls)]
 #[func(pub fn str(&self) -> Option<&'static str>)]
 pub enum TokenType {
     #[assoc(str = "var")]

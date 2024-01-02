@@ -41,8 +41,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
 
         if matches!(tpe, Type::Parametrized(..)) {
             let output = self.parse_parametrized()?;
-            let segment =
-                self.cursor.relative_pos_ctx(first_token.clone()).start..output.segment().end;
+            let segment = first_token.span.start..output.segment().end;
             tpe = Type::Callable(CallableType {
                 params: vec![tpe],
                 output: Box::new(Type::Parametrized(output)),
@@ -61,7 +60,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             let second_rt = self.parse_parametrized()?;
             return self.expected_with(
                 "Lambda type as input of another lambda must be surrounded with parenthesis",
-                first_token..self.cursor.peek(),
+                first_token.span.start..self.cursor.peek().span.end,
                 Expected(self.unparenthesised_lambda_input_tip(tpe, Type::Parametrized(second_rt))),
             );
         }
@@ -81,7 +80,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
                     Self::parse_type_parameter,
                 )?;
 
-                let name_segment = self.cursor.relative_pos(name.value);
+                let name_segment = name.span.clone();
                 let segment_start = name_segment.start;
                 let segment_end = if let Some(params_segment) = params_segment {
                     params_segment.end
@@ -92,18 +91,21 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
                 let segment = segment_start..segment_end;
 
                 Ok(TypeParameter {
-                    name: name.value,
+                    name: name.text(self.source.source),
                     params,
                     segment,
                 })
             }
             x if x.is_closing_ponctuation() => {
-                self.expected_with("expected type", name, Expected("<type>".to_string()))
+                self.expected_with("expected type", name.span, Expected("<type>".to_string()))
             }
 
             _ => self.expected_with(
-                format!("`{}` is not a valid generic type identifier.", name.value),
-                name,
+                format!(
+                    "`{}` is not a valid generic type identifier.",
+                    name.text(self.source.source)
+                ),
+                name.span,
                 Unexpected,
             ),
         }
@@ -123,7 +125,7 @@ impl<'a> Parser<'a> {
         )?;
 
         let name = self.parse_type().map(Box::new)?;
-        let segment = self.cursor.relative_pos_ctx(arrow).start..name.segment().end;
+        let segment = arrow.span.start..name.segment().end;
         Ok(ByName { name, segment })
     }
 
@@ -194,7 +196,7 @@ impl<'a> Parser<'a> {
             return self.expected(
                 format!(
                     "`{}` is not a valid type identifier.",
-                    self.cursor.peek().value
+                    self.cursor.peek().text(self.source.source)
                 ),
                 Unexpected,
             );
