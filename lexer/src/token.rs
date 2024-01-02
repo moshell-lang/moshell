@@ -178,7 +178,26 @@ impl TokenType {
     pub fn is_keyword(self) -> bool {
         matches!(
             self,
-            Fun | Use | If | Else | For | In | While | Match | Val | Var
+            As | Break
+                | Continue
+                | Else
+                | False
+                | For
+                | Fun
+                | If
+                | Impl
+                | In
+                | Loop
+                | Match
+                | Reef
+                | Return
+                | Slf
+                | Struct
+                | True
+                | Use
+                | Val
+                | Var
+                | While
         )
     }
 

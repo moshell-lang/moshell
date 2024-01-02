@@ -67,7 +67,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             False | True if leniency == LiteralLeniency::Strict => {
                 self.boolean_literal().map(Expr::Literal)
             }
-            _ if pivot.is_keyword() => self.expected(
+            _ if pivot.is_keyword() && leniency == LiteralLeniency::Strict => self.expected(
                 format!("Unexpected keyword '{}'", token.text(self.source.source)),
                 ParseErrorKind::Unexpected,
             ),
