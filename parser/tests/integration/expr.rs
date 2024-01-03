@@ -13,14 +13,13 @@ use ast::r#use::InclusionPathItem;
 use ast::range::{Iterable, NumericRange};
 use ast::value::{Literal, LiteralValue, TemplateString};
 use ast::variable::{
-    Assign, AssignOperator, Identifier, TypedVariable, VarDeclaration, VarKind, VarName,
-    VarReference,
+    Assign, AssignOperator, Path, TypedVariable, VarDeclaration, VarKind, VarName, VarReference,
 };
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
 use context::str_find::{find_between, find_in, find_in_nth};
 use parser::parse;
-use parser::source::{literal, literal_nth};
+use parser::source::{identifier, identifier_nth, literal, literal_nth};
 
 #[test]
 fn empty() {
@@ -37,16 +36,12 @@ fn variable_type_and_initializer() {
     let expected = vec![Expr::VarDeclaration(VarDeclaration {
         kind: VarKind::Var,
         var: TypedVariable {
-            name: "a",
+            name: identifier_nth(source.source, "a", 1),
             ty: Some(Type::Parametrized(ParametrizedType {
-                path: vec![InclusionPathItem::Symbol(
-                    "int",
-                    find_in(source.source, "int"),
-                )],
+                path: vec![InclusionPathItem::Symbol(identifier(source.source, "int"))],
                 params: Vec::new(),
                 segment: find_in(source.source, "int"),
             })),
-            segment: find_in(source.source, "a:int"),
         },
         initializer: Some(Box::new(Expr::Literal(Literal {
             parsed: LiteralValue::Int(1),
@@ -73,10 +68,7 @@ fn expr_cast() {
                             segment: find_in(content, "1"),
                         })),
                         casted_type: Type::Parametrized(ParametrizedType {
-                            path: vec![InclusionPathItem::Symbol(
-                                "Exitcode",
-                                find_in(source.source, "Exitcode")
-                            )],
+                            path: vec![InclusionPathItem::Symbol(identifier(content, "Exitcode"))],
                             params: Vec::new(),
                             segment: find_in(content, "Exitcode"),
                         }),
@@ -93,10 +85,7 @@ fn expr_cast() {
                             segment: find_in(content, "-1"),
                         })),
                         casted_type: Type::Parametrized(ParametrizedType {
-                            path: vec![InclusionPathItem::Symbol(
-                                "Int",
-                                find_in(source.source, "Int")
-                            )],
+                            path: vec![InclusionPathItem::Symbol(identifier(content, "Int"))],
                             params: Vec::new(),
                             segment: find_in(content, "Int"),
                         }),
@@ -106,10 +95,10 @@ fn expr_cast() {
                 segment: find_between(source.source, "$((", "))"),
             })),
             casted_type: Type::Parametrized(ParametrizedType {
-                path: vec![InclusionPathItem::Symbol(
-                    "Float",
-                    find_in(source.source, "Float")
-                )],
+                path: vec![InclusionPathItem::Symbol(identifier(
+                    source.source,
+                    "Float"
+                ))],
                 params: Vec::new(),
                 segment: find_in(source.source, "Float"),
             }),
@@ -127,16 +116,14 @@ fn lambda_in_val() {
         vec![Expr::VarDeclaration(VarDeclaration {
             kind: VarKind::Val,
             var: TypedVariable {
-                name: "x",
+                name: identifier(source.source, "x"),
                 ty: None,
-                segment: find_in(source.source, "x"),
             },
             initializer: Some(Box::new(Expr::LambdaDef(LambdaDef {
                 args: vec![TypedVariable {
-                    name: "a",
+                    name: identifier_nth(source.source, "a", 1),
                     ty: None,
-                    segment: find_in_nth(source.source, "a", 1),
-                },],
+                }],
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::VarReference(VarReference {
                         name: VarName::User("a"),
@@ -211,15 +198,11 @@ fn lambda_one_arg() {
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
-            path: vec![InclusionPathItem::Symbol(
-                "calc",
-                find_in(source.source, "calc")
-            )],
+            path: vec![InclusionPathItem::Symbol(identifier(source.source, "calc"))],
             arguments: vec![Expr::LambdaDef(LambdaDef {
                 args: vec![TypedVariable {
-                    name: "n",
+                    name: identifier(source.source, "n"),
                     ty: None,
-                    segment: find_in(source.source, "n"),
                 }],
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::VarReference(VarReference {
@@ -247,10 +230,7 @@ fn lambda_in_pfc() {
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
-            path: vec![InclusionPathItem::Symbol(
-                "calc",
-                find_in(source.source, "calc")
-            )],
+            path: vec![InclusionPathItem::Symbol(identifier(source.source, "calc"))],
             arguments: vec![Expr::LambdaDef(LambdaDef {
                 args: vec![],
                 body: Box::new(Expr::Binary(BinaryOperation {
@@ -280,9 +260,8 @@ fn identity_lambda() {
         parsed,
         vec![Expr::LambdaDef(LambdaDef {
             args: vec![TypedVariable {
-                name: "a",
+                name: identifier(source.source, "a"),
                 ty: None,
-                segment: 0..1,
             }],
             body: Box::new(Expr::VarReference(VarReference {
                 name: VarName::User("a"),
@@ -320,15 +299,12 @@ fn constructor_in_call() {
                 literal(source.source, "echo"),
                 Expr::MethodCall(MethodCall {
                     source: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
-                        path: vec![InclusionPathItem::Symbol(
-                            "Foo",
-                            find_in(source.source, "Foo")
-                        )],
+                        path: vec![InclusionPathItem::Symbol(identifier(source.source, "Foo"))],
                         arguments: vec![],
                         type_parameters: vec![],
                         segment: find_in(source.source, "Foo()"),
                     })),
-                    name: Some("test"),
+                    name: Some(identifier(source.source, "test")),
                     arguments: Vec::new(),
                     type_parameters: Vec::new(),
                     segment: find_in(source.source, ".test()")
@@ -351,9 +327,8 @@ fn arithmetic_multiple_lines() {
         vec![Expr::VarDeclaration(VarDeclaration {
             kind: VarKind::Val,
             var: TypedVariable {
-                name: "n",
+                name: identifier(source.source, "n"),
                 ty: None,
-                segment: find_in(source.source, "n"),
             },
             initializer: Some(Box::new(Expr::Binary(BinaryOperation {
                 left: Box::new(Expr::Literal(Literal {
@@ -413,11 +388,8 @@ fn assign_iterable() {
     assert_eq!(
         parsed,
         vec![Expr::Assign(Assign {
-            left: Box::new(Expr::Identifier(Identifier {
-                path: vec![InclusionPathItem::Symbol(
-                    "it",
-                    find_in(source.source, "it")
-                )],
+            left: Box::new(Expr::Path(Path {
+                path: vec![InclusionPathItem::Symbol(identifier(source.source, "it"))],
             })),
             operator: AssignOperator::Assign,
             value: Box::new(Expr::Range(Iterable::Range(NumericRange {
@@ -444,7 +416,7 @@ fn for_in_step_2_range() {
         parsed,
         vec![Expr::For(For {
             kind: Box::new(ForKind::Range(RangeFor {
-                receiver: "i",
+                receiver: identifier(source.source, "i"),
                 iterable: Expr::Range(Iterable::Range(NumericRange {
                     start: Box::new(Expr::Literal(Literal {
                         parsed: 1.into(),
@@ -494,17 +466,14 @@ fn constructor_assign() {
     assert_eq!(
         parsed,
         vec![Expr::Assign(Assign {
-            left: Box::new(Expr::Identifier(Identifier {
-                path: vec![InclusionPathItem::Symbol("a", find_in(source.source, "a"))],
+            left: Box::new(Expr::Path(Path {
+                path: vec![InclusionPathItem::Symbol(identifier(source.source, "a"))],
             })),
             operator: AssignOperator::Assign,
             value: Box::new(Expr::Unary(UnaryOperation {
                 op: UnaryOperator::Not,
                 expr: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
-                    path: vec![InclusionPathItem::Symbol(
-                        "Foo",
-                        find_in(source.source, "Foo")
-                    )],
+                    path: vec![InclusionPathItem::Symbol(identifier(source.source, "Foo"))],
                     arguments: vec![Expr::Literal(Literal {
                         parsed: 5.into(),
                         segment: find_in(source.source, "5")
@@ -525,10 +494,7 @@ fn programmatic_call() {
     assert_eq!(
         parsed,
         vec![Expr::ProgrammaticCall(ProgrammaticCall {
-            path: vec![InclusionPathItem::Symbol(
-                "ssh",
-                find_in(source.source, "ssh")
-            )],
+            path: vec![InclusionPathItem::Symbol(identifier(source.source, "ssh"))],
             arguments: vec![
                 literal(source.source, "'localhost'"),
                 literal(source.source, "'ls -l'"),
@@ -585,26 +551,26 @@ fn method_and_function_calls_mixed() {
         vec![Expr::MethodCall(MethodCall {
             source: Box::new(Expr::MethodCall(MethodCall {
                 source: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
-                    path: vec![InclusionPathItem::Symbol(
-                        "create",
-                        find_in(source.source, "create")
-                    )],
+                    path: vec![InclusionPathItem::Symbol(identifier(
+                        source.source,
+                        "create"
+                    ))],
                     arguments: Vec::new(),
                     type_parameters: Vec::new(),
                     segment: find_in(source.source, "create()")
                 })),
-                name: Some("foo"),
+                name: Some(identifier(source.source, "foo")),
                 arguments: vec![Expr::MethodCall(MethodCall {
                     source: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
-                        path: vec![InclusionPathItem::Symbol(
-                            "dummy",
-                            find_in(source.source, "dummy")
-                        )],
+                        path: vec![InclusionPathItem::Symbol(identifier(
+                            source.source,
+                            "dummy"
+                        ))],
                         arguments: Vec::new(),
                         type_parameters: Vec::new(),
                         segment: find_in(source.source, "dummy()")
                     })),
-                    name: Some("truthy"),
+                    name: Some(identifier(source.source, "truthy")),
                     arguments: Vec::new(),
                     type_parameters: Vec::new(),
                     segment: find_in(source.source, ".truthy()")
@@ -612,7 +578,7 @@ fn method_and_function_calls_mixed() {
                 type_parameters: Vec::new(),
                 segment: find_in(source.source, ".foo(dummy().truthy())")
             })),
-            name: Some("bar"),
+            name: Some(identifier(source.source, "bar")),
             arguments: Vec::new(),
             type_parameters: Vec::new(),
             segment: find_in(source.source, ".bar()")
@@ -634,7 +600,7 @@ fn block_method_call() {
                 })],
                 segment: find_between(source.source, "{", "}")
             })),
-            name: Some("foo"),
+            name: Some(identifier(source.source, "foo")),
             arguments: vec![literal(source.source, "'a'")],
             type_parameters: Vec::new(),
             segment: find_between(source.source, ".", ")")
@@ -654,7 +620,7 @@ fn method_call_with_type_params_and_ref() {
                     name: VarName::User("a"),
                     segment: find_in(source.source, "$a")
                 })),
-                name: Some("foo"),
+                name: Some(identifier(source.source, "foo")),
                 arguments: vec![Expr::VarReference(VarReference {
                     name: VarName::User("d"),
                     segment: find_in(source.source, "$d")
@@ -671,13 +637,13 @@ fn method_call_with_type_params_and_ref() {
                                 name: VarName::User("c"),
                                 segment: find_in(source.source, "${c")
                             })),
-                            name: Some("bar"),
+                            name: Some(identifier(source.source, "bar")),
                             arguments: Vec::new(),
                             type_parameters: vec![Type::Parametrized(ParametrizedType {
-                                path: vec![InclusionPathItem::Symbol(
-                                    "T",
-                                    find_in(source.source, "T")
-                                )],
+                                path: vec![InclusionPathItem::Symbol(identifier(
+                                    source.source,
+                                    "T"
+                                ))],
                                 params: Vec::new(),
                                 segment: find_in(source.source, "T")
                             })],
@@ -756,7 +722,7 @@ fn call_method_on_int() {
                 parsed: 1.into(),
                 segment: find_in(source.source, "1")
             })),
-            name: Some("foo"),
+            name: Some(identifier(source.source, "foo")),
             arguments: vec![Expr::Literal(Literal {
                 parsed: true.into(),
                 segment: find_in(source.source, "true")
@@ -801,17 +767,17 @@ fn precedence() {
                     name: VarName::User("n"),
                     segment: find_in(source.source, "$n")
                 })),
-                name: Some("convert"),
+                name: Some(identifier(source.source, "convert")),
                 arguments: vec![Expr::Range(Iterable::Range(NumericRange {
                     start: Box::new(literal(source.source, "'a'")),
                     end: Box::new(Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::Casted(CastedExpr {
                             expr: Box::new(literal(source.source, "'z'")),
                             casted_type: Type::Parametrized(ParametrizedType {
-                                path: vec![InclusionPathItem::Symbol(
-                                    "Char",
-                                    find_in(source.source, "Char")
-                                )],
+                                path: vec![InclusionPathItem::Symbol(identifier(
+                                    source.source,
+                                    "Char"
+                                ))],
                                 params: Vec::new(),
                                 segment: find_in(source.source, "Char")
                             }),
@@ -822,7 +788,7 @@ fn precedence() {
                     })),
                     step: None,
                     upper_inclusive: true,
-                })),],
+                }))],
                 type_parameters: Vec::new(),
                 segment: 3..source.source.len(),
             })),

@@ -57,7 +57,7 @@ impl<'a> GroupAspect<'a> for Parser<'a> {
             err
         })?;
         self.cursor.advance(spaces());
-        if !self.cursor.peek().token_type.is_closing_ponctuation() {
+        if !self.cursor.peek().token_type.is_closing_punctuation() {
             self.expected(
                 "parenthesis in value expression can only contain one expression",
                 ParseErrorKind::Unexpected,
@@ -179,7 +179,7 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind, ParseReport};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
-    use crate::source::literal;
+    use crate::source::{identifier, identifier_nth, literal};
 
     //noinspection DuplicatedCode
     #[test]
@@ -323,18 +323,16 @@ mod tests {
                     Expr::VarDeclaration(VarDeclaration {
                         kind: VarKind::Val,
                         var: TypedVariable {
-                            name: "test",
+                            name: identifier(source.source, "test"),
                             ty: None,
-                            segment: find_in(source.source, "test"),
                         },
                         initializer: Some(Box::from(Expr::Block(Block {
                             expressions: vec![
                                 Expr::VarDeclaration(VarDeclaration {
                                     kind: VarKind::Val,
                                     var: TypedVariable {
-                                        name: "x",
+                                        name: identifier(source.source, "x"),
                                         ty: None,
-                                        segment: find_in(source.source, "x"),
                                     },
                                     initializer: Some(Box::from(Expr::Literal(Literal {
                                         parsed: Int(8),
@@ -361,9 +359,8 @@ mod tests {
                             Expr::VarDeclaration(VarDeclaration {
                                 kind: VarKind::Val,
                                 var: TypedVariable {
-                                    name: "x",
+                                    name: identifier_nth(source.source, "x", 1),
                                     ty: None,
-                                    segment: find_in_nth(source.source, "x", 1),
                                 },
                                 initializer: Some(Box::from(Expr::Literal(Literal {
                                     parsed: Int(89),
@@ -408,16 +405,15 @@ mod tests {
                     Expr::VarDeclaration(VarDeclaration {
                         kind: VarKind::Var,
                         var: TypedVariable {
-                            name: "test",
+                            name: identifier(source.source, "test"),
                             ty: Some(Type::Parametrized(ParametrizedType {
-                                path: vec![InclusionPathItem::Symbol(
-                                    "int",
-                                    find_in(source.source, "int")
-                                )],
+                                path: vec![InclusionPathItem::Symbol(identifier(
+                                    source.source,
+                                    "int"
+                                ))],
                                 params: Vec::new(),
                                 segment: find_in(source.source, "int")
                             })),
-                            segment: find_in(source.source, "test: int")
                         },
                         initializer: Some(Box::new(Expr::Literal(Literal {
                             parsed: Float(7.0),
@@ -428,9 +424,8 @@ mod tests {
                     Expr::VarDeclaration(VarDeclaration {
                         kind: VarKind::Val,
                         var: TypedVariable {
-                            name: "x",
+                            name: identifier(source.source, "x"),
                             ty: None,
-                            segment: find_in(source.source, "x"),
                         },
                         initializer: Some(Box::new(Expr::Literal(Literal {
                             parsed: Int(8),

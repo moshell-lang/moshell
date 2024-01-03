@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use ast::r#struct::{FieldAccess, StructDeclaration};
-use ast::variable::Assign;
+use ast::variable::{Assign, Identifier};
 use context::source::{SourceSegment, SourceSegmentHolder};
 
 use crate::diagnostic::{Diagnostic, DiagnosticID, Observation};
@@ -213,7 +213,7 @@ struct FieldMatch {
 
 fn type_field_access(
     object_type: TypeRef,
-    field_name: &str,
+    field_name: Identifier,
     segment: SourceSegment,
     links: Links,
     exploration: &mut Exploration,
@@ -266,7 +266,7 @@ fn type_field_access(
             .collect(),
     );
 
-    let field = structure.fields.get(field_name);
+    let field = structure.fields.get(field_name.value);
     match field {
         Some(field) => Some(FieldMatch {
             object_structure: structure_id,

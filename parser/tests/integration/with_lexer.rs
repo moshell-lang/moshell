@@ -12,14 +12,14 @@ use ast::range::{FilePattern, Iterable, Subscript};
 use ast::substitution::{Substitution, SubstitutionKind};
 use ast::value::{Literal, TemplateString};
 use ast::variable::{
-    Assign, AssignOperator, Identifier, Tilde, TildeExpansion, TypedVariable, VarDeclaration,
-    VarKind, VarName, VarReference,
+    Assign, AssignOperator, Path, Tilde, TildeExpansion, TypedVariable, VarDeclaration, VarKind,
+    VarName, VarReference,
 };
 use ast::Expr;
 use context::source::{Source, SourceSegmentHolder};
 use context::str_find::{find_between, find_in, find_in_nth};
 use parser::parse;
-use parser::source::{literal, literal_nth};
+use parser::source::{identifier, identifier_nth, literal, literal_nth};
 
 #[test]
 fn backslash() {
@@ -38,9 +38,8 @@ fn with_lexer_variable() {
         vec![Expr::VarDeclaration(VarDeclaration {
             kind: VarKind::Var,
             var: TypedVariable {
-                name: "a",
+                name: identifier_nth(source.source, "a", 1),
                 ty: None,
-                segment: find_in_nth(source.source, "a", 1),
             },
             initializer: Some(Box::new(literal(source.source, "'hello world!'"))),
             segment: source.segment(),
@@ -580,11 +579,8 @@ fn inner_var_ref() {
     assert_eq!(
         parsed,
         vec![Expr::Assign(Assign {
-            left: Box::new(Expr::Identifier(Identifier {
-                path: vec![InclusionPathItem::Symbol(
-                    "dest",
-                    find_in(source.source, "dest")
-                )],
+            left: Box::new(Expr::Path(Path {
+                path: vec![InclusionPathItem::Symbol(identifier(source.source, "dest"))],
             })),
             operator: AssignOperator::Assign,
             value: Box::new(Expr::TemplateString(TemplateString {
@@ -620,9 +616,8 @@ fn variable_without_initializer() {
             Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Var,
                 var: TypedVariable {
-                    name: "bar",
+                    name: identifier(source.source, "bar"),
                     ty: None,
-                    segment: find_in(source.source, "bar"),
                 },
                 initializer: None,
                 segment: find_in(source.source, "var bar"),
@@ -709,10 +704,7 @@ fn call_subscript() {
         vec![Expr::Binary(BinaryOperation {
             left: Box::new(Expr::Subscript(Subscript {
                 target: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
-                    path: vec![InclusionPathItem::Symbol(
-                        "id",
-                        find_in(source.source, "id")
-                    )],
+                    path: vec![InclusionPathItem::Symbol(identifier(source.source, "id"))],
                     arguments: vec![],
                     type_parameters: vec![],
                     segment: find_in(source.source, "id()"),

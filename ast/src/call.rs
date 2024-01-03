@@ -5,6 +5,7 @@ use src_macros::segment_holder;
 
 use crate::r#type::Type;
 use crate::r#use::InclusionPathItem;
+use crate::variable::Identifier;
 use crate::Expr;
 
 /// A raw call to a function or a command.
@@ -53,7 +54,7 @@ pub struct MethodCall<'a> {
     /// The name of the method to call.
     ///
     /// The name cannot be an expression, so it is always a constant string after the parsing phase.
-    pub name: Option<&'a str>,
+    pub name: Option<Identifier<'a>>,
 
     /// The arguments to pass to the method.
     pub arguments: Vec<Expr<'a>>,

@@ -71,8 +71,8 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 format!("Unexpected keyword '{}'", token.text(self.source.source)),
                 ParseErrorKind::Unexpected,
             ),
-            _ if pivot.is_ponctuation()
-                || (leniency == LiteralLeniency::Strict && pivot.is_extended_ponctuation()) =>
+            _ if pivot.is_punctuation()
+                || (leniency == LiteralLeniency::Strict && pivot.is_extended_punctuation()) =>
             {
                 self.expected(
                     format!("Unexpected token '{}'.", token.text(self.source.source)),
@@ -253,7 +253,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                     parts.push(Expr::Literal(literal));
                 }
                 _ => {
-                    if token.token_type.is_ponctuation() {
+                    if token.token_type.is_punctuation() {
                         break;
                     }
                     self.cursor.next_opt();

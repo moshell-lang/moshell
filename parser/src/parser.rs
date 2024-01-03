@@ -262,9 +262,8 @@ impl<'a> Parser<'a> {
                     let segment = name.span.start..body.segment().end;
                     return Ok(Expr::LambdaDef(LambdaDef {
                         args: vec![TypedVariable {
-                            name: name.text(self.source.source),
+                            name: ast::variable::Identifier::extract(self.source.source, name.span),
                             ty: None,
-                            segment: name.span,
                         }],
                         body,
                         segment,
@@ -274,10 +273,9 @@ impl<'a> Parser<'a> {
                     self.cursor.next_opt();
                 }
                 Ok(Expr::Assign(Assign {
-                    left: Box::new(Expr::Identifier(ast::variable::Identifier {
+                    left: Box::new(Expr::Path(ast::variable::Path {
                         path: vec![InclusionPathItem::Symbol(
-                            name.text(self.source.source),
-                            name.span,
+                            ast::variable::Identifier::extract(self.source.source, name.span),
                         )],
                     })),
                     operator,
@@ -372,7 +370,7 @@ impl<'a> Parser<'a> {
                     )?;
                     self.programmatic_call(path, type_arguments)?
                 } else {
-                    Expr::Identifier(path)
+                    Expr::Path(path)
                 };
                 self.expand_member_chain(path)
             }
@@ -564,7 +562,7 @@ impl<'a> Parser<'a> {
                 ),
                 ParseErrorKind::Unpaired(start.span),
             );
-            if self.cursor.peek().token_type.is_closing_ponctuation() {
+            if self.cursor.peek().token_type.is_closing_punctuation() {
                 self.repos_to_top_delimiter();
             }
             err
@@ -661,7 +659,7 @@ impl<'a> Parser<'a> {
 
             // See if we're at a closing delimiter.
             let token = self.cursor.peek();
-            if token.token_type.is_opening_ponctuation() {
+            if token.token_type.is_opening_punctuation() {
                 delimiter_stack.push(token.token_type);
             }
             if let Some(last) = delimiter_stack.last() {
@@ -672,7 +670,7 @@ impl<'a> Parser<'a> {
                 {
                     delimiter_stack.pop();
                 }
-            } else if token.token_type.is_closing_ponctuation() {
+            } else if token.token_type.is_closing_punctuation() {
                 // Do not consume it to avoid breaking the stack.
                 // The caller will consume it.
                 break;
@@ -688,7 +686,7 @@ impl<'a> Parser<'a> {
     /// Always prefer using [`Parser::recover_from`] instead.
     pub(crate) fn repos_to_top_delimiter(&mut self) {
         while let Some(token) = self.cursor.next_opt() {
-            if !self.skip.contains(token.span.start) && token.token_type.is_closing_ponctuation() {
+            if !self.skip.contains(token.span.start) && token.token_type.is_closing_punctuation() {
                 break;
             }
         }

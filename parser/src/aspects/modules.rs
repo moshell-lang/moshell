@@ -19,7 +19,7 @@ pub trait ModulesAspect<'a> {
 
     ///parse identifiers separated between `::` expressions.
     /// This method stops when it founds an expressions that is not an identifier.
-    fn parse_path(&mut self) -> ParseResult<ast::variable::Identifier<'a>>;
+    fn parse_path(&mut self) -> ParseResult<ast::variable::Path<'a>>;
 }
 
 impl<'a> ModulesAspect<'a> for Parser<'a> {
@@ -37,7 +37,7 @@ impl<'a> ModulesAspect<'a> for Parser<'a> {
         }))
     }
 
-    fn parse_path(&mut self) -> ParseResult<ast::variable::Identifier<'a>> {
+    fn parse_path(&mut self) -> ParseResult<ast::variable::Path<'a>> {
         let first = self.parse_path_item()?;
         let mut path = vec![first];
         while let Some(delim) = self.cursor.advance(of_types(&[Colon, ColonColon, Dot])) {
@@ -49,12 +49,12 @@ impl<'a> ModulesAspect<'a> for Parser<'a> {
                 ));
             }
             let next = self.cursor.peek().token_type;
-            if next.is_ponctuation() || matches!(next, At | Star) {
+            if next.is_punctuation() || matches!(next, At | Star) {
                 break;
             }
             path.push(self.parse_path_item()?);
         }
-        Ok(ast::variable::Identifier { path })
+        Ok(ast::variable::Path { path })
     }
 }
 
@@ -64,8 +64,7 @@ impl<'a> Parser<'a> {
 
         match start.token_type {
             Identifier => Ok(InclusionPathItem::Symbol(
-                start.text(self.source.source),
-                start.span,
+                ast::variable::Identifier::extract(self.source.source, start.span),
             )),
             Reef => Ok(InclusionPathItem::Reef(start.span)),
             _ => self.expected_with(
@@ -91,8 +90,7 @@ impl<'a> Parser<'a> {
                     ParseErrorKind::Expected("<identifier>".to_string()),
                 )?;
                 Ok(Import::Environment(
-                    env_variable.text(self.source.source),
-                    pivot.span.start..env_variable.span.end,
+                    ast::variable::Identifier::extract(self.source.source, env_variable.span),
                 ))
             }
             Star => self.expected_with(
@@ -176,7 +174,7 @@ impl<'a> Parser<'a> {
 
         Ok(Import::Symbol(ImportedSymbol {
             path: symbol_path.path,
-            alias: alias.map(|t| t.text(self.source.source)),
+            alias: alias.map(|t| ast::variable::Identifier::extract(self.source.source, t.span)),
             segment: start.span.start..end,
         }))
     }
@@ -199,7 +197,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use ast::r#use::{Import, ImportList, ImportedSymbol, InclusionPathItem, Use};
-    use ast::variable::{Identifier, TypedVariable, VarDeclaration, VarKind};
+    use ast::variable::{Path, TypedVariable, VarDeclaration, VarKind};
     use ast::Expr;
     use context::source::{Source, SourceSegmentHolder};
     use context::str_find::{find_in, find_in_nth};
@@ -207,6 +205,7 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
+    use crate::source::identifier;
 
     #[test]
     fn simple_use() {
@@ -218,9 +217,9 @@ mod tests {
                 import: Import::Symbol(ImportedSymbol {
                     path: vec![
                         InclusionPathItem::Reef(find_in(source.source, "reef")),
-                        InclusionPathItem::Symbol("std", find_in(source.source, "std")),
-                        InclusionPathItem::Symbol("foo", find_in(source.source, "foo")),
-                        InclusionPathItem::Symbol("bar", find_in(source.source, "bar")),
+                        InclusionPathItem::Symbol(identifier(source.source, "std")),
+                        InclusionPathItem::Symbol(identifier(source.source, "foo")),
+                        InclusionPathItem::Symbol(identifier(source.source, "bar")),
                     ],
                     alias: None,
                     segment: find_in(source.source, "reef::std::foo::bar"),
@@ -294,10 +293,7 @@ mod tests {
             result,
             vec![Expr::Use(Use {
                 import: Import::AllIn(
-                    vec![InclusionPathItem::Symbol(
-                        "std",
-                        find_in(source.source, "std")
-                    ),],
+                    vec![InclusionPathItem::Symbol(identifier(source.source, "std"))],
                     find_in(source.source, "std::*"),
                 ),
                 segment: source.segment(),
@@ -324,28 +320,28 @@ mod tests {
                     imports: vec![
                         Import::Symbol(ImportedSymbol {
                             path: vec![
-                                InclusionPathItem::Symbol("std", find_in(source.source, "std")),
-                                InclusionPathItem::Symbol("TOKEN", find_in(source.source, "TOKEN"))
+                                InclusionPathItem::Symbol(identifier(source.source, "std")),
+                                InclusionPathItem::Symbol(identifier(source.source, "TOKEN")),
                             ],
-                            alias: Some("X"),
+                            alias: Some(identifier(source.source, "X")),
                             segment: find_in(source.source, "std::TOKEN as X"),
                         }),
-                        Import::Environment("A", find_in(source.source, "@A")),
-                        Import::Environment("B", find_in(source.source, "@B")),
+                        Import::Environment(identifier(source.source, "A")),
+                        Import::Environment(identifier(source.source, "B")),
                         Import::List(ImportList {
                             root: vec![
                                 InclusionPathItem::Reef(find_in_nth(source.source, "reef", 1)),
-                                InclusionPathItem::Symbol("foo", find_in(source.source, "foo"))
+                                InclusionPathItem::Symbol(identifier(source.source, "foo")),
                             ],
                             segment: find_in(source.source, "reef::foo::{my_function}"),
                             imports: vec![Import::Symbol(ImportedSymbol {
-                                path: vec![InclusionPathItem::Symbol(
-                                    "my_function",
-                                    find_in(source.source, "my_function")
-                                )],
+                                path: vec![InclusionPathItem::Symbol(identifier(
+                                    source.source,
+                                    "my_function"
+                                ))],
                                 alias: None,
                                 segment: find_in(source.source, "my_function"),
-                            }),],
+                            })],
                         }),
                     ],
                 })
@@ -393,15 +389,14 @@ mod tests {
             Ok(vec![Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
                 var: TypedVariable {
-                    name: "x",
+                    name: identifier(source.source, "x"),
                     ty: None,
-                    segment: find_in(content, "x"),
                 },
-                initializer: Some(Box::new(Expr::Identifier(Identifier {
+                initializer: Some(Box::new(Expr::Path(Path {
                     path: vec![
                         InclusionPathItem::Reef(find_in(content, "reef")),
-                        InclusionPathItem::Symbol("math", find_in(content, "math")),
-                        InclusionPathItem::Symbol("tau", find_in(content, "tau")),
+                        InclusionPathItem::Symbol(identifier(source.source, "math")),
+                        InclusionPathItem::Symbol(identifier(source.source, "tau")),
                     ],
                 }))),
                 segment: source.segment(),

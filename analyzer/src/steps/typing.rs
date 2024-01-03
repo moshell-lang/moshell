@@ -10,7 +10,9 @@ use ast::r#use::InclusionPathItem;
 use ast::range::{Iterable, Subscript};
 use ast::substitution::Substitution;
 use ast::value::{Literal, LiteralValue, TemplateString};
-use ast::variable::{Assign, Identifier, Tilde, VarDeclaration, VarKind, VarName, VarReference};
+use ast::variable::{
+    Assign, Identifier, Path, Tilde, VarDeclaration, VarKind, VarName, VarReference,
+};
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
 
@@ -624,6 +626,24 @@ fn ascribe_var_reference(
     }
 
     let symbol = links.env().get_raw_symbol(var_ref.segment()).unwrap();
+    // let foo: Option<SymbolInfo> = match symbol {
+    //     SymbolRef::Local(local) => {
+    //         links.env().symbols.get(local)
+    //     }
+    //     SymbolRef::External(id) => {
+    //         let relation = &links.relations[id];
+    //         match relation.state {
+    //             RelationState::Resolved(resolved) => {
+    //                 if resolved.reef == exploration.externals.current {
+    //                     links.engine.get_environment(resolved.source).unwrap()
+    //                 } else {
+    //                     exploration.externals.get_reef(resolved.reef).unwrap().engine.get_environment(resolved.source).unwrap()
+    //                 }.symbols.get(resolved.object_id)
+    //             }
+    //             _ => None
+    //         }
+    //     }
+    // }.map(|symbol| symbol.ty);
     let type_ref = exploration
         .get_var(links.source, symbol, links.relations)
         .unwrap()
@@ -645,7 +665,7 @@ fn ascribe_var_reference(
     }
 }
 
-fn ascribe_identifier(ident: &Identifier, links: Links, exploration: &Exploration) -> TypedExpr {
+fn ascribe_identifier(ident: &Path, links: Links, exploration: &Exploration) -> TypedExpr {
     ascribe_var_reference(
         &VarReference {
             name: VarName::User(ident.path.last().unwrap().name()),
@@ -1072,7 +1092,10 @@ fn ascribe_tilde(
     state: TypingState,
 ) -> TypedExpr {
     let pfc = ProgrammaticCall {
-        path: vec![InclusionPathItem::Symbol("~", tilde.segment())],
+        path: vec![InclusionPathItem::Symbol(Identifier::new(
+            "~",
+            tilde.segment().start,
+        ))],
         segment: tilde.segment(),
         arguments: match &tilde.structure {
             Tilde::HomeDir(Some(username)) => vec![username.as_ref().clone()],
@@ -1342,7 +1365,10 @@ fn ascribe_call(
     {
         if cmd.as_str() == "cd" {
             let pfc = ProgrammaticCall {
-                path: vec![InclusionPathItem::Symbol(cmd, segment.clone())],
+                path: vec![InclusionPathItem::Symbol(Identifier::new(
+                    cmd,
+                    segment.start,
+                ))],
                 segment: call.segment(),
                 arguments: call.arguments[1..].to_vec(),
                 type_parameters: vec![],
@@ -1553,7 +1579,7 @@ fn ascribe_types(
         }
         Expr::VarReference(var) => ascribe_var_reference(var, links, exploration),
         Expr::FieldAccess(fa) => ascribe_field_access(fa, links, exploration, diagnostics, state),
-        Expr::Identifier(ident) => ascribe_identifier(ident, links, exploration),
+        Expr::Path(ident) => ascribe_identifier(ident, links, exploration),
         Expr::If(block) => ascribe_if(block, exploration, links, diagnostics, state),
         Expr::Call(call) => ascribe_call(call, exploration, links, diagnostics, state),
         Expr::ProgrammaticCall(call) => ascribe_pfc(call, exploration, links, diagnostics, state),
@@ -2380,7 +2406,7 @@ mod tests {
             .with_observation(Observation::context(
                 SourceId(0),
                 ReefId(1),
-                find_in(content, ".sub('a')"),
+                find_in(content, "sub"),
                 "Arguments to this method are incorrect",
             ))])
         );
@@ -2613,7 +2639,7 @@ mod tests {
             .with_observation(Observation::here(
                 SourceId(0),
                 ReefId(1),
-                find_in(content, ".push({})"),
+                find_in(content, "push"),
                 "Arguments to this method are incorrect",
             ))])
         );

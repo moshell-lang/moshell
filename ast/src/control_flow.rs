@@ -2,6 +2,7 @@ use dbg_pls::DebugPls;
 
 use src_macros::segment_holder;
 
+use crate::variable::Identifier;
 use crate::Expr;
 
 ///An if statement
@@ -56,7 +57,7 @@ pub enum ForKind<'a> {
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct RangeFor<'a> {
     /// The variable name that will be used in the loop to designate the current item.
-    pub receiver: &'a str,
+    pub receiver: Identifier<'a>,
     /// The range of values that will be iterated over.
     pub iterable: Expr<'a>,
 }

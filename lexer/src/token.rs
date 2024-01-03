@@ -255,7 +255,7 @@ impl TokenType {
     }
 
     ///is this lexeme a punctuation
-    pub fn is_ponctuation(self) -> bool {
+    pub fn is_punctuation(self) -> bool {
         matches!(
             self,
             Ampersand
@@ -277,19 +277,19 @@ impl TokenType {
 
     /// Tests if the token is a punctuation in a programming context.
     ///
-    /// See [`TokenType::is_ponctuation()`] for a more general definition.
-    pub fn is_extended_ponctuation(self) -> bool {
+    /// See [`TokenType::is_punctuation()`] for a more general definition.
+    pub fn is_extended_punctuation(self) -> bool {
         matches!(self, Comma | DotDot | Arrow | FatArrow | Not)
     }
 
     ///is this lexeme a opening punctuation
-    pub fn is_opening_ponctuation(self) -> bool {
+    pub fn is_opening_punctuation(self) -> bool {
         matches!(self, |SquaredLeftBracket| RoundedLeftBracket
             | CurlyLeftBracket)
     }
 
     ///is this lexeme a closing punctuation
-    pub fn is_closing_ponctuation(self) -> bool {
+    pub fn is_closing_punctuation(self) -> bool {
         matches!(self, |SquaredRightBracket| RoundedRightBracket
             | CurlyRightBracket)
     }

@@ -76,7 +76,7 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
-    use crate::source::{literal, literal_nth};
+    use crate::source::{identifier, literal, literal_nth};
 
     #[test]
     fn simple_if() {
@@ -234,9 +234,8 @@ mod tests {
             vec![Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
                 var: TypedVariable {
-                    name: "x",
+                    name: identifier(content, "x"),
                     ty: None,
-                    segment: find_in(content, "x")
                 },
                 initializer: Some(Box::new(Expr::If(If {
                     condition: Box::new(Expr::Test(Test {
@@ -275,7 +274,7 @@ mod tests {
                     segment: find_between(content, "if", "\"moshell\""),
                 }))),
                 segment: source.segment()
-            }),]
+            })]
         )
     }
 

@@ -5,11 +5,12 @@ use src_macros::segment_holder;
 
 use crate::function::FunctionDeclaration;
 use crate::r#type::{Type, TypeParameter};
+use crate::variable::Identifier;
 
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct StructDeclaration<'a> {
-    pub name: &'a str,
+    pub name: Identifier<'a>,
     pub parameters: Vec<TypeParameter<'a>>,
     pub fields: Vec<FieldDeclaration<'a>>,
 }
@@ -17,7 +18,7 @@ pub struct StructDeclaration<'a> {
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct FieldDeclaration<'a> {
-    pub name: &'a str,
+    pub name: Identifier<'a>,
     pub tpe: Type<'a>,
 }
 
@@ -33,5 +34,5 @@ pub struct StructImpl<'a> {
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct FieldAccess<'a> {
     pub expr: Box<Expr<'a>>,
-    pub field: &'a str,
+    pub field: Identifier<'a>,
 }

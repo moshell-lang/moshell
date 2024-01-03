@@ -83,7 +83,8 @@ impl<'a> Parser<'a> {
         .start;
 
         Ok(MatchArm {
-            val_name: val_name.map(|name| name.text(self.source.source)),
+            val_name: val_name
+                .map(|name| ast::variable::Identifier::extract(self.source.source, name.span)),
             patterns,
             guard,
             body,
@@ -215,7 +216,7 @@ mod tests {
     use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
     use crate::parse;
-    use crate::source::literal;
+    use crate::source::{identifier, identifier_nth, literal};
 
     #[test]
     fn parse_match_as_value() {
@@ -232,9 +233,8 @@ mod tests {
             vec![Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
                 var: TypedVariable {
-                    name: "x",
+                    name: identifier(source.source, "x"),
                     ty: None,
-                    segment: find_in(source.source, "x"),
                 },
                 initializer: Some(Box::new(Expr::Match(Match {
                     operand: Box::new(Expr::VarReference(VarReference {
@@ -256,7 +256,7 @@ mod tests {
                             segment: find_in(source.source, "'-e' => 75"),
                         },
                         MatchArm {
-                            val_name: Some("y"),
+                            val_name: Some(identifier(source.source, "y")),
                             patterns: vec![
                                 MatchPattern::Template(TemplateString {
                                     parts: vec![
@@ -302,7 +302,7 @@ mod tests {
                     segment: find_between(source.source, "match $1", "}"),
                 }))),
                 segment: source.segment(),
-            }),]
+            })]
         )
     }
 
@@ -335,7 +335,7 @@ mod tests {
                         segment: find_in(content, "'-e' => ()"),
                     },
                     MatchArm {
-                        val_name: Some("y"),
+                        val_name: Some(identifier(content, "y")),
                         patterns: vec![
                             MatchPattern::Template(TemplateString {
                                 parts: vec![
@@ -368,7 +368,7 @@ mod tests {
                         segment: find_in(content, "y@\"test $2\" | 2 | $USER | 't x' => ()"),
                     },
                     MatchArm {
-                        val_name: Some("x"),
+                        val_name: Some(identifier_nth(content, "x", 1)),
                         patterns: vec![MatchPattern::Wildcard(find_in(content, "*"))],
                         guard: Some(Expr::Test(Test {
                             expression: Box::new(Expr::Binary(BinaryOperation {
@@ -483,7 +483,7 @@ mod tests {
                         segment: find_in(content, "'-e' \n\n => \n\n ()"),
                     },
                     MatchArm {
-                        val_name: Some("y"),
+                        val_name: Some(identifier(content, "y")),
                         patterns: vec![
                             MatchPattern::Template(TemplateString {
                                 parts: vec![
@@ -513,7 +513,7 @@ mod tests {
                         segment: find_in(content, "y \n\n @ \n\n \"test $2\" \n\n | 2 \n\n | \n\n $USER \n\n | \n\n 't x' \n\n =>\n\n  ()")
                     },
                     MatchArm {
-                        val_name: Some("x"),
+                        val_name: Some(identifier_nth(content, "x", 1)),
                         patterns: vec![MatchPattern::Wildcard(find_in(content, "*"))],
                         guard: Some(Expr::Test(Test {
                             expression: Box::new(Expr::Binary(BinaryOperation {

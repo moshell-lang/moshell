@@ -88,7 +88,7 @@ mod tests {
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::ParseResult;
-    use crate::source::literal;
+    use crate::source::{identifier, literal};
 
     #[test]
     fn native_empty() {
@@ -349,10 +349,10 @@ mod tests {
                         left: Box::new(Expr::Unary(UnaryOperation {
                             op: UnaryOperator::Not,
                             expr: Box::new(Expr::ProgrammaticCall(ProgrammaticCall {
-                                path: vec![InclusionPathItem::Symbol(
-                                    "bar",
-                                    find_in(source.source, "bar")
-                                )],
+                                path: vec![InclusionPathItem::Symbol(identifier(
+                                    source.source,
+                                    "bar"
+                                ))],
                                 arguments: vec![],
                                 type_parameters: vec![],
                                 segment: find_in(source.source, "bar()"),

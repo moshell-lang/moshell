@@ -8,6 +8,7 @@ use context::source::{SourceSegment, SourceSegmentHolder};
 use src_macros::segment_holder;
 
 use crate::r#use::InclusionPathItem;
+use crate::variable::Identifier;
 use crate::Expr;
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
@@ -36,7 +37,7 @@ pub struct CastedExpr<'a> {
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct TypeParameter<'a> {
-    pub name: &'a str,
+    pub name: Identifier<'a>,
     pub params: Vec<TypeParameter<'a>>,
 }
 

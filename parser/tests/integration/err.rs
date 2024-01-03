@@ -12,7 +12,7 @@ use context::source::{Source, SourceSegmentHolder};
 use context::str_find::{find_in, find_in_nth};
 use parser::err::{ParseError, ParseErrorKind, ParseReport};
 use parser::parse;
-use parser::source::{literal, literal_nth};
+use parser::source::{identifier, identifier_nth, literal, literal_nth};
 
 #[test]
 fn repos_delimiter_stack() {
@@ -37,9 +37,8 @@ fn repos_delimiter_stack() {
                 Expr::VarDeclaration(VarDeclaration {
                     kind: VarKind::Val,
                     var: TypedVariable {
-                        name: "x",
+                        name: identifier(source.source, "x"),
                         ty: None,
-                        segment: find_in(source.source, "x")
                     },
                     initializer: Some(Box::new(Expr::Literal(Literal {
                         parsed: 9.into(),
@@ -130,23 +129,23 @@ fn tolerance_in_multiple_groups() {
         report,
         ParseReport {
             expr: vec![Expr::FunctionDeclaration(FunctionDeclaration {
-                name: "f",
+                name: identifier_nth(source.source, "f", 1),
                 type_parameters: vec![TypeParameter {
-                    name: "T",
+                    name: identifier(source.source, "T"),
                     params: Vec::new(),
                     segment: find_in(source.source, "T")
                 }],
                 parameters: vec![FunctionParameter::Named(TypedVariable {
-                    name: "x",
+                    name: identifier(source.source, "x"),
                     ty: Some(Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol(
+                        path: vec![InclusionPathItem::Symbol(identifier_nth(
+                            source.source,
                             "T",
-                            find_in_nth(source.source, "T", 1)
-                        )],
+                            1
+                        ))],
                         params: vec![],
                         segment: find_in_nth(source.source, "T", 1)
                     })),
-                    segment: find_in(source.source, "x: T")
                 })],
                 return_type: None,
                 body: Some(Box::new(Expr::VarReference(VarReference {
@@ -183,9 +182,8 @@ fn invalid_binary_operator_cause_one_error() {
             expr: vec![Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
                 var: TypedVariable {
-                    name: "incorrect",
+                    name: identifier(source.source, "incorrect"),
                     ty: None,
-                    segment: find_in(content, "incorrect")
                 },
                 initializer: Some(Box::new(literal(content, "'a'"))),
                 segment: find_in(content, "val incorrect = 'a'")
@@ -334,7 +332,7 @@ fn do_not_self_lock() {
         report,
         ParseReport {
             expr: vec![Expr::FunctionDeclaration(FunctionDeclaration {
-                name: "g",
+                name: identifier(source.source, "g"),
                 parameters: vec![],
                 type_parameters: vec![],
                 body: Some(Box::new(Expr::Block(Block {
@@ -479,10 +477,7 @@ fn double_comma_parentheses() {
         report,
         ParseReport {
             expr: vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![InclusionPathItem::Symbol(
-                    "Bar",
-                    find_in(source.source, "Bar")
-                )],
+                path: vec![InclusionPathItem::Symbol(identifier(source.source, "Bar"))],
                 arguments: vec![literal(content, "'m'")],
                 type_parameters: Vec::new(),
                 segment: source.segment(),

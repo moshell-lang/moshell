@@ -1,4 +1,3 @@
-use context::source::SourceSegment;
 use std::iter::Peekable;
 use std::str::CharIndices;
 
@@ -68,7 +67,7 @@ impl<'a> Lexer<'a> {
                 self.next_token_char(pos, c)
             }
         } else {
-            Token::new(TokenType::EndOfFile, SourceSegment::default())
+            Token::new(TokenType::EndOfFile, self.input.len()..self.input.len())
         }
     }
 
@@ -259,7 +258,7 @@ impl<'a> Lexer<'a> {
                 return Token::new(TokenType::NewLine, pos..pos + 1);
             }
         }
-        Token::new(TokenType::EndOfFile, SourceSegment::default())
+        Token::new(TokenType::EndOfFile, self.input.len()..self.input.len())
     }
 
     /// Skip the remaining characters of the current multiline comment.

@@ -1,4 +1,4 @@
-use ast::variable::{TypedVariable, VarDeclaration, VarKind};
+use ast::variable::{Identifier, TypedVariable, VarDeclaration, VarKind};
 use ast::Expr;
 use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
@@ -32,7 +32,7 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
         };
 
         let var = self.parse_typed_var()?;
-        let mut segment = start.span.start..var.segment.end;
+        let mut segment = start.span.start..var.segment().end;
 
         let initializer = match self
             .cursor
@@ -65,14 +65,9 @@ impl<'a> VarDeclarationAspect<'a> for Parser<'a> {
             .advance(blanks().then(of_type(TokenType::Colon)))
             .map(|_| self.parse_type())
             .transpose()?;
-        let mut segment = name.span.clone();
-        if let Some(ty) = ty.as_ref() {
-            segment = segment.start..ty.segment().end;
-        }
         Ok(TypedVariable {
-            name: name.text(self.source.source),
+            name: Identifier::extract(self.source.source, name.span),
             ty,
-            segment,
         })
     }
 }
@@ -94,7 +89,7 @@ mod tests {
 
     use crate::err::ParseError;
     use crate::parse;
-    use crate::source::literal;
+    use crate::source::{identifier, literal};
 
     use super::*;
 
@@ -107,9 +102,8 @@ mod tests {
             vec![Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
                 var: TypedVariable {
-                    name: "variable",
+                    name: identifier(source.source, "variable"),
                     ty: None,
-                    segment: find_in(source.source, "variable")
                 },
                 initializer: None,
                 segment: source.segment(),
@@ -126,16 +120,12 @@ mod tests {
             vec![Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
                 var: TypedVariable {
-                    name: "variable",
+                    name: identifier(source.source, "variable"),
                     ty: Some(Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol(
-                            "Int",
-                            find_in(source.source, "Int")
-                        )],
+                        path: vec![InclusionPathItem::Symbol(identifier(source.source, "Int"))],
                         params: Vec::new(),
                         segment: find_in(source.source, "Int"),
                     })),
-                    segment: find_in(source.source, "variable: Int")
                 },
                 initializer: None,
                 segment: source.segment(),
@@ -166,9 +156,8 @@ mod tests {
             vec![Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
                 var: TypedVariable {
-                    name: "variable",
+                    name: identifier(source.source, "variable"),
                     ty: None,
-                    segment: find_in(source.source, "variable")
                 },
                 initializer: Some(Box::from(literal(source.source, "'hello $test'"))),
                 segment: source.segment(),
@@ -223,9 +212,8 @@ mod tests {
             vec![Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
                 var: TypedVariable {
-                    name: "x",
+                    name: identifier(source.source, "x"),
                     ty: None,
-                    segment: find_in(source.source, "x")
                 },
                 initializer: Some(Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
@@ -256,9 +244,8 @@ mod tests {
             vec![Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
                 var: TypedVariable {
-                    name: "variable",
+                    name: identifier(source.source, "variable"),
                     ty: None,
-                    segment: find_in(source.source, "variable")
                 },
                 initializer: Some(Box::from(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::Literal(Literal {

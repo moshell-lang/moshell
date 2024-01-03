@@ -1,4 +1,5 @@
 use ast::r#struct::{FieldDeclaration, StructDeclaration, StructImpl};
+use ast::variable::Identifier;
 use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
 use lexer::token::TokenType::CurlyLeftBracket;
@@ -50,7 +51,7 @@ impl<'a> StructAspect<'a> for Parser<'a> {
         let segment = segment_start..segment_end;
 
         Ok(StructDeclaration {
-            name: name.text(self.source.source),
+            name: Identifier::extract(self.source.source, name.span),
             parameters,
             fields,
             segment,
@@ -124,7 +125,7 @@ impl<'a> Parser<'a> {
         let segment = segment_start..segment_end;
 
         Ok(FieldDeclaration {
-            name: name.text(self.source.source),
+            name: Identifier::extract(self.source.source, name.span),
             tpe,
             segment,
         })
@@ -134,6 +135,7 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use crate::parse;
+    use crate::source::{identifier, identifier_nth};
     use ast::function::FunctionDeclaration;
     use ast::r#struct::{FieldDeclaration, StructDeclaration, StructImpl};
     use ast::r#type::{ParametrizedType, Type, TypeParameter};
@@ -157,39 +159,33 @@ mod tests {
         assert_eq!(
             result,
             vec![Expr::StructDeclaration(StructDeclaration {
-                name: "Foo",
+                name: identifier(src.source, "Foo"),
                 parameters: vec![
                     TypeParameter {
-                        name: "A",
+                        name: identifier(src.source, "A"),
                         params: vec![],
                         segment: find_in(src.source, "A"),
                     },
                     TypeParameter {
-                        name: "B",
+                        name: identifier(src.source, "B"),
                         params: vec![],
                         segment: find_in(src.source, "B"),
                     },
                 ],
                 fields: vec![
                     FieldDeclaration {
-                        name: "a",
+                        name: identifier(src.source, "a"),
                         tpe: Type::Parametrized(ParametrizedType {
-                            path: vec![InclusionPathItem::Symbol(
-                                "Int",
-                                find_in(src.source, "Int")
-                            )],
+                            path: vec![InclusionPathItem::Symbol(identifier(src.source, "Int"))],
                             params: vec![],
                             segment: find_in(src.source, "Int"),
                         }),
                         segment: find_in(src.source, "a: Int"),
                     },
                     FieldDeclaration {
-                        name: "b",
+                        name: identifier(src.source, "b"),
                         tpe: Type::Parametrized(ParametrizedType {
-                            path: vec![InclusionPathItem::Symbol(
-                                "String",
-                                find_in(src.source, "String")
-                            )],
+                            path: vec![InclusionPathItem::Symbol(identifier(src.source, "String"))],
                             params: vec![],
                             segment: find_in(src.source, "String"),
                         }),
@@ -215,21 +211,20 @@ mod tests {
             result,
             vec![Expr::Impl(StructImpl {
                 type_parameters: vec![TypeParameter {
-                    name: "A",
+                    name: identifier(src.source, "A"),
                     params: vec![],
                     segment: find_in(src.source, "A"),
                 }],
                 impl_type: Type::Parametrized(ParametrizedType {
-                    path: vec![InclusionPathItem::Symbol(
-                        "A",
-                        find_in_nth(src.source, "A", 1)
-                    )],
+                    path: vec![InclusionPathItem::Symbol(identifier_nth(
+                        src.source, "A", 1
+                    ))],
                     params: vec![],
                     segment: find_in_nth(src.source, "A", 1),
                 }),
                 functions: vec![
                     FunctionDeclaration {
-                        name: "push",
+                        name: identifier(src.source, "push"),
                         type_parameters: vec![],
                         parameters: vec![],
                         return_type: None,
@@ -240,7 +235,7 @@ mod tests {
                         segment: find_in(src.source, "fun push() = 0"),
                     },
                     FunctionDeclaration {
-                        name: "len",
+                        name: identifier(src.source, "len"),
                         type_parameters: vec![],
                         parameters: vec![],
                         return_type: None,

@@ -1,4 +1,5 @@
 use ast::control_flow::{ConditionalFor, For, ForKind, Loop, RangeFor, While};
+use ast::variable::Identifier;
 use context::source::SourceSegmentHolder;
 use lexer::token::{Token, TokenType};
 
@@ -128,7 +129,7 @@ impl<'a> Parser<'a> {
         let segment = receiver.span.start..iterable.segment().end;
 
         Ok(RangeFor {
-            receiver: receiver.text(self.source.source),
+            receiver: Identifier::extract(self.source.source, receiver.span),
             iterable,
             segment,
         })
@@ -224,8 +225,7 @@ mod tests {
     use ast::range::{FilePattern, Iterable, NumericRange};
     use ast::value::Literal;
     use ast::variable::{
-        Assign, AssignOperator, Identifier, TypedVariable, VarDeclaration, VarKind, VarName,
-        VarReference,
+        Assign, AssignOperator, Path, TypedVariable, VarDeclaration, VarKind, VarName, VarReference,
     };
     use ast::Expr;
     use ast::Expr::{Break, Continue};
@@ -236,7 +236,7 @@ mod tests {
     use crate::err::ParseErrorKind::Unexpected;
     use crate::parse;
     use crate::parser::ParseResult;
-    use crate::source::literal;
+    use crate::source::{identifier, identifier_nth, literal};
 
     #[test]
     fn loop_with_break_and_continues() {
@@ -354,7 +354,7 @@ mod tests {
             expr,
             vec![Expr::For(For {
                 kind: Box::new(ForKind::Range(RangeFor {
-                    receiver: "i",
+                    receiver: identifier(source.source, "i"),
                     iterable: Expr::Range(Iterable::Range(NumericRange {
                         start: Box::new(Expr::Literal(Literal {
                             parsed: 1.into(),
@@ -397,7 +397,7 @@ mod tests {
             expr,
             vec![Expr::For(For {
                 kind: Box::new(ForKind::Range(RangeFor {
-                    receiver: "n",
+                    receiver: identifier(source.source, "n"),
                     iterable: Expr::Range(Iterable::Range(NumericRange {
                         start: Box::new(Expr::VarReference(VarReference {
                             name: VarName::User("a"),
@@ -431,7 +431,7 @@ mod tests {
             expr,
             vec![Expr::For(For {
                 kind: Box::new(ForKind::Range(RangeFor {
-                    receiver: "i",
+                    receiver: identifier(source.source, "i"),
                     iterable: Expr::Range(Iterable::Range(NumericRange {
                         start: Box::new(Expr::Parenthesis(Parenthesis {
                             expression: Box::new(Expr::Binary(BinaryOperation {
@@ -475,7 +475,7 @@ mod tests {
             expr,
             vec![Expr::For(For {
                 kind: Box::new(ForKind::Range(RangeFor {
-                    receiver: "f",
+                    receiver: identifier_nth(source.source, "f", 1),
                     iterable: Expr::Range(Iterable::Files(FilePattern {
                         pattern: Box::new(literal(source.source, "'*'")),
                         segment: find_in(source.source, "p'*'")
@@ -513,9 +513,8 @@ mod tests {
                     initializer: Expr::VarDeclaration(VarDeclaration {
                         kind: VarKind::Var,
                         var: TypedVariable {
-                            name: "i",
+                            name: identifier(source.source, "i"),
                             ty: None,
-                            segment: find_in(source.source, "i")
                         },
                         initializer: Some(Box::new(Expr::Literal(Literal {
                             parsed: 0.into(),
@@ -535,11 +534,12 @@ mod tests {
                         })),
                     }),
                     increment: Expr::Assign(Assign {
-                        left: Box::new(Expr::Identifier(Identifier {
-                            path: vec![InclusionPathItem::Symbol(
+                        left: Box::new(Expr::Path(Path {
+                            path: vec![InclusionPathItem::Symbol(identifier_nth(
+                                source.source,
                                 "i",
-                                find_in_nth(source.source, "i", 2)
-                            )],
+                                2
+                            ))],
                         })),
                         operator: AssignOperator::Assign,
                         value: Box::new(Expr::Binary(BinaryOperation {

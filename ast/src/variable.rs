@@ -22,13 +22,22 @@ pub struct VarDeclaration<'a> {
 }
 
 /// A named variable declaration.
-#[segment_holder]
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub struct TypedVariable<'a> {
     /// The name of the variable.
-    pub name: &'a str,
+    pub name: Identifier<'a>,
     /// The type of the declared variable.
     pub ty: Option<Type<'a>>,
+}
+
+impl SourceSegmentHolder for TypedVariable<'_> {
+    fn segment(&self) -> SourceSegment {
+        if let Some(ty) = &self.ty {
+            self.name.segment().start..ty.segment().end
+        } else {
+            self.name.segment()
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, DebugPls)]
@@ -87,17 +96,17 @@ pub enum AssignOperator {
 
 /// A path identifier, that do not start with `$`.
 #[derive(Debug, Clone, PartialEq, DebugPls)]
-pub struct Identifier<'a> {
+pub struct Path<'a> {
     pub path: Vec<InclusionPathItem<'a>>,
 }
 
-impl SourceSegmentHolder for Identifier<'_> {
+impl SourceSegmentHolder for Path<'_> {
     fn segment(&self) -> SourceSegment {
         self.path[0].segment().start..self.path.last().unwrap().segment().end
     }
 }
 
-impl Display for Identifier<'_> {
+impl Display for Path<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut iter = self.path.iter();
         if let Some(first) = iter.next() {
@@ -135,7 +144,7 @@ impl SourceSegmentHolder for Assign<'_> {
 impl Assign<'_> {
     pub fn name(&self) -> Option<String> {
         match self.left.as_ref() {
-            Expr::Identifier(ident) => Some(ident.to_string()),
+            Expr::Path(ident) => Some(ident.to_string()),
             Expr::VarReference(VarReference { name, .. }) => Some(name.name().to_owned()),
             _ => None,
         }
@@ -153,4 +162,36 @@ pub struct TildeExpansion<'a> {
 pub enum Tilde<'a> {
     HomeDir(Option<Box<Expr<'a>>>),
     WorkingDir,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, DebugPls)]
+pub struct Identifier<'a> {
+    pub value: &'a str,
+    pub start: usize,
+}
+
+impl<'a> Identifier<'a> {
+    pub fn new(value: &'a str, start: usize) -> Self {
+        Self { value, start }
+    }
+
+    pub fn extract(text: &'a str, span: SourceSegment) -> Self {
+        let start = span.start;
+        Self {
+            value: &text[span],
+            start,
+        }
+    }
+}
+
+impl Display for Identifier<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.value, f)
+    }
+}
+
+impl SourceSegmentHolder for Identifier<'_> {
+    fn segment(&self) -> SourceSegment {
+        self.start..self.start + self.value.len()
+    }
 }

@@ -56,7 +56,7 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
         })?;
 
         if let Some(bracket) = bracket {
-            if self.cursor.peek().token_type.is_closing_ponctuation() {
+            if self.cursor.peek().token_type.is_closing_punctuation() {
                 self.expect_delimiter(start, CurlyRightBracket)?;
             } else {
                 self.cursor.force_with(

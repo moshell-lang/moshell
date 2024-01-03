@@ -128,7 +128,7 @@ impl SymbolLocation {
         for it in path_it {
             match it {
                 InclusionPathItem::Reef(seg) => bad_segments.push(seg.clone()),
-                InclusionPathItem::Symbol(item, _) => parts.push(item.to_string()),
+                InclusionPathItem::Symbol(ident) => parts.push(ident.to_string()),
             }
         }
 

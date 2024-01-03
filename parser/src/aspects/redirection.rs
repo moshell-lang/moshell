@@ -200,7 +200,7 @@ mod test {
                     operand: literal(source.source, "/tmp/out"),
                     segment: find_in(content, "`>` /tmp/out"),
                 }],
-            }),]
+            })]
         );
     }
 

@@ -56,7 +56,7 @@ mod tests {
     use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
     use crate::parser::Parser;
-    use crate::source::literal;
+    use crate::source::{identifier, literal};
 
     #[test]
     fn simple_lambda_definition() {
@@ -69,21 +69,16 @@ mod tests {
             LambdaDef {
                 args: vec![
                     TypedVariable {
-                        name: "a",
+                        name: identifier(source.source, "a"),
                         ty: None,
-                        segment: find_in(source.source, "a")
                     },
                     TypedVariable {
-                        name: "b",
+                        name: identifier(source.source, "b"),
                         ty: Some(Type::Parametrized(ParametrizedType {
-                            path: vec![InclusionPathItem::Symbol(
-                                "Int",
-                                find_in(source.source, "Int")
-                            )],
+                            path: vec![InclusionPathItem::Symbol(identifier(source.source, "Int"))],
                             params: Vec::new(),
                             segment: find_in(source.source, "Int"),
                         })),
-                        segment: find_in(source.source, "b: Int")
                     },
                 ],
                 body: Box::new(Expr::Binary(BinaryOperation {
@@ -112,9 +107,8 @@ mod tests {
             parsed,
             LambdaDef {
                 args: vec![TypedVariable {
-                    name: "a",
+                    name: identifier(source.source, "a"),
                     ty: None,
-                    segment: 0..1,
                 },],
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::VarReference(VarReference {
@@ -143,16 +137,12 @@ mod tests {
             parsed,
             LambdaDef {
                 args: vec![TypedVariable {
-                    name: "a",
+                    name: identifier(source.source, "a"),
                     ty: Some(Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol(
-                            "Int",
-                            find_in(source.source, "Int")
-                        )],
+                        path: vec![InclusionPathItem::Symbol(identifier(source.source, "Int"))],
                         params: Vec::new(),
                         segment: find_in(src, "Int")
                     })),
-                    segment: find_in(src, "a: Int")
                 },],
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::VarReference(VarReference {

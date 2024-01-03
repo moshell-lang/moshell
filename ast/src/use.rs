@@ -1,3 +1,4 @@
+use crate::variable::Identifier;
 use context::source::{SourceSegment, SourceSegmentHolder};
 use dbg_pls::DebugPls;
 use src_macros::segment_holder;
@@ -13,14 +14,14 @@ pub struct Use<'a> {
 
 #[derive(Debug, Clone, PartialEq, DebugPls)]
 pub enum InclusionPathItem<'a> {
-    Symbol(&'a str, SourceSegment),
+    Symbol(Identifier<'a>),
     Reef(SourceSegment),
 }
 
 impl InclusionPathItem<'_> {
     pub fn name(&self) -> &str {
         match self {
-            InclusionPathItem::Symbol(str, _) => str,
+            InclusionPathItem::Symbol(ident) => ident.value,
             InclusionPathItem::Reef(_) => "reef",
         }
     }
@@ -29,7 +30,7 @@ impl InclusionPathItem<'_> {
 impl SourceSegmentHolder for InclusionPathItem<'_> {
     fn segment(&self) -> SourceSegment {
         match self {
-            InclusionPathItem::Symbol(_, s) => s.clone(),
+            InclusionPathItem::Symbol(ident) => ident.segment(),
             InclusionPathItem::Reef(s) => s.clone(),
         }
     }
@@ -38,7 +39,7 @@ impl SourceSegmentHolder for InclusionPathItem<'_> {
 impl Display for InclusionPathItem<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            InclusionPathItem::Symbol(str, _) => write!(f, "{str}"),
+            InclusionPathItem::Symbol(ident) => write!(f, "{ident}"),
             InclusionPathItem::Reef(_) => write!(f, "reef"),
         }
     }
@@ -51,7 +52,7 @@ pub enum Import<'a> {
     /// all in given module (the vec being the inclusion path where the last element is the module that is being imported)
     AllIn(Vec<InclusionPathItem<'a>>, SourceSegment),
     ///An environment variable, command.
-    Environment(&'a str, SourceSegment),
+    Environment(Identifier<'a>),
     ///An import list
     List(ImportList<'a>),
 }
@@ -61,7 +62,7 @@ impl<'a> SourceSegmentHolder for Import<'a> {
         match self {
             Import::Symbol(s) => s.segment.clone(),
             Import::AllIn(_, s) => s.clone(),
-            Import::Environment(_, s) => s.clone(),
+            Import::Environment(ident) => ident.segment(),
             Import::List(l) => l.segment.clone(),
         }
     }
@@ -85,5 +86,5 @@ pub struct ImportedSymbol<'a> {
     pub path: Vec<InclusionPathItem<'a>>,
 
     ///The symbol's alias (if any)
-    pub alias: Option<&'a str>,
+    pub alias: Option<Identifier<'a>>,
 }

@@ -1,7 +1,8 @@
 use ast::function::{FunctionDeclaration, FunctionParameter, Return};
 use ast::r#type::Type;
+use ast::variable::Identifier;
 use context::source::SourceSegmentHolder;
-use lexer::token::TokenType;
+use lexer::token::{Token, TokenType};
 
 use crate::aspects::expr_list::ExpressionListAspect;
 use crate::aspects::r#type::TypeAspect;
@@ -51,7 +52,7 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
             .lookahead(blanks().then(of_type(TokenType::SemiColon)))
         {
             return Ok(FunctionDeclaration {
-                name,
+                name: Identifier::extract(self.source.source, name.span),
                 type_parameters: tparams,
                 parameters: params,
                 return_type: rtype,
@@ -72,7 +73,7 @@ impl<'a> FunctionDeclarationAspect<'a> for Parser<'a> {
         let segment = segment_start..body.segment().end;
 
         Ok(FunctionDeclaration {
-            name,
+            name: Identifier::extract(self.source.source, name.span),
             type_parameters: tparams,
             parameters: params,
             return_type: rtype,
@@ -178,7 +179,7 @@ impl<'a> Parser<'a> {
         Ok(params)
     }
 
-    fn parse_fn_declaration_name(&mut self) -> ParseResult<&'a str> {
+    fn parse_fn_declaration_name(&mut self) -> ParseResult<Token> {
         self.cursor
             .advance(like(TokenType::is_valid_function_name))
             .ok_or_else(|| {
@@ -210,7 +211,6 @@ impl<'a> Parser<'a> {
                     )
                 }
             })
-            .map(|t| t.text(self.source.source))
     }
 }
 
@@ -231,7 +231,7 @@ mod tests {
 
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
-    use crate::source::{literal, literal_nth};
+    use crate::source::{identifier, identifier_nth, literal, literal_nth};
 
     #[test]
     fn function_no_name() {
@@ -270,7 +270,7 @@ mod tests {
         assert_eq!(
             errs,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
-                name: "foo",
+                name: identifier(source.source, "foo"),
                 type_parameters: vec![],
                 parameters: vec![],
                 return_type: None,
@@ -371,14 +371,11 @@ mod tests {
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
-                name: "test",
+                name: identifier(src.source, "test"),
                 type_parameters: vec![],
                 parameters: vec![],
                 return_type: Some(Type::Parametrized(ParametrizedType {
-                    path: vec![InclusionPathItem::Symbol(
-                        "Float",
-                        find_in(src.source, "Float")
-                    )],
+                    path: vec![InclusionPathItem::Symbol(identifier(src.source, "Float"))],
                     params: vec![],
                     segment: find_in_nth(src.source, "Float", 0),
                 })),
@@ -398,7 +395,7 @@ mod tests {
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
-                name: "test",
+                name: identifier(source.source, "test"),
                 type_parameters: vec![],
                 parameters: vec![],
                 return_type: None,
@@ -417,12 +414,11 @@ mod tests {
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
-                name: "test",
+                name: identifier(source.source, "test"),
                 type_parameters: vec![],
                 parameters: vec![FunctionParameter::Named(TypedVariable {
-                    name: "x",
+                    name: identifier(source.source, "x"),
                     ty: None,
-                    segment: find_in(source.source, "x")
                 })],
                 return_type: None,
                 body: Some(Box::new(Expr::VarReference(VarReference {
@@ -441,12 +437,11 @@ mod tests {
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
-                name: "non_implemented_function",
+                name: identifier(source.source, "non_implemented_function"),
                 type_parameters: vec![],
                 parameters: vec![FunctionParameter::Named(TypedVariable {
-                    name: "x",
+                    name: identifier(source.source, "x"),
                     ty: None,
-                    segment: find_in(source.source, "x")
                 })],
                 return_type: None,
                 body: None,
@@ -462,33 +457,31 @@ mod tests {
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
-                name: "test",
+                name: identifier(source.source, "test"),
                 type_parameters: vec![],
                 parameters: vec![
                     FunctionParameter::Slf(find_in(source.source, "self")),
                     FunctionParameter::Named(TypedVariable {
-                        name: "x",
+                        name: identifier(source.source, "x"),
                         ty: Some(Type::Parametrized(ParametrizedType {
-                            path: vec![InclusionPathItem::Symbol(
-                                "String",
-                                find_in(source.source, "String")
-                            )],
+                            path: vec![InclusionPathItem::Symbol(identifier(
+                                source.source,
+                                "String"
+                            ))],
                             params: vec![],
                             segment: find_in(source.source, "String")
                         })),
-                        segment: find_in(source.source, "x : String")
                     }),
                     FunctionParameter::Named(TypedVariable {
-                        name: "y",
+                        name: identifier(source.source, "y"),
                         ty: Some(Type::Parametrized(ParametrizedType {
-                            path: vec![InclusionPathItem::Symbol(
-                                "Test",
-                                find_in(source.source, "Test")
-                            )],
+                            path: vec![InclusionPathItem::Symbol(identifier(
+                                source.source,
+                                "Test"
+                            ))],
                             params: vec![],
                             segment: find_in(source.source, "Test")
                         })),
-                        segment: find_in(source.source, "y : Test")
                     }),
                 ],
                 return_type: None,
@@ -507,43 +500,43 @@ mod tests {
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
-                name: "test",
+                name: identifier(source.source, "test"),
                 type_parameters: vec![
                     TypeParameter {
-                        name: "X",
+                        name: identifier(source.source, "X"),
                         params: Vec::new(),
                         segment: find_in(source.source, "X")
                     },
                     TypeParameter {
-                        name: "Y",
+                        name: identifier(source.source, "Y"),
                         params: Vec::new(),
                         segment: find_in(source.source, "Y")
                     },
                 ],
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
-                        name: "x",
+                        name: identifier(source.source, "x"),
                         ty: Some(Type::Parametrized(ParametrizedType {
-                            path: vec![InclusionPathItem::Symbol(
+                            path: vec![InclusionPathItem::Symbol(identifier_nth(
+                                source.source,
                                 "X",
-                                find_in_nth(source.source, "X", 1)
-                            )],
+                                1
+                            ))],
                             params: vec![],
                             segment: find_in_nth(source.source, "X", 1)
                         })),
-                        segment: find_in(source.source, "x : X")
                     }),
                     FunctionParameter::Named(TypedVariable {
-                        name: "y",
+                        name: identifier(source.source, "y"),
                         ty: Some(Type::Parametrized(ParametrizedType {
-                            path: vec![InclusionPathItem::Symbol(
+                            path: vec![InclusionPathItem::Symbol(identifier_nth(
+                                source.source,
                                 "Y",
-                                find_in_nth(source.source, "Y", 1)
-                            )],
+                                1
+                            ))],
                             params: vec![],
                             segment: find_in_nth(source.source, "Y", 1)
                         })),
-                        segment: find_in(source.source, "y : Y")
                     }),
                 ],
                 return_type: None,
@@ -562,11 +555,11 @@ mod tests {
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
-                name: "test",
+                name: identifier(source.source, "test"),
                 type_parameters: vec![],
                 parameters: vec![FunctionParameter::Variadic(
                     Some(Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol("X", find_in(source.source, "X"))],
+                        path: vec![InclusionPathItem::Symbol(identifier(source.source, "X"))],
                         params: Vec::new(),
                         segment: find_in(source.source, "X")
                     })),
@@ -589,20 +582,16 @@ mod tests {
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
-                name: "test",
+                name: identifier(source.source, "test"),
                 type_parameters: vec![],
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
-                        name: "x",
+                        name: identifier(source.source, "x"),
                         ty: Some(Type::Parametrized(ParametrizedType {
-                            path: vec![InclusionPathItem::Symbol(
-                                "int",
-                                find_in(source.source, "int")
-                            )],
+                            path: vec![InclusionPathItem::Symbol(identifier(source.source, "int"))],
                             params: Vec::new(),
                             segment: find_in(source.source, "int")
                         })),
-                        segment: find_in(source.source, "x: int")
                     }),
                     FunctionParameter::Variadic(None, find_in(source.source, "..."))
                 ],
@@ -624,50 +613,51 @@ mod tests {
         assert_eq!(
             ast,
             vec![Expr::FunctionDeclaration(FunctionDeclaration {
-                name: "test",
+                name: identifier(source.source, "test"),
                 type_parameters: vec![
                     TypeParameter {
-                        name: "X",
+                        name: identifier(source.source, "X"),
                         params: Vec::new(),
                         segment: find_in(source.source, "X")
                     },
                     TypeParameter {
-                        name: "Y",
+                        name: identifier(source.source, "Y"),
                         params: Vec::new(),
                         segment: find_in(source.source, "Y")
                     },
                 ],
                 parameters: vec![
                     FunctionParameter::Named(TypedVariable {
-                        name: "x",
+                        name: identifier(source.source, "x"),
                         ty: Some(Type::Parametrized(ParametrizedType {
-                            path: vec![InclusionPathItem::Symbol(
+                            path: vec![InclusionPathItem::Symbol(identifier_nth(
+                                source.source,
                                 "X",
-                                find_in_nth(source.source, "X", 1)
-                            )],
+                                1
+                            ))],
                             params: vec![],
                             segment: find_in_nth(source.source, "X", 1)
                         })),
-                        segment: find_in(source.source, "x : X")
                     }),
                     FunctionParameter::Named(TypedVariable {
-                        name: "y",
+                        name: identifier(source.source, "y"),
                         ty: Some(Type::Parametrized(ParametrizedType {
-                            path: vec![InclusionPathItem::Symbol(
+                            path: vec![InclusionPathItem::Symbol(identifier_nth(
+                                source.source,
                                 "Y",
-                                find_in_nth(source.source, "Y", 1)
-                            )],
+                                1
+                            ))],
                             params: vec![],
                             segment: find_in_nth(source.source, "Y", 1)
                         })),
-                        segment: find_in(source.source, "y : Y")
                     }),
                 ],
                 return_type: Some(Type::Parametrized(ParametrizedType {
-                    path: vec![InclusionPathItem::Symbol(
+                    path: vec![InclusionPathItem::Symbol(identifier_nth(
+                        source.source,
                         "X",
-                        find_in_nth(source.source, "X", 2)
-                    )],
+                        2
+                    ))],
                     params: Vec::new(),
                     segment: find_in_nth(source.source, "X", 2)
                 })),

@@ -702,7 +702,7 @@ pub(super) fn type_method(
     let current_reef = exploration.externals.current;
 
     // Directly callable types just have a single method called `apply`
-    let method_name = method_call.name.unwrap_or("apply");
+    let method_name = method_call.name.map(|name| name.value).unwrap_or("apply");
     let type_methods = exploration.get_methods(callee.ty, method_name);
     if type_methods.is_none() {
         diagnostics.push(
@@ -848,7 +848,11 @@ pub(super) fn type_method(
                         .with_observation(Observation::here(
                             source,
                             current_reef,
-                            method_call.segment(),
+                            if let Some(name) = &method_call.name {
+                                name.segment()
+                            } else {
+                                method_call.segment()
+                            },
                             "Arguments to this method are incorrect",
                         ));
                         diagnostics.push(diagnostic);
@@ -972,7 +976,7 @@ pub(super) fn type_parameter(
                 location: Some(SourceLocation::new(
                     links.source,
                     exploration.externals.current,
-                    named.segment.clone(),
+                    named.segment(),
                 )),
                 ty: type_id,
                 local_id,
