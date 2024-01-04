@@ -488,21 +488,32 @@ fn ascribe_var_declaration(
     let type_hint =
         ast_type_hint.map(|ty| resolve_type_annotation(exploration, links, ty, diagnostics));
 
-    let mut initializer = decl
-        .initializer
-        .as_ref()
-        .map(|expr| {
-            ascribe_types(
-                exploration,
-                links,
-                diagnostics,
-                expr,
-                state.with_local_value(
-                    type_hint.map_or(ExpressionValue::Unspecified, ExpressionValue::Expected),
-                ),
-            )
-        })
-        .expect("Variables without initializers are not supported yet");
+    let mut initializer = match decl.initializer.as_ref() {
+        Some(expr) => ascribe_types(
+            exploration,
+            links,
+            diagnostics,
+            expr,
+            state.with_local_value(
+                type_hint.map_or(ExpressionValue::Unspecified, ExpressionValue::Expected),
+            ),
+        ),
+        None => {
+            diagnostics.push(
+                Diagnostic::new(
+                    DiagnosticID::UnsupportedFeature,
+                    "Variables without initializers are not supported yet",
+                )
+                .with_observation(Observation::here(
+                    links.source,
+                    exploration.externals.current,
+                    decl.segment(),
+                    "Variable declaration happens here",
+                )),
+            );
+            TypedExpr::error(decl.segment())
+        }
+    };
 
     if let Some(type_ref) = type_hint {
         initializer = check_type_annotation(
@@ -1697,6 +1708,25 @@ mod tests {
     fn single_literal() {
         let res = extract_type(Source::unknown("1"));
         assert_eq!(res, Ok(INT));
+    }
+
+    #[test]
+    fn deny_non_initialized() {
+        let content = "var a: Int; $a";
+        let res = extract_type(Source::unknown(content));
+        assert_eq!(
+            res,
+            Err(vec![Diagnostic::new(
+                DiagnosticID::UnsupportedFeature,
+                "Variables without initializers are not supported yet",
+            )
+            .with_observation(Observation::here(
+                SourceId(0),
+                ReefId(1),
+                find_in(content, "var a: Int"),
+                "Variable declaration happens here",
+            ))])
+        );
     }
 
     #[test]
