@@ -19,6 +19,6 @@ void Locals::set_byte(uint8_t b, size_t at) {
 }
 
 uint8_t &Locals::reference(size_t at) {
-    check_capacity(at, 1, "accessing");
+    check_capacity(at, 0, "accessing");
     return reinterpret_cast<uint8_t &>(*(bytes + at));
 }

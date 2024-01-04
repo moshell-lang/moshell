@@ -14,6 +14,7 @@ use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
 use crate::emit::native::emit_natives;
 use crate::emit::structure::{emit_field_access, emit_field_assign};
 use crate::locals::LocalsLayout;
+use crate::r#type::ValueStackSize;
 
 mod identifier;
 mod invoke;
@@ -77,7 +78,10 @@ fn emit_ref(
     cp: &mut ConstantPool,
     locals: &LocalsLayout,
 ) {
-    let size = ref_type.into();
+    let size = ValueStackSize::from(ref_type);
+    if size == ValueStackSize::Zero {
+        return;
+    }
     match expose_variable(ctx, var, cp) {
         Identifier::Local(id) => {
             instructions.emit_get_local(id, size, locals);
@@ -108,7 +112,10 @@ fn emit_declaration(
     if let Some(value) = &declaration.value {
         locals.set_value_space(declaration.identifier, value.ty);
 
-        if variable.is_exported() && ctx.environment.is_script {
+        if variable.is_exported()
+            && ctx.environment.is_script
+            && ValueStackSize::from(value.ty) != ValueStackSize::Zero
+        {
             let offset = locals
                 .get_index(declaration.identifier)
                 .expect("Variable just have been declared");
@@ -159,7 +166,10 @@ fn emit_assignment(
     emit(value, instructions, ctx, cp, locals, state);
     state.use_values(last);
 
-    let returned_value_type = value.ty.into();
+    let returned_value_type = ValueStackSize::from(value.ty);
+    if returned_value_type == ValueStackSize::Zero {
+        return;
+    }
 
     match expose_variable(ctx, var, cp) {
         Identifier::Local(id) => {

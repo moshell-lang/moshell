@@ -89,9 +89,10 @@ impl<'a> Parser<'a> {
                     "Environment variable name expected.",
                     ParseErrorKind::Expected("<identifier>".to_string()),
                 )?;
-                Ok(Import::Environment(
-                    ast::variable::Identifier::extract(self.source.source, env_variable.span),
-                ))
+                Ok(Import::Environment(ast::variable::Identifier::extract(
+                    self.source.source,
+                    env_variable.span,
+                )))
             }
             Star => self.expected_with(
                 "import all statement needs a symbol prefix.",

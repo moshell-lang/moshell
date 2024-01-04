@@ -86,6 +86,21 @@ fn test_structure_field_subscript() {
 }
 
 #[test]
+fn unit_field() {
+    let mut runner = Runner::default();
+    let res = runner.eval(
+        "
+        struct Bar { a: Unit, b: Int }
+        val bar = Bar({}, 10)
+        $bar.a
+    ",
+    );
+
+    assert_eq!(res, Some(VmValue::Void));
+    assert_eq!(runner.eval("$bar.b"), Some(VmValue::Int(10)));
+}
+
+#[test]
 fn test_structure_field_subscript_assign() {
     let mut runner = Runner::default();
     let res = runner.try_eval(

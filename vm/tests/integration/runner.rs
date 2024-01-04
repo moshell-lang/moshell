@@ -315,6 +315,28 @@ mod test {
     }
 
     #[test]
+    fn unit_assignment() {
+        let mut runner = Runner::default();
+        runner.eval("fun bar() = { var o = {}; o = $o }; var b = bar(); b = {}");
+        Some(assert_eq!(runner.eval("$b"), Some(VmValue::Void)));
+    }
+
+    #[test]
+    fn unit_capture_assignment() {
+        let mut runner = Runner::default();
+        let res = runner.eval(
+            "{
+                var foo = {}
+                fun bar() = {
+                    $foo = {}
+                }
+            bar()
+            }",
+        );
+        Some(assert_eq!(res, Some(VmValue::Void)));
+    }
+
+    #[test]
     fn test_gc_run() {
         let mut runner = Runner::default();
 

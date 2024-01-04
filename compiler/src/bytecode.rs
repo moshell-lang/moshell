@@ -165,7 +165,7 @@ impl<'a> Instructions<'a> {
         let opcode = match size {
             ValueStackSize::Byte => Opcode::SetLocalByte,
             ValueStackSize::QWord => Opcode::SetLocalQWord,
-            ValueStackSize::Zero => panic!("set_local on local variable which is zero-sized"),
+            ValueStackSize::Zero => return,
         };
         self.emit_code(opcode);
         self.bytecode.emit_u32(index);
@@ -186,9 +186,7 @@ impl<'a> Instructions<'a> {
         let opcode = match size {
             ValueStackSize::Byte => Opcode::SetRefByte,
             ValueStackSize::QWord => Opcode::SetRefQWord,
-            ValueStackSize::Zero => {
-                panic!("set_capture on captured variable which is zero-sized")
-            }
+            ValueStackSize::Zero => return,
         };
         self.emit_code(opcode);
     }
@@ -198,7 +196,7 @@ impl<'a> Instructions<'a> {
         self.emit_code(match size {
             ValueStackSize::Byte => Opcode::StoreByte,
             ValueStackSize::QWord => Opcode::StoreQWord,
-            ValueStackSize::Zero => panic!("set for value whose type is zero-sized"),
+            ValueStackSize::Zero => return,
         });
         self.bytecode.emit_constant_ref(symbol_id);
     }
@@ -210,7 +208,7 @@ impl<'a> Instructions<'a> {
         let opcode = match size {
             ValueStackSize::Byte => Opcode::GetLocalByte,
             ValueStackSize::QWord => Opcode::GetLocalQWord,
-            ValueStackSize::Zero => panic!("get_local on local variable which is zero-sized"),
+            ValueStackSize::Zero => return,
         };
         self.emit_code(opcode);
         self.bytecode.emit_u32(index);
@@ -250,7 +248,7 @@ impl<'a> Instructions<'a> {
         self.emit_code(match size {
             ValueStackSize::Byte => Opcode::FetchByte,
             ValueStackSize::QWord => Opcode::FetchQWord,
-            ValueStackSize::Zero => panic!("get for value whose type is zero-sized"),
+            ValueStackSize::Zero => return,
         });
         self.bytecode.emit_constant_ref(symbol_id);
     }
@@ -260,7 +258,7 @@ impl<'a> Instructions<'a> {
         self.emit_code(match size {
             ValueStackSize::Byte => Opcode::GetStructByte,
             ValueStackSize::QWord => Opcode::GetStructQWord,
-            ValueStackSize::Zero => panic!("get for value whose type is zero-sized"),
+            ValueStackSize::Zero => return,
         });
         self.bytecode.emit_u32(field_index);
     }
