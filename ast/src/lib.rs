@@ -1,7 +1,5 @@
 #![allow(dead_code)]
 
-use dbg_pls::DebugPls;
-
 use context::source::{SourceSegment, SourceSegmentHolder};
 
 use crate::call::{Call, Detached, MethodCall, Pipeline, ProgrammaticCall, Redirected};
@@ -37,7 +35,7 @@ pub mod value;
 pub mod variable;
 
 /// A expression that can be evaluated.
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr<'a> {
     Assign(Assign<'a>),
     Unary(UnaryOperation<'a>),

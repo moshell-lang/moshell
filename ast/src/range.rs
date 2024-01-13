@@ -1,12 +1,10 @@
-use dbg_pls::DebugPls;
-
 use context::source::{SourceSegment, SourceSegmentHolder};
 use src_macros::segment_holder;
 
 use crate::Expr;
 
 /// A range of values that can be iterated over.
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Iterable<'a> {
     Range(NumericRange<'a>),
     Files(FilePattern<'a>),
@@ -22,7 +20,7 @@ impl SourceSegmentHolder for Iterable<'_> {
 }
 
 /// A range of numeric values.
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NumericRange<'a> {
     /// The inclusive start of the range.
     pub start: Box<Expr<'a>>,
@@ -50,14 +48,14 @@ impl SourceSegmentHolder for NumericRange<'_> {
 
 /// A pattern that can be used to match files.
 #[segment_holder]
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FilePattern<'a> {
     /// The glob pattern that will be used to match files.
     pub pattern: Box<Expr<'a>>,
 }
 
 #[segment_holder]
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Subscript<'a> {
     pub target: Box<Expr<'a>>,
     pub index: Box<Expr<'a>>,

@@ -1,5 +1,3 @@
-use dbg_pls::DebugPls;
-
 use context::source::{SourceSegment, SourceSegmentHolder};
 use lexer::token::TokenType;
 use src_macros::segment_holder;
@@ -9,7 +7,7 @@ use crate::Expr;
 
 /// A prefix unary operation.
 #[segment_holder]
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct UnaryOperation<'a> {
     /// The operator of the operation.
     pub op: UnaryOperator,
@@ -19,7 +17,7 @@ pub struct UnaryOperation<'a> {
 }
 
 /// A prefix unary operator.
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum UnaryOperator {
     /// The `!` operator.
     Not,
@@ -28,7 +26,7 @@ pub enum UnaryOperator {
 }
 
 /// A binary operation between two expressions.
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BinaryOperation<'a> {
     /// The left-hand side of the operation.
     pub left: Box<Expr<'a>>,
@@ -44,7 +42,7 @@ impl SourceSegmentHolder for BinaryOperation<'_> {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum BinaryOperator {
     /// The '&&' operator.
     And,

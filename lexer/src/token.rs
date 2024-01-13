@@ -1,10 +1,9 @@
 use context::source::SourceSegment;
-use dbg_pls::DebugPls;
 use enum_assoc::Assoc;
 
 use crate::token::TokenType::*;
 
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub token_type: TokenType,
     pub span: SourceSegment,
@@ -20,7 +19,7 @@ impl Token {
     }
 }
 
-#[derive(Assoc, Debug, PartialEq, Eq, Clone, Copy, DebugPls)]
+#[derive(Assoc, Debug, PartialEq, Eq, Clone, Copy)]
 #[func(pub fn str(&self) -> Option<&'static str>)]
 pub enum TokenType {
     #[assoc(str = "var")]

@@ -1,4 +1,3 @@
-use dbg_pls::DebugPls;
 use std::fmt::Display;
 
 use context::source::{SourceSegment, SourceSegmentHolder};
@@ -11,7 +10,7 @@ use crate::Expr;
 
 /// A variable declaration.
 #[segment_holder]
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VarDeclaration<'a> {
     /// The kind of the variable.
     pub kind: VarKind,
@@ -22,7 +21,7 @@ pub struct VarDeclaration<'a> {
 }
 
 /// A named variable declaration.
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TypedVariable<'a> {
     /// The name of the variable.
     pub name: Identifier<'a>,
@@ -40,13 +39,13 @@ impl SourceSegmentHolder for TypedVariable<'_> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, DebugPls)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum VarKind {
     Var,
     Val,
 }
 
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum VarName<'a> {
     /// An used defined variable name.
     User(&'a str),
@@ -66,14 +65,14 @@ impl VarName<'_> {
 
 /// A variable reference, prefixed with `$`.
 #[segment_holder]
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VarReference<'a> {
     /// The name of the variable.
     pub name: VarName<'a>,
 }
 
 /// A variable assignation.
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Assign<'a> {
     /// The place that is assigned to.
     pub left: Box<Expr<'a>>,
@@ -84,7 +83,7 @@ pub struct Assign<'a> {
 }
 
 /// An assignation operator.
-#[derive(Debug, Clone, Copy, PartialEq, DebugPls)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AssignOperator {
     Assign,
     Increment,
@@ -95,7 +94,7 @@ pub enum AssignOperator {
 }
 
 /// A path identifier, that do not start with `$`.
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Path<'a> {
     pub path: Vec<InclusionPathItem<'a>>,
 }
@@ -153,18 +152,18 @@ impl Assign<'_> {
 
 /// An expansion of an expression related to directories.
 #[segment_holder]
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TildeExpansion<'a> {
     pub structure: Tilde<'a>,
 }
 
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Tilde<'a> {
     HomeDir(Option<Box<Expr<'a>>>),
     WorkingDir,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, DebugPls)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Identifier<'a> {
     pub value: &'a str,
     pub start: usize,

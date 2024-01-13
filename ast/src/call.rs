@@ -1,5 +1,3 @@
-use dbg_pls::DebugPls;
-
 use context::source::{SourceSegment, SourceSegmentHolder};
 use src_macros::segment_holder;
 
@@ -12,7 +10,7 @@ use crate::Expr;
 ///
 /// This call is highly permissive since it allows for any expression as the
 /// command name.
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Call<'a> {
     /// The arguments of the command.
     ///
@@ -32,7 +30,7 @@ impl SourceSegmentHolder for Call<'_> {
 ///
 /// Theses always have a constant name and are always called with parentheses.
 #[segment_holder]
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ProgrammaticCall<'a> {
     /// inclusion path, with the function's name
     pub path: Vec<InclusionPathItem<'a>>,
@@ -46,7 +44,7 @@ pub struct ProgrammaticCall<'a> {
 
 /// A method call.
 #[segment_holder]
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MethodCall<'a> {
     /// The expression on which the method is called.
     pub source: Box<Expr<'a>>,
@@ -65,7 +63,7 @@ pub struct MethodCall<'a> {
 
 /// A call to a function or a command.
 #[segment_holder]
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Detached<'a> {
     /// The arguments of the command.
     ///
@@ -74,7 +72,7 @@ pub struct Detached<'a> {
 }
 
 /// An expression with IO redirections.
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Redirected<'a> {
     /// The expression to redirect.
     pub expr: Box<Expr<'a>>,
@@ -93,7 +91,7 @@ impl SourceSegmentHolder for Redirected<'_> {
 
 /// A redirection.
 #[segment_holder]
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Redir<'a> {
     /// File descriptor that is modified by this redirection.
     pub fd: RedirFd,
@@ -104,7 +102,7 @@ pub struct Redir<'a> {
 }
 
 /// A file descriptor that is redirected.
-#[derive(Debug, Copy, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum RedirFd {
     /// The default file descriptor, if not specified.
     ///
@@ -117,7 +115,7 @@ pub enum RedirFd {
 }
 
 /// Commands separated by `|`
-#[derive(Clone, Debug, PartialEq, DebugPls)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Pipeline<'a> {
     /// Elements of the pipeline.
     ///
@@ -136,7 +134,7 @@ impl SourceSegmentHolder for Pipeline<'_> {
 ///
 /// This enum defines the redirection operator type except here-document and
 /// process redirection.
-#[derive(Clone, Copy, Debug, PartialEq, DebugPls)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum RedirOp {
     /// Open a file for input (`<`)
     Read,

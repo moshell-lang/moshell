@@ -1,8 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 
-use dbg_pls::DebugPls;
-
 use context::display::fmt_comma_separated;
 use context::source::{SourceSegment, SourceSegmentHolder};
 use src_macros::segment_holder;
@@ -11,7 +9,7 @@ use crate::r#use::InclusionPathItem;
 use crate::variable::Identifier;
 use crate::Expr;
 
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Type<'a> {
     ///A Simple type with optional parameters (`A`, `A[V]`, std::foo::Option[A])
     Parametrized(ParametrizedType<'a>),
@@ -25,7 +23,7 @@ pub enum Type<'a> {
 
 /// A casted expression
 #[segment_holder]
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CastedExpr<'a> {
     ///the underlying expression
     pub expr: Box<Expr<'a>>,
@@ -35,14 +33,14 @@ pub struct CastedExpr<'a> {
 }
 
 #[segment_holder]
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TypeParameter<'a> {
     pub name: Identifier<'a>,
     pub params: Vec<TypeParameter<'a>>,
 }
 
 #[segment_holder]
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ParametrizedType<'a> {
     /// inclusion path, with the type's name
     pub path: Vec<InclusionPathItem<'a>>,
@@ -52,13 +50,13 @@ pub struct ParametrizedType<'a> {
 }
 
 #[segment_holder]
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ByName<'a> {
     pub name: Box<Type<'a>>,
 }
 
 #[segment_holder]
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CallableType<'a> {
     pub params: Vec<Type<'a>>,
     pub output: Box<Type<'a>>,

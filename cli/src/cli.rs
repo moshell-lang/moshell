@@ -4,7 +4,6 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use clap_complete::Shell;
-use dbg_pls::color;
 
 use analyzer::diagnostic::Diagnostic;
 use analyzer::name::Name;
@@ -147,7 +146,7 @@ pub fn use_pipeline(
             .filter(|(_, env)| env.parent.is_none())
             .filter_map(|(id, _)| engine.get_expression(id))
         {
-            println!("{}", color(ast))
+            println!("{ast:#?}")
         }
     }
 

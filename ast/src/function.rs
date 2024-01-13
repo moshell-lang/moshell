@@ -1,6 +1,4 @@
 use context::source::{SourceSegment, SourceSegmentHolder};
-use dbg_pls::DebugPls;
-
 use src_macros::segment_holder;
 
 use crate::r#type::{Type, TypeParameter};
@@ -8,13 +6,13 @@ use crate::variable::{Identifier, TypedVariable};
 use crate::Expr;
 
 #[segment_holder]
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Return<'a> {
     pub expr: Option<Box<Expr<'a>>>,
 }
 
 #[segment_holder]
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FunctionDeclaration<'a> {
     pub name: Identifier<'a>,
     pub type_parameters: Vec<TypeParameter<'a>>,
@@ -23,7 +21,7 @@ pub struct FunctionDeclaration<'a> {
     pub body: Option<Box<Expr<'a>>>,
 }
 
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FunctionParameter<'a> {
     Named(TypedVariable<'a>),
     ///argument is the type of the variable (if any).

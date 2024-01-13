@@ -10,5 +10,4 @@ src-macros = { path = "../context/macros" }
 context = { path = "../context" }
 lexer = { path = "../lexer" }
 
-dbg-pls = { version = "0.4.1", features = ["derive"] }
 enum-assoc = "1.0.0"

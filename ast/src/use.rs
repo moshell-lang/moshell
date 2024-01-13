@@ -1,18 +1,17 @@
 use crate::variable::Identifier;
 use context::source::{SourceSegment, SourceSegmentHolder};
-use dbg_pls::DebugPls;
 use src_macros::segment_holder;
 use std::fmt::{Display, Formatter};
 
 /// The expression that imports an external symbol into its current scope
 #[segment_holder]
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Use<'a> {
     /// all the used variables/functions, types, environment variable names
     pub import: Import<'a>,
 }
 
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum InclusionPathItem<'a> {
     Symbol(Identifier<'a>),
     Reef(SourceSegment),
@@ -45,7 +44,7 @@ impl Display for InclusionPathItem<'_> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Import<'a> {
     ///A symbol (or list of symbols)
     Symbol(ImportedSymbol<'a>),
@@ -69,7 +68,7 @@ impl<'a> SourceSegmentHolder for Import<'a> {
 }
 
 #[segment_holder]
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ImportList<'a> {
     ///list of relative prefixed modules
     pub root: Vec<InclusionPathItem<'a>>,
@@ -80,7 +79,7 @@ pub struct ImportList<'a> {
 
 ///An imported symbol. can be a constant, function, type or a module.
 #[segment_holder]
-#[derive(Debug, Clone, PartialEq, DebugPls)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ImportedSymbol<'a> {
     ///list of relative prefixed modules, with the symbol's name
     pub path: Vec<InclusionPathItem<'a>>,
