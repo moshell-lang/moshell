@@ -7,7 +7,6 @@
 #include <variant>
 #include <vector>
 
-
 namespace msh {
 
     struct struct_definition;

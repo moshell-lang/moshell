@@ -23,7 +23,7 @@ class Locals {
     /**
      * encapsulated bytes in the stack frame
      */
-    char *const bytes;
+    std::byte *bytes;
 
     /**
      * number of bytes reserved
@@ -31,7 +31,7 @@ class Locals {
     const size_t capacity;
 
 public:
-    explicit Locals(char *bytes, size_t capacity);
+    Locals(std::byte *bytes, size_t capacity);
 
     /**
      * @returns a reference to given byte

@@ -1,9 +1,9 @@
 #include "operand_stack.h"
 #include <cstring>
 
-OperandStack::OperandStack(char *buff, size_t &position, size_t stack_capacity, std::vector<bool>::iterator operands_refs)
-    : bytes{reinterpret_cast<std::byte *>(buff)},
-      current_pos{position},
+OperandStack::OperandStack(std::byte *bytes, size_t current_pos, size_t stack_capacity, std::vector<bool> &operands_refs)
+    : bytes{bytes},
+      current_pos{current_pos},
       stack_capacity{stack_capacity},
       operands_refs{operands_refs} {}
 
@@ -65,6 +65,7 @@ void OperandStack::transfer(OperandStack &callee_stack, size_t n) {
         throw std::out_of_range("cannot transfer more bytes than contained in the source operand stack");
 #endif
     memcpy(this->bytes + current_pos, callee_stack.bytes + (callee_stack.size() - n), n);
+    std::copy(callee_stack.operands_refs.begin() + (callee_stack.size() - n), callee_stack.operands_refs.begin() + callee_stack.size(), operands_refs.begin() + current_pos);
     this->current_pos += n;
 }
 
@@ -82,7 +83,7 @@ void OperandStack::dup_qword() {
         throw StackOverflowError("exceeded stack capacity via operand stack");
     }
     memcpy(this->bytes + current_pos, this->bytes + current_pos - sizeof(int64_t), sizeof(int64_t));
-    std::copy(operands_refs + current_pos - sizeof(int64_t), operands_refs + current_pos, operands_refs + current_pos);
+    std::copy(operands_refs.begin() + current_pos - sizeof(int64_t), operands_refs.begin() + current_pos, operands_refs.begin() + current_pos);
     current_pos += sizeof(int64_t);
 }
 

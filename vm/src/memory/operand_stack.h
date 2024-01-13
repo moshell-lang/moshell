@@ -38,14 +38,12 @@ public:
 class OperandStack {
 private:
     std::byte *bytes;
-    size_t &current_pos;
-    const size_t stack_capacity;
-    std::vector<bool>::iterator operands_refs;
-
-    friend msh::gc;
+    size_t current_pos;
+    size_t stack_capacity;
+    std::vector<bool> &operands_refs;
 
 public:
-    OperandStack(char *buff, size_t &initial_pos, size_t stack_capacity, std::vector<bool>::iterator operands_refs);
+    OperandStack(std::byte *bytes, size_t current_pos, size_t stack_capacity, std::vector<bool> &operands_refs);
 
     /**
      * @return the size in bytes of the operand stack
@@ -150,7 +148,7 @@ public:
 
         // Because pointers might be misaligned due to a previous smaller type push,
         // each individual byte of each type must be re-marked. TODO: align types
-        std::fill(operands_refs + current_pos, operands_refs + current_pos + msh::value_sizeof<T>(), false);
+        std::fill(operands_refs.begin() + current_pos, operands_refs.begin() + current_pos + msh::value_sizeof<T>(), false);
         if constexpr (std::is_same_v<msh::obj, std::remove_cvref_t<std::remove_pointer_t<T>>>) {
             operands_refs[current_pos] = true;
         }

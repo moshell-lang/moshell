@@ -163,29 +163,29 @@ void gc::walk_objects(std::vector<const msh::obj *> to_visit) {
 }
 
 void gc::scan_thread(std::vector<const msh::obj *> &roots) {
-    for (stack_frame frame : thread_call_stack) {
+    for (stack_frame &frame : thread_call_stack) {
         const Locals &locals = frame.locals;
         // add locals roots
         for (size_t obj_ref_offset : frame.function.obj_ref_offsets) {
             msh::obj *obj_ref = *locals.get<msh::obj *>(obj_ref_offset);
-            if (obj_ref != nullptr) // might be not yet initialized
+            if (obj_ref != nullptr) { // might be not yet initialized
                 roots.push_back(obj_ref);
-        }
-
-        // add operands roots
-        // relative index for this operands stack
-        size_t operand_index = 0;
-        while (operand_index < frame.operands.current_pos) {
-            // this byte is marked as the first byte of an object reference
-            if (frame.operands.operands_refs[operand_index]) {
-                msh::obj *obj_ref = *(msh::obj **)(frame.operands.bytes + operand_index);
-                if (obj_ref != nullptr) { // might be not yet initialized
-                    roots.push_back(obj_ref);
-                }
-                operand_index += 8;
-            } else {
-                operand_index++;
             }
+        }
+    }
+
+    size_t size = 0;
+    if (!thread_call_stack.is_empty()) {
+        stack_frame &frame = thread_call_stack.peek_frame();
+        size = frame.operands.size();
+    }
+    for (size_t i = 0; i < size; ++i) {
+        if (thread_call_stack.operands_refs_offsets[i]) {
+            msh::obj *obj = *(msh::obj **)(thread_call_stack.tape.data() + i);
+            if (obj != nullptr) { // might be not yet initialized
+                roots.push_back(obj);
+            }
+            i += 7;
         }
     }
 }

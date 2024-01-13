@@ -272,14 +272,14 @@ void panic(const std::string &msg, CallStack &stack) {
     std::cerr << "panic: " << msg;
 
     while (!stack.is_empty()) {
-        stack_frame frame = stack.peek_frame();
+        stack_frame &frame = stack.peek_frame();
         const function_definition &def = frame.function;
         std::cerr << "\n\tat " << def.identifier;
 
         if (!def.mappings.empty()) {
             size_t instruction_line;
             for (const auto &[instruction, line] : def.mappings) {
-                if (instruction >= *frame.instruction_pointer) {
+                if (instruction >= frame.instruction_pointer) {
                     break;
                 }
                 instruction_line = line;
@@ -353,8 +353,6 @@ inline bool handle_function_invocation(const std::string &callee_identifier,
 
     const function_definition &callee_def = callee_def_it->second;
 
-    caller_operands.pop_bytes(callee_def.parameters_byte_count);
-
     call_stack.push_frame(callee_def);
     return true;
 }
@@ -368,7 +366,7 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
     const ConstantPool &pool = state.pager.get_pool(pool_index);
 
     // the instruction pointer
-    size_t &ip = *frame.instruction_pointer;
+    size_t &ip = frame.instruction_pointer;
     OperandStack &operands = frame.operands;
     Locals &locals = frame.locals;
 
@@ -953,7 +951,7 @@ bool run_unit(CallStack &call_stack, const msh::loader &loader, msh::pager &page
 
     try {
         while (!call_stack.is_empty()) {
-            stack_frame current_frame = call_stack.peek_frame();
+            stack_frame &current_frame = call_stack.peek_frame();
             const function_definition &current_def = current_frame.function;
 
             const std::byte *instructions = loader.get_instructions(current_def.instructions_start);
@@ -970,7 +968,7 @@ bool run_unit(CallStack &call_stack, const msh::loader &loader, msh::pager &page
                     // the root method has returned
                     break;
                 }
-                stack_frame caller_frame = call_stack.peek_frame();
+                stack_frame &caller_frame = call_stack.peek_frame();
                 caller_frame.operands.transfer(current_frame.operands, returned_byte_count);
                 break;
             }

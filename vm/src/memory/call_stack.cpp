@@ -1,167 +1,51 @@
 #include "call_stack.h"
+
 #include <cstring>
-#include <limits>
-/**
- * Contains all the runtime information about a frame
- */
-struct frame_headers {
-    /**
-     * position of the previous frame header.
-     * 0 if this frame is the root headers
-     */
-    size_t previous_frame_headers_pos;
-
-    /**
-     * Address of this frame's function definition
-     */
-    const function_definition *function;
-
-    /**
-     * Current position of the instruction being executed
-     */
-    size_t instruction_pointer;
-
-    /**
-     * The position of the frame's operands stack
-     */
-    size_t operands_pos;
-};
 
 CallStack::CallStack(size_t capacity)
-    : block{std::make_unique<char[]>(capacity)},
-      operands_refs_offsets(capacity, false),
-      frame_headers_pos{0},
-      capacity{capacity},
-      frame_count{0} {}
-
-inline void check_overflow(size_t capacity, size_t current_pos, const function_definition &callee) {
-    // as the operand stack stack_capacity is the end of the call stack, we do not include it in this check
-    size_t total_frame_size = callee.locals_size + sizeof(frame_headers);
-    if (current_pos + total_frame_size >= capacity) {
-        throw StackOverflowError("Call stack exceeded capacity");
-    }
-}
-
-CallStack CallStack::create(size_t capacity, const function_definition &root) {
-    CallStack stack(capacity);
-    stack.push_frame(root);
-    return stack;
-}
+    : tape(capacity), operands_refs_offsets(capacity, false) {}
 
 void CallStack::push_frame(const function_definition &callee) {
-    char *block = this->block.get();
-
-    size_t pos = 0;
-
-    // if the stack is empty, we start at position 0
-    if (!is_empty()) {
-        // if the stack is not empty, go after the current frame's operands position
-        frame_headers *previous_frame = (frame_headers *)(block + frame_headers_pos);
-        // go after frame's headers, and add its operands length
-        pos = frame_headers_pos + sizeof(frame_headers) + previous_frame->operands_pos;
+    size_t values_start = callee.locals_size;
+    size_t locals_start = 0;
+    if (!blocks.empty()) {
+        stack_frame &caller = blocks.back();
+        caller.operands.pop_bytes(callee.parameters_byte_count);
+        locals_start = caller.operands.size();
+        values_start = locals_start + callee.locals_size;
+        std::fill(operands_refs_offsets.begin() + locals_start, operands_refs_offsets.begin() + values_start, false);
     }
-
-    // check potential stack overflow
-    check_overflow(capacity, pos, callee);
-
     // zeroing non-parameter locals
-    memset(block + (pos + callee.parameters_byte_count), 0, callee.locals_size - callee.parameters_byte_count);
-
-    // reserve locals
-    pos += callee.locals_size;
-
-    // write default headers,
-    *(frame_headers *)(block + pos) = {
-        frame_headers_pos,
-        &callee,
+    memset(tape.data() + locals_start + callee.parameters_byte_count, 0, callee.locals_size - callee.parameters_byte_count);
+    blocks.push_back(stack_frame{
+        callee,
         0,
-        0,
-    };
-
-    frame_headers_pos = pos;
-    frame_count++;
+        OperandStack(tape.data(), values_start, tape.capacity(), operands_refs_offsets),
+        Locals(tape.data() + locals_start, callee.locals_size),
+    });
 }
 
 void CallStack::pop_frame() {
-    if (is_empty()) {
-        throw MemoryError("Could not pop call stack: stack is already empty.");
-    }
-    size_t pos = frame_headers_pos; // go to headers position, this also skips operands according to frame layout
-
-    // retrieve headers
-    const frame_headers *headers = (frame_headers *)(block.get() + pos);
-
-    // place current frame_headers position to the previous frame
-    frame_headers_pos = headers->previous_frame_headers_pos;
-
-    frame_count--;
+    blocks.pop_back();
 }
 
-stack_frame frame_at_byte_pos(char *bytes, size_t byte_pos, size_t stack_capacity, std::vector<bool> &operands_refs) {
-    frame_headers *headers = (frame_headers *)(bytes + byte_pos);
-
-    // first byte position of operands
-    size_t operands_first_byte = byte_pos + sizeof(frame_headers);
-    OperandStack frame_operands(bytes + operands_first_byte, headers->operands_pos, stack_capacity - operands_first_byte, operands_refs.begin() + operands_first_byte);
-
-    Locals frame_locals(bytes + (byte_pos - headers->function->locals_size), headers->function->locals_size);
-    return stack_frame{*headers->function, &headers->instruction_pointer, frame_operands, frame_locals};
-}
-
-stack_frame CallStack::peek_frame() {
-    return frame_at_byte_pos(block.get(), frame_headers_pos, capacity, operands_refs_offsets);
-}
-
-size_t CallStack::get_capacity() const {
-    return capacity;
-}
-
-size_t CallStack::size() const {
-    return frame_count;
+stack_frame &CallStack::peek_frame() {
+    return blocks.back();
 }
 
 bool CallStack::is_empty() const {
-    return size() == 0;
+    return blocks.empty();
 }
 
 void CallStack::clear() {
-    frame_count = 0;
-    frame_headers_pos = 0;
+    blocks.clear();
+    std::fill(operands_refs_offsets.begin(), operands_refs_offsets.end(), false);
 }
 
-call_stack_iterator CallStack::begin() {
-    return call_stack_iterator(this, frame_headers_pos, size());
+std::vector<stack_frame>::iterator CallStack::begin() {
+    return blocks.begin();
 }
 
-call_stack_iterator CallStack::end() {
-    return call_stack_iterator(this, 0, 0);
-}
-
-call_stack_iterator::call_stack_iterator(CallStack *call_stack, size_t pos, size_t frame_ord)
-    : call_stack{call_stack}, pos{pos}, frame_ord{frame_ord} {
-}
-
-stack_frame call_stack_iterator::operator*() {
-    if (this->frame_ord == 0)
-        throw std::out_of_range("cannot deref end iterator");
-    return frame_at_byte_pos(call_stack->block.get(), pos, call_stack->capacity, call_stack->operands_refs_offsets);
-}
-
-call_stack_iterator &call_stack_iterator::operator++() {
-    if (frame_ord == 0) {
-        throw std::out_of_range("reached end of iterator");
-    }
-
-    frame_ord--;
-    frame_headers *headers = (frame_headers *)(call_stack->block.get() + pos);
-    pos = headers->previous_frame_headers_pos;
-    return *this;
-}
-
-bool call_stack_iterator::operator==(const call_stack_iterator &other) const {
-    return other.call_stack == this->call_stack && other.pos == this->pos && other.frame_ord == this->frame_ord;
-}
-
-bool call_stack_iterator::operator!=(const call_stack_iterator &other) const {
-    return !(*this == other);
+std::vector<stack_frame>::iterator CallStack::end() {
+    return blocks.end();
 }
