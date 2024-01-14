@@ -16,11 +16,18 @@ impl SourceSegmentHolder for Substitution<'_> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Direction {
+    Input,
+    Output,
+}
+
 /// The kind of substitution that should be performed.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SubstitutionKind {
-    /// An arithmetic evaluation with `$((...))`.
-    Arithmetic,
     /// A command standard output substitution with `$(...)`.
     Capture,
+
+    /// A process substitution with `<(...)` or `>(...)`.
+    Process { direction: Direction },
 }

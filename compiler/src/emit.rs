@@ -1,3 +1,4 @@
+use analyzer::relations::LocalId;
 use analyzer::types::hir::{Declaration, ExprKind, TypedExpr, Var};
 use analyzer::types::ty::TypeRef;
 use ast::value::LiteralValue;
@@ -8,7 +9,7 @@ use crate::context::EmitterContext;
 use crate::emit::identifier::{expose_variable, Identifier};
 use crate::emit::invoke::{
     emit_capture, emit_function_invocation, emit_pipeline, emit_process_call, emit_redirect,
-    emit_subprocess,
+    emit_subprocess, emit_substitution,
 };
 use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
 use crate::emit::native::emit_natives;
@@ -32,6 +33,12 @@ pub struct EmissionState {
     // When the loop compilation ends, all those placeholder are filled with the
     // first instruction pointer after the loop.
     pub enclosing_loop_end_placeholders: Vec<Placeholder>,
+
+    /// A collection of file descriptors that have been opened in the current scope.
+    ///
+    /// Some operations require to delay the closing of the file descriptor until the end of the
+    /// expression, like process substitutions.
+    pub opened_files: Vec<LocalId>,
 
     // if set to false, the compiler will avoid emitting literals, var references or will
     // instantly pop values returned from functions, methods and process calls
@@ -276,6 +283,9 @@ pub fn emit(
         }
         ExprKind::Subprocess(subprocess) => {
             emit_subprocess(subprocess, instructions, ctx, cp, locals, state)
+        }
+        ExprKind::Substitute(substitution) => {
+            emit_substitution(substitution, instructions, ctx, cp, locals, state);
         }
         ExprKind::Noop => {}
         ExprKind::Convert(_) => unimplemented!(),

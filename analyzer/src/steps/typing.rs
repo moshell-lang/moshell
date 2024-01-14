@@ -44,7 +44,7 @@ use crate::types::ctx::{TypeContext, TypedVariable};
 use crate::types::engine::{Chunk, ChunkKind, TypedEngine};
 use crate::types::hir::{
     Conditional, Convert, Declaration, ExprKind, FunctionCall, LocalAssignment, Loop, MethodCall,
-    Redir, Redirect, Subprocess, TypedExpr, Var,
+    Redir, Redirect, Subprocess, Substitute, TypedExpr, Var,
 };
 use crate::types::operator::name_operator_method;
 use crate::types::ty::{FunctionDesc, Type, TypeRef};
@@ -804,6 +804,7 @@ fn ascribe_substitution(
     diagnostics: &mut Vec<Diagnostic>,
     state: TypingState,
 ) -> TypedExpr {
+    let state = state.with_local_value(ExpressionValue::Unused);
     let commands = substitution
         .underlying
         .expressions
@@ -811,7 +812,15 @@ fn ascribe_substitution(
         .map(|command| ascribe_types(exploration, links, diagnostics, command, state))
         .collect::<Vec<_>>();
     TypedExpr {
-        kind: ExprKind::Capture(commands),
+        kind: match substitution.kind {
+            ast::substitution::SubstitutionKind::Capture => ExprKind::Capture(commands),
+            ast::substitution::SubstitutionKind::Process { direction } => {
+                ExprKind::Substitute(match direction {
+                    ast::substitution::Direction::Input => Substitute::In(commands),
+                    ast::substitution::Direction::Output => Substitute::Out(commands),
+                })
+            }
+        },
         ty: STRING,
         segment: substitution.segment(),
     }

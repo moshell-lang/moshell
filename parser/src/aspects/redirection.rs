@@ -1,7 +1,9 @@
+use crate::aspects::group::GroupAspect;
 use ast::call::{Pipeline, Redir, RedirFd, RedirOp, Redirected};
-use ast::Expr;
+use ast::substitution::{Substitution, SubstitutionKind};
+use ast::{substitution, Expr};
 use context::source::SourceSegmentHolder;
-use lexer::token::TokenType;
+use lexer::token::{Token, TokenType};
 
 use crate::err::ParseErrorKind;
 use crate::moves::{eox, next, of_type, of_types, spaces, MoveOperations};
@@ -159,12 +161,31 @@ impl<'a> RedirectionAspect<'a> for Parser<'a> {
     }
 }
 
+impl<'a> Parser<'a> {
+    pub(crate) fn process_substitution(&mut self, token: Token) -> ParseResult<Expr<'a>> {
+        let mut underlying = self.subshell()?;
+        underlying.segment = token.span.start..underlying.segment.end;
+        Ok(Expr::Substitution(Substitution {
+            underlying,
+            kind: SubstitutionKind::Process {
+                direction: if token.token_type == TokenType::Less {
+                    substitution::Direction::Input
+                } else {
+                    substitution::Direction::Output
+                },
+            },
+        }))
+    }
+}
+
 #[cfg(test)]
 mod test {
     use pretty_assertions::assert_eq;
 
     use ast::call::{Call, Redir, RedirFd, RedirOp, Redirected};
-    use ast::group::Block;
+    use ast::control_flow::Loop;
+    use ast::group::{Block, Subshell};
+    use ast::substitution::{Substitution, SubstitutionKind};
     use ast::value::Literal;
     use ast::Expr;
     use context::source::Source;
@@ -249,6 +270,96 @@ mod test {
                     segment: find_in(content, ">&2"),
                 }],
             })
+        );
+    }
+
+    #[test]
+    fn process_substitution() {
+        let content = "diff <(echo before) - < <(/bin/echo after)";
+        let source = Source::unknown(content);
+        let parsed = parse(source).expect("Failed to parse");
+        assert_eq!(
+            parsed,
+            vec![Expr::Redirected(Redirected {
+                expr: Box::new(Expr::Call(Call {
+                    arguments: vec![
+                        literal(content, "diff"),
+                        Expr::Substitution(Substitution {
+                            underlying: Subshell {
+                                expressions: vec![Expr::Call(Call {
+                                    arguments: vec![
+                                        literal(content, "echo"),
+                                        literal(content, "before")
+                                    ],
+                                })],
+                                segment: find_in(content, "<(echo before)"),
+                            },
+                            kind: SubstitutionKind::Process {
+                                direction: ast::substitution::Direction::Input
+                            }
+                        }),
+                        literal(content, "-"),
+                    ],
+                })),
+                redirections: vec![Redir {
+                    fd: RedirFd::Default,
+                    operator: RedirOp::Read,
+                    operand: Expr::Substitution(Substitution {
+                        underlying: Subshell {
+                            expressions: vec![Expr::Call(Call {
+                                arguments: vec![
+                                    literal(content, "/bin/echo"),
+                                    literal(content, "after")
+                                ],
+                            })],
+                            segment: find_in(content, "<(/bin/echo after)"),
+                        },
+                        kind: SubstitutionKind::Process {
+                            direction: ast::substitution::Direction::Input
+                        }
+                    }),
+                    segment: find_in(content, "< <(/bin/echo after)"),
+                }],
+            })],
+        );
+    }
+
+    #[test]
+    fn loop_process_substitution() {
+        // Maybe lint if written as `loop {} `<` <(ls)` ?
+        let content = "{ loop {} } `<` <(ls)";
+        let source = Source::unknown(content);
+        let parsed = parse(source).expect("Failed to parse");
+        assert_eq!(
+            parsed,
+            vec![Expr::Redirected(Redirected {
+                expr: Box::new(Expr::Block(Block {
+                    expressions: vec![Expr::Loop(Loop {
+                        body: Box::new(Expr::Block(Block {
+                            expressions: vec![],
+                            segment: find_in(content, "{}"),
+                        })),
+                        segment: find_in(content, "loop {}"),
+                    })],
+                    segment: find_in(content, "{ loop {} }"),
+                })),
+                redirections: vec![Redir {
+                    fd: RedirFd::Default,
+                    operator: RedirOp::Read,
+                    operand: Expr::Substitution(Substitution {
+                        underlying: Subshell {
+                            expressions: vec![Expr::Call(Call {
+                                arguments: vec![literal(content, "ls")],
+                            })],
+                            segment: find_in(content, "<(ls)"),
+                        },
+                        kind: SubstitutionKind::Process {
+                            direction: ast::substitution::Direction::Input
+                        }
+                    }),
+                    segment: find_in(content, "`<` <(ls)"),
+                }],
+            })]
         );
     }
 }

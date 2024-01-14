@@ -348,6 +348,14 @@ static void program_arguments(OperandStack &caller_stack, runtime_memory &mem) {
     }
 }
 
+static void get_fd_path(OperandStack &caller_stack, runtime_memory &mem) {
+    int fd = caller_stack.pop_int();
+    std::string path = "/dev/fd/";
+    path += std::to_string(fd);
+    msh::obj &str = mem.emplace(std::move(path));
+    caller_stack.push_reference(str);
+}
+
 static void process_wait(OperandStack &caller_stack, runtime_memory &) {
     pid_t pid = static_cast<pid_t>(caller_stack.pop_int());
     int status;
@@ -406,6 +414,7 @@ natives_functions_t load_natives() {
         {"std::convert::round", round},
         {"std::convert::parse_int_radix", parse_int_radix},
 
+        {"std::process::get_fd_path", get_fd_path},
         {"std::process::wait", process_wait},
         {"std::process::wait_all", process_wait_all},
     };
