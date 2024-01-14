@@ -726,7 +726,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                             named.name.to_string()
                         }
                         FunctionParameter::Variadic(_, _) => "@".to_owned(),
-                        FunctionParameter::Slf(_) => continue,
+                        FunctionParameter::Slf(_) => self.diagnostics.push(Diagnostic::new(DiagnosticID::InvalidSymbol, "this symbol cant be used outside structure methods declaration")),
                     };
                     let func_env = self.engine().get_environment_mut(func_id).unwrap();
 
@@ -818,7 +818,11 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                     .annotate(decl, SymbolRef::Local(local_id));
             }
             Expr::Literal(_) | Expr::Continue(_) | Expr::Break(_) => {}
-            Expr::Impl(_) => todo!(),
+            Expr::Impl(impl_block) => {
+                for func in impl_block.functions {
+
+                }
+            },
         }
         state.accept_imports = false;
     }
