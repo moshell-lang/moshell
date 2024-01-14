@@ -11,7 +11,6 @@ default-members = [
 ]
 members = [
 	"lexer",
-	"sandbox",
 	"parser",
 	"context",
 	"context/macros",
