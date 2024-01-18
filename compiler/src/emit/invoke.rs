@@ -1,9 +1,11 @@
 use libc::{O_APPEND, O_CREAT, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
 
 use analyzer::relations::ResolvedSymbol;
-use analyzer::types::hir::{ExprKind, FunctionCall, Redir, Redirect, Subprocess, TypedExpr, Var};
+use analyzer::types::hir::{
+    ExprKind, FunctionCall, Redir, Redirect, Subprocess, Substitute, TypedExpr, Var,
+};
 use analyzer::types::ty::{FunctionKind, Type, TypeRef};
-use analyzer::types::{GENERIC_VECTOR, STRING};
+use analyzer::types::{GENERIC_VECTOR, INT, STRING};
 use ast::call::{RedirFd, RedirOp};
 
 use crate::bytecode::{Instructions, Opcode};
@@ -62,6 +64,25 @@ pub fn emit_already_forked(
     }
 }
 
+/// Emits a terminated block of expressions, knowing that we are already in a forked process.
+pub fn emit_already_forked_block(
+    block: &[TypedExpr],
+    instructions: &mut Instructions,
+    ctx: &EmitterContext,
+    cp: &mut ConstantPool,
+    locals: &mut LocalsLayout,
+    state: &mut EmissionState,
+) {
+    if let Some((last, commands)) = block.split_last() {
+        for command in commands {
+            emit(command, instructions, ctx, cp, locals, state);
+        }
+        emit_already_forked(last, instructions, ctx, cp, locals, state);
+    }
+    emit_process_end(block.last(), instructions);
+}
+
+/// Explicitly exits the process if the process is not replaced by another one.
 pub fn emit_process_end(last: Option<&TypedExpr>, instructions: &mut Instructions) {
     match last {
         Some(TypedExpr {
@@ -92,6 +113,11 @@ pub fn emit_process_call(
     let jump_to_parent = instructions.emit_jump(Opcode::Fork);
     instructions.emit_code(Opcode::Exec);
     instructions.patch_jump(jump_to_parent);
+
+    for local in state.opened_files.drain(..) {
+        instructions.emit_get_local(local, INT.into(), locals);
+        instructions.emit_code(Opcode::Close);
+    }
 
     // Remove the arguments from the stack, as they were only needed for the child process
     instructions.emit_code(Opcode::Swap);
@@ -263,6 +289,11 @@ pub fn emit_redirect(
         emit_redir(redirection, instructions, ctx, cp, locals, state);
     }
     emit(&redirect.expression, instructions, ctx, cp, locals, state);
+
+    for local in state.opened_files.drain(..) {
+        instructions.emit_get_local(local, INT.into(), locals);
+        instructions.emit_code(Opcode::Close);
+    }
     for redir in &redirect.redirections {
         instructions.emit_code(Opcode::PopRedirect);
         if redir.fd == RedirFd::Wildcard {
@@ -493,14 +524,8 @@ pub fn emit_capture(
     instructions.emit_code(Opcode::Close);
     instructions.emit_code(Opcode::Close);
     let last = state.use_values(false);
-    if let Some((last, commands)) = commands.split_last() {
-        for command in commands {
-            emit(command, instructions, ctx, cp, locals, state);
-        }
-        emit_already_forked(last, instructions, ctx, cp, locals, state);
-    }
+    emit_already_forked_block(commands, instructions, ctx, cp, locals, state);
     state.use_values(last);
-    emit_process_end(commands.last(), instructions);
 
     instructions.patch_jump(jump_to_parent);
     instructions.emit_code(Opcode::Swap);
@@ -514,6 +539,60 @@ pub fn emit_capture(
     if !state.use_values {
         instructions.emit_code(Opcode::PopQWord);
     }
+}
+
+/// Creates a process that will execute the given commands, and returns a file handle to read or write.
+pub fn emit_substitution(
+    substitute: &Substitute,
+    instructions: &mut Instructions,
+    ctx: &EmitterContext,
+    cp: &mut ConstantPool,
+    locals: &mut LocalsLayout,
+    state: &mut EmissionState,
+) {
+    // Create a pipe to get either a writing or reading end
+    instructions.emit_code(Opcode::Pipe);
+    let jump_to_parent = instructions.emit_jump(Opcode::Fork);
+    let commands = match substitute {
+        Substitute::In(commands) => {
+            // Bound stdout to the writing end of the pipe
+            instructions.emit_push_int(1);
+            instructions.emit_code(Opcode::Redirect);
+            instructions.emit_code(Opcode::Close);
+            instructions.emit_code(Opcode::Close);
+            commands
+        }
+        Substitute::Out(commands) => {
+            // Bound stdin to the reading end of the pipe
+            instructions.emit_code(Opcode::Close);
+            instructions.emit_push_int(0);
+            instructions.emit_code(Opcode::Redirect);
+            instructions.emit_code(Opcode::Close);
+            commands
+        }
+    };
+    let last = state.use_values(false);
+    emit_already_forked_block(commands, instructions, ctx, cp, locals, state);
+    state.use_values(last);
+
+    instructions.patch_jump(jump_to_parent);
+    // Do not wait for the child process to finish
+    instructions.emit_code(Opcode::PopQWord);
+
+    // Discards the unwanted end of the pipe, and create a string from the other end
+    // On Linux, the pipe fd is referenced in the `/proc` filesystem, so we can get the path to the pipe
+    if let Substitute::Out(_) = substitute {
+        instructions.emit_code(Opcode::Swap);
+    }
+    instructions.emit_code(Opcode::Close);
+    let local = locals.push_value_space(INT);
+    instructions.emit_set_local(local, INT.into(), locals);
+    if state.use_values {
+        instructions.emit_get_local(local, INT.into(), locals);
+        instructions.emit_invoke(cp.insert_string("std::process::get_fd_path"));
+    }
+    // Save the fd to close it later (when the callee has finished)
+    state.opened_files.push(local);
 }
 
 pub fn emit_subprocess(

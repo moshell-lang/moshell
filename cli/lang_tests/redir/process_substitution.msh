@@ -1,0 +1,11 @@
+// Run:
+//   status: success
+//   stdout:
+//          2c2
+//          < b
+//          ---
+//          > c
+//          text4
+
+diff <(echo a; echo b) <(echo "a\nc")
+tee >(wc -c | tr -d ' ') <<< "text"

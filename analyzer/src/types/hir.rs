@@ -132,6 +132,12 @@ pub struct MethodCall {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub enum Substitute {
+    In(Vec<TypedExpr>),
+    Out(Vec<TypedExpr>),
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct Subprocess {
     pub inner: Box<TypedExpr>,
     pub awaited: bool,
@@ -171,6 +177,7 @@ pub enum ExprKind {
     Return(Option<Box<TypedExpr>>),
     Pipeline(Vec<TypedExpr>),
     Capture(Vec<TypedExpr>),
+    Substitute(Substitute),
     Subprocess(Subprocess),
 
     Continue,

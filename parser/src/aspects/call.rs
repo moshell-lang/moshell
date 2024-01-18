@@ -15,7 +15,7 @@ use crate::aspects::range::RangeAspect;
 use crate::aspects::redirection::RedirectionAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{
-    any, blanks, eog, identifier_parenthesis, like, line_end, lookahead, of_type, spaces,
+    any, blanks, eog, identifier_parenthesis, like, line_end, lookahead, of_type, of_types, spaces,
     MoveOperations,
 };
 use crate::parser::{ParseResult, Parser};
@@ -157,6 +157,18 @@ impl<'a> CallAspect<'a> for Parser<'a> {
             .is_none()
         {
             self.cursor.advance(spaces()); //consume word separations
+            if self
+                .cursor
+                .lookahead(
+                    of_types(&[TokenType::Less, TokenType::Greater])
+                        .and_then(of_type(TokenType::RoundedLeftBracket)),
+                )
+                .is_some()
+            {
+                let direction_token = self.cursor.next()?;
+                arguments.push(self.process_substitution(direction_token)?);
+                continue;
+            }
             if self.is_at_redirection_sign() {
                 return self.redirectable(Expr::Call(Call { arguments }));
             }
@@ -177,6 +189,10 @@ impl<'a> Parser<'a> {
         match pivot {
             TokenType::RoundedLeftBracket => Ok(Expr::Parenthesis(self.parenthesis()?)),
             TokenType::CurlyLeftBracket => Ok(Expr::Block(self.block()?)),
+            TokenType::Less | TokenType::Greater => {
+                let redir = self.cursor.next()?;
+                self.process_substitution(redir)
+            }
             TokenType::Identifier | TokenType::Reef if self.is_path() => {
                 let path = self.parse_path()?;
                 self.expand_member_chain(Expr::Path(path))
