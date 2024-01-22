@@ -260,7 +260,7 @@ pub fn emit(
             emit_function_invocation(fc, expr.ty, instructions, ctx, cp, locals, state)
         }
         ExprKind::ProcessCall(args) => {
-            emit_process_call(args, instructions, ctx, cp, locals, state)
+            emit_process_call(args, &[], instructions, ctx, cp, locals, state)
         }
         ExprKind::MethodCall(method) => emit_natives(
             method.function_id,

@@ -102,6 +102,7 @@ pub fn emit_process_end(last: Option<&TypedExpr>, instructions: &mut Instruction
 
 pub fn emit_process_call(
     arguments: &[TypedExpr],
+    redirections: &[Redir],
     instructions: &mut Instructions,
     ctx: &EmitterContext,
     cp: &mut ConstantPool,
@@ -111,6 +112,18 @@ pub fn emit_process_call(
     emit_arguments(arguments, instructions, ctx, cp, locals, state);
 
     let jump_to_parent = instructions.emit_jump(Opcode::Fork);
+    for redirection in redirections {
+        emit_redir_self(
+            redirection,
+            instructions,
+            ctx,
+            cp,
+            locals,
+            state,
+            Opcode::Redirect,
+        );
+    }
+
     instructions.emit_code(Opcode::Exec);
     instructions.patch_jump(jump_to_parent);
 
@@ -285,6 +298,18 @@ pub fn emit_redirect(
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
 ) {
+    if let ExprKind::ProcessCall(arguments) = &redirect.expression.kind {
+        emit_process_call(
+            arguments,
+            &redirect.redirections,
+            instructions,
+            ctx,
+            cp,
+            locals,
+            state,
+        );
+        return;
+    }
     for redirection in &redirect.redirections {
         emit_redir(redirection, instructions, ctx, cp, locals, state);
     }
