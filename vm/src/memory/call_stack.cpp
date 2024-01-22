@@ -13,14 +13,18 @@ void CallStack::push_frame(const function_definition &callee) {
         caller.operands.pop_bytes(callee.parameters_byte_count);
         locals_start = caller.operands.size();
         values_start = locals_start + callee.locals_size;
-        std::fill(operands_refs_offsets.begin() + locals_start, operands_refs_offsets.begin() + values_start, false);
     }
+    if (values_start > tape.size() || blocks.size() > tape.size()) {
+        throw StackOverflowError("exceeded stack capacity via operand stack");
+    }
+    std::fill(operands_refs_offsets.begin() + locals_start, operands_refs_offsets.begin() + values_start, false);
+
     // zeroing non-parameter locals
     memset(tape.data() + locals_start + callee.parameters_byte_count, 0, callee.locals_size - callee.parameters_byte_count);
     blocks.push_back(stack_frame{
         callee,
         0,
-        OperandStack(tape.data(), values_start, tape.capacity(), operands_refs_offsets),
+        OperandStack(tape.data(), values_start, tape.size(), operands_refs_offsets),
         Locals(tape.data() + locals_start, callee.locals_size),
     });
 }
