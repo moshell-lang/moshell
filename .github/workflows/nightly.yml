@@ -2,7 +2,7 @@ name: Upload Nightly Artifact
 
 on:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '30 4 * * 3'
   workflow_dispatch:
 
 jobs:
