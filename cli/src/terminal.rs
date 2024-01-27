@@ -15,7 +15,7 @@ pub(crate) fn signal_hook(signal: signal::Signal, handler: signal::SigHandler) {
 /// Initializes the terminal for a shell.
 ///
 /// See [the glibc documentation](https://www.gnu.org/software/libc/manual/html_node/Initializing-the-Shell.html).
-#[cfg(unix)]
+#[cfg(all(unix, not(miri)))]
 pub(crate) fn acquire_terminal() -> unistd::Pid {
     // Wait for the process to be in the foreground
     let shell_pgid = unistd::getpgrp();
@@ -54,4 +54,9 @@ pub(crate) fn acquire_terminal() -> unistd::Pid {
         let _ = unistd::tcsetpgrp(libc::STDIN_FILENO, shell_pgid);
     }
     shell_pid
+}
+
+#[cfg(not(all(unix, not(miri))))]
+pub(crate) fn acquire_terminal() -> unistd::Pid {
+    unistd::getpid()
 }

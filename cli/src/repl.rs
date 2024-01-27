@@ -37,7 +37,7 @@ pub(crate) fn repl(
     let mut analyzer = Analyzer::new();
     sources.register(dir);
 
-    let mut editor = if io::stdin().is_terminal() {
+    let mut editor = if io::stdin().is_terminal() && cfg!(not(miri)) {
         #[cfg(unix)]
         vm.set_pgid(acquire_terminal().as_raw());
         Editor::LineEditor(Box::new(editor().context("Could not start REPL")?))

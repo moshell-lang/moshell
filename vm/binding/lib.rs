@@ -91,6 +91,9 @@ impl VM {
     ///
     /// Forked processes will be attached to this process group.
     pub fn set_pgid(&mut self, pgid: i32) {
+        if cfg!(miri) {
+            return; // Not supported
+        }
         unsafe { moshell_set_pgid(self.ffi, pgid) }
     }
 
