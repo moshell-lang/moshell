@@ -1,12 +1,13 @@
 use ast::value::{Literal, LiteralValue};
+use ast::variable::Tilde;
 use ast::Expr;
 use context::source::Source;
 use lexer::token::Token;
 use lexer::token::TokenType;
 use parser::parse;
 use reedline::{Completer, Span, Suggestion};
-use std::env;
-use std::path::{Path, MAIN_SEPARATOR};
+use std::path::{Path, PathBuf, MAIN_SEPARATOR};
+use std::{env, io};
 
 /// A command completer.
 pub(crate) struct MoshellCompleter;
@@ -65,7 +66,11 @@ enum CompletionCursor {
 /// Get the last shell word in the given text.
 fn get_last_word(text: &str, next: bool) -> Option<CompletionCursor> {
     let mut report = parse(Source::unknown(text));
-    let mut expr = report.expr.pop()?;
+    let expr = report.expr.pop()?;
+    extract_last_word(text, expr, next)
+}
+
+fn extract_last_word(text: &str, mut expr: Expr, next: bool) -> Option<CompletionCursor> {
     let mut is_arg = false;
     loop {
         match expr {
@@ -88,8 +93,16 @@ fn get_last_word(text: &str, next: bool) -> Option<CompletionCursor> {
                     return Some(CompletionCursor::Argument("".to_owned()));
                 }
             }
-            Expr::TemplateString(mut template) => {
-                expr = template.parts.pop()?;
+            Expr::TemplateString(template) => {
+                let mut builder = String::new();
+                for part in template.parts {
+                    match extract_last_word(text, part, false)? {
+                        CompletionCursor::Command(word) | CompletionCursor::Argument(word) => {
+                            builder.push_str(&word);
+                        }
+                    }
+                }
+                return Some(CompletionCursor::Argument(builder));
             }
             Expr::Literal(Literal {
                 parsed: LiteralValue::String(str),
@@ -105,8 +118,40 @@ fn get_last_word(text: &str, next: bool) -> Option<CompletionCursor> {
                     CompletionCursor::Command(str)
                 });
             }
+            Expr::Tilde(tilde) => {
+                if let Some(dir) = complete_dir(&tilde.structure).ok().flatten() {
+                    let dir = dir.to_string_lossy().into_owned();
+                    return Some(if is_arg {
+                        CompletionCursor::Argument(dir)
+                    } else {
+                        CompletionCursor::Command(dir)
+                    });
+                }
+                break None;
+            }
             _ => break None,
         }
+    }
+}
+
+fn complete_dir(tilde: &Tilde) -> io::Result<Option<PathBuf>> {
+    use nix::unistd::{Uid, User};
+    match tilde {
+        Tilde::HomeDir(None) => match User::from_uid(Uid::current()) {
+            Ok(user) => Ok(user.map(|u| u.dir)),
+            Err(err) => Err(err.into()),
+        },
+        Tilde::HomeDir(Some(expr)) => match expr.as_ref() {
+            Expr::Literal(Literal {
+                parsed: LiteralValue::String(user),
+                ..
+            }) => match User::from_name(user) {
+                Ok(user) => Ok(user.map(|u| u.dir)),
+                Err(err) => Err(err.into()),
+            },
+            _ => Ok(None),
+        },
+        Tilde::WorkingDir => env::current_dir().map(Some),
     }
 }
 
