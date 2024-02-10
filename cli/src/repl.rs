@@ -2,8 +2,8 @@ use miette::{Context, IntoDiagnostic};
 use nu_ansi_term::Color;
 use reedline::{
     default_emacs_keybindings, ColumnarMenu, Emacs, ExampleHighlighter, FileBackedHistory, KeyCode,
-    KeyModifiers, PromptEditMode, PromptHistorySearch, PromptHistorySearchStatus, Reedline,
-    ReedlineEvent, ReedlineMenu, Signal, ValidationResult, Validator,
+    KeyModifiers, MenuBuilder, PromptEditMode, PromptHistorySearch, PromptHistorySearchStatus,
+    Reedline, ReedlineEvent, ReedlineMenu, Signal, ValidationResult, Validator,
 };
 use std::borrow::Cow;
 use std::io::{self, BufRead, IsTerminal, StdinLock};

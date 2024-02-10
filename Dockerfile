@@ -1,4 +1,4 @@
-FROM rust:1.75-slim AS builder
+FROM rust:1.76-slim AS builder
 
 WORKDIR /usr/src/moshell
 

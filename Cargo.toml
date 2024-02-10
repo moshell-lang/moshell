@@ -1,14 +1,4 @@
 [workspace]
-default-members = [
-	"lexer",
-	"parser",
-	"context",
-	"context/macros",
-	"cli",
-	"analyzer",
-	"compiler",
-	"vm",
-]
 members = [
 	"lexer",
 	"parser",

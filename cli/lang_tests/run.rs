@@ -9,7 +9,7 @@ fn main() {
     let tempdir = TempDir::new().unwrap();
     LangTester::new()
         .test_dir("lang_tests")
-        .test_file_filter(|p| p.extension().unwrap().to_str().unwrap() == "msh")
+        .test_path_filter(|p| p.extension().and_then(|x| x.to_str()) == Some("msh"))
         // Extract the first sequence of commented line(s) as the tests.
         .test_extract(|p| {
             read_to_string(p)

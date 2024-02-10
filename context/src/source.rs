@@ -100,27 +100,3 @@ impl OwnedSource {
         Source::new(&self.source, &self.name)
     }
 }
-
-/// Joins two slices that are adjacent in memory into one slice.
-///
-/// Returns None in the case the slices aren't adjacent.
-pub fn try_join<'a, T>(owner: &'a [T], a: &'a [T], b: &'a [T]) -> Option<&'a [T]> {
-    let owner_head = owner.as_ptr();
-    let owner_tail = owner[owner.len()..].as_ptr();
-    let a_head = a.as_ptr();
-    let b_tail = b[b.len()..].as_ptr();
-    if owner_head <= a_head && a_head <= b_tail && b_tail <= owner_tail {
-        Some(&owner[a_head as usize - owner_head as usize..b_tail as usize - owner_head as usize])
-    } else {
-        None
-    }
-}
-
-/// Joins two string slices that are adjacent in memory into one string slice.
-///
-/// Returns None in the case the slices aren't adjacent.
-pub fn try_join_str<'a>(owner: &'a str, a: &'a str, b: &'a str) -> Option<&'a str> {
-    // SAFETY: The two slices are already valid UTF-8.
-    try_join(owner.as_bytes(), a.as_bytes(), b.as_bytes())
-        .map(|s| unsafe { std::str::from_utf8_unchecked(s) })
-}

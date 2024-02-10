@@ -167,6 +167,7 @@ fn get_executables(word: &str, pos: usize) -> Vec<Suggestion> {
                             suggestions.push(Suggestion {
                                 value: name.to_owned(),
                                 description: None,
+                                style: None,
                                 extra: None,
                                 span: Span::new(pos - word.len(), pos),
                                 append_whitespace: true,
@@ -208,6 +209,7 @@ fn get_files(word: &str, pos: usize, predicate: fn(&Path) -> bool) -> Vec<Sugges
                 suggestions.push(Suggestion {
                     value: entry_name,
                     description: None,
+                    style: None,
                     extra: None,
                     span: Span::new(pos - partial.len(), pos),
                     append_whitespace: false,
