@@ -10,7 +10,6 @@ use analyzer::{analyze, types, Analyzer, Inject};
 use cli::pipeline::FileImporter;
 use compiler::externals::{CompiledReef, CompilerExternals};
 use compiler::{compile_reef, CompilerOptions};
-use context::source::Source;
 use parser::parse_trusted;
 use vm::value::VmValue;
 use vm::{VmError, VmValueFFI, VM};
@@ -77,10 +76,9 @@ impl<'a> Runner<'a> {
         }
     }
 
-    pub fn try_eval(&mut self, expr: &'a str) -> Result<Option<VmValue>, VmError> {
+    pub fn try_eval(&mut self, source: &'a str) -> Result<Option<VmValue>, VmError> {
         let name = Name::new("runner");
-        let src = Source::unknown(expr);
-        let mut importer = StaticImporter::new([(name.clone(), src)], parse_trusted);
+        let mut importer = StaticImporter::new([(name.clone(), source)], parse_trusted);
         let ImportResult::Success(imported) = importer.import(&name) else {
             unreachable!()
         };

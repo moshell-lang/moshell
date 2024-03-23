@@ -10,59 +10,59 @@ use crate::variable::Identifier;
 use crate::Expr;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Type<'a> {
+pub enum Type {
     ///A Simple type with optional parameters (`A`, `A[V]`, std::foo::Option[A])
-    Parametrized(ParametrizedType<'a>),
+    Parametrized(ParametrizedType),
 
     ///A callable declaration with of form `(A, B, ...) => Out`
-    Callable(CallableType<'a>),
+    Callable(CallableType),
 
     ///A By name declaration (`=> X`)
-    ByName(ByName<'a>),
+    ByName(ByName),
 }
 
 /// A casted expression
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct CastedExpr<'a> {
+pub struct CastedExpr {
     ///the underlying expression
-    pub expr: Box<Expr<'a>>,
+    pub expr: Box<Expr>,
 
     ///the casted type
-    pub casted_type: Type<'a>,
+    pub casted_type: Type,
 }
 
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct TypeParameter<'a> {
-    pub name: Identifier<'a>,
-    pub params: Vec<TypeParameter<'a>>,
+pub struct TypeParameter {
+    pub name: Identifier,
+    pub params: Vec<TypeParameter>,
 }
 
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct ParametrizedType<'a> {
+pub struct ParametrizedType {
     /// inclusion path, with the type's name
-    pub path: Vec<InclusionPathItem<'a>>,
+    pub path: Vec<InclusionPathItem>,
 
     ///the type's parameters
-    pub params: Vec<Type<'a>>,
+    pub params: Vec<Type>,
 }
 
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct ByName<'a> {
-    pub name: Box<Type<'a>>,
+pub struct ByName {
+    pub name: Box<Type>,
 }
 
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct CallableType<'a> {
-    pub params: Vec<Type<'a>>,
-    pub output: Box<Type<'a>>,
+pub struct CallableType {
+    pub params: Vec<Type>,
+    pub output: Box<Type>,
 }
 
-impl<'a> Display for Type<'a> {
+impl Display for Type {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Type::Parametrized(m) => Display::fmt(m, f),
@@ -72,7 +72,7 @@ impl<'a> Display for Type<'a> {
     }
 }
 
-impl SourceSegmentHolder for Type<'_> {
+impl SourceSegmentHolder for Type {
     fn segment(&self) -> SourceSegment {
         match self {
             Type::Parametrized(m) => m.segment(),
@@ -82,7 +82,7 @@ impl SourceSegmentHolder for Type<'_> {
     }
 }
 
-impl<'a> Display for CallableType<'a> {
+impl Display for CallableType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let inputs = &self.params;
         if let Some(Type::Parametrized(first_in)) = inputs.first() {
@@ -95,7 +95,7 @@ impl<'a> Display for CallableType<'a> {
     }
 }
 
-impl<'a> Display for ParametrizedType<'a> {
+impl Display for ParametrizedType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if let Some((first, tail)) = self.path.split_first() {
             write!(f, "{first}")?;
@@ -110,7 +110,7 @@ impl<'a> Display for ParametrizedType<'a> {
     }
 }
 
-impl<'a> Display for ByName<'a> {
+impl Display for ByName {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str("=> ")?;
         Display::fmt(&self.name, f)

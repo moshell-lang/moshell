@@ -50,7 +50,7 @@ pub mod types;
 /// that were generated, be sure to check them for errors.
 pub fn analyze<'a>(
     entry_point: Name,
-    importer: &mut impl ASTImporter<'a>,
+    importer: &mut impl ASTImporter,
     externals: &Externals,
 ) -> Analyzer<'a> {
     let mut analyzer = Analyzer::new();
@@ -86,7 +86,7 @@ impl<'a> Analyzer<'a> {
     pub fn process(
         &mut self,
         entry_point: Name,
-        importer: &mut impl ASTImporter<'a>,
+        importer: &mut impl ASTImporter,
         externals: &Externals,
     ) -> Analysis<'a, '_> {
         let last_next_source_id = SourceId(self.resolution.engine.len());
@@ -120,8 +120,8 @@ impl<'a> Analyzer<'a> {
     /// If the injection refers to itself, this method will panic.
     pub fn inject(
         &mut self,
-        inject: Inject<'a>,
-        importer: &mut impl ASTImporter<'a>,
+        inject: Inject,
+        importer: &mut impl ASTImporter,
         externals: &Externals,
     ) -> Analysis<'a, '_> {
         let last_next_source_id = SourceId(self.resolution.engine.len());
@@ -218,10 +218,10 @@ impl Analysis<'_, '_> {
 ///
 /// The completion of a collection followed by its resolution phase is called a cycle.
 /// Multiple cycles can occur if the resolution phase finds new modules to collect.
-pub fn resolve_all<'a, 'e>(
+pub fn resolve_all<'a>(
     entry_point: Name,
-    externals: &'a Externals<'e>,
-    importer: &mut impl ASTImporter<'e>,
+    externals: &'a Externals,
+    importer: &mut impl ASTImporter,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> ResolutionResult<'a> {
     let mut result = ResolutionResult::default();
@@ -236,12 +236,12 @@ pub fn resolve_all<'a, 'e>(
 }
 
 /// A specially crafted input to inject at a specific point in the analyzer.
-pub struct Inject<'a> {
+pub struct Inject {
     /// The name of the source to inject.
     pub name: Name,
 
     /// The imported content.
-    pub imported: Imported<'a>,
+    pub imported: Imported,
 
     /// The environment to inject the source into.
     pub attached: Option<SourceId>,

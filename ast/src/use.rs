@@ -6,27 +6,27 @@ use std::fmt::{Display, Formatter};
 /// The expression that imports an external symbol into its current scope
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct Use<'a> {
+pub struct Use {
     /// all the used variables/functions, types, environment variable names
-    pub import: Import<'a>,
+    pub import: Import,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum InclusionPathItem<'a> {
-    Symbol(Identifier<'a>),
+pub enum InclusionPathItem {
+    Symbol(Identifier),
     Reef(SourceSegment),
 }
 
-impl InclusionPathItem<'_> {
+impl InclusionPathItem {
     pub fn name(&self) -> &str {
         match self {
-            InclusionPathItem::Symbol(ident) => ident.value,
+            InclusionPathItem::Symbol(ident) => ident.value.as_str(),
             InclusionPathItem::Reef(_) => "reef",
         }
     }
 }
 
-impl SourceSegmentHolder for InclusionPathItem<'_> {
+impl SourceSegmentHolder for InclusionPathItem {
     fn segment(&self) -> SourceSegment {
         match self {
             InclusionPathItem::Symbol(ident) => ident.segment(),
@@ -35,7 +35,7 @@ impl SourceSegmentHolder for InclusionPathItem<'_> {
     }
 }
 
-impl Display for InclusionPathItem<'_> {
+impl Display for InclusionPathItem {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             InclusionPathItem::Symbol(ident) => write!(f, "{ident}"),
@@ -45,18 +45,18 @@ impl Display for InclusionPathItem<'_> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Import<'a> {
+pub enum Import {
     ///A symbol (or list of symbols)
-    Symbol(ImportedSymbol<'a>),
+    Symbol(ImportedSymbol),
     /// all in given module (the vec being the inclusion path where the last element is the module that is being imported)
-    AllIn(Vec<InclusionPathItem<'a>>, SourceSegment),
+    AllIn(Vec<InclusionPathItem>, SourceSegment),
     ///An environment variable, command.
-    Environment(Identifier<'a>),
+    Environment(Identifier),
     ///An import list
-    List(ImportList<'a>),
+    List(ImportList),
 }
 
-impl<'a> SourceSegmentHolder for Import<'a> {
+impl SourceSegmentHolder for Import {
     fn segment(&self) -> SourceSegment {
         match self {
             Import::Symbol(s) => s.segment.clone(),
@@ -69,21 +69,21 @@ impl<'a> SourceSegmentHolder for Import<'a> {
 
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct ImportList<'a> {
+pub struct ImportList {
     ///list of relative prefixed modules
-    pub root: Vec<InclusionPathItem<'a>>,
+    pub root: Vec<InclusionPathItem>,
 
     ///All the imports
-    pub imports: Vec<Import<'a>>,
+    pub imports: Vec<Import>,
 }
 
 ///An imported symbol. can be a constant, function, type or a module.
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct ImportedSymbol<'a> {
+pub struct ImportedSymbol {
     ///list of relative prefixed modules, with the symbol's name
-    pub path: Vec<InclusionPathItem<'a>>,
+    pub path: Vec<InclusionPathItem>,
 
     ///The symbol's alias (if any)
-    pub alias: Option<Identifier<'a>>,
+    pub alias: Option<Identifier>,
 }

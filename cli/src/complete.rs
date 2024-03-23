@@ -1,7 +1,6 @@
 use ast::value::{Literal, LiteralValue};
 use ast::variable::Tilde;
 use ast::Expr;
-use context::source::Source;
 use lexer::token::Token;
 use lexer::token::TokenType;
 use parser::parse;
@@ -65,7 +64,7 @@ enum CompletionCursor {
 
 /// Get the last shell word in the given text.
 fn get_last_word(text: &str, next: bool) -> Option<CompletionCursor> {
-    let mut report = parse(Source::unknown(text));
+    let mut report = parse(text);
     let expr = report.expr.pop()?;
     extract_last_word(text, expr, next)
 }

@@ -5,23 +5,23 @@ use crate::Expr;
 /// A block expression `{ ... }`
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct Block<'a> {
+pub struct Block {
     //underlying expressions
-    pub expressions: Vec<Expr<'a>>,
+    pub expressions: Vec<Expr>,
 }
 
 /// A parenthesis expression `( ... )`
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct Parenthesis<'a> {
+pub struct Parenthesis {
     //underlying expression
-    pub expression: Box<Expr<'a>>,
+    pub expression: Box<Expr>,
 }
 
 /// A subshell expression `( ... )`
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct Subshell<'a> {
+pub struct Subshell {
     //underlying expressions
-    pub expressions: Vec<Expr<'a>>,
+    pub expressions: Vec<Expr>,
 }

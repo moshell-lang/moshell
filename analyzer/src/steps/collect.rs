@@ -81,7 +81,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
         externals: &'b Externals<'b>,
         to_visit: &mut Vec<Name>,
         visited: &mut HashSet<Name>,
-        importer: &mut impl ASTImporter<'e>,
+        importer: &mut impl ASTImporter,
     ) -> Vec<Diagnostic> {
         let mut collector = Self::new(engine, relations, imports, externals);
         collector.collect(importer, to_visit, visited);
@@ -90,7 +90,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
     }
 
     pub fn inject(
-        inject: Inject<'e>,
+        inject: Inject,
         engine: &'a mut Engine<'e>,
         relations: &'a mut Relations,
         imports: &'a mut Imports,
@@ -220,7 +220,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
 
     fn collect(
         &mut self,
-        importer: &mut impl ASTImporter<'e>,
+        importer: &mut impl ASTImporter,
         to_visit: &mut Vec<Name>,
         visited: &mut HashSet<Name>,
     ) {
@@ -236,7 +236,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
 
     fn collect_ast_symbols(
         &mut self,
-        imported: Imported<'e>,
+        imported: Imported,
         module_name: Name,
         to_visit: &mut Vec<Name>,
     ) {
@@ -259,7 +259,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
         &mut self,
         mod_id: SourceId,
         import: UnresolvedImport,
-        import_expr: &'e ImportExpr<'e>,
+        import_expr: &'e ImportExpr,
         import_fqn: Name,
     ) {
         if let Some(shadowed) =
@@ -290,8 +290,8 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
     /// Collects the symbol import and place it as an [UnresolvedImport] in the relations.
     fn collect_symbol_import(
         &mut self,
-        import: &'e ImportExpr<'e>,
-        mut relative_path: Vec<InclusionPathItem<'e>>,
+        import: &'e ImportExpr,
+        mut relative_path: Vec<InclusionPathItem>,
         mod_id: SourceId,
         to_visit: &mut Vec<Name>,
     ) {
@@ -301,7 +301,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                 relative_path.extend(s.path.iter().cloned());
                 match SymbolLocation::compute(&relative_path) {
                     Ok(loc) => {
-                        let alias = s.alias.map(|s| s.to_string());
+                        let alias = s.alias.as_ref().map(|s| s.to_string());
 
                         let name = loc.name.clone();
                         to_visit.push(name.clone());
@@ -360,12 +360,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
         }
     }
 
-    fn tree_walk(
-        &mut self,
-        state: &mut ResolutionState,
-        expr: &'e Expr<'e>,
-        to_visit: &mut Vec<Name>,
-    ) {
+    fn tree_walk(&mut self, state: &mut ResolutionState, expr: &'e Expr, to_visit: &mut Vec<Name>) {
         match expr {
             Expr::Use(import) => {
                 if !state.accept_imports {
@@ -393,7 +388,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                     for pattern in &arm.patterns {
                         match pattern {
                             MatchPattern::VarRef(reference) => {
-                                if let VarName::User(name) = reference.name {
+                                if let VarName::User(name) = &reference.name {
                                     let symbol = self.identify_symbol(
                                         *self.stack.last().unwrap(),
                                         state.module,
@@ -418,7 +413,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                         self.current_env().end_scope();
                     }
                     self.current_env().begin_scope();
-                    if let Some(name) = arm.val_name {
+                    if let Some(name) = &arm.val_name {
                         self.current_env()
                             .symbols
                             .declare_local(name.to_string(), SymbolInfo::Variable);
@@ -515,7 +510,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                 env.annotate(var, SymbolRef::Local(symbol));
             }
             Expr::VarReference(var) => {
-                if let VarName::User(name) = var.name {
+                if let VarName::User(name) = &var.name {
                     if is_magic_variable_name(name) {
                         let script_env = self
                             .engine
@@ -697,12 +692,14 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                 let symbol = self
                     .current_env()
                     .symbols
-                    .declare_local(func.name.value.to_owned(), SymbolInfo::Function);
+                    .declare_local(func.name.value.to_string(), SymbolInfo::Function);
                 self.current_env().annotate(func, SymbolRef::Local(symbol));
 
                 let func_id = self.engine().track(state.content, expr);
                 self.current_env().bind_source(func, func_id);
-                let func_env = self.current_env().fork(state.module, func.name.value);
+                let func_env = self
+                    .current_env()
+                    .fork(state.module, func.name.value.as_ref());
 
                 self.stack.push(func_id);
 
@@ -770,7 +767,7 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
                     let func_env = self.engine().get_environment_mut(func_id).unwrap();
                     let symbol = func_env
                         .symbols
-                        .declare_local(param.name.value.to_owned(), SymbolInfo::Variable);
+                        .declare_local(param.name.value.as_str().to_owned(), SymbolInfo::Variable);
                     func_env.annotate(param, SymbolRef::Local(symbol));
 
                     if let Some(ty) = &param.ty {
@@ -790,7 +787,9 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
             Expr::StructDeclaration(decl) => {
                 let struct_env_id = self.engine().track(state.content, expr);
 
-                let struct_env = self.current_env().fork(state.module, decl.name.value);
+                let struct_env = self
+                    .current_env()
+                    .fork(state.module, decl.name.value.as_str());
 
                 let local_id = self
                     .current_env()
@@ -970,11 +969,11 @@ impl<'a, 'b, 'e> SymbolCollector<'a, 'b, 'e> {
     }
 }
 
-fn import_ast<'a, 'b>(
+fn import_ast(
     name: Name,
-    importer: &'b mut impl ASTImporter<'a>,
+    importer: &mut impl ASTImporter,
     visited: &mut HashSet<Name>,
-) -> Option<(Imported<'a>, Name)> {
+) -> Option<(Imported, Name)> {
     let mut parts = name.into_vec();
     while !parts.is_empty() {
         let name = Name::from(parts.clone());
@@ -1032,7 +1031,6 @@ fn make_invalid_path_diagnostic(
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use context::source::Source;
     use context::str_find::{find_in, find_in_nth};
     use parser::parse_trusted;
 
@@ -1042,7 +1040,7 @@ mod tests {
     use super::*;
 
     fn tree_walk<'e>(
-        expr: &'e Expr<'e>,
+        expr: &'e Expr,
         engine: &mut Engine<'e>,
         relations: &mut Relations,
     ) -> (Vec<Diagnostic>, Environment) {
@@ -1065,10 +1063,7 @@ mod tests {
         let mut engine = Engine::default();
         let mut relations = Relations::default();
         let mut imports = Imports::default();
-        let mut importer = StaticImporter::new(
-            [(Name::new("test"), Source::unknown(content))],
-            parse_trusted,
-        );
+        let mut importer = StaticImporter::new([(Name::new("test"), content)], parse_trusted);
         let res = SymbolCollector::collect_symbols(
             &mut engine,
             &mut relations,
@@ -1093,7 +1088,7 @@ mod tests {
 
     #[test]
     fn bind_local_variables() {
-        let expr = parse_trusted(Source::unknown("var bar = 4; $bar"));
+        let expr = parse_trusted("var bar = 4; $bar");
         let mut engine = Engine::default();
         let mut relations = Relations::default();
         let diagnostics = tree_walk(&expr, &mut engine, &mut relations).0;
@@ -1104,10 +1099,8 @@ mod tests {
     #[test]
     fn test_symbol_clashes_with_module() {
         let math_source = "use math::{add, multiply, divide}; fun multiply(a: Int, b: Int) = a * b";
-        let math_src = Source::unknown(math_source);
-        let math_multiply_src = Source::unknown("");
-        let math_add_src = Source::unknown("");
-        let math_divide_src = Source::unknown("");
+        let math_src = math_source;
+        let empty_source = "";
 
         let mut engine = Engine::default();
         let mut relations = Relations::default();
@@ -1116,9 +1109,9 @@ mod tests {
         let mut importer = StaticImporter::new(
             [
                 (Name::new("math"), math_src),
-                (Name::new("math::multiply"), math_multiply_src),
-                (Name::new("math::add"), math_add_src),
-                (Name::new("math::divide"), math_divide_src),
+                (Name::new("math::multiply"), empty_source),
+                (Name::new("math::add"), empty_source),
+                (Name::new("math::divide"), empty_source),
             ],
             parse_trusted,
         );
@@ -1142,11 +1135,10 @@ mod tests {
     #[test]
     fn shadowed_imports() {
         let source = "use A; use B; use A; use B";
-        let test_src = Source::unknown(source);
         let mut engine = Engine::default();
         let mut relations = Relations::default();
         let mut imports = Imports::default();
-        let mut importer = StaticImporter::new([(Name::new("test"), test_src)], parse_trusted);
+        let mut importer = StaticImporter::new([(Name::new("test"), source)], parse_trusted);
 
         let diagnostics = SymbolCollector::collect_symbols(
             &mut engine,
@@ -1193,8 +1185,7 @@ mod tests {
 
     #[test]
     fn bind_function_param() {
-        let src = "fun id(a) = return $a";
-        let source = Source::unknown(src);
+        let source = "fun id(a) = return $a";
         let expr = parse_trusted(source);
         let mut engine = Engine::default();
         let mut relations = Relations::default();
@@ -1205,40 +1196,38 @@ mod tests {
             env.get_raw_symbol(source.segment()),
             Some(SymbolRef::Local(LocalId(0)))
         );
-        assert_eq!(env.get_raw_symbol(find_in(src, "a")), None);
-        assert_eq!(env.get_raw_symbol(find_in(src, "$a")), None);
+        assert_eq!(env.get_raw_symbol(find_in(source, "a")), None);
+        assert_eq!(env.get_raw_symbol(find_in(source, "$a")), None);
         let func_env = engine.get_environment(SourceId(1)).unwrap();
         assert_eq!(
-            func_env.get_raw_symbol(find_in(src, "a")),
+            func_env.get_raw_symbol(find_in(source, "a")),
             Some(SymbolRef::Local(LocalId(0)))
         );
         assert_eq!(
-            func_env.get_raw_symbol(find_in(src, "$a")),
+            func_env.get_raw_symbol(find_in(source, "$a")),
             Some(SymbolRef::Local(LocalId(0)))
         );
     }
 
     #[test]
     fn bind_primitive() {
-        let src = "read foo";
-        let source = Source::unknown(src);
+        let source = "read foo";
         let expr = parse_trusted(source);
         let mut engine = Engine::default();
         let mut relations = Relations::default();
         let (diagnostics, env) = tree_walk(&expr, &mut engine, &mut relations);
         assert_eq!(diagnostics, vec![]);
         assert_eq!(relations.iter().collect::<Vec<_>>(), vec![]);
-        assert_eq!(env.get_raw_symbol(find_in(src, "read")), None);
+        assert_eq!(env.get_raw_symbol(find_in(source, "read")), None);
         assert_eq!(
-            env.get_raw_symbol(find_in(src, "foo")),
+            env.get_raw_symbol(find_in(source, "foo")),
             Some(SymbolRef::Local(LocalId(0)))
         );
     }
 
     #[test]
     fn find_references() {
-        let src = "$bar; baz($foo, $bar)";
-        let source = Source::unknown(src);
+        let source = "$bar; baz($foo, $bar)";
         let expr = parse_trusted(source);
 
         let mut engine = Engine::default();
@@ -1252,15 +1241,18 @@ mod tests {
                     references.sort_by_key(|range| range.start);
                     references
                 }),
-            Some(vec![find_in(src, "$bar"), find_in_nth(src, "$bar", 1)])
+            Some(vec![
+                find_in(source, "$bar"),
+                find_in_nth(source, "$bar", 1)
+            ])
         );
         assert_eq!(
             relations.find_references(&engine, RelationId(1)),
-            Some(vec![find_in(src, "baz($foo, $bar)")])
+            Some(vec![find_in(source, "baz($foo, $bar)")])
         );
         assert_eq!(
             relations.find_references(&engine, RelationId(2)),
-            Some(vec![find_in(src, "$foo")])
+            Some(vec![find_in(source, "$foo")])
         );
     }
 }

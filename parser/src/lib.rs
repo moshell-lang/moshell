@@ -3,7 +3,7 @@
 
 use ast::group::Block;
 use ast::Expr;
-use context::source::{Source, SourceSegmentHolder};
+use context::source::SourceSegmentHolder;
 
 use crate::err::ParseReport;
 use crate::parser::Parser;
@@ -15,12 +15,12 @@ mod moves;
 mod parser;
 pub mod source;
 
-pub fn parse(src: Source) -> ParseReport {
+pub fn parse(src: &str) -> ParseReport {
     Parser::new(src).parse()
 }
 
 /// Parses a supposedly valid string expression
-pub fn parse_trusted(src: Source) -> Expr {
+pub fn parse_trusted(src: &str) -> Expr {
     let expressions = parse(src).expect("trusted source input contains invalid expressions");
     Expr::Block(Block {
         expressions,

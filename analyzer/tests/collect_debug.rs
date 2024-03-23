@@ -14,14 +14,12 @@ use analyzer::relations::{
 };
 use analyzer::steps::collect::SymbolCollector;
 use analyzer::steps::resolve::SymbolResolver;
-use context::source::Source;
 use context::str_find::{find_between, find_in};
 use parser::parse_trusted;
 
 #[test]
 fn collect_sample() {
-    let content = include_str!("debug_sample.msh");
-    let source = Source::new(content, "debug_sample.msh");
+    let source = include_str!("debug_sample.msh");
     let root_name = Name::new("debug_sample");
     let lib_name = Name::new("lib");
 
@@ -34,10 +32,7 @@ fn collect_sample() {
     let mut importer = StaticImporter::new(
         [
             (root_name.clone(), source),
-            (
-                lib_name.clone(),
-                Source::new("val LOG_FILE = 'debug.log'; val n = 1", "lib"),
-            ),
+            (lib_name.clone(), "val LOG_FILE = 'debug.log'; val n = 1"),
         ],
         parse_trusted,
     );
@@ -74,11 +69,11 @@ fn collect_sample() {
         .get_environment(SourceId(0))
         .expect("Unable to get root environment");
     assert_eq!(
-        root_env.get_raw_symbol(find_between(content, "fun factorial(", "return $a\n}")),
+        root_env.get_raw_symbol(find_between(source, "fun factorial(", "return $a\n}")),
         Some(SymbolRef::Local(LocalId(0)))
     );
     assert_eq!(
-        root_env.get_raw_symbol(find_between(content, "fun debug(", "wait\n}")),
+        root_env.get_raw_symbol(find_between(source, "fun debug(", "wait\n}")),
         Some(SymbolRef::Local(LocalId(1)))
     );
 
@@ -105,7 +100,7 @@ fn collect_sample() {
         .expect("Unable to get n symbol");
 
     assert_eq!(
-        factorial_env.get_raw_symbol(find_in(content, "$n")),
+        factorial_env.get_raw_symbol(find_in(source, "$n")),
         Some(n_parameter)
     );
     let references = {
@@ -115,7 +110,7 @@ fn collect_sample() {
     };
     assert_eq!(
         references,
-        vec![find_in(content, "n: Int"), find_in(content, "$n")]
+        vec![find_in(source, "n: Int"), find_in(source, "$n")]
     );
 
     let debug_env = engine

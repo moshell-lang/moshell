@@ -46,13 +46,13 @@ pub enum ParseErrorKind {
 /// parsing, but always assume that if there is any error, the whole parsing
 /// process have failed.
 #[derive(Debug, PartialEq)]
-pub struct ParseReport<'a> {
+pub struct ParseReport {
     /// Lists all parsed expressions.
     ///
     /// This may be empty if the input is empty or if all read expressions
     /// were invalid. Note that a parse error may have occurred between two
     /// valid expressions, so always check for errors first.
-    pub expr: Vec<Expr<'a>>,
+    pub expr: Vec<Expr>,
 
     /// Lists all errors that occurred during parsing.
     ///
@@ -60,7 +60,7 @@ pub struct ParseReport<'a> {
     pub errors: Vec<ParseError>,
 }
 
-impl<'a> ParseReport<'a> {
+impl ParseReport {
     pub fn is_ok(&self) -> bool {
         self.errors.is_empty()
     }
@@ -69,7 +69,7 @@ impl<'a> ParseReport<'a> {
         !self.errors.is_empty()
     }
 
-    pub fn expect(self, msg: &str) -> Vec<Expr<'a>> {
+    pub fn expect(self, msg: &str) -> Vec<Expr> {
         if self.is_ok() {
             self.expr
         } else {
@@ -77,7 +77,7 @@ impl<'a> ParseReport<'a> {
         }
     }
 
-    pub fn unwrap(self) -> Vec<Expr<'a>> {
+    pub fn unwrap(self) -> Vec<Expr> {
         if self.is_ok() {
             self.expr
         } else {
@@ -86,8 +86,8 @@ impl<'a> ParseReport<'a> {
     }
 }
 
-impl<'a> From<ParseResult<Vec<Expr<'a>>>> for ParseReport<'a> {
-    fn from(result: ParseResult<Vec<Expr<'a>>>) -> Self {
+impl From<ParseResult<Vec<Expr>>> for ParseReport {
+    fn from(result: ParseResult<Vec<Expr>>) -> Self {
         match result {
             Ok(expr) => Self {
                 expr,
@@ -101,8 +101,8 @@ impl<'a> From<ParseResult<Vec<Expr<'a>>>> for ParseReport<'a> {
     }
 }
 
-impl<'a> From<ParseReport<'a>> for ParseResult<Vec<Expr<'a>>> {
-    fn from(mut report: ParseReport<'a>) -> Self {
+impl From<ParseReport> for ParseResult<Vec<Expr>> {
+    fn from(mut report: ParseReport) -> Self {
         if report.is_err() {
             Err(report.errors.remove(0))
         } else {

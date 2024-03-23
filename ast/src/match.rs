@@ -8,38 +8,38 @@ use crate::Expr;
 /// structure of a `match` expression.
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct Match<'a> {
-    pub operand: Box<Expr<'a>>,
-    pub arms: Vec<MatchArm<'a>>,
+pub struct Match {
+    pub operand: Box<Expr>,
+    pub arms: Vec<MatchArm>,
 }
 
 ///the arm (a@ b | c if d => ..) of a match expression
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct MatchArm<'a> {
+pub struct MatchArm {
     //the extracted value name (x@ ..)
-    pub val_name: Option<Identifier<'a>>,
+    pub val_name: Option<Identifier>,
     //the pattern (.. x | $y | "z" ..)
-    pub patterns: Vec<MatchPattern<'a>>,
+    pub patterns: Vec<MatchPattern>,
     //the arm's guard (.. if .. => ..)
-    pub guard: Option<Expr<'a>>,
+    pub guard: Option<Expr>,
     //the body (.. => <body>)
-    pub body: Expr<'a>,
+    pub body: Expr,
 }
 
 ///all different kinds of patterns available for a pattern expression
 #[derive(Debug, Clone, PartialEq)]
-pub enum MatchPattern<'a> {
+pub enum MatchPattern {
     //*, any
     Wildcard(SourceSegment),
 
     //refer to wrapped structures documentation
-    VarRef(VarReference<'a>),
+    VarRef(VarReference),
     Literal(Literal),
-    Template(TemplateString<'a>),
+    Template(TemplateString),
 }
 
-impl SourceSegmentHolder for MatchPattern<'_> {
+impl SourceSegmentHolder for MatchPattern {
     fn segment(&self) -> SourceSegment {
         match self {
             Self::Wildcard(segment) => segment.clone(),

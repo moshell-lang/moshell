@@ -2,22 +2,12 @@ use ast::r#struct::{FieldDeclaration, StructDeclaration, StructImpl};
 use ast::variable::Identifier;
 use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
-use lexer::token::TokenType::CurlyLeftBracket;
 
-use crate::aspects::expr_list::ExpressionListAspect;
-use crate::aspects::function_declaration::FunctionDeclarationAspect;
-use crate::aspects::r#type::TypeAspect;
 use crate::moves::{blanks, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
-pub trait StructAspect<'a> {
-    fn parse_struct(&mut self) -> ParseResult<StructDeclaration<'a>>;
-
-    fn parse_impl(&mut self) -> ParseResult<StructImpl<'a>>;
-}
-
-impl<'a> StructAspect<'a> for Parser<'a> {
-    fn parse_struct(&mut self) -> ParseResult<StructDeclaration<'a>> {
+impl Parser<'_> {
+    pub(crate) fn parse_struct(&mut self) -> ParseResult<StructDeclaration> {
         let start = self
             .cursor
             .force(of_type(TokenType::Struct), "`struct` expected")?;
@@ -51,14 +41,14 @@ impl<'a> StructAspect<'a> for Parser<'a> {
         let segment = segment_start..segment_end;
 
         Ok(StructDeclaration {
-            name: Identifier::extract(self.source.source, name.span),
+            name: Identifier::extract(self.source, name.span),
             parameters,
             fields,
             segment,
         })
     }
 
-    fn parse_impl(&mut self) -> ParseResult<StructImpl<'a>> {
+    pub(crate) fn parse_impl(&mut self) -> ParseResult<StructImpl> {
         let start = self
             .cursor
             .force(of_type(TokenType::Impl), "expected `impl`")?;
@@ -76,8 +66,10 @@ impl<'a> StructAspect<'a> for Parser<'a> {
 
         let struct_type = self.parse_type()?;
 
-        self.cursor
-            .force(blanks().then(of_type(CurlyLeftBracket)), "expected `{`")?;
+        self.cursor.force(
+            blanks().then(of_type(TokenType::CurlyLeftBracket)),
+            "expected `{`",
+        )?;
 
         self.cursor.advance(blanks());
 
@@ -104,10 +96,8 @@ impl<'a> StructAspect<'a> for Parser<'a> {
             segment,
         })
     }
-}
 
-impl<'a> Parser<'a> {
-    fn parse_field(&mut self) -> ParseResult<FieldDeclaration<'a>> {
+    fn parse_field(&mut self) -> ParseResult<FieldDeclaration> {
         let name = self.cursor.force(
             of_type(TokenType::Identifier),
             "field name identifier expected",
@@ -125,7 +115,7 @@ impl<'a> Parser<'a> {
         let segment = segment_start..segment_end;
 
         Ok(FieldDeclaration {
-            name: Identifier::extract(self.source.source, name.span),
+            name: Identifier::extract(self.source, name.span),
             tpe,
             segment,
         })
@@ -142,54 +132,52 @@ mod tests {
     use ast::r#use::InclusionPathItem;
     use ast::value::Literal;
     use ast::Expr;
-    use context::source::{Source, SourceSegmentHolder};
+    use context::source::SourceSegmentHolder;
     use context::str_find::{find_in, find_in_nth};
     use pretty_assertions::assert_eq;
 
     #[test]
     fn test_struct_declaration() {
-        let src = Source::unknown(
-            "struct Foo[A, B] {
+        let src = "struct Foo[A, B] {
                         a: Int,
                         b: String,
-                    }",
-        );
+                    }";
         let result = parse(src).expect("errors");
 
         assert_eq!(
             result,
             vec![Expr::StructDeclaration(StructDeclaration {
-                name: identifier(src.source, "Foo"),
+                name: identifier(src, "Foo"),
                 parameters: vec![
                     TypeParameter {
-                        name: identifier(src.source, "A"),
+                        name: identifier(src, "A"),
                         params: vec![],
-                        segment: find_in(src.source, "A"),
+                        segment: find_in(src, "A"),
                     },
                     TypeParameter {
-                        name: identifier(src.source, "B"),
+                        name: identifier(src, "B"),
                         params: vec![],
-                        segment: find_in(src.source, "B"),
+                        segment: find_in(src, "B"),
                     },
                 ],
                 fields: vec![
                     FieldDeclaration {
-                        name: identifier(src.source, "a"),
+                        name: identifier(src, "a"),
                         tpe: Type::Parametrized(ParametrizedType {
-                            path: vec![InclusionPathItem::Symbol(identifier(src.source, "Int"))],
+                            path: vec![InclusionPathItem::Symbol(identifier(src, "Int"))],
                             params: vec![],
-                            segment: find_in(src.source, "Int"),
+                            segment: find_in(src, "Int"),
                         }),
-                        segment: find_in(src.source, "a: Int"),
+                        segment: find_in(src, "a: Int"),
                     },
                     FieldDeclaration {
-                        name: identifier(src.source, "b"),
+                        name: identifier(src, "b"),
                         tpe: Type::Parametrized(ParametrizedType {
-                            path: vec![InclusionPathItem::Symbol(identifier(src.source, "String"))],
+                            path: vec![InclusionPathItem::Symbol(identifier(src, "String"))],
                             params: vec![],
-                            segment: find_in(src.source, "String"),
+                            segment: find_in(src, "String"),
                         }),
-                        segment: find_in(src.source, "b: String"),
+                        segment: find_in(src, "b: String"),
                     },
                 ],
                 segment: src.segment(),
@@ -199,51 +187,47 @@ mod tests {
 
     #[test]
     fn test_impl_block() {
-        let src = Source::unknown(
-            "impl[A] A {
+        let src = "impl[A] A {
                         fun push() = 0
                         fun len() = 1
-                    }",
-        );
+                    }";
         let result = parse(src).expect("errors");
 
         assert_eq!(
             result,
             vec![Expr::Impl(StructImpl {
                 type_parameters: vec![TypeParameter {
-                    name: identifier(src.source, "A"),
+                    name: identifier(src, "A"),
                     params: vec![],
-                    segment: find_in(src.source, "A"),
+                    segment: find_in(src, "A"),
                 }],
                 impl_type: Type::Parametrized(ParametrizedType {
-                    path: vec![InclusionPathItem::Symbol(identifier_nth(
-                        src.source, "A", 1
-                    ))],
+                    path: vec![InclusionPathItem::Symbol(identifier_nth(src, "A", 1))],
                     params: vec![],
-                    segment: find_in_nth(src.source, "A", 1),
+                    segment: find_in_nth(src, "A", 1),
                 }),
                 functions: vec![
                     FunctionDeclaration {
-                        name: identifier(src.source, "push"),
+                        name: identifier(src, "push"),
                         type_parameters: vec![],
                         parameters: vec![],
                         return_type: None,
                         body: Some(Box::new(Expr::Literal(Literal {
                             parsed: 0.into(),
-                            segment: find_in(src.source, "0"),
+                            segment: find_in(src, "0"),
                         }))),
-                        segment: find_in(src.source, "fun push() = 0"),
+                        segment: find_in(src, "fun push() = 0"),
                     },
                     FunctionDeclaration {
-                        name: identifier(src.source, "len"),
+                        name: identifier(src, "len"),
                         type_parameters: vec![],
                         parameters: vec![],
                         return_type: None,
                         body: Some(Box::new(Expr::Literal(Literal {
                             parsed: 1.into(),
-                            segment: find_in(src.source, "1"),
+                            segment: find_in(src, "1"),
                         }))),
-                        segment: find_in(src.source, "fun len() = 1"),
+                        segment: find_in(src, "fun len() = 1"),
                     },
                 ],
                 segment: src.segment(),

@@ -7,30 +7,30 @@ use crate::variable::Identifier;
 
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct StructDeclaration<'a> {
-    pub name: Identifier<'a>,
-    pub parameters: Vec<TypeParameter<'a>>,
-    pub fields: Vec<FieldDeclaration<'a>>,
+pub struct StructDeclaration {
+    pub name: Identifier,
+    pub parameters: Vec<TypeParameter>,
+    pub fields: Vec<FieldDeclaration>,
 }
 
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct FieldDeclaration<'a> {
-    pub name: Identifier<'a>,
-    pub tpe: Type<'a>,
+pub struct FieldDeclaration {
+    pub name: Identifier,
+    pub tpe: Type,
 }
 
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct StructImpl<'a> {
-    pub type_parameters: Vec<TypeParameter<'a>>,
-    pub impl_type: Type<'a>,
-    pub functions: Vec<FunctionDeclaration<'a>>,
+pub struct StructImpl {
+    pub type_parameters: Vec<TypeParameter>,
+    pub impl_type: Type,
+    pub functions: Vec<FunctionDeclaration>,
 }
 
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct FieldAccess<'a> {
-    pub expr: Box<Expr<'a>>,
-    pub field: Identifier<'a>,
+pub struct FieldAccess {
+    pub expr: Box<Expr>,
+    pub field: Identifier,
 }

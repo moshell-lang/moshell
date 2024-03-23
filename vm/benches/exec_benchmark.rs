@@ -6,15 +6,15 @@ use analyzer::relations::SourceId;
 use ast::Expr;
 use compiler::externals::CompilerExternals;
 use compiler::{compile_reef, CompilerOptions};
-use context::source::{ContentId, Source};
+use context::source::ContentId;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use parser::parse_trusted;
 use vm::execute_bytecode;
 
-struct SingleImporter<'a>(Option<Expr<'a>>);
+struct SingleImporter(Option<Expr>);
 
-impl<'a> ASTImporter<'a> for SingleImporter<'a> {
-    fn import(&mut self, _name: &Name) -> ImportResult<'a> {
+impl ASTImporter for SingleImporter {
+    fn import(&mut self, _name: &Name) -> ImportResult {
         self.0
             .take()
             .map(|expr| Imported {
@@ -27,7 +27,7 @@ impl<'a> ASTImporter<'a> for SingleImporter<'a> {
 
 fn prepare_bytecode(code: &str) -> Vec<u8> {
     let mut bytes = Vec::new();
-    let expr = parse_trusted(Source::new(code, "test"));
+    let expr = parse_trusted(code);
     let externals = Externals::default();
     let compiler_externals = CompilerExternals::default();
     let mut analyzer = analyze(

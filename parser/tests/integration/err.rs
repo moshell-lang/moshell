@@ -8,7 +8,7 @@ use ast::r#use::InclusionPathItem;
 use ast::value::Literal;
 use ast::variable::{TypedVariable, VarDeclaration, VarKind, VarName, VarReference};
 use ast::Expr;
-use context::source::{Source, SourceSegmentHolder};
+use context::source::SourceSegmentHolder;
 use context::str_find::{find_in, find_in_nth};
 use parser::err::{ParseError, ParseErrorKind, ParseReport};
 use parser::parse;
@@ -16,51 +16,47 @@ use parser::source::{identifier, identifier_nth, literal, literal_nth};
 
 #[test]
 fn repos_delimiter_stack() {
-    let content = "{\n\
+    let source = "{\n\
     val n=$(test $n})\n\
     echo invalid ]\n\
     }\n\
     echo end\n\
     val x=9!3";
-    let source = Source::unknown(content);
     let report = parse(source);
     assert_eq!(
         report,
         ParseReport {
             expr: vec![
                 Expr::Call(Call {
-                    arguments: vec![
-                        literal_nth(source.source, "echo", 1),
-                        literal(source.source, "end")
-                    ],
+                    arguments: vec![literal_nth(source, "echo", 1), literal(source, "end")],
                 }),
                 Expr::VarDeclaration(VarDeclaration {
                     kind: VarKind::Val,
                     var: TypedVariable {
-                        name: identifier(source.source, "x"),
+                        name: identifier(source, "x"),
                         ty: None,
                     },
                     initializer: Some(Box::new(Expr::Literal(Literal {
                         parsed: 9.into(),
-                        segment: find_in(source.source, "9")
+                        segment: find_in(source, "9")
                     }))),
-                    segment: find_in(source.source, "val x=9")
+                    segment: find_in(source, "val x=9")
                 })
             ],
             errors: vec![
                 ParseError {
                     message: "Mismatched closing delimiter.".to_string(),
-                    position: content.find('}').map(|p| p..p + 1).unwrap(),
-                    kind: ParseErrorKind::Unpaired(content.find('(').map(|p| p..p + 1).unwrap())
+                    position: source.find('}').map(|p| p..p + 1).unwrap(),
+                    kind: ParseErrorKind::Unpaired(source.find('(').map(|p| p..p + 1).unwrap())
                 },
                 ParseError {
                     message: "Mismatched closing delimiter.".to_string(),
-                    position: content.find(']').map(|p| p..p + 1).unwrap(),
-                    kind: ParseErrorKind::Unpaired(content.find('{').map(|p| p..p + 1).unwrap())
+                    position: source.find(']').map(|p| p..p + 1).unwrap(),
+                    kind: ParseErrorKind::Unpaired(source.find('{').map(|p| p..p + 1).unwrap())
                 },
                 ParseError {
                     message: "expected end of expression or file".to_string(),
-                    position: content.rfind('!').map(|p| p..p + 1).unwrap(),
+                    position: source.rfind('!').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 }
             ],
@@ -70,14 +66,13 @@ fn repos_delimiter_stack() {
 
 #[test]
 fn repos_delimiter_in_var_reference() {
-    let content = "echo $(var m = ${..}); echo b";
-    let source = Source::unknown(content);
+    let source = "echo $(var m = ${..}); echo b";
     let report = parse(source);
     assert_eq!(
         report.errors,
         vec![ParseError {
             message: "Expected variable name.".to_string(),
-            position: find_in(content, "..",),
+            position: find_in(source, "..",),
             kind: ParseErrorKind::Unexpected
         }]
     )
@@ -85,7 +80,7 @@ fn repos_delimiter_in_var_reference() {
 
 #[test]
 fn what_is_an_import() {
-    let content = "{
+    let source = "{
         use {a, b}
         loop {
             val n =42 as
@@ -96,24 +91,23 @@ fn what_is_an_import() {
         }
         res = List(5..;, $a)
     }";
-    let source = Source::unknown(content);
     let report = parse(source);
     assert_eq!(
         report.errors,
         vec![
             ParseError {
                 message: "`break` is not a valid type identifier.".to_owned(),
-                position: content.find("break").map(|p| p..p + 5).unwrap(),
+                position: source.find("break").map(|p| p..p + 5).unwrap(),
                 kind: ParseErrorKind::Unexpected
             },
             ParseError {
                 message: "Expected value".to_owned(),
-                position: content.find('%').map(|p| p + 1..p + 2).unwrap(),
+                position: source.find('%').map(|p| p + 1..p + 2).unwrap(),
                 kind: ParseErrorKind::Unexpected
             },
             ParseError {
                 message: "Expected value".to_owned(),
-                position: content.find(';').map(|p| p..p + 1).unwrap(),
+                position: source.find(';').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected
             }
         ]
@@ -122,47 +116,42 @@ fn what_is_an_import() {
 
 #[test]
 fn tolerance_in_multiple_groups() {
-    let content = "fun f[T, $](x: T, y: +) = $x";
-    let source = Source::unknown(content);
+    let source = "fun f[T, $](x: T, y: +) = $x";
     let report = parse(source);
     assert_eq!(
         report,
         ParseReport {
             expr: vec![Expr::FunctionDeclaration(FunctionDeclaration {
-                name: identifier_nth(source.source, "f", 1),
+                name: identifier_nth(source, "f", 1),
                 type_parameters: vec![TypeParameter {
-                    name: identifier(source.source, "T"),
+                    name: identifier(source, "T"),
                     params: Vec::new(),
-                    segment: find_in(source.source, "T")
+                    segment: find_in(source, "T")
                 }],
                 parameters: vec![FunctionParameter::Named(TypedVariable {
-                    name: identifier(source.source, "x"),
+                    name: identifier(source, "x"),
                     ty: Some(Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol(identifier_nth(
-                            source.source,
-                            "T",
-                            1
-                        ))],
+                        path: vec![InclusionPathItem::Symbol(identifier_nth(source, "T", 1))],
                         params: vec![],
-                        segment: find_in_nth(source.source, "T", 1)
+                        segment: find_in_nth(source, "T", 1)
                     })),
                 })],
                 return_type: None,
                 body: Some(Box::new(Expr::VarReference(VarReference {
-                    name: VarName::User("x"),
-                    segment: find_in(source.source, "$x")
+                    name: VarName::User("x".into()),
+                    segment: find_in(source, "$x")
                 }))),
                 segment: source.segment()
             })],
             errors: vec![
                 ParseError {
                     message: "`$` is not a valid generic type identifier.".to_owned(),
-                    position: content.find('$').map(|p| p..p + 1).unwrap(),
+                    position: source.find('$').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 },
                 ParseError {
                     message: "`+` is not a valid type identifier.".to_owned(),
-                    position: content.rfind('+').map(|p| p..p + 1).unwrap(),
+                    position: source.rfind('+').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 }
             ],
@@ -172,9 +161,8 @@ fn tolerance_in_multiple_groups() {
 
 #[test]
 fn invalid_binary_operator_cause_one_error() {
-    let content = "val incorrect = 'a' ! 5 + {\n
+    let source = "val incorrect = 'a' ! 5 + {\n
     }";
-    let source = Source::unknown(content);
     let report = parse(source);
     assert_eq!(
         report,
@@ -182,15 +170,15 @@ fn invalid_binary_operator_cause_one_error() {
             expr: vec![Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
                 var: TypedVariable {
-                    name: identifier(source.source, "incorrect"),
+                    name: identifier(source, "incorrect"),
                     ty: None,
                 },
-                initializer: Some(Box::new(literal(content, "'a'"))),
-                segment: find_in(content, "val incorrect = 'a'")
+                initializer: Some(Box::new(literal(source, "'a'"))),
+                segment: find_in(source, "val incorrect = 'a'")
             })],
             errors: vec![ParseError {
                 message: "expected end of expression or file".to_owned(),
-                position: content.find('!').map(|p| p..p + 1).unwrap(),
+                position: source.find('!').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected
             }],
         }
@@ -199,14 +187,13 @@ fn invalid_binary_operator_cause_one_error() {
 
 #[test]
 fn do_not_accumulate_delimiters() {
-    let content = "fun cube(x: List[/[\nStr, Str]]) = {}";
-    let source = Source::unknown(content);
+    let source = "fun cube(x: List[/[\nStr, Str]]) = {}";
     let report = parse(source);
     assert_eq!(
         report.errors,
         vec![ParseError {
             message: "`/` is not a valid type identifier.".to_owned(),
-            position: content.find('/').map(|p| p..p + 1).unwrap(),
+            position: source.find('/').map(|p| p..p + 1).unwrap(),
             kind: ParseErrorKind::Unexpected
         }]
     );
@@ -214,23 +201,21 @@ fn do_not_accumulate_delimiters() {
 
 #[test]
 fn do_not_accumulate_delimiters2() {
-    let content = "fun cube(x: List[)[\nStr, Str]]) = {}";
-    let source = Source::unknown(content);
+    let source = "fun cube(x: List[)[\nStr, Str]]) = {}";
     let report = parse(source);
     assert_eq!(
         report.errors,
         vec![ParseError {
             message: "Mismatched closing delimiter.".to_owned(),
-            position: content.find(')').map(|p| p..p + 1).unwrap(),
-            kind: ParseErrorKind::Unpaired(content.find('[').map(|p| p..p + 1).unwrap())
+            position: source.find(')').map(|p| p..p + 1).unwrap(),
+            kind: ParseErrorKind::Unpaired(source.find('[').map(|p| p..p + 1).unwrap())
         }]
     );
 }
 
 #[test]
 fn no_comma_or_two() {
-    let content = "fun test[@](a b,,c) = '";
-    let source = Source::unknown(content);
+    let source = "fun test[@](a b,,c) = '";
     let mut report = parse(source);
     report.expr.clear();
     assert_eq!(
@@ -240,22 +225,22 @@ fn no_comma_or_two() {
             errors: vec![
                 ParseError {
                     message: "Unterminated string literal.".to_owned(),
-                    position: content.len()..content.len(),
-                    kind: ParseErrorKind::Unpaired(content.find('\'').map(|p| p..p + 1).unwrap())
+                    position: source.len()..source.len(),
+                    kind: ParseErrorKind::Unpaired(source.find('\'').map(|p| p..p + 1).unwrap())
                 },
                 ParseError {
                     message: "`@` is not a valid generic type identifier.".to_owned(),
-                    position: content.find('@').map(|p| p..p + 1).unwrap(),
+                    position: source.find('@').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 },
                 ParseError {
                     message: "A comma or a closing bracket was expected here".to_owned(),
-                    position: content.find(" b").map(|p| p + 1..p + 2).unwrap(),
+                    position: source.find(" b").map(|p| p + 1..p + 2).unwrap(),
                     kind: ParseErrorKind::Expected("',' or ')'".to_string())
                 },
                 ParseError {
                     message: "Expected parameter.".to_owned(),
-                    position: content.rfind(',').map(|p| p..p + 1).unwrap(),
+                    position: source.rfind(',').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 }
             ],
@@ -265,14 +250,13 @@ fn no_comma_or_two() {
 
 #[test]
 fn single_colon() {
-    let content = "use std::foo:{bar, test}";
-    let source = Source::unknown(content);
+    let source = "use std::foo:{bar, test}";
     let report = parse(source);
     assert_eq!(
         report.errors,
         vec![ParseError {
             message: "Expected `::`.".to_owned(),
-            position: content.rfind(':').map(|p| p..p + 1).unwrap(),
+            position: source.rfind(':').map(|p| p..p + 1).unwrap(),
             kind: ParseErrorKind::Unexpected
         }]
     );
@@ -280,14 +264,13 @@ fn single_colon() {
 
 #[test]
 fn colon_return_type() {
-    let content = "fun foo(): int = {}";
-    let source = Source::unknown(content);
+    let source = "fun foo(): int = {}";
     let report = parse(source);
     assert_eq!(
         report.errors,
         vec![ParseError {
             message: "Return types are denoted using `->`.".to_owned(),
-            position: content.find(':').map(|p| p..p + 1).unwrap(),
+            position: source.find(':').map(|p| p..p + 1).unwrap(),
             kind: ParseErrorKind::Expected("`->`".to_owned())
         }]
     );
@@ -295,8 +278,7 @@ fn colon_return_type() {
 
 #[test]
 fn multiple_errors_in_parameters() {
-    let content = "f(1 + , if true; $, (2 + 3)";
-    let source = Source::unknown(content);
+    let source = "f(1 + , if true; $, (2 + 3)";
     let report = parse(source);
     assert_eq!(
         report,
@@ -305,18 +287,18 @@ fn multiple_errors_in_parameters() {
             errors: vec![
                 ParseError {
                     message: "Unexpected token ','.".to_owned(),
-                    position: content.find(',').map(|p| p..p + 1).unwrap(),
+                    position: source.find(',').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 },
                 ParseError {
                     message: "Expected variable name.".to_owned(),
-                    position: content.rfind(',').map(|p| p..p + 1).unwrap(),
+                    position: source.rfind(',').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 },
                 ParseError {
                     message: "Expected closing parenthesis.".to_owned(),
-                    position: content.len()..content.len(),
-                    kind: ParseErrorKind::Unpaired(content.find('(').map(|p| p..p + 1).unwrap())
+                    position: source.len()..source.len(),
+                    kind: ParseErrorKind::Unpaired(source.find('(').map(|p| p..p + 1).unwrap())
                 }
             ],
         }
@@ -325,19 +307,18 @@ fn multiple_errors_in_parameters() {
 
 #[test]
 fn do_not_self_lock() {
-    let content = "fun g[\n, ](, ) = {}";
-    let source = Source::unknown(content);
+    let source = "fun g[\n, ](, ) = {}";
     let report = parse(source);
     assert_eq!(
         report,
         ParseReport {
             expr: vec![Expr::FunctionDeclaration(FunctionDeclaration {
-                name: identifier(source.source, "g"),
+                name: identifier(source, "g"),
                 parameters: vec![],
                 type_parameters: vec![],
                 body: Some(Box::new(Expr::Block(Block {
                     expressions: vec![],
-                    segment: find_in(source.source, "{}")
+                    segment: find_in(source, "{}")
                 }))),
                 return_type: None,
                 segment: source.segment()
@@ -345,12 +326,12 @@ fn do_not_self_lock() {
             errors: vec![
                 ParseError {
                     message: "Expected type parameter.".to_owned(),
-                    position: content.find(',').map(|p| p..p + 1).unwrap(),
+                    position: source.find(',').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 },
                 ParseError {
                     message: "Expected parameter.".to_owned(),
-                    position: content.rfind(',').map(|p| p..p + 1).unwrap(),
+                    position: source.rfind(',').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 }
             ],
@@ -360,8 +341,7 @@ fn do_not_self_lock() {
 
 #[test]
 fn list_are_not_tricked_by_blanks() {
-    let content = "fun pow[\n";
-    let source = Source::unknown(content);
+    let source = "fun pow[\n";
     let report = parse(source);
     assert_eq!(
         report,
@@ -369,8 +349,8 @@ fn list_are_not_tricked_by_blanks() {
             expr: vec![],
             errors: vec![ParseError {
                 message: "Expected ']' delimiter.".to_owned(),
-                position: content.len()..content.len(),
-                kind: ParseErrorKind::Unpaired(content.find('[').map(|p| p..p + 1).unwrap())
+                position: source.len()..source.len(),
+                kind: ParseErrorKind::Unpaired(source.find('[').map(|p| p..p + 1).unwrap())
             }],
         }
     );
@@ -378,8 +358,7 @@ fn list_are_not_tricked_by_blanks() {
 
 #[test]
 fn expected_value_found_eof() {
-    let content = "val i =\n";
-    let source = Source::unknown(content);
+    let source = "val i =\n";
     let report = parse(source);
     assert_eq!(
         report,
@@ -387,7 +366,7 @@ fn expected_value_found_eof() {
             expr: vec![],
             errors: vec![ParseError {
                 message: "Expected value".to_string(),
-                position: content.find('=').map(|p| p + 1..p + 2).unwrap(),
+                position: source.find('=').map(|p| p + 1..p + 2).unwrap(),
                 kind: ParseErrorKind::Unexpected
             }],
         }
@@ -396,8 +375,7 @@ fn expected_value_found_eof() {
 
 #[test]
 fn expected_value_found_semicolon() {
-    let content = "val j =;";
-    let source = Source::unknown(content);
+    let source = "val j =;";
     let report = parse(source);
     assert_eq!(
         report,
@@ -405,7 +383,7 @@ fn expected_value_found_semicolon() {
             expr: vec![],
             errors: vec![ParseError {
                 message: "Expected value".to_string(),
-                position: content.find(';').map(|p| p..p + 1).unwrap(),
+                position: source.find(';').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected
             }],
         }
@@ -414,8 +392,7 @@ fn expected_value_found_semicolon() {
 
 #[test]
 fn for_no_dollar_help() {
-    let content = "for $i in 5..9";
-    let source = Source::unknown(content);
+    let source = "for $i in 5..9";
     let report = parse(source);
     assert_eq!(
         report,
@@ -423,7 +400,7 @@ fn for_no_dollar_help() {
             expr: vec![],
             errors: vec![ParseError {
                 message: "Receiver variables do not start with '$'.".to_string(),
-                position: content.find('$').map(|p| p..p + 1).unwrap(),
+                position: source.find('$').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::UnexpectedInContext(
                     "Consider removing the '$' prefix: for i in 5..9".to_string()
                 )
@@ -434,8 +411,7 @@ fn for_no_dollar_help() {
 
 #[test]
 fn expected_double_delimiter_for() {
-    let content = "for ((i = 0; $i < 10; i+=1); break";
-    let source = Source::unknown(content);
+    let source = "for ((i = 0; $i < 10; i+=1); break";
     let report = parse(source);
     assert_eq!(
         report,
@@ -443,8 +419,8 @@ fn expected_double_delimiter_for() {
             expr: vec![],
             errors: vec![ParseError {
                 message: "Expected '))' at end of conditional for".to_string(),
-                position: content.find(')').map(|p| p + 1..p + 2).unwrap(),
-                kind: ParseErrorKind::Unpaired(content.find('(').map(|p| p..p + 2).unwrap())
+                position: source.find(')').map(|p| p + 1..p + 2).unwrap(),
+                kind: ParseErrorKind::Unpaired(source.find('(').map(|p| p..p + 2).unwrap())
             }],
         }
     );
@@ -452,17 +428,16 @@ fn expected_double_delimiter_for() {
 
 #[test]
 fn expected_double_delimiter_mismatched() {
-    let content = "for ((i = 0; ]; i++)); continue";
-    let source = Source::unknown(content);
+    let source = "for ((i = 0; ]; i++)); continue";
     let report = parse(source);
     assert_eq!(
         report,
         ParseReport {
-            expr: vec![Expr::Continue(find_in(content, "continue"))],
+            expr: vec![Expr::Continue(find_in(source, "continue"))],
             errors: vec![ParseError {
                 message: "Mismatched closing delimiter.".to_string(),
-                position: content.find(']').map(|p| p..p + 1).unwrap(),
-                kind: ParseErrorKind::Unpaired(content.find('(').map(|p| p + 1..p + 2).unwrap())
+                position: source.find(']').map(|p| p..p + 1).unwrap(),
+                kind: ParseErrorKind::Unpaired(source.find('(').map(|p| p + 1..p + 2).unwrap())
             }],
         }
     );
@@ -470,21 +445,20 @@ fn expected_double_delimiter_mismatched() {
 
 #[test]
 fn double_comma_parentheses() {
-    let content = "Bar('m' , ,)";
-    let source = Source::unknown(content);
+    let source = "Bar('m' , ,)";
     let report = parse(source);
     assert_eq!(
         report,
         ParseReport {
             expr: vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![InclusionPathItem::Symbol(identifier(source.source, "Bar"))],
-                arguments: vec![literal(content, "'m'")],
+                path: vec![InclusionPathItem::Symbol(identifier(source, "Bar"))],
+                arguments: vec![literal(source, "'m'")],
                 type_parameters: Vec::new(),
                 segment: source.segment(),
             })],
             errors: vec![ParseError {
                 message: "Expected argument.".to_string(),
-                position: content.rfind(',').map(|p| p..p + 1).unwrap(),
+                position: source.rfind(',').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected
             }],
         }
@@ -493,8 +467,7 @@ fn double_comma_parentheses() {
 
 #[test]
 fn double_comma_function() {
-    let content = "fun foo(a: Int, , b: Int) = $a + $b /";
-    let source = Source::unknown(content);
+    let source = "fun foo(a: Int, , b: Int) = $a + $b /";
     let report = parse(source);
     assert_eq!(
         report,
@@ -503,12 +476,12 @@ fn double_comma_function() {
             errors: vec![
                 ParseError {
                     message: "Expected parameter.".to_string(),
-                    position: content.rfind(',').map(|p| p..p + 1).unwrap(),
+                    position: source.rfind(',').map(|p| p..p + 1).unwrap(),
                     kind: ParseErrorKind::Unexpected
                 },
                 ParseError {
                     message: "Expected value".to_string(),
-                    position: content.len()..content.len(),
+                    position: source.len()..source.len(),
                     kind: ParseErrorKind::Unexpected
                 }
             ],
@@ -518,14 +491,13 @@ fn double_comma_function() {
 
 #[test]
 fn quotes_are_delimiters() {
-    let content = "LD_PRELOAD=\"$(dirname $(readlink -f $0))/lib.so\" \"$@\"";
-    let source = Source::unknown(content);
+    let source = "LD_PRELOAD=\"$(dirname $(readlink -f $0))/lib.so\" \"$@\"";
     let report = parse(source);
     assert_eq!(
         report.errors,
         vec![ParseError {
             message: "expected end of expression or file".to_owned(),
-            position: content
+            position: source
                 .match_indices('"')
                 .nth(2)
                 .map(|(p, _)| p..p + 1)
@@ -537,13 +509,13 @@ fn quotes_are_delimiters() {
 
 #[test]
 fn call_number() {
-    let source = Source::unknown("echo 7()");
+    let source = "echo 7()";
     let report = parse(source);
     assert_eq!(
         report.errors,
         vec![ParseError {
             message: "expected end of expression or file".to_owned(),
-            position: source.source.find('(').map(|p| p..p + 1).unwrap(),
+            position: source.find('(').map(|p| p..p + 1).unwrap(),
             kind: ParseErrorKind::Unexpected,
         }]
     );

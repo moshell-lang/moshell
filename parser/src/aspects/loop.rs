@@ -7,18 +7,9 @@ use crate::err::ParseErrorKind;
 use crate::moves::{blanks, eog, line_end, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
-///a parser aspect for loops and while expressions
-pub trait LoopAspect<'a> {
-    ///parse a while expression
-    fn parse_while(&mut self) -> ParseResult<While<'a>>;
-    ///parse a loop expression
-    fn parse_loop(&mut self) -> ParseResult<Loop<'a>>;
-    /// Parse a for expression
-    fn parse_for(&mut self) -> ParseResult<For<'a>>;
-}
-
-impl<'a> LoopAspect<'a> for Parser<'a> {
-    fn parse_while(&mut self) -> ParseResult<While<'a>> {
+impl Parser<'_> {
+    /// Parses a `while` expression.
+    pub(crate) fn parse_while(&mut self) -> ParseResult<While> {
         let start = self.cursor.force(
             of_type(TokenType::While),
             "expected 'while' at start of while expression",
@@ -42,7 +33,8 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
         })
     }
 
-    fn parse_loop(&mut self) -> ParseResult<Loop<'a>> {
+    /// Parses a `loop` expression.
+    pub(crate) fn parse_loop(&mut self) -> ParseResult<Loop> {
         let start = self.cursor.force(
             of_type(TokenType::Loop),
             "expected 'loop' at start of loop expression",
@@ -54,7 +46,8 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
         Ok(Loop { body, segment })
     }
 
-    fn parse_for(&mut self) -> ParseResult<For<'a>> {
+    /// Parses a `for` expression.
+    pub(crate) fn parse_for(&mut self) -> ParseResult<For> {
         let start = self.cursor.force(
             of_type(TokenType::For),
             "expected 'for' at start of for expression",
@@ -71,11 +64,9 @@ impl<'a> LoopAspect<'a> for Parser<'a> {
             segment,
         })
     }
-}
 
-impl<'a> Parser<'a> {
     /// Parses the for kind, either a range for or a conditional for.
-    fn parse_for_kind(&mut self) -> ParseResult<ForKind<'a>> {
+    fn parse_for_kind(&mut self) -> ParseResult<ForKind> {
         let current = self.cursor.peek();
         let start_pos = current.span.start;
         match current.token_type {
@@ -94,7 +85,7 @@ impl<'a> Parser<'a> {
                 self.cursor.next_opt();
                 if self.parse_range_for().is_ok() {
                     let end_pos = self.cursor.peek().span.end;
-                    let slice = &self.source.source[start_pos + 1..end_pos];
+                    let slice = &self.source[start_pos + 1..end_pos];
                     return self.expected_with(
                         "Receiver variables do not start with '$'.",
                         current.span,
@@ -114,7 +105,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a for loop with range, with a receiver and an iterable.
-    fn parse_range_for(&mut self) -> ParseResult<RangeFor<'a>> {
+    fn parse_range_for(&mut self) -> ParseResult<RangeFor> {
         let receiver = self.cursor.force(
             of_type(TokenType::Identifier),
             "Expected a variable identifier",
@@ -129,14 +120,14 @@ impl<'a> Parser<'a> {
         let segment = receiver.span.start..iterable.segment().end;
 
         Ok(RangeFor {
-            receiver: Identifier::extract(self.source.source, receiver.span),
+            receiver: Identifier::extract(self.source, receiver.span),
             iterable,
             segment,
         })
     }
 
     /// Parses a "traditional" conditional for, with a initializer, a condition and an increment.
-    fn parse_conditional_for(&mut self) -> ParseResult<ConditionalFor<'a>> {
+    fn parse_conditional_for(&mut self) -> ParseResult<ConditionalFor> {
         let outer_opening_parenthesis = self.cursor.force(
             of_type(TokenType::RoundedLeftBracket),
             "expected '((' at start of conditional for",
@@ -156,7 +147,7 @@ impl<'a> Parser<'a> {
             }
         }
     }
-    fn parse_inner_conditional_for(&mut self, start: Token) -> ParseResult<ConditionalFor<'a>> {
+    fn parse_inner_conditional_for(&mut self, start: Token) -> ParseResult<ConditionalFor> {
         self.cursor.force(
             of_type(TokenType::RoundedLeftBracket),
             "expected '((' at start of conditional for",
@@ -174,7 +165,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_three_parts_for(&mut self) -> ParseResult<ConditionalFor<'a>> {
+    fn parse_three_parts_for(&mut self) -> ParseResult<ConditionalFor> {
         let initializer = self.statement()?;
         self.cursor.force(
             blanks().then(of_type(TokenType::SemiColon)),
@@ -229,7 +220,7 @@ mod tests {
     };
     use ast::Expr;
     use ast::Expr::{Break, Continue};
-    use context::source::{Source, SourceSegmentHolder};
+    use context::source::SourceSegmentHolder;
     use context::str_find::{find_between, find_in, find_in_nth};
 
     use crate::err::ParseError;
@@ -240,21 +231,19 @@ mod tests {
 
     #[test]
     fn loop_with_break_and_continues() {
-        let source = Source::unknown(
-            "loop {
+        let source = "loop {
             continue; break;
-            }",
-        );
+            }";
         let res = parse(source).expect("parse failed");
         assert_eq!(
             res,
             vec![Expr::Loop(Loop {
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![
-                        Continue(find_in(source.source, "continue")),
-                        Break(find_in(source.source, "break"))
+                        Continue(find_in(source, "continue")),
+                        Break(find_in(source, "break"))
                     ],
-                    segment: find_between(source.source, "{", "}")
+                    segment: find_between(source, "{", "}")
                 })),
                 segment: source.segment()
             })]
@@ -263,7 +252,7 @@ mod tests {
 
     #[test]
     fn loop_with_break_and_continues_inline() {
-        let source = Source::unknown("loop ssh mabatista1@iut && break");
+        let source = "loop ssh mabatista1@iut && break";
         let res = parse(source).expect("parse failed");
         assert_eq!(
             res,
@@ -273,16 +262,16 @@ mod tests {
                         arguments: vec![
                             Expr::Literal(Literal {
                                 parsed: "ssh".into(),
-                                segment: find_in(source.source, "ssh"),
+                                segment: find_in(source, "ssh"),
                             }),
                             Expr::Literal(Literal {
                                 parsed: "mabatista1@iut".into(),
-                                segment: find_in(source.source, "mabatista1@iut"),
+                                segment: find_in(source, "mabatista1@iut"),
                             }),
                         ],
                     })),
                     op: And,
-                    right: Box::new(Break(find_in(source.source, "break"))),
+                    right: Box::new(Break(find_in(source, "break"))),
                 })),
                 segment: source.segment(),
             })]
@@ -291,7 +280,7 @@ mod tests {
 
     #[test]
     fn test_loop() {
-        let source = Source::unknown("loop \n\n \n \n date");
+        let source = "loop \n\n \n \n date";
         let res = parse(source).expect("parse failed");
         assert_eq!(
             res,
@@ -299,7 +288,7 @@ mod tests {
                 body: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal(Literal {
                         parsed: "date".into(),
-                        segment: find_in(source.source, "date"),
+                        segment: find_in(source, "date"),
                     })],
                 })),
                 segment: source.segment()
@@ -309,13 +298,13 @@ mod tests {
 
     #[test]
     fn loop_no_body() {
-        let content = "loop";
-        let res: ParseResult<_> = parse(Source::unknown(content)).into();
+        let source = "loop";
+        let res: ParseResult<_> = parse(source).into();
         assert_eq!(
             res,
             Err(ParseError {
                 message: "Expected statement".to_string(),
-                position: content.len()..content.len(),
+                position: source.len()..source.len(),
                 kind: Unexpected,
             })
         )
@@ -323,23 +312,20 @@ mod tests {
 
     #[test]
     fn test_while() {
-        let source = Source::unknown("while \n\n \n \n $1 \n\n \n{ echo test }");
+        let source = "while \n\n \n \n $1 \n\n \n{ echo test }";
         let res = parse(source).expect("parse failed");
         assert_eq!(
             res,
             vec![Expr::While(While {
                 condition: Box::new(Expr::VarReference(VarReference {
-                    name: VarName::User("1"),
-                    segment: find_in(source.source, "$1"),
+                    name: VarName::User("1".into()),
+                    segment: find_in(source, "$1"),
                 })),
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
-                        arguments: vec![
-                            literal(source.source, "echo"),
-                            literal(source.source, "test"),
-                        ],
+                        arguments: vec![literal(source, "echo"), literal(source, "test"),],
                     })],
-                    segment: find_in(source.source, "{ echo test }")
+                    segment: find_in(source, "{ echo test }")
                 })),
                 segment: source.segment()
             })]
@@ -348,41 +334,41 @@ mod tests {
 
     #[test]
     fn for_in_int_range() {
-        let source = Source::unknown("for i in 1..10 {\n\techo $i\n}");
+        let source = "for i in 1..10 {\n\techo $i\n}";
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::For(For {
                 kind: Box::new(ForKind::Range(RangeFor {
-                    receiver: identifier(source.source, "i"),
+                    receiver: identifier(source, "i"),
                     iterable: Expr::Range(Iterable::Range(NumericRange {
                         start: Box::new(Expr::Literal(Literal {
                             parsed: 1.into(),
-                            segment: find_in(source.source, "1")
+                            segment: find_in(source, "1")
                         })),
                         end: Box::new(Expr::Literal(Literal {
                             parsed: 10.into(),
-                            segment: find_in(source.source, "10")
+                            segment: find_in(source, "10")
                         })),
                         step: None,
                         upper_inclusive: false,
                     })),
-                    segment: find_in(source.source, "i in 1..10"),
+                    segment: find_in(source, "i in 1..10"),
                 })),
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
                         arguments: vec![
                             Expr::Literal(Literal {
                                 parsed: "echo".into(),
-                                segment: find_in(source.source, "echo")
+                                segment: find_in(source, "echo")
                             }),
                             Expr::VarReference(VarReference {
-                                name: VarName::User("i"),
-                                segment: find_in(source.source, "$i")
+                                name: VarName::User("i".into()),
+                                segment: find_in(source, "$i")
                             }),
                         ],
                     })],
-                    segment: find_in(source.source, "{\n\techo $i\n}")
+                    segment: find_in(source, "{\n\techo $i\n}")
                 })),
                 segment: source.segment()
             })]
@@ -391,31 +377,31 @@ mod tests {
 
     #[test]
     fn for_in_variable_range() {
-        let source = Source::unknown("for n in $a..$b; cat");
+        let source = "for n in $a..$b; cat";
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::For(For {
                 kind: Box::new(ForKind::Range(RangeFor {
-                    receiver: identifier(source.source, "n"),
+                    receiver: identifier(source, "n"),
                     iterable: Expr::Range(Iterable::Range(NumericRange {
                         start: Box::new(Expr::VarReference(VarReference {
-                            name: VarName::User("a"),
-                            segment: find_in(source.source, "$a")
+                            name: VarName::User("a".into()),
+                            segment: find_in(source, "$a")
                         })),
                         end: Box::new(Expr::VarReference(VarReference {
-                            name: VarName::User("b"),
-                            segment: find_in(source.source, "$b")
+                            name: VarName::User("b".into()),
+                            segment: find_in(source, "$b")
                         })),
                         step: None,
                         upper_inclusive: false,
                     })),
-                    segment: find_in(source.source, "n in $a..$b"),
+                    segment: find_in(source, "n in $a..$b"),
                 })),
                 body: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal(Literal {
                         parsed: "cat".into(),
-                        segment: find_in(source.source, "cat")
+                        segment: find_in(source, "cat")
                     })],
                 })),
                 segment: source.segment(),
@@ -425,41 +411,41 @@ mod tests {
 
     #[test]
     fn for_in_calculated_range() {
-        let source = Source::unknown("for i in (1 + 2)..5; ls");
+        let source = "for i in (1 + 2)..5; ls";
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::For(For {
                 kind: Box::new(ForKind::Range(RangeFor {
-                    receiver: identifier(source.source, "i"),
+                    receiver: identifier(source, "i"),
                     iterable: Expr::Range(Iterable::Range(NumericRange {
                         start: Box::new(Expr::Parenthesis(Parenthesis {
                             expression: Box::new(Expr::Binary(BinaryOperation {
                                 left: Box::new(Expr::Literal(Literal {
                                     parsed: 1.into(),
-                                    segment: find_in(source.source, "1")
+                                    segment: find_in(source, "1")
                                 })),
                                 op: BinaryOperator::Plus,
                                 right: Box::new(Expr::Literal(Literal {
                                     parsed: 2.into(),
-                                    segment: find_in(source.source, "2")
+                                    segment: find_in(source, "2")
                                 })),
                             })),
-                            segment: find_in(source.source, "(1 + 2)")
+                            segment: find_in(source, "(1 + 2)")
                         })),
                         end: Box::new(Expr::Literal(Literal {
                             parsed: 5.into(),
-                            segment: find_in(source.source, "5")
+                            segment: find_in(source, "5")
                         })),
                         step: None,
                         upper_inclusive: false,
                     })),
-                    segment: find_in(source.source, "i in (1 + 2)..5"),
+                    segment: find_in(source, "i in (1 + 2)..5"),
                 })),
                 body: Box::new(Expr::Call(Call {
                     arguments: vec![Expr::Literal(Literal {
                         parsed: "ls".into(),
-                        segment: find_in(source.source, "ls")
+                        segment: find_in(source, "ls")
                     })],
                 })),
                 segment: source.segment()
@@ -469,33 +455,33 @@ mod tests {
 
     #[test]
     fn for_in_files_range() {
-        let source = Source::unknown("for f in p'*' {\n\tfile $f\n}");
+        let source = "for f in p'*' {\n\tfile $f\n}";
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::For(For {
                 kind: Box::new(ForKind::Range(RangeFor {
-                    receiver: identifier_nth(source.source, "f", 1),
+                    receiver: identifier_nth(source, "f", 1),
                     iterable: Expr::Range(Iterable::Files(FilePattern {
-                        pattern: Box::new(literal(source.source, "'*'")),
-                        segment: find_in(source.source, "p'*'")
+                        pattern: Box::new(literal(source, "'*'")),
+                        segment: find_in(source, "p'*'")
                     })),
-                    segment: find_in(source.source, "f in p'*'"),
+                    segment: find_in(source, "f in p'*'"),
                 })),
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
                         arguments: vec![
                             Expr::Literal(Literal {
                                 parsed: "file".into(),
-                                segment: find_in(source.source, "file")
+                                segment: find_in(source, "file")
                             }),
                             Expr::VarReference(VarReference {
-                                name: VarName::User("f"),
-                                segment: find_in(source.source, "$f")
+                                name: VarName::User("f".into()),
+                                segment: find_in(source, "$f")
                             }),
                         ],
                     })],
-                    segment: find_in(source.source, "{\n\tfile $f\n}")
+                    segment: find_in(source, "{\n\tfile $f\n}")
                 })),
                 segment: source.segment(),
             })]
@@ -504,7 +490,7 @@ mod tests {
 
     #[test]
     fn classical_for() {
-        let source = Source::unknown("for (( var i=0; $i<10; i=$i + 1 ))\necho $i");
+        let source = "for (( var i=0; $i<10; i=$i + 1 ))\necho $i";
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
@@ -513,55 +499,51 @@ mod tests {
                     initializer: Expr::VarDeclaration(VarDeclaration {
                         kind: VarKind::Var,
                         var: TypedVariable {
-                            name: identifier(source.source, "i"),
+                            name: identifier(source, "i"),
                             ty: None,
                         },
                         initializer: Some(Box::new(Expr::Literal(Literal {
                             parsed: 0.into(),
-                            segment: find_in(source.source, "0")
+                            segment: find_in(source, "0")
                         }))),
-                        segment: find_in(source.source, "var i=0")
+                        segment: find_in(source, "var i=0")
                     }),
                     condition: Expr::Binary(BinaryOperation {
                         left: Box::new(Expr::VarReference(VarReference {
-                            name: VarName::User("i"),
-                            segment: find_in(source.source, "$i")
+                            name: VarName::User("i".into()),
+                            segment: find_in(source, "$i")
                         })),
                         op: BinaryOperator::Less,
                         right: Box::new(Expr::Literal(Literal {
                             parsed: 10.into(),
-                            segment: find_in(source.source, "10")
+                            segment: find_in(source, "10")
                         })),
                     }),
                     increment: Expr::Assign(Assign {
                         left: Box::new(Expr::Path(Path {
-                            path: vec![InclusionPathItem::Symbol(identifier_nth(
-                                source.source,
-                                "i",
-                                2
-                            ))],
+                            path: vec![InclusionPathItem::Symbol(identifier_nth(source, "i", 2))],
                         })),
                         operator: AssignOperator::Assign,
                         value: Box::new(Expr::Binary(BinaryOperation {
                             left: Box::new(Expr::VarReference(VarReference {
-                                name: VarName::User("i"),
-                                segment: find_in_nth(source.source, "$i", 1)
+                                name: VarName::User("i".into()),
+                                segment: find_in_nth(source, "$i", 1)
                             })),
                             op: BinaryOperator::Plus,
                             right: Box::new(Expr::Literal(Literal {
                                 parsed: 1.into(),
-                                segment: find_in_nth(source.source, "1", 1)
+                                segment: find_in_nth(source, "1", 1)
                             })),
                         })),
                     }),
-                    segment: find_between(source.source, "((", "))")
+                    segment: find_between(source, "((", "))")
                 })),
                 body: Box::new(Expr::Call(Call {
                     arguments: vec![
-                        literal(source.source, "echo"),
+                        literal(source, "echo"),
                         Expr::VarReference(VarReference {
-                            name: VarName::User("i"),
-                            segment: find_in_nth(source.source, "$i", 2)
+                            name: VarName::User("i".into()),
+                            segment: find_in_nth(source, "$i", 2)
                         }),
                     ],
                 })),
@@ -572,14 +554,13 @@ mod tests {
 
     #[test]
     fn for_into_nothing() {
-        let content = "for in 1..5";
-        let source = Source::unknown(content);
+        let source = "for in 1..5";
         let expr: ParseResult<_> = parse(source).into();
         assert_eq!(
             expr,
             Err(ParseError {
                 message: "Expected variable name before 'in'".to_string(),
-                position: content.find("in").map(|p| p..p + 2).unwrap(),
+                position: source.find("in").map(|p| p..p + 2).unwrap(),
                 kind: Unexpected,
             })
         );
@@ -587,13 +568,13 @@ mod tests {
 
     #[test]
     fn while_no_condition() {
-        let content = "while";
-        let res: ParseResult<_> = parse(Source::unknown(content)).into();
+        let source = "while";
+        let res: ParseResult<_> = parse(source).into();
         assert_eq!(
             res,
             Err(ParseError {
                 message: "Expected statement".to_string(),
-                position: content.len()..content.len(),
+                position: source.len()..source.len(),
                 kind: Unexpected,
             })
         )
@@ -601,13 +582,13 @@ mod tests {
 
     #[test]
     fn while_no_body() {
-        let content = "while $x";
-        let res: ParseResult<_> = parse(Source::unknown(content)).into();
+        let source = "while $x";
+        let res: ParseResult<_> = parse(source).into();
         assert_eq!(
             res,
             Err(ParseError {
                 message: "Expected statement".to_string(),
-                position: content.len()..content.len(),
+                position: source.len()..source.len(),
                 kind: Unexpected,
             })
         )

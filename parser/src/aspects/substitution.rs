@@ -4,20 +4,12 @@ use ast::Expr;
 use lexer::token::TokenType;
 use lexer::token::TokenType::{RoundedLeftBracket, RoundedRightBracket};
 
-use crate::aspects::group::GroupAspect;
-use crate::aspects::var_reference::VarReferenceAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{line_end, not, of_type, repeat_n, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
-/// A parser for substitution expressions.
-pub(crate) trait SubstitutionAspect<'a> {
-    /// Parses a substitution expression, i.e. a variable reference or a command capture.
-    fn substitution(&mut self) -> ParseResult<Expr<'a>>;
-}
-
-impl<'a> SubstitutionAspect<'a> for Parser<'a> {
-    fn substitution(&mut self) -> ParseResult<Expr<'a>> {
+impl Parser<'_> {
+    pub(crate) fn substitution(&mut self) -> ParseResult<Expr> {
         let dollar = self
             .cursor
             .force(of_type(TokenType::Dollar), "Expected '$' sign.")?;
@@ -60,7 +52,7 @@ impl<'a> SubstitutionAspect<'a> for Parser<'a> {
 
         //finally it's a lonely '$' so we return it as a literal
         return Ok(Expr::Literal(Literal {
-            parsed: LiteralValue::String(dollar.text(self.source.source).to_owned()),
+            parsed: LiteralValue::String(dollar.text(self.source).to_owned()),
             segment: dollar.span,
         }));
     }
@@ -77,10 +69,9 @@ mod tests {
     use ast::value::Literal;
     use ast::variable::{VarName, VarReference};
     use ast::Expr;
-    use context::source::{Source, SourceSegmentHolder};
+    use context::source::SourceSegmentHolder;
     use context::str_find::find_in;
 
-    use crate::aspects::substitution::SubstitutionAspect;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
@@ -88,14 +79,13 @@ mod tests {
 
     #[test]
     fn unterminated_substitution() {
-        let content = "$(echo";
-        let source = Source::unknown(content);
+        let source = "$(echo";
         let ast = Parser::new(source).substitution();
         assert_eq!(
             ast,
             Err(ParseError {
                 message: "Expected closing bracket.".to_string(),
-                position: content.len()..content.len(),
+                position: source.len()..source.len(),
                 kind: ParseErrorKind::Unpaired(1..2)
             })
         );
@@ -103,14 +93,13 @@ mod tests {
 
     #[test]
     fn unpaired_parenthesis() {
-        let content = "$(a $(b) $(c d\\))";
-        let source = Source::unknown(content);
+        let source = "$(a $(b) $(c d\\))";
         let ast: ParseResult<_> = parse(source).into();
         assert_eq!(
             ast,
             Err(ParseError {
                 message: "Expected closing bracket.".to_string(),
-                position: content.len()..content.len(),
+                position: source.len()..source.len(),
                 kind: ParseErrorKind::Unpaired(1..2)
             })
         );
@@ -118,7 +107,7 @@ mod tests {
 
     #[test]
     fn mix_blocks() {
-        let source = Source::unknown("$({ls $(pwd)})");
+        let source = "$({ls $(pwd)})";
         let ast = Parser::new(source).substitution().expect("Failed to parse");
         assert_eq!(
             ast,
@@ -127,19 +116,19 @@ mod tests {
                     expressions: vec![Expr::Block(Block {
                         expressions: vec![Expr::Call(Call {
                             arguments: vec![
-                                literal(source.source, "ls"),
+                                literal(source, "ls"),
                                 Expr::Substitution(Substitution {
                                     underlying: Subshell {
                                         expressions: vec![Expr::Call(Call {
-                                            arguments: vec![literal(source.source, "pwd")],
+                                            arguments: vec![literal(source, "pwd")],
                                         })],
-                                        segment: find_in(source.source, "$(pwd)")
+                                        segment: find_in(source, "$(pwd)")
                                     },
                                     kind: SubstitutionKind::Capture,
                                 }),
                             ],
                         })],
-                        segment: find_in(source.source, "{ls $(pwd)}")
+                        segment: find_in(source, "{ls $(pwd)}")
                     })],
                     segment: source.segment()
                 },
@@ -150,14 +139,13 @@ mod tests {
 
     #[test]
     fn unexpected_closing_parenthesis() {
-        let content = "some stuff)";
-        let source = Source::unknown(content);
+        let source = "some stuff)";
         let ast: ParseResult<_> = parse(source).into();
         assert_eq!(
             ast,
             Err(ParseError {
                 message: "Unexpected closing delimiter.".to_string(),
-                position: content.find(')').map(|p| p..p + 1).unwrap(),
+                position: source.find(')').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected
             })
         );
@@ -165,35 +153,34 @@ mod tests {
 
     #[test]
     fn parenthesis_mismatch() {
-        let content = "$(test 9})";
-        let source = Source::unknown(content);
+        let source = "$(test 9})";
         let ast: ParseResult<_> = parse(source).into();
         assert_eq!(
             ast,
             Err(ParseError {
                 message: "Mismatched closing delimiter.".to_string(),
-                position: content.find('}').map(|p| (p..p + 1)).unwrap(),
-                kind: ParseErrorKind::Unpaired(content.find('(').map(|p| (p..p + 1)).unwrap())
+                position: source.find('}').map(|p| (p..p + 1)).unwrap(),
+                kind: ParseErrorKind::Unpaired(source.find('(').map(|p| (p..p + 1)).unwrap())
             })
         );
     }
 
     #[test]
     fn arithmetic() {
-        let source = Source::unknown("$(($a + 1))");
+        let source = "$(($a + 1))";
         let ast = Parser::new(source).substitution().expect("Failed to parse");
         assert_eq!(
             ast,
             Expr::Parenthesis(Parenthesis {
                 expression: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::VarReference(VarReference {
-                        name: VarName::User("a"),
-                        segment: find_in(source.source, "$a")
+                        name: VarName::User("a".into()),
+                        segment: find_in(source, "$a")
                     })),
                     op: BinaryOperator::Plus,
                     right: Box::new(Expr::Literal(Literal {
                         parsed: 1.into(),
-                        segment: find_in(source.source, "1")
+                        segment: find_in(source, "1")
                     })),
                 })),
                 segment: source.segment(),

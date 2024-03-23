@@ -11,3 +11,4 @@ context = { path = "../context" }
 lexer = { path = "../lexer" }
 
 enum-assoc = "1.0.0"
+compact_str = "0.7.1"

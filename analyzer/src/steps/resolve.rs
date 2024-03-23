@@ -383,7 +383,6 @@ mod tests {
 
     use indexmap::IndexMap;
 
-    use context::source::Source;
     use context::str_find::{find_in, find_in_nth};
     use parser::parse_trusted;
 
@@ -411,7 +410,7 @@ mod tests {
 
         fn define_reef<'e, const N: usize>(
             externals: &Externals,
-            sources: [(Name, Source<'e>); N],
+            sources: [(Name, &'e str); N],
         ) -> (Vec<Diagnostic>, ResolutionResult<'e>) {
             let mut diagnostics = Vec::new();
             let mut result = ResolutionResult::default();
@@ -429,10 +428,7 @@ mod tests {
 
         let (diagnostics, result) = define_reef(
             &reefs,
-            [(
-                Name::new("std"),
-                Source::unknown("fun foo() -> Exitcode = echo stdlib"),
-            )],
+            [(Name::new("std"), "fun foo() -> Exitcode = echo stdlib")],
         );
         assert_eq!(diagnostics, vec![]);
         reefs.register(Reef::new_partial(
@@ -445,11 +441,8 @@ mod tests {
         let (diagnostics, result) = define_reef(
             &reefs,
             [
-                (Name::new("main"), Source::unknown(main_source)),
-                (
-                    Name::new("std"),
-                    Source::unknown("fun foo() -> Exitcode = echo fake stdlib"),
-                ),
+                (Name::new("main"), main_source),
+                (Name::new("std"), "fun foo() -> Exitcode = echo fake stdlib"),
             ],
         );
         assert_eq!(diagnostics, vec![]);
@@ -546,10 +539,10 @@ mod tests {
     fn report_unknown_imported_symbol() {
         let mut importer = StaticImporter::new(
             [
-                (Name::new("main"), Source::new("reef::math::id(9)", "main")),
+                (Name::new("main"), "reef::math::id(9)"),
                 (
                     Name::new("math"),
-                    Source::new("fun id(n: Int) -> Int = $n\nfun dummy() = {}", "math"),
+                    "fun id(n: Int) -> Int = $n\nfun dummy() = {}",
                 ),
             ],
             parse_trusted,
@@ -596,10 +589,7 @@ mod tests {
             }
         }
         ";
-        let mut importer = StaticImporter::new(
-            [(Name::new("main"), Source::new(src, "main"))],
-            parse_trusted,
-        );
+        let mut importer = StaticImporter::new([(Name::new("main"), src)], parse_trusted);
         let externals = Externals::default();
         let mut diagnostics = Vec::new();
         let res = resolve_all(
@@ -634,9 +624,9 @@ mod tests {
 
     #[test]
     fn test_reef_imports_resolution() {
-        let math_src = Source::unknown("val PI = 3.14");
-        let std_src = Source::unknown("val Foo = 'moshell_std'; val Bar = $Foo");
-        let io_src = Source::unknown("fun output() = (); fun input() = ()");
+        let math_src = "val PI = 3.14";
+        let std_src = "val Foo = 'moshell_std'; val Bar = $Foo";
+        let io_src = "fun output() = (); fun input() = ()";
         let test_src = "
             use reef::math::PI
             use reef::std::{io, foo}
@@ -655,7 +645,7 @@ mod tests {
                 (Name::new("math"), math_src),
                 (Name::new("std"), std_src),
                 (Name::new("std::io"), io_src),
-                (Name::new("test"), Source::unknown(test_src)),
+                (Name::new("test"), test_src),
             ],
             parse_trusted,
         );
@@ -811,14 +801,10 @@ mod tests {
 
     #[test]
     fn test_symbols_resolution() {
-        let math_src = Source::unknown("val PI = 3.14");
-
-        let std_src = Source::unknown("val Foo = 'moshell_std'; val Bar = $Foo");
-
-        let io_src = Source::unknown("val output = 'OutputStream()'; val input = 'InputStream()'");
-
-        let test_src = Source::unknown(
-            "\
+        let math_src = "val PI = 3.14";
+        let std_src = "val Foo = 'moshell_std'; val Bar = $Foo";
+        let io_src = "val output = 'OutputStream()'; val input = 'InputStream()'";
+        let test_src = "\
             use reef::math::PI
             use reef::std::{Bar, io::*}
 
@@ -827,8 +813,7 @@ mod tests {
             val output = $output
             val x = $Bar
             val y = $PI
-        ",
-        );
+        ";
 
         let mut engine = Engine::default();
         let mut relations = Relations::default();
@@ -895,18 +880,17 @@ mod tests {
 
     #[test]
     fn test_qualified_symbols_resolution() {
-        let math_src = Source::unknown("fun add(a: Int, b: Int) = a + b");
-        let math_advanced_src = Source::unknown("fun multiply(a: Int, b: Int) = a * b");
-        let std_src = Source::unknown("fun foo() = 45; fun bar() = 78");
-        let test_src = Source::unknown(
+        let math_src = "fun add(a: Int, b: Int) = a + b";
+        let math_advanced_src = "fun multiply(a: Int, b: Int) = a * b";
+        let std_src = "fun foo() = 45; fun bar() = 78";
+        let test_src =
             "\
             use reef::math::advanced
 
             val x = reef::std::foo()
             val y = reef::std::bar()
             val sum = reef::math::add($x + $y, advanced::multiply(reef::std::foo(), reef::std::bar()))
-        ",
-        );
+        ";
 
         let mut engine = Engine::default();
         let mut relations = Relations::default();
@@ -1047,10 +1031,7 @@ mod tests {
             }
         ";
 
-        let mut importer = StaticImporter::new(
-            [(Name::new("test"), Source::unknown(test_src))],
-            parse_trusted,
-        );
+        let mut importer = StaticImporter::new([(Name::new("test"), test_src)], parse_trusted);
         let externals = Externals::default();
         let mut diagnostics = Vec::new();
         let result = resolve_all(
@@ -1148,7 +1129,7 @@ mod tests {
 
     #[test]
     fn test_unknown_symbols() {
-        let a_src = Source::unknown("val C = 'A'");
+        let a_src = "val C = 'A'";
 
         let source = "\
         use reef::A::B
@@ -1158,12 +1139,11 @@ mod tests {
         $a; $a; $a
         $C; $B;
         ";
-        let test_src = Source::unknown(source);
         let mut engine = Engine::default();
         let mut relations = Relations::default();
         let mut imports = Imports::default();
         let mut importer = StaticImporter::new(
-            [(Name::new("test"), test_src), (Name::new("A"), a_src)],
+            [(Name::new("test"), source), (Name::new("A"), a_src)],
             parse_trusted,
         );
 
@@ -1241,11 +1221,10 @@ mod tests {
         $a; $a; $a
         $C; $C;
         ";
-        let test_src = Source::unknown(source);
         let mut engine = Engine::default();
         let mut relations = Relations::default();
         let mut imports = Imports::default();
-        let mut importer = StaticImporter::new([(Name::new("test"), test_src)], parse_trusted);
+        let mut importer = StaticImporter::new([(Name::new("test"), source)], parse_trusted);
 
         let mut to_visit = vec![Name::new("test")];
         let mut visited = HashSet::new();
@@ -1298,11 +1277,10 @@ mod tests {
             $C; $C;
         }
         ";
-        let test_src = Source::unknown(source);
         let mut engine = Engine::default();
         let mut relations = Relations::default();
         let mut imports = Imports::default();
-        let mut importer = StaticImporter::new([(Name::new("test"), test_src)], parse_trusted);
+        let mut importer = StaticImporter::new([(Name::new("test"), source)], parse_trusted);
 
         let mut to_visit = vec![Name::new("test")];
         let mut visited = HashSet::new();
@@ -1347,7 +1325,7 @@ mod tests {
 
     #[test]
     fn find_in_parent_environment() {
-        let source = Source::unknown("val found = 'false'; fun find() = $found");
+        let source = "val found = 'false'; fun find() = $found";
 
         let mut engine = Engine::default();
         let mut relations = Relations::default();

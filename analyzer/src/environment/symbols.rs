@@ -112,7 +112,7 @@ impl SymbolLocation {
     /// If the [`must_be_relative`] flag is set, the path must not contain any [InclusionPathItem::Reef] to be valid.
     ///
     /// The function can also fail if the `must_be_relative`
-    pub fn compute<'a>(path: &'a [InclusionPathItem<'a>]) -> Result<Self, Vec<SourceSegment>> {
+    pub fn compute(path: &[InclusionPathItem]) -> Result<Self, Vec<SourceSegment>> {
         let current_reef = path
             .first()
             .is_some_and(|f| matches!(f, InclusionPathItem::Reef(_)));

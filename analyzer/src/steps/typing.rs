@@ -679,7 +679,7 @@ fn ascribe_var_reference(
 fn ascribe_identifier(ident: &Path, links: Links, exploration: &Exploration) -> TypedExpr {
     ascribe_var_reference(
         &VarReference {
-            name: VarName::User(ident.path.last().unwrap().name()),
+            name: VarName::User(ident.path.last().unwrap().name().into()),
             segment: ident.segment(),
         },
         links,
@@ -1113,7 +1113,7 @@ fn ascribe_tilde(
 ) -> TypedExpr {
     let pfc = ProgrammaticCall {
         path: vec![InclusionPathItem::Symbol(Identifier::new(
-            "~",
+            "~".into(),
             tilde.segment().start,
         ))],
         segment: tilde.segment(),
@@ -1386,7 +1386,7 @@ fn ascribe_call(
         if cmd.as_str() == "cd" {
             let pfc = ProgrammaticCall {
                 path: vec![InclusionPathItem::Symbol(Identifier::new(
-                    cmd,
+                    cmd.into(),
                     segment.start,
                 ))],
                 segment: call.segment(),
@@ -1659,19 +1659,17 @@ mod tests {
     use crate::analyze;
     use crate::importer::StaticImporter;
     use crate::name::Name;
-    use crate::reef::{Reef, ReefId};
+    use crate::reef::Reef;
     use crate::relations::LocalId;
-    use crate::types::engine::{ChunkKind, FunctionId, StructureId};
-    use crate::types::hir::{Convert, MethodCall};
-    use crate::types::ty::{Type, TypeId};
-    use crate::types::{EXITCODE, UNIT};
+    use crate::types::engine::{FunctionId, StructureId};
+    use crate::types::ty::TypeId;
 
     use super::*;
 
     pub(crate) fn extract(source: Source) -> Result<Externals, Vec<Diagnostic>> {
         let name = Name::new(source.name);
         let mut externals = Externals::default();
-        let mut importer = StaticImporter::new([(name.clone(), source)], parse_trusted);
+        let mut importer = StaticImporter::new([(name.clone(), source.source)], parse_trusted);
         let analyzer = analyze(name, &mut importer, &externals);
 
         if !analyzer.diagnostics.is_empty() {

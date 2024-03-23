@@ -499,7 +499,6 @@ mod tests {
     use analyzer::name::Name;
     use analyzer::reef::{Externals, ReefId};
     use analyzer::relations::{LocalId, ResolvedSymbol, SourceId};
-    use context::source::Source;
     use parser::parse_trusted;
 
     use crate::resolve_captures;
@@ -529,7 +528,7 @@ mod tests {
         let reef_id = ReefId(1);
         let analyzer = analyzer::analyze(
             Name::new("test"),
-            &mut StaticImporter::new([(Name::new("test"), Source::unknown(src))], parse_trusted),
+            &mut StaticImporter::new([(Name::new("test"), src)], parse_trusted),
             &externals,
         );
         let captures = resolve_captures(

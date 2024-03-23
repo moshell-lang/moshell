@@ -5,12 +5,12 @@ use crate::Expr;
 
 /// A range of values that can be iterated over.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Iterable<'a> {
-    Range(NumericRange<'a>),
-    Files(FilePattern<'a>),
+pub enum Iterable {
+    Range(NumericRange),
+    Files(FilePattern),
 }
 
-impl SourceSegmentHolder for Iterable<'_> {
+impl SourceSegmentHolder for Iterable {
     fn segment(&self) -> SourceSegment {
         match self {
             Iterable::Range(range) => range.segment(),
@@ -21,23 +21,23 @@ impl SourceSegmentHolder for Iterable<'_> {
 
 /// A range of numeric values.
 #[derive(Debug, Clone, PartialEq)]
-pub struct NumericRange<'a> {
+pub struct NumericRange {
     /// The inclusive start of the range.
-    pub start: Box<Expr<'a>>,
+    pub start: Box<Expr>,
 
     /// The end of the range.
     ///
     /// See `upper_inclusive` for whether this is inclusive or exclusive.
-    pub end: Box<Expr<'a>>,
+    pub end: Box<Expr>,
 
     /// The step of the range.
-    pub step: Option<Box<Expr<'a>>>,
+    pub step: Option<Box<Expr>>,
 
     /// Whether the upper bound is inclusive or exclusive.
     pub upper_inclusive: bool,
 }
 
-impl SourceSegmentHolder for NumericRange<'_> {
+impl SourceSegmentHolder for NumericRange {
     fn segment(&self) -> SourceSegment {
         let start = self.start.segment().start;
         let end = self.step.as_ref().unwrap_or(&self.end).segment().end;
@@ -49,14 +49,14 @@ impl SourceSegmentHolder for NumericRange<'_> {
 /// A pattern that can be used to match files.
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct FilePattern<'a> {
+pub struct FilePattern {
     /// The glob pattern that will be used to match files.
-    pub pattern: Box<Expr<'a>>,
+    pub pattern: Box<Expr>,
 }
 
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct Subscript<'a> {
-    pub target: Box<Expr<'a>>,
-    pub index: Box<Expr<'a>>,
+pub struct Subscript {
+    pub target: Box<Expr>,
+    pub index: Box<Expr>,
 }

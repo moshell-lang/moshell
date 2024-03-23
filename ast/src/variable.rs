@@ -1,3 +1,4 @@
+use compact_str::CompactString;
 use std::fmt::Display;
 
 use context::source::{SourceSegment, SourceSegmentHolder};
@@ -11,25 +12,25 @@ use crate::Expr;
 /// A variable declaration.
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct VarDeclaration<'a> {
+pub struct VarDeclaration {
     /// The kind of the variable.
     pub kind: VarKind,
     /// The declaration.
-    pub var: TypedVariable<'a>,
+    pub var: TypedVariable,
     /// The value of the variable to be evaluated.
-    pub initializer: Option<Box<Expr<'a>>>,
+    pub initializer: Option<Box<Expr>>,
 }
 
 /// A named variable declaration.
 #[derive(Debug, Clone, PartialEq)]
-pub struct TypedVariable<'a> {
+pub struct TypedVariable {
     /// The name of the variable.
-    pub name: Identifier<'a>,
+    pub name: Identifier,
     /// The type of the declared variable.
-    pub ty: Option<Type<'a>>,
+    pub ty: Option<Type>,
 }
 
-impl SourceSegmentHolder for TypedVariable<'_> {
+impl SourceSegmentHolder for TypedVariable {
     fn segment(&self) -> SourceSegment {
         if let Some(ty) = &self.ty {
             self.name.segment().start..ty.segment().end
@@ -46,15 +47,15 @@ pub enum VarKind {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum VarName<'a> {
+pub enum VarName {
     /// An used defined variable name.
-    User(&'a str),
+    User(CompactString),
 
     /// The `self` keyword to refer to the current object.
     Slf,
 }
 
-impl VarName<'_> {
+impl VarName {
     pub fn name(&self) -> &str {
         match self {
             VarName::User(name) => name,
@@ -66,20 +67,20 @@ impl VarName<'_> {
 /// A variable reference, prefixed with `$`.
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct VarReference<'a> {
+pub struct VarReference {
     /// The name of the variable.
-    pub name: VarName<'a>,
+    pub name: VarName,
 }
 
 /// A variable assignation.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Assign<'a> {
+pub struct Assign {
     /// The place that is assigned to.
-    pub left: Box<Expr<'a>>,
+    pub left: Box<Expr>,
     /// The operator of the assignation.
     pub operator: AssignOperator,
     /// The value of the variable to be evaluated.
-    pub value: Box<Expr<'a>>,
+    pub value: Box<Expr>,
 }
 
 /// An assignation operator.
@@ -95,17 +96,17 @@ pub enum AssignOperator {
 
 /// A path identifier, that do not start with `$`.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Path<'a> {
-    pub path: Vec<InclusionPathItem<'a>>,
+pub struct Path {
+    pub path: Vec<InclusionPathItem>,
 }
 
-impl SourceSegmentHolder for Path<'_> {
+impl SourceSegmentHolder for Path {
     fn segment(&self) -> SourceSegment {
         self.path[0].segment().start..self.path.last().unwrap().segment().end
     }
 }
 
-impl Display for Path<'_> {
+impl Display for Path {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut iter = self.path.iter();
         if let Some(first) = iter.next() {
@@ -134,13 +135,13 @@ impl TryFrom<TokenType> for AssignOperator {
     }
 }
 
-impl SourceSegmentHolder for Assign<'_> {
+impl SourceSegmentHolder for Assign {
     fn segment(&self) -> SourceSegment {
         self.left.segment().start..self.value.segment().end
     }
 }
 
-impl Assign<'_> {
+impl Assign {
     pub fn name(&self) -> Option<String> {
         match self.left.as_ref() {
             Expr::Path(ident) => Some(ident.to_string()),
@@ -153,43 +154,43 @@ impl Assign<'_> {
 /// An expansion of an expression related to directories.
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct TildeExpansion<'a> {
-    pub structure: Tilde<'a>,
+pub struct TildeExpansion {
+    pub structure: Tilde,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Tilde<'a> {
-    HomeDir(Option<Box<Expr<'a>>>),
+pub enum Tilde {
+    HomeDir(Option<Box<Expr>>),
     WorkingDir,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Identifier<'a> {
-    pub value: &'a str,
+#[derive(Debug, Clone, PartialEq)]
+pub struct Identifier {
+    pub value: CompactString,
     pub start: usize,
 }
 
-impl<'a> Identifier<'a> {
-    pub fn new(value: &'a str, start: usize) -> Self {
+impl Identifier {
+    pub fn new(value: CompactString, start: usize) -> Self {
         Self { value, start }
     }
 
-    pub fn extract(text: &'a str, span: SourceSegment) -> Self {
+    pub fn extract(text: &str, span: SourceSegment) -> Self {
         let start = span.start;
         Self {
-            value: &text[span],
+            value: CompactString::new(&text[span]),
             start,
         }
     }
 }
 
-impl Display for Identifier<'_> {
+impl Display for Identifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(&self.value, f)
     }
 }
 
-impl SourceSegmentHolder for Identifier<'_> {
+impl SourceSegmentHolder for Identifier {
     fn segment(&self) -> SourceSegment {
         self.start..self.start + self.value.len()
     }

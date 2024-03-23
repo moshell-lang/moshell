@@ -11,10 +11,10 @@ pub mod resolve;
 mod shared_diagnostics;
 pub mod typing;
 
-pub(super) fn resolve_sources<'a>(
+pub(super) fn resolve_sources(
     mut to_visit: Vec<Name>,
-    result: &mut ResolutionResult<'a>,
-    importer: &mut impl ASTImporter<'a>,
+    result: &mut ResolutionResult,
+    importer: &mut impl ASTImporter,
     externals: &Externals,
     diagnostics: &mut Vec<Diagnostic>,
 ) {

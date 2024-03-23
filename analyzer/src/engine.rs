@@ -11,23 +11,23 @@ pub struct Engine<'a> {
     /// The engine has the ownership of the AST.
     #[allow(clippy::vec_box)]
     // Box is used to ensure that the reference behind is still valid after vector's realloc
-    asts: Vec<Box<Expr<'a>>>,
+    asts: Vec<Box<Expr>>,
 
     /// Associates a module id to the corresponding environment.
     ///
     /// Those are origins of symbols that are available locally in the environment,
     /// which may also be the source of unresolved symbols, tracked in the Relations.
-    pub(crate) origins: Vec<(ContentId, &'a Expr<'a>, Option<Environment>)>,
+    pub(crate) origins: Vec<(ContentId, &'a Expr, Option<Environment>)>,
 }
 
 impl<'a> Engine<'a> {
     /// Takes ownership of an expression and returns a reference to it.
-    pub fn take(&mut self, ast: Expr<'a>) -> &'a Expr<'a> {
+    pub fn take(&mut self, ast: Expr) -> &'a Expr {
         self.asts.push(Box::new(ast));
         unsafe {
             // SAFETY: Assume for now that expressions are never removed from the engine.
             // The reference behind Box does not change and is valid for the lifetime of the engine.
-            std::mem::transmute::<&Expr<'a>, &'a Expr<'a>>(self.asts.last().unwrap())
+            std::mem::transmute::<&Expr, &'a Expr>(self.asts.last().unwrap())
         }
     }
 
@@ -43,7 +43,7 @@ impl<'a> Engine<'a> {
     ///
     /// A call to this method must be followed by a call to [`Engine::attach`] with the same id
     /// after the environment has been built.
-    pub fn track(&mut self, content_id: ContentId, ast: &'a Expr<'a>) -> SourceId {
+    pub fn track(&mut self, content_id: ContentId, ast: &'a Expr) -> SourceId {
         let id = self.origins.len();
         self.origins.push((content_id, ast, None));
         SourceId(id)
@@ -68,7 +68,7 @@ impl<'a> Engine<'a> {
             .and_then(|(idx, (_, _, env))| env.as_ref().map(|env| (SourceId(idx), env)))
     }
 
-    pub fn get_expression(&self, id: SourceId) -> Option<&Expr<'a>> {
+    pub fn get_expression(&self, id: SourceId) -> Option<&Expr> {
         self.origins.get(id.0).map(|(_, expr, _)| *expr)
     }
 

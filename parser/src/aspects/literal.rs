@@ -9,7 +9,6 @@ use lexer::token::Token;
 use lexer::token::TokenType::*;
 use lexer::unescape;
 
-use crate::aspects::substitution::SubstitutionAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{next, of_type, of_types, MoveOperations};
 use crate::parser::{ParseResult, Parser};
@@ -30,35 +29,8 @@ pub enum LiteralLeniency {
     Lenient,
 }
 
-/// A trait that contains all the methods for parsing literals.
-pub(crate) trait LiteralAspect<'a> {
-    /// Parses any literal, number, argument, string, string template
-    fn literal(&mut self, leniency: LiteralLeniency) -> ParseResult<Expr<'a>>;
-
-    /// Parses a number-like literal expression.
-    fn number_literal(&mut self) -> ParseResult<Literal>;
-
-    /// Parses a string literal expression.
-    ///
-    /// This method is only used for single quoted strings.
-    fn string_literal(&mut self) -> ParseResult<Literal>;
-
-    /// Parses a string template literal expression.
-    ///
-    /// This method is only used for double quoted strings, which may contain variable references for instance.
-    fn templated_string_literal(&mut self) -> ParseResult<TemplateString<'a>>;
-
-    /// Parses a shell string with backticks.
-    fn back_string_literal(&mut self) -> ParseResult<TemplateString<'a>>;
-
-    /// Parse a raw argument.
-    ///
-    /// Arguments are not quoted and are separated by spaces.
-    fn argument(&mut self) -> ParseResult<Expr<'a>>;
-}
-
-impl<'a> LiteralAspect<'a> for Parser<'a> {
-    fn literal(&mut self, leniency: LiteralLeniency) -> ParseResult<Expr<'a>> {
+impl Parser<'_> {
+    pub(crate) fn literal(&mut self, leniency: LiteralLeniency) -> ParseResult<Expr> {
         let token = self.cursor.peek();
         let pivot = token.token_type;
         match pivot {
@@ -68,14 +40,14 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 self.boolean_literal().map(Expr::Literal)
             }
             _ if pivot.is_keyword() && leniency == LiteralLeniency::Strict => self.expected(
-                format!("Unexpected keyword '{}'", token.text(self.source.source)),
+                format!("Unexpected keyword '{}'", token.text(self.source)),
                 ParseErrorKind::Unexpected,
             ),
             _ if pivot.is_punctuation()
                 || (leniency == LiteralLeniency::Strict && pivot.is_extended_punctuation()) =>
             {
                 self.expected(
-                    format!("Unexpected token '{}'.", token.text(self.source.source)),
+                    format!("Unexpected token '{}'.", token.text(self.source)),
                     ParseErrorKind::Unexpected,
                 )
             }
@@ -89,7 +61,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                     .lookahead(next().then(of_types(&[StringLiteral, StringStart])))
                     .is_some() =>
             {
-                if token.text(self.source.source) == "p" {
+                if token.text(self.source) == "p" {
                     self.cursor.next_opt();
                     let literal = self.string_literal()?;
                     let segment = token.span.start..literal.segment.end;
@@ -119,12 +91,12 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
             .force(of_type(StringLiteral), "Expected string literal.")?;
         let segment = literal.span.clone();
         Ok(Literal {
-            parsed: LiteralValue::String(unescape(literal.text(self.source.source))),
+            parsed: LiteralValue::String(unescape(literal.text(self.source))),
             segment: (segment.start - 1)..(segment.end + 1),
         })
     }
 
-    fn templated_string_literal(&mut self) -> ParseResult<TemplateString<'a>> {
+    fn templated_string_literal(&mut self) -> ParseResult<TemplateString> {
         let start = self.cursor.force(of_type(StringStart), "Expected quote.")?;
         let mut parts = Vec::new();
         let end = loop {
@@ -137,7 +109,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 StringContent => {
                     self.cursor.next_opt();
                     parts.push(Expr::Literal(Literal {
-                        parsed: LiteralValue::String(unescape(token.text(self.source.source))),
+                        parsed: LiteralValue::String(unescape(token.text(self.source))),
                         segment: token.span,
                     }));
                 }
@@ -164,7 +136,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
         })
     }
 
-    fn back_string_literal(&mut self) -> ParseResult<TemplateString<'a>> {
+    pub(crate) fn back_string_literal(&mut self) -> ParseResult<TemplateString> {
         let start = self.cursor.force(of_type(Backtick), "Expected backtick.")?;
         let mut parts = Vec::new();
         let end = loop {
@@ -186,7 +158,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                 _ => {
                     self.cursor.next_opt();
                     parts.push(Expr::Literal(Literal {
-                        parsed: LiteralValue::String(unescape(token.text(self.source.source))),
+                        parsed: LiteralValue::String(unescape(token.text(self.source))),
                         segment: token.span,
                     }));
                 }
@@ -202,7 +174,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
     ///
     /// An argument is usually a single identifier, but can also be
     /// composed of multiple tokens if not separated with a space.
-    fn argument(&mut self) -> ParseResult<Expr<'a>> {
+    fn argument(&mut self) -> ParseResult<Expr> {
         let start = self.cursor.peek();
         let mut parts = Vec::<Expr>::new();
         let mut has_wildcard = false;
@@ -266,7 +238,7 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                             parsed: LiteralValue::String(ref mut s),
                             segment,
                         })) => {
-                            s.push_str(token.text(self.source.source));
+                            s.push_str(token.text(self.source));
                             segment.end = end_segment.end;
                         }
                         Some(Expr::Tilde(TildeExpansion {
@@ -274,25 +246,21 @@ impl<'a> LiteralAspect<'a> for Parser<'a> {
                             segment,
                         })) if token.token_type != Slash => {
                             *user = Some(Box::new(Expr::Literal(Literal {
-                                parsed: LiteralValue::String(
-                                    token.text(self.source.source).to_owned(),
-                                ),
+                                parsed: LiteralValue::String(token.text(self.source).to_owned()),
                                 segment: end_segment.clone(),
                             })));
                             segment.end = end_segment.end;
                         }
                         _ => {
                             parts.push(Expr::Literal(Literal {
-                                parsed: LiteralValue::String(
-                                    token.text(self.source.source).to_owned(),
-                                ),
+                                parsed: LiteralValue::String(token.text(self.source).to_owned()),
                                 segment: end_segment.clone(),
                             }));
                         }
                     }
 
                     // Preserve the position of wildcards.
-                    if token.token_type == Star || token.text(self.source.source).contains('?') {
+                    if token.token_type == Star || token.text(self.source).contains('?') {
                         has_wildcard = true;
                     }
                 }
@@ -358,7 +326,7 @@ pub(crate) fn literal_expr(source: &str, literal: &str) -> Literal {
     }
 }
 
-impl<'a> Parser<'a> {
+impl Parser<'_> {
     fn boolean_literal(&mut self) -> ParseResult<Literal> {
         let token = self.cursor.next()?;
         Ok(Literal {
@@ -377,7 +345,7 @@ impl<'a> Parser<'a> {
         match token.token_type {
             IntLiteral => Ok(LiteralValue::Int(
                 token
-                    .text(self.source.source)
+                    .text(self.source)
                     .parse::<i64>()
                     .map_err(|e| match e.kind() {
                         IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => self
@@ -394,7 +362,7 @@ impl<'a> Parser<'a> {
                     })?,
             )),
             FloatLiteral => Ok(LiteralValue::Float(
-                token.text(self.source.source).parse::<f64>().map_err(|e| {
+                token.text(self.source).parse::<f64>().map_err(|e| {
                     self.mk_parse_error(e.to_string(), token.span, ParseErrorKind::InvalidFormat)
                 })?,
             )),
@@ -408,11 +376,10 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use ast::variable::{VarName, VarReference};
-    use context::source::{Source, SourceSegmentHolder};
     use context::str_find::find_in;
 
+    use crate::err::ParseError;
     use crate::err::ParseErrorKind::InvalidFormat;
-    use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::source::literal;
 
@@ -420,7 +387,7 @@ mod tests {
 
     #[test]
     fn int_overflow() {
-        let source = Source::unknown("123456789012345678901234567890");
+        let source = "123456789012345678901234567890";
         let parsed: ParseResult<_> = parse(source).into();
         assert_eq!(
             parsed,
@@ -434,7 +401,7 @@ mod tests {
 
     #[test]
     fn int_but_str() {
-        let source = Source::unknown("5@5");
+        let source = "5@5";
         let parsed = Parser::new(source)
             .parse_specific(Parser::call_argument)
             .expect("Failed to parse.");
@@ -449,7 +416,7 @@ mod tests {
 
     #[test]
     fn string_literal() {
-        let source = Source::unknown("'hello $world! $(this is a test) @(of course)'");
+        let source = "'hello $world! $(this is a test) @(of course)'";
         let parsed = Parser::new(source).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
@@ -462,7 +429,7 @@ mod tests {
 
     #[test]
     fn escaped_literal() {
-        let source = Source::unknown("a\\a");
+        let source = "a\\a";
         let parsed = Parser::new(source)
             .call_argument()
             .expect("Failed to parse.");
@@ -477,7 +444,7 @@ mod tests {
 
     #[test]
     fn escaped_string_literal() {
-        let source = Source::unknown("'a\\'a'");
+        let source = "'a\\'a'";
         let parsed = Parser::new(source).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
@@ -490,7 +457,7 @@ mod tests {
 
     #[test]
     fn empty_template_string_literal() {
-        let source = Source::unknown("\"\"");
+        let source = "\"\"";
         let parsed = Parser::new(source).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
@@ -503,14 +470,14 @@ mod tests {
 
     #[test]
     fn escaped_template_string_literal() {
-        let source = Source::unknown(r#""a\"a'""#);
+        let source = r#""a\"a'""#;
         let parsed = Parser::new(source).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::TemplateString(TemplateString {
                 parts: vec![Expr::Literal(Literal {
                     parsed: "a\"a'".into(),
-                    segment: find_in(source.source, r#"a\"a'"#)
+                    segment: find_in(source, r#"a\"a'"#)
                 })],
                 segment: source.segment()
             })
@@ -519,14 +486,13 @@ mod tests {
 
     #[test]
     fn missing_quote() {
-        let content = "' command";
-        let source = Source::unknown(content);
+        let source = "' command";
         let parsed: ParseResult<_> = parse(source).into();
         assert_eq!(
             parsed,
             Err(ParseError {
                 message: "Unterminated string literal.".to_string(),
-                position: content.len()..content.len(),
+                position: source.len()..source.len(),
                 kind: ParseErrorKind::Unpaired(0..1),
             })
         );
@@ -534,14 +500,13 @@ mod tests {
 
     #[test]
     fn missing_backtick() {
-        let content = "`foo";
-        let source = Source::unknown(content);
+        let source = "`foo";
         let parsed: ParseResult<_> = parse(source).into();
         assert_eq!(
             parsed,
             Err(ParseError {
                 message: "Unterminated string template literal.".to_string(),
-                position: content.len()..content.len(),
+                position: source.len()..source.len(),
                 kind: ParseErrorKind::Unpaired(0..1),
             })
         );
@@ -549,17 +514,14 @@ mod tests {
 
     #[test]
     fn prefixed_arg() {
-        let source = Source::unknown("+'hello'");
+        let source = "+'hello'";
         let parsed = Parser::new(source)
             .parse_specific(Parser::call_argument)
             .expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::TemplateString(TemplateString {
-                parts: vec![
-                    literal(source.source, "+"),
-                    literal(source.source, "'hello'"),
-                ],
+                parts: vec![literal(source, "+"), literal(source, "'hello'"),],
                 segment: source.segment()
             })
         );
@@ -567,7 +529,7 @@ mod tests {
 
     #[test]
     fn non_standard_escape() {
-        let source = Source::unknown(r"'a\ b'");
+        let source = r"'a\ b'";
         let parsed = Parser::new(source).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
@@ -580,16 +542,16 @@ mod tests {
 
     #[test]
     fn url_placeholder() {
-        let source = Source::unknown("\"http://localhost:$NGINX_PORT\"");
+        let source = "\"http://localhost:$NGINX_PORT\"";
         let parsed = Parser::new(source).expression().expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::TemplateString(TemplateString {
                 parts: vec![
-                    literal(source.source, "http://localhost:"),
+                    literal(source, "http://localhost:"),
                     Expr::VarReference(VarReference {
-                        name: VarName::User("NGINX_PORT"),
-                        segment: find_in(source.source, "$NGINX_PORT")
+                        name: VarName::User("NGINX_PORT".into()),
+                        segment: find_in(source, "$NGINX_PORT")
                     }),
                 ],
                 segment: source.segment()
@@ -599,14 +561,14 @@ mod tests {
 
     #[test]
     fn user_home() {
-        let source = Source::unknown("~test");
+        let source = "~test";
         let parsed = Parser::new(source)
             .literal(LiteralLeniency::Lenient)
             .expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Tilde(TildeExpansion {
-                structure: Tilde::HomeDir(Some(Box::new(literal(source.source, "test")))),
+                structure: Tilde::HomeDir(Some(Box::new(literal(source, "test")))),
                 segment: source.segment()
             })
         );
@@ -614,7 +576,7 @@ mod tests {
 
     #[test]
     fn user_home_variable() {
-        let source = Source::unknown("~${foo}bar");
+        let source = "~${foo}bar";
         let parsed = Parser::new(source)
             .literal(LiteralLeniency::Lenient)
             .expect("Failed to parse.");
@@ -625,13 +587,13 @@ mod tests {
                     Expr::Tilde(TildeExpansion {
                         structure: Tilde::HomeDir(Some(Box::new(Expr::VarReference(
                             VarReference {
-                                name: VarName::User("foo"),
-                                segment: find_in(source.source, "${foo}")
+                                name: VarName::User("foo".into()),
+                                segment: find_in(source, "${foo}")
                             }
                         )))),
-                        segment: find_in(source.source, "~${foo}")
+                        segment: find_in(source, "~${foo}")
                     }),
-                    literal(source.source, "bar")
+                    literal(source, "bar")
                 ],
                 segment: source.segment()
             })
@@ -640,14 +602,14 @@ mod tests {
 
     #[test]
     fn argument_wildcard() {
-        let source = Source::unknown("foo*");
+        let source = "foo*";
         let parsed = Parser::new(source)
             .literal(LiteralLeniency::Lenient)
             .expect("Failed to parse.");
         assert_eq!(
             parsed,
             Expr::Range(Iterable::Files(FilePattern {
-                pattern: Box::new(literal(source.source, "foo*")),
+                pattern: Box::new(literal(source, "foo*")),
                 segment: source.segment()
             }))
         );

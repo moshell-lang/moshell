@@ -2,20 +2,13 @@ use ast::lambda::LambdaDef;
 use context::source::SourceSegmentHolder;
 use lexer::token::TokenType::{FatArrow, RoundedLeftBracket, RoundedRightBracket};
 
-use crate::aspects::expr_list::ExpressionListAspect;
-use crate::aspects::var_declaration::VarDeclarationAspect;
 use crate::err::ParseErrorKind::Expected;
 use crate::moves::{blanks, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
-///Parse a lambda definition
-pub trait LambdaDefinitionAspect<'a> {
-    ///Parse a lambda definition (ex: (a) => $b + $a)
-    fn parse_lambda_definition(&mut self) -> ParseResult<LambdaDef<'a>>;
-}
-
-impl<'a> LambdaDefinitionAspect<'a> for Parser<'a> {
-    fn parse_lambda_definition(&mut self) -> ParseResult<LambdaDef<'a>> {
+impl Parser<'_> {
+    /// Parses a lambda definition (ex: `(a) => $b + $a`)
+    pub(crate) fn parse_lambda_definition(&mut self) -> ParseResult<LambdaDef> {
         let (args, mut segment) = self.parse_implicit_list(
             RoundedLeftBracket,
             RoundedRightBracket,
@@ -49,10 +42,9 @@ mod tests {
     use ast::r#use::InclusionPathItem;
     use ast::variable::{TypedVariable, VarName, VarReference};
     use ast::Expr;
-    use context::source::{Source, SourceSegmentHolder};
+    use context::source::SourceSegmentHolder;
     use context::str_find::{find_between, find_in};
 
-    use crate::aspects::lambda_def::LambdaDefinitionAspect;
     use crate::err::ParseError;
     use crate::err::ParseErrorKind::Unexpected;
     use crate::parser::Parser;
@@ -60,7 +52,7 @@ mod tests {
 
     #[test]
     fn simple_lambda_definition() {
-        let source = Source::unknown("(a, b: Int) => $a + $b");
+        let source = "(a, b: Int) => $a + $b";
         let parsed = Parser::new(source)
             .parse_lambda_definition()
             .expect("Failed to parse.");
@@ -69,27 +61,27 @@ mod tests {
             LambdaDef {
                 args: vec![
                     TypedVariable {
-                        name: identifier(source.source, "a"),
+                        name: identifier(source, "a"),
                         ty: None,
                     },
                     TypedVariable {
-                        name: identifier(source.source, "b"),
+                        name: identifier(source, "b"),
                         ty: Some(Type::Parametrized(ParametrizedType {
-                            path: vec![InclusionPathItem::Symbol(identifier(source.source, "Int"))],
+                            path: vec![InclusionPathItem::Symbol(identifier(source, "Int"))],
                             params: Vec::new(),
-                            segment: find_in(source.source, "Int"),
+                            segment: find_in(source, "Int"),
                         })),
                     },
                 ],
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::VarReference(VarReference {
-                        name: VarName::User("a"),
-                        segment: find_in(source.source, "$a"),
+                        name: VarName::User("a".into()),
+                        segment: find_in(source, "$a"),
                     })),
                     op: BinaryOperator::Plus,
                     right: Box::new(Expr::VarReference(VarReference {
-                        name: VarName::User("b"),
-                        segment: find_in(source.source, "$b")
+                        name: VarName::User("b".into()),
+                        segment: find_in(source, "$b")
                     })),
                 })),
                 segment: source.segment()
@@ -99,7 +91,7 @@ mod tests {
 
     #[test]
     fn simple_lambda_definition_one_arg() {
-        let source = Source::unknown("a => $a + $b");
+        let source = "a => $a + $b";
         let parsed = Parser::new(source)
             .parse_lambda_definition()
             .expect("Failed to parse.");
@@ -107,18 +99,18 @@ mod tests {
             parsed,
             LambdaDef {
                 args: vec![TypedVariable {
-                    name: identifier(source.source, "a"),
+                    name: identifier(source, "a"),
                     ty: None,
                 },],
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::VarReference(VarReference {
-                        name: VarName::User("a"),
-                        segment: find_in(source.source, "$a")
+                        name: VarName::User("a".into()),
+                        segment: find_in(source, "$a")
                     })),
                     op: BinaryOperator::Plus,
                     right: Box::new(Expr::VarReference(VarReference {
-                        name: VarName::User("b"),
-                        segment: find_in(source.source, "$b")
+                        name: VarName::User("b".into()),
+                        segment: find_in(source, "$b")
                     })),
                 })),
                 segment: source.segment()
@@ -128,8 +120,7 @@ mod tests {
 
     #[test]
     fn simple_lambda_definition_one_arg_typed_wrapped() {
-        let src = "(a: Int) => $a + $b";
-        let source = Source::unknown(src);
+        let source = "(a: Int) => $a + $b";
         let parsed = Parser::new(source)
             .parse_lambda_definition()
             .expect("parse fail");
@@ -137,22 +128,22 @@ mod tests {
             parsed,
             LambdaDef {
                 args: vec![TypedVariable {
-                    name: identifier(source.source, "a"),
+                    name: identifier(source, "a"),
                     ty: Some(Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol(identifier(source.source, "Int"))],
+                        path: vec![InclusionPathItem::Symbol(identifier(source, "Int"))],
                         params: Vec::new(),
-                        segment: find_in(src, "Int")
+                        segment: find_in(source, "Int")
                     })),
                 },],
                 body: Box::new(Expr::Binary(BinaryOperation {
                     left: Box::new(Expr::VarReference(VarReference {
-                        name: VarName::User("a"),
-                        segment: find_in(src, "$a")
+                        name: VarName::User("a".into()),
+                        segment: find_in(source, "$a")
                     })),
                     op: BinaryOperator::Plus,
                     right: Box::new(Expr::VarReference(VarReference {
-                        name: VarName::User("b"),
-                        segment: find_in(src, "$b")
+                        name: VarName::User("b".into()),
+                        segment: find_in(source, "$b")
                     })),
                 })),
                 segment: source.segment()
@@ -162,7 +153,7 @@ mod tests {
 
     #[test]
     fn simple_lambda_definition_emptyargs() {
-        let source = Source::unknown("() => {echo hey}");
+        let source = "() => {echo hey}";
         let parsed = Parser::new(source)
             .parse_lambda_definition()
             .expect("Failed to parse.");
@@ -172,12 +163,9 @@ mod tests {
                 args: Vec::new(),
                 body: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Call(Call {
-                        arguments: vec![
-                            literal(source.source, "echo"),
-                            literal(source.source, "hey")
-                        ],
+                        arguments: vec![literal(source, "echo"), literal(source, "hey")],
                     })],
-                    segment: find_between(source.source, "{", "}")
+                    segment: find_between(source, "{", "}")
                 })),
                 segment: source.segment()
             }
@@ -186,7 +174,7 @@ mod tests {
 
     #[test]
     fn simple_lambda_definition_noargs() {
-        let source = Source::unknown(" => {echo hey}");
+        let source = " => {echo hey}";
         let parsed = Parser::new(source)
             .parse_lambda_definition()
             .expect_err("parser did not fail");
@@ -194,7 +182,7 @@ mod tests {
             parsed,
             ParseError {
                 message: "Expected name.".to_string(),
-                position: find_in(source.source, "=>"),
+                position: find_in(source, "=>"),
                 kind: Unexpected,
             }
         );

@@ -120,7 +120,7 @@ impl FileImporter {
     }
 
     /// Inserts a new source into the importer.
-    pub fn insert<'a>(&mut self, mut source: OwnedSource) -> ImportResult<'a> {
+    pub fn insert(&mut self, mut source: OwnedSource) -> ImportResult {
         let id = self.sources.len();
         // Remove the shebang if it exists
         if source.source.strip_prefix("#!").is_some() {
@@ -140,15 +140,9 @@ impl FileImporter {
             .expect("the source was just inserted")
             .as_source();
 
-        let report = parse(source);
+        let report = parse(source.source);
         if report.is_ok() {
-            let expressions = unsafe {
-                // SAFETY: A source is owned by the importer and is never removed.
-                // A Source is the reference version to the Strings inside the OwnedSource,
-                // so if the OwnedSource moves, the strings are still valid.
-                // 'a is used here to disambiguate the lifetime of the source and the mutable borrow.
-                std::mem::transmute::<Vec<Expr>, Vec<Expr<'a>>>(report.expr)
-            };
+            let expressions = report.expr;
             ImportResult::Success(Imported {
                 content: ContentId(id),
                 expr: Expr::Block(Block {
@@ -183,8 +177,8 @@ impl FileImporter {
     }
 }
 
-impl<'a> ASTImporter<'a> for FileImporter {
-    fn import(&mut self, name: &Name) -> ImportResult<'a> {
+impl ASTImporter for FileImporter {
+    fn import(&mut self, name: &Name) -> ImportResult {
         let path = self.get_search_path(name);
         match read_to_string(&path) {
             Ok(content) => self.insert(OwnedSource::new(

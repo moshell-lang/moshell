@@ -7,58 +7,12 @@ use crate::err::ParseErrorKind::Expected;
 use crate::moves::{blanks, eog, lookahead, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
-///An aspect to parse expression lists
-pub(crate) trait ExpressionListAspect<'a> {
-    ///Implicit lists are whether A, (A), (A, B, ...) or () (if it can be empty)
-    /// according that `(` and `)` are the [`start`]/[`end`] of the list expression.
-    /// [`if_it_absent_msg`] used when an element is missing
-    fn parse_implicit_list<E, F>(
-        &mut self,
-        start: TokenType,
-        end: TokenType,
-        if_it_absent_msg: &str,
-        parse_element: F,
-    ) -> ParseResult<(Vec<E>, SourceSegment)>
-    where
-        E: SourceSegmentHolder,
-        F: FnMut(&mut Self) -> ParseResult<E>;
-
-    ///Explicits lists are whether (A), (A, B, ...) or () (if it can be empty)
-    /// according that `(` and `)` are the start/end of the list expression.
-    /// An explicit list cannot consider an expression A as valid, the expression must be surrounded
-    /// with [`start`] and [`end`]
-    /// [`if_absent_msg`] is used if the list's start token is not present
-    /// [`if_it_absent_msg`] used when an element is missing
-    fn parse_explicit_list<E, F>(
-        &mut self,
-        start: TokenType,
-        end: TokenType,
-        if_absent_msg: &str,
-        if_it_absent_msg: &str,
-        parse_element: F,
-    ) -> ParseResult<(Vec<E>, SourceSegment)>
-    where
-        E: SourceSegmentHolder,
-        F: FnMut(&mut Self) -> ParseResult<E>;
-
-    /// parses a list which is either nonexistent or explicit but nonempty.
-    /// - if the current's token does not match `start`, an empty vec is returned.
-    /// - else, an explicit list is parsed, that must end with `end` token.
-    /// [`if_it_absent_msg`] used when an element is missing
-    fn parse_optional_list<E, F>(
-        &mut self,
-        start: TokenType,
-        end: TokenType,
-        if_it_absent_msg: &str,
-        parse_element: F,
-    ) -> ParseResult<(Vec<E>, Option<SourceSegment>)>
-    where
-        E: SourceSegmentHolder,
-        F: FnMut(&mut Self) -> ParseResult<E>;
-}
-
-impl<'a> ExpressionListAspect<'a> for Parser<'a> {
-    fn parse_implicit_list<E, F>(
+impl Parser<'_> {
+    /// Parses a list that may not have delimiters when a single element is present.
+    ///
+    /// For instance, `A`, `(A)`, `(A, B, ...)` or `()` (if it can be empty).
+    /// `if_it_absent_msg` is used when an element is missing
+    pub(crate) fn parse_implicit_list<E, F>(
         &mut self,
         start: TokenType,
         end: TokenType,
@@ -78,7 +32,11 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         }
     }
 
-    fn parse_explicit_list<E, F>(
+    /// Parses a list that is always surrounded a pair of delimiters.
+    ///
+    /// `if_absent_msg` is used if the start token is not present.
+    /// `if_it_absent_msg` is used when an element is missing.
+    pub(crate) fn parse_explicit_list<E, F>(
         &mut self,
         start: TokenType,
         end: TokenType,
@@ -136,7 +94,12 @@ impl<'a> ExpressionListAspect<'a> for Parser<'a> {
         Ok((elements, start.span.start..end.span.end))
     }
 
-    fn parse_optional_list<E, F>(
+    /// Parses a list which is either non-existent or explicit but non-empty.
+    ///
+    /// - If the current token does not match `start`, an empty vec is returned.
+    /// - Otherwise, an explicit list is parsed, that must end with `end` token.
+    /// `if_it_absent_msg` is used when an element is missing.
+    pub(crate) fn parse_optional_list<E, F>(
         &mut self,
         start: TokenType,
         end: TokenType,

@@ -6,13 +6,7 @@ use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder};
 use lexer::token::{Token, TokenType};
 
-use crate::aspects::expr_list::ExpressionListAspect;
-use crate::aspects::group::GroupAspect;
-use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
-use crate::aspects::modules::ModulesAspect;
-use crate::aspects::r#type::TypeAspect;
-use crate::aspects::range::RangeAspect;
-use crate::aspects::redirection::RedirectionAspect;
+use crate::aspects::literal::LiteralLeniency;
 use crate::err::ParseErrorKind;
 use crate::moves::{
     any, blanks, eog, identifier_parenthesis, like, line_end, lookahead, of_type, of_types, spaces,
@@ -20,39 +14,19 @@ use crate::moves::{
 };
 use crate::parser::{ParseResult, Parser};
 
-/// A parse aspect for command and function calls
-pub trait CallAspect<'a> {
-    /// Attempts to parse the next raw call expression
-    fn call(&mut self) -> ParseResult<Expr<'a>>;
-
-    /// Parses a programmatic call.
-    fn programmatic_call(
-        &mut self,
-        path: Path<'a>,
-        type_parameters: Vec<Type<'a>>,
-    ) -> ParseResult<Expr<'a>>;
-
-    /// Parses a method call.
-    fn method_call_on(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
-
-    /// Parse any function call or method call after an expression.
-    fn expand_member_chain(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>>;
-
-    /// Continues to parse a call expression from a known command name expression
-    fn call_arguments(&mut self, command: Expr<'a>) -> ParseResult<Expr<'a>>;
-}
-
-impl<'a> CallAspect<'a> for Parser<'a> {
-    fn call(&mut self) -> ParseResult<Expr<'a>> {
+impl Parser<'_> {
+    /// Parses a shell call, delimited by spaces.
+    pub(crate) fn call(&mut self) -> ParseResult<Expr> {
         let callee = self.call_argument()?;
         self.call_arguments(callee)
     }
 
-    fn programmatic_call(
+    /// Parses a programmatic call, delimited by parentheses.
+    pub(crate) fn programmatic_call(
         &mut self,
-        path: Path<'a>,
-        type_parameters: Vec<Type<'a>>,
-    ) -> ParseResult<Expr<'a>> {
+        path: Path,
+        type_parameters: Vec<Type>,
+    ) -> ParseResult<Expr> {
         let open_parenthesis = self.cursor.force(
             of_type(TokenType::RoundedLeftBracket),
             "Expected opening parenthesis.",
@@ -72,7 +46,8 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         }))
     }
 
-    fn method_call_on(&mut self, expr: Expr<'a>) -> ParseResult<Expr<'a>> {
+    /// Parses a method call on a callee expression.
+    fn method_call_on(&mut self, expr: Expr) -> ParseResult<Expr> {
         self.cursor.advance(of_type(TokenType::ColonColon));
         let (type_arguments, _) = self.parse_optional_list(
             TokenType::SquaredLeftBracket,
@@ -105,7 +80,8 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         })
     }
 
-    fn expand_member_chain(&mut self, mut expr: Expr<'a>) -> ParseResult<Expr<'a>> {
+    /// Parse any function call or method call after an expression.
+    pub(crate) fn expand_member_chain(&mut self, mut expr: Expr) -> ParseResult<Expr> {
         loop {
             let pivot = self
                 .cursor
@@ -138,7 +114,7 @@ impl<'a> CallAspect<'a> for Parser<'a> {
                     let segment = dot_token.span.start..field_token.span.end;
                     Expr::FieldAccess(FieldAccess {
                         expr: Box::new(expr),
-                        field: Identifier::extract(self.source.source, field_token.span),
+                        field: Identifier::extract(self.source, field_token.span),
                         segment,
                     })
                 }
@@ -148,7 +124,8 @@ impl<'a> CallAspect<'a> for Parser<'a> {
         Ok(expr)
     }
 
-    fn call_arguments(&mut self, callee: Expr<'a>) -> ParseResult<Expr<'a>> {
+    /// Continues to parse a call expression from a known command name expression.
+    pub(crate) fn call_arguments(&mut self, callee: Expr) -> ParseResult<Expr> {
         let mut arguments = vec![callee];
 
         while self
@@ -178,11 +155,9 @@ impl<'a> CallAspect<'a> for Parser<'a> {
 
         Ok(Expr::Call(Call { arguments }))
     }
-}
 
-impl<'a> Parser<'a> {
     /// special pivot method for argument methods
-    pub(crate) fn call_argument(&mut self) -> ParseResult<Expr<'a>> {
+    pub(crate) fn call_argument(&mut self) -> ParseResult<Expr> {
         self.repos("Expected value")?;
 
         let pivot = self.cursor.peek().token_type;
@@ -204,7 +179,7 @@ impl<'a> Parser<'a> {
     fn parse_comma_separated_arguments(
         &mut self,
         open_parenthesis: Token,
-    ) -> ParseResult<(Vec<Expr<'a>>, SourceSegment)> {
+    ) -> ParseResult<(Vec<Expr>, SourceSegment)> {
         // Read the args until a closing delimiter or a new non-escaped line is found.
         let mut args = Vec::new();
         let mut segment = open_parenthesis.span.clone();
@@ -249,7 +224,7 @@ impl<'a> Parser<'a> {
                 spaces().then(of_type(TokenType::Comma).or(lookahead(eog()))),
                 &format!(
                     "expected ',', found {}",
-                    self.cursor.peek().text(self.source.source)
+                    self.cursor.peek().text(self.source)
                 ),
             )?;
         }
@@ -270,7 +245,7 @@ mod tests {
     use ast::value::Literal;
     use ast::variable::{VarName, VarReference};
     use ast::Expr;
-    use context::source::{Source, SourceSegmentHolder};
+    use context::source::SourceSegmentHolder;
     use context::str_find::{find_between, find_in, find_in_nth};
 
     use crate::err::{ParseError, ParseErrorKind};
@@ -280,13 +255,12 @@ mod tests {
 
     #[test]
     fn wrong_group_end() {
-        let content = "ls )";
-        let source = Source::unknown(content);
+        let source = "ls )";
         assert_eq!(
             ParseResult::<Vec<Expr>>::from(parse(source)),
             Err(ParseError {
                 message: "Unexpected closing delimiter.".to_string(),
-                position: content.find(')').map(|p| p..p + 1).unwrap(),
+                position: source.find(')').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected,
             })
         );
@@ -294,14 +268,14 @@ mod tests {
 
     #[test]
     fn call() {
-        let source = Source::unknown("echo x y");
+        let source = "echo x y";
         assert_eq!(
             Parser::new(source).parse_next(),
             Ok(Expr::Call(Call {
                 arguments: vec![
-                    literal(source.source, "echo"),
-                    literal(source.source, "x"),
-                    literal(source.source, "y"),
+                    literal(source, "echo"),
+                    literal(source, "x"),
+                    literal(source, "y"),
                 ],
             }))
         );
@@ -309,15 +283,14 @@ mod tests {
 
     #[test]
     fn call_with_path() {
-        let content = "a/b/parse x y";
-        let source = Source::unknown(content);
+        let source = "a/b/parse x y";
         assert_eq!(
             Parser::new(source).parse_next(),
             Ok(Expr::Call(Call {
                 arguments: vec![
-                    literal(source.source, "a/b/parse"),
-                    literal(source.source, "x"),
-                    literal(source.source, "y")
+                    literal(source, "a/b/parse"),
+                    literal(source, "x"),
+                    literal(source, "y")
                 ],
             }))
         );
@@ -325,18 +298,18 @@ mod tests {
 
     #[test]
     fn call_space() {
-        let source = Source::unknown(r"a\ b c\ d");
+        let source = r"a\ b c\ d";
         assert_eq!(
             Parser::new(source).parse_next(),
             Ok(Expr::Call(Call {
                 arguments: vec![
                     Expr::Literal(Literal {
                         parsed: "a b".into(),
-                        segment: find_in(source.source, "a\\ b")
+                        segment: find_in(source, "a\\ b")
                     }),
                     Expr::Literal(Literal {
                         parsed: "c d".into(),
-                        segment: find_in(source.source, "c\\ d")
+                        segment: find_in(source, "c\\ d")
                     })
                 ],
             }))
@@ -345,19 +318,19 @@ mod tests {
 
     #[test]
     fn not_in_call_is_literal() {
-        let content = "echo how ! how are you !";
-        let result = parse(Source::unknown(content)).expect("Failed to parse");
+        let source = "echo how ! how are you !";
+        let result = parse(source).expect("Failed to parse");
         assert_eq!(
             result,
             vec![Expr::Call(Call {
                 arguments: vec![
-                    literal(content, "echo"),
-                    literal(content, "how"),
-                    literal(content, "!"),
-                    literal_nth(content, "how", 1),
-                    literal(content, "are"),
-                    literal(content, "you"),
-                    literal_nth(content, "!", 1),
+                    literal(source, "echo"),
+                    literal(source, "how"),
+                    literal(source, "!"),
+                    literal_nth(source, "how", 1),
+                    literal(source, "are"),
+                    literal(source, "you"),
+                    literal_nth(source, "!", 1),
                 ],
             })]
         );
@@ -365,23 +338,20 @@ mod tests {
 
     #[test]
     fn multiple_calls() {
-        let source = Source::unknown("grep -E regex; echo test");
+        let source = "grep -E regex; echo test";
         let parsed = parse(source).expect("Failed to parse");
         assert_eq!(
             parsed,
             vec![
                 Expr::Call(Call {
                     arguments: vec![
-                        literal(source.source, "grep"),
-                        literal(source.source, "-E"),
-                        literal(source.source, "regex")
+                        literal(source, "grep"),
+                        literal(source, "-E"),
+                        literal(source, "regex")
                     ],
                 }),
                 Expr::Call(Call {
-                    arguments: vec![
-                        literal(source.source, "echo"),
-                        literal(source.source, "test")
-                    ],
+                    arguments: vec![literal(source, "echo"), literal(source, "test")],
                 }),
             ]
         )
@@ -389,17 +359,17 @@ mod tests {
 
     #[test]
     fn multiline_call() {
-        let source = Source::unknown("g++ -std=c++20 \\\n-Wall \\\n-Wextra\\\n-Wpedantic");
+        let source = "g++ -std=c++20 \\\n-Wall \\\n-Wextra\\\n-Wpedantic";
         let parsed = parse(source).expect("Failed to parse");
         assert_eq!(
             parsed,
             vec![Expr::Call(Call {
                 arguments: vec![
-                    literal(source.source, "g++"),
-                    literal(source.source, "-std=c++20"),
-                    literal(source.source, "-Wall"),
-                    literal(source.source, "-Wextra"),
-                    literal(source.source, "-Wpedantic"),
+                    literal(source, "g++"),
+                    literal(source, "-std=c++20"),
+                    literal(source, "-Wall"),
+                    literal(source, "-Wextra"),
+                    literal(source, "-Wpedantic"),
                 ],
             })]
         )
@@ -407,18 +377,18 @@ mod tests {
 
     #[test]
     fn escaped_call() {
-        let source = Source::unknown("grep -E regex \\; echo test");
+        let source = "grep -E regex \\; echo test";
         let parsed = parse(source).expect("Failed to parse");
         assert_eq!(
             parsed,
             vec![Expr::Call(Call {
                 arguments: vec![
-                    literal(source.source, "grep"),
-                    literal(source.source, "-E"),
-                    literal(source.source, "regex"),
-                    literal(source.source, ";"),
-                    literal(source.source, "echo"),
-                    literal(source.source, "test"),
+                    literal(source, "grep"),
+                    literal(source, "-E"),
+                    literal(source, "regex"),
+                    literal(source, ";"),
+                    literal(source, "echo"),
+                    literal(source, "test"),
                 ],
             })]
         )
@@ -426,14 +396,14 @@ mod tests {
 
     #[test]
     fn empty_constructor() {
-        let source = Source::unknown("Foo()");
-        let source2 = Source::unknown("Foo( )");
+        let source = "Foo()";
+        let source2 = "Foo( )";
         let expr = parse(source).expect("Failed to parse");
         let expr2 = parse(source2).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![InclusionPathItem::Symbol(identifier(source.source, "Foo"))],
+                path: vec![InclusionPathItem::Symbol(identifier(source, "Foo"))],
                 arguments: vec![],
                 type_parameters: vec![],
                 segment: source.segment(),
@@ -442,7 +412,7 @@ mod tests {
         assert_eq!(
             expr2,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![InclusionPathItem::Symbol(identifier(source2.source, "Foo"))],
+                path: vec![InclusionPathItem::Symbol(identifier(source2, "Foo"))],
                 arguments: vec![],
                 type_parameters: vec![],
                 segment: source2.segment(),
@@ -452,19 +422,19 @@ mod tests {
 
     #[test]
     fn parse_constructor() {
-        let source = Source::unknown("Foo('a', 2, 'c')");
+        let source = "Foo('a', 2, 'c')";
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![InclusionPathItem::Symbol(identifier(source.source, "Foo"))],
+                path: vec![InclusionPathItem::Symbol(identifier(source, "Foo"))],
                 arguments: vec![
-                    literal(source.source, "'a'"),
+                    literal(source, "'a'"),
                     Expr::Literal(Literal {
                         parsed: 2.into(),
-                        segment: find_in(source.source, "2")
+                        segment: find_in(source, "2")
                     }),
-                    literal(source.source, "'c'"),
+                    literal(source, "'c'"),
                 ],
                 type_parameters: vec![],
                 segment: source.segment(),
@@ -474,16 +444,16 @@ mod tests {
 
     #[test]
     fn constructor_with_newlines_and_space() {
-        let source = Source::unknown("Foo( \\\n'this' , \\\n  'is',\\\n'fine')");
+        let source = "Foo( \\\n'this' , \\\n  'is',\\\n'fine')";
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![InclusionPathItem::Symbol(identifier(source.source, "Foo"))],
+                path: vec![InclusionPathItem::Symbol(identifier(source, "Foo"))],
                 arguments: vec![
-                    literal(source.source, "'this'"),
-                    literal(source.source, "'is'"),
-                    literal(source.source, "'fine'"),
+                    literal(source, "'this'"),
+                    literal(source, "'is'"),
+                    literal(source, "'fine'"),
                 ],
                 type_parameters: vec![],
                 segment: source.segment(),
@@ -493,18 +463,18 @@ mod tests {
 
     #[test]
     fn constructor_accept_string_literals() {
-        let source = Source::unknown("Foo('===\ntesting something\n===', 'c')");
+        let source = "Foo('===\ntesting something\n===', 'c')";
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![InclusionPathItem::Symbol(identifier(source.source, "Foo"))],
+                path: vec![InclusionPathItem::Symbol(identifier(source, "Foo"))],
                 arguments: vec![
                     Expr::Literal(Literal {
                         parsed: "===\ntesting something\n===".into(),
-                        segment: find_between(source.source, "'", "'")
+                        segment: find_between(source, "'", "'")
                     }),
-                    literal(source.source, "'c'"),
+                    literal(source, "'c'"),
                 ],
                 type_parameters: vec![],
                 segment: source.segment()
@@ -514,20 +484,20 @@ mod tests {
 
     #[test]
     fn generic_constructor() {
-        let source = Source::unknown("List[Str]('hi')");
+        let source = "List[Str]('hi')";
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![InclusionPathItem::Symbol(identifier(source.source, "List"))],
+                path: vec![InclusionPathItem::Symbol(identifier(source, "List"))],
                 arguments: vec![Expr::Literal(Literal {
                     parsed: "hi".into(),
-                    segment: find_in(source.source, "'hi'")
+                    segment: find_in(source, "'hi'")
                 })],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    path: vec![InclusionPathItem::Symbol(identifier(source.source, "Str"))],
+                    path: vec![InclusionPathItem::Symbol(identifier(source, "Str"))],
                     params: vec![],
-                    segment: find_in(source.source, "Str"),
+                    segment: find_in(source, "Str"),
                 })],
                 segment: source.segment(),
             })],
@@ -536,38 +506,35 @@ mod tests {
 
     #[test]
     fn pfc_within_pfc() {
-        let source = Source::unknown("foo[Str](bar(), other[A]())");
+        let source = "foo[Str](bar(), other[A]())";
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
-                path: vec![InclusionPathItem::Symbol(identifier(source.source, "foo"))],
+                path: vec![InclusionPathItem::Symbol(identifier(source, "foo"))],
                 segment: source.segment(),
                 arguments: vec![
                     Expr::ProgrammaticCall(ProgrammaticCall {
-                        path: vec![InclusionPathItem::Symbol(identifier(source.source, "bar"))],
+                        path: vec![InclusionPathItem::Symbol(identifier(source, "bar"))],
                         arguments: Vec::new(),
                         type_parameters: Vec::new(),
-                        segment: find_in(source.source, "bar()"),
+                        segment: find_in(source, "bar()"),
                     }),
                     Expr::ProgrammaticCall(ProgrammaticCall {
-                        path: vec![InclusionPathItem::Symbol(identifier(
-                            source.source,
-                            "other"
-                        ))],
+                        path: vec![InclusionPathItem::Symbol(identifier(source, "other"))],
                         arguments: Vec::new(),
                         type_parameters: vec![Type::Parametrized(ParametrizedType {
-                            path: vec![InclusionPathItem::Symbol(identifier(source.source, "A"))],
+                            path: vec![InclusionPathItem::Symbol(identifier(source, "A"))],
                             params: Vec::new(),
-                            segment: find_in(source.source, "A"),
+                            segment: find_in(source, "A"),
                         })],
-                        segment: find_in(source.source, "other[A]()"),
+                        segment: find_in(source, "other[A]()"),
                     })
                 ],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    path: vec![InclusionPathItem::Symbol(identifier(source.source, "Str"))],
+                    path: vec![InclusionPathItem::Symbol(identifier(source, "Str"))],
                     params: vec![],
-                    segment: find_in(source.source, "Str"),
+                    segment: find_in(source, "Str"),
                 })],
             })],
         );
@@ -575,47 +542,47 @@ mod tests {
 
     #[test]
     fn pfc_within_pfc_with_path() {
-        let source = Source::unknown("reef::a::b::foo[Str](reef::std::bar(), foo::other[A]())");
+        let source = "reef::a::b::foo[Str](reef::std::bar(), foo::other[A]())";
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
                 path: vec![
-                    InclusionPathItem::Reef(find_in(source.source, "reef")),
-                    InclusionPathItem::Symbol(identifier(source.source, "a")),
-                    InclusionPathItem::Symbol(identifier(source.source, "b")),
-                    InclusionPathItem::Symbol(identifier(source.source, "foo")),
+                    InclusionPathItem::Reef(find_in(source, "reef")),
+                    InclusionPathItem::Symbol(identifier(source, "a")),
+                    InclusionPathItem::Symbol(identifier(source, "b")),
+                    InclusionPathItem::Symbol(identifier(source, "foo")),
                 ],
                 segment: source.segment(),
                 arguments: vec![
                     Expr::ProgrammaticCall(ProgrammaticCall {
                         path: vec![
-                            InclusionPathItem::Reef(find_in_nth(source.source, "reef", 1)),
-                            InclusionPathItem::Symbol(identifier(source.source, "std")),
-                            InclusionPathItem::Symbol(identifier(source.source, "bar")),
+                            InclusionPathItem::Reef(find_in_nth(source, "reef", 1)),
+                            InclusionPathItem::Symbol(identifier(source, "std")),
+                            InclusionPathItem::Symbol(identifier(source, "bar")),
                         ],
                         arguments: Vec::new(),
                         type_parameters: Vec::new(),
-                        segment: find_in(source.source, "reef::std::bar()"),
+                        segment: find_in(source, "reef::std::bar()"),
                     }),
                     Expr::ProgrammaticCall(ProgrammaticCall {
                         path: vec![
-                            InclusionPathItem::Symbol(identifier_nth(source.source, "foo", 1)),
-                            InclusionPathItem::Symbol(identifier(source.source, "other")),
+                            InclusionPathItem::Symbol(identifier_nth(source, "foo", 1)),
+                            InclusionPathItem::Symbol(identifier(source, "other")),
                         ],
                         arguments: Vec::new(),
-                        segment: find_in(source.source, "foo::other[A]()"),
+                        segment: find_in(source, "foo::other[A]()"),
                         type_parameters: vec![Type::Parametrized(ParametrizedType {
-                            path: vec![InclusionPathItem::Symbol(identifier(source.source, "A"))],
+                            path: vec![InclusionPathItem::Symbol(identifier(source, "A"))],
                             params: Vec::new(),
-                            segment: find_in(source.source, "A"),
+                            segment: find_in(source, "A"),
                         })]
                     })
                 ],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    path: vec![InclusionPathItem::Symbol(identifier(source.source, "Str"))],
+                    path: vec![InclusionPathItem::Symbol(identifier(source, "Str"))],
                     params: vec![],
-                    segment: find_in(source.source, "Str"),
+                    segment: find_in(source, "Str"),
                 })],
             })],
         );
@@ -623,24 +590,24 @@ mod tests {
 
     #[test]
     fn generic_constructor_with_include_path() {
-        let source = Source::unknown("foo::bar::List[Str]('hi')");
+        let source = "foo::bar::List[Str]('hi')";
         let expr = parse(source).expect("Failed to parse");
         assert_eq!(
             expr,
             vec![Expr::ProgrammaticCall(ProgrammaticCall {
                 path: vec![
-                    InclusionPathItem::Symbol(identifier(source.source, "foo")),
-                    InclusionPathItem::Symbol(identifier(source.source, "bar")),
-                    InclusionPathItem::Symbol(identifier(source.source, "List")),
+                    InclusionPathItem::Symbol(identifier(source, "foo")),
+                    InclusionPathItem::Symbol(identifier(source, "bar")),
+                    InclusionPathItem::Symbol(identifier(source, "List")),
                 ],
                 arguments: vec![Expr::Literal(Literal {
-                    segment: find_in(source.source, "'hi'"),
+                    segment: find_in(source, "'hi'"),
                     parsed: "hi".into(),
                 })],
                 type_parameters: vec![Type::Parametrized(ParametrizedType {
-                    path: vec![InclusionPathItem::Symbol(identifier(source.source, "Str"))],
+                    path: vec![InclusionPathItem::Symbol(identifier(source, "Str"))],
                     params: vec![],
-                    segment: find_in(source.source, "Str")
+                    segment: find_in(source, "Str")
                 })],
                 segment: source.segment(),
             })],
@@ -649,38 +616,35 @@ mod tests {
 
     #[test]
     fn constructor_with_unpaired_parenthesis() {
-        let content = "Foo('a', 2, \"c\"\n)";
-        let source = Source::unknown(content);
+        let source = "Foo('a', 2, \"c\"\n)";
         let expr: ParseResult<_> = parse(source).into();
         assert_eq!(
             expr,
             Err(ParseError {
                 message: "Expected closing parenthesis.".into(),
-                position: content.find('\n').map(|p| p..p + 1).unwrap(),
-                kind: ParseErrorKind::Unpaired(content.find('(').map(|p| p..p + 1).unwrap())
+                position: source.find('\n').map(|p| p..p + 1).unwrap(),
+                kind: ParseErrorKind::Unpaired(source.find('(').map(|p| p..p + 1).unwrap())
             })
         )
     }
 
     #[test]
     fn constructor_exit_when_mismatched_bracket() {
-        let content = "Foo(41 ]";
-        let source = Source::unknown(content);
+        let source = "Foo(41 ]";
         let expr: ParseResult<_> = parse(source).into();
         assert_eq!(
             expr,
             Err(ParseError {
                 message: "Mismatched closing delimiter.".into(),
-                position: content.len() - 1..content.len(),
-                kind: ParseErrorKind::Unpaired(content.find('(').map(|p| p..p + 1).unwrap())
+                position: source.len() - 1..source.len(),
+                kind: ParseErrorKind::Unpaired(source.find('(').map(|p| p..p + 1).unwrap())
             })
         )
     }
 
     #[test]
     fn field_access() {
-        let content = "{$self.b.method().field}.other_field";
-        let source = Source::unknown(content);
+        let source = "{$self.b.method().field}.other_field";
         let expr: ParseResult<_> = parse(source).into();
         assert_eq!(
             expr,
@@ -691,23 +655,23 @@ mod tests {
                             source: Box::new(Expr::FieldAccess(FieldAccess {
                                 expr: Box::new(Expr::VarReference(VarReference {
                                     name: VarName::Slf,
-                                    segment: find_in(content, "$self"),
+                                    segment: find_in(source, "$self"),
                                 })),
-                                field: identifier(content, "b"),
-                                segment: find_in(content, ".b"),
+                                field: identifier(source, "b"),
+                                segment: find_in(source, ".b"),
                             })),
-                            name: Some(identifier(content, "method")),
+                            name: Some(identifier(source, "method")),
                             arguments: vec![],
                             type_parameters: vec![],
-                            segment: find_in(content, ".method()"),
+                            segment: find_in(source, ".method()"),
                         })),
-                        field: identifier(content, "field"),
-                        segment: find_in(content, ".field"),
+                        field: identifier(source, "field"),
+                        segment: find_in(source, ".field"),
                     })],
-                    segment: find_in(content, "{$self.b.method().field}"),
+                    segment: find_in(source, "{$self.b.method().field}"),
                 })),
-                field: identifier(content, "other_field"),
-                segment: find_in(content, ".other_field"),
+                field: identifier(source, "other_field"),
+                segment: find_in(source, ".other_field"),
             })])
         )
     }

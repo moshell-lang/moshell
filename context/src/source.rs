@@ -85,6 +85,12 @@ impl SourceSegmentHolder for Source<'_> {
     }
 }
 
+impl SourceSegmentHolder for &str {
+    fn segment(&self) -> SourceSegment {
+        0..self.len()
+    }
+}
+
 #[derive(Clone)]
 pub struct OwnedSource {
     pub source: String,

@@ -3,19 +3,13 @@ use ast::Expr;
 use lexer::token::TokenType;
 use lexer::token::TokenType::*;
 
-use crate::aspects::call::CallAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{any, blanks, like, lookahead, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
-pub trait VarReferenceAspect<'a> {
+impl Parser<'_> {
     /// Parses a variable reference.
-    fn var_reference(&mut self) -> ParseResult<Expr<'a>>;
-}
-
-impl<'a> VarReferenceAspect<'a> for Parser<'a> {
-    /// Parses a variable reference.
-    fn var_reference(&mut self) -> ParseResult<Expr<'a>> {
+    pub(crate) fn var_reference(&mut self) -> ParseResult<Expr> {
         let start = self
             .cursor
             .advance(blanks().then(lookahead(any())))
@@ -43,7 +37,7 @@ impl<'a> VarReferenceAspect<'a> for Parser<'a> {
             name: if name.token_type == TokenType::Slf {
                 VarName::Slf
             } else {
-                VarName::User(name.text(self.source.source))
+                VarName::User(name.text(self.source).into())
             },
             segment,
         });
@@ -82,10 +76,9 @@ mod tests {
     use ast::value::{Literal, TemplateString};
     use ast::variable::{VarName, VarReference};
     use ast::Expr;
-    use context::source::{Source, SourceSegmentHolder};
+    use context::source::SourceSegmentHolder;
     use context::str_find::find_in;
 
-    use crate::aspects::substitution::SubstitutionAspect;
     use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
     use crate::parser::{ParseResult, Parser};
@@ -93,12 +86,12 @@ mod tests {
 
     #[test]
     fn simple_ref() {
-        let source = Source::unknown("$VARIABLE");
+        let source = "$VARIABLE";
         let ast = Parser::new(source).substitution().expect("failed to parse");
         assert_eq!(
             ast,
             Expr::VarReference(VarReference {
-                name: VarName::User("VARIABLE"),
+                name: VarName::User("VARIABLE".into()),
                 segment: source.segment()
             })
         );
@@ -106,7 +99,7 @@ mod tests {
 
     #[test]
     fn dollar_is_literal() {
-        let source = Source::unknown("$");
+        let source = "$";
         let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,
@@ -119,26 +112,26 @@ mod tests {
 
     #[test]
     fn special_refs() {
-        let source = Source::unknown("$@;$^;$!;$$");
+        let source = "$@;$^;$!;$$";
         let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,
             vec![
                 Expr::VarReference(VarReference {
-                    name: VarName::User("@"),
-                    segment: find_in(source.source, "$@"),
+                    name: VarName::User("@".into()),
+                    segment: find_in(source, "$@"),
                 }),
                 Expr::VarReference(VarReference {
-                    name: VarName::User("^"),
-                    segment: find_in(source.source, "$^"),
+                    name: VarName::User("^".into()),
+                    segment: find_in(source, "$^"),
                 }),
                 Expr::VarReference(VarReference {
-                    name: VarName::User("!"),
-                    segment: find_in(source.source, "$!"),
+                    name: VarName::User("!".into()),
+                    segment: find_in(source, "$!"),
                 }),
                 Expr::VarReference(VarReference {
-                    name: VarName::User("$"),
-                    segment: find_in(source.source, "$$"),
+                    name: VarName::User("$".into()),
+                    segment: find_in(source, "$$"),
                 }),
             ]
         )
@@ -146,7 +139,7 @@ mod tests {
 
     #[test]
     fn wrapped_ref() {
-        let source = Source::unknown("${VAR}IABLE");
+        let source = "${VAR}IABLE";
         let ast = Parser::new(source)
             .parse_specific(Parser::call_argument)
             .expect("failed to parse");
@@ -155,12 +148,12 @@ mod tests {
             Expr::TemplateString(TemplateString {
                 parts: vec![
                     Expr::VarReference(VarReference {
-                        name: VarName::User("VAR"),
-                        segment: find_in(source.source, "${VAR}")
+                        name: VarName::User("VAR".into()),
+                        segment: find_in(source, "${VAR}")
                     }),
                     Expr::Literal(Literal {
                         parsed: "IABLE".into(),
-                        segment: find_in(source.source, "IABLE")
+                        segment: find_in(source, "IABLE")
                     }),
                 ],
                 segment: source.segment()
@@ -170,22 +163,21 @@ mod tests {
 
     #[test]
     fn ref_in_ref() {
-        let content = "${V${A}R}";
-        let source = Source::unknown(content);
+        let source = "${V${A}R}";
         let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Err(ParseError {
                 message: "Expected closing curly bracket.".to_string(),
                 position: 3..4,
-                kind: ParseErrorKind::Unpaired(content.find('{').map(|p| p..p + 1).unwrap()),
+                kind: ParseErrorKind::Unpaired(source.find('{').map(|p| p..p + 1).unwrap()),
             })
         )
     }
 
     #[test]
     fn multiple_wrapped_ref() {
-        let source = Source::unknown("${VAR}IABLE${LONG}${VERY_LONG}");
+        let source = "${VAR}IABLE${LONG}${VERY_LONG}";
         let ast = Parser::new(source)
             .parse_specific(Parser::call_argument)
             .expect("failed to parse");
@@ -194,17 +186,17 @@ mod tests {
             Expr::TemplateString(TemplateString {
                 parts: vec![
                     Expr::VarReference(VarReference {
-                        name: VarName::User("VAR"),
-                        segment: find_in(source.source, "${VAR}")
+                        name: VarName::User("VAR".into()),
+                        segment: find_in(source, "${VAR}")
                     }),
-                    literal(source.source, "IABLE"),
+                    literal(source, "IABLE"),
                     Expr::VarReference(VarReference {
-                        name: VarName::User("LONG"),
-                        segment: find_in(source.source, "${LONG}")
+                        name: VarName::User("LONG".into()),
+                        segment: find_in(source, "${LONG}")
                     }),
                     Expr::VarReference(VarReference {
-                        name: VarName::User("VERY_LONG"),
-                        segment: find_in(source.source, "${VERY_LONG}")
+                        name: VarName::User("VERY_LONG".into()),
+                        segment: find_in(source, "${VERY_LONG}")
                     }),
                 ],
                 segment: source.segment()
@@ -214,20 +206,20 @@ mod tests {
 
     #[test]
     fn call_ref() {
-        let source = Source::unknown("$callable('a', 'b', 'c')");
+        let source = "$callable('a', 'b', 'c')";
         let ast = parse(source).expect("failed to parse");
         assert_eq!(
             ast,
             vec![Expr::MethodCall(MethodCall {
                 source: Box::new(Expr::VarReference(VarReference {
-                    name: VarName::User("callable"),
-                    segment: find_in(source.source, "$callable")
+                    name: VarName::User("callable".into()),
+                    segment: find_in(source, "$callable")
                 })),
                 name: None,
                 arguments: vec![
-                    literal(source.source, "'a'"),
-                    literal(source.source, "'b'"),
-                    literal(source.source, "'c'"),
+                    literal(source, "'a'"),
+                    literal(source, "'b'"),
+                    literal(source, "'c'"),
                 ],
                 type_parameters: vec![],
                 segment: source.segment()
@@ -237,15 +229,14 @@ mod tests {
 
     #[test]
     fn mismatched_delimiter() {
-        let content = "${VAR)}";
-        let source = Source::unknown(content);
+        let source = "${VAR)}";
         let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Err(ParseError {
                 message: "Mismatched closing delimiter.".to_owned(),
-                position: content.find(')').map(|p| p..p + 1).unwrap(),
-                kind: ParseErrorKind::Unpaired(content.find('{').map(|p| p..p + 1).unwrap()),
+                position: source.find(')').map(|p| p..p + 1).unwrap(),
+                kind: ParseErrorKind::Unpaired(source.find('{').map(|p| p..p + 1).unwrap()),
             })
         )
     }

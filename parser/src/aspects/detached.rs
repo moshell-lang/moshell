@@ -7,17 +7,13 @@ use crate::err::ParseErrorKind;
 use crate::moves::{of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
-///parses a detached expression (<expr> &)
-pub trait DetachedAspect<'a> {
-    ///returns a Detached expression containing underlying,
-    /// or directly returns underlying of no trailing '&' was found
-    fn parse_detached(&mut self, underlying: Expr<'a>) -> ParseResult<Expr<'a>>;
-}
-
-impl<'a> DetachedAspect<'a> for Parser<'a> {
-    fn parse_detached(&mut self, underlying: Expr<'a>) -> ParseResult<Expr<'a>> {
+impl Parser<'_> {
+    /// Parses a detached expression containing an inner expression.
+    ///
+    /// If no detached expression is found, the inner expression is returned as is.
+    pub(crate) fn parse_detached(&mut self, underlying: Expr) -> ParseResult<Expr> {
         let ampersand = spaces().then(of_type(Ampersand));
-        //there is a trailing '&'
+        // there is a trailing '&'
         if let Some(first) = self.cursor.advance(ampersand) {
             if let Some(another) = self.cursor.advance(ampersand) {
                 return self.expected_with(
@@ -44,7 +40,7 @@ mod tests {
     use ast::call::{Call, Detached};
     use ast::group::Block;
     use ast::Expr;
-    use context::source::{Source, SourceSegmentHolder};
+    use context::source::SourceSegmentHolder;
     use context::str_find::{find_between, find_in};
 
     use crate::err::ParseError;
@@ -55,13 +51,13 @@ mod tests {
 
     #[test]
     fn twice_derived() {
-        let content = "date & &";
-        let res: ParseResult<_> = parse(Source::unknown(content)).into();
+        let source = "date & &";
+        let res: ParseResult<_> = parse(source).into();
         assert_eq!(
             res,
             Err(ParseError {
                 message: "'&' not allowed here".to_string(),
-                position: content.len() - 1..content.len(),
+                position: source.len() - 1..source.len(),
                 kind: Unexpected,
             })
         )
@@ -69,7 +65,7 @@ mod tests {
 
     #[test]
     fn twice_derived_workaround() {
-        let source = Source::unknown("{date &}&");
+        let source = "{date &}&";
         let res = parse(source).expect("Failed to parse");
         assert_eq!(
             res,
@@ -77,11 +73,11 @@ mod tests {
                 underlying: Box::new(Expr::Block(Block {
                     expressions: vec![Expr::Detached(Detached {
                         underlying: Box::new(Expr::Call(Call {
-                            arguments: vec![literal(source.source, "date")],
+                            arguments: vec![literal(source, "date")],
                         })),
-                        segment: find_in(source.source, "date &")
+                        segment: find_in(source, "date &")
                     })],
-                    segment: find_between(source.source, "{", "}")
+                    segment: find_between(source, "{", "}")
                 })),
                 segment: source.segment()
             })]

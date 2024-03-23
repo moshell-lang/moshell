@@ -5,12 +5,12 @@ use crate::group::Subshell;
 /// A special type of grouping expression that should be substituted
 /// based on its expression and kind.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Substitution<'a> {
-    pub underlying: Subshell<'a>,
+pub struct Substitution {
+    pub underlying: Subshell,
     pub kind: SubstitutionKind,
 }
 
-impl SourceSegmentHolder for Substitution<'_> {
+impl SourceSegmentHolder for Substitution {
     fn segment(&self) -> SourceSegment {
         self.underlying.segment.clone()
     }

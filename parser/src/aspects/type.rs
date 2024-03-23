@@ -4,23 +4,12 @@ use context::display::fmt_comma_separated;
 use context::source::{SourceSegment, SourceSegmentHolder};
 use lexer::token::TokenType;
 
-use crate::aspects::expr_list::ExpressionListAspect;
-use crate::aspects::modules::ModulesAspect;
 use crate::err::ParseErrorKind::{Expected, Unexpected};
 use crate::moves::{blanks, not, of_type, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
-///A parser aspect to parse all type declarations, such as lambdas, constant types, parametrized type and Unit
-pub trait TypeAspect<'a> {
-    ///parse a lambda type signature, a constant or parametrized type.
-    fn parse_type(&mut self) -> ParseResult<Type<'a>>;
-
-    /// parses a generic type
-    fn parse_type_parameter(&mut self) -> ParseResult<TypeParameter<'a>>;
-}
-
-impl<'a> TypeAspect<'a> for Parser<'a> {
-    fn parse_type(&mut self) -> ParseResult<Type<'a>> {
+impl Parser<'_> {
+    pub(crate) fn parse_type(&mut self) -> ParseResult<Type> {
         self.cursor.advance(blanks());
 
         let first_token = self.cursor.peek();
@@ -69,7 +58,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
         Ok(tpe)
     }
 
-    fn parse_type_parameter(&mut self) -> ParseResult<TypeParameter<'a>> {
+    pub(crate) fn parse_type_parameter(&mut self) -> ParseResult<TypeParameter> {
         let name = self.cursor.next()?;
 
         match name.token_type {
@@ -92,7 +81,7 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
                 let segment = segment_start..segment_end;
 
                 Ok(TypeParameter {
-                    name: Identifier::extract(self.source.source, name.span),
+                    name: Identifier::extract(self.source, name.span),
                     params,
                     segment,
                 })
@@ -104,17 +93,15 @@ impl<'a> TypeAspect<'a> for Parser<'a> {
             _ => self.expected_with(
                 format!(
                     "`{}` is not a valid generic type identifier.",
-                    name.text(self.source.source)
+                    name.text(self.source)
                 ),
                 name.span,
                 Unexpected,
             ),
         }
     }
-}
 
-impl<'a> Parser<'a> {
-    fn parse_by_name(&mut self) -> ParseResult<ByName<'a>> {
+    fn parse_by_name(&mut self) -> ParseResult<ByName> {
         let arrow = self
             .cursor
             .force(of_type(TokenType::FatArrow), "'=>' expected here.")?;
@@ -130,15 +117,11 @@ impl<'a> Parser<'a> {
         Ok(ByName { name, segment })
     }
 
-    fn unparenthesised_lambda_input_tip(
-        &self,
-        left_lambda: Type<'a>,
-        lambda_out: Type<'a>,
-    ) -> String {
+    fn unparenthesised_lambda_input_tip(&self, left_lambda: Type, lambda_out: Type) -> String {
         "(".to_string() + &left_lambda.to_string() + ") => " + &lambda_out.to_string()
     }
 
-    fn parse_parentheses(&mut self) -> ParseResult<Type<'a>> {
+    fn parse_parentheses(&mut self) -> ParseResult<Type> {
         let (inputs, segment) = self.parse_implicit_list(
             TokenType::RoundedLeftBracket,
             TokenType::RoundedRightBracket,
@@ -177,8 +160,8 @@ impl<'a> Parser<'a> {
     fn parse_lambda_with_inputs(
         &mut self,
         inputs_segment: SourceSegment,
-        inputs: Vec<Type<'a>>,
-    ) -> ParseResult<CallableType<'a>> {
+        inputs: Vec<Type>,
+    ) -> ParseResult<CallableType> {
         let output = Box::new(self.parse_type()?);
         let segment = inputs_segment.start..output.segment().end;
         Ok(CallableType {
@@ -188,7 +171,7 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_parametrized(&mut self) -> ParseResult<ParametrizedType<'a>> {
+    fn parse_parametrized(&mut self) -> ParseResult<ParametrizedType> {
         self.cursor.advance(spaces());
         if !matches!(
             self.cursor.peek().token_type,
@@ -197,7 +180,7 @@ impl<'a> Parser<'a> {
             return self.expected(
                 format!(
                     "`{}` is not a valid type identifier.",
-                    self.cursor.peek().text(self.source.source)
+                    self.cursor.peek().text(self.source)
                 ),
                 Unexpected,
             );
@@ -228,10 +211,9 @@ mod tests {
 
     use ast::r#type::{ByName, CallableType, ParametrizedType, Type};
     use ast::r#use::InclusionPathItem;
-    use context::source::{Source, SourceSegmentHolder};
+    use context::source::SourceSegmentHolder;
     use context::str_find::find_in;
 
-    use crate::aspects::r#type::TypeAspect;
     use crate::err::ParseError;
     use crate::err::ParseErrorKind::{Expected, Unexpected};
     use crate::parser::Parser;
@@ -239,15 +221,11 @@ mod tests {
 
     #[test]
     fn simple_type() {
-        let content = "MyType";
-        let source = Source::unknown(content);
+        let source = "MyType";
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Parametrized(ParametrizedType {
-                path: vec![InclusionPathItem::Symbol(identifier(
-                    source.source,
-                    "MyType"
-                ))],
+                path: vec![InclusionPathItem::Symbol(identifier(source, "MyType"))],
                 params: Vec::new(),
                 segment: source.segment(),
             }))
@@ -256,15 +234,14 @@ mod tests {
 
     #[test]
     fn simple_type_include_path() {
-        let content = "reef::std::MyType";
-        let source = Source::unknown(content);
+        let source = "reef::std::MyType";
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Parametrized(ParametrizedType {
                 path: vec![
-                    InclusionPathItem::Reef(find_in(content, "reef")),
-                    InclusionPathItem::Symbol(identifier(source.source, "std")),
-                    InclusionPathItem::Symbol(identifier(source.source, "MyType")),
+                    InclusionPathItem::Reef(find_in(source, "reef")),
+                    InclusionPathItem::Symbol(identifier(source, "std")),
+                    InclusionPathItem::Symbol(identifier(source, "MyType")),
                 ],
                 params: Vec::new(),
                 segment: source.segment(),
@@ -274,15 +251,11 @@ mod tests {
 
     #[test]
     fn empty_param_list() {
-        let content = "Complex[    ]";
-        let source = Source::unknown(content);
+        let source = "Complex[    ]";
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Parametrized(ParametrizedType {
-                path: vec![InclusionPathItem::Symbol(identifier(
-                    source.source,
-                    "Complex"
-                ))],
+                path: vec![InclusionPathItem::Symbol(identifier(source, "Complex"))],
                 params: vec![],
                 segment: source.segment()
             }))
@@ -291,68 +264,57 @@ mod tests {
 
     #[test]
     fn parametrized_types() {
-        let content = "MyType[A[X, Y[Any], foo::Z], B[std::C[D]]]";
-        let source = Source::unknown(content);
+        let source = "MyType[A[X, Y[Any], foo::Z], B[std::C[D]]]";
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Parametrized(ParametrizedType {
-                path: vec![InclusionPathItem::Symbol(identifier(
-                    source.source,
-                    "MyType"
-                ))],
+                path: vec![InclusionPathItem::Symbol(identifier(source, "MyType"))],
                 params: vec![
                     Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol(identifier(source.source, "A"))],
+                        path: vec![InclusionPathItem::Symbol(identifier(source, "A"))],
                         params: vec![
                             Type::Parametrized(ParametrizedType {
-                                path: vec![InclusionPathItem::Symbol(identifier(
-                                    source.source,
-                                    "X"
-                                ))],
+                                path: vec![InclusionPathItem::Symbol(identifier(source, "X"))],
                                 params: Vec::new(),
-                                segment: find_in(content, "X"),
+                                segment: find_in(source, "X"),
                             }),
                             Type::Parametrized(ParametrizedType {
-                                path: vec![InclusionPathItem::Symbol(identifier(
-                                    source.source,
-                                    "Y"
-                                ))],
+                                path: vec![InclusionPathItem::Symbol(identifier(source, "Y"))],
                                 params: vec![Type::Parametrized(ParametrizedType {
                                     path: vec![InclusionPathItem::Symbol(identifier(
-                                        source.source,
-                                        "Any"
+                                        source, "Any"
                                     ))],
                                     params: Vec::new(),
-                                    segment: find_in(content, "Any"),
+                                    segment: find_in(source, "Any"),
                                 })],
-                                segment: find_in(content, "Y[Any]"),
+                                segment: find_in(source, "Y[Any]"),
                             }),
                             Type::Parametrized(ParametrizedType {
                                 path: vec![
-                                    InclusionPathItem::Symbol(identifier(source.source, "foo")),
-                                    InclusionPathItem::Symbol(identifier(source.source, "Z"))
+                                    InclusionPathItem::Symbol(identifier(source, "foo")),
+                                    InclusionPathItem::Symbol(identifier(source, "Z"))
                                 ],
                                 params: Vec::new(),
-                                segment: find_in(content, "foo::Z"),
+                                segment: find_in(source, "foo::Z"),
                             }),
                         ],
-                        segment: find_in(content, "A[X, Y[Any], foo::Z]"),
+                        segment: find_in(source, "A[X, Y[Any], foo::Z]"),
                     }),
                     Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol(identifier(content, "B"))],
+                        path: vec![InclusionPathItem::Symbol(identifier(source, "B"))],
                         params: vec![Type::Parametrized(ParametrizedType {
                             path: vec![
-                                InclusionPathItem::Symbol(identifier(content, "std")),
-                                InclusionPathItem::Symbol(identifier(content, "C"))
+                                InclusionPathItem::Symbol(identifier(source, "std")),
+                                InclusionPathItem::Symbol(identifier(source, "C"))
                             ],
                             params: vec![Type::Parametrized(ParametrizedType {
-                                path: vec![InclusionPathItem::Symbol(identifier(content, "D"))],
+                                path: vec![InclusionPathItem::Symbol(identifier(source, "D"))],
                                 params: Vec::new(),
-                                segment: find_in(content, "D"),
+                                segment: find_in(source, "D"),
                             })],
-                            segment: find_in(content, "std::C[D]"),
+                            segment: find_in(source, "std::C[D]"),
                         })],
-                        segment: find_in(content, "B[std::C[D]]"),
+                        segment: find_in(source, "B[std::C[D]]"),
                     }),
                 ],
                 segment: source.segment(),
@@ -362,8 +324,7 @@ mod tests {
 
     #[test]
     fn type_params_missing_comma() {
-        let content = "MyType[X Y]";
-        let source = Source::unknown(content);
+        let source = "MyType[X Y]";
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
             Err(ParseError {
@@ -376,14 +337,13 @@ mod tests {
 
     #[test]
     fn type_invalid_name() {
-        let content = "Complex[  @  ]";
-        let source = Source::unknown(content);
+        let source = "Complex[  @  ]";
         let res = Parser::new(source).parse_specific(Parser::parse_type);
         assert_eq!(
             res,
             Err(ParseError {
                 message: "`@` is not a valid type identifier.".to_string(),
-                position: content.find('@').map(|i| i..i + 1).unwrap(),
+                position: source.find('@').map(|i| i..i + 1).unwrap(),
                 kind: Unexpected,
             })
         );
@@ -391,20 +351,19 @@ mod tests {
 
     #[test]
     fn simple_lambda_declaration() {
-        let content = "A => B";
-        let source = Source::unknown(content);
+        let source = "A => B";
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Callable(CallableType {
                 params: vec![Type::Parametrized(ParametrizedType {
-                    path: vec![InclusionPathItem::Symbol(identifier(content, "A"))],
+                    path: vec![InclusionPathItem::Symbol(identifier(source, "A"))],
                     params: Vec::new(),
-                    segment: find_in(content, "A"),
+                    segment: find_in(source, "A"),
                 })],
                 output: Box::new(Type::Parametrized(ParametrizedType {
-                    path: vec![InclusionPathItem::Symbol(identifier(content, "B"))],
+                    path: vec![InclusionPathItem::Symbol(identifier(source, "B"))],
                     params: Vec::new(),
-                    segment: find_in(content, "B"),
+                    segment: find_in(source, "B"),
                 })),
                 segment: source.segment(),
             }))
@@ -413,25 +372,23 @@ mod tests {
 
     #[test]
     fn by_name_declaration() {
-        let content = " => B";
-        let source = Source::unknown(content);
+        let source = " => B";
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::ByName(ByName {
                 name: Box::new(Type::Parametrized(ParametrizedType {
-                    path: vec![InclusionPathItem::Symbol(identifier(content, "B"))],
+                    path: vec![InclusionPathItem::Symbol(identifier(source, "B"))],
                     params: Vec::new(),
-                    segment: find_in(content, "B"),
+                    segment: find_in(source, "B"),
                 })),
-                segment: 1..content.len(),
+                segment: 1..source.len(),
             }))
         );
     }
 
     #[test]
     fn nested_by_name_declaration() {
-        let content = "=> => B";
-        let source = Source::unknown(content);
+        let source = "=> => B";
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
             Err(ParseError {
@@ -444,52 +401,49 @@ mod tests {
 
     #[test]
     fn nested_by_name_declaration_parenthesised() {
-        let content = "=> (=> B)";
-        let source = Source::unknown(content);
+        let source = "=> (=> B)";
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::ByName(ByName {
                 name: Box::new(Type::ByName(ByName {
                     name: Box::new(Type::Parametrized(ParametrizedType {
                         path: vec![
-                            InclusionPathItem::Symbol(identifier(content, "B")),
+                            InclusionPathItem::Symbol(identifier(source, "B")),
                         ],
                         params: Vec::new(),
-                        segment: find_in(content, "B"),
+                        segment: find_in(source, "B"),
                     })),
-                    segment: find_in(content, "=> B"),
+                    segment: find_in(source, "=> B"),
                 })),
-                segment: /*source.segment()*/0..content.len() - 1,
+                segment: /*source.segment()*/0..source.len() - 1,
             }))
         );
     }
 
     #[test]
     fn parentheses() {
-        let content = "((((A))))";
-        let source = Source::unknown(content);
+        let source = "((((A))))";
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Parametrized(ParametrizedType {
-                path: vec![InclusionPathItem::Symbol(identifier(content, "A"))],
+                path: vec![InclusionPathItem::Symbol(identifier(source, "A"))],
                 params: Vec::new(),
-                segment: find_in(content, "A"),
+                segment: find_in(source, "A"),
             }))
         );
     }
 
     #[test]
     fn lambda_declaration_no_input() {
-        let content = "() => B";
-        let source = Source::unknown(content);
+        let source = "() => B";
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Callable(CallableType {
                 params: vec![],
                 output: Box::new(Type::Parametrized(ParametrizedType {
-                    path: vec![InclusionPathItem::Symbol(identifier(content, "B"))],
+                    path: vec![InclusionPathItem::Symbol(identifier(source, "B"))],
                     params: Vec::new(),
-                    segment: find_in(content, "B"),
+                    segment: find_in(source, "B"),
                 })),
                 segment: source.segment(),
             }))
@@ -498,20 +452,19 @@ mod tests {
 
     #[test]
     fn lambda_declaration_void_output() {
-        let content = "A => Unit";
-        let source = Source::unknown(content);
+        let source = "A => Unit";
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Callable(CallableType {
                 params: vec![Type::Parametrized(ParametrizedType {
-                    path: vec![InclusionPathItem::Symbol(identifier(content, "A"))],
+                    path: vec![InclusionPathItem::Symbol(identifier(source, "A"))],
                     params: Vec::new(),
-                    segment: find_in(content, "A"),
+                    segment: find_in(source, "A"),
                 })],
                 output: Box::new(Type::Parametrized(ParametrizedType {
-                    path: vec![InclusionPathItem::Symbol(identifier(content, "Unit"))],
+                    path: vec![InclusionPathItem::Symbol(identifier(source, "Unit"))],
                     params: Vec::new(),
-                    segment: find_in(content, "Unit"),
+                    segment: find_in(source, "Unit"),
                 })),
                 segment: source.segment(),
             }))
@@ -520,32 +473,31 @@ mod tests {
 
     #[test]
     fn lambda_multiple_inputs() {
-        let content = "(A, B, C) => D";
-        let source = Source::unknown(content);
+        let source = "(A, B, C) => D";
         assert_eq!(
             Parser::new(source).parse_specific(Parser::parse_type),
             Ok(Type::Callable(CallableType {
                 params: vec![
                     Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol(identifier(content, "A"))],
+                        path: vec![InclusionPathItem::Symbol(identifier(source, "A"))],
                         params: Vec::new(),
-                        segment: find_in(content, "A"),
+                        segment: find_in(source, "A"),
                     }),
                     Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol(identifier(content, "B"))],
+                        path: vec![InclusionPathItem::Symbol(identifier(source, "B"))],
                         params: Vec::new(),
-                        segment: find_in(content, "B"),
+                        segment: find_in(source, "B"),
                     }),
                     Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol(identifier(content, "C"))],
+                        path: vec![InclusionPathItem::Symbol(identifier(source, "C"))],
                         params: Vec::new(),
-                        segment: find_in(content, "C"),
+                        segment: find_in(source, "C"),
                     }),
                 ],
                 output: Box::new(Type::Parametrized(ParametrizedType {
-                    path: vec![InclusionPathItem::Symbol(identifier(content, "D"))],
+                    path: vec![InclusionPathItem::Symbol(identifier(source, "D"))],
                     params: Vec::new(),
-                    segment: find_in(content, "D"),
+                    segment: find_in(source, "D"),
                 })),
                 segment: source.segment(),
             }))
@@ -554,8 +506,7 @@ mod tests {
 
     #[test]
     fn chained_lambdas() {
-        let content = "((A => B) => C) => D";
-        let source = Source::unknown(content);
+        let source = "((A => B) => C) => D";
         let ast = Parser::new(source).parse_specific(Parser::parse_type);
         assert_eq!(
             ast,
@@ -563,28 +514,28 @@ mod tests {
                 params: vec![Type::Callable(CallableType {
                     params: vec![Type::Callable(CallableType {
                         params: vec![Type::Parametrized(ParametrizedType {
-                            path: vec![InclusionPathItem::Symbol(identifier(content, "A"))],
+                            path: vec![InclusionPathItem::Symbol(identifier(source, "A"))],
                             params: Vec::new(),
-                            segment: find_in(content, "A"),
+                            segment: find_in(source, "A"),
                         })],
                         output: Box::new(Type::Parametrized(ParametrizedType {
-                            path: vec![InclusionPathItem::Symbol(identifier(content, "B"))],
+                            path: vec![InclusionPathItem::Symbol(identifier(source, "B"))],
                             params: Vec::new(),
-                            segment: find_in(content, "B"),
+                            segment: find_in(source, "B"),
                         })),
-                        segment: find_in(content, "A => B"),
+                        segment: find_in(source, "A => B"),
                     })],
                     output: Box::new(Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol(identifier(content, "C"))],
+                        path: vec![InclusionPathItem::Symbol(identifier(source, "C"))],
                         params: Vec::new(),
-                        segment: find_in(content, "C"),
+                        segment: find_in(source, "C"),
                     })),
-                    segment: find_in(content, "(A => B) => C"),
+                    segment: find_in(source, "(A => B) => C"),
                 })],
                 output: Box::new(Type::Parametrized(ParametrizedType {
-                    path: vec![InclusionPathItem::Symbol(identifier(content, "D"))],
+                    path: vec![InclusionPathItem::Symbol(identifier(source, "D"))],
                     params: Vec::new(),
-                    segment: find_in(content, "D"),
+                    segment: find_in(source, "D"),
                 })),
                 segment: source.segment(),
             }))
@@ -593,15 +544,14 @@ mod tests {
 
     #[test]
     fn tuple_declaration() {
-        let content = "(A, B, C)";
-        let source = Source::unknown(content);
+        let source = "(A, B, C)";
         let ast = Parser::new(source).parse_specific(Parser::parse_type);
         assert_eq!(
             ast,
             Err(ParseError {
                 message: "Tuples are not yet supported. A lambda declaration was expected here"
                     .to_string(),
-                position: content.len()..content.len(),
+                position: source.len()..source.len(),
                 kind: Expected("(A, B, C) => <types>".to_string()),
             })
         );
@@ -609,41 +559,40 @@ mod tests {
 
     #[test]
     fn parenthesised_lambda_input() {
-        let content = "(A, B, C) => D => E";
-        let source = Source::unknown(content);
+        let source = "(A, B, C) => D => E";
         let ast = Parser::new(source).parse_specific(Parser::parse_type);
         assert_eq!(
             ast,
             Ok(Type::Callable(CallableType {
                 params: vec![
                     Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol(identifier(content, "A"))],
+                        path: vec![InclusionPathItem::Symbol(identifier(source, "A"))],
                         params: Vec::new(),
-                        segment: find_in(content, "A")
+                        segment: find_in(source, "A")
                     }),
                     Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol(identifier(content, "B"))],
+                        path: vec![InclusionPathItem::Symbol(identifier(source, "B"))],
                         params: Vec::new(),
-                        segment: find_in(content, "B")
+                        segment: find_in(source, "B")
                     }),
                     Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol(identifier(content, "C"))],
+                        path: vec![InclusionPathItem::Symbol(identifier(source, "C"))],
                         params: Vec::new(),
-                        segment: find_in(content, "C")
+                        segment: find_in(source, "C")
                     }),
                 ],
                 output: Box::new(Type::Callable(CallableType {
                     params: vec![Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol(identifier(content, "D"))],
+                        path: vec![InclusionPathItem::Symbol(identifier(source, "D"))],
                         params: Vec::new(),
-                        segment: find_in(content, "D")
+                        segment: find_in(source, "D")
                     })],
                     output: Box::new(Type::Parametrized(ParametrizedType {
-                        path: vec![InclusionPathItem::Symbol(identifier(content, "E"))],
+                        path: vec![InclusionPathItem::Symbol(identifier(source, "E"))],
                         params: Vec::new(),
-                        segment: find_in(content, "E")
+                        segment: find_in(source, "E")
                     })),
-                    segment: find_in(content, "D => E")
+                    segment: find_in(source, "D => E")
                 })),
                 segment: source.segment(),
             }))
@@ -652,8 +601,8 @@ mod tests {
 
     #[test]
     fn unparenthesised_lambda_input() {
-        let ast1 = Parser::new(Source::unknown("(A, B, C) => D => E => F")).parse_type();
-        let ast2 = Parser::new(Source::unknown("A => B => C")).parse_type();
+        let ast1 = Parser::new("(A, B, C) => D => E => F").parse_type();
+        let ast2 = Parser::new("A => B => C").parse_type();
         let expected1 = Err(ParseError {
             message: "Lambda type as input of another lambda must be surrounded with parenthesis"
                 .to_string(),

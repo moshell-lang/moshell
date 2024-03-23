@@ -8,17 +8,9 @@ use std::num::NonZeroU8;
 use crate::moves::of_type;
 use crate::parser::{ParseResult, Parser};
 
-pub trait RangeAspect<'a> {
+impl Parser<'_> {
     /// Parses a range or an iterable variable expression.
-    fn parse_range(&mut self, start: Expr<'a>) -> ParseResult<NumericRange<'a>>;
-
-    /// Parses a subscript expression.
-    fn parse_subscript(&mut self, target: Expr<'a>) -> ParseResult<Subscript<'a>>;
-}
-
-impl<'a> RangeAspect<'a> for Parser<'a> {
-    /// Parses a range or an iterable variable expression.
-    fn parse_range(&mut self, start: Expr<'a>) -> ParseResult<NumericRange<'a>> {
+    pub(crate) fn parse_range(&mut self, start: Expr) -> ParseResult<NumericRange> {
         // Could use a constant when `.expect()` becomes a const fn
         let precedence = NonZeroU8::new(infix_precedence(TokenType::DotDot) + 1)
             .expect("Precedence should be non-zero");
@@ -27,7 +19,7 @@ impl<'a> RangeAspect<'a> for Parser<'a> {
         let end = self.value_precedence(precedence)?;
 
         // Read the step of the range if it exists
-        let mut step: Option<Expr<'a>> = None;
+        let mut step: Option<Expr> = None;
         if self.cursor.advance(of_type(TokenType::DotDot)).is_some() {
             step = Some(self.value_precedence(precedence)?);
         }
@@ -40,7 +32,8 @@ impl<'a> RangeAspect<'a> for Parser<'a> {
         })
     }
 
-    fn parse_subscript(&mut self, target: Expr<'a>) -> ParseResult<Subscript<'a>> {
+    /// Parses a subscript expression.
+    pub(crate) fn parse_subscript(&mut self, target: Expr) -> ParseResult<Subscript> {
         self.cursor.force(
             of_type(TokenType::SquaredLeftBracket),
             "Expected '[' after subscript target",

@@ -6,24 +6,13 @@ use lexer::token::TokenType::{
 };
 use lexer::token::{Token, TokenType};
 
-use crate::aspects::expr_list::ExpressionListAspect;
 use crate::err::ParseErrorKind;
 use crate::moves::{any, blanks, of_type, of_types, spaces, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
-/// Parser aspect to parse all expressions in relation with modules.
-/// Which can be use statements, or module location prefix
-pub trait ModulesAspect<'a> {
-    ///parse a 'use x, y' statement
-    fn parse_use(&mut self) -> ParseResult<Expr<'a>>;
-
-    ///parse identifiers separated between `::` expressions.
-    /// This method stops when it founds an expressions that is not an identifier.
-    fn parse_path(&mut self) -> ParseResult<ast::variable::Path<'a>>;
-}
-
-impl<'a> ModulesAspect<'a> for Parser<'a> {
-    fn parse_use(&mut self) -> ParseResult<Expr<'a>> {
+impl Parser<'_> {
+    /// Parses a 'use x, y' statement
+    pub(crate) fn parse_use(&mut self) -> ParseResult<Expr> {
         let start = self
             .cursor
             .force(of_type(TokenType::Use), "expected 'use'")?;
@@ -37,7 +26,10 @@ impl<'a> ModulesAspect<'a> for Parser<'a> {
         }))
     }
 
-    fn parse_path(&mut self) -> ParseResult<ast::variable::Path<'a>> {
+    /// Parses identifiers separated between `::` expressions.
+    ///
+    /// This method stops when it finds an expressions that is not an identifier.
+    pub(crate) fn parse_path(&mut self) -> ParseResult<ast::variable::Path> {
         let first = self.parse_path_item()?;
         let mut path = vec![first];
         while let Some(delim) = self.cursor.advance(of_types(&[Colon, ColonColon, Dot])) {
@@ -58,13 +50,13 @@ impl<'a> ModulesAspect<'a> for Parser<'a> {
     }
 }
 
-impl<'a> Parser<'a> {
-    fn parse_path_item(&mut self) -> ParseResult<InclusionPathItem<'a>> {
+impl Parser<'_> {
+    fn parse_path_item(&mut self) -> ParseResult<InclusionPathItem> {
         let start = self.cursor.next()?;
 
         match start.token_type {
             Identifier => Ok(InclusionPathItem::Symbol(
-                ast::variable::Identifier::extract(self.source.source, start.span),
+                ast::variable::Identifier::extract(self.source, start.span),
             )),
             Reef => Ok(InclusionPathItem::Reef(start.span)),
             _ => self.expected_with(
@@ -75,7 +67,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_import(&mut self) -> ParseResult<Import<'a>> {
+    fn parse_import(&mut self) -> ParseResult<Import> {
         self.cursor.advance(blanks()); //consume blanks
 
         let pivot = self.cursor.peek();
@@ -90,7 +82,7 @@ impl<'a> Parser<'a> {
                     ParseErrorKind::Expected("<identifier>".to_string()),
                 )?;
                 Ok(Import::Environment(ast::variable::Identifier::extract(
-                    self.source.source,
+                    self.source,
                     env_variable.span,
                 )))
             }
@@ -108,8 +100,8 @@ impl<'a> Parser<'a> {
     fn parse_import_list(
         &mut self,
         start: Token,
-        root: Vec<InclusionPathItem<'a>>,
-    ) -> ParseResult<ImportList<'a>> {
+        root: Vec<InclusionPathItem>,
+    ) -> ParseResult<ImportList> {
         self.parse_explicit_list(
             CurlyLeftBracket,
             CurlyRightBracket,
@@ -133,7 +125,7 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_import_with_path(&mut self) -> ParseResult<Import<'a>> {
+    fn parse_import_with_path(&mut self) -> ParseResult<Import> {
         let start = self.cursor.peek();
 
         let symbol_path = self.parse_path()?;
@@ -175,7 +167,7 @@ impl<'a> Parser<'a> {
 
         Ok(Import::Symbol(ImportedSymbol {
             path: symbol_path.path,
-            alias: alias.map(|t| ast::variable::Identifier::extract(self.source.source, t.span)),
+            alias: alias.map(|t| ast::variable::Identifier::extract(self.source, t.span)),
             segment: start.span.start..end,
         }))
     }
@@ -200,7 +192,7 @@ mod tests {
     use ast::r#use::{Import, ImportList, ImportedSymbol, InclusionPathItem, Use};
     use ast::variable::{Path, TypedVariable, VarDeclaration, VarKind};
     use ast::Expr;
-    use context::source::{Source, SourceSegmentHolder};
+    use context::source::SourceSegmentHolder;
     use context::str_find::{find_in, find_in_nth};
 
     use crate::err::{ParseError, ParseErrorKind};
@@ -210,20 +202,20 @@ mod tests {
 
     #[test]
     fn simple_use() {
-        let source = Source::unknown("use reef::std::foo::bar");
+        let source = "use reef::std::foo::bar";
         let result = parse(source).expect("parser failed");
         assert_eq!(
             result,
             vec![Expr::Use(Use {
                 import: Import::Symbol(ImportedSymbol {
                     path: vec![
-                        InclusionPathItem::Reef(find_in(source.source, "reef")),
-                        InclusionPathItem::Symbol(identifier(source.source, "std")),
-                        InclusionPathItem::Symbol(identifier(source.source, "foo")),
-                        InclusionPathItem::Symbol(identifier(source.source, "bar")),
+                        InclusionPathItem::Reef(find_in(source, "reef")),
+                        InclusionPathItem::Symbol(identifier(source, "std")),
+                        InclusionPathItem::Symbol(identifier(source, "foo")),
+                        InclusionPathItem::Symbol(identifier(source, "bar")),
                     ],
                     alias: None,
-                    segment: find_in(source.source, "reef::std::foo::bar"),
+                    segment: find_in(source, "reef::std::foo::bar"),
                 }),
                 segment: source.segment(),
             })]
@@ -232,70 +224,70 @@ mod tests {
 
     #[test]
     fn wrong_env_name() {
-        let source = Source::unknown("use @9");
+        let source = "use @9";
         let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Err(ParseError {
                 message: "Environment variable name expected.".to_string(),
                 kind: ParseErrorKind::Expected("<identifier>".to_string()),
-                position: source.source.len() - 1..source.source.len(),
+                position: source.len() - 1..source.len(),
             })
         )
     }
 
     #[test]
     fn list_use_aliased() {
-        let source = Source::unknown("use std::foo::{bar} as X");
+        let source = "use std::foo::{bar} as X";
         let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Err(ParseError {
                 message: "expected end of expression or file".to_string(),
                 kind: ParseErrorKind::Unexpected,
-                position: source.source.find("as").map(|i| i..i + 2).unwrap(),
+                position: source.find("as").map(|i| i..i + 2).unwrap(),
             })
         )
     }
 
     #[test]
     fn use_empty_list() {
-        let source = Source::unknown("use {}");
+        let source = "use {}";
         let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Err(ParseError {
                 message: "empty brackets".to_string(),
                 kind: ParseErrorKind::Expected("non-empty brackets".to_string()),
-                position: source.source.find("{}").map(|i| i..i + 2).unwrap(),
+                position: source.find("{}").map(|i| i..i + 2).unwrap(),
             })
         )
     }
 
     #[test]
     fn use_all() {
-        let source = Source::unknown("use *");
+        let source = "use *";
         let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Err(ParseError {
                 message: "import all statement needs a symbol prefix.".to_string(),
                 kind: ParseErrorKind::Expected("module path".to_string()),
-                position: source.source.find('*').map(|i| i..i + 1).unwrap(),
+                position: source.find('*').map(|i| i..i + 1).unwrap(),
             })
         )
     }
 
     #[test]
     fn use_all_in() {
-        let source = Source::unknown("use std::*");
+        let source = "use std::*";
         let result = parse(source).expect("parser failed");
         assert_eq!(
             result,
             vec![Expr::Use(Use {
                 import: Import::AllIn(
-                    vec![InclusionPathItem::Symbol(identifier(source.source, "std"))],
-                    find_in(source.source, "std::*"),
+                    vec![InclusionPathItem::Symbol(identifier(source, "std"))],
+                    find_in(source, "std::*"),
                 ),
                 segment: source.segment(),
             })]
@@ -304,44 +296,42 @@ mod tests {
 
     #[test]
     fn uses() {
-        let source = Source::unknown(
-            "use \nreef::{std::TOKEN as X,    @A \n , @B \\\n , reef::foo::{my_function}}",
-        );
+        let source = "use \nreef::{std::TOKEN as X,    @A \n , @B \\\n , reef::foo::{my_function}}";
         let result = parse(source).expect("parser failed");
         assert_eq!(
             result,
             vec![Expr::Use(Use {
                 segment: source.segment(),
                 import: Import::List(ImportList {
-                    root: vec![InclusionPathItem::Reef(find_in(source.source, "reef"))],
+                    root: vec![InclusionPathItem::Reef(find_in(source, "reef"))],
                     segment: find_in(
-                        source.source,
+                        source,
                         "reef::{std::TOKEN as X,    @A \n , @B \\\n , reef::foo::{my_function}}"
                     ),
                     imports: vec![
                         Import::Symbol(ImportedSymbol {
                             path: vec![
-                                InclusionPathItem::Symbol(identifier(source.source, "std")),
-                                InclusionPathItem::Symbol(identifier(source.source, "TOKEN")),
+                                InclusionPathItem::Symbol(identifier(source, "std")),
+                                InclusionPathItem::Symbol(identifier(source, "TOKEN")),
                             ],
-                            alias: Some(identifier(source.source, "X")),
-                            segment: find_in(source.source, "std::TOKEN as X"),
+                            alias: Some(identifier(source, "X")),
+                            segment: find_in(source, "std::TOKEN as X"),
                         }),
-                        Import::Environment(identifier(source.source, "A")),
-                        Import::Environment(identifier(source.source, "B")),
+                        Import::Environment(identifier(source, "A")),
+                        Import::Environment(identifier(source, "B")),
                         Import::List(ImportList {
                             root: vec![
-                                InclusionPathItem::Reef(find_in_nth(source.source, "reef", 1)),
-                                InclusionPathItem::Symbol(identifier(source.source, "foo")),
+                                InclusionPathItem::Reef(find_in_nth(source, "reef", 1)),
+                                InclusionPathItem::Symbol(identifier(source, "foo")),
                             ],
-                            segment: find_in(source.source, "reef::foo::{my_function}"),
+                            segment: find_in(source, "reef::foo::{my_function}"),
                             imports: vec![Import::Symbol(ImportedSymbol {
                                 path: vec![InclusionPathItem::Symbol(identifier(
-                                    source.source,
+                                    source,
                                     "my_function"
                                 ))],
                                 alias: None,
-                                segment: find_in(source.source, "my_function"),
+                                segment: find_in(source, "my_function"),
                             })],
                         }),
                     ],
@@ -352,14 +342,13 @@ mod tests {
 
     #[test]
     fn use_trailing_comma() {
-        let content = "use TOKEN, A";
-        let source = Source::unknown(content);
+        let source = "use TOKEN, A";
         let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Err(ParseError {
                 message: "expected end of expression or file".to_string(),
-                position: content.find(',').map(|p| p..p + 1).unwrap(),
+                position: source.find(',').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected,
             })
         )
@@ -367,14 +356,13 @@ mod tests {
 
     #[test]
     fn use_empty() {
-        let content = "use";
-        let source = Source::unknown(content);
+        let source = "use";
         let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Err(ParseError {
                 message: "Expected identifier or `reef`.".to_owned(),
-                position: content.len()..content.len(),
+                position: source.len()..source.len(),
                 kind: ParseErrorKind::Unexpected,
             })
         )
@@ -382,22 +370,21 @@ mod tests {
 
     #[test]
     fn inline_path_in_var() {
-        let content = "val x = reef::math::tau";
-        let source = Source::unknown(content);
+        let source = "val x = reef::math::tau";
         let result: ParseResult<_> = parse(source).into();
         assert_eq!(
             result,
             Ok(vec![Expr::VarDeclaration(VarDeclaration {
                 kind: VarKind::Val,
                 var: TypedVariable {
-                    name: identifier(source.source, "x"),
+                    name: identifier(source, "x"),
                     ty: None,
                 },
                 initializer: Some(Box::new(Expr::Path(Path {
                     path: vec![
-                        InclusionPathItem::Reef(find_in(content, "reef")),
-                        InclusionPathItem::Symbol(identifier(source.source, "math")),
-                        InclusionPathItem::Symbol(identifier(source.source, "tau")),
+                        InclusionPathItem::Reef(find_in(source, "reef")),
+                        InclusionPathItem::Symbol(identifier(source, "math")),
+                        InclusionPathItem::Symbol(identifier(source, "tau")),
                     ],
                 }))),
                 segment: source.segment(),

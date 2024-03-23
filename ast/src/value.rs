@@ -21,8 +21,8 @@ pub enum LiteralValue {
 /// A group of expressions that can be interpolated into a string.
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct TemplateString<'a> {
-    pub parts: Vec<Expr<'a>>,
+pub struct TemplateString {
+    pub parts: Vec<Expr>,
 }
 
 impl From<&str> for LiteralValue {

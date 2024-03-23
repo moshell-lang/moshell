@@ -5,32 +5,15 @@ use ast::r#use::InclusionPathItem;
 use ast::range::Iterable;
 use ast::variable::{Assign, AssignOperator, TypedVariable};
 use ast::Expr;
-use context::source::{Source, SourceSegment, SourceSegmentHolder};
+use context::source::{SourceSegment, SourceSegmentHolder};
 use lexer::lex;
 use lexer::token::TokenType::*;
 use lexer::token::{Token, TokenType};
 use std::num::NonZeroU8;
 
 use crate::aspects::binary_operation::{infix_precedence, shell_infix_precedence};
-use crate::aspects::call::CallAspect;
-use crate::aspects::detached::DetachedAspect;
-use crate::aspects::expr_list::ExpressionListAspect;
-use crate::aspects::function_declaration::FunctionDeclarationAspect;
-use crate::aspects::group::GroupAspect;
-use crate::aspects::if_else::IfElseAspect;
-use crate::aspects::lambda_def::LambdaDefinitionAspect;
-use crate::aspects::literal::{LiteralAspect, LiteralLeniency};
-use crate::aspects::modules::ModulesAspect;
-use crate::aspects::r#loop::LoopAspect;
-use crate::aspects::r#match::MatchAspect;
-use crate::aspects::r#struct::StructAspect;
-use crate::aspects::r#type::TypeAspect;
-use crate::aspects::range::RangeAspect;
-use crate::aspects::redirection::RedirectionAspect;
-use crate::aspects::test::TestAspect;
-use crate::aspects::var_declaration::VarDeclarationAspect;
+use crate::aspects::literal::LiteralLeniency;
 use crate::cursor::ParserCursor;
-use crate::err::ParseErrorKind::Unexpected;
 use crate::err::{determine_skip_sections, ParseError, ParseErrorKind, ParseReport, SkipSections};
 use crate::moves::{
     any, blanks, like, line_end, next, of_type, of_types, repeat, spaces, Move, MoveOperations,
@@ -41,17 +24,17 @@ pub(crate) type ParseResult<T> = Result<T, ParseError>;
 /// A parser for the Moshell scripting language.
 pub(crate) struct Parser<'a> {
     pub(crate) cursor: ParserCursor<'a>,
-    pub(crate) source: Source<'a>,
+    pub(crate) source: &'a str,
     pub(crate) skip: SkipSections,
     errors: Vec<ParseError>,
 }
 
 impl<'a> Parser<'a> {
     /// Creates a new parser from a defined source.
-    pub(crate) fn new(source: Source<'a>) -> Self {
-        let (tokens, unmatched) = lex(source.source);
-        let cursor = ParserCursor::new_with_source(tokens, source.source);
-        let skip = determine_skip_sections(source.source.len(), &unmatched);
+    pub(crate) fn new(source: &'a str) -> Self {
+        let (tokens, unmatched) = lex(source);
+        let cursor = ParserCursor::new_with_source(tokens, source);
+        let skip = determine_skip_sections(source.len(), &unmatched);
         let errors = unmatched
             .into_iter()
             .filter_map(|unmatched| {
@@ -68,15 +51,15 @@ impl<'a> Parser<'a> {
                     .to_owned(),
                     position: if let Some(candidate) = unmatched.candidate {
                         candidate..candidate + 1
-                    } else if source.source.as_bytes()[unmatched.opening?] == b'\'' {
-                        source.source.len()..source.source.len()
+                    } else if source.as_bytes()[unmatched.opening?] == b'\'' {
+                        source.len()..source.len()
                     } else {
                         return None;
                     },
                     kind: if let Some(opening) = unmatched.opening {
                         ParseErrorKind::Unpaired(opening..opening + 1)
                     } else {
-                        Unexpected
+                        ParseErrorKind::Unexpected
                     },
                 })
             })
@@ -90,7 +73,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses input tokens into an abstract syntax tree representation.
-    pub fn parse(mut self) -> ParseReport<'a> {
+    pub fn parse(mut self) -> ParseReport {
         let mut statements = Vec::new();
 
         while self.look_for_input() {
@@ -151,7 +134,7 @@ impl<'a> Parser<'a> {
     /// Parses the root of an expression tree.
     ///
     /// It usually spans on at least one entire line.
-    pub(crate) fn declaration(&mut self) -> ParseResult<Expr<'a>> {
+    pub(crate) fn declaration(&mut self) -> ParseResult<Expr> {
         self.repos("Expected declaration or statement")?;
         match self.cursor.peek().token_type {
             Use => self.parse_use(),
@@ -164,11 +147,11 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a statement.
-    pub(crate) fn statement(&mut self) -> ParseResult<Expr<'a>> {
+    pub(crate) fn statement(&mut self) -> ParseResult<Expr> {
         self.statement_precedence(NonZeroU8::MIN)
     }
 
-    fn statement_precedence(&mut self, min_precedence: NonZeroU8) -> ParseResult<Expr<'a>> {
+    fn statement_precedence(&mut self, min_precedence: NonZeroU8) -> ParseResult<Expr> {
         let mut lhs = self.next_statement()?;
         lhs = self.parse_detached(lhs)?;
         loop {
@@ -204,7 +187,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses an expression.
-    pub(crate) fn expression(&mut self) -> ParseResult<Expr<'a>> {
+    pub(crate) fn expression(&mut self) -> ParseResult<Expr> {
         self.repos("Expected expression")?;
 
         let pivot = self.cursor.peek().token_type;
@@ -228,12 +211,12 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a value.
-    pub(crate) fn value(&mut self) -> ParseResult<Expr<'a>> {
+    pub(crate) fn value(&mut self) -> ParseResult<Expr> {
         self.value_precedence(NonZeroU8::MIN)
     }
 
     /// Parses the left-hand side of the next statement.
-    fn next_statement(&mut self) -> ParseResult<Expr<'a>> {
+    fn next_statement(&mut self) -> ParseResult<Expr> {
         self.repos("Expected statement")?;
 
         let pivot = self.cursor.peek().token_type;
@@ -262,7 +245,7 @@ impl<'a> Parser<'a> {
                     let segment = name.span.start..body.segment().end;
                     return Ok(Expr::LambdaDef(LambdaDef {
                         args: vec![TypedVariable {
-                            name: ast::variable::Identifier::extract(self.source.source, name.span),
+                            name: ast::variable::Identifier::extract(self.source, name.span),
                             ty: None,
                         }],
                         body,
@@ -275,7 +258,7 @@ impl<'a> Parser<'a> {
                 Ok(Expr::Assign(Assign {
                     left: Box::new(Expr::Path(ast::variable::Path {
                         path: vec![InclusionPathItem::Symbol(
-                            ast::variable::Identifier::extract(self.source.source, name.span),
+                            ast::variable::Identifier::extract(self.source, name.span),
                         )],
                     })),
                     operator,
@@ -333,7 +316,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses the left-hand side of the next value.
-    fn lhs(&mut self) -> ParseResult<Expr<'a>> {
+    fn lhs(&mut self) -> ParseResult<Expr> {
         self.repos("Expected value")?;
         match self.cursor.peek().token_type {
             RoundedLeftBracket => self.lambda_or_parentheses(),
@@ -386,7 +369,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub(crate) fn value_precedence(&mut self, min_precedence: NonZeroU8) -> ParseResult<Expr<'a>> {
+    pub(crate) fn value_precedence(&mut self, min_precedence: NonZeroU8) -> ParseResult<Expr> {
         // Parse prefix operators
         let mut lhs = self.lhs()?;
 
@@ -458,7 +441,7 @@ impl<'a> Parser<'a> {
         Ok(lhs)
     }
 
-    pub(crate) fn parse_next(&mut self) -> ParseResult<Expr<'a>> {
+    pub(crate) fn parse_next(&mut self) -> ParseResult<Expr> {
         let declaration = self.declaration();
         if declaration.is_ok() {
             // Consume end of statement
@@ -473,7 +456,7 @@ impl<'a> Parser<'a> {
     }
 
     ///handle tricky case of lambda `(e) => x` and parentheses `(e)`
-    fn lambda_or_parentheses(&mut self) -> ParseResult<Expr<'a>> {
+    fn lambda_or_parentheses(&mut self) -> ParseResult<Expr> {
         let initial = self.cursor.get_pos();
         self.advance_to_parenthesis_end();
         if self
@@ -490,7 +473,7 @@ impl<'a> Parser<'a> {
     }
 
     ///handle tricky case of lambda `(e) => x` and subshell `(e)`
-    fn subshell_or_parentheses(&mut self) -> ParseResult<Expr<'a>> {
+    fn subshell_or_parentheses(&mut self) -> ParseResult<Expr> {
         let initial = self.cursor.get_pos();
         self.advance_to_parenthesis_end();
         if self
@@ -583,7 +566,7 @@ impl<'a> Parser<'a> {
     pub(crate) fn repos(&mut self, message: &str) -> ParseResult<()> {
         self.cursor.advance(spaces()); //skip word separators
         if self.cursor.lookahead(line_end()).is_some() {
-            return self.expected(message, Unexpected);
+            return self.expected(message, ParseErrorKind::Unexpected);
         }
         Ok(())
     }

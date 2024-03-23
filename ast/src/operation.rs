@@ -8,12 +8,12 @@ use crate::Expr;
 /// A prefix unary operation.
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct UnaryOperation<'a> {
+pub struct UnaryOperation {
     /// The operator of the operation.
     pub op: UnaryOperator,
 
     /// The expression the operator is applied to.
-    pub expr: Box<Expr<'a>>,
+    pub expr: Box<Expr>,
 }
 
 /// A prefix unary operator.
@@ -27,16 +27,16 @@ pub enum UnaryOperator {
 
 /// A binary operation between two expressions.
 #[derive(Debug, Clone, PartialEq)]
-pub struct BinaryOperation<'a> {
+pub struct BinaryOperation {
     /// The left-hand side of the operation.
-    pub left: Box<Expr<'a>>,
+    pub left: Box<Expr>,
     /// The operator of the operation.
     pub op: BinaryOperator,
     /// The right-hand side of the operation.
-    pub right: Box<Expr<'a>>,
+    pub right: Box<Expr>,
 }
 
-impl SourceSegmentHolder for BinaryOperation<'_> {
+impl SourceSegmentHolder for BinaryOperation {
     fn segment(&self) -> SourceSegment {
         self.left.segment().start..self.right.segment().end
     }

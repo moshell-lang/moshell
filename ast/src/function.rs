@@ -7,29 +7,29 @@ use crate::Expr;
 
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct Return<'a> {
-    pub expr: Option<Box<Expr<'a>>>,
+pub struct Return {
+    pub expr: Option<Box<Expr>>,
 }
 
 #[segment_holder]
 #[derive(Debug, Clone, PartialEq)]
-pub struct FunctionDeclaration<'a> {
-    pub name: Identifier<'a>,
-    pub type_parameters: Vec<TypeParameter<'a>>,
-    pub parameters: Vec<FunctionParameter<'a>>,
-    pub return_type: Option<Type<'a>>,
-    pub body: Option<Box<Expr<'a>>>,
+pub struct FunctionDeclaration {
+    pub name: Identifier,
+    pub type_parameters: Vec<TypeParameter>,
+    pub parameters: Vec<FunctionParameter>,
+    pub return_type: Option<Type>,
+    pub body: Option<Box<Expr>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum FunctionParameter<'a> {
-    Named(TypedVariable<'a>),
+pub enum FunctionParameter {
+    Named(TypedVariable),
     ///argument is the type of the variable (if any).
-    Variadic(Option<Type<'a>>, SourceSegment),
+    Variadic(Option<Type>, SourceSegment),
     Slf(SourceSegment),
 }
 
-impl SourceSegmentHolder for FunctionParameter<'_> {
+impl SourceSegmentHolder for FunctionParameter {
     fn segment(&self) -> SourceSegment {
         match self {
             FunctionParameter::Named(n) => n.segment(),

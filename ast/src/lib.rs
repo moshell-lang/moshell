@@ -36,65 +36,65 @@ pub mod variable;
 
 /// A expression that can be evaluated.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Expr<'a> {
-    Assign(Assign<'a>),
-    Unary(UnaryOperation<'a>),
-    Binary(BinaryOperation<'a>),
+pub enum Expr {
+    Assign(Assign),
+    Unary(UnaryOperation),
+    Binary(BinaryOperation),
     Literal(Literal),
 
-    Match(Match<'a>),
+    Match(Match),
 
-    Call(Call<'a>),
-    ProgrammaticCall(ProgrammaticCall<'a>),
-    MethodCall(MethodCall<'a>),
-    Pipeline(Pipeline<'a>),
-    Redirected(Redirected<'a>),
-    Detached(Detached<'a>),
+    Call(Call),
+    ProgrammaticCall(ProgrammaticCall),
+    MethodCall(MethodCall),
+    Pipeline(Pipeline),
+    Redirected(Redirected),
+    Detached(Detached),
 
-    LambdaDef(LambdaDef<'a>),
+    LambdaDef(LambdaDef),
 
-    Substitution(Substitution<'a>),
-    TemplateString(TemplateString<'a>),
+    Substitution(Substitution),
+    TemplateString(TemplateString),
 
-    Use(Use<'a>),
+    Use(Use),
 
-    Casted(CastedExpr<'a>),
+    Casted(CastedExpr),
 
-    Test(Test<'a>),
+    Test(Test),
 
-    StructDeclaration(StructDeclaration<'a>),
-    Impl(StructImpl<'a>),
+    StructDeclaration(StructDeclaration),
+    Impl(StructImpl),
 
-    If(If<'a>),
-    While(While<'a>),
-    Loop(Loop<'a>),
-    For(For<'a>),
+    If(If),
+    While(While),
+    Loop(Loop),
+    For(For),
 
     Continue(SourceSegment),
     Break(SourceSegment),
-    Return(Return<'a>),
+    Return(Return),
 
     // Identifiables
-    Path(Path<'a>),
-    VarReference(VarReference<'a>),
-    VarDeclaration(VarDeclaration<'a>),
-    Range(Iterable<'a>),
-    Subscript(Subscript<'a>),
-    FieldAccess(FieldAccess<'a>),
-    Tilde(TildeExpansion<'a>),
+    Path(Path),
+    VarReference(VarReference),
+    VarDeclaration(VarDeclaration),
+    Range(Iterable),
+    Subscript(Subscript),
+    FieldAccess(FieldAccess),
+    Tilde(TildeExpansion),
 
-    FunctionDeclaration(FunctionDeclaration<'a>),
+    FunctionDeclaration(FunctionDeclaration),
 
     //Grouping expressions
     /// a parenthesis expression `( ... )` that contains one value expression
-    Parenthesis(Parenthesis<'a>),
+    Parenthesis(Parenthesis),
     /// a subshell expression `( ... )` that contains several expressions
-    Subshell(Subshell<'a>),
+    Subshell(Subshell),
     /// a block expression `{ ... }` that contains several expressions
-    Block(Block<'a>),
+    Block(Block),
 }
 
-impl SourceSegmentHolder for Expr<'_> {
+impl SourceSegmentHolder for Expr {
     fn segment(&self) -> SourceSegment {
         match self {
             Expr::FieldAccess(fa) => fa.segment(),
