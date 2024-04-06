@@ -3,7 +3,7 @@ use ast::variable::Identifier;
 use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
 
-use crate::moves::{blanks, of_type, MoveOperations};
+use crate::moves::{blanks, eog, line_end, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
 impl Parser<'_> {
@@ -78,7 +78,11 @@ impl Parser<'_> {
 
         while end_token.is_none() {
             self.cursor.advance(blanks());
-            functions.push(self.parse_function_declaration()?);
+            match self.parse_function_declaration() {
+                Ok(function) => functions.push(function),
+                Err(err) => self.recover_from(err, eog()),
+            }
+            self.cursor.advance(line_end());
 
             end_token = self
                 .cursor
@@ -231,6 +235,32 @@ mod tests {
                     },
                 ],
                 segment: src.segment(),
+            })]
+        )
+    }
+
+    #[test]
+    fn method_accepts_semi() {
+        let source = "impl A { fun test(); }";
+        let result = parse(source).expect("errors");
+        assert_eq!(
+            result,
+            vec![Expr::Impl(StructImpl {
+                type_parameters: vec![],
+                impl_type: Type::Parametrized(ParametrizedType {
+                    path: vec![InclusionPathItem::Symbol(identifier(source, "A"))],
+                    params: vec![],
+                    segment: find_in(source, "A"),
+                }),
+                functions: vec![FunctionDeclaration {
+                    name: identifier(source, "test"),
+                    type_parameters: vec![],
+                    parameters: vec![],
+                    return_type: None,
+                    body: None,
+                    segment: find_in(source, "fun test();"),
+                }],
+                segment: source.segment(),
             })]
         )
     }

@@ -520,3 +520,17 @@ fn call_number() {
         }]
     );
 }
+
+#[test]
+fn method_recover_impl() {
+    let source = "impl Bar { val count = 0 }";
+    let report = parse(source);
+    assert_eq!(
+        report.errors,
+        vec![ParseError {
+            message: "expected 'fun' keyword at start of function declaration.".to_owned(),
+            position: find_in(source, "val"),
+            kind: ParseErrorKind::Unexpected,
+        }]
+    );
+}
