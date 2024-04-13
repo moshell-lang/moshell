@@ -1,139 +1,160 @@
-use std::io;
-use std::io::Write;
+use std::path::PathBuf;
 
-use analyzer::diagnostic::Diagnostic;
-use analyzer::engine::Engine;
-use miette::{LabeledSpan, MietteDiagnostic, Report, Severity, SourceSpan};
+use analyzer::symbol::SymbolDesc;
+use analyzer::typing::{TypeError, TypeErrorKind};
+use analyzer::{Filesystem, PipelineError, SourceLocation};
+use miette::{LabeledSpan, MietteDiagnostic, Severity, SourceOffset, SourceSpan};
 
-use analyzer::reef::{Externals, ReefId};
-use context::source::{ContentId, Source, SourceSegment};
-use parser::err::{ParseError, ParseErrorKind};
+use context::source::Span;
 
-use crate::pipeline::{SourceHolder, SourcesCache};
-
-fn offset_empty_span(span: SourceSegment) -> SourceSpan {
-    if span.start == span.end {
-        (span.start - 1..span.end).into()
-    } else {
-        span.into()
+pub fn error_to_diagnostic(
+    value: PipelineError,
+    multi_file: &mut MultiFile,
+    fs: &dyn Filesystem,
+) -> MietteDiagnostic {
+    match value {
+        PipelineError::Import { path, error, cause } => {
+            let mut diagnostic =
+                MietteDiagnostic::new(format!("unable to import {}: {error}", path.display()));
+            if let Some(SourceLocation { path, span }) = cause {
+                let span = multi_file.insert(path, span, fs);
+                diagnostic = diagnostic.with_label(LabeledSpan::new_with_span(None, span))
+            }
+            diagnostic
+        }
+        PipelineError::Parse { path, error } => {
+            let span = multi_file.insert(path, error.position, fs);
+            MietteDiagnostic::new(error.message)
+                .with_severity(Severity::Error)
+                .and_label(LabeledSpan::new_with_span(Some("Here".to_string()), span))
+        }
+        PipelineError::Type(error) => type_error_to_diagnostic(error, multi_file, fs),
     }
 }
 
-pub fn display_parse_error<W: Write>(
-    source: Source,
-    error: ParseError,
-    writer: &mut W,
-) -> io::Result<()> {
-    let span = offset_empty_span(error.position);
-    let mut diag = MietteDiagnostic::new(error.message)
-        .with_severity(Severity::Error)
-        .and_label(LabeledSpan::new(
-            Some("Here".to_string()),
-            span.offset(),
-            span.len(),
-        ));
-
-    match error.kind {
-        ParseErrorKind::Expected(e) => diag = diag.with_help(format!("expected: {e}")),
-        ParseErrorKind::UnexpectedInContext(e) => diag = diag.with_help(e),
-        ParseErrorKind::Unpaired(e) => {
-            let unpaired_span = offset_empty_span(e);
-            diag = diag.and_label(LabeledSpan::new(
-                Some("Start".to_string()),
-                unpaired_span.offset(),
-                unpaired_span.len(),
-            ));
+fn type_error_to_diagnostic(
+    TypeError { kind, at }: TypeError,
+    multi_file: &mut MultiFile,
+    fs: &dyn Filesystem,
+) -> MietteDiagnostic {
+    let at_span = multi_file.insert(at.path.clone(), at.span, fs);
+    let mut diagnostic = MietteDiagnostic::new(kind.to_string())
+        .with_label(LabeledSpan::new_with_span(None, at_span));
+    match kind {
+        TypeErrorKind::DuplicateSymbol { previous, .. } => {
+            let previous_span = multi_file.insert(at.path, previous, fs);
+            diagnostic.and_label(LabeledSpan::new_with_span(
+                Some("previous declaration here".to_owned()),
+                previous_span,
+            ))
         }
-        _ => {}
+        TypeErrorKind::UndefinedSymbol {
+            name,
+            expected,
+            found: Some(SymbolDesc { registry, span }),
+        } => {
+            let symbol_span = multi_file.insert(at.path, span, fs);
+            diagnostic.message = format!("expected {expected}, found {registry} `{name}`");
+            diagnostic.and_label(LabeledSpan::new_with_span(
+                Some(format!("{registry} defined here")),
+                symbol_span,
+            ))
+        }
+        TypeErrorKind::TypeMismatch {
+            expected_due_to: Some(expected_due_to),
+            ..
+        } => {
+            let expected_span = multi_file.insert(expected_due_to.path, expected_due_to.span, fs);
+            diagnostic.and_label(LabeledSpan::new_with_span(
+                Some("expected here".to_owned()),
+                expected_span,
+            ))
+        }
+        TypeErrorKind::UnknownField { available, .. } => diagnostic.with_help(format!(
+            "Available fields: {}",
+            available.into_iter().collect::<Vec<_>>().join(", ")
+        )),
+        TypeErrorKind::TypeAnnotationRequired { types, insert_at } => {
+            let span = multi_file.insert(at.path, insert_at..insert_at, fs);
+            diagnostic.with_label(LabeledSpan::new_with_span(
+                Some(format!("::[{}]", types.join(", "))),
+                span,
+            ))
+        }
+        TypeErrorKind::RepeatedParameterName { name, previous } => {
+            let previous_span = multi_file.insert(at.path, previous, fs);
+            diagnostic.and_label(LabeledSpan::new_with_span(
+                Some(format!("previous declaration of `{name}`")),
+                previous_span,
+            ))
+        }
+        TypeErrorKind::MethodLikeFieldAccess { name, parentheses } => diagnostic.with_help(
+            format!("use parentheses to call the method: .{name}{parentheses}",),
+        ),
+        _ => diagnostic,
     }
-    write_diagnostic(diag, Some(source), writer)
 }
 
-pub fn display_diagnostic<W: Write>(
-    externals: &Externals,
-    current_engine: &Engine,
-    engine_reef: ReefId,
-    sources: &SourcesCache,
-    diagnostic: Diagnostic,
-    writer: &mut W,
-) -> io::Result<()> {
-    let mut diag = MietteDiagnostic::new(diagnostic.global_message);
+#[derive(Default)]
+pub struct MultiFile {
+    sources: Vec<VirtualFile>,
+}
 
-    let id = diagnostic.identifier;
-    diag = if id.critical() {
-        diag.with_severity(Severity::Error)
-            .with_code(format!("error[E{:04}]", id.code()))
-    } else {
-        diag.with_severity(Severity::Warning)
-            .with_code(format!("warn[W{:04}]", id.code()))
-    };
+struct VirtualFile {
+    name: PathBuf,
+    source: String,
+}
 
-    if let Some((head, tail)) = diagnostic.helps.split_first() {
-        if tail.is_empty() {
-            diag = diag.with_help(head)
+impl MultiFile {
+    pub fn insert(&mut self, path: PathBuf, span: Span, fs: &dyn Filesystem) -> SourceSpan {
+        let mut start = 0usize;
+        for source in &self.sources {
+            if source.name == path {
+                return SourceSpan::new(SourceOffset::from(start + span.start), span.len());
+            } else {
+                start += source.source.len();
+            }
         }
-        let helps = tail.iter().fold(format!("\n- {head}"), |acc, help| {
-            format!("{acc}\n- {help}")
+        let source = fs.read(&path).unwrap();
+        self.sources.push(VirtualFile {
+            name: path,
+            source: source.to_string(),
         });
-        diag = diag.with_help(helps)
+        SourceSpan::new(SourceOffset::from(start + span.start), span.len())
     }
-
-    struct AttachedSource<'a> {
-        reef: ReefId,
-        id: ContentId,
-        content: Source<'a>,
-    }
-
-    let mut displayed_source: Option<AttachedSource> = None;
-    for obs in diagnostic.observations {
-        let loc = obs.location;
-        let engine = if engine_reef == loc.reef {
-            current_engine
-        } else {
-            &externals.get_reef(loc.reef).unwrap().engine
-        };
-
-        let content_id = engine
-            .get_original_content(loc.source)
-            .expect("Unknown source");
-
-        if displayed_source
-            .as_ref()
-            .map_or(true, |s| s.id == content_id && s.reef == loc.reef)
-        {
-            let source = sources
-                .get(loc.reef)
-                .and_then(|importer| importer.get_source(content_id))
-                .expect("Unknown source");
-            let span = loc.segment.clone();
-            diag = diag.and_label(LabeledSpan::new(obs.message, span.start, span.len()));
-            displayed_source = Some(AttachedSource {
-                reef: loc.reef,
-                id: content_id,
-                content: source,
-            });
-        }
-    }
-
-    write_diagnostic(diag, displayed_source.map(|s| s.content), writer)
 }
 
-fn write_diagnostic<W: Write>(
-    diagnostic: MietteDiagnostic,
-    source: Option<Source>,
-    writer: &mut W,
-) -> io::Result<()> {
-    let report = Report::from(diagnostic);
-    if let Some(source) = source {
-        unsafe {
-            //SAFETY: the CLI source is transmuted to a static lifetime, because `report.with_source_code`
-            // needs a source with a static lifetime.
-            // The report and the source are then used to display the formatted diagnostic and are immediately dropped after.
-            let source = std::mem::transmute::<Source, Source<'static>>(source);
-            let report = report.with_source_code(source);
-            writeln!(writer, "\n{report:?}")
+impl miette::SourceCode for MultiFile {
+    fn read_span<'b>(
+        &'b self,
+        span: &SourceSpan,
+        context_lines_before: usize,
+        context_lines_after: usize,
+    ) -> Result<Box<dyn miette::SpanContents<'b> + 'b>, miette::MietteError> {
+        let mut start = 0usize;
+        for file in &self.sources {
+            if start + file.source.len() <= span.offset() {
+                start += file.source.len();
+                continue;
+            }
+            let local_span = SourceSpan::new(SourceOffset::from(span.offset() - start), span.len());
+            let contents =
+                file.source
+                    .read_span(&local_span, context_lines_before, context_lines_after)?;
+            let local_span = contents.span();
+            let span = SourceSpan::new(
+                SourceOffset::from(local_span.offset() + start),
+                local_span.len(),
+            );
+            return Ok(Box::new(miette::MietteSpanContents::new_named(
+                file.name.to_string_lossy().to_string(),
+                contents.data(),
+                span,
+                contents.line(),
+                contents.column(),
+                contents.line_count(),
+            )));
         }
-    } else {
-        writeln!(writer, "\n{report:?}")
+        Err(miette::MietteError::OutOfBounds)
     }
 }

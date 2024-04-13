@@ -8,8 +8,10 @@ edition = "2021"
 [dependencies]
 ast = { path = "../ast" }
 context = { path = "../context" }
+parser = { path = "../parser" }
 enum-assoc = "1.0.0"
 indexmap = "2.0.2"
+thiserror = "1.0.58"
 
 [dev-dependencies]
 parser = { path = "../parser" }

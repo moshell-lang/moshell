@@ -1,14 +1,12 @@
 use std::mem::size_of;
 
+use analyzer::typing::user::{self, TypeId};
+use analyzer::typing::variable::{LocalId, Var};
 use num_enum::TryFromPrimitive;
 
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
 use crate::structure::StructureLayout;
-use analyzer::relations::{LocalId, ResolvedSymbol};
-use analyzer::types;
-use analyzer::types::hir::Var;
-use analyzer::types::ty::TypeRef;
 
 #[derive(Debug, Clone)]
 pub struct Placeholder {
@@ -138,10 +136,10 @@ impl<'a> Instructions<'a> {
         self.emit_code(pop_opcode);
     }
 
-    pub fn emit_box_if_primitive(&mut self, ty: TypeRef) {
+    pub fn emit_box_if_primitive(&mut self, ty: TypeId) {
         match ty {
-            types::EXITCODE | types::BOOL => self.emit_code(Opcode::BoxByte),
-            types::INT | types::FLOAT => self.emit_code(Opcode::BoxQWord),
+            user::BOOL_TYPE => self.emit_code(Opcode::BoxByte),
+            user::INT_TYPE | user::FLOAT_TYPE => self.emit_code(Opcode::BoxQWord),
             _ => { /* Objects are already on the heap */ }
         }
     }
@@ -161,7 +159,7 @@ impl<'a> Instructions<'a> {
     /// emits instructions to assign given local identifier with last operand stack value
     /// assuming the value size is the given `size` argument
     pub fn emit_set_local(&mut self, var: LocalId, size: ValueStackSize, layout: &LocalsLayout) {
-        let index = layout.get_index(var).unwrap();
+        let index = layout.get_index(var);
         let opcode = match size {
             ValueStackSize::Byte => Opcode::SetLocalByte,
             ValueStackSize::QWord => Opcode::SetLocalQWord,
@@ -173,7 +171,7 @@ impl<'a> Instructions<'a> {
 
     pub fn emit_set_capture(
         &mut self,
-        capture: ResolvedSymbol,
+        capture: LocalId,
         size: ValueStackSize,
         layout: &LocalsLayout,
     ) {
@@ -204,7 +202,7 @@ impl<'a> Instructions<'a> {
     /// emits instructions to push to operand stack given local identifier
     /// assuming the local's size is the given `size` argument
     pub fn emit_get_local(&mut self, local: LocalId, size: ValueStackSize, layout: &LocalsLayout) {
-        let index = layout.get_index(local).unwrap();
+        let index = layout.get_index(local);
         let opcode = match size {
             ValueStackSize::Byte => Opcode::GetLocalByte,
             ValueStackSize::QWord => Opcode::GetLocalQWord,
@@ -216,7 +214,7 @@ impl<'a> Instructions<'a> {
 
     pub fn emit_get_capture(
         &mut self,
-        capture: ResolvedSymbol,
+        capture: LocalId,
         size: ValueStackSize,
         layout: &LocalsLayout,
     ) {
@@ -238,9 +236,7 @@ impl<'a> Instructions<'a> {
 
     /// pushes a reference to the given symbol on the stack's locals
     pub fn emit_push_stack_ref(&mut self, var: Var, layout: &LocalsLayout) {
-        self.emit_code(Opcode::PushLocalRef);
-        let index = layout.get_var_index(var).unwrap();
-        self.bytecode.emit_u32(index);
+        todo!("emit_push_stack_ref")
     }
 
     /// Emits the instructions to push the value of the given external symbol on top of the stack.

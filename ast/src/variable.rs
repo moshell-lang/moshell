@@ -164,7 +164,7 @@ pub enum Tilde {
     WorkingDir,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Identifier {
     pub value: CompactString,
     pub start: usize,

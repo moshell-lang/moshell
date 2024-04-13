@@ -1,23 +1,14 @@
-use std::collections::HashMap;
-use std::io::stderr;
-use std::path::PathBuf;
-
+use crate::disassemble::display_bytecode;
+use crate::pipeline::RealFilesystem;
+use crate::report::{error_to_diagnostic, MultiFile};
+use analyzer::{Database, PipelineError, Reef};
 use clap::Parser;
 use clap_complete::Shell;
-
-use analyzer::diagnostic::Diagnostic;
-use analyzer::name::Name;
-use analyzer::reef::Externals;
-use analyzer::relations::SourceId;
-use analyzer::Analyzer;
-use compiler::externals::CompilerExternals;
-use compiler::{compile_reef, CompilerOptions, SourceLineProvider};
-use context::source::ContentId;
+use cli::pipeline::PipelineStatus;
+use compiler::{compile_reef, CompilerOptions};
+use miette::Report;
+use std::path::PathBuf;
 use vm::{VmError, VM};
-
-use crate::disassemble::display_bytecode;
-use crate::pipeline::{FileImportError, PipelineStatus, SourceHolder, SourcesCache};
-use crate::report::{display_diagnostic, display_parse_error};
 
 /// The Moshell scripting language.
 #[derive(Parser)]
@@ -52,145 +43,41 @@ pub struct Cli {
     pub(crate) program_arguments: Vec<String>,
 }
 
-pub struct CachedSourceLocationLineProvider {
-    lines: HashMap<ContentId, Vec<usize>>,
-}
-
-impl CachedSourceLocationLineProvider {
-    fn compute(contents: &[ContentId], sources: &impl SourceHolder) -> Self {
-        let lines = contents
-            .iter()
-            .map(|&content_id| {
-                let source = sources.get_source(content_id).expect("unknown content id");
-
-                let source_start_addr = source.source.as_ptr() as usize;
-
-                let source_lines_starts: Vec<_> = source
-                    .source
-                    .lines()
-                    .map(|line| line.as_ptr() as usize - source_start_addr)
-                    .collect();
-
-                (content_id, source_lines_starts)
-            })
-            .collect();
-
-        Self { lines }
-    }
-}
-
-impl SourceLineProvider for CachedSourceLocationLineProvider {
-    fn get_line(&self, content: ContentId, pos: usize) -> Option<usize> {
-        self.lines.get(&content).map(|lines| {
-            lines
-                .binary_search(&pos)
-                .map(|line| line + 1)
-                .unwrap_or_else(|line| line)
-        })
-    }
-}
-
 #[must_use = "The pipeline status should be checked"]
-#[allow(clippy::too_many_arguments)]
 pub fn use_pipeline(
-    entry_point: &Name,
-    starting_page: SourceId,
-    analyzer: &Analyzer<'_>,
-    externals: &Externals,
-    compiler_externals: &mut CompilerExternals,
+    database: &Database,
+    reef: &Reef,
+    fs: &RealFilesystem,
     vm: &mut VM,
-    diagnostics: Vec<Diagnostic>,
-    errors: Vec<FileImportError>,
-    sources: &SourcesCache,
+    errors: Vec<PipelineError>,
     config: &Cli,
 ) -> PipelineStatus {
-    if errors.is_empty() && analyzer.resolution.engine.is_empty() {
-        eprintln!("No module found for entry point {entry_point}");
-        return PipelineStatus::IoError;
-    }
-
-    let reef_id = externals.current;
-
-    let mut import_status = PipelineStatus::Success;
+    let mut status = PipelineStatus::Success;
     for error in errors {
-        match error {
-            FileImportError::IO { inner, path } => {
-                eprintln!("Couldn't read {}: {inner}", path.display());
-                import_status = PipelineStatus::IoError;
-            }
-            FileImportError::Parse(report) => {
-                for error in report.errors {
-                    let source = sources
-                        .get(reef_id)
-                        .and_then(|importer| importer.get_source(report.source))
-                        .unwrap();
-                    display_parse_error(source, error, &mut stderr())
-                        .expect("IO error when reporting diagnostics");
-                }
-
-                // Prefer the IO error over a generic failure
-                if import_status != PipelineStatus::IoError {
-                    import_status = PipelineStatus::AnalysisError;
-                }
-            }
-        }
+        status = status.compose(match &error {
+            PipelineError::Import { .. } => PipelineStatus::IoError,
+            PipelineError::Parse { .. } | PipelineError::Type(_) => PipelineStatus::AnalysisError,
+        });
+        let mut multi_file = MultiFile::default();
+        let diagnostic = error_to_diagnostic(error, &mut multi_file, fs);
+        let report = Report::from(diagnostic).with_source_code(multi_file);
+        eprintln!("{report:?}");
     }
-    if import_status != PipelineStatus::Success {
-        return import_status;
+    if status != PipelineStatus::Success {
+        return status;
     }
 
-    let engine = &analyzer.resolution.engine;
-    if config.ast {
-        for ast in engine
-            .environments()
-            .filter(|(_, env)| env.parent.is_none())
-            .filter_map(|(id, _)| engine.get_expression(id))
-        {
-            println!("{ast:#?}")
-        }
-    }
-
-    let mut stderr = stderr();
-    let had_errors = !diagnostics.is_empty();
-    for diagnostic in diagnostics {
-        display_diagnostic(
-            externals,
-            engine,
-            externals.current,
-            sources,
-            diagnostic,
-            &mut stderr,
-        )
-        .expect("IO errors when reporting diagnostic");
-    }
-
-    if had_errors {
-        return PipelineStatus::AnalysisError;
-    }
     let mut bytes = Vec::new();
-
-    let importer = sources.get(reef_id).expect("unknown reef");
-    let contents = importer.list_content_ids();
-    let lines = CachedSourceLocationLineProvider::compute(&contents, importer);
-
-    let compiled_reef = compile_reef(
-        &analyzer.engine,
-        &analyzer.resolution.relations,
-        &analyzer.typing,
-        &analyzer.resolution.engine,
-        externals,
-        compiler_externals,
-        externals.current,
-        starting_page,
+    compile_reef(
+        database,
+        reef,
         &mut bytes,
         CompilerOptions {
-            line_provider: Some(&lines),
+            line_provider: None,
             last_page_storage_var: None,
         },
     )
     .expect("write failed");
-
-    compiler_externals.set(reef_id, compiled_reef);
 
     if config.disassemble {
         display_bytecode(&bytes);
@@ -206,5 +93,5 @@ pub fn use_pipeline(
             Err(VmError::Internal) => panic!("VM internal error"),
         }
     }
-    PipelineStatus::Success
+    status
 }

@@ -29,6 +29,16 @@ pub enum FunctionParameter {
     Slf(SourceSegment),
 }
 
+impl FunctionParameter {
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Named(v) => &v.name.value,
+            Self::Variadic(_, _) => "@",
+            Self::Slf(_) => "self",
+        }
+    }
+}
+
 impl SourceSegmentHolder for FunctionParameter {
     fn segment(&self) -> SourceSegment {
         match self {

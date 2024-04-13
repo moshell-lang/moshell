@@ -1,9 +1,8 @@
-use analyzer::types::hir::{Conditional, Loop};
-
 use crate::bytecode::{Instructions, Opcode};
 use crate::constant_pool::ConstantPool;
 use crate::emit::{emit, EmissionState, EmitterContext};
 use crate::locals::LocalsLayout;
+use analyzer::hir::{Conditional, Loop};
 
 pub fn emit_conditional(
     conditional: &Conditional,

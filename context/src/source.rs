@@ -5,6 +5,7 @@ use miette::{MietteError, MietteSpanContents, SourceCode, SourceSpan, SpanConten
 
 /// A range of bytes in an unbound string source.
 pub type SourceSegment = std::ops::Range<usize>;
+pub type Span = std::ops::Range<usize>;
 
 /// An identifier to a source code.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]

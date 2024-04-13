@@ -1,11 +1,9 @@
+use analyzer::hir::{ExprKind, FunctionCall, Redir, Redirect, Subprocess, Substitute, TypedExpr};
+use analyzer::typing::function::FunctionKind;
+use analyzer::typing::registry::SchemaId;
+use analyzer::typing::user::{TypeId, UserType, INT_TYPE, STRING_TYPE, VECTOR_TYPE};
 use libc::{O_APPEND, O_CREAT, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
 
-use analyzer::relations::ResolvedSymbol;
-use analyzer::types::hir::{
-    ExprKind, FunctionCall, Redir, Redirect, Subprocess, Substitute, TypedExpr, Var,
-};
-use analyzer::types::ty::{FunctionKind, Type, TypeRef};
-use analyzer::types::{GENERIC_VECTOR, INT, STRING};
 use ast::call::{RedirFd, RedirOp};
 
 use crate::bytecode::{Instructions, Opcode};
@@ -128,13 +126,13 @@ pub fn emit_process_call(
     instructions.patch_jump(jump_to_parent);
 
     for local in state.opened_files.drain(..) {
-        instructions.emit_get_local(local, INT.into(), locals);
+        instructions.emit_get_local(local, INT_TYPE.into(), locals);
         instructions.emit_code(Opcode::Close);
     }
 
     // Remove the arguments from the stack, as they were only needed for the child process
     instructions.emit_code(Opcode::Swap);
-    instructions.emit_pop(GENERIC_VECTOR.into());
+    instructions.emit_pop(VECTOR_TYPE.into());
 
     instructions.emit_code(Opcode::Wait);
 
@@ -172,7 +170,7 @@ fn emit_arguments(
     for arg in arguments {
         instructions.emit_code(Opcode::Dup);
         emit(arg, instructions, ctx, cp, locals, state);
-        if arg.ty == STRING {
+        if arg.ty == STRING_TYPE {
             instructions.emit_invoke(cp.insert_string(VEC_PUSH));
         } else {
             instructions.emit_invoke(cp.insert_string(VEC_EXTEND));
@@ -183,7 +181,7 @@ fn emit_arguments(
 
 pub fn emit_function_invocation(
     function_call: &FunctionCall,
-    call_return_type: TypeRef,
+    call_return_type: TypeId,
     instructions: &mut Instructions,
     ctx: &EmitterContext,
     cp: &mut ConstantPool,
@@ -192,15 +190,13 @@ pub fn emit_function_invocation(
 ) {
     let last_used = state.use_values(true);
 
-    let function = ctx
-        .get_function(function_call.reef, function_call.function_id)
-        .unwrap();
+    let function = &ctx.registry[function_call.function_id];
 
-    for (arg, parameter) in function_call.arguments.iter().zip(&function.parameters) {
+    for (arg, parameter) in function_call.arguments.iter().zip(&function.param_types) {
         emit(arg, instructions, ctx, cp, locals, state);
         // The parameter is an object but the argument isn't: may be an argument passed to a generic parameter
         if parameter.ty.is_obj() && !arg.ty.is_obj() {
-            instructions.emit_box_if_primitive(arg.ty)
+            instructions.emit_box_if_primitive(arg.ty);
         }
     }
 
@@ -210,30 +206,19 @@ pub fn emit_function_invocation(
         // current constructors implementation only supports a default, non user-defined constructor
         // which is a structure that contains the given parameters.
 
-        let constructed_structure_id = match ctx.get_type(function.return_type) {
-            Type::Instantiated(constructed_structure_type, _) => {
-                let Type::Structure(_, constructed_structure_id) =
-                    ctx.get_type(*constructed_structure_type)
-                else {
-                    panic!("constructor does not returns a structure type instance")
-                };
-                *constructed_structure_id
-            }
-            Type::Structure(_, structure_id) => *structure_id,
+        let constructed_structure_id: SchemaId = match ctx.types[function.return_type] {
+            UserType::Parametrized {
+                schema: constructed_structure_type,
+                params: _,
+            } => constructed_structure_type,
             _ => panic!("constructor does not returns a structure type or structure type instance"),
         };
 
-        let struct_reef = function.return_type.reef;
-
         // get constructor's structure fully-qualified name
-        let struct_engine = ctx.get_engine(struct_reef).unwrap();
-        let struct_env_id = function_call
-            .source_id
-            .expect("cannot call intrinsics functions as regular calls");
-        let struct_env = struct_engine.get_environment(struct_env_id).unwrap();
-        let struct_fqn = struct_env.fqn.to_string();
+        let schema = &ctx.registry[constructed_structure_id];
+        let struct_fqn = &schema.name;
 
-        let layout = ctx.get_layout(struct_reef, constructed_structure_id);
+        let layout = &ctx.layouts[constructed_structure_id.get()];
 
         // initialize a new structure
         instructions.emit_new(cp.insert_string(struct_fqn));
@@ -241,38 +226,7 @@ pub fn emit_function_invocation(
         // thus we can init it from all the pushed constructor's parameters in the operands
         instructions.emit_copy_operands(layout.total_size);
     } else {
-        let (env, captures) = {
-            let fun_source = function_call
-                .source_id
-                .expect("cannot invoke functions with no environment");
-            let captures: &[ResolvedSymbol] = if function_call.reef != ctx.current_reef {
-                &[]
-            } else {
-                ctx.captures[fun_source.0]
-                    .as_ref()
-                    .expect("undefined captures when the function is emitted")
-            };
-            let env = ctx
-                .get_engine(function_call.reef)
-                .unwrap()
-                .get_environment(fun_source)
-                .unwrap();
-            (env, captures)
-        };
-
-        for capture in captures {
-            if capture.source == ctx.chunk_id {
-                // if its a local value hosted by the caller frame, create a reference
-                // to the value
-                instructions.emit_push_stack_ref(Var::Local(capture.object_id), locals);
-            } else {
-                // if its a captured variable, get the reference's value from locals
-                instructions.emit_push_stack_ref(Var::External(*capture), locals);
-                instructions.emit_code(Opcode::GetRefQWord);
-            }
-        }
-
-        let signature_idx = cp.insert_string(&env.fqn);
+        let signature_idx = cp.insert_string(function.fqn.display());
         instructions.emit_invoke(signature_idx);
     }
 
@@ -316,7 +270,7 @@ pub fn emit_redirect(
     emit(&redirect.expression, instructions, ctx, cp, locals, state);
 
     for local in state.opened_files.drain(..) {
-        instructions.emit_get_local(local, INT.into(), locals);
+        instructions.emit_get_local(local, INT_TYPE.into(), locals);
         instructions.emit_code(Opcode::Close);
     }
     for redir in &redirect.redirections {
@@ -610,10 +564,10 @@ pub fn emit_substitution(
         instructions.emit_code(Opcode::Swap);
     }
     instructions.emit_code(Opcode::Close);
-    let local = locals.push_value_space(INT);
-    instructions.emit_set_local(local, INT.into(), locals);
+    let local = locals.push_value_space(INT_TYPE);
+    instructions.emit_set_local(local, INT_TYPE.into(), locals);
     if state.use_values {
-        instructions.emit_get_local(local, INT.into(), locals);
+        instructions.emit_get_local(local, INT_TYPE.into(), locals);
         instructions.emit_invoke(cp.insert_string("std::process::get_fd_path"));
     }
     // Save the fd to close it later (when the callee has finished)

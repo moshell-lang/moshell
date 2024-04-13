@@ -1,46 +1,51 @@
-use crate::reef::ReefId;
+use crate::typing::registry::{FunctionId, SchemaId};
+use crate::typing::user::{TypeId, ERROR_TYPE, UNIT_TYPE, UNKNOWN_TYPE};
+use crate::typing::variable::{LocalEnvironment, LocalId, Var};
+use crate::Reef;
 use ast::call::{RedirFd, RedirOp};
 use ast::value::LiteralValue;
-use context::source::{SourceSegment, SourceSegmentHolder};
+use context::source::Span;
+use std::collections::hash_map::Values;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::rc::Rc;
 
-use crate::relations::{LocalId, ResolvedSymbol, SourceId};
-use crate::types::engine::{FunctionId, StructureId};
-use crate::types::ty::TypeRef;
-use crate::types::ERROR;
-
-#[derive(Clone, Copy, Debug, PartialEq, Hash, Eq)]
-pub enum Var {
-    Local(LocalId),
-    External(ResolvedSymbol),
-}
-
-/// A type checked expression attached to a source segment.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypedExpr {
     pub kind: ExprKind,
-    pub ty: TypeRef,
-    pub segment: SourceSegment,
+    pub ty: TypeId,
+    pub span: Span,
 }
 
-impl SourceSegmentHolder for TypedExpr {
-    fn segment(&self) -> SourceSegment {
-        self.segment.clone()
+impl TypedExpr {
+    pub fn noop(span: Span) -> Self {
+        Self {
+            kind: ExprKind::Noop,
+            span,
+            ty: UNIT_TYPE,
+        }
+    }
+
+    pub fn error(span: Span) -> Self {
+        Self {
+            kind: ExprKind::Noop,
+            span,
+            ty: ERROR_TYPE,
+        }
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FieldAccess {
     pub object: Box<TypedExpr>,
-    pub structure: StructureId,
-    pub structure_reef: ReefId,
+    pub structure: SchemaId,
     pub field: LocalId,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FieldAssign {
     pub object: Box<TypedExpr>,
-    pub structure: StructureId,
-    pub structure_reef: ReefId,
+    pub structure: SchemaId,
     pub field: LocalId,
     pub new_value: Box<TypedExpr>,
 }
@@ -53,7 +58,7 @@ pub struct LocalAssignment {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Declaration {
-    pub identifier: LocalId,
+    pub identifier: Var,
     pub value: Option<Box<TypedExpr>>,
 }
 
@@ -62,12 +67,6 @@ pub struct Conditional {
     pub condition: Box<TypedExpr>,
     pub then: Box<TypedExpr>,
     pub otherwise: Option<Box<TypedExpr>>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Convert {
-    pub inner: Box<TypedExpr>,
-    pub into: TypeRef,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -99,7 +98,7 @@ pub struct RangeFor {
     pub receiver: LocalId,
 
     /// The type of the receiver.
-    pub receiver_type: TypeRef,
+    pub receiver_type: TypeId,
 
     /// The range of values that will be iterated over.
     pub iterable: TypedExpr,
@@ -119,9 +118,7 @@ pub struct ConditionalFor {
 #[derive(Clone, Debug, PartialEq)]
 pub struct FunctionCall {
     pub arguments: Vec<TypedExpr>,
-    pub reef: ReefId,
     pub function_id: FunctionId,
-    pub source_id: Option<SourceId>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -170,7 +167,6 @@ pub enum ExprKind {
     Conditional(Conditional),
     ConditionalLoop(Loop),
     ForLoop(ForLoop),
-    Convert(Convert),
     ProcessCall(Vec<TypedExpr>),
     FunctionCall(FunctionCall),
     MethodCall(MethodCall),
@@ -186,18 +182,111 @@ pub enum ExprKind {
 }
 
 impl TypedExpr {
-    /// Creates a no-op expression that describes an error.
-    pub(crate) fn error(segment: SourceSegment) -> Self {
+    pub(crate) fn is_ok(&self) -> bool {
+        !self.is_err()
+    }
+
+    pub(crate) fn is_err(&self) -> bool {
+        matches!(self.ty, UNKNOWN_TYPE | ERROR_TYPE)
+    }
+}
+
+/// A unit of code.
+pub struct Chunk {
+    /// The fully qualified name to access this chunk.
+    pub fqn: PathBuf,
+
+    pub function: Option<FunctionId>,
+
+    /// The expression that this chunk represents.
+    pub expr: TypedExpr,
+
+    pub locals: LocalEnvironment,
+}
+
+/// A group of [`Chunk`]s that were defined in the same context (usually a file).
+pub struct Module {
+    fqn: PathBuf,
+    chunks: Vec<Chunk>,
+    pub(crate) exports: HashMap<Rc<String>, TypeId>,
+}
+
+impl Module {
+    pub(crate) fn new(fqn: PathBuf) -> Self {
         Self {
-            kind: ExprKind::Noop,
-            ty: ERROR,
-            segment,
+            fqn,
+            chunks: Vec::new(),
+            exports: HashMap::new(),
         }
     }
 
-    /// Sets the type of the expression to [`crate::types::ty::Type::Error`].
-    pub(crate) fn poison(mut self) -> Self {
-        self.ty = ERROR;
-        self
+    pub(crate) fn enter_namespace(&mut self, name: &str) {
+        self.fqn.push(name);
+    }
+
+    pub(crate) fn exit_namespace(&mut self) {
+        self.fqn.pop();
+    }
+
+    pub(crate) fn add(
+        &mut self,
+        function: Option<FunctionId>,
+        expr: TypedExpr,
+        locals: LocalEnvironment,
+    ) {
+        self.chunks.push(Chunk {
+            fqn: self.fqn.clone(),
+            function,
+            expr,
+            locals,
+        });
+    }
+}
+
+impl Reef {
+    pub fn group_by_content(&self) -> ContentIterator {
+        ContentIterator {
+            inner: self.hir.values(),
+        }
+    }
+}
+
+pub type NamedExports = HashMap<Rc<String>, TypeId>;
+
+/// A group of chunks that were defined in the same content.
+#[derive(Copy, Clone)]
+pub struct EncodableContent<'a> {
+    /// The main chunk of this content.
+    pub main: &'a Chunk,
+
+    /// The functions that this content provides.
+    pub functions: &'a [Chunk],
+
+    /// The exports that this content provides.
+    pub exports: &'a NamedExports,
+}
+
+pub struct ContentIterator<'a> {
+    inner: Values<'a, PathBuf, Module>,
+}
+
+impl<'a> Iterator for ContentIterator<'a> {
+    type Item = EncodableContent<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(
+            |Module {
+                 fqn: _,
+                 chunks,
+                 exports,
+             }| {
+                let (main, functions) = chunks.split_last().unwrap();
+                EncodableContent {
+                    main,
+                    functions,
+                    exports,
+                }
+            },
+        )
     }
 }

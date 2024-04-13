@@ -1,3 +1,5 @@
+use analyzer::{Database, Reef};
+use cli::pipeline::PipelineStatus;
 use miette::{Context, IntoDiagnostic};
 use nu_ansi_term::Color;
 use reedline::{
@@ -6,36 +8,26 @@ use reedline::{
     Reedline, ReedlineEvent, ReedlineMenu, Signal, ValidationResult, Validator,
 };
 use std::borrow::Cow;
+use std::ffi::OsString;
 use std::io::{self, BufRead, IsTerminal, StdinLock};
-use std::path::PathBuf;
 
-use analyzer::importer::ImportResult;
-use analyzer::name::Name;
-use analyzer::reef::Externals;
-use analyzer::relations::SourceId;
-use analyzer::{Analyzer, Inject};
 use cli::project_dir;
-use compiler::externals::CompilerExternals;
-use context::source::OwnedSource;
 use lexer::is_unterminated;
 use vm::VM;
 
-use crate::cli::{use_pipeline, Cli};
+use crate::cli::Cli;
 use crate::complete::MoshellCompleter;
-use crate::pipeline::{ErrorReporter, PipelineStatus, SourcesCache};
+use crate::pipeline::RealFilesystem;
 use crate::terminal::acquire_terminal;
 
 /// Indefinitely prompts a new expression from stdin and executes it.
 pub(crate) fn repl(
-    dir: PathBuf,
     config: &Cli,
-    mut sources: SourcesCache,
-    externals: Externals,
-    mut compiler_externals: CompilerExternals,
-    mut vm: VM,
+    database: &mut Database,
+    fs: &RealFilesystem,
+    vm: &mut VM,
 ) -> miette::Result<PipelineStatus> {
-    let mut analyzer = Analyzer::new();
-    sources.register(dir);
+    let mut reef = Reef::new(OsString::from("stdin"));
 
     let mut editor = if io::stdin().is_terminal() && cfg!(not(miri)) {
         #[cfg(unix)]
@@ -49,26 +41,25 @@ pub(crate) fn repl(
 
     // Keep track of the previous attributed source, so that we can inject
     // the next one into the same context.
-    let mut starting_source: Option<SourceId> = None;
-    let name = Name::new("stdin");
+    //let mut starting_source: Option<SourceId> = None;
 
     loop {
         let line = editor.read_line(&Prompt);
 
         match line {
             Ok(Signal::Success(source)) => {
-                let source = OwnedSource::new(source, "stdin".to_owned());
-                status = status.compose(consume(
-                    &name,
-                    &mut analyzer,
-                    &externals,
-                    &mut compiler_externals,
-                    &mut vm,
-                    &mut sources,
-                    config,
-                    &mut starting_source,
-                    source,
-                ));
+                // let source = OwnedSource::new(source, "stdin".to_owned());
+                // status = status.compose(consume(
+                //     &name,
+                //     &mut analyzer,
+                //     &externals,
+                //     &mut compiler_externals,
+                //     &mut vm,
+                //     &mut sources,
+                //     config,
+                //     &mut starting_source,
+                //     source,
+                // ));
             }
             Ok(Signal::CtrlC) => eprintln!("^C"),
             Ok(Signal::CtrlD) => break Ok(status),
@@ -77,107 +68,6 @@ pub(crate) fn repl(
                 break Ok(status);
             }
         }
-    }
-}
-
-/// Analyse and consume a source string.
-pub(crate) fn code(
-    code: String,
-    dir: PathBuf,
-    config: &Cli,
-    mut sources: SourcesCache,
-    externals: Externals,
-    mut compiler_externals: CompilerExternals,
-    mut vm: VM,
-) -> miette::Result<PipelineStatus> {
-    let name = "direct";
-    let source = OwnedSource::new(code, name.to_owned());
-    let mut analyzer = Analyzer::new();
-    sources.register(dir);
-    Ok(consume(
-        &Name::new(name),
-        &mut analyzer,
-        &externals,
-        &mut compiler_externals,
-        &mut vm,
-        &mut sources,
-        config,
-        &mut None,
-        source,
-    ))
-}
-
-/// Processes a source and returns the pipeline status.
-#[allow(clippy::too_many_arguments)]
-fn consume(
-    name: &Name,
-    analyzer: &mut Analyzer<'_>,
-    externals: &Externals,
-    compiler_externals: &mut CompilerExternals,
-    vm: &mut VM,
-    sources: &mut SourcesCache,
-    config: &Cli,
-    starting_source: &mut Option<SourceId>,
-    source: OwnedSource,
-) -> PipelineStatus {
-    let importer = sources.last_mut();
-    if let ImportResult::Success(imported) = importer.insert(source) {
-        let mut analysis = analyzer.inject(
-            Inject {
-                name: name.clone(),
-                imported,
-                attached: *starting_source,
-            },
-            importer,
-            externals,
-        );
-
-        // Reuse the same diagnotics by moving them, requiring to keep track
-        // if there was any error since they will be consumed before being
-        // able to cancel the analysis (the errors need the context that is
-        // dropped when the analysis is reverted).
-        let diagnostics = analysis.take_diagnostics();
-        let is_ready = diagnostics.is_empty();
-
-        let errors = importer.take_errors();
-        let status = use_pipeline(
-            name,
-            analysis.attributed_id(),
-            analysis.analyzer(),
-            externals,
-            compiler_externals,
-            vm,
-            diagnostics,
-            errors,
-            sources,
-            config,
-        );
-
-        // Remember the successfully injected source, or revert the analysis.
-        if is_ready {
-            *starting_source = Some(analysis.attributed_id());
-        } else {
-            analysis.revert();
-        }
-        status
-    } else {
-        // Probably hit some parse errors, so we skip any further analysis and
-        // directly display the errors. There should be no actual diagnostics
-        // in the pipeline, but we consume them anyway to reuse the same
-        // end-of-pipeline logic.
-        let diagnostics = analyzer.take_diagnostics();
-        use_pipeline(
-            name,
-            SourceId(0), // this value has no importance
-            analyzer,
-            externals,
-            compiler_externals,
-            vm,
-            diagnostics,
-            importer.take_errors(),
-            sources,
-            config,
-        )
     }
 }
 

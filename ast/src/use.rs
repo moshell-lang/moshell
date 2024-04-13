@@ -11,7 +11,7 @@ pub struct Use {
     pub import: Import,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InclusionPathItem {
     Symbol(Identifier),
     Reef(SourceSegment),

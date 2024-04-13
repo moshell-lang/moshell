@@ -169,7 +169,6 @@ fn display_code(
                     (digits(dynamic_symbols.len() as u64) - digits(dynsym_idx as u64)) + 10;
                 print!("<external #{dynsym_idx}> {:padding$} // {str}", "")
             }
-            Opcode::Exec => print!("<arity {}>", read!(cursor, u8)),
             Opcode::Open => print!("<flags {:#x}>", read!(cursor, i32)),
             Opcode::IfJump | Opcode::IfNotJump | Opcode::Jump | Opcode::Fork => {
                 print!("<instruction #{}>", read!(cursor, u32))

@@ -1,12 +1,11 @@
-use analyzer::relations::LocalId;
-use analyzer::types::hir::{Declaration, ExprKind, TypedExpr, Var};
-use analyzer::types::ty::TypeRef;
+use analyzer::hir::{Declaration, ExprKind, TypedExpr};
+use analyzer::typing::user::TypeId;
+use analyzer::typing::variable::{LocalId, Var};
 use ast::value::LiteralValue;
 
 use crate::bytecode::{Instructions, Opcode, Placeholder};
 use crate::constant_pool::ConstantPool;
 use crate::context::EmitterContext;
-use crate::emit::identifier::{expose_variable, Identifier};
 use crate::emit::invoke::{
     emit_capture, emit_function_invocation, emit_pipeline, emit_process_call, emit_redirect,
     emit_subprocess, emit_substitution,
@@ -17,7 +16,6 @@ use crate::emit::structure::{emit_field_access, emit_field_assign};
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
 
-mod identifier;
 mod invoke;
 mod iterable;
 mod jump;
@@ -78,9 +76,9 @@ fn emit_literal(literal: &LiteralValue, instructions: &mut Instructions, cp: &mu
 }
 
 fn emit_ref(
-    var: Var,
+    var: &Var,
     ctx: &EmitterContext,
-    ref_type: TypeRef,
+    ref_type: TypeId,
     instructions: &mut Instructions,
     cp: &mut ConstantPool,
     locals: &LocalsLayout,
@@ -89,14 +87,13 @@ fn emit_ref(
     if size == ValueStackSize::Zero {
         return;
     }
-    match expose_variable(ctx, var, cp) {
-        Identifier::Local(id) => {
-            instructions.emit_get_local(id, size, locals);
+    match var {
+        Var::Local(id) => {
+            instructions.emit_get_local(*id, size, locals);
+            // TODO see if captured: instructions.emit_get_capture(id, size, locals);
         }
-        Identifier::Capture(id) => {
-            instructions.emit_get_capture(id, size, locals);
-        }
-        Identifier::External(id) => {
+        Var::Global(id) => {
+            let id = cp.get_external(id).unwrap();
             instructions.emit_get_external(id, size);
         }
     }
@@ -110,28 +107,10 @@ fn emit_declaration(
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
 ) {
-    let variable = ctx
-        .environment
-        .symbols
-        .get(declaration.identifier)
-        .expect("The declared variable should be in the current environment.");
-
     if let Some(value) = &declaration.value {
-        locals.set_value_space(declaration.identifier, value.ty);
-
-        if variable.is_exported()
-            && ctx.environment.is_script
-            && ValueStackSize::from(value.ty) != ValueStackSize::Zero
-        {
-            let offset = locals
-                .get_index(declaration.identifier)
-                .expect("Variable just have been declared");
-            cp.insert_exported(&variable.name, offset, value.ty.is_obj());
-        }
-
         emit_assignment(
             value,
-            Var::Local(declaration.identifier),
+            &declaration.identifier,
             instructions,
             ctx,
             cp,
@@ -161,7 +140,7 @@ fn emit_block(
 
 fn emit_assignment(
     value: &TypedExpr,
-    var: Var,
+    var: &Var,
     instructions: &mut Instructions,
     ctx: &EmitterContext,
     cp: &mut ConstantPool,
@@ -178,15 +157,14 @@ fn emit_assignment(
         return;
     }
 
-    match expose_variable(ctx, var, cp) {
-        Identifier::Local(id) => {
-            instructions.emit_set_local(id, returned_value_type, locals);
+    match var {
+        Var::Local(id) => {
+            instructions.emit_set_local(*id, returned_value_type, locals);
+            // TODO: instructions.emit_set_capture(id, returned_value_type, locals);
         }
-        Identifier::Capture(id) => {
-            instructions.emit_set_capture(id, returned_value_type, locals);
-        }
-        Identifier::External(id) => {
-            instructions.emit_set_external(id, returned_value_type);
+        Var::Global(id) => {
+            let offset = cp.get_external(id).unwrap();
+            instructions.emit_set_external(offset, returned_value_type)
         }
     }
 }
@@ -217,7 +195,7 @@ pub fn emit(
     locals: &mut LocalsLayout,
     state: &mut EmissionState,
 ) {
-    instructions.push_position(expr.segment.start);
+    instructions.push_position(expr.span.start);
     match &expr.kind {
         ExprKind::Declare(d) => {
             emit_declaration(d, instructions, ctx, cp, locals, state);
@@ -233,7 +211,7 @@ pub fn emit(
         ExprKind::Return(val) => emit_return(val, instructions, ctx, cp, locals, state),
         ExprKind::LocalAssign(ass) => emit_assignment(
             &ass.rhs,
-            ass.identifier,
+            &ass.identifier,
             instructions,
             ctx,
             cp,
@@ -248,7 +226,7 @@ pub fn emit(
         }
         ExprKind::Reference(symbol) => {
             if state.use_values {
-                emit_ref(*symbol, ctx, expr.ty, instructions, cp, locals);
+                emit_ref(symbol, ctx, expr.ty, instructions, cp, locals);
             }
         }
         ExprKind::Literal(literal) => {
@@ -262,16 +240,9 @@ pub fn emit(
         ExprKind::ProcessCall(args) => {
             emit_process_call(args, &[], instructions, ctx, cp, locals, state)
         }
-        ExprKind::MethodCall(method) => emit_natives(
-            method.function_id,
-            method,
-            expr.ty,
-            instructions,
-            ctx,
-            cp,
-            locals,
-            state,
-        ),
+        ExprKind::MethodCall(method) => {
+            emit_natives(method, expr.ty, instructions, ctx, cp, locals, state)
+        }
         ExprKind::Redirect(redirect) => {
             emit_redirect(redirect, instructions, ctx, cp, locals, state)
         }
@@ -288,7 +259,6 @@ pub fn emit(
             emit_substitution(substitution, instructions, ctx, cp, locals, state);
         }
         ExprKind::Noop => {}
-        ExprKind::Convert(_) => unimplemented!(),
     }
-    instructions.push_position(expr.segment.start)
+    instructions.push_position(expr.span.start)
 }

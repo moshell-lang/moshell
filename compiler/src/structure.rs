@@ -1,7 +1,6 @@
-use analyzer::relations::LocalId;
-use analyzer::types::ty::StructureDesc;
-
 use crate::r#type::ValueStackSize;
+use analyzer::typing::schema::Schema;
+use analyzer::typing::variable::LocalId;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructureLayout {
@@ -10,19 +9,19 @@ pub struct StructureLayout {
     indexes: Vec<(u32, ValueStackSize)>,
 }
 
-impl From<&StructureDesc> for StructureLayout {
-    fn from(structure: &StructureDesc) -> Self {
+impl From<&Schema> for StructureLayout {
+    fn from(structure: &Schema) -> Self {
         let mut indexes = Vec::new();
         let mut idx = 0;
 
-        for field in structure.get_fields() {
+        for field in structure.fields.values() {
             let field_size = ValueStackSize::from(field.ty);
             indexes.push((idx, field_size));
             idx += u8::from(field_size) as u32;
         }
 
         Self {
-            field_offset: structure.type_parameters.len(),
+            field_offset: structure.generic_variables.len(),
             total_size: idx,
             indexes,
         }
