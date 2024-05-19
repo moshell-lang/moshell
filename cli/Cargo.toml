@@ -31,10 +31,10 @@ directories = "5.0.1"
 miette = { version = "7.0.0", features = ["fancy-no-backtrace"] }
 clap = { version = "4.2.2", features = ["derive"] }
 clap_complete = "4.4.1"
-reedline = "0.29.0"
+reedline = "0.32.0"
 is_executable = "1.0.1"
 nu-ansi-term = "0.50.0"
-nix = { version = "0.27.1", features = ["process", "term", "signal", "user"] }
+nix = { version = "0.28.0", features = ["process", "term", "signal", "user"] }
 
 [dev-dependencies]
 lang_tester = "0.8.0"

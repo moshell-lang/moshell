@@ -1,4 +1,4 @@
-use nix::{errno::Errno, libc, sys::signal, unistd};
+use nix::{errno::Errno, sys::signal, unistd};
 
 /// Sets the disposition of a signal handler.
 ///
@@ -19,8 +19,9 @@ pub(crate) fn signal_hook(signal: signal::Signal, handler: signal::SigHandler) {
 pub(crate) fn acquire_terminal() -> unistd::Pid {
     // Wait for the process to be in the foreground
     let shell_pgid = unistd::getpgrp();
+    let stdin = std::io::stdin();
     loop {
-        match unistd::tcgetpgrp(libc::STDIN_FILENO) {
+        match unistd::tcgetpgrp(&stdin) {
             Ok(owner_pgid) if owner_pgid == shell_pgid => break,
             Err(Errno::ENOTTY) => panic!("No TTY for interactive shell"),
             _ => {
@@ -47,11 +48,11 @@ pub(crate) fn acquire_terminal() -> unistd::Pid {
         // Put ourselves in our own process group
         let shell_pgid = shell_pid;
         match unistd::setpgid(shell_pgid, shell_pgid) {
-            Ok(_) | Err(Errno::EPERM) => {}
+            Ok(()) | Err(Errno::EPERM) => {}
             Err(_) => panic!("Failed to set the process group"),
         }
         // Grab control of the terminal
-        let _ = unistd::tcsetpgrp(libc::STDIN_FILENO, shell_pgid);
+        let _ = unistd::tcsetpgrp(&stdin, shell_pgid);
     }
     shell_pid
 }

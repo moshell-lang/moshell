@@ -55,7 +55,8 @@ pub(super) fn declare_structure(
         .type_engine
         .get_structure_mut(structure_id)
         .unwrap()
-        .type_parameters = type_parameters.clone();
+        .type_parameters
+        .clone_from(&type_parameters);
 
     let mut fields = HashMap::new();
     let mut field_types = Vec::new();
