@@ -118,7 +118,7 @@ impl Parser<'_> {
     }
 
     fn unparenthesised_lambda_input_tip(&self, left_lambda: Type, lambda_out: Type) -> String {
-        "(".to_string() + &left_lambda.to_string() + ") => " + &lambda_out.to_string()
+        format!("({left_lambda}) => {lambda_out}")
     }
 
     fn parse_parentheses(&mut self) -> ParseResult<Type> {

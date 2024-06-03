@@ -1,9 +1,7 @@
 use ast::variable::{VarName, VarReference};
 use ast::Expr;
 use lexer::token::TokenType;
-use lexer::token::TokenType::*;
 
-use crate::err::ParseErrorKind;
 use crate::moves::{any, blanks, like, lookahead, of_type, MoveOperations};
 use crate::parser::{ParseResult, Parser};
 
@@ -14,7 +12,7 @@ impl Parser<'_> {
             .cursor
             .advance(blanks().then(lookahead(any())))
             .unwrap();
-        let bracket = self.cursor.advance(of_type(CurlyLeftBracket));
+        let bracket = self.cursor.advance(of_type(TokenType::CurlyLeftBracket));
 
         let name = self
             .cursor
@@ -50,15 +48,7 @@ impl Parser<'_> {
         })?;
 
         if let Some(bracket) = bracket {
-            if self.cursor.peek().token_type.is_closing_punctuation() {
-                self.expect_delimiter(start, CurlyRightBracket)?;
-            } else {
-                self.cursor.force_with(
-                    of_type(CurlyRightBracket),
-                    "Expected closing curly bracket.",
-                    ParseErrorKind::Unpaired(bracket.span),
-                )?;
-            }
+            self.expect_delimiter(bracket, TokenType::CurlyRightBracket)?;
 
             if let Expr::VarReference(ref mut var) = expr {
                 var.segment.end += 1;
@@ -168,7 +158,7 @@ mod tests {
         assert_eq!(
             result,
             Err(ParseError {
-                message: "Expected closing curly bracket.".to_string(),
+                message: "Expected '}' delimiter.".to_string(),
                 position: 3..4,
                 kind: ParseErrorKind::Unpaired(source.find('{').map(|p| p..p + 1).unwrap()),
             })

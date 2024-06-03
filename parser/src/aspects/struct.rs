@@ -76,7 +76,7 @@ impl Parser<'_> {
         let mut functions = vec![];
         let mut end_token = None;
 
-        while end_token.is_none() {
+        while end_token.is_none() && !self.cursor.is_at_end() {
             self.cursor.advance(blanks());
             match self.parse_function_declaration() {
                 Ok(function) => functions.push(function),
@@ -90,7 +90,9 @@ impl Parser<'_> {
         }
 
         let segment_start = start.span.start;
-        let segment_end = end_token.unwrap().span.end;
+        let segment_end = end_token
+            .map(|t| t.span.end)
+            .unwrap_or_else(|| start.span.end);
         let segment = segment_start..segment_end;
 
         Ok(StructImpl {
@@ -128,7 +130,9 @@ impl Parser<'_> {
 
 #[cfg(test)]
 mod tests {
+    use crate::err::{ParseError, ParseErrorKind};
     use crate::parse;
+    use crate::parser::ParseResult;
     use crate::source::{identifier, identifier_nth};
     use ast::function::FunctionDeclaration;
     use ast::r#struct::{FieldDeclaration, StructDeclaration, StructImpl};
@@ -262,6 +266,20 @@ mod tests {
                 }],
                 segment: source.segment(),
             })]
+        )
+    }
+
+    #[test]
+    fn unterminated() {
+        let source = "impl Foo {[";
+        let result: ParseResult<_> = parse(source).into();
+        assert_eq!(
+            result,
+            Err(ParseError {
+                message: "expected 'fun' keyword at start of function declaration.".to_string(),
+                position: source.find('[').map(|p| p..p + 1).unwrap(),
+                kind: ParseErrorKind::Unexpected
+            })
         )
     }
 }
