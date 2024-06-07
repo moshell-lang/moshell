@@ -135,11 +135,16 @@ impl Parser<'_> {
     pub(crate) fn is_at_redirection_sign(&self) -> bool {
         let pivot = self.cursor.peek();
         match pivot.token_type {
-            TokenType::Ampersand | TokenType::Less | TokenType::Greater => true,
+            TokenType::Ampersand | TokenType::Less | TokenType::Greater | TokenType::Backtick => {
+                true
+            }
             //search for '>' or '<' in case of std-determined redirection sign (ex: 2>>)
             _ => self
                 .cursor
-                .lookahead(next().then(of_types(&[TokenType::Less, TokenType::Greater])))
+                .lookahead(
+                    of_type(TokenType::IntLiteral)
+                        .then(of_types(&[TokenType::Less, TokenType::Greater])),
+                )
                 .is_some(),
         }
     }
@@ -164,6 +169,7 @@ impl Parser<'_> {
 mod test {
     use pretty_assertions::assert_eq;
 
+    use crate::err::{ParseError, ParseErrorKind};
     use ast::call::{Call, Redir, RedirFd, RedirOp, Redirected};
     use ast::control_flow::Loop;
     use ast::group::{Block, Subshell};
@@ -173,8 +179,22 @@ mod test {
     use context::str_find::find_in;
 
     use crate::parse;
-    use crate::parser::Parser;
+    use crate::parser::{ParseResult, Parser};
     use crate::source::literal;
+
+    #[test]
+    fn sign_on_newline() {
+        let source = "a\n>";
+        let parsed: ParseResult<_> = parse(source).into();
+        assert_eq!(
+            parsed,
+            Err(ParseError {
+                message: "Unexpected start of group expression".to_owned(),
+                position: 3..3,
+                kind: ParseErrorKind::Expected("(".to_string()),
+            })
+        );
+    }
 
     #[test]
     fn expr_redirection() {
