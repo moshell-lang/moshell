@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 enum-assoc = "1.0.0"
 context = { path = "../context" }
+unicode-ident = "1.0.12"
 
 [dev-dependencies]
 pretty_assertions = "1.3.0"

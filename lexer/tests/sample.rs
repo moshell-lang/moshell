@@ -122,7 +122,7 @@ fn utf8_compatible() {
         vec![
             Token::new(TokenType::Val, "val"),
             Token::new(TokenType::Space, " "),
-            Token::new(TokenType::Identifier, "🦀"),
+            Token::new(TokenType::Error, "🦀"),
             Token::new(TokenType::Space, " "),
             Token::new(TokenType::Equal, "="),
             Token::new(TokenType::Space, " "),
@@ -131,6 +131,12 @@ fn utf8_compatible() {
             Token::new(TokenType::StringEnd, "\""),
         ]
     );
+}
+
+#[test]
+fn accept_underscore_indent_start() {
+    let tokens = lex("_x");
+    assert_eq!(tokens, [Token::new(TokenType::Identifier, "_x")]);
 }
 
 #[test]
@@ -339,4 +345,11 @@ fn too_many_delimiter() {
             closing: None,
         },]
     );
+}
+
+#[test]
+fn null_byte() {
+    let input = "\0";
+    let tokens = lex(input);
+    assert_eq!(tokens, [Token::new(TokenType::Error, "\0")]);
 }

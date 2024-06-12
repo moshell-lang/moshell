@@ -146,6 +146,10 @@ pub enum TokenType {
     Slash,
     #[assoc(str = "%")]
     Percent,
+    #[assoc(str = "^")]
+    Caret,
+    #[assoc(str = "?")]
+    QuestionMark,
 
     #[assoc(str = "[")]
     SquaredLeftBracket,
@@ -204,7 +208,7 @@ impl TokenType {
     pub fn is_valid_var_ref_name(self) -> bool {
         matches!(
             self,
-            Identifier | Ampersand | At | Not | IntLiteral | Dollar | Star | Slf
+            Identifier | Ampersand | At | Not | Caret | IntLiteral | Dollar | Star | Slf
         )
     }
 

@@ -115,6 +115,8 @@ impl<'a> Lexer<'a> {
             '+' => TokenType::Plus,
             '*' => TokenType::Star,
             '%' => TokenType::Percent,
+            '^' => TokenType::Caret,
+            '?' => TokenType::QuestionMark,
             '[' => TokenType::SquaredLeftBracket,
             ']' => TokenType::SquaredRightBracket,
             '(' => {

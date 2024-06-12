@@ -18,6 +18,7 @@ use ast::variable::{
 use ast::Expr;
 use context::source::SourceSegmentHolder;
 use context::str_find::{find_between, find_in, find_in_nth};
+use parser::err::{ParseError, ParseErrorKind};
 use parser::parse;
 use parser::source::{identifier, identifier_nth, literal, literal_nth};
 
@@ -732,5 +733,19 @@ fn argument_dir_wildcard() {
                 })),
             ],
         })]
+    );
+}
+
+#[test]
+fn variable_name_is_null_byte() {
+    let source = "var \0>\0&";
+    let parsed: Result<_, ParseError> = parse(source).into();
+    assert_eq!(
+        parsed,
+        Err(ParseError {
+            message: "Expected name.".to_owned(),
+            position: 4..5,
+            kind: ParseErrorKind::Unexpected,
+        })
     );
 }
