@@ -153,7 +153,6 @@ impl<'a> Parser<'a> {
 
     fn statement_precedence(&mut self, min_precedence: NonZeroU8) -> ParseResult<Expr> {
         let mut lhs = self.next_statement()?;
-        lhs = self.parse_detached(lhs)?;
         loop {
             self.cursor.advance(spaces());
             let tok = self.cursor.peek().token_type;
@@ -379,13 +378,13 @@ impl<'a> Parser<'a> {
         // Parse infix operators
         loop {
             self.cursor.advance(spaces());
-            let tok = self.cursor.peek().token_type;
-            let precedence = infix_precedence(tok);
+            let token = self.cursor.peek();
+            let precedence = infix_precedence(token.token_type);
             if precedence < min_precedence.get() {
                 break;
             }
             self.cursor.next_opt();
-            match tok {
+            match token.token_type {
                 As => {
                     let casted_type = self.parse_type()?;
                     let segment = lhs.segment().start..casted_type.segment().end;
@@ -416,12 +415,19 @@ impl<'a> Parser<'a> {
                             NonZeroU8::new(infix_precedence(Equal))
                                 .expect("New precedence should be non-zero"),
                         )?;
-                        lhs = Expr::Assign(Assign {
-                            left: Box::new(lhs),
-                            operator: AssignOperator::try_from(tok)
-                                .expect("Invalid assign operator"),
-                            value: Box::new(rhs),
-                        });
+                        if let Ok(operator) = AssignOperator::try_from(tok) {
+                            lhs = Expr::Assign(Assign {
+                                left: Box::new(lhs),
+                                operator,
+                                value: Box::new(rhs),
+                            });
+                        } else {
+                            return self.expected_with(
+                                "Expected shorthand assignment operator.",
+                                token.span,
+                                ParseErrorKind::Expected("+=, -=, *=, /= or %=".to_owned()),
+                            );
+                        }
                         continue;
                     }
                     let op = BinaryOperator::try_from(tok).expect("Invalid binary operator");

@@ -117,6 +117,16 @@ impl Parser<'_> {
                 {
                     redirections.push(self.redirection()?)
                 }
+                TokenType::Ampersand => {
+                    return self.parse_detached(if redirections.is_empty() {
+                        expr
+                    } else {
+                        Expr::Redirected(Redirected {
+                            expr: Box::new(expr),
+                            redirections,
+                        })
+                    });
+                }
                 _ => break,
             };
             self.cursor.advance(spaces());
