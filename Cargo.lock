@@ -679,6 +679,7 @@ dependencies = [
  "context",
  "enum-assoc",
  "pretty_assertions",
+ "unicode-ident",
 ]
 
 [[package]]

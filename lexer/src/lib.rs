@@ -26,23 +26,34 @@ pub fn is_unterminated(input: &str) -> bool {
             .all(|unmatched| unmatched.candidate.is_none())
 }
 
-pub fn unescape(input: &str) -> String {
+pub fn unescape(input: &str) -> Result<String, EscapeError> {
     let mut output = String::with_capacity(input.len());
-    let mut chars = input.chars();
-    while let Some(c) = chars.next() {
+    let mut chars = input.char_indices();
+    while let Some((_, c)) = chars.next() {
         if c == '\\' {
-            match chars.next().expect("Unterminated escape sequence") {
-                'n' => output.push('\n'),
-                'r' => output.push('\r'),
-                't' => output.push('\t'),
-                '\\' => output.push('\\'),
-                '"' => output.push('"'),
-                '\'' => output.push('\''),
-                c => output.push(c),
+            if let Some((idx, c)) = chars.next() {
+                match c {
+                    'n' => output.push('\n'),
+                    'r' => output.push('\r'),
+                    't' => output.push('\t'),
+                    '\\' => output.push('\\'),
+                    '"' => output.push('"'),
+                    '\'' => output.push('\''),
+                    _ => return Err(EscapeError::InvalidEscape { idx }),
+                }
+            } else {
+                return Err(EscapeError::UnexpectedEnd);
             }
         } else {
             output.push(c);
         }
     }
-    output
+    Ok(output)
+}
+
+/// An invalid escape sequence was found.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EscapeError {
+    InvalidEscape { idx: usize },
+    UnexpectedEnd,
 }

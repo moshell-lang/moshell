@@ -1,46 +1,18 @@
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
-
-pub(crate) fn is_not_identifier_part(c: char) -> bool {
-    matches!(
-        c,
-        ';' | ':'
-            | '<'
-            | '>'
-            | '|'
-            | '&'
-            | '^'
-            | '@'
-            | '\''
-            | '"'
-            | '`'
-            | '/'
-            | '\\'
-            | '+'
-            | '-'
-            | '*'
-            | '%'
-            | '['
-            | ']'
-            | '('
-            | ')'
-            | '{'
-            | '}'
-            | '~'
-            | '$'
-            | ','
-            | '.'
-            | '='
-            | '?'
-            | '!'
-    ) || c.is_whitespace()
-}
+use unicode_ident::{is_xid_continue, is_xid_start};
 
 impl<'a> Lexer<'a> {
     pub(crate) fn next_identifier(&mut self, start_pos: usize, start_char: char) -> Token {
+        if !is_xid_start(start_char) && !start_char.is_ascii_digit() && start_char != '_' {
+            return Token::new(
+                TokenType::Error,
+                start_pos..start_pos + start_char.len_utf8(),
+            );
+        }
         let mut pos = start_pos + start_char.len_utf8();
         while let Some((p, c)) = self.iter.peek() {
-            if is_not_identifier_part(*c) {
+            if !is_xid_continue(*c) {
                 break;
             }
             pos = p + c.len_utf8();
@@ -90,7 +62,7 @@ impl<'a> Lexer<'a> {
             {
                 pos = p + 1;
                 is_float = true;
-            } else if is_not_identifier_part(c) {
+            } else if !is_xid_continue(c) {
                 break;
             } else {
                 return self.next_identifier(

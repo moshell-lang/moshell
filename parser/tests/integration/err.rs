@@ -534,3 +534,17 @@ fn method_recover_impl() {
         }]
     );
 }
+
+#[test]
+fn triple_equal() {
+    let source = "9===2";
+    let report = parse(source);
+    assert_eq!(
+        report.errors,
+        vec![ParseError {
+            message: "Expected shorthand assignment operator.".to_owned(),
+            position: source.find('=').map(|p| p..p + 2).unwrap(),
+            kind: ParseErrorKind::Expected("+=, -=, *=, /= or %=".to_owned()),
+        }]
+    );
+}

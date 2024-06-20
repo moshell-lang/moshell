@@ -1,7 +1,7 @@
 use pretty_assertions::assert_eq;
 
 use ast::call::{
-    Call, MethodCall, Pipeline, ProgrammaticCall, Redir, RedirFd, RedirOp, Redirected,
+    Call, Detached, MethodCall, Pipeline, ProgrammaticCall, Redir, RedirFd, RedirOp, Redirected,
 };
 use ast::control_flow::{Loop, While};
 use ast::function::Return;
@@ -18,6 +18,7 @@ use ast::variable::{
 use ast::Expr;
 use context::source::SourceSegmentHolder;
 use context::str_find::{find_between, find_in, find_in_nth};
+use parser::err::{ParseError, ParseErrorKind};
 use parser::parse;
 use parser::source::{identifier, identifier_nth, literal, literal_nth};
 
@@ -732,5 +733,43 @@ fn argument_dir_wildcard() {
                 })),
             ],
         })]
+    );
+}
+
+#[test]
+fn variable_name_is_null_byte() {
+    let source = "var \0>\0&";
+    let parsed: Result<_, ParseError> = parse(source).into();
+    assert_eq!(
+        parsed,
+        Err(ParseError {
+            message: "Expected name.".to_owned(),
+            position: 4..5,
+            kind: ParseErrorKind::Unexpected,
+        })
+    );
+}
+
+#[test]
+fn redirected_background_subshell() {
+    let source = "()>s&";
+    let parsed: Result<_, ParseError> = parse(source).into();
+    assert_eq!(
+        parsed,
+        Ok(vec![Expr::Detached(Detached {
+            underlying: Box::new(Expr::Redirected(Redirected {
+                expr: Box::new(Expr::Subshell(Subshell {
+                    expressions: Vec::new(),
+                    segment: find_in(source, "()"),
+                })),
+                redirections: vec![Redir {
+                    fd: RedirFd::Default,
+                    operator: RedirOp::Write,
+                    operand: literal(source, "s"),
+                    segment: find_in(source, ">s"),
+                }],
+            })),
+            segment: find_in(source, "()>s&"),
+        })])
     );
 }
