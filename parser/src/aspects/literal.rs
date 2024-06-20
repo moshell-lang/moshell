@@ -91,7 +91,9 @@ impl Parser<'_> {
             .force(of_type(StringLiteral), "Expected string literal.")?;
         let segment = literal.span.clone();
         Ok(Literal {
-            parsed: LiteralValue::String(unescape(literal.text(self.source))),
+            parsed: LiteralValue::String(
+                unescape(literal.text(self.source)).map_err(|err| (literal.span, err))?,
+            ),
             segment: (segment.start - 1)..(segment.end + 1),
         })
     }
@@ -109,7 +111,10 @@ impl Parser<'_> {
                 StringContent => {
                     self.cursor.next_opt();
                     parts.push(Expr::Literal(Literal {
-                        parsed: LiteralValue::String(unescape(token.text(self.source))),
+                        parsed: LiteralValue::String(
+                            unescape(token.text(self.source))
+                                .map_err(|err| (token.span.clone(), err))?,
+                        ),
                         segment: token.span,
                     }));
                 }
@@ -158,7 +163,10 @@ impl Parser<'_> {
                 _ => {
                     self.cursor.next_opt();
                     parts.push(Expr::Literal(Literal {
-                        parsed: LiteralValue::String(unescape(token.text(self.source))),
+                        parsed: LiteralValue::String(
+                            unescape(token.text(self.source))
+                                .map_err(|err| (token.span.clone(), err))?,
+                        ),
                         segment: token.span,
                     }));
                 }
@@ -530,12 +538,13 @@ mod tests {
     #[test]
     fn non_standard_escape() {
         let source = r"'a\ b'";
-        let parsed = Parser::new(source).expression().expect("Failed to parse.");
+        let parsed: ParseResult<_> = Parser::new(source).expression();
         assert_eq!(
             parsed,
-            Expr::Literal(Literal {
-                parsed: "a b".into(),
-                segment: source.segment()
+            Err(ParseError {
+                message: "Invalid escape sequence".to_string(),
+                position: 3..4,
+                kind: InvalidFormat,
             })
         );
     }

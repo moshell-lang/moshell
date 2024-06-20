@@ -1,6 +1,7 @@
 use ast::Expr;
 use context::source::SourceSegment;
 use lexer::delimiter::UnmatchedDelimiter;
+use lexer::EscapeError;
 
 use crate::parser::ParseResult;
 
@@ -107,6 +108,24 @@ impl From<ParseReport> for ParseResult<Vec<Expr>> {
             Err(report.errors.remove(0))
         } else {
             Ok(report.expr)
+        }
+    }
+}
+
+impl From<(SourceSegment, EscapeError)> for ParseError {
+    fn from((mut position, error): (SourceSegment, EscapeError)) -> Self {
+        let message = match error {
+            EscapeError::InvalidEscape { idx } => {
+                position.start += idx;
+                position.end = position.start + 1;
+                "Invalid escape sequence".to_owned()
+            }
+            EscapeError::UnexpectedEnd => "Unterminated escape sequence".to_owned(),
+        };
+        Self {
+            message,
+            position,
+            kind: ParseErrorKind::InvalidFormat,
         }
     }
 }

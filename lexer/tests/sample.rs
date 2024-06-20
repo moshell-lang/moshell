@@ -1,5 +1,6 @@
 use lexer::delimiter::UnmatchedDelimiter;
 use lexer::token::TokenType;
+use lexer::unescape;
 use pretty_assertions::assert_eq;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -352,4 +353,25 @@ fn null_byte() {
     let input = "\0";
     let tokens = lex(input);
     assert_eq!(tokens, [Token::new(TokenType::Error, "\0")]);
+}
+
+#[test]
+fn too_many_escapes() {
+    let input = r"\\\";
+    assert_eq!(unescape(input), Err(lexer::EscapeError::UnexpectedEnd));
+}
+
+#[test]
+fn unknown_escape() {
+    let input = r"\z";
+    assert_eq!(
+        unescape(input),
+        Err(lexer::EscapeError::InvalidEscape { idx: 1 })
+    );
+}
+
+#[test]
+fn unescape_normal() {
+    let input = r#"\n \r \t \\ \""#;
+    assert_eq!(unescape(input), Ok("\n \r \t \\ \"".to_string()));
 }
