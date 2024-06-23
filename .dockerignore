@@ -1,5 +1,9 @@
+.idea
+.vscode
+
 .github
 target
+build
 Dockerfile
 .dockerignore
 .git
@@ -8,3 +12,5 @@ Dockerfile
 cmake-build-debug
 CMakeFiles
 completions
+corpus
+artifacts
