@@ -33,9 +33,8 @@ impl Parser<'_> {
 
     pub(crate) fn parenthesis(&mut self) -> ParseResult<Parenthesis> {
         let start = self.ensure_at_group_start(TokenType::RoundedLeftBracket)?;
-        let expr = self.value().map_err(|err| {
-            self.repos_delimiter_due_to(&err);
-            err
+        let expr = self.value().inspect_err(|err| {
+            self.repos_delimiter_due_to(err);
         })?;
         self.cursor.advance(spaces());
         if !self.cursor.peek().token_type.is_closing_punctuation() {
@@ -43,9 +42,8 @@ impl Parser<'_> {
                 "parenthesis in value expression can only contain one expression",
                 ParseErrorKind::Unexpected,
             )
-            .map_err(|err| {
-                self.repos_delimiter_due_to(&err);
-                err
+            .inspect_err(|err| {
+                self.repos_delimiter_due_to(err);
             })?
         }
         let end = self.expect_delimiter(start.clone(), TokenType::RoundedRightBracket)?;

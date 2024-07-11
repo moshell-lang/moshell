@@ -98,6 +98,7 @@ impl Parser<'_> {
     ///
     /// - If the current token does not match `start`, an empty vec is returned.
     /// - Otherwise, an explicit list is parsed, that must end with `end` token.
+    ///
     /// `if_it_absent_msg` is used when an element is missing.
     pub(crate) fn parse_optional_list<E, F>(
         &mut self,

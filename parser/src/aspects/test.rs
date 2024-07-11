@@ -29,9 +29,8 @@ impl Parser<'_> {
             )?;
         }
 
-        let underlying = Box::new(self.value().map_err(|err| {
+        let underlying = Box::new(self.value().inspect_err(|_| {
             self.repos_to_top_delimiter();
-            err
         })?);
         let end = self.cursor.force_with(
             //expect trailing ']'

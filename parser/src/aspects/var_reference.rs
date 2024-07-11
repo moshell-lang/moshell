@@ -40,11 +40,10 @@ impl Parser<'_> {
             segment,
         });
 
-        let mut expr = self.expand_member_chain(expr).map_err(|err| {
+        let mut expr = self.expand_member_chain(expr).inspect_err(|err| {
             if bracket.is_some() {
-                self.repos_delimiter_due_to(&err);
+                self.repos_delimiter_due_to(err);
             }
-            err
         })?;
 
         if let Some(bracket) = bracket {
