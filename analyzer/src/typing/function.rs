@@ -11,8 +11,33 @@ pub struct Function {
     pub kind: FunctionKind,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionKind {
     Function,
     Constructor,
+    Intrinsic,
+}
+
+impl Function {
+    pub fn native(
+        fqn: &'static str,
+        generic_variables: Vec<TypeId>,
+        param_types: Vec<TypeId>,
+        return_type: TypeId,
+    ) -> Self {
+        Self {
+            declared_at: PathBuf::new(),
+            fqn: PathBuf::from(fqn),
+            generic_variables,
+            param_types: param_types
+                .into_iter()
+                .map(|ty| Parameter {
+                    ty,
+                    span: Default::default(),
+                })
+                .collect(),
+            return_type,
+            kind: FunctionKind::Intrinsic,
+        }
+    }
 }

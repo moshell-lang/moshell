@@ -1367,7 +1367,6 @@ version = "0.1.0"
 dependencies = [
  "analyzer",
  "ast",
- "cli",
  "cmake",
  "compiler",
  "context",

@@ -1,6 +1,5 @@
 use crate::typing::function::Function;
 use crate::typing::schema::Schema;
-use crate::typing::user::GENERIC_TYPE;
 use std::ops::{Index, IndexMut};
 
 #[derive(Clone)]
@@ -17,6 +16,7 @@ pub struct FunctionId(usize);
 
 impl Default for Registry {
     fn default() -> Self {
+        use crate::typing::user::{GENERIC_TYPE, INT_TYPE, VECTOR_TYPE};
         Self {
             schemas: vec![
                 Schema::new("Int".to_owned()),
@@ -24,11 +24,21 @@ impl Default for Registry {
                 Schema::new("Exitcode".to_owned()),
                 Schema::new("Float".to_owned()),
                 Schema::new("String".to_owned()),
-                Schema::generic("Vec".to_owned(), vec![GENERIC_TYPE]),
+                {
+                    let mut vec = Schema::generic("Vec".to_owned(), vec![GENERIC_TYPE]);
+                    vec.methods.insert("[]".to_owned(), FunctionId(0));
+                    vec
+                },
                 Schema::new("Glob".to_owned()),
                 Schema::new("Pid".to_owned()),
+                Schema::generic("Option".to_owned(), vec![GENERIC_TYPE]),
             ],
-            functions: Vec::new(),
+            functions: vec![Function::native(
+                "Vec/[]",
+                vec![],
+                vec![VECTOR_TYPE, INT_TYPE],
+                GENERIC_TYPE,
+            )],
         }
     }
 }
@@ -41,6 +51,7 @@ pub const STRING_SCHEMA: SchemaId = SchemaId(4);
 pub const VEC_SCHEMA: SchemaId = SchemaId(5);
 pub const GLOB_SCHEMA: SchemaId = SchemaId(6);
 pub const PID_SCHEMA: SchemaId = SchemaId(7);
+pub const OPTION_SCHEMA: SchemaId = SchemaId(8);
 
 impl Registry {
     /// Allocates a new [`SchemaId`] for the given [`Schema`].

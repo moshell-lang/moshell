@@ -1,6 +1,8 @@
 mod assign;
+mod flow;
 pub mod function;
 mod lower;
+mod operator;
 pub mod registry;
 pub mod schema;
 mod shell;
@@ -10,32 +12,37 @@ pub mod variable;
 use crate::hir::{Conditional, Declaration, ExprKind, FunctionCall, Module, TypedExpr};
 use crate::module::ModuleView;
 use crate::symbol::{Symbol, SymbolDesc, SymbolRegistry, UndefinedSymbol};
-use crate::typing::assign::ascribe_assign;
+use crate::typing::assign::{
+    ascribe_assign, ascribe_identifier, ascribe_subscript, ascribe_var_reference,
+};
+use crate::typing::flow::{ascribe_control, ascribe_while};
 use crate::typing::function::Function;
-use crate::typing::lower::ascribe_template_string;
+use crate::typing::lower::{ascribe_template_string, coerce_condition};
+use crate::typing::operator::ascribe_binary;
 use crate::typing::registry::{FunctionId, Registry, SchemaId};
 use crate::typing::schema::Schema;
 use crate::typing::shell::{
-    ascribe_call, ascribe_detached, ascribe_pipeline, ascribe_redirected, ascribe_substitution,
+    ascribe_call, ascribe_detached, ascribe_file_pattern, ascribe_pipeline, ascribe_redirected,
+    ascribe_substitution,
 };
 use crate::typing::user::{
     lookup_builtin_type, TypeArena, TypeId, UserType, BOOL_TYPE, ERROR_TYPE, FLOAT_TYPE, INT_TYPE,
     NOTHING_TYPE, STRING_TYPE, UNIT_TYPE, UNKNOWN_TYPE,
 };
 use crate::typing::variable::{SymbolEntry, VariableTable};
-use crate::{Database, PipelineError, Reef, SourceLocation};
+use crate::{Database, PipelineError, Reef, SourceLocation, UnitKey};
 use ast::call::{MethodCall, ProgrammaticCall};
 use ast::control_flow::If;
 use ast::function::FunctionDeclaration;
 use ast::group::Block;
 use ast::r#struct::{FieldAccess, StructImpl};
 use ast::r#type::{ByName, ParametrizedType, Type};
-use ast::r#use::{Import, InclusionPathItem, Use};
+use ast::r#use::{Import, ImportList, InclusionPathItem, Use};
+use ast::range::Iterable;
 use ast::value::{Literal, LiteralValue};
-use ast::variable::{VarDeclaration, VarKind, VarReference};
+use ast::variable::{VarDeclaration, VarKind};
 use ast::Expr;
 use context::source::{SourceSegmentHolder, Span};
-use parser::Root;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -46,17 +53,17 @@ pub(super) fn type_check(
         exports,
         ref mut checker,
     }: &mut Database,
-    sorted: Vec<PathBuf>,
+    sorted: Vec<UnitKey>,
 ) -> Vec<TypeError> {
     let mut errors = Vec::<TypeError>::new();
-    for path in sorted {
-        let root = reef.files.get(&path).expect("file should be present");
+    for key in sorted {
+        let root = reef.files.get(&key).expect("file should be present");
         let mut table = VariableTable::new(
             reef.symbols
-                .get_mut(&path)
+                .get_mut(key.path.as_path())
                 .expect("table should be present"),
         );
-        let mut current_module = Module::new(path.clone());
+        let mut current_module = Module::new(key.path.clone());
         ascribe_types(
             root,
             &mut table,
@@ -68,7 +75,7 @@ pub(super) fn type_check(
         current_module.exports = table.take_exports();
         let all_module_exports = reef
             .exports
-            .get_full_mut(&path)
+            .get_full_mut(&key.path)
             .expect("module should exist");
         for (variable, ty) in &current_module.exports {
             if let Some(hoisted_export) = all_module_exports.exports.iter_mut().find(|export| {
@@ -77,7 +84,7 @@ pub(super) fn type_check(
                 hoisted_export.ty = *ty;
             }
         }
-        reef.hir.insert(path, current_module);
+        reef.hir.push(current_module);
     }
     errors
 }
@@ -267,6 +274,9 @@ pub enum TypeErrorKind {
     #[error("return statement outside of function body")]
     ReturnOutsideFunction,
 
+    #[error("loop control statement outside of a loop")]
+    ControlOutsideLoop,
+
     #[error("repeated parameter name `{name}`")]
     RepeatedParameterName { name: String, previous: Span },
 
@@ -323,6 +333,7 @@ struct Context<'a> {
     modules: ModuleView<'a>,
     hint: TypeHint,
     return_ty: Option<&'a Return>,
+    in_loop: bool,
 }
 
 #[derive(Clone)]
@@ -342,10 +353,17 @@ impl<'a> Context<'a> {
             ..self
         }
     }
+
+    fn in_loop(self) -> Self {
+        Self {
+            in_loop: true,
+            ..self
+        }
+    }
 }
 
 pub(super) fn ascribe_types(
-    root: &Root,
+    root: &[Expr],
     table: &mut VariableTable,
     checker: &mut TypeChecker,
     storage: &mut Module,
@@ -354,11 +372,12 @@ pub(super) fn ascribe_types(
 ) {
     let mut expressions = Vec::new();
     table.push_environment();
-    for expr in &root.expressions {
+    for expr in root.iter() {
         let ctx = Context {
             modules,
             hint: TypeHint::Unused,
             return_ty: None,
+            in_loop: false,
         };
         expressions.push(ascribe_type(expr, table, checker, storage, ctx, errors));
     }
@@ -399,6 +418,11 @@ fn ascribe_type(
                 LiteralValue::Bool(_) => BOOL_TYPE,
             },
         },
+        Expr::Unary(unary) => {
+            let typed_expr = ascribe_type(&unary.expr, table, checker, storage, ctx, errors);
+            typed_expr // TODO
+        }
+        Expr::Binary(binary) => ascribe_binary(binary, table, checker, storage, ctx, errors),
         Expr::TemplateString(tpl) => {
             ascribe_template_string(tpl, table, checker, storage, ctx, errors)
         }
@@ -449,12 +473,23 @@ fn ascribe_type(
             }
         }
         Expr::Assign(assign) => ascribe_assign(assign, table, checker, storage, ctx, errors),
+        Expr::Subscript(subscript) => {
+            ascribe_subscript(subscript, table, checker, storage, ctx, errors)
+        }
+        Expr::While(stmt) => ascribe_while(stmt, table, checker, storage, ctx, errors),
+        Expr::Break(span) => ascribe_control(ExprKind::Break, span.clone(), table, ctx, errors),
+        Expr::Continue(span) => {
+            ascribe_control(ExprKind::Continue, span.clone(), table, ctx, errors)
+        }
         Expr::FunctionDeclaration(fn_decl) => {
             ascribe_fn_decl(fn_decl, None, table, checker, storage, ctx, errors);
             TypedExpr::noop(fn_decl.segment())
         }
         Expr::Call(call) => ascribe_call(call, table, checker, storage, ctx, errors),
         Expr::Substitution(sub) => ascribe_substitution(sub, table, checker, storage, ctx, errors),
+        Expr::Parenthesis(paren) => {
+            ascribe_type(&paren.expression, table, checker, storage, ctx, errors)
+        }
         Expr::ProgrammaticCall(ProgrammaticCall {
             path,
             arguments,
@@ -696,27 +731,8 @@ fn ascribe_type(
             }
             TypedExpr::error(span.clone())
         }
-        Expr::VarReference(VarReference {
-            name,
-            segment: span,
-        }) => match table.lookup_variable(name.name()) {
-            Ok(var) => TypedExpr {
-                kind: ExprKind::Reference(var.id.clone()),
-                span: span.clone(),
-                ty: var.ty,
-            },
-            Err(err) => {
-                errors.push(TypeError::new(
-                    TypeErrorKind::UndefinedSymbol {
-                        name: name.name().to_owned(),
-                        expected: SymbolRegistry::Variable,
-                        found: err.into(),
-                    },
-                    SourceLocation::new(table.path().to_owned(), span.clone()),
-                ));
-                TypedExpr::error(span.clone())
-            }
-        },
+        Expr::VarReference(ident) => ascribe_var_reference(ident, table, errors),
+        Expr::Path(ident) => ascribe_identifier(ident, table, errors),
         Expr::Block(Block {
             expressions,
             segment: span,
@@ -743,6 +759,12 @@ fn ascribe_type(
         Expr::Pipeline(pipeline) => {
             ascribe_pipeline(pipeline, table, checker, storage, ctx, errors)
         }
+        Expr::Range(iterable) => match iterable {
+            Iterable::Range(range) => todo!("{range:?}"),
+            Iterable::Files(pattern) => {
+                ascribe_file_pattern(pattern, table, checker, storage, ctx, errors)
+            }
+        },
         Expr::If(If {
             condition,
             success_branch,
@@ -750,6 +772,7 @@ fn ascribe_type(
             segment: span,
         }) => {
             let typed_condition = ascribe_type(condition, table, checker, storage, ctx, errors);
+            let typed_condition = coerce_condition(typed_condition, table, checker, errors);
             if let Err(_) = checker.types.unify(typed_condition.ty, BOOL_TYPE) {
                 errors.push(TypeError::new(
                     TypeErrorKind::TypeMismatch {
@@ -899,7 +922,11 @@ fn ascribe_type(
                             &type_parameters,
                         );
                         TypedExpr {
-                            kind: ExprKind::Noop,
+                            kind: ExprKind::MethodCall(crate::hir::MethodCall {
+                                callee: Box::new(typed_source),
+                                arguments: args,
+                                function_id: *method,
+                            }),
                             span: span.clone(),
                             ty: return_type,
                         }
@@ -1344,9 +1371,69 @@ fn ascribe_import(
                 }
             }
         }
-        Import::AllIn(_, _) => {}
+        Import::AllIn(path, span) => {
+            let tree = modules.get_direct(path).expect("path should be defined");
+            for export in tree.exports.iter() {
+                table.insert_remote(export.name.clone(), span.clone(), export);
+            }
+        }
         Import::Environment(_) => {}
-        Import::List(_) => {}
+        Import::List(ImportList {
+            root,
+            imports,
+            segment: span,
+        }) => {
+            // FIXME: a bit messy and should prefer tree.exports instead of tree.children
+            let mut tree = modules.get_direct(root).expect("root should be defined");
+            for import in imports {
+                match import {
+                    Import::Symbol(symbol) => {
+                        let mut iter = symbol.path.iter();
+                        while let Some(path) = iter.next() {
+                            let InclusionPathItem::Symbol(ident) = path else {
+                                panic!("path should be a symbol");
+                            };
+                            match tree.get(OsStr::new(ident.value.as_str())) {
+                                Some(child_tree) => tree = child_tree,
+                                None => {
+                                    let mut found = false;
+                                    if iter.next().is_none() {
+                                        for export in tree.exports.iter() {
+                                            if export.name != ident.value {
+                                                continue;
+                                            }
+                                            found = true;
+                                            table.insert_remote(
+                                                ident.value.to_string(),
+                                                ident.segment(),
+                                                export,
+                                            );
+                                        }
+                                    }
+                                    if !found {
+                                        errors.push(TypeError::new(
+                                            TypeErrorKind::UndefinedSymbol {
+                                                name: ident.value.to_string(),
+                                                expected: SymbolRegistry::Type,
+                                                found: None,
+                                            },
+                                            SourceLocation::new(
+                                                table.path().to_owned(),
+                                                ident.segment(),
+                                            ),
+                                        ));
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    Import::AllIn(_, _) => todo!(),
+                    Import::Environment(_) => {}
+                    Import::List(_) => todo!(),
+                }
+            }
+        }
     }
 }
 
@@ -1368,12 +1455,14 @@ mod tests {
     fn check(fs: MemoryFilesystem, entrypoint: &str) -> Vec<TypeError> {
         let mut database = Database::default();
         let mut reef = Reef::new(OsString::from("test"));
-        assert_eq!(
-            import_multi(&mut reef, &fs, entrypoint),
-            [],
-            "no import errors should be found"
+        let import_result = import_multi(&mut reef, &fs, entrypoint);
+        assert_eq!(import_result.errors, [], "no import errors should be found");
+        let hoist_result = hoist_files(
+            &database.exports,
+            &mut reef,
+            &mut database.checker,
+            import_result.keys,
         );
-        let hoist_result = hoist_files(&database.exports, &mut reef, &mut database.checker);
         assert_eq!(
             hoist_result.errors,
             [],

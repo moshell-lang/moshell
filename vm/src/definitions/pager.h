@@ -88,13 +88,13 @@ namespace msh {
          */
         const ConstantPool &get_pool(size_t index) const;
 
-        page_vector::reverse_iterator begin();
+        page_vector::iterator begin();
 
-        page_vector::reverse_iterator end();
+        page_vector::iterator end();
 
-        page_vector::const_reverse_iterator cbegin() const;
+        page_vector::const_iterator cbegin() const;
 
-        page_vector::const_reverse_iterator cend() const;
+        page_vector::const_iterator cend() const;
 
         template <typename T>
         T *get_exported_value(exported_variable var) {

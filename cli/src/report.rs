@@ -70,10 +70,11 @@ fn type_error_to_diagnostic(
                 expected_span,
             ))
         }
-        TypeErrorKind::UnknownField { available, .. } => diagnostic.with_help(format!(
-            "Available fields: {}",
-            available.into_iter().collect::<Vec<_>>().join(", ")
-        )),
+        TypeErrorKind::UnknownField { available, .. } if !available.is_empty() => diagnostic
+            .with_help(format!(
+                "Available fields: {}",
+                available.into_iter().collect::<Vec<_>>().join(", ")
+            )),
         TypeErrorKind::TypeAnnotationRequired { types, insert_at } => {
             let span = multi_file.insert(at.path, insert_at..insert_at, fs);
             diagnostic.with_label(LabeledSpan::new_with_span(
@@ -115,7 +116,9 @@ impl MultiFile {
                 start += source.source.len();
             }
         }
-        let source = fs.read(&path).unwrap();
+        let Ok(source) = fs.read(&path) else {
+            panic!("unable to re-read file: {}", path.display());
+        };
         self.sources.push(VirtualFile {
             name: path,
             source: source.to_string(),

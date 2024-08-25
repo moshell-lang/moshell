@@ -137,9 +137,8 @@ moshell_value moshell_vm_get_exported(moshell_vm vm, const char *name, size_t le
 int moshell_vm_run(moshell_vm vm) {
     try {
         vm->loader.resolve_all(vm->pager);
-        const auto last = vm->pager.cbegin() + (vm->pager.size() - vm->next_page);
-        vm->next_page = vm->pager.size();
-        for (auto it = vm->pager.cbegin(); it != last; ++it) {
+        auto it = vm->pager.cbegin() + vm->next_page;
+        for (vm->next_page = vm->pager.size(); it != vm->pager.cend(); ++it) {
             const msh::memory_page &page = *it;
             runtime_memory mem{vm->heap, vm->program_args, vm->gc};
             if (!run_unit(vm->thread_stack, vm->loader, vm->pager, page, mem, vm->natives, vm->pgid)) {

@@ -1,19 +1,21 @@
 use crate::cli::{use_pipeline, Cli};
-use crate::pipeline::RealFilesystem;
+use crate::library::build_std;
+use crate::pipeline::{Pipeline, PipelineStatus, REPLFilesystem};
 use crate::repl::repl;
 use crate::terminal::signal_hook;
-use ::cli::pipeline::PipelineStatus;
 use analyzer::{analyze_multi, Database, Reef};
 use clap::{CommandFactory, Parser};
+use compiler::CompilerState;
 use nix::sys::signal;
 use std::ffi::OsString;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use vm::VM;
 
 mod cli;
 mod complete;
 mod disassemble;
+mod library;
 mod pipeline;
 mod repl;
 mod report;
@@ -45,7 +47,7 @@ fn main() -> miette::Result<PipelineStatus> {
         return Ok(PipelineStatus::Success);
     }
 
-    let mut vm = VM::new(
+    let vm = VM::new(
         cli.source
             .iter()
             .flat_map(|p| p.to_str())
@@ -53,24 +55,43 @@ fn main() -> miette::Result<PipelineStatus> {
             .chain(std::mem::take(&mut cli.program_arguments))
             .collect(),
     );
-    let fs = RealFilesystem {
-        root: PathBuf::new(),
+    let fs = REPLFilesystem::new(
+        cli.source
+            .as_deref()
+            .and_then(Path::parent)
+            .map(Path::to_path_buf)
+            .unwrap_or_default(),
+    );
+    let mut pipeline = Pipeline {
+        filesystem: fs,
+        compiler_state: CompilerState::default(),
+        vm,
     };
     let mut database = Database::default();
+    build_std(&mut database, &mut pipeline);
     if let Some(source) = cli.source.take() {
-        return Ok(run(source, &mut database, &fs, &mut vm, &cli));
+        return Ok(run(
+            source.file_name().map(PathBuf::from).unwrap_or_default(),
+            &mut database,
+            &mut pipeline,
+            &cli,
+        ));
     }
-    repl(&cli, &mut database, &fs, &mut vm)
+    repl(&cli, &mut database, &mut pipeline)
 }
 
 fn run(
     source: PathBuf,
     database: &mut Database,
-    fs: &RealFilesystem,
-    vm: &mut VM,
+    pipeline: &mut Pipeline,
     config: &Cli,
 ) -> PipelineStatus {
     let mut reef = Reef::new(OsString::from("foo"));
-    let errors = analyze_multi(database, &mut reef, fs, &source.display().to_string());
-    use_pipeline(database, &reef, fs, vm, errors, config)
+    let errors = analyze_multi(
+        database,
+        &mut reef,
+        &pipeline.filesystem,
+        &source.display().to_string(),
+    );
+    use_pipeline(database, &reef, pipeline, errors, config)
 }

@@ -3,6 +3,7 @@ use analyzer::typing::function::FunctionKind;
 use analyzer::typing::registry::SchemaId;
 use analyzer::typing::user::{TypeId, UserType, INT_TYPE, STRING_TYPE, VECTOR_TYPE};
 use libc::{O_APPEND, O_CREAT, O_RDONLY, O_RDWR, O_TRUNC, O_WRONLY};
+use std::ffi::OsStr;
 
 use ast::call::{RedirFd, RedirOp};
 
@@ -226,7 +227,14 @@ pub fn emit_function_invocation(
         // thus we can init it from all the pushed constructor's parameters in the operands
         instructions.emit_copy_operands(layout.total_size);
     } else {
-        let signature_idx = cp.insert_string(function.fqn.display());
+        let signature_idx = cp.insert_string(
+            function
+                .fqn
+                .iter()
+                .map(OsStr::to_string_lossy)
+                .collect::<Vec<_>>()
+                .join("::"),
+        );
         instructions.emit_invoke(signature_idx);
     }
 

@@ -11,7 +11,7 @@ use crate::emit::invoke::{
     emit_subprocess, emit_substitution,
 };
 use crate::emit::jump::{emit_break, emit_conditional, emit_continue, emit_loop};
-use crate::emit::native::emit_natives;
+use crate::emit::native::{emit_cast, emit_natives};
 use crate::emit::structure::{emit_field_access, emit_field_assign};
 use crate::locals::LocalsLayout;
 use crate::r#type::ValueStackSize;
@@ -257,6 +257,10 @@ pub fn emit(
         }
         ExprKind::Substitute(substitution) => {
             emit_substitution(substitution, instructions, ctx, cp, locals, state);
+        }
+        ExprKind::Cast(inner) => {
+            emit(inner, instructions, ctx, cp, locals, state);
+            emit_cast(inner.ty, expr.ty, instructions);
         }
         ExprKind::Noop => {}
     }

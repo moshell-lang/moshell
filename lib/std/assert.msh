@@ -5,7 +5,7 @@ fun assert(test: Bool) = {
         reef::std::panic("assertion failed")
 }
 
-fun assert_msg(test: Bool, msg) = {
+fun assert_msg(test: Bool, msg: String) = {
     if !$test
         reef::std::panic("assertion failed: $msg")
 }

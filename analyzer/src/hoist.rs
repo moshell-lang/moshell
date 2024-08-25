@@ -6,17 +6,16 @@ use crate::typing::user::{
     lookup_builtin_type, TypeId, UserType, ERROR_TYPE, STRING_TYPE, UNIT_TYPE,
 };
 use crate::typing::{Parameter, TypeChecker, TypeErrorKind};
-use crate::{Reef, SourceLocation, TypeError};
+use crate::{Reef, SourceLocation, TypeError, UnitKey};
 use ast::function::{FunctionDeclaration, FunctionParameter};
 use ast::r#struct::{StructDeclaration, StructImpl};
 use ast::r#type::Type;
-use ast::r#use::{Import, ImportedSymbol, InclusionPathItem};
+use ast::r#use::{Import, ImportList, ImportedSymbol, InclusionPathItem};
 use ast::variable::TypedVariable;
 use ast::Expr;
 use context::source::{SourceSegmentHolder, Span};
-use parser::Root;
-use std::collections::HashMap;
-use std::ffi::OsString;
+use std::collections::{HashMap, HashSet};
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
 /// Places functions and types at the top level of the symbol table.
@@ -34,15 +33,26 @@ use std::path::{Path, PathBuf};
 /// This step performs multiple passes where types are added to the symbol table, and then their
 /// fields are added to the type. A third pass is done to hoist functions, now that all parameters
 /// and return types may be known.
+///
+/// # Exploration order
+///
+/// The hoisting phase creates an identity for each module and outlines the dependencies between
+/// them. It does then compute a satisfying order to analyse each module, one at a time, that should
+/// not have cyclic dependencies for variables.
 pub(super) fn hoist_files(
     foreign: &HashMap<OsString, ModuleTree>,
     reef: &mut Reef,
     checker: &mut TypeChecker,
+    mut keys: Vec<UnitKey>,
 ) -> HoistingResult {
     let mut errors = Vec::<TypeError>::new();
     let mut graph = HashMap::new();
-    for (path, root) in &reef.files {
-        let mut table = SymbolTable::new(path.clone());
+    for key @ UnitKey { path, .. } in &keys {
+        let root = reef.files.get(key).expect("unit should exist");
+        let mut table = reef
+            .symbols
+            .remove(path)
+            .unwrap_or_else(|| SymbolTable::new(path.clone()));
         let mut exports = reef.exports.take_exports(path); // This is not problematic if the export is not found, but it shouldn't happen
         let modules = ModuleView::new(&reef.exports, foreign);
         let mut deps = Dependencies {
@@ -63,17 +73,24 @@ pub(super) fn hoist_files(
         reef.symbols.insert(path.clone(), table);
     }
 
-    let mut sorted: Vec<PathBuf> = Vec::new();
+    let mut sorted: Vec<UnitKey> = Vec::new();
     let mut frontier: Vec<PathBuf> = graph
         .keys()
         .filter(|module| graph.values().all(|deps| !deps.contains(module)))
         .cloned()
         .collect();
+    let mut seen: HashSet<PathBuf> = frontier.iter().cloned().collect(); // Deduplicate when the same file is imported multiple times
     while let Some(module) = frontier.pop() {
-        sorted.push(module.clone());
+        let key = keys.swap_remove(
+            keys.iter()
+                .position(|key| key.path == module)
+                .expect("module should exist"),
+        );
+        sorted.push(key);
         if let Some(requires) = graph.remove(&module) {
             for require in requires {
-                if !graph.values().any(|deps| deps.contains(&require)) {
+                if !seen.contains(&require) && !graph.values().any(|deps| deps.contains(&require)) {
+                    seen.insert(require.clone());
                     frontier.push(require);
                 }
             }
@@ -99,7 +116,7 @@ pub(super) fn hoist_files(
 
 pub(crate) struct HoistingResult {
     pub(crate) errors: Vec<TypeError>,
-    pub(crate) sorted: Vec<PathBuf>,
+    pub(crate) sorted: Vec<UnitKey>,
 }
 
 struct Dependencies<'a> {
@@ -108,12 +125,12 @@ struct Dependencies<'a> {
 }
 
 fn hoist_type_names(
-    root: &Root,
+    root: &[Expr],
     checker: &mut TypeChecker,
     table: &mut SymbolTable,
     exports: &mut [Export],
 ) {
-    for expr in &root.expressions {
+    for expr in root.iter() {
         if let Expr::StructDeclaration(StructDeclaration {
             name,
             segment: span,
@@ -139,14 +156,14 @@ fn hoist_type_names(
 }
 
 fn hoist_functions(
-    root: &Root,
+    root: &[Expr],
     checker: &mut TypeChecker,
     table: &mut SymbolTable,
     exports: &mut [Export],
     deps: &mut Dependencies,
     errors: &mut Vec<TypeError>,
 ) {
-    for expr in &root.expressions {
+    for expr in root.iter() {
         match expr {
             Expr::FunctionDeclaration(fn_decl) => {
                 hoist_fn_decl(fn_decl, None, checker, table, exports, errors);
@@ -164,6 +181,9 @@ fn hoist_functions(
                         alias,
                         segment: span,
                     }) => {
+                        if matches!(path.first(), Some(InclusionPathItem::Symbol(_))) {
+                            return; // Exclude inter-reefs dependencies
+                        }
                         let (last, rest) = path.split_last().expect("at least one item");
                         if let Some(module) = deps.modules.get_direct(rest) {
                             for export in &module.exports {
@@ -192,10 +212,55 @@ fn hoist_functions(
                             }
                         }
                     }
-                    Import::AllIn(path, _) => todo!(),
+                    Import::AllIn(path, _) => {
+                        if matches!(path.first(), Some(InclusionPathItem::Symbol(_))) {
+                            return; // Exclude inter-reefs dependencies
+                        }
+                        if let Some(module) = deps.modules.get_direct(path) {
+                            for export in &module.exports {
+                                table.insert_remote(export.name.clone(), import.segment(), export);
+                            }
+                        }
+                    }
                     Import::Environment(_) => {}
-                    Import::List(list) => {
-                        todo!()
+                    Import::List(ImportList {
+                        root,
+                        imports,
+                        segment: span,
+                    }) => {
+                        if matches!(root.first(), Some(InclusionPathItem::Symbol(_))) {
+                            return; // Exclude inter-reefs dependencies
+                        }
+                        let base = root
+                            .iter()
+                            .skip_while(|item| matches!(item, InclusionPathItem::Reef(_)))
+                            .map(|item| item.name())
+                            .collect::<PathBuf>();
+                        if let Some(mut module) = deps.modules.get_direct(root) {
+                            for import in imports {
+                                match import {
+                                    Import::Symbol(symbol) => {
+                                        let mut path = base.clone();
+                                        for part in symbol.path.iter() {
+                                            if let InclusionPathItem::Symbol(ident) = part {
+                                                if let Some(tree) =
+                                                    module.get(OsStr::new(ident.value.as_str()))
+                                                {
+                                                    path.push(ident.value.as_str());
+                                                    module = tree;
+                                                } else {
+                                                    deps.requires.push(path);
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Import::AllIn(_, _) => {}
+                                    Import::Environment(_) => {}
+                                    Import::List(_) => {}
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -214,6 +279,7 @@ fn hoist_fn_decl(
         name,
         type_parameters,
         parameters,
+        body,
         return_type,
         ..
     }: &FunctionDeclaration,
@@ -271,15 +337,37 @@ fn hoist_fn_decl(
         }
         None => UNIT_TYPE,
     };
-    let mut fqn = table.path.clone();
-    fqn.push(name.value.to_string());
+    table.exit_scope();
+    let fqn = if let Some(current_ty) = current_ty {
+        let UserType::Parametrized { schema, .. } = checker.types[current_ty] else {
+            panic!(
+                "the current type should be a struct, got {:?}",
+                checker.types[current_ty]
+            );
+        };
+        let Schema {
+            name: ref type_name,
+            ..
+        } = checker.registry[schema];
+        let mut fqn = PathBuf::from(type_name);
+        fqn.push(name.value.to_string());
+        fqn
+    } else {
+        let mut fqn = table.path.clone();
+        fqn.push(name.value.to_string());
+        fqn
+    };
     let function = checker.registry.define_function(Function {
         declared_at: table.path.clone(),
         fqn,
         generic_variables,
         param_types,
         return_type,
-        kind: FunctionKind::Function,
+        kind: if body.is_some() {
+            FunctionKind::Function
+        } else {
+            FunctionKind::Intrinsic
+        },
     });
     let function_type = checker.types.alloc(UserType::Function(function));
     match current_ty {
@@ -548,12 +636,15 @@ mod tests {
 
     fn hoist_files(fs: MemoryFilesystem, entrypoint: &str) -> Vec<TypeError> {
         let mut reef = Reef::new(OsString::from("test"));
-        assert_eq!(
-            import_multi(&mut reef, &fs, entrypoint),
-            [],
-            "no import errors should be found"
-        );
-        super::hoist_files(&mut HashMap::new(), &mut reef, &mut TypeChecker::default()).errors
+        let import_result = import_multi(&mut reef, &fs, entrypoint);
+        assert_eq!(import_result.errors, [], "no import errors should be found");
+        super::hoist_files(
+            &mut HashMap::new(),
+            &mut reef,
+            &mut TypeChecker::default(),
+            import_result.keys,
+        )
+        .errors
     }
 
     fn hoist(source: &str) -> Vec<TypeError> {

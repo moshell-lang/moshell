@@ -1,4 +1,5 @@
 use crate::typing::registry::{FunctionId, Registry};
+use crate::typing::user::TypeArena;
 use crate::typing::{Parameter, TypeId};
 use std::collections::HashMap;
 
@@ -39,8 +40,10 @@ impl Schema {
         }
     }
 
+    /// Finds a method that have those exact name, parameters and return type.
     pub fn get_exact_method(
         &self,
+        types: &TypeArena,
         registry: &Registry,
         name: &str,
         params: &[TypeId],
@@ -52,8 +55,9 @@ impl Schema {
                 .param_types
                 .iter()
                 .map(|param| param.ty)
-                .eq(params.iter().copied())
-                && func.return_type == return_ty
+                .zip(params.iter())
+                .all(|(param_ty, ty)| types.are_same(param_ty, *ty))
+                && types.are_same(func.return_type, return_ty)
             {
                 Some(id)
             } else {

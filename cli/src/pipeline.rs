@@ -1,6 +1,15 @@
-use analyzer::Filesystem;
+use analyzer::{FileImporter, Filesystem};
+use compiler::CompilerState;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{ExitCode, Termination};
+use vm::VM;
+
+pub(crate) struct Pipeline {
+    pub(crate) filesystem: REPLFilesystem,
+    pub(crate) compiler_state: CompilerState,
+    pub(crate) vm: VM,
+}
 
 /// Represents the state of the pipeline.
 #[repr(u8)]
@@ -36,14 +45,35 @@ impl Termination for PipelineStatus {
     }
 }
 
-pub(super) struct RealFilesystem {
-    pub(super) root: PathBuf,
+pub(super) struct REPLFilesystem {
+    base: FileImporter,
+    stdin: String,
 }
 
-impl Filesystem for RealFilesystem {
-    fn read(&self, path: &Path) -> std::io::Result<String> {
-        let mut path = self.root.join(path);
-        path.set_extension("msh");
-        std::fs::read_to_string(path)
+impl REPLFilesystem {
+    pub(super) fn new(root: PathBuf) -> Self {
+        Self {
+            base: FileImporter::new(root),
+            stdin: String::new(),
+        }
+    }
+}
+
+impl Filesystem for REPLFilesystem {
+    fn read(&self, path: &Path) -> io::Result<String> {
+        if path == Path::new("stdin") {
+            return Ok(self.stdin.clone());
+        }
+        self.base.read(path)
+    }
+}
+
+impl REPLFilesystem {
+    pub(super) fn add(&mut self, source: &str) -> PathBuf {
+        if !self.stdin.is_empty() {
+            self.stdin.push('\n');
+        }
+        self.stdin.push_str(source);
+        PathBuf::from("stdin")
     }
 }

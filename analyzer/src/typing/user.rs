@@ -54,6 +54,33 @@ impl TypeArena {
         TypeId(id)
     }
 
+    pub(crate) fn are_same(&self, lhs: TypeId, rhs: TypeId) -> bool {
+        match (&self[lhs], &self[rhs]) {
+            (
+                UserType::Parametrized {
+                    schema: lhs,
+                    params: lparams,
+                },
+                UserType::Parametrized {
+                    schema: rhs,
+                    params: rparams,
+                },
+            ) => {
+                lhs == rhs
+                    && lparams
+                        .iter()
+                        .zip(rparams.iter())
+                        .all(|(l, r)| self.are_same(*l, *r))
+            }
+            (a, b) => a == b,
+        }
+    }
+
+    /// Merges two types into one.
+    ///
+    /// If the types are not compatible, an error is returned that may be expanded into a more
+    /// detailed error message in the future. If successful, a new type may be created and returned,
+    /// so the caller should always use the returned value.
     pub(crate) fn unify(&mut self, rhs: TypeId, assign_to: TypeId) -> Result<TypeId, UnifyError> {
         match (&self[assign_to], &self[rhs]) {
             (UserType::Error, _) | (_, UserType::Error) => Ok(ERROR_TYPE),
@@ -79,6 +106,10 @@ impl TypeArena {
                 schema,
                 params: sub_params,
             } => {
+                if generics == params {
+                    // Avoid creating a new type if the type is not parametrized and can be reused.
+                    return ty;
+                }
                 let concrete_params = sub_params
                     .iter()
                     .map(|ty| {
@@ -122,7 +153,9 @@ pub const STRING_TYPE: TypeId = TypeId(8);
 pub const GENERIC_TYPE: TypeId = TypeId(9);
 pub const VECTOR_TYPE: TypeId = TypeId(10);
 pub const GLOB_TYPE: TypeId = TypeId(11);
-pub const PID_TYPE: TypeId = TypeId(13);
+pub const PID_TYPE: TypeId = TypeId(12);
+pub const OPTION_TYPE: TypeId = TypeId(13);
+pub(crate) const STRING_VECTOR_TYPE: TypeId = TypeId(14);
 
 /// Gets the [`TypeId`] for a built-in type by its name.
 pub(crate) fn lookup_builtin_type(name: &str) -> Option<TypeId> {
@@ -137,6 +170,7 @@ pub(crate) fn lookup_builtin_type(name: &str) -> Option<TypeId> {
         "Vec" => Some(VECTOR_TYPE),
         "Glob" => Some(GLOB_TYPE),
         "Pid" => Some(PID_TYPE),
+        "Option" => Some(OPTION_TYPE),
         _ => None,
     }
 }
@@ -191,6 +225,14 @@ impl Default for TypeArena {
                 },
                 UserType::from(registry::GLOB_SCHEMA),
                 UserType::from(registry::PID_SCHEMA),
+                UserType::Parametrized {
+                    schema: registry::OPTION_SCHEMA,
+                    params: vec![GENERIC_TYPE],
+                },
+                UserType::Parametrized {
+                    schema: registry::VEC_SCHEMA,
+                    params: vec![STRING_TYPE],
+                },
             ],
         }
     }

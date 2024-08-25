@@ -17,15 +17,16 @@
 use crate::symbol::SymbolRegistry;
 use crate::typing::user::{TypeId, UNKNOWN_TYPE};
 use crate::typing::{TypeError, TypeErrorKind};
-use crate::{Filesystem, PipelineError, Reef, SourceLocation};
+use crate::{Filesystem, PipelineError, Reef, SourceLocation, UnitKey};
 use ast::call::ProgrammaticCall;
 use ast::function::FunctionDeclaration;
-use ast::r#use::{Import as ImportExpr, ImportedSymbol, InclusionPathItem, Use};
+use ast::r#use::{Import as ImportExpr, ImportList, ImportedSymbol, InclusionPathItem, Use};
 use ast::variable::VarDeclaration;
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder, Span};
 use parser::err::ParseError;
 use parser::Root;
+use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::io;
@@ -243,6 +244,11 @@ impl ModuleTree {
     }
 }
 
+pub(crate) struct ImportResult {
+    pub(crate) errors: Vec<ModuleError>,
+    pub(crate) keys: Vec<UnitKey>,
+}
+
 #[derive(Clone, Copy)]
 pub(crate) struct ModuleView<'a> {
     pub(crate) current: &'a ModuleTree,
@@ -275,15 +281,45 @@ impl<'a> ModuleView<'a> {
 }
 
 /// Access all related files starting from the entrypoint.
-pub(super) fn import_multi(
-    reef: &mut Reef,
-    fs: &dyn Filesystem,
-    entrypoint: &str,
-) -> Vec<ModuleError> {
-    let mut imports = vec![Import {
+pub(super) fn import_multi(reef: &mut Reef, fs: &dyn Filesystem, entrypoint: &str) -> ImportResult {
+    let imports = vec![Import {
         path: PathBuf::from(entrypoint),
         origin: None,
     }];
+    explore(reef, fs, imports, Vec::new())
+}
+
+pub(crate) fn append(
+    reef: &mut Reef,
+    fs: &dyn Filesystem,
+    path: PathBuf,
+    source: &str,
+) -> ImportResult {
+    let report = parser::parse(source);
+    let mut unit = UnitKey {
+        path: path.clone(),
+        offset: 0,
+    };
+    match reef.files.files.entry(path) {
+        Entry::Occupied(mut existing) => {
+            unit.offset = existing.get().expressions.len();
+            existing.get_mut().expressions.extend(report.expr);
+        }
+        Entry::Vacant(vacant) => {
+            vacant.insert(Root {
+                expressions: report.expr,
+            });
+        }
+    }
+    explore(reef, fs, Vec::<Import>::new(), vec![unit])
+}
+
+fn explore(
+    reef: &mut Reef,
+    fs: &dyn Filesystem,
+    mut imports: Vec<Import>,
+    mut keys: Vec<UnitKey>,
+) -> ImportResult {
     let mut errors = Vec::<ModuleError>::new();
     let mut visited = HashSet::<PathBuf>::new();
     while let Some(Import { mut path, origin }) = imports.pop() {
@@ -323,9 +359,13 @@ pub(super) fn import_multi(
         }
         list_imports(&root, &path, &mut imports);
         reef.exports.insert(&path, exports);
-        reef.files.insert(path, root);
+        keys.push(UnitKey {
+            path: path.clone(),
+            offset: 0,
+        });
+        reef.files.files.insert(path, root);
     }
-    errors
+    ImportResult { errors, keys }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -444,18 +484,16 @@ fn list_imports_expr(expr: &Expr, path: &Path, imports: &mut Vec<Import>) {
 
 fn add_import(import: &ImportExpr, origin: &Path, span: SourceSegment, imports: &mut Vec<Import>) {
     match import {
-        ImportExpr::Symbol(ImportedSymbol { path, .. }) | ImportExpr::AllIn(path, _) => {
+        ImportExpr::Symbol(ImportedSymbol { path, .. })
+        | ImportExpr::AllIn(path, _)
+        | ImportExpr::List(ImportList { root: path, .. }) => {
             let [InclusionPathItem::Reef(_), rest @ ..] = path.as_slice() else {
                 return;
             };
             add_import_tree(rest, origin, span, imports);
+            // TODO: List items
         }
         ImportExpr::Environment(_) => {}
-        ImportExpr::List(items) => {
-            for item in &items.imports {
-                add_import(item, origin, span.clone(), imports);
-            }
-        }
     }
 }
 
@@ -500,7 +538,7 @@ mod tests {
             .to_string();
         let mut reef = Reef::new(OsString::from("test"));
         let fs = MemoryFilesystem::from_iter(sources);
-        super::import_multi(&mut reef, &fs, &entrypoint)
+        super::import_multi(&mut reef, &fs, &entrypoint).errors
     }
 
     #[test]

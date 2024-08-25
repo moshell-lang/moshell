@@ -1,8 +1,9 @@
+use std::ffi::OsStr;
 use std::io;
 use std::io::Write;
 
 use ::context::source::ContentId;
-use analyzer::hir::{Chunk, EncodableContent, NamedExports};
+use analyzer::hir::{Chunk, EncodableContent, ExprKind, NamedExports};
 use analyzer::{Database, Reef};
 
 use crate::bytecode::{Bytecode, InstructionPos, Instructions};
@@ -27,6 +28,11 @@ pub trait SourceLineProvider {
 }
 
 #[derive(Default)]
+pub struct CompilerState {
+    pub constant_pool: ConstantPool,
+}
+
+#[derive(Default)]
 pub struct CompilerOptions<'a> {
     pub line_provider: Option<&'a dyn SourceLineProvider>,
     pub last_page_storage_var: Option<String>,
@@ -38,10 +44,10 @@ pub fn compile_reef(
     database: &Database,
     reef: &Reef,
     writer: &mut impl Write,
+    CompilerState { constant_pool: cp }: &mut CompilerState,
     options: CompilerOptions,
 ) -> Result<(), io::Error> {
     let mut bytecode = Bytecode::default();
-    let mut cp = ConstantPool::default();
     let layouts = Vec::<StructureLayout>::new();
 
     for EncodableContent {
@@ -63,20 +69,23 @@ pub fn compile_reef(
             page_size += size as u32;
             cp.insert_exported(name, offset, ty.is_obj());
         }
+        if options.last_page_storage_var.is_some() {
+            page_size += u8::from(ValueStackSize::QWord) as u32;
+        }
 
-        compile_function_chunk(main, exports, &ctx, &mut bytecode, &mut cp, &options);
+        compile_function_chunk(main, exports, &ctx, &mut bytecode, cp, &options);
 
-        write_exported(&mut cp, page_size, &mut bytecode)?;
+        write_exported(cp, page_size, &mut bytecode)?;
 
         bytecode.emit_u32(layouts.len() as u32);
         bytecode.emit_u32(functions.len() as u32);
 
         for function in functions {
-            compile_function_chunk(function, exports, &ctx, &mut bytecode, &mut cp, &options);
+            compile_function_chunk(function, exports, &ctx, &mut bytecode, cp, &options);
         }
     }
 
-    write(writer, &bytecode, &cp)?;
+    write(writer, &bytecode, cp)?;
     Ok(())
 }
 
@@ -89,7 +98,14 @@ fn compile_function_chunk(
     options: &CompilerOptions,
 ) {
     // emit the function's name
-    let signature_idx = cp.insert_string(chunk.fqn.display());
+    let signature_idx = cp.insert_string(
+        chunk
+            .fqn
+            .iter()
+            .map(OsStr::to_string_lossy)
+            .collect::<Vec<_>>()
+            .join("::"),
+    );
     bytecode.emit_constant_ref(signature_idx);
 
     // emits chunk's code attribute
@@ -195,6 +211,21 @@ fn compile_code(
         &mut locals,
         &mut state,
     );
+    if let Some(storage_exported_val) = &options.last_page_storage_var {
+        let last_expr = if let ExprKind::Block(block) = &chunk.expr.kind {
+            block.last().unwrap_or(&chunk.expr)
+        } else {
+            &chunk.expr
+        };
+        let page_offset = cp.exported.last().map_or(0, |exp| {
+            exp.page_offset + u8::from(ValueStackSize::QWord) as u32
+        });
+        cp.insert_exported(storage_exported_val, page_offset, last_expr.ty.is_obj());
+        instructions.emit_set_external(
+            cp.get_external(storage_exported_val).unwrap(),
+            last_expr.ty.into(),
+        );
+    }
 
     // patch instruction count placeholder
     let instruction_byte_count = instructions.current_ip();

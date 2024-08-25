@@ -1,17 +1,16 @@
 use crate::disassemble::display_bytecode;
-use crate::pipeline::RealFilesystem;
+use crate::pipeline::{Pipeline, PipelineStatus};
 use crate::report::{error_to_diagnostic, MultiFile};
 use analyzer::{Database, PipelineError, Reef};
 use clap::Parser;
 use clap_complete::Shell;
-use cli::pipeline::PipelineStatus;
 use compiler::{compile_reef, CompilerOptions};
 use miette::Report;
 use std::path::PathBuf;
-use vm::{VmError, VM};
+use vm::VmError;
 
 /// The Moshell scripting language.
-#[derive(Parser)]
+#[derive(Parser, Default)]
 #[command(author, version, about, long_about = None)]
 pub struct Cli {
     /// The inline source code to parse
@@ -47,8 +46,11 @@ pub struct Cli {
 pub fn use_pipeline(
     database: &Database,
     reef: &Reef,
-    fs: &RealFilesystem,
-    vm: &mut VM,
+    Pipeline {
+        filesystem,
+        compiler_state,
+        vm,
+    }: &mut Pipeline,
     errors: Vec<PipelineError>,
     config: &Cli,
 ) -> PipelineStatus {
@@ -59,7 +61,7 @@ pub fn use_pipeline(
             PipelineError::Parse { .. } | PipelineError::Type(_) => PipelineStatus::AnalysisError,
         });
         let mut multi_file = MultiFile::default();
-        let diagnostic = error_to_diagnostic(error, &mut multi_file, fs);
+        let diagnostic = error_to_diagnostic(error, &mut multi_file, filesystem);
         let report = Report::from(diagnostic).with_source_code(multi_file);
         eprintln!("{report:?}");
     }
@@ -72,6 +74,7 @@ pub fn use_pipeline(
         database,
         reef,
         &mut bytes,
+        compiler_state,
         CompilerOptions {
             line_provider: None,
             last_page_storage_var: None,

@@ -18,20 +18,20 @@ namespace msh {
         return pools.at(index);
     }
 
-    pager::page_vector::reverse_iterator pager::begin() {
-        return pages.rbegin();
+    pager::page_vector::iterator pager::begin() {
+        return pages.begin();
     }
 
-    pager::page_vector::reverse_iterator pager::end() {
-        return pages.rend();
+    pager::page_vector::iterator pager::end() {
+        return pages.end();
     }
 
-    pager::page_vector::const_reverse_iterator pager::cbegin() const {
-        return pages.rbegin();
+    pager::page_vector::const_iterator pager::cbegin() const {
+        return pages.begin();
     }
 
-    pager::page_vector::const_reverse_iterator pager::cend() const {
-        return pages.rend();
+    pager::page_vector::const_iterator pager::cend() const {
+        return pages.end();
     }
 
     void pager::bind(size_t pool_index, size_t dynsym_id, exported_variable value) {

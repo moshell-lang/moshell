@@ -4,6 +4,63 @@ use reef::std::assert
 use reef::std::convert
 use reef::std::process
 
+impl Bool {
+    fun eq(self, other: Bool) -> Bool;
+    fun ne(self, other: Bool) -> Bool;
+    fun not(self) -> Bool;
+    fun and(self, other: Bool) -> Bool;
+    fun or(self, other: Bool) -> Bool;
+}
+
+impl Exitcode {
+    fun and(self, other: Exitcode) -> Exitcode;
+    fun or(self, other: Exitcode) -> Exitcode;
+}
+
+impl Int {
+    fun add(self, other: Int) -> Int;
+    fun sub(self, other: Int) -> Int;
+    fun mul(self, other: Int) -> Int;
+    fun div(self, other: Int) -> Int;
+    fun mod(self, other: Int) -> Int;
+
+    fun eq(self, other: Int) -> Bool;
+    fun ne(self, other: Int) -> Bool;
+    fun lt(self, other: Int) -> Bool;
+    fun le(self, other: Int) -> Bool;
+    fun gt(self, other: Int) -> Bool;
+    fun ge(self, other: Int) -> Bool;
+
+    fun to_string(self) -> String;
+    fun to_exitcode(self) -> Exitcode;
+}
+
+impl String {
+    fun eq(self, other: String) -> Bool;
+    fun ne(self, other: String) -> Bool;
+
+    fun len(self) -> Int;
+    fun add(self, other: String) -> String;
+    fun concat(self, other: String) -> String;
+    fun split(self, delimiter: String) -> Vec[String];
+    fun bytes(self) -> Vec[Int];
+}
+
+impl[T] Vec[T] {
+    fun len(self) -> Int;
+    fun push(self, value: T);
+    fun pop(self) -> Option[T];
+}
+
+impl[T] Option[T] {
+    fun is_some(self) -> Bool;
+    fun is_none(self) -> Bool;
+    fun unwrap(self) -> T;
+}
+
+impl Glob {
+    fun expand(self) -> Vec[String];
+}
 
 /// Causes the runtime to panic, with the specified message.
 /// This also prints the current callstack trace.

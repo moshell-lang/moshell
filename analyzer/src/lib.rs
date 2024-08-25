@@ -8,7 +8,7 @@
 //! The analysis is done in a pipeline:
 //! 1. *Importing*: the whole project is parsed and indexed in a list of exports and imports.
 //! 2. *Hoisting*: the types and symbols are discovered and placed in the global scope of each
-//!   module.
+//!    module.
 //! 3. *Type checking*: the types are checked for consistency and errors are reported.
 //!
 //! Each phase uses the results of the previous ones, but each phase take can work with partial
@@ -22,15 +22,15 @@ pub mod symbol;
 pub mod typing;
 
 use crate::hoist::hoist_files;
-use crate::module::{import_multi, ModuleTree};
+use crate::module::{append, import_multi, ModuleTree};
 use crate::symbol::SymbolTable;
 use crate::typing::{type_check, TypeChecker, TypeError};
 use context::source::Span;
 use parser::err::ParseError;
 use std::collections::HashMap;
 use std::ffi::OsString;
-use std::io;
 use std::path::{Path, PathBuf};
+use std::{fmt, io};
 
 /// A byte range in a file.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -109,7 +109,7 @@ pub struct Database {
 /// A yet-to-be-analyzed set of files.
 pub struct Reef {
     /// The parsed abstract syntax trees of the files.
-    files: HashMap<PathBuf, parser::Root>,
+    files: FileMemory,
 
     /// The export tree representing each module.
     exports: ModuleTree,
@@ -118,18 +118,66 @@ pub struct Reef {
     symbols: HashMap<PathBuf, SymbolTable>,
 
     /// The high-level typed intermediate representation of the code.
-    hir: HashMap<PathBuf, hir::Module>,
+    hir: Vec<hir::Module>,
+}
+
+struct FileMemory {
+    files: HashMap<PathBuf, parser::Root>,
+}
+
+impl FileMemory {
+    fn get(&self, key: &UnitKey) -> Option<&[ast::Expr]> {
+        self.files
+            .get(&key.path)
+            .map(|root| &root.expressions[key.offset..])
+    }
+}
+
+pub struct FileImporter {
+    root: PathBuf,
+}
+
+impl FileImporter {
+    pub fn new(root: PathBuf) -> Self {
+        Self { root }
+    }
+}
+
+impl Filesystem for FileImporter {
+    fn read(&self, path: &Path) -> io::Result<String> {
+        let mut path = self.root.join(path);
+        path.set_extension("msh");
+        std::fs::read_to_string(path)
+    }
+}
+
+pub(crate) struct UnitKey {
+    pub(crate) path: PathBuf,
+    offset: usize,
+}
+
+impl fmt::Debug for UnitKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}+{}", self.path, self.offset)
+    }
 }
 
 impl Reef {
     /// Creates a new empty library with a given name.
     pub fn new(name: OsString) -> Self {
         Self {
-            files: HashMap::new(),
+            files: FileMemory {
+                files: HashMap::new(),
+            },
             exports: ModuleTree::new(name),
             symbols: HashMap::new(),
-            hir: HashMap::new(),
+            hir: Vec::new(),
         }
+    }
+
+    pub fn clear_cache(&mut self) {
+        self.files.files.clear();
+        self.hir.clear();
     }
 }
 
@@ -140,6 +188,10 @@ impl Database {
 }
 
 /// Populates the database with a fail-fast strategy.
+///
+/// An exploration of the source tree will be started from the entrypoint, and the result will be
+/// passed to subsequent phases. If an error is encountered during any phase, this function will
+/// return early and will not continue to the next phase.
 pub fn analyze_multi(
     database: &mut Database,
     reef: &mut Reef,
@@ -147,15 +199,17 @@ pub fn analyze_multi(
     entrypoint: &str,
 ) -> Vec<PipelineError> {
     let mut errors = Vec::<PipelineError>::new();
-    errors.extend(
-        import_multi(reef, fs, entrypoint)
-            .into_iter()
-            .map(PipelineError::from),
-    );
+    let import_result = import_multi(reef, fs, entrypoint);
+    errors.extend(import_result.errors.into_iter().map(PipelineError::from));
     if !errors.is_empty() {
         return errors;
     }
-    let hoist_result = hoist_files(&database.exports, reef, &mut database.checker);
+    let hoist_result = hoist_files(
+        &database.exports,
+        reef,
+        &mut database.checker,
+        import_result.keys,
+    );
     errors.extend(hoist_result.errors.into_iter().map(PipelineError::from));
     if !errors.is_empty() {
         return errors;
@@ -166,4 +220,53 @@ pub fn analyze_multi(
             .map(PipelineError::from),
     );
     errors
+}
+
+/// Adds or extends a source file to the reef.
+///
+/// The analysis will be run only on the added content, while reusing the previous symbols and types
+/// that may were already defined.
+pub fn append_source(
+    database: &mut Database,
+    reef: &mut Reef,
+    fs: &dyn Filesystem,
+    path: PathBuf,
+    source: &str,
+) -> Vec<PipelineError> {
+    let mut errors = Vec::<PipelineError>::new();
+    let import_result = append(reef, fs, path, source);
+    errors.extend(import_result.errors.into_iter().map(PipelineError::from));
+    if !errors.is_empty() {
+        return errors;
+    }
+    let hoist_result = hoist_files(
+        &database.exports,
+        reef,
+        &mut database.checker,
+        import_result.keys,
+    );
+    errors.extend(hoist_result.errors.into_iter().map(PipelineError::from));
+    if !errors.is_empty() {
+        return errors;
+    }
+    errors.extend(
+        type_check(reef, database, hoist_result.sorted)
+            .into_iter()
+            .map(PipelineError::from),
+    );
+    errors
+}
+
+pub fn freeze_exports(database: &mut Database, mut reef: Reef) {
+    let name = reef.exports.name.clone();
+    let tree = reef.exports.children.pop().expect("no root module");
+    assert!(
+        reef.exports.children.is_empty(),
+        "root module shouldn't have multiple children"
+    );
+    assert_eq!(
+        tree.name, name,
+        "root module name should match the reef name"
+    );
+    database.exports.insert(name, tree);
 }

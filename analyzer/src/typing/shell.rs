@@ -1,10 +1,16 @@
-use crate::hir::{ExprKind, Module, Redir, Redirect, Subprocess, Substitute, TypedExpr};
+use crate::hir::{
+    ExprKind, MethodCall, Module, Redir, Redirect, Subprocess, Substitute, TypedExpr,
+};
 use crate::typing::lower::convert_into_string;
-use crate::typing::user::{EXITCODE_TYPE, GLOB_TYPE, INT_TYPE, PID_TYPE, STRING_TYPE};
+use crate::typing::registry::GLOB_SCHEMA;
+use crate::typing::user::{
+    EXITCODE_TYPE, GLOB_TYPE, INT_TYPE, PID_TYPE, STRING_TYPE, STRING_VECTOR_TYPE,
+};
 use crate::typing::variable::VariableTable;
 use crate::typing::{ascribe_type, Context, TypeChecker, TypeError, TypeErrorKind, TypeHint};
 use crate::SourceLocation;
 use ast::call::{Call, Detached, Pipeline, RedirOp, Redirected};
+use ast::range::FilePattern;
 use ast::substitution::Substitution;
 use context::source::SourceSegmentHolder;
 
@@ -22,7 +28,25 @@ pub(super) fn ascribe_call(
         .map(|expr| {
             let expr = ascribe_type(expr, table, checker, storage, ctx, errors);
             if expr.ty == GLOB_TYPE {
-                todo!("globbing")
+                let glob = checker.registry[GLOB_SCHEMA]
+                    .get_exact_method(
+                        &checker.types,
+                        &checker.registry,
+                        "expand",
+                        &[],
+                        STRING_VECTOR_TYPE,
+                    )
+                    .expect("Glob schema does not have a `expand` method");
+                let span = expr.span.clone();
+                TypedExpr {
+                    kind: ExprKind::MethodCall(MethodCall {
+                        callee: Box::new(expr),
+                        arguments: Vec::new(),
+                        function_id: glob,
+                    }),
+                    ty: STRING_VECTOR_TYPE,
+                    span,
+                }
             } else {
                 convert_into_string(expr, checker, table.path(), errors)
             }
@@ -146,4 +170,21 @@ pub(super) fn ascribe_substitution(
         ty: STRING_TYPE,
         span: substitution.segment(),
     }
+}
+
+pub(super) fn ascribe_file_pattern(
+    pattern: &FilePattern,
+    table: &mut VariableTable,
+    checker: &mut TypeChecker,
+    storage: &mut Module,
+    ctx: Context,
+    errors: &mut Vec<TypeError>,
+) -> TypedExpr {
+    let mut expr = ascribe_type(&pattern.pattern, table, checker, storage, ctx, errors);
+    if expr.ty == STRING_TYPE {
+        expr.ty = GLOB_TYPE;
+    } else if expr.is_ok() {
+        panic!("pattern should be of type String");
+    }
+    expr
 }

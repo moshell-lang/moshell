@@ -5,7 +5,6 @@ use crate::Reef;
 use ast::call::{RedirFd, RedirOp};
 use ast::value::LiteralValue;
 use context::source::Span;
-use std::collections::hash_map::Values;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -175,6 +174,7 @@ pub enum ExprKind {
     Capture(Vec<TypedExpr>),
     Substitute(Substitute),
     Subprocess(Subprocess),
+    Cast(Box<TypedExpr>),
 
     Continue,
     Break,
@@ -246,7 +246,7 @@ impl Module {
 impl Reef {
     pub fn group_by_content(&self) -> ContentIterator {
         ContentIterator {
-            inner: self.hir.values(),
+            inner: self.hir.as_slice().iter(),
         }
     }
 }
@@ -267,7 +267,7 @@ pub struct EncodableContent<'a> {
 }
 
 pub struct ContentIterator<'a> {
-    inner: Values<'a, PathBuf, Module>,
+    inner: std::slice::Iter<'a, Module>,
 }
 
 impl<'a> Iterator for ContentIterator<'a> {

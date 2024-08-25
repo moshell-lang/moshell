@@ -1,5 +1,4 @@
-use analyzer::{Database, Reef};
-use cli::pipeline::PipelineStatus;
+use analyzer::{append_source, Database, Reef};
 use miette::{Context, IntoDiagnostic};
 use nu_ansi_term::Color;
 use reedline::{
@@ -13,25 +12,23 @@ use std::io::{self, BufRead, IsTerminal, StdinLock};
 
 use cli::project_dir;
 use lexer::is_unterminated;
-use vm::VM;
 
-use crate::cli::Cli;
+use crate::cli::{use_pipeline, Cli};
 use crate::complete::MoshellCompleter;
-use crate::pipeline::RealFilesystem;
+use crate::pipeline::{Pipeline, PipelineStatus};
 use crate::terminal::acquire_terminal;
 
 /// Indefinitely prompts a new expression from stdin and executes it.
 pub(crate) fn repl(
     config: &Cli,
     database: &mut Database,
-    fs: &RealFilesystem,
-    vm: &mut VM,
+    pipeline: &mut Pipeline,
 ) -> miette::Result<PipelineStatus> {
     let mut reef = Reef::new(OsString::from("stdin"));
 
     let mut editor = if io::stdin().is_terminal() && cfg!(not(miri)) {
         #[cfg(unix)]
-        vm.set_pgid(acquire_terminal().as_raw());
+        pipeline.vm.set_pgid(acquire_terminal().as_raw());
         Editor::LineEditor(Box::new(editor().context("Could not start REPL")?))
     } else {
         Editor::NoEditor(MultilineInput::new(io::stdin().lock()))
@@ -39,27 +36,16 @@ pub(crate) fn repl(
 
     let mut status = PipelineStatus::Success;
 
-    // Keep track of the previous attributed source, so that we can inject
-    // the next one into the same context.
-    //let mut starting_source: Option<SourceId> = None;
-
     loop {
         let line = editor.read_line(&Prompt);
 
         match line {
             Ok(Signal::Success(source)) => {
-                // let source = OwnedSource::new(source, "stdin".to_owned());
-                // status = status.compose(consume(
-                //     &name,
-                //     &mut analyzer,
-                //     &externals,
-                //     &mut compiler_externals,
-                //     &mut vm,
-                //     &mut sources,
-                //     config,
-                //     &mut starting_source,
-                //     source,
-                // ));
+                let path = pipeline.filesystem.add(&source);
+                let errors =
+                    append_source(database, &mut reef, &pipeline.filesystem, path, &source);
+                status = status.compose(use_pipeline(database, &reef, pipeline, errors, config));
+                reef.clear_cache();
             }
             Ok(Signal::CtrlC) => eprintln!("^C"),
             Ok(Signal::CtrlD) => break Ok(status),

@@ -1,74 +1,69 @@
-use std::path::PathBuf;
+use std::ffi::OsString;
+use std::io;
+use std::path::{Path, PathBuf};
 
-use analyzer::importer::{ASTImporter, ImportResult, StaticImporter};
-use analyzer::name::Name;
-use analyzer::reef::{Externals, Reef, ReefId};
-use analyzer::relations::SourceId;
-use analyzer::types::engine::ChunkKind;
-use analyzer::types::ty::{Type, TypeRef};
-use analyzer::{analyze, types, Analyzer, Inject};
-use cli::pipeline::FileImporter;
-use compiler::externals::{CompiledReef, CompilerExternals};
-use compiler::{compile_reef, CompilerOptions};
-use parser::parse_trusted;
+use analyzer::hir::ExprKind;
+use analyzer::typing::user::{TypeId, UserType};
+use analyzer::typing::{registry, user};
+use analyzer::{
+    analyze_multi, append_source, freeze_exports, Database, FileImporter, Filesystem, Reef,
+};
+use compiler::{compile_reef, CompilerOptions, CompilerState};
 use vm::value::VmValue;
 use vm::{VmError, VmValueFFI, VM};
 
-pub struct Runner<'a> {
-    externals: Externals<'a>,
-    compiler_externals: CompilerExternals,
-    current_compiled_reef: CompiledReef,
+pub struct Runner {
+    database: Database,
+    compiler_state: CompilerState,
+    reef: Reef,
     vm: VM,
-    analyzer: Analyzer<'a>,
-    current_page: Option<SourceId>,
 }
 
-impl Default for Runner<'_> {
+struct EmptyFilesystem;
+
+impl Filesystem for EmptyFilesystem {
+    fn read(&self, _path: &Path) -> io::Result<String> {
+        Err(io::Error::new(io::ErrorKind::NotFound, "file not found"))
+    }
+}
+
+impl Default for Runner {
     fn default() -> Self {
-        let mut externals = Externals::default();
-        let mut compiler_externals = CompilerExternals::default();
-        let mut std_importer = FileImporter::new(PathBuf::from("../lib"));
+        let fs = FileImporter::new(PathBuf::from("../lib"));
+        let mut database = Database::default();
         let mut vm = VM::default();
+        let mut reef = Reef::new(OsString::from("std"));
+        let errors = analyze_multi(&mut database, &mut reef, &fs, "std");
+        assert!(errors.is_empty());
 
-        let std_name = Name::new("std");
-        let analyzer = analyze(std_name.clone(), &mut std_importer, &externals);
-        let mut buff = Vec::new();
-
-        let compiled = compile_reef(
-            &analyzer.engine,
-            &analyzer.resolution.relations,
-            &analyzer.typing,
-            &analyzer.resolution.engine,
-            &externals,
-            &compiler_externals,
-            externals.current,
-            SourceId(0),
-            &mut buff,
+        let mut compiler_state = CompilerState::default();
+        let mut bytes = Vec::new();
+        compile_reef(
+            &database,
+            &reef,
+            &mut bytes,
+            &mut compiler_state,
             CompilerOptions::default(),
         )
         .expect("std did not compile successfully");
-        compiler_externals.set(ReefId(1), compiled);
+        freeze_exports(&mut database, reef);
 
-        vm.register(&buff).expect("VM std register");
+        vm.register(&bytes).expect("VM std register");
         unsafe {
             vm.run().expect("VM std init");
         }
 
-        externals.register(Reef::new("std".to_string(), analyzer));
-
         Self {
-            externals,
+            database,
+            compiler_state,
+            reef: Reef::new(OsString::from("runner")),
             vm,
-            compiler_externals,
-            current_compiled_reef: CompiledReef::default(),
-            analyzer: Analyzer::default(),
-            current_page: None,
         }
     }
 }
 
-impl<'a> Runner<'a> {
-    pub fn eval(&mut self, expr: &'a str) -> Option<VmValue> {
+impl Runner {
+    pub fn eval(&mut self, expr: &str) -> Option<VmValue> {
         match self.try_eval(expr) {
             Ok(v) => v,
             Err(VmError::Panic) => panic!("VM did panic"),
@@ -76,63 +71,42 @@ impl<'a> Runner<'a> {
         }
     }
 
-    pub fn try_eval(&mut self, source: &'a str) -> Result<Option<VmValue>, VmError> {
-        let name = Name::new("runner");
-        let mut importer = StaticImporter::new([(name.clone(), source)], parse_trusted);
-        let ImportResult::Success(imported) = importer.import(&name) else {
-            unreachable!()
+    pub fn try_eval(&mut self, source: &str) -> Result<Option<VmValue>, VmError> {
+        let errors = append_source(
+            &mut self.database,
+            &mut self.reef,
+            &EmptyFilesystem,
+            PathBuf::from("runner"),
+            source,
+        );
+        assert!(errors.is_empty());
+
+        let ExprKind::Block(main_block) =
+            &self.reef.group_by_content().next().unwrap().main.expr.kind
+        else {
+            panic!("no main block found");
         };
-
-        let inject = Inject {
-            name: name.clone(),
-            imported,
-            attached: self.current_page,
-        };
-
-        let mut analysis = self.analyzer.inject(inject, &mut importer, &self.externals);
-        let page = analysis.attributed_id();
-        self.current_page = Some(page);
-        let diagnostics = analysis.take_diagnostics();
-
-        let reef = self.externals.current;
-
-        if !diagnostics.is_empty() {
-            panic!("input had analysis errors: \n{diagnostics:?}")
-        }
-        let mut bytes = Vec::new();
-
-        let chunk = self.analyzer.engine.get_user(page).unwrap();
-        let ChunkKind::DefinedFunction(Some(eval_expression)) = &chunk.kind else {
-            unreachable!()
-        };
-
-        let evaluated_expr_type = eval_expression.ty;
-
+        let evaluated_expr_type = main_block.last().unwrap().ty;
         let expr_value_is_void =
-            evaluated_expr_type == types::UNIT || evaluated_expr_type == types::NOTHING;
+            evaluated_expr_type == user::UNIT_TYPE || evaluated_expr_type == user::NOTHING_TYPE;
 
-        self.current_compiled_reef = compile_reef(
-            &self.analyzer.engine,
-            &self.analyzer.resolution.relations,
-            &self.analyzer.typing,
-            &self.analyzer.resolution.engine,
-            &self.externals,
-            &self.compiler_externals,
-            reef,
-            page,
+        let mut bytes = Vec::new();
+        compile_reef(
+            &self.database,
+            &self.reef,
             &mut bytes,
+            &mut self.compiler_state,
             CompilerOptions {
-                line_provider: None,
-                last_page_storage_var: Some(VAR_EXPR_STORAGE.to_string())
-                    .filter(|_| !expr_value_is_void),
+                last_page_storage_var: Some(VAR_EXPR_STORAGE.to_string()),
+                ..CompilerOptions::default()
             },
         )
         .expect("write failed");
-
         self.vm
             .register(&bytes)
             .expect("compilation created invalid bytecode");
         drop(bytes);
+        self.reef.clear_cache();
 
         match unsafe { self.vm.run() } {
             Ok(()) => {}
@@ -157,21 +131,25 @@ impl<'a> Runner<'a> {
         result
     }
 
-    fn extract_value(&self, value: VmValueFFI, value_type: TypeRef) -> Option<VmValue> {
+    fn extract_value(&self, value: VmValueFFI, value_type: TypeId) -> Option<VmValue> {
         unsafe {
             match value_type {
-                types::BOOL | types::EXITCODE => Some(VmValue::Byte(value.get_as_u8())),
-                types::FLOAT => Some(VmValue::Double(value.get_as_double())),
-                types::INT => Some(VmValue::Int(value.get_as_i64())),
-                types::STRING => Some(VmValue::String(value.get_as_obj().get_as_string())),
-                types::UNIT | types::NOTHING => Some(VmValue::Void),
-                _ => match self.get_type(value_type) {
-                    Type::Instantiated(types::GENERIC_OPTION, param) => {
+                user::BOOL_TYPE | user::EXITCODE_TYPE => Some(VmValue::Byte(value.get_as_u8())),
+                user::FLOAT_TYPE => Some(VmValue::Double(value.get_as_double())),
+                user::INT_TYPE => Some(VmValue::Int(value.get_as_i64())),
+                user::STRING_TYPE => Some(VmValue::String(value.get_as_obj().get_as_string())),
+                user::UNIT_TYPE | user::NOTHING_TYPE => Some(VmValue::Void),
+                _ => match &self.database.checker.types[value_type] {
+                    UserType::Parametrized {
+                        schema: registry::OPTION_SCHEMA,
+                        params,
+                    } => {
                         if value.is_ptr_null() {
                             return None;
                         }
-                        let content_type =
-                            *param.first().expect("option instance without content type");
+                        let [content_type] = params.as_slice() else {
+                            panic!("option instance without content type");
+                        };
 
                         // option can only wrap an object value
                         let value = if content_type.is_obj() {
@@ -181,9 +159,12 @@ impl<'a> Runner<'a> {
                             value.get_as_obj().unbox()
                         };
 
-                        self.extract_value(value, content_type)
+                        self.extract_value(value, *content_type)
                     }
-                    Type::Instantiated(types::GENERIC_VECTOR, _) => {
+                    UserType::Parametrized {
+                        schema: registry::VEC_SCHEMA,
+                        params: _,
+                    } => {
                         let vec = value
                             .get_as_obj()
                             .get_as_vec()
@@ -192,38 +173,30 @@ impl<'a> Runner<'a> {
                             .collect();
                         Some(VmValue::Vec(vec))
                     }
-                    Type::Structure(_, structure_id) => {
-                        let structure = self.analyzer.engine.get_structure(*structure_id).unwrap();
-                        let structure_fields = structure.get_fields();
-                        let structure_layout = &self.current_compiled_reef.layouts[structure_id.0];
-
-                        let structure_data = value.get_as_obj().get_as_struct();
-                        let structure_values = structure_fields
-                            .into_iter()
-                            .map(|field| {
-                                let (pos, _) = structure_layout.get_emplacement(field.local_id);
-                                let field_value = VmValueFFI::ptr(
-                                    *structure_data.as_ptr().add(pos as usize).cast(),
-                                );
-                                self.extract_value(field_value, field.ty)
-                            })
-                            .collect();
-
-                        Some(VmValue::Struct(structure_values))
+                    UserType::Parametrized { schema, params: _ } => {
+                        let structure = &self.database.checker.registry[*schema];
+                        // let structure_fields = structure.get_fields();
+                        // let structure_layout = &self.current_compiled_reef.layouts[structure_id.0];
+                        //
+                        // let structure_data = value.get_as_obj().get_as_struct();
+                        // let structure_values = structure_fields
+                        //     .into_iter()
+                        //     .map(|field| {
+                        //         let (pos, _) = structure_layout.get_emplacement(field.local_id);
+                        //         let field_value = VmValueFFI::ptr(
+                        //             *structure_data.as_ptr().add(pos as usize).cast(),
+                        //         );
+                        //         self.extract_value(field_value, field.ty)
+                        //     })
+                        //     .collect();
+                        //
+                        // Some(VmValue::Struct(structure_values))
+                        todo!()
                     }
                     _ => panic!("unknown object"),
                 },
             }
         }
-    }
-
-    fn get_type(&self, tpe: TypeRef) -> &Type {
-        let typing = if tpe.reef == self.externals.current {
-            &self.analyzer.typing
-        } else {
-            &self.externals.get_reef(tpe.reef).unwrap().typing
-        };
-        typing.get_type(tpe.type_id).unwrap()
     }
 }
 
