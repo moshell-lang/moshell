@@ -21,7 +21,7 @@ use crate::{Filesystem, PipelineError, Reef, SourceLocation, UnitKey};
 use ast::call::ProgrammaticCall;
 use ast::function::FunctionDeclaration;
 use ast::r#use::{Import as ImportExpr, ImportList, ImportedSymbol, InclusionPathItem, Use};
-use ast::variable::VarDeclaration;
+use ast::variable::{Identifier, VarDeclaration};
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder, Span};
 use parser::err::ParseError;
@@ -242,6 +242,12 @@ impl ModuleTree {
         }
         std::mem::take(&mut current.exports)
     }
+
+    pub fn find_export(&self, name: &str, symbol_registry: SymbolRegistry) -> Option<&Export> {
+        self.exports
+            .iter()
+            .find(|e| e.name == name && e.registry == symbol_registry)
+    }
 }
 
 pub(crate) struct ImportResult {
@@ -277,6 +283,15 @@ impl<'a> ModuleView<'a> {
             };
         }
         Some(tree)
+    }
+
+    pub(crate) fn get_foreign(&self, path: &[&str]) -> Option<&ModuleTree> {
+        let (first, rest) = path.split_first().expect("path should not be empty");
+        let tree = self.foreign.get(OsStr::new(first))?;
+
+        rest.iter().try_fold(tree, |acc, it| {
+            acc.get(OsStr::new(it))
+        })
     }
 }
 

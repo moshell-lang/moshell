@@ -1,3 +1,5 @@
+use crate::module::Export;
+use crate::symbol::SymbolRegistry;
 use crate::typing::registry::{FunctionId, SchemaId};
 use crate::typing::user::{TypeId, ERROR_TYPE, UNIT_TYPE, UNKNOWN_TYPE};
 use crate::typing::variable::{LocalEnvironment, LocalId, Var};
@@ -191,7 +193,7 @@ impl TypedExpr {
     }
 }
 
-/// A unit of code.
+/// An unit of code.
 pub struct Chunk {
     /// The fully qualified name to access this chunk.
     pub fqn: PathBuf,

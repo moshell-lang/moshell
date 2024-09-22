@@ -171,6 +171,8 @@ fn emit_arguments(
     for arg in arguments {
         instructions.emit_code(Opcode::Dup);
         emit(arg, instructions, ctx, cp, locals, state);
+
+        // the argument type can either be a string, or a string vector (if the argument is an expanded glob)
         if arg.ty == STRING_TYPE {
             instructions.emit_invoke(cp.insert_string(VEC_PUSH));
         } else {

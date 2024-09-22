@@ -93,51 +93,51 @@ pub(crate) fn emit_natives(
             }
             state.use_values(uses);
             match name {
-                STRING_EQ => {
-                    todo!("Emit string equality")
-                }
-                STRING_CONCAT => {
-                    todo!("Emit string concatenation")
-                }
-                INT_TO_STRING => {
-                    todo!("Emit int to string")
-                }
-                FLOAT_TO_STRING => {
-                    todo!("Emit float to string")
-                }
-                STRING_LEN => {
-                    todo!("Emit string length")
-                }
-                STRING_INDEX => {
-                    todo!("Emit string index")
-                }
-                VEC_INDEX => {
-                    todo!("Emit vec index")
-                }
-                VEC_INDEX_EQ => {
-                    todo!("Emit vec index assignment")
-                }
-                VEC_POP => {
-                    todo!("Emit vec pop")
-                }
-                VEC_PUSH => {
-                    todo!("Emit vec push")
-                }
-                VEC_EXTEND => {
-                    todo!("Emit vec extend")
-                }
-                VEC_LEN => {
-                    todo!("Emit vec length")
-                }
-                VEC_POP_HEAD => {
-                    todo!("Emit vec pop head")
-                }
-                STRING_SPLIT => {
-                    todo!("Emit string split")
-                }
-                STRING_BYTES => {
-                    todo!("Emit string bytes")
-                }
+                // STRING_EQ => {
+                //     todo!("Emit string equality")
+                // }
+                // STRING_CONCAT => {
+                //     todo!("Emit string concatenation")
+                // }
+                // INT_TO_STRING => {
+                //     todo!("Emit int to string")
+                // }
+                // FLOAT_TO_STRING => {
+                //     todo!("Emit float to string")
+                // }
+                // STRING_LEN => {
+                //     todo!("Emit string length")
+                // }
+                // STRING_INDEX => {
+                //     todo!("Emit string index")
+                // }
+                // VEC_INDEX => {
+                //     todo!("Emit vec index")
+                // }
+                // VEC_INDEX_EQ => {
+                //     todo!("Emit vec index assignment")
+                // }
+                // VEC_POP => {
+                //     todo!("Emit vec pop")
+                // }
+                // VEC_PUSH => {
+                //     todo!("Emit vec push")
+                // }
+                // VEC_EXTEND => {
+                //     todo!("Emit vec extend")
+                // }
+                // VEC_LEN => {
+                //     todo!("Emit vec length")
+                // }
+                // VEC_POP_HEAD => {
+                //     todo!("Emit vec pop head")
+                // }
+                // STRING_SPLIT => {
+                //     todo!("Emit string split")
+                // }
+                // STRING_BYTES => {
+                //     todo!("Emit string bytes")
+                // }
                 "Bool/not" => {
                     instructions.emit_bool_inversion();
                 }

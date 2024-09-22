@@ -60,7 +60,7 @@ pub(super) fn hoist_files(
             requires: Vec::new(),
         };
         hoist_type_names(root, checker, &mut table, &mut exports);
-        hoist_functions(
+        hoist_signatures(
             root,
             checker,
             &mut table,
@@ -154,8 +154,8 @@ fn hoist_type_names(
         }
     }
 }
-
-fn hoist_functions(
+/// hoists functions, structures and implementations
+fn hoist_signatures(
     root: &[Expr],
     checker: &mut TypeChecker,
     table: &mut SymbolTable,
@@ -255,6 +255,7 @@ fn hoist_functions(
                                             }
                                         }
                                     }
+                                    //TODO implement recursive operation
                                     Import::AllIn(_, _) => {}
                                     Import::Environment(_) => {}
                                     Import::List(_) => {}
@@ -269,9 +270,9 @@ fn hoist_functions(
     }
 }
 
-struct CurrentType {
-    current_ty: TypeId,
-    current_generics: Vec<TypeId>,
+struct SelfType {
+    self_ty: TypeId,
+    self_generics: Vec<TypeId>,
 }
 
 fn hoist_fn_decl(
@@ -283,17 +284,17 @@ fn hoist_fn_decl(
         return_type,
         ..
     }: &FunctionDeclaration,
-    current_ty: Option<CurrentType>,
+    self_ty: Option<SelfType>,
     checker: &mut TypeChecker,
     table: &mut SymbolTable,
     exports: &mut [Export],
     errors: &mut Vec<TypeError>,
 ) {
     table.enter_scope();
-    let (current_ty, mut generic_variables) = match current_ty {
-        Some(CurrentType {
-            current_ty,
-            current_generics,
+    let (current_ty, mut generic_variables) = match self_ty {
+        Some(SelfType {
+            self_ty: current_ty,
+            self_generics: current_generics,
         }) => (Some(current_ty), current_generics),
         None => (None, Vec::new()),
     };
@@ -510,9 +511,9 @@ fn hoist_impl_decl(
     };
     if impl_ty.is_ok() {
         for function in functions {
-            let current = CurrentType {
-                current_ty: impl_ty,
-                current_generics: generic_variables.clone(),
+            let current = SelfType {
+                self_ty: impl_ty,
+                self_generics: generic_variables.clone(),
             };
             hoist_fn_decl(function, Some(current), checker, table, exports, errors);
         }

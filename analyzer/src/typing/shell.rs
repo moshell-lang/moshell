@@ -1,17 +1,23 @@
 use crate::hir::{
     ExprKind, MethodCall, Module, Redir, Redirect, Subprocess, Substitute, TypedExpr,
 };
+use crate::symbol::SymbolRegistry;
 use crate::typing::lower::convert_into_string;
+use crate::typing::pfc::ascribe_known_pfc;
 use crate::typing::registry::GLOB_SCHEMA;
 use crate::typing::user::{
-    EXITCODE_TYPE, GLOB_TYPE, INT_TYPE, PID_TYPE, STRING_TYPE, STRING_VECTOR_TYPE,
+    UserType, EXITCODE_TYPE, GLOB_TYPE, INT_TYPE, PID_TYPE, STRING_TYPE, STRING_VECTOR_TYPE,
 };
 use crate::typing::variable::VariableTable;
 use crate::typing::{ascribe_type, Context, TypeChecker, TypeError, TypeErrorKind, TypeHint};
 use crate::SourceLocation;
-use ast::call::{Call, Detached, Pipeline, RedirOp, Redirected};
+use ast::call::{Call, Detached, Pipeline, ProgrammaticCall, RedirOp, Redirected};
+use ast::r#use::InclusionPathItem;
 use ast::range::FilePattern;
 use ast::substitution::Substitution;
+use ast::value::{Literal, LiteralValue};
+use ast::variable::Identifier;
+use ast::Expr;
 use context::source::SourceSegmentHolder;
 
 pub(super) fn ascribe_call(
@@ -22,6 +28,10 @@ pub(super) fn ascribe_call(
     ctx: Context,
     errors: &mut Vec<TypeError>,
 ) -> TypedExpr {
+    if let Some(implicit_pfc) = as_implicit_pfc(call, table, checker, storage, ctx, errors) {
+        return implicit_pfc;
+    }
+
     let args = call
         .arguments
         .iter()
@@ -36,7 +46,7 @@ pub(super) fn ascribe_call(
                         &[],
                         STRING_VECTOR_TYPE,
                     )
-                    .expect("Glob schema does not have a `expand` method");
+                    .expect("Glob schema does not have an `expand` method");
                 let span = expr.span.clone();
                 TypedExpr {
                     kind: ExprKind::MethodCall(MethodCall {
@@ -58,6 +68,58 @@ pub(super) fn ascribe_call(
         span: call.segment(),
         ty: EXITCODE_TYPE,
     }
+}
+
+fn as_implicit_pfc(
+    call: &Call,
+    table: &mut VariableTable,
+    checker: &mut TypeChecker,
+    storage: &mut Module,
+    ctx: Context,
+    errors: &mut Vec<TypeError>,
+) -> Option<TypedExpr> {
+    let (cmd, rest) = call.arguments.split_first().expect("at least one argument");
+
+    let Expr::Literal(Literal {
+        parsed: LiteralValue::String(cmd_name),
+        segment,
+    }) = cmd
+    else {
+        return None;
+    };
+
+    if cmd_name == "cd" {
+        let pfc_ast = ProgrammaticCall {
+            path: vec![InclusionPathItem::Symbol(Identifier::new(
+                "cd".into(),
+                segment.start,
+            ))],
+            arguments: Vec::from(rest),
+            type_parameters: vec![],
+            segment: call.segment(),
+        };
+
+        // retrieve the std::cd function type
+        let std_module = ctx.modules.get_foreign(&["std"]).expect("std module");
+        let function_export = std_module
+            .find_export("cd", SymbolRegistry::Function)
+            .expect("cd function in std module");
+        let UserType::Function(function_id) = checker.types[function_export.ty] else {
+            panic!("std::cd type is not a function type")
+        };
+
+        return Some(ascribe_known_pfc(
+            &pfc_ast,
+            function_id,
+            table,
+            checker,
+            storage,
+            ctx,
+            errors,
+        ));
+    }
+
+    None
 }
 
 pub(super) fn ascribe_redirected(
