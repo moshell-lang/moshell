@@ -21,7 +21,7 @@ use crate::{Filesystem, PipelineError, Reef, SourceLocation, UnitKey};
 use ast::call::ProgrammaticCall;
 use ast::function::FunctionDeclaration;
 use ast::r#use::{Import as ImportExpr, ImportList, ImportedSymbol, InclusionPathItem, Use};
-use ast::variable::{Identifier, VarDeclaration};
+use ast::variable::VarDeclaration;
 use ast::Expr;
 use context::source::{SourceSegment, SourceSegmentHolder, Span};
 use parser::err::ParseError;
@@ -289,9 +289,8 @@ impl<'a> ModuleView<'a> {
         let (first, rest) = path.split_first().expect("path should not be empty");
         let tree = self.foreign.get(OsStr::new(first))?;
 
-        rest.iter().try_fold(tree, |acc, it| {
-            acc.get(OsStr::new(it))
-        })
+        rest.iter()
+            .try_fold(tree, |acc, it| acc.get(OsStr::new(it)))
     }
 }
 
@@ -409,22 +408,20 @@ fn hoist_exports(root: &Root, exports: &mut Vec<Export>) -> Vec<Duplicated> {
                 });
             }
         } else if let Expr::VarDeclaration(VarDeclaration { var, segment, .. }) = expr {
-            if let Some(exported) = exports
+            let export = Export {
+                name: var.name.to_string(),
+                span: segment.clone(),
+                registry: SymbolRegistry::Variable,
+                ty: UNKNOWN_TYPE,
+            };
+            if let Some(exported_idx) = exports
                 .iter()
-                .find(|export| export.name == var.name.value.as_str())
+                .position(|export| export.name == var.name.value.as_str())
             {
-                duplicates.push(Duplicated {
-                    name: var.name.to_string(),
-                    first: exported.span.clone(),
-                    second: segment.clone(),
-                });
+                // if the root variable was already declared, shadow it with the most recent variable declaration
+                exports[exported_idx] = export;
             } else {
-                exports.push(Export {
-                    name: var.name.to_string(),
-                    span: segment.clone(),
-                    registry: SymbolRegistry::Variable,
-                    ty: UNKNOWN_TYPE,
-                });
+                exports.push(export);
             }
         } else if let Expr::StructDeclaration(decl) = expr {
             if let Some(exported) = exports

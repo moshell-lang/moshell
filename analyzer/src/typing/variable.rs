@@ -174,9 +174,16 @@ impl<'a> VariableTable<'a> {
     }
 
     pub(super) fn pop_environment(&mut self) -> LocalEnvironment {
+        let current_env_id = self.current_env_id();
+        self.symbols_to_locals
+            .retain(|_, (env_id, _)| *env_id != current_env_id);
         self.environments
             .pop()
             .expect("At least one environment should exist")
+    }
+
+    pub(super) fn current_env_id(&self) -> usize {
+        self.environments.len() - 1
     }
 
     pub(super) fn path(&self) -> &Path {

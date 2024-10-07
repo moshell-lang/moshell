@@ -1,0 +1,26 @@
+// Run:
+//   status: success
+//   stdout:
+//    Moshell-!-I-love-Moshell,-i-used-to-code-with-Moshell...-
+//    1
+//    2
+//    3
+
+fun test_shadowing() -> Exitcode = {
+    val x = 1
+    echo $x
+    val x = 2
+    echo $x
+    var x = 3
+    echo $x
+}
+
+val res = "Moshell ! I love Moshell, i used to code with Moshell...".split(' ')
+var i = 0
+while $i < $res.len() {
+    echo -n "${res[$i]}-"
+    $i += 1
+}
+echo 
+
+test_shadowing()

@@ -43,12 +43,18 @@ fn find_std() -> PathBuf {
 
     #[cfg(unix)]
     {
-        for path in ["/usr/local/share/moshell/lib", "/usr/share/moshell/lib"] {
+        for path in [
+            "/usr/local/share/moshell/lib",
+            "/usr/share/moshell/lib",
+            #[cfg(debug_assertions)]
+            "./lib",
+        ] {
             let path = Path::new(path);
             if path.exists() {
                 return path.to_path_buf();
             }
         }
     }
+
     panic!("Could not determine a valid std emplacement. Please provide a valid stdlib path under a MOSHELL_STD=<path> env variable.")
 }

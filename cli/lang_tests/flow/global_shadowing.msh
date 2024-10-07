@@ -1,0 +1,22 @@
+// Run:
+//   status: success
+//   stdout:
+//    11
+//    12
+//    Shadowed Variable !
+//    47
+
+
+var i = 11
+echo $i
+
+val i = 12
+echo $i
+
+var i = "Shadowed Variable !"
+echo $i
+
+val i = 45
+
+val i = $i + 2
+echo $i
