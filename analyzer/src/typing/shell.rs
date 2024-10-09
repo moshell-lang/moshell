@@ -1,12 +1,11 @@
 use crate::hir::{
     ExprKind, MethodCall, Module, Redir, Redirect, Subprocess, Substitute, TypedExpr,
 };
-use crate::symbol::SymbolRegistry;
 use crate::typing::lower::convert_into_string;
-use crate::typing::pfc::ascribe_known_pfc;
+use crate::typing::pfc::ascribe_pfc;
 use crate::typing::registry::GLOB_SCHEMA;
 use crate::typing::user::{
-    UserType, EXITCODE_TYPE, GLOB_TYPE, INT_TYPE, PID_TYPE, STRING_TYPE, STRING_VECTOR_TYPE,
+    EXITCODE_TYPE, GLOB_TYPE, INT_TYPE, PID_TYPE, STRING_TYPE, STRING_VECTOR_TYPE,
 };
 use crate::typing::variable::VariableTable;
 use crate::typing::{ascribe_type, Context, TypeChecker, TypeError, TypeErrorKind, TypeHint};
@@ -78,45 +77,29 @@ fn as_implicit_pfc(
     ctx: Context,
     errors: &mut Vec<TypeError>,
 ) -> Option<TypedExpr> {
-    let (cmd, rest) = call.arguments.split_first().expect("at least one argument");
-
-    let Expr::Literal(Literal {
-        parsed: LiteralValue::String(cmd_name),
-        segment,
-    }) = cmd
+    let (
+        Expr::Literal(Literal {
+            parsed: LiteralValue::String(cmd_name),
+            segment,
+        }),
+        rest,
+    ) = call.arguments.split_first().expect("at least one argument")
     else {
         return None;
     };
 
     if cmd_name == "cd" {
         let pfc_ast = ProgrammaticCall {
-            path: vec![InclusionPathItem::Symbol(Identifier::new(
-                "cd".into(),
-                segment.start,
-            ))],
+            path: vec![
+                InclusionPathItem::Symbol(Identifier::new("std".into(), segment.start)),
+                InclusionPathItem::Symbol(Identifier::new("cd".into(), segment.start)),
+            ],
             arguments: Vec::from(rest),
             type_parameters: vec![],
             segment: call.segment(),
         };
 
-        // retrieve the std::cd function type
-        let std_module = ctx.modules.get_foreign(&["std"]).expect("std module");
-        let function_export = std_module
-            .find_export("cd", SymbolRegistry::Function)
-            .expect("cd function in std module");
-        let UserType::Function(function_id) = checker.types[function_export.ty] else {
-            panic!("std::cd type is not a function type")
-        };
-
-        return Some(ascribe_known_pfc(
-            &pfc_ast,
-            function_id,
-            table,
-            checker,
-            storage,
-            ctx,
-            errors,
-        ));
+        return Some(ascribe_pfc(&pfc_ast, table, checker, storage, ctx, errors));
     }
 
     None

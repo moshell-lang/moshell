@@ -284,14 +284,6 @@ impl<'a> ModuleView<'a> {
         }
         Some(tree)
     }
-
-    pub(crate) fn get_foreign(&self, path: &[&str]) -> Option<&ModuleTree> {
-        let (first, rest) = path.split_first().expect("path should not be empty");
-        let tree = self.foreign.get(OsStr::new(first))?;
-
-        rest.iter()
-            .try_fold(tree, |acc, it| acc.get(OsStr::new(it)))
-    }
 }
 
 /// Access all related files starting from the entrypoint.

@@ -1,7 +1,6 @@
 use crate::hir::{ExprKind, FunctionCall, Module, TypedExpr};
 use crate::symbol::SymbolRegistry;
 use crate::typing::function::Function;
-use crate::typing::registry::FunctionId;
 use crate::typing::user::{TypeId, UserType, ERROR_TYPE, UNKNOWN_TYPE};
 use crate::typing::variable::VariableTable;
 use crate::typing::{
@@ -13,52 +12,12 @@ use ast::call::ProgrammaticCall;
 use context::source::SourceSegmentHolder;
 
 pub fn ascribe_pfc(
-    call: &ProgrammaticCall,
-    table: &mut VariableTable,
-    checker: &mut TypeChecker,
-    storage: &mut Module,
-    ctx: Context,
-    errors: &mut Vec<TypeError>,
-) -> TypedExpr {
-    let ty = lookup_path(
-        &call.path,
-        SymbolRegistry::Function,
-        table,
-        checker,
-        ctx.modules,
-        errors,
-    );
-
-    if ty.is_err() {
-        return TypedExpr {
-            kind: ExprKind::Noop,
-            span: call.segment(),
-            ty: ERROR_TYPE,
-        };
-    }
-
-    let UserType::Function(function) = checker.types[ty] else {
-        panic!(
-            "function should have a function type {ty:?} {:?}",
-            &checker.types[ty]
-        );
-    };
-
-    ascribe_known_pfc(call, function, table, checker, storage, ctx, errors)
-}
-
-/// Generate IHR for a given Programmatic Function Call where the callee is forced to be the given `function_id` argument.
-///
-/// This function will ignore the pfc's path that it would normally use to retrieve the targeted function (as in [`ascribe_pfc`]),
-/// and will try to match it with the given function
-pub fn ascribe_known_pfc(
     ProgrammaticCall {
         path,
         arguments,
         type_parameters,
         segment: span,
     }: &ProgrammaticCall,
-    function_id: FunctionId,
     table: &mut VariableTable,
     checker: &mut TypeChecker,
     storage: &mut Module,
@@ -69,6 +28,24 @@ pub fn ascribe_known_pfc(
         .iter()
         .map(|expr| ascribe_type(expr, table, checker, storage, ctx, errors))
         .collect::<Vec<_>>();
+    let ty = lookup_path(
+        path,
+        SymbolRegistry::Function,
+        table,
+        checker,
+        modules,
+        errors,
+    );
+    if ty.is_err() {
+        return TypedExpr::error(span.clone());
+    }
+
+    let UserType::Function(function_id) = checker.types[ty] else {
+        panic!(
+            "function should have a function type {ty:?} {:?}",
+            &checker.types[ty]
+        );
+    };
 
     let mut type_parameters = type_parameters
         .iter()

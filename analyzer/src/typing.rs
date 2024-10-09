@@ -10,7 +10,7 @@ mod shell;
 pub mod user;
 pub mod variable;
 
-use crate::hir::{Conditional, Declaration, ExprKind, FunctionCall, Module, TypedExpr};
+use crate::hir::{Conditional, Declaration, ExprKind, Module, TypedExpr};
 use crate::module::ModuleView;
 use crate::symbol::{Symbol, SymbolDesc, SymbolRegistry, UndefinedSymbol};
 use crate::typing::assign::{
@@ -33,7 +33,7 @@ use crate::typing::user::{
 };
 use crate::typing::variable::{SymbolEntry, VariableTable};
 use crate::{Database, PipelineError, Reef, SourceLocation, UnitKey};
-use ast::call::{MethodCall, ProgrammaticCall};
+use ast::call::MethodCall;
 use ast::control_flow::If;
 use ast::function::FunctionDeclaration;
 use ast::group::Block;
@@ -1022,15 +1022,19 @@ fn lookup_path(
                 }
             }
             Err(err) => {
-                errors.push(TypeError::new(
-                    TypeErrorKind::UndefinedSymbol {
-                        name: ident.value.to_string(),
-                        expected: registry,
-                        found: err.into(),
-                    },
-                    SourceLocation::new(table.path().to_owned(), ident.segment()),
-                ));
-                return ERROR_TYPE;
+                if let Some(module) = modules.get(first) {
+                    module
+                } else {
+                    errors.push(TypeError::new(
+                        TypeErrorKind::UndefinedSymbol {
+                            name: ident.value.to_string(),
+                            expected: registry,
+                            found: err.into(),
+                        },
+                        SourceLocation::new(table.path().to_owned(), ident.segment()),
+                    ));
+                    return ERROR_TYPE;
+                }
             }
         },
         InclusionPathItem::Reef(_) => modules.current,
@@ -1077,7 +1081,7 @@ fn lookup_path(
                 errors.push(TypeError::new(
                     TypeErrorKind::UndefinedSymbol {
                         name: last.to_string(),
-                        expected: SymbolRegistry::Type,
+                        expected: registry,
                         found: None,
                     },
                     SourceLocation::new(table.path().to_owned(), ident.segment()),
