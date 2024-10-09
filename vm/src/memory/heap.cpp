@@ -10,8 +10,8 @@ namespace msh {
         return data;
     }
 
-    obj &heap::insert(msh::obj &&obj) {
-        objects.push_front(std::forward<msh::obj>(obj));
+    obj &heap::insert(obj_data &&obj) {
+        objects.emplace_front(obj);
         len++;
         return objects.front();
     }

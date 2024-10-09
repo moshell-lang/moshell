@@ -42,9 +42,13 @@ namespace msh {
 
         friend gc;
 
+        obj(obj& other) = default;
+        obj(obj&& other) = default;
+
     public:
         template <typename T>
         obj(T val) : gc_cycle{0}, data{std::move(val)} {}
+
 
         obj_data &get_data();
         const obj_data &get_data() const;
@@ -91,7 +95,7 @@ namespace msh {
          * @param obj The object to insert.
          * @return A reference to this object, valid as long as the object is not deleted.
          */
-        msh::obj &insert(msh::obj &&obj);
+        msh::obj &insert(msh::obj_data &&obj);
 
         size_t size() const;
     };

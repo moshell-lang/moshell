@@ -182,7 +182,7 @@ fn hoist_signatures(
                         segment: span,
                     }) => {
                         if matches!(path.first(), Some(InclusionPathItem::Symbol(_))) {
-                            return; // Exclude inter-reefs dependencies
+                            continue; // Exclude inter-reefs dependencies
                         }
                         let (last, rest) = path.split_last().expect("at least one item");
                         if let Some(module) = deps.modules.get_direct(rest) {
@@ -214,7 +214,7 @@ fn hoist_signatures(
                     }
                     Import::AllIn(path, _) => {
                         if matches!(path.first(), Some(InclusionPathItem::Symbol(_))) {
-                            return; // Exclude inter-reefs dependencies
+                            continue; // Exclude inter-reefs dependencies
                         }
                         if let Some(module) = deps.modules.get_direct(path) {
                             for export in &module.exports {
@@ -229,7 +229,7 @@ fn hoist_signatures(
                         segment: span,
                     }) => {
                         if matches!(root.first(), Some(InclusionPathItem::Symbol(_))) {
-                            return; // Exclude inter-reefs dependencies
+                            continue; // Exclude inter-reefs dependencies
                         }
                         let base = root
                             .iter()

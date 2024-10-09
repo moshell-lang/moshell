@@ -288,7 +288,8 @@ static void vec_index(OperandStack &caller_stack, runtime_memory &) {
     if (index >= vec.size()) {
         throw RuntimeException("Index " + std::to_string(n) + " is out of range, the length is " + std::to_string(vec.size()) + ".");
     }
-    caller_stack.push_reference(*vec[index]);
+    msh::obj& ref = *vec[index];
+    caller_stack.push_reference(ref);
 }
 
 static void vec_index_set(OperandStack &caller_stack, runtime_memory &) {
@@ -409,10 +410,10 @@ natives_functions_t load_natives() {
         {"std::memory::empty_operands", is_operands_empty},
         {"std::memory::program_arguments", program_arguments},
 
-        {"std::convert::ceil", ceil},
-        {"std::convert::floor", floor},
-        {"std::convert::round", round},
-        {"std::convert::parse_int_radix", parse_int_radix},
+        {"std::math::ceil", ceil},
+        {"std::math::floor", floor},
+        {"std::math::round", round},
+        {"std::math::parse_int_radix", parse_int_radix},
 
         {"std::process::get_fd_path", get_fd_path},
         {"std::process::wait", process_wait},

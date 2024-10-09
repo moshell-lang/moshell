@@ -94,12 +94,7 @@ impl TypeArena {
     }
 
     /// Given a possible generic type, create a parameterized variant for the given context.
-    pub(crate) fn concretize(
-        &mut self,
-        ty: TypeId,
-        generics: &[TypeId],
-        params: &[TypeId],
-    ) -> TypeId {
+    pub fn concretize(&mut self, ty: TypeId, generics: &[TypeId], params: &[TypeId]) -> TypeId {
         assert_eq!(generics.len(), params.len(), "expected same length between generics {generics:?} and their concretized counterparts {params:?}");
         match &self[ty] {
             UserType::Parametrized {

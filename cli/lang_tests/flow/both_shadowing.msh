@@ -21,6 +21,6 @@ while $i < $res.len() {
     echo -n "${res[$i]}-"
     $i += 1
 }
-echo 
+echo
 
 test_shadowing()

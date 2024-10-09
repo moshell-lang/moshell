@@ -309,6 +309,13 @@ impl<'a> Instructions<'a> {
     /// It returns the [`Placeholder`] address of the offset which is to be patched.
     #[must_use = "the jump address must be patched later"]
     pub fn emit_jump(&mut self, opcode: Opcode) -> Placeholder {
+        debug_assert!(
+            matches!(
+                opcode,
+                Opcode::Jump | Opcode::IfJump | Opcode::IfNotJump | Opcode::Fork
+            ),
+            "input opcode must be a jump instruction"
+        );
         self.emit_code(opcode);
         self.bytecode.emit_u32_placeholder()
     }

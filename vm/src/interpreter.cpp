@@ -165,7 +165,7 @@ std::vector<std::string> &runtime_memory::program_arguments() {
 msh::obj &runtime_memory::emplace(msh::obj_data &&data) {
     if (heap.size() >= last_gc_heap_size + GC_HEAP_CYCLE)
         run_gc();
-    return this->heap.insert(data);
+    return this->heap.insert(std::move(data));
 }
 
 /**

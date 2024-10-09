@@ -166,7 +166,7 @@ fn simple_function_call() {
 #[test]
 fn operators() {
     let mut runner = Runner::default();
-    runner.eval("use std::assert::*");
+    runner.eval("use std::assert");
     runner.eval(
         "
         assert(1 + 1 == 2)
@@ -199,8 +199,8 @@ fn str_bytes() {
     let mut runner = Runner::default();
     runner.eval("val letters = 'abcdefghijklmnopqrstuvwxy'.bytes()");
     runner.eval("$letters.push(122)");
-    assert_eq!(runner.eval("$letters[0]"), Some(VmValue::Int(97)));
     assert_eq!(runner.eval("$letters[25]"), Some(VmValue::Int(122)));
+    assert_eq!(runner.eval("$letters[0]"), Some(VmValue::Int(97)));
 }
 
 #[test]
@@ -231,7 +231,7 @@ fn str_split() {
 fn exitcode_to_bool() {
     let mut runner = Runner::default();
     runner.eval(
-        "use std::assert::assert
+        "use std::assert
         assert({ /bin/true })
         assert(!{ /bin/false })
         assert({ ! /bin/false })",

@@ -79,7 +79,7 @@ impl Runner {
             PathBuf::from("runner"),
             source,
         );
-        assert!(errors.is_empty());
+        assert!(errors.is_empty(), "source code lifts compilation errors");
 
         let ExprKind::Block(main_block) =
             &self.reef.group_by_content().next().unwrap().main.expr.kind
@@ -254,6 +254,13 @@ mod test {
             runner.eval("4.0 * 8.0 / 7.0 + (4.0 - 2.0) * 2.0 - 1.0"),
             Some(VmValue::Double(4.0 * 8.0 / 7.0 + (4.0 - 2.0) * 2.0 - 1.0))
         )
+    }
+
+    #[test]
+    fn test_runner_variable_ref() {
+        let mut runner = Runner::default();
+        runner.eval("val x = 9");
+        assert_eq!(runner.eval("$x"), Some(VmValue::Int(9)))
     }
 
     #[test]
