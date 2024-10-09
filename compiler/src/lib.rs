@@ -218,7 +218,7 @@ fn compile_code(
             &chunk.expr
         };
         let page_offset = cp.exported.last().map_or(0, |exp| {
-            exp.page_offset + u8::from(ValueStackSize::QWord) as u32
+            exp.page_offset + u8::from(ValueStackSize::from(last_expr.ty)) as u32
         });
         cp.insert_exported(storage_exported_val, page_offset, last_expr.ty.is_obj());
         instructions.emit_set_external(

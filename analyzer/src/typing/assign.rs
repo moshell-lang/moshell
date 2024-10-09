@@ -1,7 +1,7 @@
 use crate::hir::{ExprKind, LocalAssignment, MethodCall, Module, TypedExpr};
 use crate::symbol::{SymbolRegistry, UndefinedSymbol};
 use crate::typing::function::Function;
-use crate::typing::user::UserType;
+use crate::typing::user::{UserType, UNIT_TYPE};
 use crate::typing::variable::VariableTable;
 use crate::typing::{ascribe_type, Context, TypeChecker, TypeError, TypeErrorKind, TypeHint};
 use crate::SourceLocation;
@@ -76,7 +76,7 @@ pub(super) fn ascribe_assign(
                     identifier: var.id,
                     rhs: Box::new(rhs),
                 }),
-                ty: var.ty,
+                ty: UNIT_TYPE,
                 span: assign.segment(),
             }
         }
