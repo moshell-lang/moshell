@@ -1,5 +1,3 @@
-use crate::module::Export;
-use crate::symbol::SymbolRegistry;
 use crate::typing::registry::{FunctionId, SchemaId};
 use crate::typing::user::{TypeId, ERROR_TYPE, UNIT_TYPE, UNKNOWN_TYPE};
 use crate::typing::variable::{LocalEnvironment, LocalId, Var};

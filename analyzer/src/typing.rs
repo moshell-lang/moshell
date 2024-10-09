@@ -19,7 +19,7 @@ use crate::typing::assign::{
 use crate::typing::flow::{ascribe_control, ascribe_while};
 use crate::typing::function::Function;
 use crate::typing::lower::{ascribe_template_string, coerce_condition};
-use crate::typing::operator::ascribe_binary;
+use crate::typing::operator::{ascribe_binary, ascribe_unary};
 use crate::typing::pfc::ascribe_pfc;
 use crate::typing::registry::{FunctionId, Registry, SchemaId};
 use crate::typing::schema::Schema;
@@ -420,10 +420,7 @@ fn ascribe_type(
                 LiteralValue::Bool(_) => BOOL_TYPE,
             },
         },
-        Expr::Unary(unary) => {
-            let typed_expr = ascribe_type(&unary.expr, table, checker, storage, ctx, errors);
-            typed_expr // TODO
-        }
+        Expr::Unary(unary) => ascribe_unary(unary, table, checker, storage, ctx, errors),
         Expr::Binary(binary) => ascribe_binary(binary, table, checker, storage, ctx, errors),
         Expr::TemplateString(tpl) => {
             ascribe_template_string(tpl, table, checker, storage, ctx, errors)

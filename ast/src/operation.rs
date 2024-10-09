@@ -17,7 +17,7 @@ pub struct UnaryOperation {
 }
 
 /// A prefix unary operator.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum UnaryOperator {
     /// The `!` operator.
     Not,
