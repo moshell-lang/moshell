@@ -616,10 +616,7 @@ impl InvalidType<'_> {
                 TypeErrorKind::UndefinedSymbol {
                     name: name.to_owned(),
                     expected: SymbolRegistry::Type,
-                    found: match inner {
-                        UndefinedSymbol::NotFound => None,
-                        UndefinedSymbol::WrongRegistry(symbol) => Some(symbol),
-                    },
+                    found: inner.into(),
                 },
                 SourceLocation::new(path.to_owned(), span),
             ),

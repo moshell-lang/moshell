@@ -1,5 +1,6 @@
 use crate::module::Export;
 use crate::typing::user::TypeId;
+use crate::typing::ErroneousSymbolDesc;
 use context::source::Span;
 use std::fmt;
 use std::path::PathBuf;
@@ -206,6 +207,21 @@ impl From<UndefinedSymbol> for Option<SymbolDesc> {
         match undefined {
             UndefinedSymbol::NotFound => None,
             UndefinedSymbol::WrongRegistry(symbol) => Some(symbol),
+        }
+    }
+}
+
+impl From<UndefinedSymbol> for Option<ErroneousSymbolDesc> {
+    fn from(undefined: UndefinedSymbol) -> Self {
+        Option::<SymbolDesc>::from(undefined).map(ErroneousSymbolDesc::Complete)
+    }
+}
+
+impl From<&Export> for SymbolDesc {
+    fn from(export: &Export) -> Self {
+        Self {
+            registry: export.registry,
+            span: export.span.clone(),
         }
     }
 }

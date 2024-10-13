@@ -1,11 +1,11 @@
 use crate::hir::{ExprKind, FunctionCall, Module, TypedExpr};
+use crate::import::{PathItemError, SymbolSearch};
 use crate::symbol::SymbolRegistry;
 use crate::typing::function::Function;
 use crate::typing::user::{TypeId, UserType, ERROR_TYPE, UNKNOWN_TYPE};
 use crate::typing::variable::VariableTable;
 use crate::typing::{
-    ascribe_type, lookup_path, lookup_type, Context, TypeChecker, TypeError, TypeErrorKind,
-    TypeHint,
+    ascribe_type, lookup_type, Context, TypeChecker, TypeError, TypeErrorKind, TypeHint,
 };
 use crate::SourceLocation;
 use ast::call::ProgrammaticCall;
@@ -28,23 +28,52 @@ pub fn ascribe_pfc(
         .iter()
         .map(|expr| ascribe_type(expr, table, checker, storage, ctx, errors))
         .collect::<Vec<_>>();
-    let ty = lookup_path(
-        path,
-        SymbolRegistry::Function,
-        table,
-        checker,
-        modules,
-        errors,
-    );
-    if ty.is_err() {
-        return TypedExpr::error(span.clone());
-    }
 
-    let UserType::Function(function_id) = checker.types[ty] else {
-        panic!(
-            "function should have a function type {ty:?} {:?}",
-            &checker.types[ty]
-        );
+    let res = match SymbolSearch::new(path, &checker.types, modules, table) {
+        Ok(ref search) => {
+            let mut res = search.lookup(SymbolRegistry::Function);
+            if res.is_err() {
+                if let Ok(ty) = search.lookup(SymbolRegistry::Type) {
+                    res = Ok(ty);
+                }
+            }
+            res
+        }
+        Err(err) => Err(err),
+    };
+    let ty = match res {
+        Ok(search) => search,
+        Err(PathItemError { item, err }) => {
+            errors.push(TypeError::new(
+                TypeErrorKind::UndefinedSymbol {
+                    name: item.to_string(),
+                    expected: if path.last() == Some(item) {
+                        SymbolRegistry::Function
+                    } else {
+                        SymbolRegistry::Type
+                    },
+                    found: err.into(),
+                },
+                SourceLocation::new(table.path().to_owned(), item.segment()),
+            ));
+            return TypedExpr::error(span.clone());
+        }
+    };
+
+    let function_id = match checker.types[ty] {
+        UserType::Error => return TypedExpr::error(span.clone()),
+        UserType::Function(function_id) => function_id,
+        _ => {
+            errors.push(TypeError::new(
+                TypeErrorKind::TypeMismatch {
+                    expected: "function".to_owned(),
+                    expected_due_to: None,
+                    actual: checker.display(ty),
+                },
+                SourceLocation::new(table.path().to_owned(), span.clone()),
+            ));
+            return TypedExpr::error(span.clone());
+        }
     };
 
     let mut type_parameters = type_parameters

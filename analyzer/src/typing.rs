@@ -11,8 +11,9 @@ pub mod user;
 pub mod variable;
 
 use crate::hir::{Conditional, Declaration, ExprKind, Module, TypedExpr};
+use crate::import::{PathEntry, PathItemError, SymbolSearch};
 use crate::module::ModuleView;
-use crate::symbol::{Symbol, SymbolDesc, SymbolRegistry, UndefinedSymbol};
+use crate::symbol::{Symbol, SymbolDesc, SymbolRegistry};
 use crate::typing::assign::{
     ascribe_assign, ascribe_identifier, ascribe_subscript, ascribe_var_reference,
 };
@@ -232,13 +233,19 @@ impl TypeError {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ErroneousSymbolDesc {
+    Partial(PathEntry),
+    Complete(SymbolDesc),
+}
+
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum TypeErrorKind {
     #[error("undefined {expected} `{name}`")]
     UndefinedSymbol {
         name: String,
         expected: SymbolRegistry,
-        found: Option<SymbolDesc>,
+        found: Option<ErroneousSymbolDesc>,
     },
 
     #[error("duplicate symbol `{name}`")]
@@ -979,121 +986,22 @@ fn lookup_path(
     modules: ModuleView,
     errors: &mut Vec<TypeError>,
 ) -> TypeId {
-    let (first, rest) = path.split_first().expect("path should not be empty");
-    let mut tree = match first {
-        InclusionPathItem::Symbol(ident) => match table.lookup(ident.value.as_str(), registry) {
-            Ok(symbol) => {
-                if !rest.is_empty() {
-                    errors.push(TypeError::new(
-                        TypeErrorKind::UndefinedSymbol {
-                            name: ident.value.to_string(),
-                            expected: registry,
-                            found: Some(SymbolDesc {
-                                registry: symbol.registry,
-                                span: symbol.declared_at.clone(),
-                            }),
-                        },
-                        SourceLocation::new(table.path().to_owned(), ident.segment()),
-                    ));
-                }
-                return symbol.ty;
-            }
-            Err(UndefinedSymbol::WrongRegistry(SymbolDesc {
-                registry: SymbolRegistry::Type,
-                ..
-            })) => {
-                let symbol = table
-                    .get(ident.value.as_str(), SymbolRegistry::Type)
-                    .expect("module should be defined in the table");
-                let UserType::Module(path) = &checker.types[symbol.ty] else {
-                    panic!(
-                        "module should have a module type, got {:?}",
-                        checker.types[symbol.ty]
-                    );
-                };
-                match modules.get_direct(path) {
-                    Some(tree) => tree,
-                    None => {
-                        return ERROR_TYPE;
-                    }
-                }
-            }
-            Err(err) => {
-                if let Some(module) = modules.get(first) {
-                    module
-                } else {
-                    errors.push(TypeError::new(
-                        TypeErrorKind::UndefinedSymbol {
-                            name: ident.value.to_string(),
-                            expected: registry,
-                            found: err.into(),
-                        },
-                        SourceLocation::new(table.path().to_owned(), ident.segment()),
-                    ));
-                    return ERROR_TYPE;
-                }
-            }
-        },
-        InclusionPathItem::Reef(_) => modules.current,
-    };
-    let Some((last, rest)) = rest.split_last() else {
-        return ERROR_TYPE;
-    };
-    for item in rest {
-        let InclusionPathItem::Symbol(ident) = item else {
+    match SymbolSearch::new(path, &checker.types, modules, table)
+        .and_then(|search| search.lookup(registry))
+    {
+        Ok(search) => search,
+        Err(PathItemError { item, err }) => {
             errors.push(TypeError::new(
                 TypeErrorKind::UndefinedSymbol {
                     name: item.to_string(),
-                    expected: SymbolRegistry::Type,
-                    found: None,
+                    expected: if path.last() == Some(item) {
+                        registry
+                    } else {
+                        SymbolRegistry::Type
+                    },
+                    found: err.into(),
                 },
                 SourceLocation::new(table.path().to_owned(), item.segment()),
-            ));
-            return ERROR_TYPE;
-        };
-        match tree.get(OsStr::new(ident.value.as_str())) {
-            Some(child_tree) => tree = child_tree,
-            None => {
-                errors.push(TypeError::new(
-                    TypeErrorKind::UndefinedSymbol {
-                        name: item.to_string(),
-                        expected: SymbolRegistry::Type,
-                        found: None,
-                    },
-                    SourceLocation::new(table.path().to_owned(), item.segment()),
-                ));
-                return ERROR_TYPE;
-            }
-        }
-    }
-    match last {
-        InclusionPathItem::Symbol(ident) => {
-            if let Some(export) = tree
-                .exports
-                .iter()
-                .find(|export| export.name == ident.value && export.registry == registry)
-            {
-                export.ty
-            } else {
-                errors.push(TypeError::new(
-                    TypeErrorKind::UndefinedSymbol {
-                        name: last.to_string(),
-                        expected: registry,
-                        found: None,
-                    },
-                    SourceLocation::new(table.path().to_owned(), ident.segment()),
-                ));
-                ERROR_TYPE
-            }
-        }
-        InclusionPathItem::Reef(span) => {
-            errors.push(TypeError::new(
-                TypeErrorKind::UndefinedSymbol {
-                    name: last.to_string(),
-                    expected: SymbolRegistry::Type,
-                    found: None,
-                },
-                SourceLocation::new(table.path().to_owned(), span.clone()),
             ));
             ERROR_TYPE
         }
@@ -1377,6 +1285,15 @@ mod tests {
                 SourceLocation::new(PathBuf::from("test"), 11..15),
             )]
         );
+    }
+
+    #[test]
+    fn reuse_path() {
+        let errors = type_check_multi([
+            (PathBuf::from("test"), "use reef::bar::foo\nfoo::test()"),
+            (PathBuf::from("bar/foo"), "fun test() = {}"),
+        ]);
+        assert_eq!(errors, []);
     }
 
     #[test]

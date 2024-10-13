@@ -131,7 +131,7 @@ impl<'a> VariableTable<'a> {
         self.inner.get(name, registry)
     }
 
-    pub(super) fn lookup(
+    pub(crate) fn lookup(
         &self,
         name: &str,
         registry: SymbolRegistry,

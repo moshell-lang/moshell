@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
+use analyzer::import::PathEntry;
 use analyzer::symbol::SymbolDesc;
-use analyzer::typing::{TypeError, TypeErrorKind};
+use analyzer::typing::{ErroneousSymbolDesc, TypeError, TypeErrorKind};
 use analyzer::{Filesystem, PipelineError, SourceLocation};
-use miette::{LabeledSpan, MietteDiagnostic, Severity, SourceOffset, SourceSpan};
-
 use context::source::Span;
+use miette::{LabeledSpan, MietteDiagnostic, Severity, SourceOffset, SourceSpan};
 
 pub fn error_to_diagnostic(
     value: PipelineError,
@@ -51,14 +51,18 @@ fn type_error_to_diagnostic(
         TypeErrorKind::UndefinedSymbol {
             name,
             expected,
-            found: Some(SymbolDesc { registry, span }),
+            found: Some(desc),
         } => {
-            let symbol_span = multi_file.insert(at.path, span, fs);
-            diagnostic.message = format!("expected {expected}, found {registry} `{name}`");
-            diagnostic.and_label(LabeledSpan::new_with_span(
-                Some(format!("{registry} defined here")),
-                symbol_span,
-            ))
+            let entry = PathEntry::from(&desc);
+            diagnostic.message = format!("expected {expected}, found {entry} `{name}`");
+            if let ErroneousSymbolDesc::Complete(SymbolDesc { registry, span }) = desc {
+                let span = multi_file.insert(at.path, span, fs);
+                diagnostic = diagnostic.with_label(LabeledSpan::new_with_span(
+                    Some(format!("{registry} defined here")),
+                    span,
+                ))
+            }
+            diagnostic
         }
         TypeErrorKind::TypeMismatch {
             expected_due_to: Some(expected_due_to),

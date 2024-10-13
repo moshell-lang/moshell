@@ -14,7 +14,7 @@
 //! that should be in that file. So it will try again, but with the last component removed. If it
 //! is still not found, it will continue to pop the path components until it finds a file to parse.
 
-use crate::symbol::SymbolRegistry;
+use crate::symbol::{SymbolDesc, SymbolRegistry, UndefinedSymbol};
 use crate::typing::user::{TypeId, UNKNOWN_TYPE};
 use crate::typing::{TypeError, TypeErrorKind};
 use crate::{Filesystem, PipelineError, Reef, SourceLocation, UnitKey};
@@ -243,10 +243,25 @@ impl ModuleTree {
         std::mem::take(&mut current.exports)
     }
 
-    pub fn find_export(&self, name: &str, symbol_registry: SymbolRegistry) -> Option<&Export> {
-        self.exports
-            .iter()
-            .find(|e| e.name == name && e.registry == symbol_registry)
+    pub fn find_export(
+        &self,
+        name: &str,
+        registry: SymbolRegistry,
+    ) -> Result<&Export, UndefinedSymbol> {
+        let mut other_export: Option<&Export> = None;
+        for export in self.exports.iter().rev() {
+            if export.name == name {
+                if export.registry == registry {
+                    return Ok(export);
+                } else {
+                    other_export = Some(export);
+                }
+            }
+        }
+        Err(match other_export {
+            Some(export) => UndefinedSymbol::WrongRegistry(SymbolDesc::from(export)),
+            None => UndefinedSymbol::NotFound,
+        })
     }
 }
 
@@ -266,14 +281,14 @@ impl<'a> ModuleView<'a> {
         Self { current, foreign }
     }
 
-    pub(crate) fn get(&self, item: &InclusionPathItem) -> Option<&ModuleTree> {
+    pub(crate) fn get(&self, item: &InclusionPathItem) -> Option<&'a ModuleTree> {
         match item {
             InclusionPathItem::Symbol(ident) => self.foreign.get(OsStr::new(ident.value.as_str())),
             InclusionPathItem::Reef(_) => Some(self.current),
         }
     }
 
-    pub(crate) fn get_direct(&self, path: &[InclusionPathItem]) -> Option<&ModuleTree> {
+    pub(crate) fn get_direct(&self, path: &[InclusionPathItem]) -> Option<&'a ModuleTree> {
         let (first, rest) = path.split_first().expect("path should not be empty");
         let mut tree = self.get(first)?;
         for item in rest {

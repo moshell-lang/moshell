@@ -17,6 +17,7 @@
 
 pub mod hir;
 mod hoist;
+pub mod import;
 mod module;
 pub mod symbol;
 pub mod typing;
