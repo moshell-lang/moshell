@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use analyzer::hir::ExprKind;
 use analyzer::typing::user::{TypeId, UserType};
+use analyzer::typing::variable::LocalId;
 use analyzer::typing::{registry, user};
 use analyzer::{
     analyze_multi, append_source, freeze_exports, Database, FileImporter, Filesystem, Reef,
@@ -175,23 +176,23 @@ impl Runner {
                     }
                     UserType::Parametrized { schema, params: _ } => {
                         let structure = &self.database.checker.registry[*schema];
-                        // let structure_fields = structure.get_fields();
-                        // let structure_layout = &self.current_compiled_reef.layouts[structure_id.0];
-                        //
-                        // let structure_data = value.get_as_obj().get_as_struct();
-                        // let structure_values = structure_fields
-                        //     .into_iter()
-                        //     .map(|field| {
-                        //         let (pos, _) = structure_layout.get_emplacement(field.local_id);
-                        //         let field_value = VmValueFFI::ptr(
-                        //             *structure_data.as_ptr().add(pos as usize).cast(),
-                        //         );
-                        //         self.extract_value(field_value, field.ty)
-                        //     })
-                        //     .collect();
-                        //
-                        // Some(VmValue::Struct(structure_values))
-                        todo!()
+                        let structure_layout = &self.compiler_state.layouts[schema.get()];
+
+                        let structure_data = value.get_as_obj().get_as_struct();
+                        let structure_values = structure
+                            .fields
+                            .iter()
+                            .enumerate()
+                            .map(|(id, field)| {
+                                let (pos, _) = structure_layout.get_emplacement(LocalId(id));
+                                let field_value = VmValueFFI::ptr(
+                                    *structure_data.as_ptr().add(pos as usize).cast(),
+                                );
+                                self.extract_value(field_value, field.param.ty)
+                            })
+                            .collect();
+
+                        Some(VmValue::Struct(structure_values))
                     }
                     _ => panic!("unknown object"),
                 },

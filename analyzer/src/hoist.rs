@@ -1,7 +1,7 @@
 use crate::module::{Export, ModuleTree, ModuleView};
 use crate::symbol::{SymbolRegistry, SymbolTable, UndefinedSymbol};
 use crate::typing::function::{Function, FunctionKind};
-use crate::typing::schema::Schema;
+use crate::typing::schema::{Schema, SchemaField};
 use crate::typing::user::{
     lookup_builtin_type, TypeId, UserType, ERROR_TYPE, STRING_TYPE, UNIT_TYPE,
 };
@@ -133,16 +133,25 @@ fn hoist_type_names(
     for expr in root.iter() {
         if let Expr::StructDeclaration(StructDeclaration {
             name,
+            parameters,
             segment: span,
             ..
         }) = expr
         {
+            let generics = parameters
+                .iter()
+                .map(|param| {
+                    checker
+                        .types
+                        .alloc(UserType::GenericVariable(param.name.to_string()))
+                })
+                .collect::<Vec<TypeId>>();
             let schema = checker
                 .registry
-                .define_schema(Schema::new(name.value.to_string()));
+                .define_schema(Schema::generic(name.value.to_string(), generics.clone()));
             let ty = checker.types.alloc(UserType::Parametrized {
                 schema,
-                params: Vec::new(),
+                params: generics,
             });
             table.insert_local(name.to_string(), ty, span.clone(), SymbolRegistry::Type);
             if let Some(export) = exports
@@ -417,14 +426,7 @@ fn hoist_struct_decl(
     let UserType::Parametrized { schema, .. } = checker.types[ty] else {
         panic!("the type should have a schema");
     };
-    let generics = parameters
-        .iter()
-        .map(|param| {
-            checker
-                .types
-                .alloc(UserType::GenericVariable(param.name.to_string()))
-        })
-        .collect::<Vec<TypeId>>();
+    let generics = checker.registry[schema].generic_variables.clone();
     table.enter_scope();
     for (name, ty) in parameters.iter().zip(generics.iter()) {
         table.insert_local(
@@ -444,22 +446,33 @@ fn hoist_struct_decl(
                     ERROR_TYPE
                 }
             };
-            (
-                field.name.to_string(),
-                Parameter {
+            SchemaField {
+                name: field.name.to_string(),
+                param: Parameter {
                     ty,
                     span: field.tpe.segment(),
                 },
-            )
+            }
         })
-        .collect::<HashMap<String, Parameter>>();
+        .collect::<Vec<SchemaField>>();
+    let constructor = checker.registry.define_function(Function {
+        declared_at: table.path.clone(),
+        fqn: PathBuf::from("<init>"),
+        generic_variables: generics.clone(),
+        param_types: fields_types
+            .iter()
+            .map(|field| field.param.clone())
+            .collect::<Vec<Parameter>>(),
+        return_type: ty,
+        kind: FunctionKind::Constructor,
+    });
     let Schema {
-        ref mut generic_variables,
         ref mut fields,
+        ref mut methods,
         ..
     } = checker.registry[schema];
-    generic_variables.extend(generics);
     fields.extend(fields_types);
+    methods.insert("<init>".to_owned(), constructor);
     table.exit_scope();
 }
 

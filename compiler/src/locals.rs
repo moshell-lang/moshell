@@ -49,7 +49,10 @@ impl LocalsLayout {
     }
 
     pub fn refs_offset(self) -> Vec<u32> {
-        Vec::new()
+        self.values_indexes
+            .into_iter()
+            .filter_map(|(pos, is_obj)| is_obj.then_some(pos))
+            .collect()
     }
 
     pub fn get_capture_index(&self, var: LocalId) -> Option<u32> {

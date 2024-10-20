@@ -4,8 +4,9 @@ use crate::context::EmitterContext;
 use crate::emit::native::{STRING_INDEX, STRING_LEN, VEC_INDEX, VEC_LEN};
 use crate::emit::{emit, EmissionState};
 use crate::locals::LocalsLayout;
+use crate::r#type::ValueStackSize;
 use analyzer::hir::{ForKind, ForLoop, RangeFor, TypedExpr};
-use analyzer::typing::registry::{STRING_SCHEMA, VEC_SCHEMA};
+use analyzer::typing::registry::{RANGE_SCHEMA, STRING_SCHEMA, VEC_SCHEMA};
 use analyzer::typing::user::{UserType, INT_TYPE, STRING_TYPE};
 use analyzer::typing::variable::LocalId;
 
@@ -75,40 +76,40 @@ pub(super) fn emit_for_loop(
                         state,
                     );
                 }
-                // Type::Structure(_, structure_id) => {
-                //     // Int range
-                //     let layout = ctx.get_layout(ReefId(1), *structure_id);
-                //     emit_for_iterable(
-                //         range,
-                //         &it.body,
-                //         |iterator_id, instructions, _, locals| {
-                //             // Emit start
-                //             instructions.emit_get_local(iterator_id, type_ref.into(), locals);
-                //             instructions.emit_get_field(LocalId(0), layout);
-                //         },
-                //         |instructions, _| {
-                //             instructions.emit_code(Opcode::Swap);
-                //             instructions.emit_pop(ValueStackSize::QWord);
-                //         },
-                //         |instructions, _| {
-                //             instructions.emit_get_field(LocalId(1), layout);
-                //         },
-                //         if *structure_id == StructureId(0) {
-                //             Opcode::IntLessThan
-                //         } else {
-                //             Opcode::IntLessOrEqual
-                //         },
-                //         |iterator_id, instructions, _, locals| {
-                //             instructions.emit_get_local(iterator_id, type_ref.into(), locals);
-                //             instructions.emit_get_field(LocalId(2), layout);
-                //         },
-                //         instructions,
-                //         ctx,
-                //         cp,
-                //         locals,
-                //         state,
-                //     );
-                // }
+                UserType::Parametrized { schema, .. } => {
+                    // Int range
+                    let layout = &ctx.layouts[schema.get()];
+                    emit_for_iterable(
+                        range,
+                        &it.body,
+                        |iterator_id, instructions, _, locals| {
+                            // Emit start
+                            instructions.emit_get_local(iterator_id, type_ref.into(), locals);
+                            instructions.emit_get_field(LocalId(0), layout);
+                        },
+                        |instructions, _| {
+                            instructions.emit_code(Opcode::Swap);
+                            instructions.emit_pop(ValueStackSize::QWord);
+                        },
+                        |instructions, _| {
+                            instructions.emit_get_field(LocalId(1), layout);
+                        },
+                        if *schema == RANGE_SCHEMA {
+                            Opcode::IntLessThan
+                        } else {
+                            Opcode::IntLessOrEqual
+                        },
+                        |iterator_id, instructions, _, locals| {
+                            instructions.emit_get_local(iterator_id, type_ref.into(), locals);
+                            instructions.emit_get_field(LocalId(2), layout);
+                        },
+                        instructions,
+                        ctx,
+                        cp,
+                        locals,
+                        state,
+                    );
+                }
                 _ => panic!("Unexpected iterable {iterable_type:?} type"),
             }
         }

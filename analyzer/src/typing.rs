@@ -1,6 +1,7 @@
 mod assign;
 mod flow;
 pub mod function;
+mod iterable;
 mod lower;
 mod operator;
 mod pfc;
@@ -19,11 +20,12 @@ use crate::typing::assign::{
 };
 use crate::typing::flow::{ascribe_control, ascribe_while};
 use crate::typing::function::Function;
+use crate::typing::iterable::{ascribe_for, ascribe_range};
 use crate::typing::lower::{ascribe_template_string, coerce_condition};
 use crate::typing::operator::{ascribe_binary, ascribe_unary};
 use crate::typing::pfc::ascribe_pfc;
-use crate::typing::registry::{FunctionId, Registry, SchemaId};
-use crate::typing::schema::Schema;
+use crate::typing::registry::{Registry, SchemaId};
+use crate::typing::schema::{ascribe_field_access, Schema};
 use crate::typing::shell::{
     ascribe_call, ascribe_detached, ascribe_file_pattern, ascribe_pipeline, ascribe_redirected,
     ascribe_substitution,
@@ -38,7 +40,7 @@ use ast::call::MethodCall;
 use ast::control_flow::If;
 use ast::function::FunctionDeclaration;
 use ast::group::Block;
-use ast::r#struct::{FieldAccess, StructImpl};
+use ast::r#struct::StructImpl;
 use ast::r#type::{ByName, ParametrizedType, Type};
 use ast::r#use::{Import, ImportList, InclusionPathItem, Use};
 use ast::range::Iterable;
@@ -150,76 +152,9 @@ impl TypeChecker {
             UserType::GenericVariable(name) => name.clone(),
         }
     }
-
-    fn get_field(&mut self, ty: TypeId, field: &str) -> Result<TypeId, FieldError> {
-        match &self.types[ty] {
-            UserType::Error => Ok(ERROR_TYPE),
-            UserType::Nothing | UserType::Unit => Err(FieldError::ExpectedStruct),
-            UserType::Parametrized { schema, params } => {
-                let Schema {
-                    generic_variables,
-                    fields,
-                    methods,
-                    ..
-                } = &self.registry[*schema];
-                if let Some(field) = fields.get(field) {
-                    Ok(
-                        if let Some(concrete_ty) =
-                            generic_variables.iter().position(|&ty| ty == field.ty)
-                        {
-                            params[concrete_ty]
-                        } else if generic_variables.is_empty() {
-                            field.ty
-                        } else {
-                            // TODO: use concretize
-                            match &self.types[field.ty] {
-                                UserType::Parametrized {
-                                    schema,
-                                    params: sub_params,
-                                } => {
-                                    let params = sub_params
-                                        .iter()
-                                        .map(|ty| {
-                                            if let Some(concrete_ty) =
-                                                generic_variables.iter().position(|&pty| pty == *ty)
-                                            {
-                                                params[concrete_ty]
-                                            } else {
-                                                *ty
-                                            }
-                                        })
-                                        .collect::<Vec<_>>();
-                                    self.types.alloc(UserType::Parametrized {
-                                        schema: *schema,
-                                        params,
-                                    })
-                                }
-                                _ => field.ty,
-                            }
-                        },
-                    )
-                } else if let Some(method) = methods.get(field) {
-                    Err(FieldError::IsMethod(*method))
-                } else {
-                    Err(FieldError::UnknownField {
-                        available: fields.keys().cloned().collect(),
-                    })
-                }
-            }
-            _ => Err(FieldError::UnknownField {
-                available: Vec::new(),
-            }),
-        }
-    }
 }
 
 pub(crate) struct UnifyError;
-
-enum FieldError {
-    ExpectedStruct,
-    UnknownField { available: Vec<String> },
-    IsMethod(FunctionId),
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypeError {
@@ -259,6 +194,12 @@ pub enum TypeErrorKind {
         expected: String,
         expected_due_to: Option<SourceLocation>,
         actual: String,
+    },
+
+    #[error("trait `{trait_name}` not implemented for type `{type_name}`")]
+    TraitNotImplemented {
+        trait_name: String,
+        type_name: String,
     },
 
     #[error("expected {expected} arguments but received {received}")]
@@ -483,6 +424,7 @@ fn ascribe_type(
             ascribe_subscript(subscript, table, checker, storage, ctx, errors)
         }
         Expr::While(stmt) => ascribe_while(stmt, table, checker, storage, ctx, errors),
+        Expr::For(stmt) => ascribe_for(stmt, table, checker, storage, ctx, errors),
         Expr::Break(span) => ascribe_control(ExprKind::Break, span.clone(), table, ctx, errors),
         Expr::Continue(span) => {
             ascribe_control(ExprKind::Continue, span.clone(), table, ctx, errors)
@@ -498,67 +440,7 @@ fn ascribe_type(
         }
         Expr::StructDeclaration(decl) => TypedExpr::noop(decl.segment.clone()),
         Expr::ProgrammaticCall(call) => ascribe_pfc(call, table, checker, storage, ctx, errors),
-        Expr::FieldAccess(FieldAccess {
-            expr,
-            field,
-            segment: span,
-        }) => {
-            let typed_expr = ascribe_type(expr, table, checker, storage, ctx, errors);
-            match checker.get_field(typed_expr.ty, field.value.as_str()) {
-                Ok(field_ty) => {
-                    return TypedExpr {
-                        kind: ExprKind::Noop,
-                        span: span.clone(),
-                        ty: field_ty,
-                    };
-                }
-                Err(FieldError::ExpectedStruct) => {
-                    errors.push(TypeError::new(
-                        TypeErrorKind::TypeMismatch {
-                            expected: "Struct".to_string(),
-                            expected_due_to: None,
-                            actual: checker.display(typed_expr.ty),
-                        },
-                        SourceLocation::new(table.path().to_owned(), span.clone()),
-                    ));
-                }
-                Err(FieldError::UnknownField { available }) => {
-                    errors.push(TypeError::new(
-                        TypeErrorKind::UnknownField {
-                            name: field.value.to_string(),
-                            type_name: checker.display(typed_expr.ty),
-                            available,
-                        },
-                        SourceLocation::new(table.path().to_owned(), field.segment()),
-                    ));
-                }
-                Err(FieldError::IsMethod(method)) => {
-                    let Function {
-                        ref param_types, ..
-                    } = checker.registry[method];
-                    let mut builder = "(".to_owned();
-                    for param in param_types {
-                        if param.ty == typed_expr.ty {
-                            continue;
-                        }
-                        if builder.ends_with('(') {
-                            builder.push('_');
-                        } else {
-                            builder.push_str(", _");
-                        }
-                    }
-                    builder.push(')');
-                    errors.push(TypeError::new(
-                        TypeErrorKind::MethodLikeFieldAccess {
-                            name: field.value.to_string(),
-                            parentheses: builder,
-                        },
-                        SourceLocation::new(table.path().to_owned(), field.segment()),
-                    ));
-                }
-            }
-            TypedExpr::error(span.clone())
-        }
+        Expr::FieldAccess(expr) => ascribe_field_access(expr, table, checker, storage, ctx, errors),
         Expr::VarReference(ident) => ascribe_var_reference(ident, table, errors),
         Expr::Path(ident) => ascribe_identifier(ident, table, errors),
         Expr::Block(Block {
@@ -588,7 +470,7 @@ fn ascribe_type(
             ascribe_pipeline(pipeline, table, checker, storage, ctx, errors)
         }
         Expr::Range(iterable) => match iterable {
-            Iterable::Range(range) => todo!("{range:?}"),
+            Iterable::Range(range) => ascribe_range(range, table, checker, storage, ctx, errors),
             Iterable::Files(pattern) => {
                 ascribe_file_pattern(pattern, table, checker, storage, ctx, errors)
             }
@@ -758,7 +640,7 @@ fn ascribe_type(
                             span: span.clone(),
                             ty: return_type,
                         }
-                    } else if let Some(field) = fields.get(name) {
+                    } else if let Some(_) = fields.iter().find(|field| field.name == name) {
                         errors.push(TypeError::new(
                             TypeErrorKind::MethodLikeFieldAccess {
                                 name: name.to_string(),
@@ -1180,7 +1062,7 @@ mod tests {
     use std::ffi::OsString;
     use std::path::PathBuf;
 
-    fn type_check(source: &str) -> Vec<TypeError> {
+    pub(crate) fn type_check(source: &str) -> Vec<TypeError> {
         let fs = MemoryFilesystem::new(HashMap::from([(PathBuf::from("main.msh"), source)]));
         check(fs, "main.msh")
     }
@@ -1671,6 +1553,21 @@ mod tests {
                     actual: "String".to_owned(),
                 },
                 SourceLocation::new(PathBuf::from("main"), 37..44),
+            )]
+        );
+    }
+
+    #[test]
+    fn different_generic_len() {
+        let errors = type_check("fun foo[T, U](t: T, u: U) -> T; foo::[Int](1, true)");
+        assert_eq!(
+            errors,
+            [TypeError::new(
+                TypeErrorKind::ArityMismatch {
+                    expected: 2,
+                    received: 1,
+                },
+                SourceLocation::new(PathBuf::from("main.msh"), 38..41),
             )]
         );
     }

@@ -52,6 +52,8 @@ pub const VEC_SCHEMA: SchemaId = SchemaId(5);
 pub const GLOB_SCHEMA: SchemaId = SchemaId(6);
 pub const PID_SCHEMA: SchemaId = SchemaId(7);
 pub const OPTION_SCHEMA: SchemaId = SchemaId(8);
+pub const RANGE_SCHEMA: SchemaId = SchemaId(9);
+pub const INCLUSIVE_RANGE_SCHEMA: SchemaId = SchemaId(10);
 
 impl Registry {
     /// Allocates a new [`SchemaId`] for the given [`Schema`].
@@ -66,6 +68,13 @@ impl Registry {
         let id = self.functions.len();
         self.functions.push(function);
         FunctionId(id)
+    }
+
+    pub fn iter_schemas(&self) -> impl Iterator<Item = (SchemaId, &Schema)> {
+        self.schemas
+            .iter()
+            .enumerate()
+            .map(|(id, schema)| (SchemaId(id), schema))
     }
 }
 

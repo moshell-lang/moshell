@@ -406,6 +406,8 @@ natives_functions_t load_natives() {
         {"std::home_dir", home_dir},
         {"std::current_home_dir", current_home_dir},
 
+        {"std::convert::parse_int_radix", parse_int_radix},
+
         {"std::memory::gc", gc},
         {"std::memory::empty_operands", is_operands_empty},
         {"std::memory::program_arguments", program_arguments},
@@ -413,7 +415,6 @@ natives_functions_t load_natives() {
         {"std::math::ceil", ceil},
         {"std::math::floor", floor},
         {"std::math::round", round},
-        {"std::math::parse_int_radix", parse_int_radix},
 
         {"std::process::get_fd_path", get_fd_path},
         {"std::process::wait", process_wait},

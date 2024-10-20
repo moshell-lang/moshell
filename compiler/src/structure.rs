@@ -4,6 +4,7 @@ use analyzer::typing::variable::LocalId;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructureLayout {
+    pub(crate) name: String,
     field_offset: usize,
     pub(crate) total_size: u32,
     indexes: Vec<(u32, ValueStackSize)>,
@@ -14,13 +15,14 @@ impl From<&Schema> for StructureLayout {
         let mut indexes = Vec::new();
         let mut idx = 0;
 
-        for field in structure.fields.values() {
-            let field_size = ValueStackSize::from(field.ty);
+        for field in structure.fields.iter() {
+            let field_size = ValueStackSize::from(field.param.ty);
             indexes.push((idx, field_size));
             idx += u8::from(field_size) as u32;
         }
 
         Self {
+            name: structure.name.clone(),
             field_offset: structure.generic_variables.len(),
             total_size: idx,
             indexes,

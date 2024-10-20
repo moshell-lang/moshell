@@ -6,7 +6,7 @@ use crate::r#type::ValueStackSize;
 use analyzer::hir::MethodCall;
 use analyzer::typing::function::FunctionKind;
 use analyzer::typing::user;
-use analyzer::typing::user::{TypeId, UserType};
+use analyzer::typing::user::TypeId;
 
 const STRING_EQ: &str = "lang::String::eq";
 const STRING_CONCAT: &str = "lang::String::concat";

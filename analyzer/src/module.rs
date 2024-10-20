@@ -49,12 +49,6 @@ pub(super) struct Export {
     pub(super) ty: TypeId,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) struct ResolvedImport {
-    pub(crate) path: PathBuf,
-    pub(crate) export_idx: usize,
-}
-
 /// An instruction to import a module.
 #[derive(Debug)]
 struct Import {

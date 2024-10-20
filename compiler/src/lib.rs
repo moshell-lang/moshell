@@ -29,7 +29,8 @@ pub trait SourceLineProvider {
 
 #[derive(Default)]
 pub struct CompilerState {
-    pub constant_pool: ConstantPool,
+    constant_pool: ConstantPool,
+    pub layouts: Vec<StructureLayout>,
 }
 
 #[derive(Default)]
@@ -44,11 +45,17 @@ pub fn compile_reef(
     database: &Database,
     reef: &Reef,
     writer: &mut impl Write,
-    CompilerState { constant_pool: cp }: &mut CompilerState,
+    CompilerState {
+        constant_pool: cp,
+        layouts,
+    }: &mut CompilerState,
     options: CompilerOptions,
 ) -> Result<(), io::Error> {
     let mut bytecode = Bytecode::default();
-    let layouts = Vec::<StructureLayout>::new();
+    layouts.clear();
+    for (_, schema) in database.checker.registry.iter_schemas() {
+        layouts.push(StructureLayout::from(schema));
+    }
 
     for EncodableContent {
         main,
@@ -59,7 +66,7 @@ pub fn compile_reef(
         let ctx = EmitterContext {
             types: &database.checker.types,
             registry: &database.checker.registry,
-            layouts: &layouts,
+            layouts,
         };
 
         let mut page_size = 0u32;
@@ -78,6 +85,12 @@ pub fn compile_reef(
         write_exported(cp, page_size, &mut bytecode)?;
 
         bytecode.emit_u32(layouts.len() as u32);
+        for layout in layouts.iter() {
+            bytecode.emit_constant_ref(cp.insert_string(&layout.name));
+            bytecode.emit_u32(layout.total_size);
+            bytecode.emit_u32(0);
+        }
+
         bytecode.emit_u32(functions.len() as u32);
 
         for function in functions {

@@ -2,6 +2,7 @@ use crate::hir::{ExprKind, FunctionCall, Module, TypedExpr};
 use crate::import::{PathItemError, SymbolSearch};
 use crate::symbol::SymbolRegistry;
 use crate::typing::function::Function;
+use crate::typing::schema::Schema;
 use crate::typing::user::{TypeId, UserType, ERROR_TYPE, UNKNOWN_TYPE};
 use crate::typing::variable::VariableTable;
 use crate::typing::{
@@ -9,7 +10,7 @@ use crate::typing::{
 };
 use crate::SourceLocation;
 use ast::call::ProgrammaticCall;
-use context::source::SourceSegmentHolder;
+use context::source::{SourceSegmentHolder, Span};
 
 pub fn ascribe_pfc(
     ProgrammaticCall {
@@ -24,10 +25,14 @@ pub fn ascribe_pfc(
     ctx @ Context { modules, hint, .. }: Context,
     errors: &mut Vec<TypeError>,
 ) -> TypedExpr {
-    let arguments = arguments
+    let type_parameters_span: Option<Span> = type_parameters
+        .first()
+        .zip(type_parameters.last())
+        .map(|(first, last)| first.segment().start..last.segment().end);
+    let mut type_parameters = type_parameters
         .iter()
-        .map(|expr| ascribe_type(expr, table, checker, storage, ctx, errors))
-        .collect::<Vec<_>>();
+        .map(|type_param| lookup_type(type_param, table, checker, modules, errors))
+        .collect::<Vec<TypeId>>();
 
     let res = match SymbolSearch::new(path, &checker.types, modules, table) {
         Ok(ref search) => {
@@ -63,6 +68,21 @@ pub fn ascribe_pfc(
     let function_id = match checker.types[ty] {
         UserType::Error => return TypedExpr::error(span.clone()),
         UserType::Function(function_id) => function_id,
+        UserType::Parametrized { schema, ref params } => {
+            let Schema { ref methods, .. } = checker.registry[schema];
+            if let Some(constructor) = methods.get("<init>") {
+                *constructor
+            } else {
+                errors.push(TypeError::new(
+                    TypeErrorKind::TraitNotImplemented {
+                        trait_name: "Function".to_owned(),
+                        type_name: checker.display(ty),
+                    },
+                    SourceLocation::new(table.path().to_owned(), span.clone()),
+                ));
+                return TypedExpr::error(span.clone());
+            }
+        }
         _ => {
             errors.push(TypeError::new(
                 TypeErrorKind::TypeMismatch {
@@ -76,10 +96,25 @@ pub fn ascribe_pfc(
         }
     };
 
-    let mut type_parameters = type_parameters
+    let Function {
+        ref param_types, ..
+    } = checker.registry[function_id];
+
+    let type_hints = param_types
         .iter()
-        .map(|type_param| lookup_type(type_param, table, checker, modules, errors))
-        .collect::<Vec<TypeId>>();
+        .map(|param| TypeHint::Required(param.ty))
+        .collect::<Vec<TypeHint>>();
+    let arguments = arguments
+        .iter()
+        .zip(
+            type_hints
+                .into_iter()
+                .chain(std::iter::repeat(TypeHint::Used)),
+        )
+        .map(|(expr, hint)| {
+            ascribe_type(expr, table, checker, storage, ctx.with_hint(hint), errors)
+        })
+        .collect::<Vec<_>>();
 
     let Function {
         ref declared_at,
@@ -148,6 +183,7 @@ pub fn ascribe_pfc(
                 } = &checker.types[return_type]
                 {
                     if schema == expected_schema {
+                        assert_eq!(fn_return_params.len(), expected_params.len(), "types of the same schema should have the same number of generic parameters");
                         // First, get the index of the generic_variables in the return_params list
                         for (fn_return_param, fn_actual) in
                             fn_return_params.iter().zip(expected_params)
@@ -190,6 +226,14 @@ pub fn ascribe_pfc(
             },
             SourceLocation::new(table.path().to_owned(), span.clone()),
         ));
+    } else if type_parameters.len() != generic_variables.len() {
+        errors.push(TypeError::new(
+            TypeErrorKind::ArityMismatch {
+                expected: generic_variables.len(),
+                received: type_parameters.len(),
+            },
+            SourceLocation::new(table.path().to_owned(), type_parameters_span.unwrap()),
+        ));
     } else {
         for (arg, param) in arguments.iter().zip(param_types.iter()) {
             let param_ty = checker
@@ -209,10 +253,10 @@ pub fn ascribe_pfc(
                 ));
             }
         }
+        return_type = checker
+            .types
+            .concretize(return_type, generic_variables, &type_parameters);
     }
-    return_type = checker
-        .types
-        .concretize(return_type, generic_variables, &type_parameters);
 
     TypedExpr {
         kind: ExprKind::FunctionCall(FunctionCall {

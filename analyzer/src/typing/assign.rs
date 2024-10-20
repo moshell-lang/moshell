@@ -1,10 +1,11 @@
-use crate::hir::{ExprKind, LocalAssignment, MethodCall, Module, TypedExpr};
+use crate::hir::{ExprKind, FieldAssign, LocalAssignment, MethodCall, Module, TypedExpr};
 use crate::symbol::{SymbolRegistry, UndefinedSymbol};
 use crate::typing::function::Function;
+use crate::typing::schema::ascribe_field_access;
 use crate::typing::user::{UserType, UNIT_TYPE};
 use crate::typing::variable::VariableTable;
 use crate::typing::{ascribe_type, Context, TypeChecker, TypeError, TypeErrorKind, TypeHint};
-use crate::SourceLocation;
+use crate::{hir, SourceLocation};
 use ast::operation::{BinaryOperation, BinaryOperator};
 use ast::r#struct::FieldAccess;
 use ast::r#use::InclusionPathItem;
@@ -53,16 +54,6 @@ pub(super) fn ascribe_assign(
     );
     match left {
         Ok(var) => {
-            if let Err(_) = checker.types.unify(rhs.ty, var.ty) {
-                errors.push(TypeError::new(
-                    TypeErrorKind::TypeMismatch {
-                        expected: checker.display(var.ty),
-                        expected_due_to: None,
-                        actual: checker.display(rhs.ty),
-                    },
-                    SourceLocation::new(table.path().to_owned(), assign.segment()),
-                ));
-            }
             if !var.can_reassign {
                 errors.push(TypeError::new(
                     TypeErrorKind::CannotReassign {
@@ -180,7 +171,8 @@ pub(super) fn ascribe_subscript(
 
 /// Creates the right hand side of an assignment.
 ///
-/// The state should contain the [`ExpressionValue::Expected`] value of the left hand side.
+/// The state should contain the [`TypeHint::Required`] value of the left hand side. If not, the
+/// type of the right hand side will not be checked.
 fn ascribe_assign_rhs(
     assign: &Assign,
     table: &mut VariableTable,
@@ -189,7 +181,7 @@ fn ascribe_assign_rhs(
     ctx: Context,
     errors: &mut Vec<TypeError>,
 ) -> TypedExpr {
-    match assign.operator {
+    let expr = match assign.operator {
         AssignOperator::Assign => ascribe_type(&assign.value, table, checker, storage, ctx, errors),
         operator => {
             let binary = Expr::Binary(BinaryOperation {
@@ -206,7 +198,20 @@ fn ascribe_assign_rhs(
                 errors,
             )
         }
+    };
+    if let TypeHint::Required(ty) = ctx.hint {
+        if let Err(_) = checker.types.unify(expr.ty, ty) {
+            errors.push(TypeError::new(
+                TypeErrorKind::TypeMismatch {
+                    expected: checker.display(ty),
+                    expected_due_to: None,
+                    actual: checker.display(expr.ty),
+                },
+                SourceLocation::new(table.path().to_owned(), assign.segment()),
+            ));
+        }
     }
+    expr
 }
 
 fn ascribe_assign_subscript(
@@ -230,7 +235,31 @@ fn ascribe_field_assign(
     ctx: Context,
     errors: &mut Vec<TypeError>,
 ) -> TypedExpr {
-    todo!()
+    let TypedExpr {
+        kind:
+            ExprKind::FieldAccess(hir::FieldAccess {
+                object,
+                structure,
+                field,
+            }),
+        ty: field_ty,
+        span: _,
+    } = ascribe_field_access(field, table, checker, module, ctx, errors)
+    else {
+        return TypedExpr::error(assign.segment());
+    };
+    let ctx = ctx.with_hint(TypeHint::Required(field_ty));
+    let new_value = ascribe_assign_rhs(assign, table, checker, module, ctx, errors);
+    TypedExpr {
+        kind: ExprKind::FieldAssign(FieldAssign {
+            object,
+            structure,
+            field,
+            new_value: Box::new(new_value),
+        }),
+        ty: UNIT_TYPE,
+        span: assign.segment(),
+    }
 }
 
 pub(super) fn ascribe_identifier(
