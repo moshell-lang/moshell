@@ -3,7 +3,7 @@ use ast::variable::Identifier;
 use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
 
-use crate::moves::{blanks, eog, line_end, of_type, MoveOperations};
+use crate::moves::{blanks, eog, line_end, of_type, Move};
 use crate::parser::{ParseResult, Parser};
 
 impl Parser<'_> {

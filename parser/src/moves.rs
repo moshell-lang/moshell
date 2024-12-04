@@ -4,7 +4,7 @@ use lexer::token::{Token, TokenType};
 type MoveResult = Result<usize, usize>;
 
 ///defines a way to move along a ParserCursor.
-pub trait Move {
+pub trait Move: Copy {
     /// Returns
     /// * `Some<usize>` - if the move succeeded, where the wrapped `usize` is the position where this move ended.
     /// * `None` - if the move did not succeed (prerequisites not satisfied)
@@ -15,39 +15,28 @@ pub trait Move {
     fn apply<F>(&self, at: F, pos: usize) -> MoveResult
     where
         F: Fn(usize) -> Token;
-}
 
-///Defines operations over a Move struct.
-pub(crate) trait MoveOperations<This: Move + Copy> {
     ///Used to chain `This` move with `other` move.
     /// returns a move that will first execute this move then other one only if this first succeeded.
-    fn and_then<B: Move + Copy>(self, other: B) -> AndThenMove<This, B>;
-
-    ///Used to bind `This` move with `other` move.
-    /// returns a move that will first execute this move then the other one.
-    fn then<B: Move + Copy>(self, other: B) -> ThenMove<This, B>;
-
-    ///Used to execute `This` or else other if `This` fails
-    /// returned move is a move that executes either this or other if this move fails.
-    fn or<B: Move + Copy>(self, other: B) -> OrMove<This, B>;
-}
-
-impl<A: Move + Copy> MoveOperations<A> for A {
-    fn and_then<B: Move + Copy>(self, other: B) -> AndThenMove<Self, B> {
+    fn and_then<B: Move + Copy>(self, other: B) -> impl Move {
         AndThenMove {
             left: self,
             right: other,
         }
     }
 
-    fn then<B: Move + Copy>(self, other: B) -> ThenMove<Self, B> {
+    ///Used to bind `This` move with `other` move.
+    /// returns a move that will first execute this move then the other one.
+    fn then<B: Move + Copy>(self, other: B) -> impl Move {
         ThenMove {
             left: self,
             right: other,
         }
     }
 
-    fn or<B: Move + Copy>(self, other: B) -> OrMove<Self, B> {
+    ///Used to execute `This` or else other if `This` fails
+    /// returned move is a move that executes either this or other if this move fails.
+    fn or<B: Move + Copy>(self, other: B) -> impl Move {
         OrMove {
             left: self,
             right: other,
@@ -158,12 +147,7 @@ pub(crate) fn blanks() -> RepeatedMove<PredicateMove<impl Fn(Token) -> bool + Co
 
 ///a move to consume a move between spaces and newlines, this move succeeds only if the given move
 /// succeeds.
-pub(crate) fn aerated<M: Move + Copy>(
-    m: M,
-) -> AndThenMove<
-    ThenMove<RepeatedMove<PredicateMove<impl (Fn(Token) -> bool) + Copy>>, M>,
-    RepeatedMove<PredicateMove<impl (Fn(Token) -> bool) + Copy>>,
-> {
+pub(crate) fn aerated<M: Move>(m: M) -> impl Move {
     blanks().then(m).and_then(blanks())
 }
 
@@ -365,10 +349,7 @@ pub(crate) fn line_end() -> PredicateMove<impl (Fn(Token) -> bool) + Copy> {
     of_types(&[NewLine, SemiColon, EndOfFile])
 }
 
-pub(crate) fn identifier_parenthesis() -> AndThenMove<
-    PredicateMove<impl Fn(Token) -> bool + Copy + Sized>,
-    PredicateMove<impl Fn(Token) -> bool + Copy + Sized>,
-> {
+pub(crate) fn identifier_parenthesis() -> impl Move {
     of_type(Identifier).and_then(of_types(&[SquaredLeftBracket, RoundedLeftBracket]))
 }
 

@@ -3,7 +3,7 @@ use context::source::SourceSegmentHolder;
 use lexer::token::TokenType::{FatArrow, RoundedLeftBracket, RoundedRightBracket};
 
 use crate::err::ParseErrorKind::Expected;
-use crate::moves::{blanks, of_type, MoveOperations};
+use crate::moves::{blanks, of_type, Move};
 use crate::parser::{ParseResult, Parser};
 
 impl Parser<'_> {

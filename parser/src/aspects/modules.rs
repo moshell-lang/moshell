@@ -7,7 +7,7 @@ use lexer::token::TokenType::{
 use lexer::token::{Token, TokenType};
 
 use crate::err::ParseErrorKind;
-use crate::moves::{any, blanks, of_type, of_types, spaces, MoveOperations};
+use crate::moves::{any, blanks, of_type, of_types, spaces, Move};
 use crate::parser::{ParseResult, Parser};
 
 impl Parser<'_> {

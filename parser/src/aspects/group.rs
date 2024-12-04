@@ -4,7 +4,7 @@ use context::source::SourceSegment;
 use lexer::token::{Token, TokenType};
 
 use crate::err::ParseErrorKind;
-use crate::moves::{line_end, of_type, of_types, repeat, repeat_n, spaces, MoveOperations};
+use crate::moves::{line_end, of_type, of_types, repeat, repeat_n, spaces, Move};
 use crate::parser::{ParseResult, Parser};
 
 impl Parser<'_> {

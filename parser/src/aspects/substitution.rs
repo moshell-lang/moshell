@@ -5,7 +5,7 @@ use lexer::token::TokenType;
 use lexer::token::TokenType::{RoundedLeftBracket, RoundedRightBracket};
 
 use crate::err::ParseErrorKind;
-use crate::moves::{line_end, not, of_type, repeat_n, spaces, MoveOperations};
+use crate::moves::{line_end, not, of_type, repeat_n, spaces, Move};
 use crate::parser::{ParseResult, Parser};
 
 impl Parser<'_> {
@@ -51,10 +51,10 @@ impl Parser<'_> {
         }
 
         //finally it's a lonely '$' so we return it as a literal
-        return Ok(Expr::Literal(Literal {
+        Ok(Expr::Literal(Literal {
             parsed: LiteralValue::String(dollar.text(self.source).to_owned()),
             segment: dollar.span,
-        }));
+        }))
     }
 }
 

@@ -10,7 +10,7 @@ use lexer::token::TokenType::*;
 use lexer::unescape;
 
 use crate::err::ParseErrorKind;
-use crate::moves::{next, of_type, of_types, MoveOperations};
+use crate::moves::{next, of_type, of_types, Move};
 use crate::parser::{ParseResult, Parser};
 
 /// Describes if a literal should be parsed strictly or leniently.

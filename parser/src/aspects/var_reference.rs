@@ -2,7 +2,7 @@ use ast::variable::{VarName, VarReference};
 use ast::Expr;
 use lexer::token::TokenType;
 
-use crate::moves::{any, blanks, like, lookahead, of_type, MoveOperations};
+use crate::moves::{any, blanks, like, lookahead, of_type, Move};
 use crate::parser::{ParseResult, Parser};
 
 impl Parser<'_> {

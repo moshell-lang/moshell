@@ -15,9 +15,7 @@ use crate::aspects::binary_operation::{infix_precedence, shell_infix_precedence}
 use crate::aspects::literal::LiteralLeniency;
 use crate::cursor::ParserCursor;
 use crate::err::{determine_skip_sections, ParseError, ParseErrorKind, ParseReport, SkipSections};
-use crate::moves::{
-    any, blanks, like, line_end, next, of_type, of_types, repeat, spaces, Move, MoveOperations,
-};
+use crate::moves::{any, blanks, like, line_end, next, of_type, of_types, repeat, spaces, Move};
 
 pub(crate) type ParseResult<T> = Result<T, ParseError>;
 
@@ -581,7 +579,7 @@ impl<'a> Parser<'a> {
     ///
     /// The base behavior is to go to the end of the file or the next valid closing delimiter,
     /// but this can be further configured by the `break_on` parameter.
-    pub(crate) fn recover_from(&mut self, error: ParseError, break_on: impl Move + Copy) {
+    pub(crate) fn recover_from(&mut self, error: ParseError, break_on: impl Move) {
         if self.skip.contains(error.position.start) {
             // Mismatched delimiters are already reported by the lexer, so we can skip them
             // in a section marked as skipped. Contrary to repos_to_top_delimiter, this doesn't
@@ -632,7 +630,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Goes to the next expression, where the move can be specialized.
-    fn repos_to_next_expr(&mut self, break_on: impl Move + Copy) {
+    fn repos_to_next_expr(&mut self, break_on: impl Move) {
         // If delimiters are encountered while moving, they must be removed from the stack first,
         // before repositioning.
         let mut delimiter_stack = Vec::new();

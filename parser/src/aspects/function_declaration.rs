@@ -5,9 +5,7 @@ use context::source::SourceSegmentHolder;
 use lexer::token::{Token, TokenType};
 
 use crate::err::ParseErrorKind;
-use crate::moves::{
-    blank, blanks, eox, like, next, not, of_type, of_types, repeat, spaces, MoveOperations,
-};
+use crate::moves::{blank, blanks, eox, like, next, not, of_type, of_types, repeat, spaces, Move};
 use crate::parser::{ParseResult, Parser};
 
 impl Parser<'_> {

@@ -5,7 +5,7 @@ use lexer::token::Token;
 use lexer::token::TokenType::{SquaredLeftBracket, SquaredRightBracket};
 
 use crate::err::ParseErrorKind;
-use crate::moves::{of_type, spaces, times, MoveOperations};
+use crate::moves::{of_type, spaces, times, Move};
 use crate::parser::{ParseResult, Parser};
 
 impl Parser<'_> {

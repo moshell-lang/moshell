@@ -4,7 +4,7 @@ use lexer::token::TokenType::Comma;
 
 use crate::err::ParseErrorKind;
 use crate::err::ParseErrorKind::Expected;
-use crate::moves::{blanks, eog, lookahead, of_type, MoveOperations};
+use crate::moves::{blanks, eog, lookahead, of_type, Move};
 use crate::parser::{ParseResult, Parser};
 
 impl Parser<'_> {

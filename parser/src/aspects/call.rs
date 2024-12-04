@@ -10,7 +10,7 @@ use crate::aspects::literal::LiteralLeniency;
 use crate::err::ParseErrorKind;
 use crate::moves::{
     any, blanks, eog, identifier_parenthesis, like, line_end, lookahead, of_type, of_types, spaces,
-    MoveOperations,
+    Move,
 };
 use crate::parser::{ParseResult, Parser};
 

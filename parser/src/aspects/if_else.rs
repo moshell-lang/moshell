@@ -3,7 +3,7 @@ use context::source::SourceSegmentHolder;
 use lexer::token::TokenType;
 use lexer::token::TokenType::{Else, SemiColon};
 
-use crate::moves::{aerated, blanks, of_type, MoveOperations};
+use crate::moves::{aerated, blanks, of_type, Move};
 use crate::parser::{ParseResult, Parser};
 
 impl Parser<'_> {

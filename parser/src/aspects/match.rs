@@ -9,9 +9,7 @@ use lexer::token::{Token, TokenType};
 
 use crate::aspects::literal::LiteralLeniency;
 use crate::err::ParseErrorKind;
-use crate::moves::{
-    aerated, any, blanks, eox, line_end, not, of_type, of_types, repeat, MoveOperations,
-};
+use crate::moves::{aerated, any, blanks, eox, line_end, not, of_type, of_types, repeat, Move};
 use crate::parser::{ParseResult, Parser};
 
 impl Parser<'_> {
