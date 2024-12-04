@@ -184,7 +184,7 @@ impl TypedEngine {
         &'a self,
         engine: &'a Engine,
         starting_page: SourceId,
-    ) -> ContentIterator {
+    ) -> ContentIterator<'a> {
         ContentIterator {
             typed: self,
             engine,
@@ -225,7 +225,7 @@ pub struct ContentIterator<'a> {
     next: SourceId,
 }
 
-impl<'a> Iterator for ContentIterator<'a> {
+impl Iterator for ContentIterator<'_> {
     type Item = EncodableContent;
 
     fn next(&mut self) -> Option<Self::Item> {

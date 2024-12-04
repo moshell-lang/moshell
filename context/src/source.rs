@@ -48,7 +48,7 @@ impl<'a> Source<'a> {
 }
 
 #[cfg(feature = "miette")]
-impl<'b> SourceCode for Source<'b> {
+impl SourceCode for Source<'_> {
     fn read_span<'a>(
         &'a self,
         span: &SourceSpan,

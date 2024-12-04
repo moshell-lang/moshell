@@ -2,7 +2,7 @@ use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
 use unicode_ident::{is_xid_continue, is_xid_start};
 
-impl<'a> Lexer<'a> {
+impl Lexer<'_> {
     pub(crate) fn next_identifier(&mut self, start_pos: usize, start_char: char) -> Token {
         if !is_xid_start(start_char) && !start_char.is_ascii_digit() && start_char != '_' {
             return Token::new(

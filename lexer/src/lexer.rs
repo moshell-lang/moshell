@@ -27,7 +27,7 @@ enum LexerState {
     Variable,
 }
 
-impl<'a> Iterator for Lexer<'a> {
+impl Iterator for Lexer<'_> {
     type Item = Token;
     fn next(&mut self) -> Option<Self::Item> {
         let token = self.next_token();
@@ -326,8 +326,7 @@ impl<'a> Lexer<'a> {
 
     fn is_in_string(&self) -> bool {
         self.open_delimiters
-            .last()
-            .map_or(false, |token| token.token_type == TokenType::StringStart)
+            .last().is_some_and(|token| token.token_type == TokenType::StringStart)
     }
 
     fn pop_delimiter_if(&mut self, token_type: TokenType) {

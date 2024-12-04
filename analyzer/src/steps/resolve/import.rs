@@ -9,7 +9,7 @@ use crate::relations::{ResolvedSymbol, SourceId};
 use crate::steps::resolve::{diagnose_unresolved_import, SymbolResolver};
 use std::collections::HashMap;
 
-impl<'a, 'e> SymbolResolver<'a, 'e> {
+impl<'a> SymbolResolver<'a, '_> {
     /// Attempts to resolve all given unresolved imports, returning a [ResolvedImports] structure containing the
     /// imports that could get resolved.
     /// This method will append a new diagnostic for each imports that could not be resolved.

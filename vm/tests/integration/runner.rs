@@ -309,14 +309,14 @@ mod test {
         runner.eval("var a = 4");
         runner.eval("a += 4");
         runner.eval("var b = 1");
-        Some(assert_eq!(runner.eval("$a"), Some(VmValue::Int(8))));
+        assert_eq!(runner.eval("$a"), Some(VmValue::Int(8)));
     }
 
     #[test]
     fn unit_assignment() {
         let mut runner = Runner::default();
         runner.eval("fun bar() = { var o = {}; o = $o }; var b = bar(); b = {}");
-        Some(assert_eq!(runner.eval("$b"), Some(VmValue::Void)));
+        assert_eq!(runner.eval("$b"), Some(VmValue::Void));
     }
 
     #[test]
@@ -331,7 +331,7 @@ mod test {
             bar()
             }",
         );
-        Some(assert_eq!(res, Some(VmValue::Void)));
+        assert_eq!(res, Some(VmValue::Void));
     }
 
     #[test]
