@@ -277,7 +277,7 @@ void panic(const std::string &msg, CallStack &stack) {
         std::cerr << "\n\tat " << def.identifier;
 
         if (!def.mappings.empty()) {
-            size_t instruction_line;
+            size_t instruction_line = 0;
             for (const auto &[instruction, line] : def.mappings) {
                 if (instruction >= frame.instruction_pointer) {
                     break;
@@ -404,10 +404,10 @@ frame_status run_frame(runtime_state &state, stack_frame &frame, CallStack &call
         }
         case OP_PUSH_FLOAT: {
             // Read the 8 byte float value
-            int64_t value = msh::read_big_endian<int64_t>(instructions + ip);
+            double value = msh::read_big_endian<double>(instructions + ip);
             ip += 8;
             // Push the value onto the stack
-            operands.push_double(reinterpret_cast<double &>(value));
+            operands.push_double(value);
             break;
         }
         case OP_PUSH_STRING_REF: {
