@@ -166,9 +166,9 @@ fn simple_function_call() {
 #[test]
 fn operators() {
     let mut runner = Runner::default();
-    runner.eval("use std::assert");
     runner.eval(
         "
+        use std::assert::assert
         assert(1 + 1 == 2)
         assert(1 - 1 == 0)
         assert(1 > 1 == false)
@@ -231,7 +231,7 @@ fn str_split() {
 fn exitcode_to_bool() {
     let mut runner = Runner::default();
     runner.eval(
-        "use std::assert
+        "use std::assert::assert
         assert({ /bin/true })
         assert(!{ /bin/false })
         assert({ ! /bin/false })",

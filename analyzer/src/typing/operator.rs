@@ -1,6 +1,7 @@
 use crate::hir::{ExprKind, MethodCall, Module, TypedExpr};
 use crate::typing::function::Function;
-use crate::typing::user::UserType;
+use crate::typing::lower::{lower_implicit_cast, Implicit};
+use crate::typing::user::{UserType, BOOL_TYPE, EXITCODE_TYPE};
 use crate::typing::variable::VariableTable;
 use crate::typing::{ascribe_type, Context, TypeChecker, TypeError, TypeErrorKind};
 use crate::SourceLocation;
@@ -15,9 +16,18 @@ pub(super) fn ascribe_unary(
     ctx: Context,
     errors: &mut Vec<TypeError>,
 ) -> TypedExpr {
-    let typed_expr = ascribe_type(&unary.expr, table, checker, storage, ctx, errors);
+    let mut typed_expr = ascribe_type(&unary.expr, table, checker, storage, ctx, errors);
     if typed_expr.is_err() {
         return typed_expr;
+    }
+    if unary.op == UnaryOperator::Not && typed_expr.ty == EXITCODE_TYPE {
+        typed_expr = lower_implicit_cast(
+            typed_expr,
+            Implicit::new(BOOL_TYPE),
+            checker,
+            table.path(),
+            errors,
+        );
     }
     let UserType::Parametrized { schema, params: _ } = checker.types[typed_expr.ty] else {
         panic!("Expected a parametrized type");

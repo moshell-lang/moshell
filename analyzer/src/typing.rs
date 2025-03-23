@@ -21,15 +21,14 @@ use crate::typing::assign::{
 use crate::typing::flow::{ascribe_control, ascribe_while};
 use crate::typing::function::Function;
 use crate::typing::iterable::{ascribe_for, ascribe_range};
-use crate::typing::lower::{ascribe_template_string, coerce_condition};
+use crate::typing::lower::{
+    ascribe_template_string, coerce_condition, lower_implicit_cast, Implicit,
+};
 use crate::typing::operator::{ascribe_binary, ascribe_unary};
 use crate::typing::pfc::ascribe_pfc;
 use crate::typing::registry::{Registry, SchemaId};
 use crate::typing::schema::{ascribe_field_access, Schema};
-use crate::typing::shell::{
-    ascribe_call, ascribe_detached, ascribe_file_pattern, ascribe_pipeline, ascribe_redirected,
-    ascribe_substitution,
-};
+use crate::typing::shell::{ascribe_call, ascribe_detached, ascribe_file_pattern, ascribe_pipeline, ascribe_redirected, ascribe_subshell, ascribe_substitution, ascribe_tilde};
 use crate::typing::user::{
     lookup_builtin_type, TypeArena, TypeId, UserType, BOOL_TYPE, ERROR_TYPE, FLOAT_TYPE, INT_TYPE,
     NOTHING_TYPE, STRING_TYPE, UNIT_TYPE, UNKNOWN_TYPE,
@@ -253,6 +252,10 @@ impl From<TypeError> for PipelineError {
 }
 
 /// Informs the type inference algorithm about the locally expected type.
+///
+/// Note that it is only informative, and it should not be enforced, i.e. no error should be raised
+/// if the type is not the expected one. Such checks should be made by the receiver of the type and
+/// not the producer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TypeHint {
     /// The return type is immediately discarded.
@@ -384,23 +387,26 @@ fn ascribe_type(
                 .as_ref()
                 .map(|ty| lookup_type(ty, table, checker, modules, errors));
             let ctx = ctx.with_hint(expected_ty.map_or(TypeHint::Used, TypeHint::Required));
-            let typed_initializer = ascribe_type(initializer, table, checker, storage, ctx, errors);
+            let mut typed_initializer =
+                ascribe_type(initializer, table, checker, storage, ctx, errors);
             let mut ty = typed_initializer.ty;
             if typed_initializer.is_ok() {
                 if let Some(expected_ty) = expected_ty {
-                    if let Err(_) = checker.types.unify(ty, expected_ty) {
-                        errors.push(TypeError::new(
-                            TypeErrorKind::TypeMismatch {
-                                expected: checker.display(expected_ty),
-                                expected_due_to: Some(SourceLocation::new(
+                    typed_initializer = lower_implicit_cast(
+                        typed_initializer,
+                        Implicit {
+                            assign_to: expected_ty,
+                            expected_due_to: var.ty.as_ref().map(|ty| {
+                                SourceLocation::new(
                                     table.path().to_owned(),
                                     var.ty.as_ref().unwrap().segment(),
-                                )),
-                                actual: checker.display(ty),
-                            },
-                            SourceLocation::new(table.path().to_owned(), initializer.segment()),
-                        ));
-                    }
+                                )
+                            }),
+                        },
+                        checker,
+                        table.path(),
+                        errors,
+                    );
                     ty = expected_ty;
                 }
             }
@@ -469,6 +475,10 @@ fn ascribe_type(
         Expr::Pipeline(pipeline) => {
             ascribe_pipeline(pipeline, table, checker, storage, ctx, errors)
         }
+        Expr::Subshell(subshell) => {
+            ascribe_subshell(subshell, table, checker, storage, ctx, errors)
+        }
+        Expr::Tilde(tilde) => ascribe_tilde(tilde, table, checker, storage, ctx, errors),
         Expr::Range(iterable) => match iterable {
             Iterable::Range(range) => ascribe_range(range, table, checker, storage, ctx, errors),
             Iterable::Files(pattern) => {
@@ -1570,5 +1580,17 @@ mod tests {
                 SourceLocation::new(PathBuf::from("main.msh"), 38..41),
             )]
         );
+    }
+
+    #[test]
+    fn implicit_exit_to_bool_var() {
+        let errors = type_check("val res: Bool = { /bin/true }");
+        assert_eq!(errors, []);
+    }
+
+    #[test]
+    fn implicit_exit_to_bool_call() {
+        let errors = type_check("fun test(b: Bool); test({ /bin/true })");
+        assert_eq!(errors, []);
     }
 }

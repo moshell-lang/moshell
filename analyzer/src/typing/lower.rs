@@ -1,6 +1,8 @@
 use crate::hir::{ExprKind, MethodCall, Module, TypedExpr};
-use crate::typing::registry::STRING_SCHEMA;
-use crate::typing::user::{UserType, BOOL_TYPE, EXITCODE_TYPE, STRING_TYPE};
+use crate::typing::registry::{OPTION_SCHEMA, STRING_SCHEMA};
+use crate::typing::user::{
+    TypeId, UserType, BOOL_TYPE, EXITCODE_TYPE, FLOAT_TYPE, INT_TYPE, STRING_TYPE,
+};
 use crate::typing::variable::VariableTable;
 use crate::typing::{ascribe_type, Context, TypeChecker, TypeError, TypeErrorKind, TypeHint};
 use crate::SourceLocation;
@@ -141,5 +143,88 @@ pub(super) fn coerce_condition(
             ));
             expr
         }
+    }
+}
+
+pub(super) struct Implicit {
+    pub(super) assign_to: TypeId,
+    pub(super) expected_due_to: Option<SourceLocation>,
+}
+
+impl Implicit {
+    pub(super) fn new(assign_to: TypeId) -> Self {
+        Self {
+            assign_to,
+            expected_due_to: None,
+        }
+    }
+}
+
+/// Lower hard-coded implicit casts.
+pub(super) fn lower_implicit_cast(
+    rhs: TypedExpr,
+    Implicit {
+        assign_to,
+        expected_due_to,
+    }: Implicit,
+    checker: &TypeChecker,
+    path: &Path,
+    errors: &mut Vec<TypeError>,
+) -> TypedExpr {
+    if checker.types.are_same(rhs.ty, assign_to) || rhs.is_err() {
+        return rhs;
+    }
+    let span = rhs.span.clone();
+    if rhs.ty == INT_TYPE && assign_to == FLOAT_TYPE {
+        TypedExpr {
+            kind: ExprKind::Cast(Box::new(rhs)),
+            ty: assign_to,
+            span,
+        }
+    } else if rhs.ty == EXITCODE_TYPE && assign_to == BOOL_TYPE {
+        TypedExpr {
+            kind: ExprKind::Cast(Box::new(rhs)),
+            ty: assign_to,
+            span,
+        }
+    } else {
+        errors.push(TypeError::new(
+            TypeErrorKind::TypeMismatch {
+                expected: checker.display(assign_to),
+                expected_due_to,
+                actual: checker.display(rhs.ty),
+            },
+            SourceLocation::new(path.to_owned(), span),
+        ));
+        rhs
+    }
+}
+
+/// Generates a conversion method call if needed.
+pub(super) fn generate_unwrap(typed: TypedExpr, checker: &mut TypeChecker) -> TypedExpr {
+    let UserType::Parametrized {
+        schema: instantiated,
+        ref params,
+    } = checker.types[typed.ty]
+    else {
+        return typed;
+    };
+    if instantiated != OPTION_SCHEMA {
+        return typed;
+    }
+    let return_type = *params.first().unwrap();
+    let span = typed.span.clone();
+    let unwrap_id = *checker.registry[OPTION_SCHEMA]
+        .methods
+        .get("unwrap")
+        .expect("Option schema should have an `unwrap` method.");
+    TypedExpr {
+        kind: ExprKind::MethodCall(MethodCall {
+            callee: Box::new(typed),
+            arguments: vec![],
+            function_id: unwrap_id,
+        }),
+        ty: return_type,
+        span,
     }
 }

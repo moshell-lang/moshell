@@ -2,6 +2,7 @@ use crate::hir::{ExprKind, FunctionCall, Module, TypedExpr};
 use crate::import::{PathItemError, SymbolSearch};
 use crate::symbol::SymbolRegistry;
 use crate::typing::function::Function;
+use crate::typing::lower::{lower_implicit_cast, Implicit};
 use crate::typing::schema::Schema;
 use crate::typing::user::{TypeId, UserType, ERROR_TYPE, UNKNOWN_TYPE};
 use crate::typing::variable::VariableTable;
@@ -104,7 +105,7 @@ pub fn ascribe_pfc(
         .iter()
         .map(|param| TypeHint::Required(param.ty))
         .collect::<Vec<TypeHint>>();
-    let arguments = arguments
+    let mut arguments = arguments
         .iter()
         .zip(
             type_hints
@@ -235,23 +236,23 @@ pub fn ascribe_pfc(
             SourceLocation::new(table.path().to_owned(), type_parameters_span.unwrap()),
         ));
     } else {
-        for (arg, param) in arguments.iter().zip(param_types.iter()) {
+        for (arg, param) in arguments.iter_mut().zip(param_types.iter()) {
             let param_ty = checker
                 .types
                 .concretize(param.ty, generic_variables, &type_parameters);
-            if let Err(_) = checker.types.unify(arg.ty, param_ty) {
-                errors.push(TypeError::new(
-                    TypeErrorKind::TypeMismatch {
-                        expected: checker.display(param_ty),
-                        expected_due_to: Some(SourceLocation::new(
-                            declared_at.clone(),
-                            param.span.clone(),
-                        )),
-                        actual: checker.display(arg.ty),
-                    },
-                    SourceLocation::new(table.path().to_owned(), arg.span.clone()),
-                ));
-            }
+            *arg = lower_implicit_cast(
+                arg.clone(),
+                Implicit {
+                    assign_to: param_ty,
+                    expected_due_to: Some(SourceLocation::new(
+                        declared_at.clone(),
+                        param.span.clone(),
+                    )),
+                },
+                checker,
+                table.path(),
+                errors,
+            );
         }
         return_type = checker
             .types

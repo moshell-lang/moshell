@@ -1,12 +1,10 @@
 use crate::hir::{
     ExprKind, MethodCall, Module, Redir, Redirect, Subprocess, Substitute, TypedExpr,
 };
-use crate::typing::lower::convert_into_string;
+use crate::typing::lower::{convert_into_string, generate_unwrap};
 use crate::typing::pfc::ascribe_pfc;
 use crate::typing::registry::GLOB_SCHEMA;
-use crate::typing::user::{
-    EXITCODE_TYPE, GLOB_TYPE, INT_TYPE, PID_TYPE, STRING_TYPE, STRING_VECTOR_TYPE,
-};
+use crate::typing::user::{EXITCODE_TYPE, GLOB_TYPE, INT_TYPE, PID_TYPE, STRING_TYPE, STRING_VECTOR_TYPE, UNIT_TYPE};
 use crate::typing::variable::VariableTable;
 use crate::typing::{ascribe_type, Context, TypeChecker, TypeError, TypeErrorKind, TypeHint};
 use crate::SourceLocation;
@@ -15,8 +13,9 @@ use ast::r#use::InclusionPathItem;
 use ast::range::FilePattern;
 use ast::substitution::Substitution;
 use ast::value::{Literal, LiteralValue};
-use ast::variable::Identifier;
+use ast::variable::{Identifier, Tilde, TildeExpansion};
 use ast::Expr;
+use ast::group::Subshell;
 use context::source::SourceSegmentHolder;
 
 pub(super) fn ascribe_call(
@@ -187,6 +186,42 @@ pub(super) fn ascribe_pipeline(
     }
 }
 
+pub(super) fn ascribe_subshell(
+    subshell: &Subshell,
+    table: &mut VariableTable,
+    checker: &mut TypeChecker,
+    storage: &mut Module,
+    ctx: Context,
+    errors: &mut Vec<TypeError>,
+) -> TypedExpr {
+    let block = subshell
+        .expressions
+        .iter()
+        .map(|expr| {
+            ascribe_type(
+                expr,
+                table,
+                checker,
+                storage,
+                ctx.with_hint(TypeHint::Unused),
+                errors,
+            )
+        })
+        .collect::<Vec<_>>();
+    TypedExpr {
+        kind: ExprKind::Subprocess(Subprocess {
+            inner: Box::new(TypedExpr {
+                kind: ExprKind::Block(block),
+                ty: UNIT_TYPE,
+                span: subshell.segment(),
+            }),
+            awaited: true,
+        }),
+        ty: EXITCODE_TYPE,
+        span: subshell.segment(),
+    }
+}
+
 pub(super) fn ascribe_substitution(
     substitution: &Substitution,
     table: &mut VariableTable,
@@ -232,4 +267,31 @@ pub(super) fn ascribe_file_pattern(
         panic!("pattern should be of type String");
     }
     expr
+}
+
+pub(super) fn ascribe_tilde(
+    tilde: &TildeExpansion,
+    table: &mut VariableTable,
+    checker: &mut TypeChecker,
+    storage: &mut Module,
+    ctx: Context,
+    errors: &mut Vec<TypeError>,
+) -> TypedExpr {
+    let span = tilde.segment();
+    let (name, arg): (&str, Option<&Expr>) = match &tilde.structure {
+        Tilde::HomeDir(Some(username)) => ("home_dir", Some(username)),
+        Tilde::HomeDir(None) => ("current_home_dir", None),
+        Tilde::WorkingDir => ("working_dir", None),
+    };
+    let pfc = ProgrammaticCall {
+        path: vec![
+            InclusionPathItem::Symbol(Identifier::new("std".into(), span.start)),
+            InclusionPathItem::Symbol(Identifier::new(name.into(), span.start)),
+        ],
+        segment: span,
+        arguments: Vec::from_iter(arg.cloned()),
+        type_parameters: Vec::new(),
+    };
+    let typed = ascribe_pfc(&pfc, table, checker, storage, ctx, errors);
+    generate_unwrap(typed, checker)
 }

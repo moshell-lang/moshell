@@ -15,6 +15,8 @@ impl Bool {
 impl Exitcode {
     fun and(self, other: Exitcode) -> Exitcode;
     fun or(self, other: Exitcode) -> Exitcode;
+
+    fun to_int(self) -> Int;
 }
 
 impl Int {
@@ -33,6 +35,16 @@ impl Int {
 
     fun to_string(self) -> String;
     fun to_exitcode(self) -> Exitcode;
+}
+
+impl Float {
+    fun add(self, other: Float) -> Float;
+    fun sub(self, other: Float) -> Float;
+    fun mul(self, other: Float) -> Float;
+    fun div(self, other: Float) -> Float;
+
+    fun eq(self, other: Float) -> Bool;
+    fun ne(self, other: Float) -> Bool;
 }
 
 impl String {

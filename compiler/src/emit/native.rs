@@ -120,6 +120,9 @@ fn emit_intrinsic_instructions(
         "Bool/ne" => {
             instructions.emit_code(Opcode::BXor);
         }
+        "Exitcode/to_int" => {
+            instructions.emit_code(Opcode::ConvertByteToInt);
+        }
         "Int/add" => {
             instructions.emit_code(Opcode::IntAdd);
         }
@@ -159,6 +162,25 @@ fn emit_intrinsic_instructions(
         }
         "Int/to_string" => {
             instructions.emit_invoke(cp.insert_string(INT_TO_STRING));
+        }
+        "Float/add" => {
+            instructions.emit_code(Opcode::FloatAdd);
+        }
+        "Float/sub" => {
+            instructions.emit_code(Opcode::FloatSub);
+        }
+        "Float/mul" => {
+            instructions.emit_code(Opcode::FloatMul);
+        }
+        "Float/div" => {
+            instructions.emit_code(Opcode::FloatDiv);
+        }
+        "Float/eq" => {
+            instructions.emit_code(Opcode::FloatEqual);
+        }
+        "Float/ne" => {
+            instructions.emit_code(Opcode::FloatEqual);
+            instructions.emit_bool_inversion();
         }
         "String/eq" => {
             instructions.emit_invoke(cp.insert_string(STRING_EQ));
