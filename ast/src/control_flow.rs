@@ -44,6 +44,7 @@ pub struct For {
 }
 
 /// A for loop can be either a range loop or a conditional loop.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum ForKind {
     Range(RangeFor),

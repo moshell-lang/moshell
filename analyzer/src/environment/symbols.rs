@@ -191,7 +191,7 @@ impl Symbols {
     }
 
     /// Returns an entry for the given external symbol name relation
-    pub fn external(&mut self, loc: SymbolLocation) -> Entry<SymbolLocation, RelationId> {
+    pub fn external(&mut self, loc: SymbolLocation) -> Entry<'_, SymbolLocation, RelationId> {
         self.externals.entry(loc)
     }
 

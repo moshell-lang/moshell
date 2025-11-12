@@ -7,8 +7,9 @@ use ast::Expr;
 use compiler::externals::CompilerExternals;
 use compiler::{compile_reef, CompilerOptions};
 use context::source::ContentId;
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use parser::parse_trusted;
+use std::hint::black_box;
 use vm::execute_bytecode;
 
 struct SingleImporter(Option<Expr>);

@@ -326,7 +326,8 @@ impl<'a> Lexer<'a> {
 
     fn is_in_string(&self) -> bool {
         self.open_delimiters
-            .last().is_some_and(|token| token.token_type == TokenType::StringStart)
+            .last()
+            .is_some_and(|token| token.token_type == TokenType::StringStart)
     }
 
     fn pop_delimiter_if(&mut self, token_type: TokenType) {

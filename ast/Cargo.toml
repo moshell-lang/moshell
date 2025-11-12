@@ -10,4 +10,4 @@ src-macros = { path = "../context/macros" }
 context = { path = "../context" }
 lexer = { path = "../lexer" }
 
-compact_str = "0.8.0"
+compact_str = "0.9.0"

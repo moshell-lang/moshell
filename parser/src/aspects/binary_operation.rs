@@ -267,7 +267,7 @@ mod tests {
             result,
             Err(ParseError {
                 message: "Unexpected token ')'.".to_string(),
-                position: source.find(')').map(|p| (p..p + 1)).unwrap(),
+                position: source.find(')').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected,
             })
         )

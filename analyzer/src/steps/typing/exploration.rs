@@ -73,7 +73,7 @@ impl<'a> Exploration<'a> {
     }
 
     /// Gets the type instance of a type identifier.
-    pub(super) fn new_type_view(&self, id: TypeRef, bounds: &'a TypesBounds) -> TypeView {
+    pub(super) fn new_type_view(&self, id: TypeRef, bounds: &'a TypesBounds) -> TypeView<'_> {
         TypeView::new(id, self, bounds)
     }
 
@@ -270,7 +270,7 @@ impl<'a> Exploration<'a> {
         lhs == rhs
     }
 
-    fn get_external_type_reef(&self, id: ReefId) -> &Reef {
+    fn get_external_type_reef(&self, id: ReefId) -> &Reef<'_> {
         self.externals
             .get_reef(id)
             .expect("Unknown external reef found on type")

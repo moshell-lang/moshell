@@ -21,7 +21,7 @@ use crate::reef::{ReefId, LANG_REEF};
 ///
 /// Some main structures are based on object identifiers
 /// - [`ResolvedSymbol`] contains a [`SourceId`] and a [`LocalId`] which globally targets a symbol inside a given source environment,
-///                      this structure is emitted by the resolution phase.
+///   this structure is emitted by the resolution phase.
 /// - [`SymbolRef`] refers to a symbol, which is either local (to an unbound environment) or external, where the relation is held by the [`Relations`]
 pub type ObjectId = usize;
 

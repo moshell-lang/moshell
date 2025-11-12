@@ -69,7 +69,8 @@ pub(super) fn infer_return(
         // If the last statement is a return, we don't need re-add it
         if exploration
             .returns
-            .last().is_none_or(|ret| ret.segment != last.segment)
+            .last()
+            .is_none_or(|ret| ret.segment != last.segment)
             && last.ty.is_something()
             && last.ty.is_ok()
         {

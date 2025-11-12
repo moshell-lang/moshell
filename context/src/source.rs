@@ -102,7 +102,7 @@ impl OwnedSource {
         Self { source, name }
     }
 
-    pub fn as_source(&self) -> Source {
+    pub fn as_source(&self) -> Source<'_> {
         Source::new(&self.source, &self.name)
     }
 }

@@ -184,7 +184,7 @@ mod tests {
             Err(ParseError {
                 message: "parenthesis in value expression can only contain one expression"
                     .to_string(),
-                position: source.find('\n').map(|p| (p..p + 1)).unwrap(),
+                position: source.find('\n').map(|p| p..p + 1).unwrap(),
                 kind: ParseErrorKind::Unexpected,
             })
         )

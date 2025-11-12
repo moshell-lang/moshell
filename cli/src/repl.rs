@@ -243,26 +243,26 @@ fn editor() -> miette::Result<Reedline> {
 struct Prompt;
 
 impl reedline::Prompt for Prompt {
-    fn render_prompt_left(&self) -> Cow<str> {
+    fn render_prompt_left(&self) -> Cow<'_, str> {
         Cow::Borrowed("=> ")
     }
 
-    fn render_prompt_right(&self) -> Cow<str> {
+    fn render_prompt_right(&self) -> Cow<'_, str> {
         Cow::Borrowed("")
     }
 
-    fn render_prompt_indicator(&self, _: PromptEditMode) -> Cow<str> {
+    fn render_prompt_indicator(&self, _: PromptEditMode) -> Cow<'_, str> {
         Cow::Borrowed("")
     }
 
-    fn render_prompt_multiline_indicator(&self) -> Cow<str> {
+    fn render_prompt_multiline_indicator(&self) -> Cow<'_, str> {
         Cow::Borrowed("... ")
     }
 
     fn render_prompt_history_search_indicator(
         &self,
         history_search: PromptHistorySearch,
-    ) -> Cow<str> {
+    ) -> Cow<'_, str> {
         match history_search.status {
             PromptHistorySearchStatus::Passing => Cow::Borrowed("(reverse-search): "),
             PromptHistorySearchStatus::Failing => Cow::Borrowed("(failed reverse-search): "),

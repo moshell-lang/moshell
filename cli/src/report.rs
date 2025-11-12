@@ -98,7 +98,8 @@ pub fn display_diagnostic<W: Write>(
             .expect("Unknown source");
 
         if displayed_source
-            .as_ref().is_none_or(|s| s.id == content_id && s.reef == loc.reef)
+            .as_ref()
+            .is_none_or(|s| s.id == content_id && s.reef == loc.reef)
         {
             let source = sources
                 .get(loc.reef)

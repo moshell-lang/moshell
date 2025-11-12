@@ -202,7 +202,7 @@ impl ASTImporter for FileImporter {
 
 pub trait SourceHolder {
     /// Gets a source from the importer.
-    fn get_source(&self, id: ContentId) -> Option<Source>;
+    fn get_source(&self, id: ContentId) -> Option<Source<'_>>;
 
     /// Lists all the contents ids that are available in the importer.
     fn list_content_ids(&self) -> Vec<ContentId>;
@@ -217,7 +217,7 @@ pub trait ErrorReporter {
 }
 
 impl SourceHolder for FileImporter {
-    fn get_source(&self, id: ContentId) -> Option<Source> {
+    fn get_source(&self, id: ContentId) -> Option<Source<'_>> {
         self.sources.get(id.0).map(|s| s.as_source())
     }
 

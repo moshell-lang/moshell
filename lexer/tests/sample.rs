@@ -10,12 +10,12 @@ struct Token<'a> {
 }
 
 impl Token<'_> {
-    fn new(token_type: TokenType, text: &str) -> Token {
+    fn new(token_type: TokenType, text: &str) -> Token<'_> {
         Token { token_type, text }
     }
 }
 
-fn lex(input: &str) -> Vec<Token> {
+fn lex(input: &str) -> Vec<Token<'_>> {
     let (tokens, unmatched) = lexer::lex(input);
     assert_eq!(unmatched, &[]);
     tokens

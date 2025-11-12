@@ -159,8 +159,8 @@ mod tests {
             ast,
             Err(ParseError {
                 message: "Mismatched closing delimiter.".to_string(),
-                position: source.find('}').map(|p| (p..p + 1)).unwrap(),
-                kind: ParseErrorKind::Unpaired(source.find('(').map(|p| (p..p + 1)).unwrap())
+                position: source.find('}').map(|p| p..p + 1).unwrap(),
+                kind: ParseErrorKind::Unpaired(source.find('(').map(|p| p..p + 1).unwrap())
             })
         );
     }
